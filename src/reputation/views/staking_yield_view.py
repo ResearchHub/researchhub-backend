@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from django.core.cache import cache
 from django.db.models import Sum
+from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -53,6 +54,10 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
             else 0.0
         )
 
+        balance_lots = StakingYieldService.get_balance_lot_details(
+            user, timezone.now().date()
+        )
+
         data = {
             "is_staking_opted_in": user.is_staking_opted_in,
             "staking_opted_in_date": user.staking_opted_in_date,
@@ -72,6 +77,7 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
                 else None
             ),
             "apy": apy,
+            "balance_lots": balance_lots,
         }
         serializer = StakingYieldDetailsSerializer(data)
         return Response(serializer.data)
@@ -154,11 +160,12 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
                 "apy": 0.0,
                 "apy_30d_avg": 0.0,
                 "holders": 0,
-                "top_10_concentration_pct": 0.0,
                 "total_staked_rsc": Decimal("0"),
                 "total_value_locked_usd": None,
                 "circulating_supply_rsc": Decimal("0"),
                 "pct_of_supply_staked": 0.0,
+                "issued_today_rsc": Decimal("0"),
+                "issued_today_usd": None,
             }
 
         recent_snapshots = list(
@@ -174,8 +181,10 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
         except AttributeError:
             usd_rate = None
         if usd_rate:
-            tvl_usd = Decimal(str(usd_rate)) * latest.total_staked
+            usd_rate_decimal = Decimal(str(usd_rate))
+            tvl_usd = usd_rate_decimal * latest.total_staked
         else:
+            usd_rate_decimal = None
             tvl_usd = None
 
         if latest.circulating_supply > 0:
@@ -185,16 +194,24 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
         else:
             pct_of_supply = 0.0
 
+        issued_today_rsc = StakingYieldService.compute_total_daily_emission(
+            latest.accrual_date
+        )
+        issued_today_usd = (
+            usd_rate_decimal * issued_today_rsc
+            if usd_rate_decimal is not None
+            else None
+        )
+
         return {
             "accrual_date": latest.accrual_date,
             "apy": StakingYieldService.compute_apy_for_snapshot(latest),
             "apy_30d_avg": apy_30d_avg,
             "holders": StakingYieldService.holders_count(latest),
-            "top_10_concentration_pct": (
-                StakingYieldService.compute_top_n_pct_concentration(latest, pct=10)
-            ),
             "total_staked_rsc": latest.total_staked,
             "total_value_locked_usd": tvl_usd,
             "circulating_supply_rsc": latest.circulating_supply,
             "pct_of_supply_staked": pct_of_supply,
+            "issued_today_rsc": issued_today_rsc,
+            "issued_today_usd": issued_today_usd,
         }

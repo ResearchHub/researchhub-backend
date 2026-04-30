@@ -1,10 +1,14 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone, time
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.core.cache import cache
 from rest_framework.test import APIClient, APITestCase
 
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from django.contrib.contenttypes.models import ContentType
+
+from purchase.models import Balance
 from reputation.models import (
     StakingGlobalSnapshot,
     StakingUserSnapshot,
@@ -61,6 +65,7 @@ class StakingYieldDetailsTest(StakingYieldViewSetTestBase):
         self.assertEqual(Decimal(data["total_yield_earned"]), Decimal("0"))
         self.assertIsNone(data["latest_accrual_date"])
         self.assertEqual(Decimal(data["apy"]), Decimal("0"))
+        self.assertEqual(list(data["balance_lots"]), [])
 
     def test_returns_correct_details(self):
         accrual = date(2026, 4, 15)
@@ -108,6 +113,126 @@ class StakingYieldDetailsTest(StakingYieldViewSetTestBase):
         resp = other_client.get("/api/staking_yield/details/")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(Decimal(resp.data["total_yield_earned"]), Decimal("0"))
+
+
+class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
+    def setUp(self):
+        super().setUp()
+        self.content_type = ContentType.objects.get_for_model(StakingGlobalSnapshot)
+        self.today = date(2026, 6, 1)
+        # Opt-in well before any lot so effective_start_date == lot.created_date
+        self.user.staking_opted_in_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        self.user.save()
+
+    def _create_balance(self, amount, created_offset_days):
+        balance = Balance.objects.create(
+            user=self.user,
+            amount=str(amount),
+            content_type=self.content_type,
+            is_locked=False,
+        )
+        created = datetime.combine(
+            self.today - timedelta(days=created_offset_days),
+            time.min,
+            tzinfo=timezone.utc,
+        )
+        balance.created_date = created
+        balance.save(update_fields=["created_date"])
+        return balance
+
+    def _get_details(self):
+        with patch("reputation.views.staking_yield_view.timezone.now") as mock_now:
+            mock_now.return_value = datetime.combine(
+                self.today, time.min, tzinfo=timezone.utc
+            )
+            # Keep django timezone.now compatible for any other code paths
+            mock_now.side_effect = None
+            return self.client.get("/api/staking_yield/details/")
+
+    def test_returns_lot_with_current_and_next_multiplier(self):
+        self._create_balance("100", created_offset_days=10)
+
+        resp = self._get_details()
+
+        self.assertEqual(resp.status_code, 200)
+        lots = resp.data["balance_lots"]
+        self.assertEqual(len(lots), 1)
+        lot = lots[0]
+        self.assertEqual(Decimal(lot["amount"]), Decimal("100"))
+        self.assertEqual(lot["age_days"], 10)
+        self.assertEqual(Decimal(lot["current_multiplier"]), Decimal("1"))
+        self.assertEqual(Decimal(lot["next_multiplier"]), Decimal("1.05"))
+        self.assertEqual(lot["days_until_next_multiplier"], 20)
+        self.assertEqual(lot["next_multiplier_date"], "2026-06-21")
+        self.assertEqual(lot["created_date"], "2026-05-22")
+        self.assertEqual(lot["effective_start_date"], "2026-05-22")
+        # Only lot on its tier transition date — overall == its own multiplier
+        self.assertEqual(Decimal(lot["projected_overall_multiplier"]), Decimal("1.05"))
+
+    def test_lot_at_max_tier_has_no_next_multiplier(self):
+        self.user.staking_opted_in_date = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        self.user.save()
+        self._create_balance("100", created_offset_days=400)
+
+        resp = self._get_details()
+
+        lots = resp.data["balance_lots"]
+        self.assertEqual(len(lots), 1)
+        lot = lots[0]
+        self.assertEqual(lot["age_days"], 400)
+        self.assertEqual(Decimal(lot["current_multiplier"]), Decimal("1.25"))
+        self.assertIsNone(lot["next_multiplier"])
+        self.assertIsNone(lot["days_until_next_multiplier"])
+        self.assertIsNone(lot["next_multiplier_date"])
+        self.assertIsNone(lot["projected_overall_multiplier"])
+
+    def test_effective_start_uses_opt_in_date(self):
+        # Lot created long before opt-in; opt-in date should drive age
+        self.user.staking_opted_in_date = datetime(2026, 5, 15, tzinfo=timezone.utc)
+        self.user.save()
+        self._create_balance("100", created_offset_days=400)
+
+        resp = self._get_details()
+
+        lot = resp.data["balance_lots"][0]
+        self.assertEqual(lot["effective_start_date"], "2026-05-15")
+        self.assertEqual(lot["age_days"], 17)
+        self.assertEqual(Decimal(lot["current_multiplier"]), Decimal("1"))
+
+    def test_multiple_lots_returned(self):
+        self._create_balance("100", created_offset_days=5)
+        self._create_balance("200", created_offset_days=100)
+
+        resp = self._get_details()
+
+        lots = resp.data["balance_lots"]
+        self.assertEqual(len(lots), 2)
+        amounts = sorted(Decimal(lot["amount"]) for lot in lots)
+        self.assertEqual(amounts, [Decimal("100"), Decimal("200")])
+
+    def test_projected_overall_multiplier_weights_all_lots(self):
+        # Lot A: 100 RSC, age 25 — hits 30-day tier in 5 days
+        self._create_balance("100", created_offset_days=25)
+        # Lot B: 300 RSC, age 170 — hits 180-day tier in 10 days
+        self._create_balance("300", created_offset_days=170)
+
+        resp = self._get_details()
+
+        lots = {Decimal(lot["amount"]): lot for lot in resp.data["balance_lots"]}
+
+        # On lot A's transition date (+5 days): A at 30d=1.05, B at 175d=1.05
+        # Weighted: (100 * 1.05 + 300 * 1.05) / 400 = 1.05
+        self.assertEqual(
+            Decimal(lots[Decimal("100")]["projected_overall_multiplier"]),
+            Decimal("1.05"),
+        )
+
+        # On lot B's transition date (+10 days): A at 35d=1.05, B at 180d=1.1
+        # Weighted: (100 * 1.05 + 300 * 1.1) / 400 = 1.0875
+        self.assertEqual(
+            Decimal(lots[Decimal("300")]["projected_overall_multiplier"]),
+            Decimal("1.0875"),
+        )
 
 
 class StakingYieldEarnedSinceTest(StakingYieldViewSetTestBase):
@@ -230,68 +355,11 @@ class StakingStatsEndpointTest(StakingPublicStatsTestBase):
         self.assertEqual(float(data["apy"]), 0.0)
         self.assertEqual(float(data["apy_30d_avg"]), 0.0)
         self.assertEqual(int(data["holders"]), 0)
-        self.assertEqual(float(data["top_10_concentration_pct"]), 0.0)
         self.assertEqual(Decimal(data["total_staked_rsc"]), Decimal("0"))
         self.assertIsNone(data["total_value_locked_usd"])
         self.assertEqual(float(data["pct_of_supply_staked"]), 0.0)
-
-    def test_single_user_top_10_is_100_pct(self):
-        snap = self._create_global_snapshot(
-            date(2026, 4, 15), total_staked=Decimal("1000")
-        )
-        self._add_user_snapshot(snap, Decimal("1000"), label="solo")
-
-        resp = self.client.get("/api/staking_yield/stats/")
-        data = resp.data
-        self.assertEqual(data["accrual_date"], "2026-04-15")
-        self.assertEqual(int(data["holders"]), 1)
-        self.assertAlmostEqual(float(data["top_10_concentration_pct"]), 100.0, places=2)
-
-    def test_top_10_pct_with_ten_uniform_stakers(self):
-        snap = self._create_global_snapshot(
-            date(2026, 4, 20), total_staked=Decimal("1000")
-        )
-        for i in range(10):
-            self._add_user_snapshot(snap, Decimal("100"), label=f"u{i}")
-
-        resp = self.client.get("/api/staking_yield/stats/")
-        data = resp.data
-        self.assertEqual(int(data["holders"]), 10)
-        # Top 10% of 10 = 1 staker with 100 of 1000 = 10%
-        self.assertAlmostEqual(float(data["top_10_concentration_pct"]), 10.0, places=2)
-
-    def test_top_10_pct_with_skewed_distribution(self):
-        snap = self._create_global_snapshot(
-            date(2026, 4, 20), total_staked=Decimal("550")
-        )
-        # 10 stakers, top one has 100, rest have 50 each
-        self._add_user_snapshot(snap, Decimal("100"), label="whale")
-        for i in range(9):
-            self._add_user_snapshot(snap, Decimal("50"), label=f"u{i}")
-
-        resp = self.client.get("/api/staking_yield/stats/")
-        # Top 10% of 10 = 1 staker; whale holds 100 / 550 ≈ 18.18%
-        self.assertAlmostEqual(
-            float(resp.data["top_10_concentration_pct"]),
-            100.0 / 550.0 * 100,
-            places=2,
-        )
-
-    def test_top_10_pct_ceil_rounding(self):
-        snap = self._create_global_snapshot(
-            date(2026, 4, 20), total_staked=Decimal("700")
-        )
-        # 7 uniform stakers; top 10% rounds up to 1 (ceil(0.7) = 1).
-        for i in range(7):
-            self._add_user_snapshot(snap, Decimal("100"), label=f"u{i}")
-
-        resp = self.client.get("/api/staking_yield/stats/")
-        # 1 of 7 stakers, each with 100 of 700 = ~14.29%
-        self.assertAlmostEqual(
-            float(resp.data["top_10_concentration_pct"]),
-            100.0 / 700.0 * 100,
-            places=2,
-        )
+        self.assertEqual(Decimal(data["issued_today_rsc"]), Decimal("0"))
+        self.assertIsNone(data["issued_today_usd"])
 
     def test_apy_30d_avg_over_multiple_snapshots(self):
         # Three snapshots with different total_staked → different APYs.
@@ -326,6 +394,28 @@ class StakingStatsEndpointTest(StakingPublicStatsTestBase):
         self.assertEqual(
             Decimal(resp.data["total_value_locked_usd"]), Decimal("500.00")
         )
+
+    def test_issued_today_matches_daily_emission(self):
+        accrual_date = date(2026, 4, 20)
+        snap = self._create_global_snapshot(accrual_date, total_staked=Decimal("1000"))
+        self._add_user_snapshot(snap, Decimal("1000"), label="solo")
+        self._create_usd_rate(Decimal("0.50"), on_date=accrual_date)
+
+        expected_rsc = StakingYieldService.compute_total_daily_emission(accrual_date)
+        expected_usd = (Decimal("0.50") * expected_rsc).quantize(Decimal("0.01"))
+
+        resp = self.client.get("/api/staking_yield/stats/")
+        self.assertEqual(Decimal(resp.data["issued_today_rsc"]), expected_rsc)
+        self.assertEqual(Decimal(resp.data["issued_today_usd"]), expected_usd)
+
+    def test_issued_today_usd_is_null_without_rate(self):
+        snap = self._create_global_snapshot(
+            date(2026, 4, 20), total_staked=Decimal("1000")
+        )
+        self._add_user_snapshot(snap, Decimal("1000"), label="solo")
+
+        resp = self.client.get("/api/staking_yield/stats/")
+        self.assertIsNone(resp.data["issued_today_usd"])
 
 
 class StakingHistoryEndpointTest(StakingPublicStatsTestBase):
