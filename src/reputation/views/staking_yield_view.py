@@ -158,6 +158,8 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
                 "total_value_locked_usd": None,
                 "circulating_supply_rsc": Decimal("0"),
                 "pct_of_supply_staked": 0.0,
+                "issued_today_rsc": Decimal("0"),
+                "issued_today_usd": None,
             }
 
         recent_snapshots = list(
@@ -173,8 +175,10 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
         except AttributeError:
             usd_rate = None
         if usd_rate:
-            tvl_usd = Decimal(str(usd_rate)) * latest.total_staked
+            usd_rate_decimal = Decimal(str(usd_rate))
+            tvl_usd = usd_rate_decimal * latest.total_staked
         else:
+            usd_rate_decimal = None
             tvl_usd = None
 
         if latest.circulating_supply > 0:
@@ -183,6 +187,15 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
             )
         else:
             pct_of_supply = 0.0
+
+        issued_today_rsc = StakingYieldService.compute_total_daily_emission(
+            latest.accrual_date
+        )
+        issued_today_usd = (
+            usd_rate_decimal * issued_today_rsc
+            if usd_rate_decimal is not None
+            else None
+        )
 
         return {
             "accrual_date": latest.accrual_date,
@@ -193,4 +206,6 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
             "total_value_locked_usd": tvl_usd,
             "circulating_supply_rsc": latest.circulating_supply,
             "pct_of_supply_staked": pct_of_supply,
+            "issued_today_rsc": issued_today_rsc,
+            "issued_today_usd": issued_today_usd,
         }

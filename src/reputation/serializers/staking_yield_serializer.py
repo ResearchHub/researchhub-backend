@@ -28,6 +28,10 @@ class StakingStatsSerializer(serializers.Serializer):
     )
     circulating_supply_rsc = serializers.DecimalField(max_digits=19, decimal_places=8)
     pct_of_supply_staked = serializers.FloatField()
+    issued_today_rsc = serializers.DecimalField(max_digits=19, decimal_places=8)
+    issued_today_usd = serializers.DecimalField(
+        max_digits=19, decimal_places=2, allow_null=True
+    )
 
 
 class StakingHistoryEntrySerializer(serializers.Serializer):

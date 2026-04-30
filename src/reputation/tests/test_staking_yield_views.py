@@ -233,6 +233,8 @@ class StakingStatsEndpointTest(StakingPublicStatsTestBase):
         self.assertEqual(Decimal(data["total_staked_rsc"]), Decimal("0"))
         self.assertIsNone(data["total_value_locked_usd"])
         self.assertEqual(float(data["pct_of_supply_staked"]), 0.0)
+        self.assertEqual(Decimal(data["issued_today_rsc"]), Decimal("0"))
+        self.assertIsNone(data["issued_today_usd"])
 
     def test_apy_30d_avg_over_multiple_snapshots(self):
         # Three snapshots with different total_staked → different APYs.
@@ -267,6 +269,28 @@ class StakingStatsEndpointTest(StakingPublicStatsTestBase):
         self.assertEqual(
             Decimal(resp.data["total_value_locked_usd"]), Decimal("500.00")
         )
+
+    def test_issued_today_matches_daily_emission(self):
+        accrual_date = date(2026, 4, 20)
+        snap = self._create_global_snapshot(accrual_date, total_staked=Decimal("1000"))
+        self._add_user_snapshot(snap, Decimal("1000"), label="solo")
+        self._create_usd_rate(Decimal("0.50"), on_date=accrual_date)
+
+        expected_rsc = StakingYieldService.compute_total_daily_emission(accrual_date)
+        expected_usd = (Decimal("0.50") * expected_rsc).quantize(Decimal("0.01"))
+
+        resp = self.client.get("/api/staking_yield/stats/")
+        self.assertEqual(Decimal(resp.data["issued_today_rsc"]), expected_rsc)
+        self.assertEqual(Decimal(resp.data["issued_today_usd"]), expected_usd)
+
+    def test_issued_today_usd_is_null_without_rate(self):
+        snap = self._create_global_snapshot(
+            date(2026, 4, 20), total_staked=Decimal("1000")
+        )
+        self._add_user_snapshot(snap, Decimal("1000"), label="solo")
+
+        resp = self.client.get("/api/staking_yield/stats/")
+        self.assertIsNone(resp.data["issued_today_usd"])
 
 
 class StakingHistoryEndpointTest(StakingPublicStatsTestBase):
