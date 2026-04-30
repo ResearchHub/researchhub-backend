@@ -78,11 +78,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 .prefetch_related(
                     Prefetch(
                         "grant_applications",
-                        queryset=GrantApplication.objects.select_related(
-                            "grant__unified_document",
-                        ).prefetch_related(
-                            "grant__unified_document__posts",
-                        ),
+                        queryset=GrantApplication.objects.select_related("grant"),
                     ),
                     Prefetch(
                         "unified_document__proposal_reviews",

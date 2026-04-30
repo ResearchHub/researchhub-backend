@@ -1923,7 +1923,7 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         self.assertEqual(entry_a["currency"], "USD")
         grant_a_post = self.grant_a.unified_document.posts.first()
         self.assertEqual(entry_a["post_id"], grant_a_post.id)
-        self.assertIn("image_url", entry_a)
+        self.assertIsNone(entry_a["image_url"])
         self.assertEqual(entry_a["title"], grant_a_post.title)
         self.assertEqual(entry_a["applicant_count"], 1)
         proposal_a = entry_a["proposal"]
@@ -1943,6 +1943,7 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         entry_b = by_grant_id[self.grant_b.id]
         grant_b_post = self.grant_b.unified_document.posts.first()
         self.assertEqual(entry_b["post_id"], grant_b_post.id)
+        self.assertIsNone(entry_b["image_url"])
         self.assertEqual(entry_b["title"], grant_b_post.title)
         self.assertEqual(entry_b["applicant_count"], 1)
         self.assertIsNone(entry_b["proposal"]["ai_peer_review"])

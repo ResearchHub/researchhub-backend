@@ -236,8 +236,16 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
         ud_id = unified_document.id
         applications = list(post.grant_applications.all())
-        grant_ids = [app.grant_id for app in applications]
+        grant_ids = {app.grant_id for app in applications}
 
+        grant_post_by_ud = {
+            p.unified_document_id: p
+            for p in ResearchhubPost.objects.filter(
+                unified_document_id__in={
+                    app.grant.unified_document_id for app in applications
+                }
+            )
+        }
         applicant_counts = dict(
             GrantApplication.objects.filter(grant_id__in=grant_ids)
             .values_list("grant_id")
@@ -254,13 +262,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 else None
             )
 
-            grant_posts = grant.unified_document.posts.all()
-            grant_post = grant_posts[0] if grant_posts else None
-
-            grant_image_url = None
-            if grant_post and grant_post.image:
-                grant_image_url = default_storage.url(grant_post.image)
-
+            grant_post = grant_post_by_ud.get(grant.unified_document_id)
             out.append(
                 {
                     "id": grant.id,
@@ -270,7 +272,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                     "amount": str(grant.amount),
                     "currency": grant.currency,
                     "post_id": grant_post.id if grant_post else None,
-                    "image_url": grant_image_url,
+                    "image_url": self._get_grant_image(grant_post),
                     "title": grant_post.title if grant_post else None,
                     "applicant_count": applicant_counts.get(grant.id, 0),
                     "proposal": {
@@ -280,6 +282,12 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 }
             )
         return out
+
+    @staticmethod
+    def _get_grant_image(grant_post):
+        if grant_post and grant_post.image:
+            return default_storage.url(grant_post.image)
+        return None
 
     def get_peer_reviews(self, instance):
         from review.models import Review
