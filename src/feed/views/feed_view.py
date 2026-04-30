@@ -174,12 +174,10 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
     )
     def user_generated(self, request):
         """
-        Feed of user-generated content (entries with a non-null `user`).
-        Restricted to moderators.
+        Moderator-only feed of user-uploaded entries (`user` is not null).
 
-        Bypasses the preprint-hub and copyright-display filters applied by
-        `FeedFilteringBackend` so moderators can see all user-uploaded
-        activity, regardless of hub or PDF copyright status.
+        Bypasses `FeedFilteringBackend` so the preprint-hub allowlist and
+        `pdf_copyright_allows_display` filter don't hide moderation targets.
         """
         queryset = (
             FeedEntry.objects.filter(user__isnull=False)
@@ -196,9 +194,6 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         page = self.paginate_queryset(queryset)
         serializer = self.get_serializer(page, many=True)
         response = self.get_paginated_response(serializer.data)
-
-        if request.user.is_authenticated:
-            self.add_user_votes_to_response(request.user, response.data)
-
+        self.add_user_votes_to_response(request.user, response.data)
         response["RH-Feed-Source"] = "rh-user-generated"
         return response

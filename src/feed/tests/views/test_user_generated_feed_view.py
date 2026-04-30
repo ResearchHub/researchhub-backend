@@ -1,7 +1,6 @@
 from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
-from django.core.cache import cache
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -16,14 +15,10 @@ from researchhub_document.helpers import create_post
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.tests.helpers import create_random_default_user
 
-# Empirically measured query count for the user-generated feed action with
-# 3 fixture entries (paper, post, comment) and pre-populated `content`.
-# Breakdown: 1 main FeedEntry fetch with select_related joins, 1 hubs fetch,
-# 3 GenericForeignKey item lookups (existing serializer-level N+1 via
-# `external_metadata` / `bounties` SerializerMethodFields - out of scope to
-# fix here), and 3 user-vote lookups (one per content type present).
-# Bumping this requires a justified change; otherwise it indicates an N+1
-# regression on a moderation surface intended for staff use.
+# Locked at the empirically measured count to catch N+1 regressions; bumping
+# requires justification. Roughly: feed fetch + hubs + per-content-type GFK
+# lookups + per-content-type vote lookups (the GFK + vote fans-out are an
+# existing serializer-level cost, not introduced by this action).
 EXPECTED_QUERY_COUNT = 8
 
 
@@ -41,8 +36,8 @@ class UserGeneratedFeedViewTests(APITestCase):
 
         now = timezone.now()
 
-        # User-uploaded paper. Flagged copyright-restricted to confirm the
-        # action bypasses the main feed's pdf_copyright filter.
+        # `pdf_copyright_allows_display=False` lets us assert the action
+        # bypasses the main feed's pdf-copyright filter.
         cls.user_paper = create_paper(
             title="User Uploaded Paper", uploaded_by=cls.uploader
         )
@@ -58,7 +53,6 @@ class UserGeneratedFeedViewTests(APITestCase):
             pdf_copyright_allows_display=False,
         )
 
-        # System-imported paper (user=None) - must NOT appear in results.
         cls.system_paper = create_paper(title="System Imported Paper")
         cls.system_paper_entry = FeedEntry.objects.create(
             action="PUBLISH",
@@ -102,17 +96,10 @@ class UserGeneratedFeedViewTests(APITestCase):
             pdf_copyright_allows_display=True,
         )
 
-    def setUp(self):
-        cache.clear()
-
-    def tearDown(self):
-        cache.clear()
-
     def _user_generated_url(self):
         return reverse("feed-user-generated")
 
     def _ids_for(self, response, content_type):
-        """Extract content_object ids from a feed response, filtered by type."""
         type_str = content_type.model.upper()
         return [
             r["content_object"]["id"]
@@ -145,7 +132,6 @@ class UserGeneratedFeedViewTests(APITestCase):
         self.assertIn("next", response.data)
 
     def test_excludes_entries_without_user(self):
-        """Entries with `user=None` (auto-imports) must not appear."""
         self.client.force_authenticate(self.moderator_user)
 
         response = self.client.get(self._user_generated_url())
@@ -156,12 +142,6 @@ class UserGeneratedFeedViewTests(APITestCase):
         )
 
     def test_bypasses_main_feed_filters(self):
-        """
-        Moderator feed must show entries the main feed hides via
-        `FeedFilteringBackend`: papers outside the preprint-hub allowlist
-        and entries flagged `pdf_copyright_allows_display=False`. Both apply
-        to `user_paper_entry`.
-        """
         self.client.force_authenticate(self.moderator_user)
 
         response = self.client.get(self._user_generated_url())
@@ -171,7 +151,6 @@ class UserGeneratedFeedViewTests(APITestCase):
         )
 
     def test_includes_comments(self):
-        """Per chosen scope, comment entries with a user are included."""
         self.client.force_authenticate(self.moderator_user)
 
         response = self.client.get(self._user_generated_url())
@@ -199,15 +178,7 @@ class UserGeneratedFeedViewTests(APITestCase):
 
         self.assertEqual(response["RH-Feed-Source"], "rh-user-generated")
 
-    def test_pagination_next_link_when_exceeding_page_size(self):
-        """
-        Verify FeedPagination splits results across pages when total entries
-        exceed `page_size`. Note: FeedPagination currently emits `next` on
-        every non-empty page (see the FIXME in
-        `feed.views.common.FeedPagination.get_paginated_response`), so we
-        only assert presence on page 1 and that page 2 returns the remaining
-        non-overlapping entries.
-        """
+    def test_pagination_splits_results_across_pages(self):
         self.client.force_authenticate(self.moderator_user)
 
         page_one = self.client.get(self._user_generated_url(), {"page_size": 2})
@@ -219,7 +190,6 @@ class UserGeneratedFeedViewTests(APITestCase):
             self._user_generated_url(), {"page_size": 2, "page": 2}
         )
         self.assertEqual(page_two.status_code, status.HTTP_200_OK)
-        # 3 user-generated entries (paper, post, comment) -> 1 left on page 2.
         self.assertEqual(len(page_two.data["results"]), 1)
 
         page_one_ids = {r["id"] for r in page_one.data["results"]}
@@ -227,14 +197,8 @@ class UserGeneratedFeedViewTests(APITestCase):
         self.assertTrue(page_one_ids.isdisjoint(page_two_ids))
 
     def test_query_count_is_bounded(self):
-        """
-        Lock the per-request query count to guard against N+1 regressions.
-
-        Pre-populates `FeedEntry.content` so the serializer takes the cached
-        JSON path (the production path) instead of `serialize_feed_item`,
-        which itself fans out queries. Re-fetches entries from DB so we
-        don't mutate the class-level fixtures from `setUpTestData`.
-        """
+        # Pre-populate `content` to force the cached-JSON serializer path
+        # (the production path); otherwise `serialize_feed_item` fans out.
         for entry in FeedEntry.objects.filter(user__isnull=False):
             entry.content = {
                 "id": entry.object_id,
