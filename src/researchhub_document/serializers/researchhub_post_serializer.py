@@ -243,6 +243,16 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 if review is not None
                 else None
             )
+
+            grant_post = None
+            grant_posts = grant.unified_document.posts.all()
+            if grant_posts:
+                grant_post = grant_posts[0]
+
+            grant_image_url = None
+            if grant_post and grant_post.image:
+                grant_image_url = default_storage.url(grant_post.image)
+
             out.append(
                 {
                     "id": grant.id,
@@ -251,6 +261,10 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                     "organization": grant.organization,
                     "amount": str(grant.amount),
                     "currency": grant.currency,
+                    "post_id": grant_post.id if grant_post else None,
+                    "image_url": grant_image_url,
+                    "title": grant_post.title if grant_post else None,
+                    "applicant_count": grant.applications.count(),
                     "proposal": {
                         "unified_document_id": ud_id,
                         "ai_peer_review": ai_peer_review,
