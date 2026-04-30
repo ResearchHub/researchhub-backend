@@ -1,4 +1,5 @@
 from django.core.files.storage import default_storage
+from django.db.models import Count
 from rest_framework.serializers import CharField, ModelSerializer, SerializerMethodField
 
 from ai_peer_review.models import ProposalReview
@@ -9,7 +10,7 @@ from discussion.serializers import (
 )
 from discussion.serializers import GenericReactionSerializerMixin
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
-from purchase.models import Purchase
+from purchase.models import GrantApplication, Purchase
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
@@ -234,8 +235,17 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 reviews_by_grant_id[review.grant_id] = review
 
         ud_id = unified_document.id
+        applications = list(post.grant_applications.all())
+        grant_ids = [app.grant_id for app in applications]
+
+        applicant_counts = dict(
+            GrantApplication.objects.filter(grant_id__in=grant_ids)
+            .values_list("grant_id")
+            .annotate(count=Count("id"))
+        ) if grant_ids else {}
+
         out = []
-        for application in post.grant_applications.all():
+        for application in applications:
             grant = application.grant
             review = reviews_by_grant_id.get(grant.id)
             ai_peer_review = (
@@ -244,10 +254,8 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 else None
             )
 
-            grant_post = None
             grant_posts = grant.unified_document.posts.all()
-            if grant_posts:
-                grant_post = grant_posts[0]
+            grant_post = grant_posts[0] if grant_posts else None
 
             grant_image_url = None
             if grant_post and grant_post.image:
@@ -264,7 +272,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                     "post_id": grant_post.id if grant_post else None,
                     "image_url": grant_image_url,
                     "title": grant_post.title if grant_post else None,
-                    "applicant_count": grant.applications.count(),
+                    "applicant_count": applicant_counts.get(grant.id, 0),
                     "proposal": {
                         "unified_document_id": ud_id,
                         "ai_peer_review": ai_peer_review,
