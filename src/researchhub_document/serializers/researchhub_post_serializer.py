@@ -238,14 +238,13 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
         applications = list(post.grant_applications.all())
         grant_ids = {app.grant_id for app in applications}
 
-        grant_post_by_ud = {
-            p.unified_document_id: p
-            for p in ResearchhubPost.objects.filter(
-                unified_document_id__in={
-                    app.grant.unified_document_id for app in applications
-                }
-            )
-        }
+        grant_post_by_ud = {}
+        for p in ResearchhubPost.objects.filter(
+            unified_document_id__in={
+                app.grant.unified_document_id for app in applications
+            }
+        ).order_by("id"):
+            grant_post_by_ud.setdefault(p.unified_document_id, p)
         applicant_counts = dict(
             GrantApplication.objects.filter(grant_id__in=grant_ids)
             .values_list("grant_id")
