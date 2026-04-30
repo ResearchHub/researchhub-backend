@@ -841,7 +841,7 @@ class WithdrawalViewSetTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 400)
-        self.assertIn("MFA code is required", str(response.data))
+        self.assertIn("MFA code is required", response.data)
         self.assertFalse(Withdrawal.objects.filter(user=user).exists())
 
     @mock.patch.object(
@@ -870,7 +870,7 @@ class WithdrawalViewSetTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 400)
-        self.assertIn("Invalid MFA code", str(response.data))
+        self.assertIn("Invalid MFA code", response.data)
         self.assertFalse(Withdrawal.objects.filter(user=user).exists())
 
     @mock.patch.object(
