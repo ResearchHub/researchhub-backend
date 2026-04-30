@@ -8,7 +8,7 @@ from ai_peer_review.constants import (
     AUTO_KI_DAILY_CAP_PER_REVIEW_DEFAULT,
     AUTO_PR_DAILY_CAP_PER_GRANT_DEFAULT,
 )
-from ai_peer_review.models import ProposalReview, ReviewStatus
+from ai_peer_review.models import ProposalReview, Status
 from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -40,7 +40,7 @@ def _decr_daily_count(cache_key: str) -> None:
 def has_assessed_comment_on_proposal_post(
     unified_document: ResearchhubUnifiedDocument,
 ) -> bool:
-    """True if any top-level community comment on the proposal post has an assessed Review."""
+    """True if any top-level community comment on the post has an assessed Review."""
     post = unified_document.posts.first()
     if not post:
         return False
@@ -70,7 +70,7 @@ def should_skip_proposal_review(
     if review.grant_id is None:
         return True, "no_grant"
 
-    if review.status == ReviewStatus.PROCESSING:
+    if review.status == Status.PROCESSING:
         return True, "processing"
 
     if force:
@@ -100,14 +100,14 @@ def should_skip_key_insights(
     * Unless ``force``: require at least one assessed comment on the proposal post
       and per-review daily cap.
     """
-    if review.status != ReviewStatus.COMPLETED:
+    if review.status != Status.COMPLETED:
         return True, "proposal_review_not_completed"
 
     try:
         ki = review.key_insight
     except ObjectDoesNotExist:
         ki = None
-    if ki is not None and ki.status == ReviewStatus.PROCESSING:
+    if ki is not None and ki.status == Status.PROCESSING:
         return True, "key_insight_processing"
 
     if force:

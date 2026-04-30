@@ -60,7 +60,7 @@ def get_grant_context_text(grant: Grant) -> str:
 
 def reset_proposal_review_for_rerun(review: ProposalReview) -> None:
     """Clear AI outputs so :func:`run_proposal_review` can run again."""
-    review.status = ReviewStatus.PENDING
+    review.status = Status.PENDING
     review.error_message = ""
     review.result_data = {}
     review.overall_rating = None

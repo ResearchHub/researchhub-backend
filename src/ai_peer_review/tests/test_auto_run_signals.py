@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from ai_peer_review.models import ProposalReview, ReviewStatus
+from ai_peer_review.models import ProposalReview, Status
 from purchase.models import Grant, GrantApplication
 from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
@@ -210,9 +210,9 @@ class AutoRunProposalReviewCompletedSignalTests(TestCase):
             unified_document=post.unified_document,
             grant=grant,
             created_by=user,
-            status=ReviewStatus.PENDING,
+            status=Status.PENDING,
         )
-        pr.status = ReviewStatus.COMPLETED
+        pr.status = Status.COMPLETED
         pr.overall_rating = "good"
         pr.overall_score_numeric = 3
         with self.captureOnCommitCallbacks(execute=True):

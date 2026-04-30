@@ -4,7 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 
-from ai_peer_review.models import ProposalReview, ReviewStatus
+from ai_peer_review.models import ProposalReview, Status
 from ai_peer_review.services.auto_run_guards import (
     should_skip_key_insights,
     should_skip_proposal_review,
@@ -44,7 +44,7 @@ class AutoRunProposalReviewGuardsTests(TestCase):
             unified_document=self.ud,
             grant=None,
             created_by=self.user,
-            status=ReviewStatus.PENDING,
+            status=Status.PENDING,
         )
         skip, reason = should_skip_proposal_review(pr, force=False)
         self.assertTrue(skip)
@@ -55,7 +55,7 @@ class AutoRunProposalReviewGuardsTests(TestCase):
             unified_document=self.ud,
             grant=self.grant,
             created_by=self.user,
-            status=ReviewStatus.PROCESSING,
+            status=Status.PROCESSING,
         )
         skip, reason = should_skip_proposal_review(pr, force=False)
         self.assertTrue(skip)
@@ -67,7 +67,7 @@ class AutoRunProposalReviewGuardsTests(TestCase):
             unified_document=self.ud,
             grant=self.grant,
             created_by=self.user,
-            status=ReviewStatus.PENDING,
+            status=Status.PENDING,
         )
         skip1, _ = should_skip_proposal_review(pr, force=False)
         self.assertFalse(skip1)
@@ -79,7 +79,7 @@ class AutoRunProposalReviewGuardsTests(TestCase):
             unified_document=self.ud,
             grant=self.grant,
             created_by=self.user,
-            status=ReviewStatus.PENDING,
+            status=Status.PENDING,
         )
         should_skip_proposal_review(pr, force=False)
         skip, _ = should_skip_proposal_review(pr, force=True)
@@ -96,13 +96,13 @@ class AutoRunProposalReviewGuardsTests(TestCase):
             unified_document=self.ud,
             grant=self.grant,
             created_by=self.user,
-            status=ReviewStatus.PENDING,
+            status=Status.PENDING,
         )
         pr2 = ProposalReview.objects.create(
             unified_document=other_post.unified_document,
             grant=self.grant,
             created_by=self.user,
-            status=ReviewStatus.PENDING,
+            status=Status.PENDING,
         )
         skip1, _ = should_skip_proposal_review(pr1, force=False)
         self.assertFalse(skip1)
@@ -137,7 +137,7 @@ class AutoRunKeyInsightsGuardsTests(TestCase):
             unified_document=self.ud,
             grant=self.grant,
             created_by=self.user,
-            status=ReviewStatus.PENDING,
+            status=Status.PENDING,
         )
         skip, reason = should_skip_key_insights(pr, force=False)
         self.assertTrue(skip)
@@ -148,7 +148,7 @@ class AutoRunKeyInsightsGuardsTests(TestCase):
             unified_document=self.ud,
             grant=self.grant,
             created_by=self.user,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             overall_rating="good",
             overall_score_numeric=3,
         )
@@ -182,7 +182,7 @@ class AutoRunKeyInsightsGuardsTests(TestCase):
             unified_document=self.ud,
             grant=self.grant,
             created_by=self.user,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             overall_rating="good",
             overall_score_numeric=3,
         )

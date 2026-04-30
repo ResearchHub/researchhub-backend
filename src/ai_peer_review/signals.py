@@ -2,7 +2,7 @@ from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from ai_peer_review.models import ProposalReview, ReviewStatus
+from ai_peer_review.models import ProposalReview, Status
 from ai_peer_review.tasks import (
     auto_run_proposal_key_insights_for_ud,
     auto_run_proposal_review_for_grant_application,
@@ -100,7 +100,7 @@ def trigger_key_insights_on_assessed_comment_updated(
     dispatch_uid="ai_peer_review_ki_on_proposal_review_completed",
 )
 def trigger_key_insights_on_proposal_review_completed(sender, instance, **kwargs):
-    if instance.status != ReviewStatus.COMPLETED:
+    if instance.status != Status.COMPLETED:
         return
 
     ud_id = instance.unified_document_id

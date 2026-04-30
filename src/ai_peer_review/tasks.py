@@ -1,12 +1,12 @@
 import logging
 
-from ai_peer_review.models import ProposalReview, ReviewStatus
+from ai_peer_review.models import ProposalReview, Status
 from ai_peer_review.services.auto_run_guards import (
     should_skip_key_insights,
     should_skip_proposal_review,
 )
 from ai_peer_review.services.proposal_key_insights_service import (
-    run_proposal_key_insights,
+    ProposalKeyInsightsService,
 )
 from ai_peer_review.services.proposal_review_service import (
     reset_proposal_review_for_rerun,
@@ -58,7 +58,7 @@ def auto_run_proposal_reviews_for_post(post_id: int, force: bool = False) -> Non
             unified_document=post.unified_document,
             grant=application.grant,
             defaults={
-                "status": ReviewStatus.PENDING,
+                "status": Status.PENDING,
             },
         )
 
@@ -94,7 +94,7 @@ def auto_run_proposal_review_for_grant_application(
         unified_document=post.unified_document,
         grant=application.grant,
         defaults={
-            "status": ReviewStatus.PENDING,
+            "status": Status.PENDING,
         },
     )
 
@@ -108,7 +108,7 @@ def auto_run_proposal_key_insights_for_ud(
     """Enqueue guarded key-insights runs for every completed proposal review on this document."""
     reviews = ProposalReview.objects.filter(
         unified_document_id=unified_document_id,
-        status=ReviewStatus.COMPLETED,
+        status=Status.COMPLETED,
     ).values_list("id", flat=True)
     for rid in reviews:
         guarded_run_proposal_key_insights.delay(rid, force)
@@ -171,7 +171,7 @@ def guarded_run_proposal_key_insights(review_id: int, force: bool = False) -> No
         return
 
     try:
-        run_proposal_key_insights(review_id, force=force)
+        ProposalKeyInsightsService().run(review_id, force=force)
     except Exception:
         logger.exception(
             "guarded_run_proposal_key_insights failed review=%s", review_id
