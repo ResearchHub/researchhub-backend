@@ -755,6 +755,7 @@ class PaperViewSet(
                 "_include_fields": [
                     "id",
                     "score",
+                    "is_assessed",
                     "created_by",
                     "created_date",
                     "updated_date",

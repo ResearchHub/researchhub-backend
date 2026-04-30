@@ -4,10 +4,8 @@ import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db.models import Q
-from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
-from jwt import encode
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -18,12 +16,7 @@ from invite.serializers import DynamicNoteInvitationSerializer
 from note.models import Note, NoteContent
 from note.serializers import NoteContentSerializer, NoteSerializer
 from researchhub.pagination import MediumPageLimitPagination
-from researchhub.settings import (
-    ASSETS_BASE_URL,
-    CKEDITOR_CLOUD_ACCESS_KEY,
-    CKEDITOR_CLOUD_ENVIRONMENT_ID,
-    TESTING,
-)
+from researchhub.settings import TESTING
 from researchhub_access_group.constants import (
     ADMIN,
     MEMBER,
@@ -487,52 +480,3 @@ class NoteContentViewSet(ModelViewSet):
         file_name = f"NOTE-CONTENT-{note_content.id}--USER-{user.id}.txt"
         full_src_file = ContentFile(full_src.encode())
         return file_name, full_src_file
-
-
-@api_view([RequestMethods.POST])
-@permission_classes([AllowAny])
-def ckeditor_webhook_document_removed(request):
-    document = request.data["payload"]["document"]
-    try:
-        document_data = document["data"]
-    except KeyError:
-        return HttpResponse("Missing document data.")
-
-    note_id = document["id"].split("-")[-1]
-    note = Note.objects.get(id=note_id)
-    note_content = NoteContent.objects.create(note=note, plain_text=None)
-    file_name = f"NOTE-CONTENT-{note_content.id}--WEBHOOK.txt"
-    full_src_file = ContentFile(document_data.encode())
-    note_content.src.save(file_name, full_src_file)
-
-    serializer = NoteContentSerializer(note_content)
-    data = serializer.data
-    return Response(data, status=200)
-
-
-@api_view([RequestMethods.GET])
-@permission_classes([IsAuthenticated])
-def ckeditor_token(request):
-    user = request.user
-    author_profile = user.author_profile
-    profile_image = author_profile.profile_image
-
-    if profile_image.name:
-        avatar = profile_image.url
-    else:
-        avatar = f"{ASSETS_BASE_URL}/rh-blank-user.png"
-
-    payload = {
-        "aud": CKEDITOR_CLOUD_ENVIRONMENT_ID,
-        "iat": datetime.utcnow(),
-        "sub": str(author_profile.id),
-        "user": {
-            "email": user.email,
-            "name": f"{user.first_name} {user.last_name}",
-            "avatar": avatar,
-        },
-        "auth": {"collaboration": {"*": {"role": "writer"}}},
-    }
-
-    encoded = encode(payload, CKEDITOR_CLOUD_ACCESS_KEY, algorithm="HS256")
-    return HttpResponse(encoded)

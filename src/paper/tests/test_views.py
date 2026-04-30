@@ -27,10 +27,13 @@ fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class PaperApiTests(APITestCase):
-    @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123")
     def setUp(self):
-        # Create the hub with the same ID we mocked
-        Hub.objects.create(id=123)
+        self.journal = Hub.objects.create(name="ResearchHub Journal")
+        journal_id_patcher = patch.object(
+            settings, "RESEARCHHUB_JOURNAL_ID", str(self.journal.id)
+        )
+        journal_id_patcher.start()
+        self.addCleanup(journal_id_patcher.stop)
 
     @patch.object(OpenAlex, "get_data_from_doi")
     @patch.object(OpenAlex, "get_works")
@@ -633,7 +636,6 @@ class PaperApiTests(APITestCase):
         self.assertTrue(paper_v3.doi.startswith(doi_base))
 
     @patch("utils.doi.requests.post")
-    @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123")
     def test_create_researchhub_paper_preserves_publication_metadata(
         self, crossref_post_mock
     ):
@@ -732,7 +734,6 @@ class PaperApiTests(APITestCase):
         self.assertEqual(paper_version_v3.publication_status, PaperVersion.PUBLISHED)
 
     @patch("utils.doi.requests.post")
-    @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123")
     def test_researchhub_journal_hub_preserved_across_versions(
         self, crossref_post_mock
     ):
@@ -743,7 +744,7 @@ class PaperApiTests(APITestCase):
         self.client.force_authenticate(user)
 
         # Get the ResearchHub Journal hub
-        researchhub_journal_hub = Hub.objects.get(id=123)
+        researchhub_journal_hub = self.journal
 
         # Create an author
         author = Author.objects.create(first_name="Test", last_name="Author")
