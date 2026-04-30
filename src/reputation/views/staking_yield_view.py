@@ -154,7 +154,6 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
                 "apy": 0.0,
                 "apy_30d_avg": 0.0,
                 "holders": 0,
-                "top_10_concentration_pct": 0.0,
                 "total_staked_rsc": Decimal("0"),
                 "total_value_locked_usd": None,
                 "circulating_supply_rsc": Decimal("0"),
@@ -190,9 +189,6 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
             "apy": StakingYieldService.compute_apy_for_snapshot(latest),
             "apy_30d_avg": apy_30d_avg,
             "holders": StakingYieldService.holders_count(latest),
-            "top_10_concentration_pct": (
-                StakingYieldService.compute_top_n_pct_concentration(latest, pct=10)
-            ),
             "total_staked_rsc": latest.total_staked,
             "total_value_locked_usd": tvl_usd,
             "circulating_supply_rsc": latest.circulating_supply,
