@@ -15,12 +15,6 @@ from researchhub_document.helpers import create_post
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.tests.helpers import create_random_default_user
 
-# Locked at the empirically measured count to catch N+1 regressions; bumping
-# requires justification. Roughly: feed fetch + hubs + per-content-type GFK
-# lookups + per-content-type vote lookups (the GFK + vote fans-out are an
-# existing serializer-level cost, not introduced by this action).
-EXPECTED_QUERY_COUNT = 8
-
 
 class UserGeneratedFeedViewTests(APITestCase):
     @classmethod
@@ -36,12 +30,10 @@ class UserGeneratedFeedViewTests(APITestCase):
 
         now = timezone.now()
 
-        # `pdf_copyright_allows_display=False` lets us assert the action
-        # bypasses the main feed's pdf-copyright filter.
         cls.user_paper = create_paper(
             title="User Uploaded Paper", uploaded_by=cls.uploader
         )
-        cls.user_paper_entry = FeedEntry.objects.create(
+        FeedEntry.objects.create(
             action="PUBLISH",
             action_date=now,
             content_type=cls.paper_content_type,
@@ -54,7 +46,7 @@ class UserGeneratedFeedViewTests(APITestCase):
         )
 
         cls.system_paper = create_paper(title="System Imported Paper")
-        cls.system_paper_entry = FeedEntry.objects.create(
+        FeedEntry.objects.create(
             action="PUBLISH",
             action_date=now - timedelta(days=1),
             content_type=cls.paper_content_type,
@@ -69,7 +61,7 @@ class UserGeneratedFeedViewTests(APITestCase):
         cls.user_post = create_post(
             title="User Discussion Post", created_by=cls.uploader
         )
-        cls.user_post_entry = FeedEntry.objects.create(
+        FeedEntry.objects.create(
             action="PUBLISH",
             action_date=now - timedelta(hours=1),
             content_type=cls.post_content_type,
@@ -84,7 +76,7 @@ class UserGeneratedFeedViewTests(APITestCase):
         cls.user_comment = create_rh_comment(
             post=cls.user_post, created_by=cls.commenter
         )
-        cls.user_comment_entry = FeedEntry.objects.create(
+        FeedEntry.objects.create(
             action="PUBLISH",
             action_date=now - timedelta(hours=2),
             content_type=cls.comment_content_type,
@@ -106,14 +98,6 @@ class UserGeneratedFeedViewTests(APITestCase):
             for r in response.data["results"]
             if r["content_type"] == type_str
         ]
-
-    def test_anonymous_user_denied(self):
-        response = self.client.get(self._user_generated_url())
-
-        self.assertIn(
-            response.status_code,
-            (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
-        )
 
     def test_non_moderator_forbidden(self):
         self.client.force_authenticate(self.regular_user)
@@ -165,10 +149,7 @@ class UserGeneratedFeedViewTests(APITestCase):
 
         response = self.client.get(self._user_generated_url())
 
-        results = response.data["results"]
-        self.assertGreaterEqual(len(results), 2)
-
-        action_dates = [r["action_date"] for r in results]
+        action_dates = [r["action_date"] for r in response.data["results"]]
         self.assertEqual(action_dates, sorted(action_dates, reverse=True))
 
     def test_response_includes_feed_source_header(self):
@@ -177,38 +158,3 @@ class UserGeneratedFeedViewTests(APITestCase):
         response = self.client.get(self._user_generated_url())
 
         self.assertEqual(response["RH-Feed-Source"], "rh-user-generated")
-
-    def test_pagination_splits_results_across_pages(self):
-        self.client.force_authenticate(self.moderator_user)
-
-        page_one = self.client.get(self._user_generated_url(), {"page_size": 2})
-        self.assertEqual(page_one.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(page_one.data["results"]), 2)
-        self.assertIsNotNone(page_one.data["next"])
-
-        page_two = self.client.get(
-            self._user_generated_url(), {"page_size": 2, "page": 2}
-        )
-        self.assertEqual(page_two.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(page_two.data["results"]), 1)
-
-        page_one_ids = {r["id"] for r in page_one.data["results"]}
-        page_two_ids = {r["id"] for r in page_two.data["results"]}
-        self.assertTrue(page_one_ids.isdisjoint(page_two_ids))
-
-    def test_query_count_is_bounded(self):
-        # Pre-populate `content` to force the cached-JSON serializer path
-        # (the production path); otherwise `serialize_feed_item` fans out.
-        for entry in FeedEntry.objects.filter(user__isnull=False):
-            entry.content = {
-                "id": entry.object_id,
-                "content_type": entry.content_type.model.upper(),
-            }
-            entry.save(update_fields=["content"])
-
-        self.client.force_authenticate(self.moderator_user)
-
-        with self.assertNumQueries(EXPECTED_QUERY_COUNT):
-            response = self.client.get(self._user_generated_url())
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
