@@ -11,9 +11,9 @@ from django.core.management.base import BaseCommand, CommandError
 
 from ai_peer_review.models import ProposalReview
 from ai_peer_review.services.proposal_review_comment_service import (
-    resolve_ai_expert_email,
     upsert_proposal_review_comment,
 )
+from user.related_models.user_model import AI_EXPERT_EMAIL
 
 
 class Command(BaseCommand):
@@ -42,7 +42,7 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.WARNING(
                     "No comment written (expected status=completed, a post on the "
-                    f"unified document, and user {resolve_ai_expert_email()})."
+                    f"unified document, and user {AI_EXPERT_EMAIL})."
                 )
             )
             return

@@ -3,7 +3,6 @@ from django.test import TestCase
 from ai_peer_review.models import ProposalReview, Status
 from ai_peer_review.services.proposal_review_comment_service import (
     proposal_review_to_tiptap_content,
-    resolve_ai_expert_email,
     upsert_proposal_review_comment,
 )
 from researchhub_comment.constants.rh_comment_content_types import TIPTAP
@@ -21,7 +20,7 @@ class ProposalReviewCommentServiceTests(TestCase):
         self.reviewer = create_random_authenticated_user("ai_review_editor")
         self.proposal_owner = create_random_authenticated_user("ai_review_owner")
         User.objects.create(
-            email=resolve_ai_expert_email(),
+            email=AI_EXPERT_EMAIL,
             first_name="AI",
             last_name="Expert",
             is_official_account=True,
@@ -162,7 +161,7 @@ class ProposalReviewCommentServiceTests(TestCase):
         self.assertEqual(comment.thread.thread_type, COMMUNITY_REVIEW)
         self.assertEqual(comment.thread.object_id, self.proposal_post.id)
 
-        ai_user = User.objects.get(email=resolve_ai_expert_email())
+        ai_user = User.objects.get(email=AI_EXPERT_EMAIL)
         self.assertEqual(comment.created_by_id, ai_user.id)
         self.assertIn("Overall Impact", comment.plain_text)
         self.assertIn("Strong fit with moderate execution risk.", comment.plain_text)
