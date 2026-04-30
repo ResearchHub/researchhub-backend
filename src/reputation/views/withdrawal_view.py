@@ -17,7 +17,6 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -101,7 +100,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 "Invalid network. Please choose either 'BASE' or 'ETHEREUM'", status=400
             )
 
-        self._check_mfa(user, request)
+        if mfa_error := self._check_mfa(user, request):
+            return Response(mfa_error, status=400)
 
         transaction_fee = self.calculate_transaction_fee(network)
 
@@ -179,20 +179,22 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             logger.error(f"Invalid withdrawal: {message}")
             return Response(message, status=400)
 
-    def _check_mfa(self, user, request):
+    def _check_mfa(self, user, request) -> str | None:
         """
         When MFA is enabled by the user, validate the given MFA code from the request.
-        Otherwise, proceed without MFA validation.
+        Returns an error message if invalid, or None if MFA passes (or is disabled).
         """
         if not is_mfa_enabled(user):
-            return
+            return None
 
         code = (request.data.get("mfa_code") or "").strip()
         if not code:
-            raise ValidationError("MFA code is required for withdrawals")
+            return "MFA code is required for withdrawals"
 
         if not TOTP.validate_code(user, code):
-            raise ValidationError("Invalid MFA code")
+            return "Invalid MFA code"
+
+        return None
 
     def _can_withdraw(self, user: User) -> bool:
         # User can withdraw if rep score is 10 or more
