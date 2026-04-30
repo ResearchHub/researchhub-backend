@@ -44,7 +44,7 @@ class AutoRunGuardsService:
     def has_assessed_comment_on_proposal_post(
         unified_document: ResearchhubUnifiedDocument,
     ) -> bool:
-        """True if any top-level community comment on the post has an assessed Review."""
+        """True if any comment on the post has an assessed Review."""
         post = unified_document.posts.first()
         if not post:
             return False

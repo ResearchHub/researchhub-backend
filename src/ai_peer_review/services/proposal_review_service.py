@@ -1,6 +1,8 @@
 import logging
 import time
 
+from django.db import transaction
+
 from ai_peer_review.constants import PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS
 from ai_peer_review.models import ProposalReview, Status
 from ai_peer_review.prompts.proposal_review_prompts import (
@@ -169,6 +171,14 @@ def run_proposal_review(review_id: int) -> None:
                 "Proposal review %s comment sync failed",
                 review_id,
             )
+        else:
+
+            def _enqueue_key_insights(ud_id=review.unified_document_id):
+                from ai_peer_review.tasks import auto_run_proposal_key_insights_for_ud
+
+                auto_run_proposal_key_insights_for_ud.delay(ud_id, force=False)
+
+            transaction.on_commit(_enqueue_key_insights)
         FundingCacheMixin.invalidate_funding_feed_cache()
     except Exception as e:
         logger.exception("Proposal review %s failed", review_id)

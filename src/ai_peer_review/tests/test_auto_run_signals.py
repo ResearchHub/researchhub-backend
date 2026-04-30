@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from ai_peer_review.models import ProposalReview, Status
+from ai_peer_review.signals import preregistration_substantively_updated
 from purchase.models import Grant, GrantApplication
 from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
@@ -13,22 +13,6 @@ from researchhub_document.related_models.constants.document_type import PREREGIS
 from review.models import Review
 from user.related_models.user_model import FOUNDATION_EMAIL
 from user.tests.helpers import create_random_authenticated_user, create_user
-
-
-class AutoRunProposalReviewPostSaveSignalTests(TestCase):
-    @patch("ai_peer_review.tasks.auto_run_proposal_reviews_for_post.delay")
-    def test_preregistration_post_save_enqueues_auto_run(self, mock_delay):
-        user = create_random_authenticated_user("sig_post_user")
-        with self.captureOnCommitCallbacks(execute=True):
-            post = create_post(
-                created_by=user,
-                document_type=PREREGISTRATION,
-                title="Signal post",
-            )
-        post.title = "Updated title"
-        with self.captureOnCommitCallbacks(execute=True):
-            post.save(update_fields=["title"])
-        mock_delay.assert_any_call(post.id, force=False)
 
 
 class AutoRunGrantApplicationSignalTests(TestCase):
@@ -63,39 +47,15 @@ class AutoRunGrantApplicationSignalTests(TestCase):
         mock_delay.assert_called_once_with(grant_application.id, force=False)
 
 
-class AutoRunKeyInsightsReviewSignalTests(TestCase):
-    @patch("ai_peer_review.tasks.auto_run_proposal_key_insights_for_ud.delay")
-    def test_review_assessed_triggers_key_insights_fanout(self, mock_delay):
-        user = create_random_authenticated_user("sig_ki_user")
-        post = create_post(
-            created_by=user,
-            document_type=PREREGISTRATION,
-            title="KI signal",
-        )
-        ud = post.unified_document
-        ct = ContentType.objects.get_for_model(RhCommentModel)
-        thread = RhCommentThreadModel.objects.create(
-            content_object=post,
-            created_by=user,
-            updated_by=user,
-        )
-        comment = RhCommentModel.objects.create(
-            comment_content_json={"ops": [{"insert": "x"}]},
-            thread=thread,
-            created_by=user,
-            updated_by=user,
-            comment_type=COMMUNITY_REVIEW,
-        )
+class PreregistrationProposalSubstantiveUpdateSignalTests(TestCase):
+    @patch("ai_peer_review.tasks.auto_run_proposal_reviews_for_post.delay")
+    def test_custom_signal_enqueues_proposal_review_for_post(self, mock_delay):
         with self.captureOnCommitCallbacks(execute=True):
-            Review.objects.create(
-                content_type=ct,
-                object_id=comment.id,
-                unified_document=ud,
-                created_by=user,
-                score=4.0,
-                is_assessed=True,
+            preregistration_substantively_updated.send(
+                sender=None,
+                post_id=4242,
             )
-        mock_delay.assert_called_with(ud.id, force=False)
+        mock_delay.assert_called_once_with(4242, force=False)
 
 
 class AutoRunKeyInsightsCommentUpdateTests(TestCase):
@@ -181,47 +141,5 @@ class AutoRunKeyInsightsPurchaseBridgeTests(TestCase):
                 purchase_method=Purchase.OFF_CHAIN,
                 paid_status=Purchase.PAID,
                 amount=10,
-            )
-        mock_delay.assert_called_with(post.unified_document_id, force=False)
-
-
-class AutoRunProposalReviewCompletedSignalTests(TestCase):
-    @patch("ai_peer_review.tasks.auto_run_proposal_key_insights_for_ud.delay")
-    def test_proposal_review_completed_triggers_fanout(self, mock_delay):
-        user = create_random_authenticated_user("sig_pr_done")
-        post = create_post(
-            created_by=user,
-            document_type=PREREGISTRATION,
-            title="PR completed",
-        )
-        grant_post = create_post(
-            created_by=user,
-            document_type=PREREGISTRATION,
-            title="Grant ud",
-        )
-        grant = Grant.objects.create(
-            created_by=user,
-            unified_document=grant_post.unified_document,
-            amount=Decimal("1000"),
-            description="Desc",
-            status=Grant.OPEN,
-        )
-        pr = ProposalReview.objects.create(
-            unified_document=post.unified_document,
-            grant=grant,
-            created_by=user,
-            status=Status.PENDING,
-        )
-        pr.status = Status.COMPLETED
-        pr.overall_rating = "good"
-        pr.overall_score_numeric = 3
-        with self.captureOnCommitCallbacks(execute=True):
-            pr.save(
-                update_fields=[
-                    "status",
-                    "overall_rating",
-                    "overall_score_numeric",
-                    "updated_date",
-                ]
             )
         mock_delay.assert_called_with(post.unified_document_id, force=False)

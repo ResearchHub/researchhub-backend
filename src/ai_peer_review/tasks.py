@@ -129,8 +129,8 @@ def guarded_run_proposal_review(review_id: int, force: bool = False) -> None:
             reason,
         )
         sentry.log_info(
-            "guarded_run_proposal_review skipped by guard",
-            extra={"review_id": review_id, "reason": reason, "force": force},
+            f"guarded_run_proposal_review skipped by guard review_id={review_id} "
+            f"reason={reason} force={force}"
         )
         return
 
@@ -162,8 +162,8 @@ def guarded_run_proposal_key_insights(review_id: int, force: bool = False) -> No
             reason,
         )
         sentry.log_info(
-            "guarded_run_proposal_key_insights skipped by guard",
-            extra={"review_id": review_id, "reason": reason, "force": force},
+            f"guarded_run_proposal_key_insights skipped by guard review_id={review_id} "
+            f"reason={reason} force={force}"
         )
         return
 
