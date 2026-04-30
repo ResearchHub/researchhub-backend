@@ -34,7 +34,7 @@ def process_rfp_summary_task(rfp_summary_id: int):
 @app.task
 def auto_run_proposal_reviews_for_post(post_id: int, force: bool = False) -> None:
     """
-    For a preregistration post, enqueue a guarded AI proposal review per linked grant.
+    For a proposal (preregistration) post, enqueue a guarded AI proposal review per linked grant.
     """
     try:
         post = ResearchhubPost.objects.select_related("unified_document").get(
@@ -121,9 +121,7 @@ def guarded_run_proposal_review(review_id: int, force: bool = False) -> None:
         logger.warning("guarded_run_proposal_review: review %s not found", review_id)
         return
 
-    skip, reason = AutoRunGuardsService.should_skip_proposal_review(
-        review, force=force
-    )
+    skip, reason = AutoRunGuardsService.should_skip_proposal_review(review, force=force)
     if skip:
         logger.warning(
             "guarded_run_proposal_review: skip review=%s reason=%s",
