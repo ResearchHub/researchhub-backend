@@ -18,7 +18,7 @@ from django.db.models import Prefetch, Q
 from django.utils import timezone
 
 from ai_peer_review.models import ProposalReview, Status
-from ai_peer_review.services.auto_run_guards import should_skip_proposal_review
+from ai_peer_review.services.auto_run_guards import AutoRunGuardsService
 from ai_peer_review.services.proposal_review_service import (
     reset_proposal_review_for_rerun,
     run_proposal_review,
@@ -196,7 +196,9 @@ class Command(BaseCommand):
                         proposals_skipped += 1
                         continue
 
-                    skip, reason = should_skip_proposal_review(review, force=force)
+                    skip, reason = AutoRunGuardsService.should_skip_proposal_review(
+                        review, force=force
+                    )
                     if skip:
                         self.stdout.write(
                             self.style.WARNING(

@@ -1,10 +1,7 @@
 import logging
 
 from ai_peer_review.models import ProposalReview, Status
-from ai_peer_review.services.auto_run_guards import (
-    should_skip_key_insights,
-    should_skip_proposal_review,
-)
+from ai_peer_review.services.auto_run_guards import AutoRunGuardsService
 from ai_peer_review.services.proposal_key_insights_service import (
     ProposalKeyInsightsService,
 )
@@ -124,7 +121,9 @@ def guarded_run_proposal_review(review_id: int, force: bool = False) -> None:
         logger.warning("guarded_run_proposal_review: review %s not found", review_id)
         return
 
-    skip, reason = should_skip_proposal_review(review, force=force)
+    skip, reason = AutoRunGuardsService.should_skip_proposal_review(
+        review, force=force
+    )
     if skip:
         logger.warning(
             "guarded_run_proposal_review: skip review=%s reason=%s",
@@ -157,7 +156,7 @@ def guarded_run_proposal_key_insights(review_id: int, force: bool = False) -> No
         )
         return
 
-    skip, reason = should_skip_key_insights(review, force=force)
+    skip, reason = AutoRunGuardsService.should_skip_key_insights(review, force=force)
     if skip:
         logger.warning(
             "guarded_run_proposal_key_insights: skip review=%s reason=%s",

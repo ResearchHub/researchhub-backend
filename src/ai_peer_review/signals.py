@@ -72,11 +72,7 @@ def trigger_key_insights_on_review_assessed(sender, instance, **kwargs):
 def trigger_key_insights_on_assessed_comment_updated(
     sender, instance, created, **kwargs
 ):
-    """
-    When an existing community comment is saved, the related ``Review`` row may be
-    unchanged. If that comment still has an assessed review, re-run the key-insights
-    fan-out for the unified document.
-    """
+    """Rerun insights generation when a comment that is considered "assessed" is saved."""
     if created or instance.is_removed:
         return
 

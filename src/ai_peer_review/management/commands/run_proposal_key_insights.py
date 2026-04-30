@@ -24,7 +24,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from ai_peer_review.models import ProposalKeyInsight, ProposalReview, Status
-from ai_peer_review.services.auto_run_guards import should_skip_key_insights
+from ai_peer_review.services.auto_run_guards import AutoRunGuardsService
 from ai_peer_review.services.proposal_key_insights_service import (
     ProposalKeyInsightsService,
 )
@@ -185,7 +185,9 @@ class Command(BaseCommand):
         for i, review in enumerate(selected_reviews, start=1):
             key_insight_was_already_done = review.id in processed_reviews
             label = f"review={review.id} grant={review.grant_id}"
-            skip, reason = should_skip_key_insights(review, force=force)
+            skip, reason = AutoRunGuardsService.should_skip_key_insights(
+                review, force=force
+            )
             if skip:
                 skipped += 1
                 self.stdout.write(

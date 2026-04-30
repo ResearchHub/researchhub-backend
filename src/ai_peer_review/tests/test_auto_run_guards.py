@@ -5,10 +5,7 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 
 from ai_peer_review.models import ProposalReview, Status
-from ai_peer_review.services.auto_run_guards import (
-    should_skip_key_insights,
-    should_skip_proposal_review,
-)
+from ai_peer_review.services.auto_run_guards import AutoRunGuardsService
 from purchase.models import Grant
 from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
@@ -46,7 +43,7 @@ class AutoRunProposalReviewGuardsTests(TestCase):
             created_by=self.user,
             status=Status.PENDING,
         )
-        skip, reason = should_skip_proposal_review(pr, force=False)
+        skip, reason = AutoRunGuardsService.should_skip_proposal_review(pr, force=False)
         self.assertTrue(skip)
         self.assertEqual(reason, "no_grant")
 
@@ -57,7 +54,7 @@ class AutoRunProposalReviewGuardsTests(TestCase):
             created_by=self.user,
             status=Status.PROCESSING,
         )
-        skip, reason = should_skip_proposal_review(pr, force=False)
+        skip, reason = AutoRunGuardsService.should_skip_proposal_review(pr, force=False)
         self.assertTrue(skip)
         self.assertEqual(reason, "processing")
 
@@ -69,9 +66,9 @@ class AutoRunProposalReviewGuardsTests(TestCase):
             created_by=self.user,
             status=Status.PENDING,
         )
-        skip1, _ = should_skip_proposal_review(pr, force=False)
+        skip1, _ = AutoRunGuardsService.should_skip_proposal_review(pr, force=False)
         self.assertFalse(skip1)
-        skip2, _ = should_skip_proposal_review(pr, force=False)
+        skip2, _ = AutoRunGuardsService.should_skip_proposal_review(pr, force=False)
         self.assertFalse(skip2)
 
     def test_force_bypasses_rate_limits(self):
@@ -81,8 +78,8 @@ class AutoRunProposalReviewGuardsTests(TestCase):
             created_by=self.user,
             status=Status.PENDING,
         )
-        should_skip_proposal_review(pr, force=False)
-        skip, _ = should_skip_proposal_review(pr, force=True)
+        AutoRunGuardsService.should_skip_proposal_review(pr, force=False)
+        skip, _ = AutoRunGuardsService.should_skip_proposal_review(pr, force=True)
         self.assertFalse(skip)
 
     @override_settings(AUTO_PR_DAILY_CAP_PER_GRANT=1)
@@ -104,9 +101,9 @@ class AutoRunProposalReviewGuardsTests(TestCase):
             created_by=self.user,
             status=Status.PENDING,
         )
-        skip1, _ = should_skip_proposal_review(pr1, force=False)
+        skip1, _ = AutoRunGuardsService.should_skip_proposal_review(pr1, force=False)
         self.assertFalse(skip1)
-        skip2, reason2 = should_skip_proposal_review(pr2, force=False)
+        skip2, reason2 = AutoRunGuardsService.should_skip_proposal_review(pr2, force=False)
         self.assertTrue(skip2)
         self.assertEqual(reason2, "daily_cap")
 
@@ -139,7 +136,7 @@ class AutoRunKeyInsightsGuardsTests(TestCase):
             created_by=self.user,
             status=Status.PENDING,
         )
-        skip, reason = should_skip_key_insights(pr, force=False)
+        skip, reason = AutoRunGuardsService.should_skip_key_insights(pr, force=False)
         self.assertTrue(skip)
         self.assertEqual(reason, "proposal_review_not_completed")
 
@@ -152,7 +149,7 @@ class AutoRunKeyInsightsGuardsTests(TestCase):
             overall_rating="good",
             overall_score_numeric=3,
         )
-        skip, reason = should_skip_key_insights(pr, force=False)
+        skip, reason = AutoRunGuardsService.should_skip_key_insights(pr, force=False)
         self.assertTrue(skip)
         self.assertEqual(reason, "no_assessed_comments")
 
@@ -186,5 +183,5 @@ class AutoRunKeyInsightsGuardsTests(TestCase):
             overall_rating="good",
             overall_score_numeric=3,
         )
-        skip, _ = should_skip_key_insights(pr, force=False)
+        skip, _ = AutoRunGuardsService.should_skip_key_insights(pr, force=False)
         self.assertFalse(skip)
