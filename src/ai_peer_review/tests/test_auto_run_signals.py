@@ -58,9 +58,9 @@ class PreregistrationProposalSubstantiveUpdateSignalTests(TestCase):
         mock_delay.assert_called_once_with(4242, force=False)
 
 
-class AutoRunKeyInsightsCommentUpdateTests(TestCase):
+class RhCommentSaveDoesNotEnqueueKeyInsightsTests(TestCase):
     @patch("ai_peer_review.tasks.auto_run_proposal_key_insights_for_ud.delay")
-    def test_comment_update_enqueues_when_review_assessed(self, mock_delay):
+    def test_human_assessed_comment_body_edit_does_not_enqueue_ki(self, mock_delay):
         user = create_random_authenticated_user("sig_ki_edit_user")
         post = create_post(
             created_by=user,
@@ -94,7 +94,7 @@ class AutoRunKeyInsightsCommentUpdateTests(TestCase):
         with self.captureOnCommitCallbacks(execute=True):
             comment.comment_content_json = {"ops": [{"insert": "edited body"}]}
             comment.save(update_fields=["comment_content_json", "updated_date"])
-        mock_delay.assert_called_once_with(ud.id, force=False)
+        mock_delay.assert_not_called()
 
 
 class AutoRunKeyInsightsPurchaseBridgeTests(TestCase):
@@ -142,4 +142,4 @@ class AutoRunKeyInsightsPurchaseBridgeTests(TestCase):
                 paid_status=Purchase.PAID,
                 amount=10,
             )
-        mock_delay.assert_called_with(post.unified_document_id, force=False)
+        mock_delay.assert_called_with(post.unified_document_id, force=True)

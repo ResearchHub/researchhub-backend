@@ -176,7 +176,7 @@ def run_proposal_review(review_id: int) -> None:
             def _enqueue_key_insights(ud_id=review.unified_document_id):
                 from ai_peer_review.tasks import auto_run_proposal_key_insights_for_ud
 
-                auto_run_proposal_key_insights_for_ud.delay(ud_id, force=False)
+                auto_run_proposal_key_insights_for_ud.delay(ud_id, force=True)
 
             transaction.on_commit(_enqueue_key_insights)
         FundingCacheMixin.invalidate_funding_feed_cache()

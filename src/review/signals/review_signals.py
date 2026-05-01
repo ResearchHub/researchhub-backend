@@ -8,7 +8,7 @@ from user.models import User
 
 
 def _schedule_key_insights_after_assessed_update(comment, updated: int) -> None:
-    """Bulk ``.update()`` does not emit ``post_save`` on Review; enqueue key-insights."""
+    """Enqueue key insights after bulk-marking reviews assessed."""
     if not updated:
         return
     try:
@@ -22,7 +22,7 @@ def _schedule_key_insights_after_assessed_update(comment, updated: int) -> None:
     def _enqueue(u=uid):
         from ai_peer_review.tasks import auto_run_proposal_key_insights_for_ud
 
-        auto_run_proposal_key_insights_for_ud.delay(u, force=False)
+        auto_run_proposal_key_insights_for_ud.delay(u, force=True)
 
     transaction.on_commit(_enqueue)
 
