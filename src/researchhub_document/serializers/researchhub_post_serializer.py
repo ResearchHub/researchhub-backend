@@ -1,4 +1,5 @@
 from django.core.files.storage import default_storage
+from django.db.models import Count
 from rest_framework.serializers import CharField, ModelSerializer, SerializerMethodField
 
 from ai_peer_review.models import ProposalReview
@@ -9,7 +10,7 @@ from discussion.serializers import (
 )
 from discussion.serializers import GenericReactionSerializerMixin
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
-from purchase.models import Purchase
+from purchase.models import GrantApplication, Purchase
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
@@ -234,8 +235,24 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 reviews_by_grant_id[review.grant_id] = review
 
         ud_id = unified_document.id
+        applications = list(post.grant_applications.all())
+        grant_ids = {app.grant_id for app in applications}
+
+        grant_post_by_ud = {}
+        for p in ResearchhubPost.objects.filter(
+            unified_document_id__in={
+                app.grant.unified_document_id for app in applications
+            }
+        ).order_by("id"):
+            grant_post_by_ud.setdefault(p.unified_document_id, p)
+        applicant_counts = dict(
+            GrantApplication.objects.filter(grant_id__in=grant_ids)
+            .values_list("grant_id")
+            .annotate(count=Count("id"))
+        ) if grant_ids else {}
+
         out = []
-        for application in post.grant_applications.all():
+        for application in applications:
             grant = application.grant
             review = reviews_by_grant_id.get(grant.id)
             ai_peer_review = (
@@ -243,6 +260,8 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 if review is not None
                 else None
             )
+
+            grant_post = grant_post_by_ud.get(grant.unified_document_id)
             out.append(
                 {
                     "id": grant.id,
@@ -251,6 +270,10 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                     "organization": grant.organization,
                     "amount": str(grant.amount),
                     "currency": grant.currency,
+                    "post_id": grant_post.id if grant_post else None,
+                    "image_url": self._get_grant_image(grant_post),
+                    "title": grant_post.title if grant_post else None,
+                    "applicant_count": applicant_counts.get(grant.id, 0),
                     "proposal": {
                         "unified_document_id": ud_id,
                         "ai_peer_review": ai_peer_review,
@@ -258,6 +281,12 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 }
             )
         return out
+
+    @staticmethod
+    def _get_grant_image(grant_post):
+        if grant_post and grant_post.image:
+            return default_storage.url(grant_post.image)
+        return None
 
     def get_peer_reviews(self, instance):
         from review.models import Review

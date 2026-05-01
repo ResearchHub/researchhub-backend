@@ -189,10 +189,10 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         code = (request.data.get("mfa_code") or "").strip()
         if not code:
-            return "MFA code is required for withdrawals"
+            return "Authenticator code is required for withdrawals"
 
         if not TOTP.validate_code(user, code):
-            return "Invalid MFA code"
+            return "Invalid authenticator code"
 
         return None
 

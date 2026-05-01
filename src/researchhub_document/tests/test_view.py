@@ -1921,6 +1921,11 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         self.assertEqual(entry_a["status"], Grant.OPEN)
         self.assertEqual(entry_a["organization"], "Org A")
         self.assertEqual(entry_a["currency"], "USD")
+        grant_a_post = self.grant_a.unified_document.posts.first()
+        self.assertEqual(entry_a["post_id"], grant_a_post.id)
+        self.assertIsNone(entry_a["image_url"])
+        self.assertEqual(entry_a["title"], grant_a_post.title)
+        self.assertEqual(entry_a["applicant_count"], 1)
         proposal_a = entry_a["proposal"]
         self.assertEqual(
             proposal_a["unified_document_id"], self.prereg_post.unified_document_id
@@ -1936,6 +1941,11 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         self.assertEqual(dict(review_a), expected_json)
 
         entry_b = by_grant_id[self.grant_b.id]
+        grant_b_post = self.grant_b.unified_document.posts.first()
+        self.assertEqual(entry_b["post_id"], grant_b_post.id)
+        self.assertIsNone(entry_b["image_url"])
+        self.assertEqual(entry_b["title"], grant_b_post.title)
+        self.assertEqual(entry_b["applicant_count"], 1)
         self.assertIsNone(entry_b["proposal"]["ai_peer_review"])
 
     def test_get_non_preregistration_returns_empty_grants(self):
