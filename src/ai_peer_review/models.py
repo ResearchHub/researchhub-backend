@@ -8,8 +8,8 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from utils.models import DefaultModel
 
 
-class ReviewStatus(models.TextChoices):
-    """Async AI job lifecycle for proposal review and RFP summary."""
+class Status(models.TextChoices):
+    """Lifecycle for async AI jobs: proposal review, RFP summary, proposal key insight."""
 
     PENDING = "pending", "pending"
     PROCESSING = "processing", "processing"
@@ -22,15 +22,9 @@ class OverallRating(models.TextChoices):
 
     EXCELLENT = "excellent", "excellent"
     GOOD = "good", "good"
+    ADEQUATE = "adequate", "adequate"
+    MARGINAL = "marginal", "marginal"
     POOR = "poor", "poor"
-
-
-class OverallConfidence(models.TextChoices):
-    """Reviewer-reported confidence in the overall judgment."""
-
-    HIGH = "High", "High"
-    MEDIUM = "Medium", "Medium"
-    LOW = "Low", "Low"
 
 
 class ExpertDimensionScore(models.TextChoices):
@@ -67,8 +61,8 @@ class ProposalReview(DefaultModel):
     )
     status = models.CharField(
         max_length=32,
-        choices=ReviewStatus.choices,
-        default=ReviewStatus.PENDING,
+        choices=Status.choices,
+        default=Status.PENDING,
         db_index=True,
     )
     overall_rating = models.CharField(
@@ -78,12 +72,6 @@ class ProposalReview(DefaultModel):
         null=True,
     )
     overall_rationale = models.TextField(blank=True, default="")
-    overall_confidence = models.CharField(
-        max_length=16,
-        blank=True,
-        null=True,
-        choices=OverallConfidence.choices,
-    )
     overall_score_numeric = models.IntegerField(null=True, blank=True)
     result_data = models.JSONField(default=dict, blank=True)
     error_message = models.TextField(blank=True)
@@ -137,8 +125,8 @@ class RFPSummary(DefaultModel):
     )
     status = models.CharField(
         max_length=32,
-        choices=ReviewStatus.choices,
-        default=ReviewStatus.PENDING,
+        choices=Status.choices,
+        default=Status.PENDING,
         db_index=True,
     )
     summary_content = models.TextField(blank=True)
@@ -216,3 +204,63 @@ class EditorialFeedbackCategory(DefaultModel):
 
     def __str__(self):
         return f"EditorialFeedbackCategory {self.category_code}={self.score}"
+
+
+class KeyInsightItemType(models.TextChoices):
+    """Pros / cons row type for key insights."""
+
+    STRENGTH = "strength", "strength"
+    WEAKNESS = "weakness", "weakness"
+
+
+class ProposalKeyInsight(DefaultModel):
+    """
+    Short TLDR and pros/cons.
+    """
+
+    proposal_review = models.OneToOneField(
+        ProposalReview,
+        on_delete=models.CASCADE,
+        related_name="key_insight",
+    )
+    status = models.CharField(
+        max_length=32,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    tldr = models.TextField(blank=True, default="")
+    error_message = models.TextField(blank=True)
+    llm_model = models.CharField(max_length=256, blank=True)
+    processing_time = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        db_table = "ai_peer_review_proposal_key_insight"
+        ordering = ["-created_date"]
+
+    def __str__(self):
+        return f"ProposalKeyInsight review={self.proposal_review_id} ({self.status})"
+
+
+class ProposalKeyInsightItem(DefaultModel):
+    """Single strength or weakness line under a ProposalKeyInsight."""
+
+    key_insight = models.ForeignKey(
+        ProposalKeyInsight,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    item_type = models.CharField(
+        max_length=16,
+        choices=KeyInsightItemType.choices,
+    )
+    label = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default="")
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        db_table = "ai_peer_review_proposal_key_insight_item"
+        ordering = ["item_type", "order", "id"]
+
+    def __str__(self):
+        return f"ProposalKeyInsightItem {self.item_type} {self.label!r}"

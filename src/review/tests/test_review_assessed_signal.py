@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
@@ -41,6 +43,15 @@ class ReviewAssessedOnPurchaseSignalTests(TestCase):
         self._create_purchase(self.foundation)
         self.review.refresh_from_db()
         self.assertTrue(self.review.is_assessed)
+
+    @patch("ai_peer_review.tasks.auto_run_proposal_key_insights_for_ud.delay")
+    def test_foundation_purchase_enqueues_key_insights_with_force_true(self, mock_ki):
+        with self.captureOnCommitCallbacks(execute=True):
+            self._create_purchase(self.foundation)
+        mock_ki.assert_called_once_with(
+            self.paper.unified_document_id,
+            force=True,
+        )
 
     def test_non_foundation_purchase_does_not_mark_assessed(self):
         other = create_random_default_user("tipper")
@@ -116,6 +127,16 @@ class ReviewAssessedOnBountyAwardSignalTests(TestCase):
         solution.award(amount=100)
         self.review.refresh_from_db()
         self.assertTrue(self.review.is_assessed)
+
+    @patch("ai_peer_review.tasks.auto_run_proposal_key_insights_for_ud.delay")
+    def test_bounty_award_enqueues_key_insights_with_force_true(self, mock_ki):
+        solution = self._create_solution()
+        with self.captureOnCommitCallbacks(execute=True):
+            solution.award(amount=100)
+        mock_ki.assert_called_once_with(
+            self.paper.unified_document_id,
+            force=True,
+        )
 
     def test_submitted_solution_does_not_mark_assessed(self):
         self._create_solution()

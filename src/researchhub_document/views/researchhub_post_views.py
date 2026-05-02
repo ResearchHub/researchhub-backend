@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from ai_peer_review.models import ProposalReview
+from ai_peer_review.signals import preregistration_substantively_updated
 from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
@@ -85,9 +86,11 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         queryset=ProposalReview.objects.filter(
                             grant__isnull=False,
                         )
-                        .select_related("grant", "unified_document")
+                        .select_related("grant", "unified_document", "key_insight")
                         .prefetch_related(
-                            "unified_document__ai_peer_review_editorial_feedback__categories",
+                            "unified_document__"
+                            "ai_peer_review_editorial_feedback__categories",
+                            "key_insight__items",
                         ),
                     ),
                 )
@@ -400,6 +403,12 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             )
             full_src_file = ContentFile(request.data["full_src"].encode())
             post.discussion_src.save(file_name, full_src_file)
+
+            if post.document_type == PREREGISTRATION:
+                preregistration_substantively_updated.send(
+                    sender=ResearchhubPost,
+                    post_id=post.id,
+                )
 
             if type(authors) is list:
                 rh_post.authors.set(authors)
