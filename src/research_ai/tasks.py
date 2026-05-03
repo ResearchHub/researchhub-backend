@@ -57,7 +57,9 @@ def _update_search_progress(
         logger.warning("Failed to update expert search progress: %s", e)
 
 
-def _expert_search_task_progress_callback(task_self, sid: str, percent: int, message: str):
+def _expert_search_task_progress_callback(
+    task_self, sid: str, percent: int, message: str
+):
     """Update DB and Celery meta for expert search progress (v1 / v2)."""
     status = (
         ExpertSearch.Status.COMPLETED
@@ -139,10 +141,10 @@ def _finalize_v2_expert_search_in_db(
             llm_model=result.get("llm_model", ""),
             error_message=error_message,
         )
-        snippet = (
-            error_message[:200] if len(error_message) > 200 else error_message
+        snippet = error_message[:200] if len(error_message) > 200 else error_message
+        logger.warning(
+            "V2 expert finder failed for search_id=%s: %s", search_id, snippet
         )
-        logger.warning("V2 expert finder failed for search_id=%s: %s", search_id, snippet)
         return True
 
     ExpertSearch.objects.filter(id=sid).update(
