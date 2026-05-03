@@ -65,7 +65,7 @@ class ExpertFinderJson:
     @staticmethod
     def validate_output(obj: Any) -> list[dict[str, Any]]:
         """
-        Validate the parsed JSON object. Returns rows for ``upsert_expert_from_parsed_dict``.
+        Validate the parsed JSON object. Returns rows for ``ExpertPersist.upsert_from_parsed_dict``.
 
         Skips non-dicts, bad emails, and duplicate emails.
         """

@@ -4,11 +4,7 @@ from django.utils import timezone
 from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.services.expert_display import ExpertDisplay
 from research_ai.services.expert_finder_json import ExpertFinderJson
-from research_ai.services.expert_persist import (
-    mark_expert_last_email_sent_at,
-    replace_search_experts_for_search,
-    upsert_expert_from_parsed_dict,
-)
+from research_ai.services.expert_persist import ExpertPersist
 from research_ai.utils import trimmed_str
 from user.tests.helpers import create_user
 
@@ -104,7 +100,7 @@ class ExpertPersistTests(TestCase):
         )
 
     def test_upsert_creates_and_updates(self):
-        e1 = upsert_expert_from_parsed_dict(
+        e1 = ExpertPersist.upsert_from_parsed_dict(
             {
                 "email": "A@B.COM",
                 "first_name": "Ann",
@@ -112,7 +108,7 @@ class ExpertPersistTests(TestCase):
             }
         )
         self.assertEqual(e1.email, "a@b.com")
-        e2 = upsert_expert_from_parsed_dict(
+        e2 = ExpertPersist.upsert_from_parsed_dict(
             {
                 "email": "a@b.com",
                 "last_name": "B",
@@ -135,7 +131,7 @@ class ExpertPersistTests(TestCase):
                 "first_name": "Two",
             },
         ]
-        n = replace_search_experts_for_search(self.search.id, rows)
+        n = ExpertPersist.replace_search_experts_for_search(self.search.id, rows)
         self.assertEqual(n, 2)
         se = list(
             SearchExpert.objects.filter(expert_search_id=self.search.id)
@@ -146,7 +142,7 @@ class ExpertPersistTests(TestCase):
         self.assertEqual(se[0].expert.email, "a1@u.edu")
         self.assertEqual(se[1].position, 1)
 
-        replace_search_experts_for_search(
+        ExpertPersist.replace_search_experts_for_search(
             self.search.id,
             [{"email": "a1@u.edu", "last_name": "Solo"}],
         )
@@ -155,7 +151,7 @@ class ExpertPersistTests(TestCase):
         )
 
     def test_mark_expert_last_email_sent_at(self):
-        e = upsert_expert_from_parsed_dict(
+        e = ExpertPersist.upsert_from_parsed_dict(
             {
                 "email": "m@q.com",
                 "first_name": "M",
@@ -164,11 +160,11 @@ class ExpertPersistTests(TestCase):
         t0 = e.last_email_sent_at
         self.assertIsNone(t0)
         before = timezone.now()
-        mark_expert_last_email_sent_at("M@Q.com")
+        ExpertPersist.mark_last_email_sent_at("M@Q.com")
         e.refresh_from_db()
         self.assertIsNotNone(e.last_email_sent_at)
         self.assertGreaterEqual(e.last_email_sent_at, before)
-        mark_expert_last_email_sent_at("")
+        ExpertPersist.mark_last_email_sent_at("")
         # no error
 
 
