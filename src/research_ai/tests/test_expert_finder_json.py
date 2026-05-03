@@ -3,10 +3,7 @@ from django.utils import timezone
 
 from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.services.expert_display import ExpertDisplay
-from research_ai.services.expert_finder_json import (
-    parse_expert_finder_json_text,
-    validate_expert_output,
-)
+from research_ai.services.expert_finder_json import ExpertFinderJson
 from research_ai.services.expert_persist import (
     mark_expert_last_email_sent_at,
     replace_search_experts_for_search,
@@ -27,18 +24,18 @@ class ParseExpertFinderJsonTextTests(TestCase):
     def test_parses_raw_json(self):
         text = '{"experts": [{"email": "a@b.com"}]}'
         self.assertEqual(
-            parse_expert_finder_json_text(text), {"experts": [{"email": "a@b.com"}]}
+            ExpertFinderJson.parse_text(text), {"experts": [{"email": "a@b.com"}]}
         )
 
     def test_parses_json_in_markdown_fence(self):
         text = 'Here:\n```json\n{"experts": [{"email": "x@y.org"}]}\n```\n'
         self.assertEqual(
-            parse_expert_finder_json_text(text), {"experts": [{"email": "x@y.org"}]}
+            ExpertFinderJson.parse_text(text), {"experts": [{"email": "x@y.org"}]}
         )
 
     def test_invalid_raises(self):
         with self.assertRaises(ValueError):
-            parse_expert_finder_json_text("not json at all")
+            ExpertFinderJson.parse_text("not json at all")
 
 
 class ValidateExpertOutputTests(TestCase):
@@ -53,7 +50,7 @@ class ValidateExpertOutputTests(TestCase):
                 }
             ]
         }
-        rows = validate_expert_output(obj)
+        rows = ExpertFinderJson.validate_output(obj)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["email"], "jane@uni.edu")
         self.assertEqual(rows[0]["first_name"], "Jane")
@@ -71,22 +68,22 @@ class ValidateExpertOutputTests(TestCase):
                 {"email": "good@x.com", "last_name": "dup"},
             ]
         }
-        rows = validate_expert_output(obj)
+        rows = ExpertFinderJson.validate_output(obj)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["email"], "good@x.com")
         self.assertEqual(rows[0]["last_name"], "A")
 
     def test_not_dict_raises(self):
         with self.assertRaises(ValueError):
-            validate_expert_output([])
+            ExpertFinderJson.validate_output([])
 
     def test_missing_experts_raises(self):
         with self.assertRaises(ValueError):
-            validate_expert_output({})
+            ExpertFinderJson.validate_output({})
 
     def test_experts_not_list_raises(self):
         with self.assertRaises(ValueError):
-            validate_expert_output({"experts": None})
+            ExpertFinderJson.validate_output({"experts": None})
 
 
 class ExpertDisplayTests(TestCase):
