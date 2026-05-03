@@ -5,7 +5,6 @@ Usage:
     python manage.py run_proposal_reviews --grant-ids 1,2,3
     python manage.py run_proposal_reviews --created-after 2024-01-01
     python manage.py run_proposal_reviews --created-before 2025-12-31 --created-after 2025-01-01
-    python manage.py run_proposal_reviews --grant-ids 1 --user-id 42  # optional override for created_by
     python manage.py run_proposal_reviews --grant-ids 1 --force  # re-run completed proposal reviews too
 """
 
@@ -14,13 +13,16 @@ from __future__ import annotations
 import logging
 from datetime import datetime, time
 
-from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Prefetch, Q
 from django.utils import timezone
 
-from ai_peer_review.models import ProposalReview, ReviewStatus
-from ai_peer_review.services.proposal_review_service import run_proposal_review
+from ai_peer_review.models import ProposalReview, Status
+from ai_peer_review.services.auto_run_guards import AutoRunGuardsService
+from ai_peer_review.services.proposal_review_service import (
+    reset_proposal_review_for_rerun,
+    run_proposal_review,
+)
 from ai_peer_review.services.rfp_summary_service import run_executive_comparison
 from purchase.models import Grant, GrantApplication
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -42,39 +44,6 @@ def _parse_date_end(s: str) -> datetime:
     except ValueError as e:
         raise CommandError(f"Invalid date {s!r}; use YYYY-MM-DD.") from e
     return timezone.make_aware(datetime.combine(d, time.max))
-
-
-def _reset_review_for_rerun(review: ProposalReview) -> None:
-    review.status = ReviewStatus.PENDING
-    review.error_message = ""
-    review.result_data = {}
-    review.overall_rating = None
-    review.overall_rationale = ""
-    review.overall_confidence = None
-    review.overall_score_numeric = None
-    review.save(
-        update_fields=[
-            "status",
-            "error_message",
-            "result_data",
-            "overall_rating",
-            "overall_rationale",
-            "overall_confidence",
-            "overall_score_numeric",
-            "updated_date",
-        ]
-    )
-
-
-def _load_override_user(user_id: int | None):
-    """If ``user_id`` is set, return that user; otherwise ``None`` (use grant creator per grant)."""
-    if user_id is None:
-        return None
-    User = get_user_model()
-    try:
-        return User.objects.get(pk=user_id)
-    except User.DoesNotExist as e:
-        raise CommandError(f"User id={user_id} does not exist.") from e
 
 
 class Command(BaseCommand):
@@ -104,15 +73,6 @@ class Command(BaseCommand):
             help="Include grants with created_date on or before this day (YYYY-MM-DD).",
         )
         parser.add_argument(
-            "--user-id",
-            type=int,
-            default=None,
-            help=(
-                "Optional user id for created_by on ProposalReview / new RFPSummary rows; "
-                "default is each grant's created_by."
-            ),
-        )
-        parser.add_argument(
             "--force",
             action="store_true",
             help=(
@@ -126,7 +86,6 @@ class Command(BaseCommand):
         grant_ids_raw: str = (options["grant_ids"] or "").strip()
         created_after: str = (options["created_after"] or "").strip()
         created_before: str = (options["created_before"] or "").strip()
-        user_id: int | None = options["user_id"]
         force: bool = bool(options["force"])
 
         has_ids = bool(grant_ids_raw)
@@ -136,8 +95,6 @@ class Command(BaseCommand):
                 "Provide exactly one mode: either --grant-ids or at least one of "
                 "--created-after / --created-before."
             )
-
-        override_user = _load_override_user(user_id)
 
         if has_ids:
             id_strings = [x.strip() for x in grant_ids_raw.split(",") if x.strip()]
@@ -202,7 +159,6 @@ class Command(BaseCommand):
             )
 
         for gi, grant in enumerate(grants, start=1):
-            actor = override_user if override_user is not None else grant.created_by
             apps = list(grant.applications.all())
             prereg_apps = [
                 a
@@ -228,15 +184,11 @@ class Command(BaseCommand):
                         unified_document=ud,
                         grant=grant,
                         defaults={
-                            "created_by": actor,
-                            "status": ReviewStatus.PENDING,
+                            "status": Status.PENDING,
                         },
                     )
-                    if review.created_by_id is None:
-                        review.created_by = actor
-                        review.save(update_fields=["created_by", "updated_date"])
 
-                    if review.status == ReviewStatus.COMPLETED and not force:
+                    if review.status == Status.COMPLETED and not force:
                         self.stdout.write(
                             f"  [{pj}/{len(prereg_apps)}] unified_document={ud.id} "
                             f"SKIP (already completed, review_id={review.id})"
@@ -244,7 +196,20 @@ class Command(BaseCommand):
                         proposals_skipped += 1
                         continue
 
-                    _reset_review_for_rerun(review)
+                    skip, reason = AutoRunGuardsService.should_skip_proposal_review(
+                        review, force=force
+                    )
+                    if skip:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"  [{pj}/{len(prereg_apps)}] unified_document={ud.id} "
+                                f"SKIP (guard: {reason}, review_id={review.id})"
+                            )
+                        )
+                        proposals_skipped += 1
+                        continue
+
+                    reset_proposal_review_for_rerun(review)
                     review.refresh_from_db()
 
                     self.stdout.write(
@@ -253,7 +218,7 @@ class Command(BaseCommand):
                     )
                     run_proposal_review(review.id)
                     review.refresh_from_db()
-                    if review.status == ReviewStatus.COMPLETED:
+                    if review.status == Status.COMPLETED:
                         proposals_run += 1
                         self.stdout.write(
                             self.style.SUCCESS(
@@ -284,7 +249,7 @@ class Command(BaseCommand):
                     )
 
             try:
-                run_executive_comparison(grant.id, actor.id)
+                run_executive_comparison(grant.id, None)
                 exec_ok += 1
                 self.stdout.write(
                     self.style.SUCCESS(

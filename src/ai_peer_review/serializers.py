@@ -7,11 +7,47 @@ from ai_peer_review.models import (
     EditorialFeedback,
     EditorialFeedbackCategory,
     ExpertDimensionScore,
+    ProposalKeyInsight,
+    ProposalKeyInsightItem,
     ProposalReview,
-    ReviewStatus,
     RFPSummary,
+    Status,
 )
 from ai_peer_review.services.proposal_review_scoring import category_scores
+
+
+class ProposalKeyInsightItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProposalKeyInsightItem
+        fields = [
+            "id",
+            "item_type",
+            "label",
+            "description",
+            "order",
+            "created_date",
+            "updated_date",
+        ]
+        read_only_fields = fields
+
+
+class ProposalKeyInsightSerializer(serializers.ModelSerializer):
+    items = ProposalKeyInsightItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ProposalKeyInsight
+        fields = [
+            "id",
+            "status",
+            "tldr",
+            "error_message",
+            "llm_model",
+            "processing_time",
+            "created_date",
+            "updated_date",
+            "items",
+        ]
+        read_only_fields = fields
 
 
 class ProposalReviewCreateSerializer(serializers.Serializer):
@@ -21,6 +57,7 @@ class ProposalReviewCreateSerializer(serializers.Serializer):
 
 class ProposalReviewSerializer(serializers.ModelSerializer):
     editorial_feedback = serializers.SerializerMethodField()
+    key_insight = serializers.SerializerMethodField()
 
     class Meta:
         model = ProposalReview
@@ -32,7 +69,6 @@ class ProposalReviewSerializer(serializers.ModelSerializer):
             "status",
             "overall_rating",
             "overall_rationale",
-            "overall_confidence",
             "overall_score_numeric",
             "result_data",
             "error_message",
@@ -43,6 +79,7 @@ class ProposalReviewSerializer(serializers.ModelSerializer):
             "created_date",
             "updated_date",
             "editorial_feedback",
+            "key_insight",
         ]
         read_only_fields = fields
 
@@ -52,6 +89,13 @@ class ProposalReviewSerializer(serializers.ModelSerializer):
         except ObjectDoesNotExist:
             return None
         return EditorialFeedbackSerializer(fb).data
+
+    def get_key_insight(self, obj):
+        try:
+            ki = obj.key_insight
+        except ObjectDoesNotExist:
+            return None
+        return ProposalKeyInsightSerializer(ki).data
 
 
 class RFPSummarySerializer(serializers.ModelSerializer):
@@ -217,7 +261,7 @@ def build_proposal_comparison_row(
     row["status"] = review.status
     row["overall_rating"] = review.overall_rating
     row["overall_score_numeric"] = review.overall_score_numeric
-    if review.status == ReviewStatus.COMPLETED and review.result_data:
+    if review.status == Status.COMPLETED and review.result_data:
         cats = category_scores(review.result_data)
         row["categories"] = {k: cats.get(k) for k in CATEGORY_KEYS}
     return row

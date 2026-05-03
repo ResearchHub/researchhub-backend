@@ -291,7 +291,6 @@ SITE_ID = 1
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
-    "researchhub.middleware.csrf_disable.DisableCSRF",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -560,6 +559,16 @@ OPENAI_API_KEY = os.environ.get(
     getattr(keys, "OPENAI_API_KEY", ""),
 )
 
+AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
+    "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
+    getattr(keys, "AI_PEER_REVIEW_BEDROCK_MODEL_ID", ""),
+)
+
+AI_PEER_REVIEW_EXPERT_EMAIL = os.environ.get(
+    "AI_PEER_REVIEW_EXPERT_EMAIL",
+    getattr(keys, "AI_PEER_REVIEW_EXPERT_EMAIL", ""),
+)
+
 if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:
     # Set AWS profile for local development
     os.environ["AWS_PROFILE"] = keys.AWS_PROFILE
@@ -740,7 +749,7 @@ REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
 if TESTING:
     CACHES = {
         "default": {
-            "BACKEND": "researchhub.TestCache.TestCache",
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
             "LOCATION": f"{REDIS_HOST}:{REDIS_PORT}",
             "KEY_PREFIX": APP_ENV,
         },
@@ -855,14 +864,6 @@ if STAGING or PRODUCTION:
 
 # Killswitch Variables
 SERIALIZER_SWITCH = os.environ.get("SERIALIZER_SWITCH", True)
-
-# CKEditor Cloud Services
-CKEDITOR_CLOUD_ACCESS_KEY = os.environ.get(
-    "CKEDITOR_CLOUD_ACCESS_KEY", keys.CKEDITOR_CLOUD_ACCESS_KEY
-)
-CKEDITOR_CLOUD_ENVIRONMENT_ID = os.environ.get(
-    "CKEDITOR_CLOUD_ENVIRONMENT_ID", keys.CKEDITOR_CLOUD_ENVIRONMENT_ID
-)
 
 # Crossref
 CROSSREF_DOI_RSC_FEE = 5
