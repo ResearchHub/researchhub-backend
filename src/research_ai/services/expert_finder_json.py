@@ -6,7 +6,7 @@ from typing import Any
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 
-from research_ai.services.expert_display import normalize_expert_email
+from research_ai.services.expert_display import ExpertDisplay
 from research_ai.utils import trimmed_str
 
 logger = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ def validate_expert_output(obj: Any) -> list[dict[str, Any]]:
             logger.warning("skipped non-object experts[%s] entry", i)
             continue
 
-        email = normalize_expert_email(trimmed_str(row.get("email", "")))
+        email = ExpertDisplay.normalize_email(trimmed_str(row.get("email", "")))
         if not email:
             logger.warning("skipped experts[%s] with missing or empty email", i)
             continue

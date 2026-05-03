@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from research_ai.models import Expert, ExpertSearch, SearchExpert
-from research_ai.services.expert_display import build_expert_display_name
+from research_ai.services.expert_display import ExpertDisplay
 from research_ai.services.expert_finder_json import (
     parse_expert_finder_json_text,
     validate_expert_output,
@@ -91,7 +91,7 @@ class ValidateExpertOutputTests(TestCase):
 
 class ExpertDisplayTests(TestCase):
     def test_build_name_structured(self):
-        n = build_expert_display_name(
+        n = ExpertDisplay.build_display_name(
             honorific="Dr", first_name="A", last_name="B", name_suffix="PhD"
         )
         self.assertEqual(n, "Dr. A B, PhD")

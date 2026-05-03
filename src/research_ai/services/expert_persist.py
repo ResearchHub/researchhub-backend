@@ -4,7 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from research_ai.models import Expert, SearchExpert
-from research_ai.services.expert_display import normalize_expert_email
+from research_ai.services.expert_display import ExpertDisplay
 from research_ai.utils import trimmed_str
 
 
@@ -12,7 +12,7 @@ def upsert_expert_from_parsed_dict(d: dict[str, Any]) -> Expert:
     """
     One row per email. Non-empty fields from the latest parse overwrite existing values.
     """
-    email = normalize_expert_email(d.get("email") or "")
+    email = ExpertDisplay.normalize_email(d.get("email") or "")
     if not email:
         raise ValueError("Expert email is required")
 
@@ -75,7 +75,7 @@ def replace_search_experts_for_search(
 
 def mark_expert_last_email_sent_at(email: str) -> None:
     """Set last_email_sent_at=now on the Expert row for this address, if one exists."""
-    em = normalize_expert_email(email)
+    em = ExpertDisplay.normalize_email(email)
     if not em:
         return
     Expert.objects.filter(email__iexact=em).update(last_email_sent_at=timezone.now())
