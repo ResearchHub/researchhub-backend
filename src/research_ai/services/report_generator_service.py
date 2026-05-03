@@ -13,8 +13,41 @@ from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from research_ai.constants import ExpertiseLevel, Region, get_choice_label
+from research_ai.models import Expert
+from research_ai.services.expert_display import ExpertDisplay
 
 logger = logging.getLogger(__name__)
+
+
+def expert_to_report_row(expert: Expert) -> dict[str, Any]:
+    """
+    Map an ``Expert`` row to the PDF/CSV / API list shape
+    """
+    name = (ExpertDisplay.display_name_for(expert) or expert.email or "").strip()
+    return {
+        "name": name,
+        "title": expert.academic_title or "",
+        "affiliation": expert.affiliation or "",
+        "expertise": expert.expertise or "",
+        "email": expert.email or "",
+        "notes": expert.notes or "",
+    }
+
+
+def generate_pdf_report_v2(
+    experts: list[Expert],
+    query: str,
+    config: dict[str, Any],
+) -> bytes:
+    rows = [expert_to_report_row(e) for e in experts]
+
+    return generate_pdf_report(rows, query, config)
+
+
+def generate_csv_file_v2(experts: list[Expert]) -> bytes:
+    rows = [expert_to_report_row(e) for e in experts]
+
+    return generate_csv_file(rows)
 
 
 def generate_pdf_report(
@@ -133,14 +166,9 @@ def generate_pdf_report(
 
         elements.append(Paragraph("<b>Search Configuration:</b>", styles["Heading3"]))
         expert_count = config.get("expert_count", 10)
-        expertise_level_raw = config.get(
-            "expertise_level", [ExpertiseLevel.ALL_LEVELS]
-        )
+        expertise_level_raw = config.get("expertise_level", [ExpertiseLevel.ALL_LEVELS])
         if isinstance(expertise_level_raw, list):
-            labels = [
-                get_choice_label(v, ExpertiseLevel)
-                for v in expertise_level_raw
-            ]
+            labels = [get_choice_label(v, ExpertiseLevel) for v in expertise_level_raw]
             expertise_level = (
                 ", ".join(labels) if labels else ExpertiseLevel.ALL_LEVELS.label
             )

@@ -84,10 +84,22 @@ class ValidateExpertOutputTests(TestCase):
 
 class ExpertDisplayTests(TestCase):
     def test_build_name_structured(self):
-        n = ExpertDisplay.build_display_name(
+        n = ExpertDisplay.build_name(
             honorific="Dr", first_name="A", last_name="B", name_suffix="PhD"
         )
         self.assertEqual(n, "Dr. A B, PhD")
+
+    def test_build_name_first_middle_last_only(self):
+        n = ExpertDisplay.build_name(
+            first_name="Jane", middle_name="Q", last_name="Doe"
+        )
+        self.assertEqual(n, "Jane Q Doe")
+
+    def test_build_name_omits_empty_name_parts(self):
+        self.assertEqual(
+            ExpertDisplay.build_name(first_name="A", last_name="B"), "A B"
+        )
+        self.assertEqual(ExpertDisplay.build_name(last_name="Z"), "Z")
 
 
 class ExpertPersistTests(TestCase):
