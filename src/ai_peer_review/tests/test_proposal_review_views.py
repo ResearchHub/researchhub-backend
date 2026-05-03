@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from ai_peer_review.constants import CATEGORY_KEYS
-from ai_peer_review.models import ProposalReview, ReviewStatus, RFPSummary
+from ai_peer_review.models import ProposalReview, RFPSummary, Status
 from purchase.models import Grant, GrantApplication
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
@@ -85,13 +85,12 @@ class ProposalReviewAPITests(APITestCase):
             created_by=self.moderator,
             unified_document=self.ud,
             grant=self.grant,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             overall_rating="good",
-            overall_score_numeric=2,
+            overall_score_numeric=4,
             overall_rationale="Strong fit.",
-            overall_confidence="High",
             result_data={
-                "categories": {"funding_opportunity_fit": {"score": "High"}},
+                "categories": {"overall_impact": {"score": 5}},
             },
         )
         self.client.force_authenticate(self.moderator)
@@ -113,18 +112,15 @@ class ProposalReviewAPITests(APITestCase):
             created_by=self.moderator,
             unified_document=self.ud,
             grant=self.grant,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             overall_rating="excellent",
-            overall_score_numeric=3,
+            overall_score_numeric=5,
             result_data={
                 "categories": {
-                    "funding_opportunity_fit": {"score": "High"},
-                    "methods_rigor": {"score": "High"},
-                    "statistical_analysis_plan": {"score": "N/A"},
-                    "feasibility_and_execution": {"score": "High"},
-                    "scientific_impact": {"score": "High"},
-                    "clinical_or_translational_impact": {"score": "Medium"},
-                    "societal_and_broader_impact": {"score": "High"},
+                    "overall_impact": {"score": 5},
+                    "importance_significance_innovation": {"score": 5},
+                    "rigor_and_feasibility": {"score": 5},
+                    "additional_review_criteria": {"score": 1},
                 },
             },
         )
@@ -134,8 +130,10 @@ class ProposalReviewAPITests(APITestCase):
         data = r.json()
         self.assertEqual(data["grant_id"], self.grant.id)
         self.assertEqual(len(data["proposals"]), 1)
+        self.assertEqual(data["proposals"][0]["categories"]["overall_impact"], 5)
         self.assertEqual(
-            data["proposals"][0]["categories"]["funding_opportunity_fit"], "High"
+            data["proposals"][0]["categories"]["additional_review_criteria"],
+            1,
         )
 
     def test_editorial_feedback_upsert_requires_editor(self):
@@ -233,19 +231,16 @@ class GrantExecutiveSummaryAPITests(APITestCase):
             created_by=self.moderator,
             unified_document=self.prop_post.unified_document,
             grant=self.grant,
-            status=ReviewStatus.COMPLETED,
+            status=Status.COMPLETED,
             overall_rating="good",
-            overall_score_numeric=2,
+            overall_score_numeric=4,
             result_data={
                 "overall_summary": "Solid work across categories.",
                 "categories": {
-                    "funding_opportunity_fit": {"score": "High"},
-                    "methods_rigor": {"score": "High"},
-                    "statistical_analysis_plan": {"score": "Medium"},
-                    "feasibility_and_execution": {"score": "Medium"},
-                    "scientific_impact": {"score": "High"},
-                    "clinical_or_translational_impact": {"score": "N/A"},
-                    "societal_and_broader_impact": {"score": "High"},
+                    "overall_impact": {"score": 5},
+                    "importance_significance_innovation": {"score": 5},
+                    "rigor_and_feasibility": {"score": 3},
+                    "additional_review_criteria": {"score": 1},
                 },
             },
         )
@@ -262,4 +257,4 @@ class GrantExecutiveSummaryAPITests(APITestCase):
         self.assertIn("Compared proposals", r.json()["executive_summary"])
         rs = RFPSummary.objects.get(grant=self.grant)
         self.assertIn("Compared proposals", rs.executive_comparison_summary)
-        self.assertEqual(rs.status, ReviewStatus.COMPLETED)
+        self.assertEqual(rs.status, Status.COMPLETED)

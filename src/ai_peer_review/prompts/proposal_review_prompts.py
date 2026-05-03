@@ -1,6 +1,7 @@
 import os
 
 _PROMPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+_TRUNCATED_FOR_LENGTH_SUFFIX = "\n\n[TRUNCATED FOR LENGTH]"
 _template_cache: dict[str, str] = {}
 
 
@@ -14,6 +15,44 @@ def _load_template(name: str) -> str:
 
 def get_proposal_review_system_prompt() -> str:
     return _load_template("proposal_review_system.txt")
+
+
+def get_proposal_key_insights_system_prompt() -> str:
+    return _load_template("proposal_key_insights_system.txt")
+
+
+def build_proposal_key_insights_user_prompt(
+    proposal_text: str,
+    rfp_context: str | None = None,
+    ai_review_summary: str = "",
+    human_reviews_text: str = "",
+) -> str:
+    """
+    User message for the key-insights pass: proposal, RFP, AI review
+    summary, and human review text.
+    """
+    rfp = ""
+    if rfp_context and rfp_context.strip():
+        rfp = (
+            "\n\nRFP context (aka funding opportunity):\n"
+            f"{rfp_context.strip()[:8000]}\n"
+        )
+    ai = ""
+    if ai_review_summary and ai_review_summary.strip():
+        s = ai_review_summary.strip()
+        if len(s) > 20000:
+            s = s[:20000] + _TRUNCATED_FOR_LENGTH_SUFFIX
+        ai = f"\n\nAI REVIEW SUMMARY:\n{s}\n"
+    human = ""
+    if human_reviews_text and human_reviews_text.strip():
+        h = human_reviews_text.strip()
+        if len(h) > 30000:
+            h = h[:30000] + _TRUNCATED_FOR_LENGTH_SUFFIX
+        human = f"\n\nHUMAN REVIEWS:\n{h}\n"
+    text = (proposal_text or "").strip()
+    if len(text) > 120000:
+        text = text[:120000] + _TRUNCATED_FOR_LENGTH_SUFFIX
+    return f"PROPOSAL TEXT:\n{text}{rfp}{ai}{human}"
 
 
 def get_openai_web_context_system_prompt() -> str:
@@ -45,8 +84,9 @@ def build_proposal_review_user_prompt(
     if external_researcher_context and external_researcher_context.strip():
         external = (
             "\n\nEXTERNAL RESEARCHER CONTEXT (from ORCID public record and OpenAlex; "
-            "factual only—use for feasibility_and_execution.team_environment and to "
-            "ground expertise; do not invent facts beyond this block):\n"
+            "factual only-use for rigor_and_feasibility.team_qualifications and "
+            "rigor_and_feasibility.research_environment to ground expertise; "
+            "do not invent facts beyond this block):\n"
             f"{external_researcher_context.strip()}\n"
         )
     web_ctx = ""
@@ -59,16 +99,14 @@ def build_proposal_review_user_prompt(
         )
     text = (proposal_text or "").strip()
     if len(text) > 120000:
-        text = text[:120000] + "\n\n[TRUNCATED FOR LENGTH]"
+        text = text[:120000] + _TRUNCATED_FOR_LENGTH_SUFFIX
     return (
         "Evaluate the following research proposal and return the structured JSON "
-        'assessment with the seven top-level categories (under "categories"), '
-        "overall_summary, overall_rationale, overall_confidence, major_strengths, "
-        "major_weaknesses, and fatal_flaws. In major_strengths and major_weaknesses, "
-        "put the most important items first in each array (descending importance). "
-        "Provide overall_rating and overall_score_numeric when you can; the server "
-        "canonicalizes them (overall_score_numeric defaults to 1 if missing or "
-        "invalid).\n\n"
+        'assessment with four top-level categories under "categories" (all scored) '
+        "and overall fields: overall_summary, overall_rationale, overall_rating, and "
+        "overall_score_numeric. The server re-derives category scores and overall "
+        "from your per-item decisions (overall_score_numeric is 1-5; defaults apply "
+        "if missing or invalid).\n\n"
         "PROPOSAL TEXT:\n"
         f"{text}"
         f"{author}"

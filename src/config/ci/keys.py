@@ -35,11 +35,6 @@ APM_URL = os.environ.get("APM_URL", "NOT_REAL")
 
 OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "localhost:9200")
 
-CKEDITOR_CLOUD_ACCESS_KEY = os.environ.get("CKEDITOR_CLOUD_ACCESS_KEY", "NOT_REAL")
-CKEDITOR_CLOUD_ENVIRONMENT_ID = os.environ.get(
-    "CKEDITOR_CLOUD_ENVIRONMENT_ID", "NOT_REAL"
-)
-
 MORALIS_API_KEY = os.environ.get("MORALIS_API_KEY", "")
 WEB3_NETWORK = os.environ.get("WEB3_NETWORK", "")
 WEB3_RSC_ADDRESS = os.environ.get("WEB3_RSC_ADDRESS", "")

@@ -4,13 +4,14 @@ from ai_peer_review.constants import CATEGORY_ITEMS, CATEGORY_KEYS
 from ai_peer_review.models import OverallRating
 from ai_peer_review.services.proposal_review_scoring import (
     category_scores,
+    compute_overall_rating_totals,
     normalize_category_scores_from_item_decisions,
     parse_json_response,
     recompute_overall_fields,
 )
 
 
-def _cat(score: str) -> dict:
+def _cat(score) -> dict:
     return {"score": score, "rationale": "R", "items": {}}
 
 
@@ -21,7 +22,7 @@ def _items_uniform(item_keys: list[str], decision: str) -> dict:
 def _category_all_decisions(
     cat_key: str,
     decision: str,
-    headline: str = "High",
+    headline: str | int = 3,
 ) -> dict:
     keys = CATEGORY_ITEMS[cat_key]
     return {
@@ -33,7 +34,7 @@ def _category_all_decisions(
 
 def _all_categories_uniform_item_decision(
     decision: str,
-    headline: str = "High",
+    headline: str | int = 3,
 ) -> dict:
     return {
         k: _category_all_decisions(k, decision, headline=headline)
@@ -43,8 +44,8 @@ def _all_categories_uniform_item_decision(
 
 class ProposalReviewScoringTests(SimpleTestCase):
     def test_parse_json_response_plain(self):
-        d = parse_json_response('{"categories": {"methods_rigor": {"score": "High"}}}')
-        self.assertEqual(d["categories"]["methods_rigor"]["score"], "High")
+        d = parse_json_response('{"categories": {"overall_impact": {"score": 5}}}')
+        self.assertEqual(d["categories"]["overall_impact"]["score"], 5)
 
     def test_parse_json_response_code_fence(self):
         raw = 'Here is JSON:\n```json\n{"a": 1}\n```'
@@ -53,59 +54,41 @@ class ProposalReviewScoringTests(SimpleTestCase):
 
     def test_parse_json_response_embedded_braces(self):
         d = parse_json_response(
-            'noise {"categories": {"methods_rigor": {"score": "Low"}}} tail'
+            'noise {"categories": {"overall_impact": {"score": 2}}} tail'
         )
-        self.assertEqual(d["categories"]["methods_rigor"]["score"], "Low")
+        self.assertEqual(d["categories"]["overall_impact"]["score"], 2)
 
     def test_parse_json_response_invalid_raises(self):
         with self.assertRaises(ValueError):
             parse_json_response("no json here")
 
-    def test_normalize_no_items_yields_low_ignores_headline(self):
+    def test_normalize_no_items_yields_one_ignores_headline(self):
         review = {
-            "categories": {"methods_rigor": _cat("medium")},
+            "categories": {"overall_impact": _cat(4)},
         }
         normalize_category_scores_from_item_decisions(review)
-        self.assertEqual(review["categories"]["methods_rigor"]["score"], "Low")
+        self.assertEqual(review["categories"]["overall_impact"]["score"], 1)
 
-    def test_normalize_na_headline_optional_low_without_all_item_na(self):
+    def test_normalize_additional_review_criteria_is_scored(self):
         review = {
             "categories": {
-                "methods_rigor": _cat("N/A"),
-                "statistical_analysis_plan": _cat("n/a"),
-            },
-        }
-        normalize_category_scores_from_item_decisions(review)
-        self.assertEqual(review["categories"]["methods_rigor"]["score"], "Low")
-        self.assertEqual(
-            review["categories"]["statistical_analysis_plan"]["score"],
-            "Low",
-        )
-
-    def test_normalize_optional_all_items_na_is_category_na(self):
-        sap_keys = CATEGORY_ITEMS["statistical_analysis_plan"]
-        items = _items_uniform(sap_keys, "N/A")
-        review = {
-            "categories": {
-                "statistical_analysis_plan": {
-                    "score": "High",
-                    "rationale": "R",
-                    "items": items,
-                },
+                "additional_review_criteria": _category_all_decisions(
+                    "additional_review_criteria", "No", headline=5
+                ),
             },
         }
         normalize_category_scores_from_item_decisions(review)
         self.assertEqual(
-            review["categories"]["statistical_analysis_plan"]["score"],
-            "N/A",
+            review["categories"]["additional_review_criteria"]["score"],
+            1,
         )
 
     def test_normalize_derived_score_overrides_contradictory_headline(self):
-        keys = CATEGORY_ITEMS["funding_opportunity_fit"]
+        keys = CATEGORY_ITEMS["overall_impact"]
         review = {
             "categories": {
-                "funding_opportunity_fit": {
-                    "score": "High",
+                "overall_impact": {
+                    "score": 5,
                     "rationale": "R",
                     "items": _items_uniform(keys, "Partial"),
                 },
@@ -113,58 +96,41 @@ class ProposalReviewScoringTests(SimpleTestCase):
         }
         normalize_category_scores_from_item_decisions(review)
         self.assertEqual(
-            review["categories"]["funding_opportunity_fit"]["score"],
-            "Medium",
+            review["categories"]["overall_impact"]["score"],
+            3,
         )
 
-    def test_critical_fail_caps_high_to_medium(self):
-        keys = CATEGORY_ITEMS["methods_rigor"]
+    def test_critical_fail_caps_five_to_four(self):
+        keys = CATEGORY_ITEMS["rigor_and_feasibility"]
         items = {k: {"decision": "Yes", "justification": "J"} for k in keys}
-        items["methods_detail"] = {"decision": "No", "justification": "J"}
+        items["study_design"] = {"decision": "No", "justification": "J"}
         review = {
             "categories": {
-                "methods_rigor": {
-                    "score": "High",
+                "rigor_and_feasibility": {
+                    "score": 5,
                     "rationale": "R",
                     "items": items,
                 },
             },
         }
         normalize_category_scores_from_item_decisions(review)
-        self.assertEqual(review["categories"]["methods_rigor"]["score"], "Medium")
+        self.assertEqual(
+            review["categories"]["rigor_and_feasibility"]["score"],
+            4,
+        )
 
-    def test_recompute_derives_overall_from_categories_not_llm(self):
+    def test_recompute_derives_overall_from_all_scored_categories(self):
         review = {
             "overall_rating": "poor",
             "overall_score_numeric": 1,
-            "categories": _all_categories_uniform_item_decision("Yes", headline="Low"),
+            "categories": _all_categories_uniform_item_decision("Yes", headline=1),
         }
         normalize_category_scores_from_item_decisions(review)
         recompute_overall_fields(review)
         self.assertEqual(review["overall_rating"], OverallRating.EXCELLENT.value)
-        self.assertEqual(review["overall_score_numeric"], 3)
+        self.assertEqual(review["overall_score_numeric"], 5)
 
-    def test_recompute_missing_overall_rating_filled_from_categories(self):
-        review = {
-            "categories": _all_categories_uniform_item_decision("Yes"),
-        }
-        normalize_category_scores_from_item_decisions(review)
-        recompute_overall_fields(review)
-        self.assertEqual(review["overall_rating"], OverallRating.EXCELLENT.value)
-        self.assertEqual(review["overall_score_numeric"], 3)
-
-    def test_recompute_invalid_llm_overall_replaced_by_derived(self):
-        review = {
-            "overall_rating": "maybe",
-            "overall_score_numeric": 99,
-            "categories": _all_categories_uniform_item_decision("Yes"),
-        }
-        normalize_category_scores_from_item_decisions(review)
-        recompute_overall_fields(review)
-        self.assertEqual(review["overall_rating"], OverallRating.EXCELLENT.value)
-        self.assertEqual(review["overall_score_numeric"], 3)
-
-    def test_recompute_all_partial_seven_categories_is_good(self):
+    def test_recompute_all_partial_scored_categories_is_adequate(self):
         review = {
             "overall_rating": "poor",
             "overall_score_numeric": 1,
@@ -172,11 +138,24 @@ class ProposalReviewScoringTests(SimpleTestCase):
         }
         normalize_category_scores_from_item_decisions(review)
         recompute_overall_fields(review)
-        self.assertEqual(review["overall_rating"], OverallRating.GOOD.value)
-        self.assertEqual(review["overall_score_numeric"], 2)
+        self.assertEqual(review["overall_rating"], OverallRating.ADEQUATE.value)
+        self.assertEqual(review["overall_score_numeric"], 3)
 
-    def test_category_scores_reads_normalized_labels(self):
-        review = {"categories": {"funding_opportunity_fit": _cat("low")}}
+    def test_category_scores_reads_after_normalize(self):
+        review = {
+            "categories": {
+                "overall_impact": _cat("low"),
+                "additional_review_criteria": _category_all_decisions(
+                    "additional_review_criteria", "Yes"
+                ),
+            }
+        }
         normalize_category_scores_from_item_decisions(review)
         scores = category_scores(review)
-        self.assertEqual(scores["funding_opportunity_fit"], "Low")
+        self.assertEqual(scores["overall_impact"], 1)
+        self.assertEqual(scores["additional_review_criteria"], 5)
+        for k in (
+            "importance_significance_innovation",
+            "rigor_and_feasibility",
+        ):
+            self.assertIsNone(scores.get(k))

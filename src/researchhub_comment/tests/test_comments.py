@@ -1,6 +1,7 @@
 # flake8: noqa
 import time
 
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
 from hub.models import Hub
@@ -9,6 +10,8 @@ from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Score
+from researchhub_comment.models import RhCommentModel
+from review.models import Review
 from user.models import UserVerification
 from user.tests.helpers import create_moderator, create_random_default_user, create_user
 
@@ -88,6 +91,11 @@ class CommentViewTests(APITestCase):
             },
         )
         return res
+
+    def _create_review_comment(self, paper_id, created_by, **kwargs):
+        return self._create_paper_comment(
+            paper_id, created_by, thread_type="REVIEW", comment_type="REVIEW", **kwargs
+        )
 
     def _create_post_comment(
         self, post_id, created_by, text="this is a test comment", **kwargs
@@ -821,10 +829,11 @@ class CommentViewTests(APITestCase):
 
     def test_get_document_metadata_review_metrics_update(self):
         """
-        Creating a *peer-review* and then deleting it should respectively
-        increase and decrease the ``reviews.count`` field returned by the
-        ``get_document_metadata`` endpoint.
+        Creating an assessed *peer-review* and then deleting it should
+        respectively increase and decrease the ``reviews.count`` field
+        returned by the ``get_document_metadata`` endpoint.
         """
+        from review.models import Review
 
         # Authenticate as user_1 who will author the review comment & review
         self.client.force_authenticate(self.user_1)
@@ -857,6 +866,9 @@ class CommentViewTests(APITestCase):
             },
         )
         self.assertIn(review_create_res.status_code, (200, 201))
+
+        # Mark the review as assessed so it counts toward review_metrics
+        Review.objects.filter(id=review_create_res.data["id"]).update(is_assessed=True)
 
         # 3) Metadata should now report *one* review
         after_create_meta = self._get_metadata()
@@ -941,3 +953,63 @@ class CommentViewTests(APITestCase):
         self.assertEqual(author_update_res.data["count"], 1)
         self.assertEqual(regular_res.status_code, 200)
         self.assertEqual(regular_res.data["count"], 1)
+
+    def test_best_ordering_verified_user_ranks_above_unverified(self):
+        """Verified user's comment should sort above an unverified user's
+        comment even when the unverified comment has a higher raw score."""
+        # Arrange
+        verified = self._create_paper_comment(self.paper.id, self.verified_user)
+        unverified = self._create_paper_comment(self.paper.id, self.user_1)
+        RhCommentModel.objects.filter(id=unverified.data["id"]).update(score=2)
+
+        # Act
+        self.client.force_authenticate(self.user_1)
+        res = self.client.get(
+            f"/api/paper/{self.paper.id}/comments/?ordering=BEST&ascending=FALSE"
+        )
+
+        # Assert
+        results = res.data["results"]
+        self.assertEqual(results[0]["id"], verified.data["id"])
+        self.assertEqual(results[1]["id"], unverified.data["id"])
+
+    def test_best_ordering_review_assessed_outranks_verified(self):
+        """For reviews, is_assessed should still outrank weighted_score."""
+        # Arrange
+        assessed = self._create_review_comment(self.paper.id, self.user_1)
+        verified = self._create_review_comment(self.paper.id, self.verified_user)
+        Review.objects.create(
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=assessed.data["id"],
+            created_by=self.user_1,
+            is_assessed=True,
+        )
+
+        # Act
+        self.client.force_authenticate(self.user_1)
+        res = self.client.get(
+            f"/api/paper/{self.paper.id}/comments/?filtering=REVIEW&ordering=BEST&ascending=FALSE"
+        )
+
+        # Assert
+        results = res.data["results"]
+        self.assertEqual(results[0]["id"], assessed.data["id"])
+        self.assertEqual(results[1]["id"], verified.data["id"])
+
+    def test_best_ordering_review_verified_ranks_higher_within_same_assessed_tier(self):
+        """Within the same is_assessed tier, verified user's review should
+        sort above unverified user's review."""
+        # Arrange
+        unverified = self._create_review_comment(self.paper.id, self.user_1)
+        verified = self._create_review_comment(self.paper.id, self.verified_user)
+
+        # Act
+        self.client.force_authenticate(self.user_1)
+        res = self.client.get(
+            f"/api/paper/{self.paper.id}/comments/?filtering=REVIEW&ordering=BEST&ascending=FALSE"
+        )
+
+        # Assert
+        results = res.data["results"]
+        self.assertEqual(results[0]["id"], verified.data["id"])
+        self.assertEqual(results[1]["id"], unverified.data["id"])
