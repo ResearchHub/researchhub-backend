@@ -3,7 +3,8 @@ from rest_framework import serializers
 from feed.serializers import SimpleAuthorSerializer
 from paper.serializers import PaperSerializer
 from research_ai.constants import ExpertiseLevel, Gender, Region
-from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
+from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail, SearchExpert
+from research_ai.services.expert_display import ExpertDisplay
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import ResearchhubPostSerializer
 from user.models import Author
@@ -115,15 +116,58 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
         return attrs
 
 
-class ExpertResultSerializer(serializers.Serializer):
+class ExpertSearchCreateSerializerV2(serializers.Serializer):
+    """POST body for ``/expert-finder/v2/searches/`` (v2 JSON pipeline)."""
 
-    name = serializers.CharField()
-    title = serializers.CharField(allow_blank=True)
+    unified_document_id = serializers.IntegerField(required=True)
+    additional_context = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=ADDITIONAL_CONTEXT_MAX_LENGTH,
+    )
+    name = serializers.CharField(required=False, allow_blank=True, max_length=512)
+    input_type = serializers.ChoiceField(
+        choices=ExpertSearch.InputType.choices,
+        required=True,
+    )
+    config = ExpertSearchConfigSerializer(required=False, default=dict)
+    excluded_search_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False,
+        default=list,
+    )
+
+    def validate(self, attrs):
+        raw_ids = attrs.get("excluded_search_ids") or []
+        norm_ids: list[int] = []
+        seen: set[int] = set()
+        for x in raw_ids:
+            if x not in seen:
+                seen.add(x)
+                norm_ids.append(int(x))
+        attrs["excluded_search_ids"] = norm_ids
+        attrs["config"] = attrs.get("config") or {}
+        return attrs
+
+
+class ExpertSerializer(serializers.Serializer):
+
+    id = serializers.IntegerField()
+    honorific = serializers.CharField(allow_blank=True)
+    first_name = serializers.CharField(allow_blank=True)
+    middle_name = serializers.CharField(allow_blank=True)
+    last_name = serializers.CharField(allow_blank=True)
+    name_suffix = serializers.CharField(allow_blank=True)
+    academic_title = serializers.CharField(allow_blank=True)
     affiliation = serializers.CharField(allow_blank=True)
     expertise = serializers.CharField(allow_blank=True)
-    email = serializers.CharField()
-    notes = serializers.CharField(allow_blank=True, required=False)
+    email = serializers.CharField(allow_blank=True)
+    notes = serializers.CharField(allow_blank=True)
     sources = serializers.ListField(required=False, allow_null=True)
+    display_name = serializers.SerializerMethodField()
+
+    def get_display_name(self, obj):
+        return ExpertDisplay.display_name_for(obj)
 
 
 class ResearchAIAuthorSerializer(serializers.ModelSerializer):
@@ -282,6 +326,97 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
         if not obj.expert_results:
             return []
         return [e.get("name") or "" for e in obj.expert_results if e.get("name")]
+
+
+class ExpertSearchListItemSerializerV2(serializers.ModelSerializer):
+    """V2 list row: search metadata (no per-expert name list; use detail ``experts`` if needed)."""
+
+    search_id = serializers.IntegerField(source="id", read_only=True)
+    created_by = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(source="created_date", read_only=True)
+
+    class Meta:
+        model = ExpertSearch
+        fields = [
+            "search_id",
+            "created_by",
+            "name",
+            "query",
+            "status",
+            "expert_count",
+            "excluded_search_ids",
+            "created_at",
+            "completed_at",
+        ]
+        read_only_fields = fields
+
+    def get_created_by(self, obj):
+        return _get_created_by_payload(obj)
+
+
+class ExpertSearchDetailSerializerV2(serializers.ModelSerializer):
+    """Detail: experts from ``SearchExpert`` / ``Expert``."""
+
+    search_id = serializers.IntegerField(source="id", read_only=True)
+    created_by = serializers.SerializerMethodField()
+    experts = serializers.SerializerMethodField()
+    report_urls = serializers.SerializerMethodField()
+    work = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(source="created_date", read_only=True)
+    updated_at = serializers.DateTimeField(source="updated_date", read_only=True)
+
+    class Meta:
+        model = ExpertSearch
+        fields = [
+            "search_id",
+            "created_by",
+            "name",
+            "query",
+            "additional_context",
+            "work",
+            "input_type",
+            "config",
+            "excluded_search_ids",
+            "llm_model",
+            "status",
+            "progress",
+            "current_step",
+            "experts",
+            "expert_count",
+            "report_urls",
+            "report_pdf_url",
+            "report_csv_url",
+            "processing_time",
+            "error_message",
+            "created_at",
+            "updated_at",
+            "completed_at",
+        ]
+        read_only_fields = fields
+
+    def get_created_by(self, obj):
+        return _get_created_by_payload(obj)
+
+    def get_work(self, obj):
+        return _resolve_expert_search_work(obj, context=self.context)
+
+    def get_experts(self, obj):
+        qs = (
+            SearchExpert.objects.filter(expert_search_id=obj.id)
+            .select_related("expert")
+            .order_by("position")
+        )
+        experts = [se.expert for se in qs]
+
+        return ExpertSerializer(experts, many=True).data
+
+    def get_report_urls(self, obj):
+        out = {}
+        if obj.report_pdf_url:
+            out["pdf"] = obj.report_pdf_url
+        if obj.report_csv_url:
+            out["csv"] = obj.report_csv_url
+        return out or None
 
 
 class InvitedExpertSerializer(serializers.Serializer):

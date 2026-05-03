@@ -2,9 +2,9 @@ from django.urls import path
 
 from research_ai.views.email_views import (
     BulkGenerateEmailView,
-    GenerateEmailView,
     GeneratedEmailDetailView,
     GeneratedEmailListView,
+    GenerateEmailView,
     PreviewEmailView,
     SendEmailView,
 )
@@ -15,6 +15,10 @@ from research_ai.views.expert_finder_views import (
     ExpertSearchProgressStreamView,
     ExpertSearchWorkView,
     InvitedExpertsDocumentView,
+)
+from research_ai.views.expert_finder_views_v2 import (
+    ExpertSearchDetailViewV2,
+    ExpertSearchListCreateViewV2,
 )
 from research_ai.views.template_views import TemplateDetailView, TemplateListView
 
@@ -33,6 +37,14 @@ urlpatterns = [
         InvitedExpertsDocumentView.as_view(),
     ),
     path("expert-finder/searches/", ExpertSearchListView.as_view()),
+    path(
+        "expert-finder/v2/searches/",
+        ExpertSearchListCreateViewV2.as_view(),
+    ),
+    path(
+        "expert-finder/v2/searches/<int:search_id>/",
+        ExpertSearchDetailViewV2.as_view(),
+    ),
     path(
         "expert-finder/progress/<int:search_id>/",
         ExpertSearchProgressStreamView.as_view(),
