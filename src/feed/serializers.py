@@ -5,8 +5,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
 from rest_framework import serializers
 
-from ai_peer_review.models import Status
-from ai_peer_review.serializers import serialize_ai_peer_review_summary
 from hub.models import Hub
 from paper.models import Paper
 from purchase.serializers import DynamicPurchaseSerializer
@@ -921,7 +919,6 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
     is_nonprofit = serializers.SerializerMethodField()
     nonprofit = serializers.SerializerMethodField()
     associated_grants = serializers.SerializerMethodField()
-    ai_peer_review = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
@@ -929,7 +926,6 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
             "is_nonprofit",
             "nonprofit",
             "associated_grants",
-            "ai_peer_review",
         ]
 
     def get_nonprofit(self, obj):
@@ -952,25 +948,6 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
 
     def get_is_nonprofit(self, obj):
         return self.get_nonprofit(obj) is not None
-
-    def get_ai_peer_review(self, obj):
-        if not obj.unified_document:
-            return None
-        reviews = list(obj.unified_document.proposal_reviews.all())
-        if not reviews:
-            return None
-        completed = [r for r in reviews if r.status == Status.COMPLETED]
-        if completed:
-            review = max(
-                completed,
-                key=lambda r: (r.updated_date or r.created_date, r.id),
-            )
-        else:
-            review = max(
-                reviews,
-                key=lambda r: (r.updated_date or r.created_date, r.id),
-            )
-        return serialize_ai_peer_review_summary(review)
 
     def get_associated_grants(self, obj):
         if not obj.item or not hasattr(obj.item, "grant_applications"):
