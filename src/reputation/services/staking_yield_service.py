@@ -2,12 +2,16 @@ import logging
 import math
 import time
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_DOWN, Decimal
+from typing import Optional
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Count, Q
 
+from purchase.related_models.constants.rsc_exchange_currency import USD
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import create_staking_yield_distribution
 from reputation.distributor import Distributor
 from reputation.related_models.staking_global_snapshot import StakingGlobalSnapshot
@@ -27,6 +31,23 @@ BASE_STAKING_MULTIPLIER = Decimal("1")
 STAKING_MULTIPLIER_30_DAY = Decimal("1.05")
 STAKING_MULTIPLIER_180_DAY = Decimal("1.1")
 STAKING_MULTIPLIER_365_DAY = Decimal("1.25")
+
+STAKING_MULTIPLIER_TIERS = (
+    (30, STAKING_MULTIPLIER_30_DAY),
+    (180, STAKING_MULTIPLIER_180_DAY),
+    (365, STAKING_MULTIPLIER_365_DAY),
+)
+
+
+def _resolve_rate_for_date(rates, target_date):
+    """Return the rate from the latest record on or before `target_date`, or None."""
+    chosen = None
+    for record in rates:
+        if record["created_date"].date() <= target_date:
+            chosen = record["rate"]
+        else:
+            break
+    return chosen
 
 
 @dataclass(frozen=True)
@@ -59,18 +80,84 @@ class StakingYieldService:
         return STAKING_MULTIPLIER_365_DAY.quantize(QUANTIZE_8, rounding=ROUND_DOWN)
 
     @staticmethod
-    def calculate_staking_position(user, accrual_date):
+    def compute_next_multiplier_tier(age_days):
+        """Return (next_multiplier, days_until_next) for the given age.
+
+        Returns (None, None) if the age is already at the max tier.
+        """
+        for threshold, multiplier in STAKING_MULTIPLIER_TIERS:
+            if age_days < threshold:
+                return (
+                    multiplier.quantize(QUANTIZE_8, rounding=ROUND_DOWN),
+                    threshold - age_days,
+                )
+        return (None, None)
+
+    @staticmethod
+    def get_balance_lot_details(user, reference_date):
+        """Return per-lot staking multiplier details for the given user.
+
+        Each entry includes the lot's effective start date (respecting the
+        user's staking opt-in date), current age and multiplier, the next
+        tier the lot will reach (if any), and the projected overall
+        weighted-average multiplier across all lots on that tier transition
+        date, assuming balances don't change before then.
+        """
         lots = user.get_unlocked_balance_lots_lifo()
+        opt_in_date = (
+            user.staking_opted_in_date.date() if user.staking_opted_in_date else None
+        )
+
+        details = []
+        for lot in lots:
+            effective_start_date = lot.created_date
+            if opt_in_date is not None:
+                effective_start_date = max(effective_start_date, opt_in_date)
+
+            age_days = max((reference_date - effective_start_date).days, 0)
+            current_multiplier = StakingYieldService.compute_balance_age_multiplier(
+                age_days
+            )
+            next_multiplier, days_until_next = (
+                StakingYieldService.compute_next_multiplier_tier(age_days)
+            )
+            next_multiplier_date = (
+                reference_date + timedelta(days=days_until_next)
+                if days_until_next is not None
+                else None
+            )
+            projected_multiplier = (
+                StakingYieldService.calculate_staking_position(
+                    lots, opt_in_date, next_multiplier_date
+                ).multiplier
+                if next_multiplier_date is not None
+                else None
+            )
+
+            details.append(
+                {
+                    "amount": lot.amount.quantize(QUANTIZE_8, rounding=ROUND_DOWN),
+                    "created_date": lot.created_date,
+                    "effective_start_date": effective_start_date,
+                    "age_days": age_days,
+                    "current_multiplier": current_multiplier,
+                    "next_multiplier": next_multiplier,
+                    "days_until_next_multiplier": days_until_next,
+                    "next_multiplier_date": next_multiplier_date,
+                    "projected_overall_multiplier": projected_multiplier,
+                }
+            )
+
+        return details
+
+    @staticmethod
+    def calculate_staking_position(lots, opt_in_date, accrual_date):
         if not lots:
             return StakingPosition(
                 stake_amount=Decimal("0"),
                 multiplier=Decimal("0"),
                 weighted_stake=Decimal("0"),
             )
-
-        opt_in_date = (
-            user.staking_opted_in_date.date() if user.staking_opted_in_date else None
-        )
 
         stake_amount = Decimal("0")
         raw_weighted_stake = Decimal("0")
@@ -115,6 +202,78 @@ class StakingYieldService:
         return (total_weighted_stake / total_staked).quantize(
             QUANTIZE_8, rounding=ROUND_DOWN
         )
+
+    @staticmethod
+    def compute_apy_for_snapshot(snapshot: StakingGlobalSnapshot) -> float:
+        """APY % implied by the daily emission for a snapshot's accrual_date."""
+        if snapshot.total_staked <= 0:
+            return 0.0
+
+        daily_emission = StakingYieldService.compute_total_daily_emission(
+            snapshot.accrual_date
+        )
+        if daily_emission <= 0:
+            return 0.0
+
+        return float(daily_emission) / float(snapshot.total_staked) * 365 * 100
+
+    @staticmethod
+    def holders_count(snapshot: StakingGlobalSnapshot) -> int:
+        return snapshot.user_snapshots.filter(stake_amount__gt=0).count()
+
+    @staticmethod
+    def build_history(start_date: Optional[date], end_date: Optional[date]) -> list:
+        """Return per-snapshot history rows in ascending date order.
+
+        Each row: {accrual_date, apy, total_staked_rsc, total_value_locked_usd,
+        holders}. `total_value_locked_usd` is `None` when no USD rate exists on
+        or before the snapshot date.
+        """
+        snapshots_qs = StakingGlobalSnapshot.objects.all()
+        if start_date is not None:
+            snapshots_qs = snapshots_qs.filter(accrual_date__gte=start_date)
+        if end_date is not None:
+            snapshots_qs = snapshots_qs.filter(accrual_date__lte=end_date)
+
+        snapshots = list(
+            snapshots_qs.annotate(
+                holders=Count(
+                    "user_snapshots",
+                    filter=Q(user_snapshots__stake_amount__gt=0),
+                )
+            ).order_by("accrual_date")
+        )
+        if not snapshots:
+            return []
+
+        rate_lookup_end = snapshots[-1].accrual_date
+        rates = list(
+            RscExchangeRate.objects.filter(
+                target_currency=USD,
+                created_date__date__lte=rate_lookup_end,
+            )
+            .order_by("created_date")
+            .values("created_date", "rate")
+        )
+
+        rows = []
+        for snapshot in snapshots:
+            rate = _resolve_rate_for_date(rates, snapshot.accrual_date)
+            if rate is None:
+                tvl_usd = None
+            else:
+                tvl_usd = snapshot.total_staked * Decimal(str(rate))
+
+            rows.append(
+                {
+                    "accrual_date": snapshot.accrual_date,
+                    "apy": StakingYieldService.compute_apy_for_snapshot(snapshot),
+                    "total_staked_rsc": snapshot.total_staked,
+                    "total_value_locked_usd": tvl_usd,
+                    "holders": snapshot.holders,
+                }
+            )
+        return rows
 
     @staticmethod
     def compute_total_daily_emission(accrual_date):
@@ -214,8 +373,14 @@ class StakingYieldService:
         position_rows = []
 
         for user in eligible_users:
+            user_lots = user.get_unlocked_balance_lots_lifo()
+            user_opt_in_date = (
+                user.staking_opted_in_date.date()
+                if user.staking_opted_in_date
+                else None
+            )
             staking_position = StakingYieldService.calculate_staking_position(
-                user, accrual_date
+                user_lots, user_opt_in_date, accrual_date
             )
             if (
                 staking_position.stake_amount <= 0

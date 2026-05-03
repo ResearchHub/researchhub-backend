@@ -51,4 +51,3 @@ if not CELERY_WORKER:
     )
 
 application = ProtocolTypeRouter(routing)
-application = ProtocolTypeRouter(routing)

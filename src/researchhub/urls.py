@@ -268,7 +268,6 @@ urlpatterns = [
         "api/rsc/get_rsc_circulating_supply",
         reputation.views.get_rsc_circulating_supply,
     ),
-    path("api/permissions/", researchhub.views.permissions, name="permissions"),
     path("api/search/", include(search.urls)),
     path("api/research_ai/", include("research_ai.urls")),
     path("api/ai_peer_review/", include("ai_peer_review.urls")),
@@ -326,11 +325,6 @@ urlpatterns = [
         PasswordResetConfirmView.as_view(),
         name="password_reset_confirm",
     ),
-    path(
-        "api/ckeditor/webhook/document_removed/",
-        note_views.note_view.ckeditor_webhook_document_removed,
-    ),
-    path("api/ckeditor/token/", note_views.note_view.ckeditor_token),
     path("email_notifications/", mailing_list.views.email_notifications),
     path("", researchhub.views.index, name="index"),
     path(

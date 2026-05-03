@@ -24,6 +24,7 @@ from utils.throttles import UserSustainedRateThrottle
 
 FOUNDATION_EMAIL = "main@researchhub.foundation"
 FOUNDATION_REVENUE_EMAIL = "revenue1@researchhub.foundation"
+AI_EXPERT_EMAIL = "ai-review@researchhub.foundation"
 
 
 @dataclass(frozen=True)
@@ -72,6 +73,12 @@ class UserManager(UserManager):
 
         return self._get_default_account()
 
+    def get_ai_expert_account(self):
+        user = self.filter(email=AI_EXPERT_EMAIL)
+        if user.exists():
+            return user.first()
+        return None
+
 
 """
 User objects have the following fields by default:
@@ -116,6 +123,14 @@ class User(AbstractUser):
 
     def full_name(self):
         return self.first_name + " " + self.last_name
+
+    @classmethod
+    def is_rh_community_account(cls, user) -> bool:
+        try:
+            community_account = cls.objects.get_community_account()
+        except Exception:
+            return False
+        return user.id == community_account.id
 
     @property
     def is_orcid_connected(self):
