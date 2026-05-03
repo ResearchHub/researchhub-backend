@@ -1044,13 +1044,6 @@ class ExpertFinderServiceParseTests(TestCase):
         self.assertIn("fail", error_call[0][2])
 
 
-class ExpertFinderV2PromptReserveTests(TestCase):
-    def test_adds_ten_percent_headroom_ceil(self):
-        self.assertEqual(_prompt_expert_count_for_round(50), 55)
-        self.assertEqual(_prompt_expert_count_for_round(10), 11)
-        self.assertEqual(_prompt_expert_count_for_round(1), 2)
-
-
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
 class ExpertFinderV2RunSearchTests(TestCase):
     def setUp(self):

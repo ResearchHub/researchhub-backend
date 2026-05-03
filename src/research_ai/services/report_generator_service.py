@@ -14,7 +14,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 from research_ai.constants import ExpertiseLevel, Region, get_choice_label
 from research_ai.models import Expert
-from research_ai.services.expert_display import expert_model_display_name
+from research_ai.services.expert_display import ExpertDisplay
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def expert_to_report_row(expert: Expert) -> dict[str, Any]:
     """
     Map an ``Expert`` row to the PDF/CSV / API list shape
     """
-    name = (expert_model_display_name(expert) or expert.email or "").strip()
+    name = (ExpertDisplay.display_name_for(expert) or expert.email or "").strip()
     return {
         "name": name,
         "title": expert.academic_title or "",

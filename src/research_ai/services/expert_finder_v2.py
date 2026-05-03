@@ -8,11 +8,8 @@ from research_ai.prompts.expert_finder_prompts import (
     build_system_prompt_v2,
     build_user_prompt,
 )
-from research_ai.services.expert_display import expert_model_display_name
-from research_ai.services.expert_finder_json import (
-    parse_expert_finder_json_text,
-    validate_expert_output,
-)
+from research_ai.services.expert_display import ExpertDisplay
+from research_ai.services.expert_finder_json import ExpertFinderJson
 from research_ai.services.expert_finder_service import (
     _DECEASED_ROW_REGEX,
     EXPERT_FILL_MAX_ROUNDS,
@@ -20,7 +17,7 @@ from research_ai.services.expert_finder_service import (
     MAX_ERROR_MESSAGE_LENGTH,
     ExpertFinderService,
 )
-from research_ai.services.expert_persist import replace_search_experts_for_search
+from research_ai.services.expert_persist import ExpertPersist
 from research_ai.services.progress_service import TaskType
 from research_ai.services.report_generator_service import (
     generate_csv_file_v2,
@@ -47,7 +44,7 @@ def _prompt_expert_count_for_round(remaining: int) -> int:
 
 def clear_expert_search_links(expert_search_id: int) -> None:
     """
-    v2: delete SearchExpert rows for this search (e.g. parse/validate failure, or
+    Delete ``SearchExpert`` rows for this search (e.g. parse/validation failure, or
     so a failed run does not leave stale membership rows).
     """
     SearchExpert.objects.filter(expert_search_id=expert_search_id).delete()
@@ -65,7 +62,6 @@ def load_experts_for_expert_search(expert_search_id: int) -> list[Expert]:
     return [se.expert for se in qs]
 
 
-# TODO: We probably need to get only first name last name with no title.
 def _names_and_emails_from_excluded_searches(
     excluded_search_ids: list[int] | None,
 ) -> tuple[list[str], set[str]]:
@@ -79,7 +75,7 @@ def _names_and_emails_from_excluded_searches(
     ).select_related("expert")
     for se in qs:
         e = se.expert
-        label = expert_model_display_name(e)
+        label = ExpertDisplay.personal_name_for(e)
         if label:
             out_names.append(label)
         em = (e.email or "").strip().lower()
@@ -91,7 +87,7 @@ def _names_and_emails_from_excluded_searches(
 class ExpertFinderServiceV2(ExpertFinderService):
 
     @staticmethod
-    def _expert_row_suggests_deceased_v2(row: dict[str, Any]) -> bool:
+    def _expert_row_suggests_deceased(row: dict[str, Any]) -> bool:
         """
         True if name/title/affiliation/expertise/notes contain obvious deceased indicators.
 
@@ -117,7 +113,7 @@ class ExpertFinderServiceV2(ExpertFinderService):
             return False
         return _DECEASED_ROW_REGEX.search(blob) is not None
 
-    def process_expert_search_v2(
+    def process_expert_search(
         self,
         search_id: str,
         query: str,
@@ -131,8 +127,7 @@ class ExpertFinderServiceV2(ExpertFinderService):
         """
         Run expert finder: OpenAI finds experts (web search), parse table, generate reports.
 
-        All operations are synchronous (for use from Celery). Progress is published
-        to Redis and optionally to progress_callback(search_id, percent, message).
+        All operations are synchronous (for use from Celery).
 
         is_pdf: Set True when query text was extracted from a PDF (affects prompt wording).
         additional_context: Optional user notes appended to the user prompt for the model.
@@ -250,7 +245,7 @@ class ExpertFinderServiceV2(ExpertFinderService):
                 )
 
                 publish_progress(
-                    "Preparing expert search prompt (v2)...", 18 + round_num * 2
+                    "Preparing expert search prompt...", 18 + round_num * 2
                 )
                 finder_system = build_system_prompt_v2(
                     expert_count=prompt_expert_count,
@@ -268,7 +263,7 @@ class ExpertFinderServiceV2(ExpertFinderService):
                     additional_context=additional_context,
                 )
                 publish_progress(
-                    f"Finding experts (v2, round {round_num}/{EXPERT_FILL_MAX_ROUNDS}, "
+                    f"Finding experts (round {round_num}/{EXPERT_FILL_MAX_ROUNDS}, "
                     f"{len(accumulated)}/{target_expert_count})...",
                     38 + round_num * 4,
                 )
@@ -277,11 +272,11 @@ class ExpertFinderServiceV2(ExpertFinderService):
                     user_prompt=finder_user,
                 )
                 publish_progress(
-                    "Parsing expert recommendations (v2 JSON)...",
+                    "Parsing expert recommendations (JSON)...",
                     58 + round_num * 2,
                 )
                 try:
-                    obj = parse_expert_finder_json_text(llm_response)
+                    obj = ExpertFinderJson.parse_text(llm_response)
                 except ValueError as e:
                     return fail_return(
                         "No valid JSON object was returned. The model output could not be parsed.",
@@ -292,7 +287,7 @@ class ExpertFinderServiceV2(ExpertFinderService):
                         or str(e)[:MAX_ERROR_MESSAGE_LENGTH],
                     )
                 try:
-                    batch = validate_expert_output(obj)
+                    batch = ExpertFinderJson.validate_output(obj)
                 except ValueError as e:
                     return fail_return(
                         f"Invalid expert JSON structure: {e}"[:2000],
@@ -312,9 +307,7 @@ class ExpertFinderServiceV2(ExpertFinderService):
                 if round_num == 1 and search_id_emails and n_before > 0 and not kept:
                     all_filtered_by_exclusion = True
 
-                batch = [
-                    r for r in kept if not self._expert_row_suggests_deceased_v2(r)
-                ]
+                batch = [r for r in kept if not self._expert_row_suggests_deceased(r)]
 
                 batch = self._dedupe_experts_by_normalized_email(batch)
                 accumulated.extend(batch)
@@ -351,7 +344,7 @@ class ExpertFinderServiceV2(ExpertFinderService):
                 )
 
             try:
-                replace_count = replace_search_experts_for_search(
+                replace_count = ExpertPersist.replace_search_experts_for_search(
                     expert_search_id, experts_rows
                 )
             except Exception as e:  # noqa: BLE001
@@ -388,7 +381,7 @@ class ExpertFinderServiceV2(ExpertFinderService):
                 "Expert search complete!", 100, status=ExpertSearch.Status.COMPLETED
             )
             logger.info(
-                "v2 expert finder search_id=%s completed experts=%s persist=%s",
+                "expert finder search_id=%s completed experts=%s persist=%s",
                 search_id,
                 len(experts),
                 replace_count,
@@ -414,7 +407,7 @@ def run_v2_expert_search(
     progress_callback: Callable[[str, int, str], None] | None = None,
 ) -> dict[str, Any]:
     """Convenience entrypoint: one-shot ``ExpertFinderServiceV2`` instance."""
-    return ExpertFinderServiceV2().process_expert_search_v2(
+    return ExpertFinderServiceV2().process_expert_search(
         search_id,
         query,
         config,
