@@ -1,11 +1,14 @@
 """Services for funding and grant overview dashboard metrics."""
 
+from django.db.models import Count
+
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.services.overview_mixin import OverviewMixin
 from purchase.utils import get_funded_fundraise_ids
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.models import User
+from user.related_models.author_institution import AuthorInstitution
 
 
 class FundingOverviewService(OverviewMixin):
@@ -24,6 +27,9 @@ class FundingOverviewService(OverviewMixin):
                 user.id, all_funded_ids
             ),
             "supported_proposals": self._supported_proposals(all_funded_ids),
+            "supported_institutions_count": self._distinct_supported_institution_count(
+                all_funded_ids
+            ),
         }
 
     def _grant_fundraise_ids(self, user: User) -> list[int]:
@@ -54,6 +60,25 @@ class FundingOverviewService(OverviewMixin):
         )
 
         return [self._serialize_proposal(post) for post in posts]
+
+    @staticmethod
+    def _distinct_supported_institution_count(funded_fundraise_ids: list[int]) -> int:
+        """Count distinct Institution ids for AuthorInstitution of supported proposal creators."""
+        if not funded_fundraise_ids:
+            return 0
+
+        author_ids = (
+            ResearchhubPost.objects.filter(
+                unified_document__fundraises__id__in=funded_fundraise_ids,
+                created_by__author_profile__isnull=False,
+            )
+            .values_list("created_by__author_profile__id", flat=True)
+            .distinct()
+        )
+        row = AuthorInstitution.objects.filter(author_id__in=author_ids).aggregate(
+            n=Count("institution_id", distinct=True),
+        )
+        return row["n"] or 0
 
     def _serialize_proposal(self, post: ResearchhubPost) -> dict:
         creator = post.created_by

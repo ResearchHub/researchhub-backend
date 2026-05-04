@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from institution.models import Institution
 from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
@@ -12,6 +13,7 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT as GRANT_DOC_TYPE,
     PREREGISTRATION,
 )
+from user.related_models.author_institution import AuthorInstitution
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -84,6 +86,7 @@ class TestFundingOverviewService(TestCase):
         self.assertEqual(result["matched_funds"], {"rsc": 0.0, "usd": 0.0})
         self.assertEqual(result["distributed_funds"], {"rsc": 0.0, "usd": 0.0})
         self.assertEqual(result["supported_proposals"], [])
+        self.assertEqual(result["supported_institutions_count"], 0)
 
     def test_distributed_funds_tracks_funder_contributions(self):
         # Arrange
@@ -142,6 +145,7 @@ class TestFundingOverviewService(TestCase):
         self.assertEqual(proposal["created_by"]["author_profile"]["id"], author.id)
         self.assertEqual(proposal["created_by"]["author_profile"]["first_name"], author.first_name)
         self.assertEqual(proposal["created_by"]["author_profile"]["last_name"], author.last_name)
+        self.assertEqual(result["supported_institutions_count"], 0)
 
     def test_supported_proposals_empty_when_not_funded(self):
         # Arrange
@@ -152,6 +156,91 @@ class TestFundingOverviewService(TestCase):
 
         # Assert
         self.assertEqual(result["supported_proposals"], [])
+        self.assertEqual(result["supported_institutions_count"], 0)
+
+    def test_supported_institutions_count_one_linked_institution(self):
+        _, proposal_post, fundraise, applicant = self._create_grant_with_proposal()
+        institution = Institution.objects.create(
+            openalex_id="https://openalex.org/S1234567890",
+            ror_id="https://ror.org/00test0001",
+            display_name="Test University",
+            type="education",
+            associated_institutions=[],
+        )
+        AuthorInstitution.objects.create(
+            author=applicant.author_profile,
+            institution=institution,
+            years=[],
+        )
+        self._contribute(self.user, fundraise, rsc=100)
+
+        result = self.service.get_funding_overview(self.user)
+
+        self.assertEqual(result["supported_institutions_count"], 1)
+
+    def test_supported_institutions_count_dedupes_same_institution_across_pis(self):
+        """Two funded proposals / two PIs linked to the same Institution count once."""
+        applicant1 = create_random_authenticated_user("pi_one")
+        applicant2 = create_random_authenticated_user("pi_two")
+        institution = Institution.objects.create(
+            openalex_id="https://openalex.org/Sshared0001",
+            ror_id="https://ror.org/00shared01",
+            display_name="Shared Lab",
+            type="facility",
+            associated_institutions=[],
+        )
+        AuthorInstitution.objects.create(
+            author=applicant1.author_profile,
+            institution=institution,
+            years=[],
+        )
+        AuthorInstitution.objects.create(
+            author=applicant2.author_profile,
+            institution=institution,
+            years=[],
+        )
+
+        grant_post = create_post(created_by=self.user, document_type=GRANT_DOC_TYPE)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("2000"),
+            status=Grant.OPEN,
+        )
+
+        proposal1 = create_post(created_by=applicant1, document_type=PREREGISTRATION)
+        fr1 = Fundraise.objects.create(
+            created_by=applicant1,
+            unified_document=proposal1.unified_document,
+            goal_amount=Decimal("500"),
+            goal_currency="USD",
+        )
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=proposal1,
+            applicant=applicant1,
+        )
+
+        proposal2 = create_post(created_by=applicant2, document_type=PREREGISTRATION)
+        fr2 = Fundraise.objects.create(
+            created_by=applicant2,
+            unified_document=proposal2.unified_document,
+            goal_amount=Decimal("500"),
+            goal_currency="USD",
+        )
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=proposal2,
+            applicant=applicant2,
+        )
+
+        self._contribute(self.user, fr1, rsc=50)
+        self._contribute(self.user, fr2, rsc=50)
+
+        result = self.service.get_funding_overview(self.user)
+
+        self.assertEqual(len(result["supported_proposals"]), 2)
+        self.assertEqual(result["supported_institutions_count"], 1)
 
     def test_supported_proposals_deduplicates_by_post(self):
         # Arrange
@@ -194,3 +283,4 @@ class TestFundingOverviewService(TestCase):
 
         # Assert
         self.assertEqual(len(result["supported_proposals"]), 1)
+        self.assertEqual(result["supported_institutions_count"], 0)

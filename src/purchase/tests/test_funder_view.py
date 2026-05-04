@@ -26,6 +26,7 @@ class FunderViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIsInstance(response.data, dict)
+        self.assertIn("supported_institutions_count", response.data)
 
     def test_funding_overview_returns_200(self):
         self.client.force_authenticate(self.user)
@@ -34,6 +35,7 @@ class FunderViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIsInstance(response.data, dict)
+        self.assertIn("supported_institutions_count", response.data)
 
     def test_funding_impact_requires_authentication(self):
         self.client.logout()
