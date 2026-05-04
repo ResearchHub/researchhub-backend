@@ -1,8 +1,10 @@
 import logging
 import time
 
+from django.db import transaction
+
 from ai_peer_review.constants import PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS
-from ai_peer_review.models import OverallConfidence, ProposalReview, ReviewStatus
+from ai_peer_review.models import ProposalReview, Status
 from ai_peer_review.prompts.proposal_review_prompts import (
     build_proposal_review_user_prompt,
     get_proposal_review_system_prompt,
@@ -11,6 +13,9 @@ from ai_peer_review.services.author_context import build_author_context_snippet
 from ai_peer_review.services.bedrock_llm_service import BedrockLLMService
 from ai_peer_review.services.openai_web_context_service import (
     fetch_proposal_review_web_context,
+)
+from ai_peer_review.services.proposal_review_comment_service import (
+    upsert_proposal_review_comment,
 )
 from ai_peer_review.services.proposal_review_scoring import (
     normalize_category_scores_from_item_decisions,
@@ -55,6 +60,27 @@ def get_grant_context_text(grant: Grant) -> str:
     return "\n\n".join(p for p in parts if p).strip()
 
 
+def reset_proposal_review_for_rerun(review: ProposalReview) -> None:
+    """Clear AI outputs so :func:`run_proposal_review` can run again."""
+    review.status = Status.PENDING
+    review.error_message = ""
+    review.result_data = {}
+    review.overall_rating = None
+    review.overall_rationale = ""
+    review.overall_score_numeric = None
+    review.save(
+        update_fields=[
+            "status",
+            "error_message",
+            "result_data",
+            "overall_rating",
+            "overall_rationale",
+            "overall_score_numeric",
+            "updated_date",
+        ]
+    )
+
+
 def validate_grant_application(grant_id: int, unified_document_id: int) -> None:
     if not GrantApplication.objects.filter(
         grant_id=grant_id,
@@ -69,10 +95,10 @@ def run_proposal_review(review_id: int) -> None:
     review = ProposalReview.objects.select_related(
         "unified_document", "grant", "created_by"
     ).get(pk=review_id)
-    if review.status == ReviewStatus.COMPLETED:
+    if review.status == Status.COMPLETED:
         return
     t0 = time.monotonic()
-    review.status = ReviewStatus.PROCESSING
+    review.status = Status.PROCESSING
     review.progress = 10
     review.current_step = "Loading proposal text"
     review.error_message = ""
@@ -128,11 +154,9 @@ def run_proposal_review(review_id: int) -> None:
         rating = review_dict["overall_rating"]
         numeric_total = review_dict["overall_score_numeric"]
         elapsed = time.monotonic() - t0
-        review.status = ReviewStatus.COMPLETED
+        review.status = Status.COMPLETED
         review.overall_rating = rating
         review.overall_rationale = review_dict.get("overall_rationale", "") or ""
-        oc = review_dict.get("overall_confidence")
-        review.overall_confidence = oc if oc in OverallConfidence.values else None
         review.overall_score_numeric = numeric_total
         review.result_data = review_dict
         review.llm_model = llm.model_id
@@ -140,10 +164,25 @@ def run_proposal_review(review_id: int) -> None:
         review.progress = 100
         review.current_step = "Complete"
         review.save()
+        try:
+            upsert_proposal_review_comment(review)
+        except Exception:
+            logger.exception(
+                "Proposal review %s comment sync failed",
+                review_id,
+            )
+        else:
+
+            def _enqueue_key_insights(ud_id=review.unified_document_id):
+                from ai_peer_review.tasks import auto_run_proposal_key_insights_for_ud
+
+                auto_run_proposal_key_insights_for_ud.delay(ud_id, force=True)
+
+            transaction.on_commit(_enqueue_key_insights)
         FundingCacheMixin.invalidate_funding_feed_cache()
     except Exception as e:
         logger.exception("Proposal review %s failed", review_id)
-        review.status = ReviewStatus.FAILED
+        review.status = Status.FAILED
         review.error_message = str(e)[:4000]
         review.progress = 0
         review.current_step = "Failed"

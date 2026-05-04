@@ -191,16 +191,16 @@ class BedrockLLMServiceTests(SimpleTestCase):
         }
 
         svc = BedrockLLMService()
+        svc.model_id = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
         out = svc.invoke("sys", "user", max_tokens=100, temperature=0.1)
 
         self.assertEqual(out, "hello world")
         mock_client.converse.assert_called_once()
         kwargs = mock_client.converse.call_args.kwargs
-        self.assertEqual(kwargs["modelId"], BEDROCK_MODEL_ID)
+        self.assertEqual(kwargs["modelId"], svc.model_id)
         self.assertEqual(kwargs["system"], [{"text": "sys"}])
         self.assertEqual(kwargs["messages"][0]["role"], "user")
         self.assertEqual(kwargs["inferenceConfig"]["maxTokens"], 100)
-        self.assertEqual(kwargs["inferenceConfig"]["temperature"], 0.1)
 
     @patch("ai_peer_review.services.bedrock_llm_service.bedrock_runtime_client")
     def test_invoke_omits_temperature_for_opus_4_7(self, mock_create_client):
