@@ -1,6 +1,16 @@
+from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest.mock import PropertyMock, patch
 
+import pytz
+
+from ai_peer_review.models import (
+    KeyInsightItemType,
+    ProposalKeyInsight,
+    ProposalKeyInsightItem,
+    ProposalReview,
+    Status,
+)
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import FileSystemStorage, default_storage
@@ -992,18 +1002,6 @@ class PostSerializerTests(AWSMockTestCase):
 
     def test_serializes_grant_post_application_includes_key_insight_when_present(self):
         """ProposalReview + ProposalKeyInsight for the grant/proposal pair appear on application."""
-        from datetime import datetime, timedelta
-
-        import pytz
-
-        from ai_peer_review.models import (
-            KeyInsightItemType,
-            ProposalKeyInsight,
-            ProposalKeyInsightItem,
-            ProposalReview,
-            Status,
-        )
-
         grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=document_type.GRANT,
         )
