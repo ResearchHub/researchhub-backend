@@ -5,7 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
 from rest_framework import serializers
 
-from ai_peer_review.models import ReviewStatus
+from ai_peer_review.models import Status
 from ai_peer_review.serializers import serialize_ai_peer_review_summary
 from hub.models import Hub
 from paper.models import Paper
@@ -94,6 +94,7 @@ class SimpleReviewSerializer(serializers.ModelSerializer):
         fields = [
             "author",
             "id",
+            "is_assessed",
             "score",
         ]
 
@@ -900,6 +901,8 @@ def serialize_feed_item(feed_item, item_content_type):
     Returns:
         The serialized JSON for the item or None if no serializer is found
     """
+    if feed_item is None:
+        return None
 
     match item_content_type.model:
         case "paper":
@@ -958,7 +961,7 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
         reviews = list(obj.unified_document.proposal_reviews.all())
         if not reviews:
             return None
-        completed = [r for r in reviews if r.status == ReviewStatus.COMPLETED]
+        completed = [r for r in reviews if r.status == Status.COMPLETED]
         if completed:
             review = max(
                 completed,

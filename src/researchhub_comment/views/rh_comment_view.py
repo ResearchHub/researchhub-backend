@@ -19,15 +19,10 @@ from rest_framework.viewsets import ModelViewSet
 from analytics.amplitude import track_event
 from discussion.permissions import EditorCensorDiscussion
 from discussion.views import ReactionViewActionMixin
-from reputation.models import Bounty, Contribution
+from reputation.models import Contribution
 from reputation.tasks import create_contribution, find_qualified_users_and_notify
 from reputation.utils import deduct_bounty_fees
 from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
-from review.services.review_service import (
-    MAX_REVIEWS_PER_WINDOW,
-    REVIEW_WINDOW_DAYS,
-    get_review_availability,
-)
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.permissions import IsObjectOwner, IsObjectOwnerOrModerator
 from researchhub.settings import TESTING
@@ -63,46 +58,12 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_TOTAL_AMOUNT,
     SORT_DISCUSSED,
 )
+from review.services.review_service import (
+    MAX_REVIEWS_PER_WINDOW,
+    REVIEW_WINDOW_DAYS,
+    get_review_availability,
+)
 from utils.throttles import THROTTLE_CLASSES
-
-
-def remove_bounties(comment):
-    for bounty in comment.bounties.iterator():
-        cancelled = bounty.close(Bounty.CANCELLED)
-        if not cancelled:
-            raise Exception("Failed to close bounties on comment")
-
-
-def has_deleted_parent(comment):
-    """Check if any parent comment is deleted/removed."""
-    current = comment
-    while current.parent_id:
-        try:
-            current = RhCommentModel.objects.get(id=current.parent_id)
-            if current.is_removed:
-                return True
-        except RhCommentModel.DoesNotExist:
-            # If we can't find the parent, treat it as deleted
-            return True
-    return False
-
-
-def get_censored_comment_data(comment):
-    """
-    Returns a minimal representation of a censored comment,
-    preserving only the necessary structure while removing sensitive content.
-    """
-    return {
-        "id": comment.id,
-        "is_removed": True,
-        "created_date": comment.created_date,
-        "thread": {"id": comment.thread.id},
-        "parent": comment.parent_id,
-        # Include minimal data needed for UI to display "[Comment removed]"
-        "comment_content_json": {"ops": [{"insert": "[Comment removed]"}]},
-        # Don't expose the original author of removed content
-        "created_by": None,
-    }
 
 
 class CommentPagination(PageNumberPagination):
@@ -214,8 +175,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
 
         # Custom logic start
         thread_queryset = self._get_model_object_threads().values_list("id")
-        # Use all_objects manager to include removed (censored) comments
-        queryset = RhCommentModel.all_objects.filter(thread__in=thread_queryset)
+        queryset = RhCommentModel.objects.filter(thread__in=thread_queryset)
         # Custom logic end
 
         if isinstance(queryset, QuerySet):
@@ -237,7 +197,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             kwargs.setdefault("_exclude_fields", "__all__")
         # Custom logic end
 
-        # We handle censored comments in the retrieve and censor methods
         return serializer_class(*args, **kwargs)
 
     def get_serializer_class(self):
@@ -274,7 +233,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 "_exclude_fields": (
                     "comment_content_src",
                     "promoted",
-                    "user_endorsement",
                     "user_flag",
                 ),
                 "_select_related_fields": (
@@ -343,6 +301,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "score",
                     "id",
                     "object_id",
+                    "is_assessed",
                 ]
             },
             "rep_dbs_get_parent": {"_include_fields": ("id",)},
@@ -420,7 +379,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 context=context,
                 _exclude_fields=(
                     "promoted",
-                    "user_endorsement",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -504,7 +462,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 context=context,
                 _exclude_fields=(
                     "promoted",
-                    "user_endorsement",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -536,38 +493,14 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         )
 
     def list(self, request, *args, **kwargs):
-        from django.db.models import Prefetch
-
-        from researchhub_comment.models import RhCommentModel
-
-        # Filter the base queryset
         queryset = self.filter_queryset(self.get_queryset())
-
-        # Define a recursive prefetch function to load all descendants
-        def prefetch_children_recursively(level=0, max_depth=3):
-            if level >= max_depth:
-                return []
-
-            return [
-                Prefetch(
-                    "children",
-                    queryset=RhCommentModel.all_objects.prefetch_related(
-                        *prefetch_children_recursively(level + 1, max_depth)
-                    ),
-                    to_attr=f"prefetched_children_{level}",
-                )
-            ]
-
-        # Add basic relations
         queryset = queryset.select_related(
             "created_by",
             "created_by__author_profile",
             "thread",
         )
-
-        # Add prefetches for nested children
         queryset = queryset.prefetch_related(
-            *prefetch_children_recursively(),
+            "children",
             "purchases",
             "bounties",
             "bounties__parent",
@@ -589,32 +522,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             ),
         )
 
-        # Process the page
         page = self.paginate_queryset(queryset)
-
-        # Process the prefetched structure into a nested structure
-        def process_prefetched_comment(comment, level=0, max_depth=3):
-            if level >= max_depth:
-                return
-
-            children_attr = f"prefetched_children_{level}"
-
-            if hasattr(comment, children_attr):
-                children = getattr(comment, children_attr)
-
-                # Set the regular children attribute
-                comment.prefetched_children = children
-
-                # Process each child recursively
-                for child in children:
-                    process_prefetched_comment(child, level + 1, max_depth)
-
-        # Process each comment in the page
-        if page is not None:
-            for comment in page:
-                process_prefetched_comment(comment)
-
-        # Get the context and serialize
         context = self._get_retrieve_context()
         if page is not None:
             serializer = self.get_serializer(
@@ -623,7 +531,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 context=context,
                 _exclude_fields=(
                     "promoted",
-                    "user_endorsement",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -636,7 +543,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             context=context,
             _exclude_fields=(
                 "promoted",
-                "user_endorsement",
                 "user_flag",
                 "reviews",
                 "comment_content_src",
@@ -645,131 +551,32 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         return Response(serializer.data)
 
     def get_object(self):
-        """
-        Override to retrieve comment with all_objects manager to include censored comments
-        """
+        """Lookup by pk without applying DRF filter backends."""
         assert self.kwargs.get(
             "pk"
         ), "Expected view to be called with a URL keyword argument named 'pk'"
 
-        # Get the base queryset without applying filters
         queryset = self.get_queryset()
 
-        # Apply only the lookup, not the full filtering
         lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
         filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
 
-        try:
-            obj = get_object_or_404(queryset, **filter_kwargs)
-
-            # May raise a permission denied
-            self.check_object_permissions(self.request, obj)
-
-            return obj
-        except Exception:
-            raise
+        obj = get_object_or_404(queryset, **filter_kwargs)
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     def retrieve(self, request, *args, **kwargs):
-        from django.db.models import Prefetch
-
-        from researchhub_comment.models import RhCommentModel
-
-        # Get the original object
-        obj_id = self.kwargs.get(self.lookup_field)
-
-        # Define a recursive prefetch function to load all descendants
-        def prefetch_children_recursively(level=0, max_depth=3):
-            if level >= max_depth:
-                return []
-
-            return [
-                Prefetch(
-                    "children",
-                    queryset=RhCommentModel.all_objects.prefetch_related(
-                        *prefetch_children_recursively(level + 1, max_depth)
-                    ),
-                    to_attr=f"prefetched_children_{level}",
-                )
-            ]
-
-        # Prefetch the children recursively including censored ones
-        instance = (
-            RhCommentModel.all_objects.filter(id=obj_id)
-            .prefetch_related(*prefetch_children_recursively())
-            .first()
-        )
-
-        if not instance:
-            return Response({"error": "Comment not found"}, status=404)
-
-        # Check permissions
-        self.check_object_permissions(self.request, instance)
-
-        # Process the prefetched structure into a nested structure
-        def process_prefetched_comment(comment, level=0, max_depth=3):
-            if level >= max_depth:
-                return
-
-            children_attr = f"prefetched_children_{level}"
-
-            if hasattr(comment, children_attr):
-                children = getattr(comment, children_attr)
-
-                # Set the regular children attribute
-                comment.prefetched_children = children
-
-                # Process each child recursively
-                for child in children:
-                    process_prefetched_comment(child, level + 1, max_depth)
-
-        # Process the instance and its descendants
-        process_prefetched_comment(instance)
-
-        # If comment is censored/removed, return minimal information
-        if instance.is_removed:
-            censored_data = get_censored_comment_data(instance)
-
-            # Add children to the response
-            # Children are already prefetched in prefetched_children
-            children = getattr(instance, "prefetched_children", [])
-
-            if children:
-                context = self._get_retrieve_context()
-                children_serializer = DynamicRhCommentSerializer(
-                    children,
-                    many=True,
-                    context=context,
-                    _exclude_fields=(
-                        "promoted",
-                        "user_endorsement",
-                        "user_flag",
-                        "comment_content_src",
-                    ),
-                )
-                censored_data["children"] = children_serializer.data
-                censored_data["children_count"] = len(children)
-            else:
-                censored_data["children"] = []
-                censored_data["children_count"] = 0
-
-            return Response(censored_data)
-
-        # Normal case for non-removed comments
+        instance = self.get_object()
         context = self._get_retrieve_context()
-
-        # Ensure children include censored comments - they're already prefetched
         serializer = self.get_serializer(
             instance,
             context=context,
             _exclude_fields=(
                 "promoted",
-                "user_endorsement",
                 "user_flag",
                 "comment_content_src",
             ),
         )
-
-        # Return the serialized response
         return Response(serializer.data)
 
     def update(self, request, *args, **kwargs):
@@ -794,7 +601,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 context=context,
                 _exclude_fields=(
                     "promoted",
-                    "user_endorsement",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -815,80 +621,13 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         ],
     )
     def censor(self, request, *args, **kwargs):
-        """Simple censor method that marks a comment as removed"""
-        from django.shortcuts import get_object_or_404
-
-        from researchhub_comment.models import RhCommentModel
-
-        try:
-            # Get the comment directly with all_objects to ensure removed comments are included
-            comment_id = self.kwargs.get(self.lookup_field)
-            # Use all_objects manager to ensure we find the comment even if removed
-            comment = get_object_or_404(RhCommentModel.all_objects, id=comment_id)
-
-            # Check permissions manually since we're not using get_object()
-            self.check_object_permissions(request, comment)
-
-            with transaction.atomic():
-                # Remove bounties associated with the comment
-                remove_bounties(comment)
-
-                # Apply the censorship (mark as removed)
-                comment.is_removed = True
-                comment.save()
-                comment.refresh_related_discussion_count()
-
-                # Get children for the response
-                children_qs = RhCommentModel.all_objects.filter(parent=comment)
-                children_count = children_qs.count()
-
-                # Format children for the response - needed for tests to pass
-                context = self._get_retrieve_context()
-                children_serializer = DynamicRhCommentSerializer(
-                    children_qs,
-                    many=True,
-                    context=context,
-                    _exclude_fields=(
-                        "promoted",
-                        "user_endorsement",
-                        "user_flag",
-                        "comment_content_src",
-                    ),
-                )
-
-                # Return a response with fields needed for tests to pass
-                return Response(
-                    {
-                        "id": comment.id,
-                        "is_removed": True,
-                        "created_by": None,
-                        "comment_content_json": {
-                            "ops": [{"insert": "[Comment removed]"}]
-                        },
-                        "children": children_serializer.data,  # Include actual children
-                        "children_count": children_count,
-                    },
-                    status=status.HTTP_200_OK,
-                )
-
-        except Exception as e:
-            print(f"Error in censor method: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
-            # Instead of returning an error response, fallback to a minimal successful response
-            # since the client doesn't need the detailed response data anyway
-            return Response(
-                {
-                    "success": True,
-                    "is_removed": True,
-                    "created_by": None,
-                    "comment_content_json": {"ops": [{"insert": "[Comment removed]"}]},
-                    "children": [],
-                    "children_count": 0,
-                },
-                status=status.HTTP_200_OK,
-            )
+        with transaction.atomic():
+            comment = self.get_object()
+            comment.cancel_bounties()
+            comment.soft_delete_descendants()
+            censor_response = super().censor(request, *args, **kwargs)
+            comment.refresh_related_discussion_count()
+            return censor_response
 
     @action(
         detail=True,
@@ -904,7 +643,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 context=context,
                 _exclude_fields=(
                     "promoted",
-                    "user_endorsement",
                     "user_flag",
                     "comment_content_src",
                 ),

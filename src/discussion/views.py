@@ -9,12 +9,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
-from discussion.models import Endorsement, Flag, Vote
+from discussion.models import Flag, Vote
 from discussion.permissions import CensorDiscussion as CensorDiscussionPermission
 from discussion.permissions import EditorCensorDiscussion
-from discussion.permissions import Endorse as EndorsePermission
 from discussion.permissions import Vote as VotePermission
-from discussion.serializers import EndorsementSerializer, FlagSerializer, VoteSerializer
+from discussion.serializers import FlagSerializer, VoteSerializer
 from paper.models import Paper
 from purchase.models import RscExchangeRate
 from reputation.models import Contribution
@@ -75,36 +74,6 @@ class ReactionViewActionMixin:
     """
     Note: Action decorators may be applied by classes inheriting this one.
     """
-
-    @action(
-        detail=True,
-        methods=["post"],
-        permission_classes=[EndorsePermission & CreateOrUpdateIfAllowed],
-    )
-    def endorse(self, request, *args, pk=None, **kwargs):
-        item = self.get_object()
-        user = request.user
-
-        try:
-            endorsement = create_endorsement(user, item)
-            serialized = EndorsementSerializer(endorsement)
-            return Response(serialized.data, status=201)
-        except Exception as e:
-            return Response(
-                f"Failed to create endorsement: {e}", status=status.HTTP_400_BAD_REQUEST
-            )
-
-    @endorse.mapping.delete
-    def delete_endorse(self, request, *args, pk=None, **kwargs):
-        item = self.get_object()
-        user = request.user
-        try:
-            endorsement = retrieve_endorsement(user, item)
-            endorsement_id = endorsement.id
-            endorsement.delete()
-            return Response(endorsement_id, status=200)
-        except Exception as e:
-            return Response(f"Failed to delete endorsement: {e}", status=400)
 
     @action(
         detail=True,
@@ -264,20 +233,6 @@ class ReactionViewActionMixin:
         obj.score -= 1
         obj.save()
         return vote
-
-
-def retrieve_endorsement(user, item):
-    return Endorsement.objects.get(
-        object_id=item.id,
-        content_type=get_content_type_for_model(item),
-        created_by=user.id,
-    )
-
-
-def create_endorsement(user, item):
-    endorsement = Endorsement(created_by=user, item=item)
-    endorsement.save()
-    return endorsement
 
 
 def create_flag(user, item, reason, reason_choice, reason_memo=None):

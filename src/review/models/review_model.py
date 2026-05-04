@@ -38,3 +38,4 @@ class Review(SoftDeletableModel, DefaultModel):
         null=True,
         on_delete=models.SET_NULL,
     )
+    is_assessed = models.BooleanField(default=False)

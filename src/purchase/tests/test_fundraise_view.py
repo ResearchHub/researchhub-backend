@@ -71,6 +71,7 @@ class FundraiseViewTests(APITestCase):
         amount=100,
         amount_currency="RSC",
         origin_fund_id=None,
+        use_credits=None,
     ):
         self.client.force_authenticate(user)
         payload = {
@@ -79,6 +80,8 @@ class FundraiseViewTests(APITestCase):
         }
         if origin_fund_id:
             payload["origin_fund_id"] = origin_fund_id
+        if use_credits is not None:
+            payload["use_credits"] = use_credits
         return self.client.post(
             f"/api/fundraise/{fundraise_id}/create_contribution/",
             payload,
@@ -145,7 +148,7 @@ class FundraiseViewTests(APITestCase):
 
         user = create_random_authenticated_user("fundraise_views")
         self._give_user_balance(user, 1000)
-        response = self._create_contribution(fundraise_id, user)
+        response = self._create_contribution(fundraise_id, user, use_credits=False)
 
         self.assertEqual(response.status_code, 200)
 
@@ -179,8 +182,12 @@ class FundraiseViewTests(APITestCase):
 
         user = create_random_authenticated_user("fundraise_views")
         self._give_user_balance(user, 1000)
-        response = self._create_contribution(fundraise_id, user, amount=50)
-        response = self._create_contribution(fundraise_id, user, amount=50)
+        response = self._create_contribution(
+            fundraise_id, user, amount=50, use_credits=False
+        )
+        response = self._create_contribution(
+            fundraise_id, user, amount=50, use_credits=False
+        )
 
         self.assertEqual(response.status_code, 200)
 
@@ -236,7 +243,9 @@ class FundraiseViewTests(APITestCase):
         self._link_nonprofit(fundraise_id)
 
         self._give_user_balance(self.user, 1000)
-        response = self._create_contribution(fundraise_id, self.user, amount=100)
+        response = self._create_contribution(
+            fundraise_id, self.user, amount=100, use_credits=False
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["amount_raised"]["rsc"], 100)
@@ -248,7 +257,7 @@ class FundraiseViewTests(APITestCase):
         user = create_random_authenticated_user("fundraise_views")
         self._give_user_balance(user, 1000)
         response = self._create_contribution(
-            fundraise_id, user, amount=200
+            fundraise_id, user, amount=200, use_credits=False
         )  # 200 RSC = 100 USD
 
         self.assertEqual(response.status_code, 200)
@@ -308,10 +317,10 @@ class FundraiseViewTests(APITestCase):
         self._give_user_balance(user3, 1000)
 
         # Have users make multiple contributions of different amounts
-        self._create_contribution(fundraise_id, user1, amount=100)
-        self._create_contribution(fundraise_id, user1, amount=50)
-        self._create_contribution(fundraise_id, user2, amount=200)
-        self._create_contribution(fundraise_id, user3, amount=75)
+        self._create_contribution(fundraise_id, user1, amount=100, use_credits=False)
+        self._create_contribution(fundraise_id, user1, amount=50, use_credits=False)
+        self._create_contribution(fundraise_id, user2, amount=200, use_credits=False)
+        self._create_contribution(fundraise_id, user3, amount=75, use_credits=False)
 
         # Get the fundraise data
         self.client.force_authenticate(self.user)
@@ -534,7 +543,7 @@ class FundraiseViewTests(APITestCase):
         contributor = create_random_authenticated_user("new_contributor")
         self._give_user_balance(contributor, 1000)
         contrib_response = self._create_contribution(
-            fundraise_id, contributor, amount=100
+            fundraise_id, contributor, amount=100, use_credits=False
         )
         self.assertEqual(contrib_response.status_code, 200)
 
@@ -561,7 +570,10 @@ class FundraiseViewTests(APITestCase):
 
         # Have the referred user contribute an amount that fulfills the goal
         response = self._create_contribution(
-            fundraise_id, referred_user, amount=200  # 200 RSC = 100 USD, fulfills goal
+            fundraise_id,
+            referred_user,
+            amount=200,  # 200 RSC = 100 USD, fulfills goal
+            use_credits=False,
         )
 
         self.assertEqual(response.status_code, 200)
@@ -613,98 +625,23 @@ class FundraiseViewTests(APITestCase):
         self.assertIsNotNone(referred_balance)
         self.assertEqual(float(referred_balance.amount), expected_bonus)
 
-    def test_create_contribution_with_locked_balance(self):
+    def test_create_contribution_insufficient_credits(self):
         """
-        Test that locked balance can be used for fundraise contributions.
+        With use_credits=True (the default), a contribution must fail when
+        the user's locked balance alone cannot cover amount + fee, even if
+        unlocked balance could cover the shortfall.
         """
-        # Arrange
         fundraise = self._create_fundraise(self.post.id)
         fundraise_id = fundraise.data["id"]
 
         user = create_random_authenticated_user("fundraise_views")
 
-        # Regular balance (not enough for contribution + fees)
-        Balance.objects.create(
-            amount=50,
-            user=user,
-            content_type=ContentType.objects.get(model="distribution"),
-            is_locked=False,
-        )
-
-        # Locked balance (enough to cover the shortfall)
-        Balance.objects.create(
-            amount=100,
-            user=user,
-            content_type=ContentType.objects.get(model="distribution"),
-            is_locked=True,
-        )
-
-        # Verify user's balance situation
-        regular_balance = user.get_balance()  # Should be 50
-        total_balance = user.get_balance(include_locked=True)  # Should be 150
-        locked_balance = user.get_locked_balance()  # Should be 100
-
-        self.assertEqual(float(regular_balance), 50.0)
-        self.assertEqual(float(total_balance), 150.0)
-        self.assertEqual(float(locked_balance), 100.0)
-
-        # Act
-        # Try to contribute 100 RSC (which would cost 100 + 9 fees = 109 total)
-        # This should succeed because total balance (150) >= cost (109)
-        # even though unlocked balance (50) < cost (109)
-        response = self._create_contribution(fundraise_id, user, amount=100)
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-
-        updated_fundraise = response.data
-        self.assertEqual(updated_fundraise["amount_raised"]["rsc"], 100)
-        self.assertEqual(float(updated_fundraise["escrow"]["amount_holding"]), 100.0)
-
-        # Verify balance objects were created with proper locked/unlocked split
-        purchase_content_type = ContentType.objects.get_for_model(Purchase)
-        fee_content_type = ContentType.objects.get_for_model(BountyFee)
-
-        # Should have 1 amount balance record: 100 from locked (locked used first)
-        amount_balances = Balance.objects.filter(
-            user=user, content_type=purchase_content_type
-        )
-        self.assertEqual(amount_balances.count(), 1)
-
-        # Check locked amount balance (should be -100, all from locked)
-        locked_amount_balance = amount_balances.filter(is_locked=True).first()
-        self.assertIsNotNone(locked_amount_balance)
-        self.assertEqual(float(locked_amount_balance.amount), -100.0)
-
-        # Should have 1 fee balance record: 9 from regular (no locked left)
-        fee_balances = Balance.objects.filter(user=user, content_type=fee_content_type)
-        self.assertEqual(fee_balances.count(), 1)
-
-        # Check regular fee balance (should be -9, from regular balance)
-        regular_fee_balance = fee_balances.filter(is_locked=False).first()
-        self.assertIsNotNone(regular_fee_balance)
-        self.assertEqual(float(regular_fee_balance.amount), -9.0)
-
-    def test_create_contribution_insufficient_total_balance(self):
-        """
-        Test that contribution fails if total balance (including locked) is
-        insufficient.
-        """
-        # Arrange
-        fundraise = self._create_fundraise(self.post.id)
-        fundraise_id = fundraise.data["id"]
-
-        user = create_random_authenticated_user("fundraise_views")
-
-        # Regular balance
         Balance.objects.create(
             amount=30,
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=False,
         )
-
-        # Locked balance
         Balance.objects.create(
             amount=50,
             user=user,
@@ -712,16 +649,11 @@ class FundraiseViewTests(APITestCase):
             is_locked=True,
         )
 
-        # Total balance is 80, but contribution of 100 + 9 fees = 109 total cost
-        total_balance = user.get_balance(include_locked=True)
-        self.assertEqual(float(total_balance), 80.0)
-
-        # Act
+        # Locked = 50, total cost = 109 → must fail without falling back to unlocked.
         response = self._create_contribution(fundraise_id, user, amount=100)
 
-        # Assert
         self.assertEqual(response.status_code, 400)
-        self.assertIn("Insufficient balance", response.data["message"])
+        self.assertIn("Insufficient funding credits", response.data["message"])
 
     def test_create_contribution_all_locked_balance(self):
         """
@@ -778,69 +710,91 @@ class FundraiseViewTests(APITestCase):
         self.assertIsNotNone(locked_fee_balance)
         self.assertEqual(float(locked_fee_balance.amount), -9.0)
 
-    def test_create_contribution_mixed_balance_split(self):
+    def test_create_contribution_use_credits_false_uses_only_unlocked(self):
         """
-        Test contribution when locked balance is insufficient, forcing a split.
+        When use_credits=False, the contribution must only debit the user's
+        unlocked balance, even if they have locked funds available.
         """
-        # Arrange
         fundraise = self._create_fundraise(self.post.id)
         fundraise_id = fundraise.data["id"]
 
         user = create_random_authenticated_user("fundraise_views")
 
-        # Give user partial locked balance (insufficient for full contribution)
+        # Enough unlocked to cover amount + fee on its own.
         Balance.objects.create(
-            amount=60,  # Less than 100 RSC contribution
+            amount=200,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=False,
+        )
+        # Locked funds that would otherwise be consumed first.
+        Balance.objects.create(
+            amount=500,
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=True,
         )
 
-        # Give user regular balance to cover the rest
+        response = self._create_contribution(
+            fundraise_id, user, amount=100, use_credits=False
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        purchase_content_type = ContentType.objects.get_for_model(Purchase)
+        fee_content_type = ContentType.objects.get_for_model(BountyFee)
+
+        # Locked debits must not exist; unlocked must cover the full spend.
+        self.assertFalse(
+            Balance.objects.filter(
+                user=user,
+                content_type__in=[purchase_content_type, fee_content_type],
+                is_locked=True,
+            ).exists()
+        )
+        amount_balance = Balance.objects.get(
+            user=user, content_type=purchase_content_type
+        )
+        self.assertEqual(float(amount_balance.amount), -100.0)
+        self.assertFalse(amount_balance.is_locked)
+        fee_balance = Balance.objects.get(user=user, content_type=fee_content_type)
+        self.assertEqual(float(fee_balance.amount), -9.0)
+        self.assertFalse(fee_balance.is_locked)
+
+        # Locked balance is untouched.
+        self.assertEqual(float(user.get_locked_balance()), 500.0)
+
+    def test_create_contribution_use_credits_false_rejects_when_unlocked_short(self):
+        """
+        When use_credits=False, locked balance must not be spent even if the
+        user's total (locked + unlocked) could otherwise cover the contribution.
+        """
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        user = create_random_authenticated_user("fundraise_views")
+
+        # Unlocked alone is insufficient.
         Balance.objects.create(
-            amount=60,  # Enough to cover remaining amount + fees
+            amount=50,
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=False,
         )
-
-        # Total: 120 RSC (60 locked + 60 regular)
-        # Need: 109 RSC (100 contribution + 9 fees)
-
-        # Act
-        response = self._create_contribution(fundraise_id, user, amount=100)
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-
-        # Verify balance objects show proper split
-        purchase_content_type = ContentType.objects.get_for_model(Purchase)
-        fee_content_type = ContentType.objects.get_for_model(BountyFee)
-
-        # Should have 2 amount balance records: 60 locked + 40 regular
-        amount_balances = Balance.objects.filter(
-            user=user, content_type=purchase_content_type
+        # Locked would cover it if use_credits were True.
+        Balance.objects.create(
+            amount=200,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=True,
         )
-        self.assertEqual(amount_balances.count(), 2)
 
-        # Check locked amount balance (should be -60)
-        locked_amount_balance = amount_balances.filter(is_locked=True).first()
-        self.assertIsNotNone(locked_amount_balance)
-        self.assertEqual(float(locked_amount_balance.amount), -60.0)
+        response = self._create_contribution(
+            fundraise_id, user, amount=100, use_credits=False
+        )
 
-        # Check regular amount balance (should be -40)
-        regular_amount_balance = amount_balances.filter(is_locked=False).first()
-        self.assertIsNotNone(regular_amount_balance)
-        self.assertEqual(float(regular_amount_balance.amount), -40.0)
-
-        # Should have 1 fee balance record: 9 from regular (no locked left)
-        fee_balances = Balance.objects.filter(user=user, content_type=fee_content_type)
-        self.assertEqual(fee_balances.count(), 1)
-
-        # Check regular fee balance (should be -9)
-        regular_fee_balance = fee_balances.filter(is_locked=False).first()
-        self.assertIsNotNone(regular_fee_balance)
-        self.assertEqual(float(regular_fee_balance.amount), -9.0)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Insufficient balance", response.data["message"])
 
     def test_complete_fundraise(self):
         """Test that a fundraise can be completed via the API by a moderator"""
@@ -853,7 +807,9 @@ class FundraiseViewTests(APITestCase):
         self._give_user_balance(contributor, 1000)
 
         # Make a contribution that meets the goal
-        self._create_contribution(fundraise_id, contributor, amount=200)
+        self._create_contribution(
+            fundraise_id, contributor, amount=200, use_credits=False
+        )
 
         # Verify fundraise is still open
         fundraise_obj = Fundraise.objects.get(id=fundraise_id)
@@ -967,6 +923,7 @@ class FundraiseViewTests(APITestCase):
             amount=10000,
             currency="USD",
             origin_fund_id="fund_123",
+            use_credits=True,
         )
 
     def test_create_usd_contribution_requires_origin_fund_id(self):
@@ -1199,3 +1156,121 @@ class FundraiseViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 404)
+
+    # usd_contributions tests
+
+    def test_usd_contributions_returns_only_authenticated_users(self):
+        # Arrange
+        fundraise_response = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise_response.data["id"]
+        fundraise = Fundraise.objects.get(id=fundraise_id)
+
+        contributor = create_random_authenticated_user("usd_contrib_user")
+        other_user = create_random_authenticated_user("usd_contrib_other")
+
+        UsdFundraiseContribution.objects.create(
+            user=contributor,
+            fundraise=fundraise,
+            amount_cents=2500,
+            fee_cents=225,
+        )
+        UsdFundraiseContribution.objects.create(
+            user=other_user,
+            fundraise=fundraise,
+            amount_cents=9999,
+        )
+
+        # Act
+        self.client.force_authenticate(contributor)
+        response = self.client.get("/api/fundraise/usd_contributions/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        result = response.data["results"][0]
+        self.assertEqual(result["fundraise"], fundraise_id)
+        self.assertEqual(result["amount_cents"], 2500)
+        self.assertEqual(result["amount_usd"], "25.00")
+        self.assertEqual(result["fee_cents"], 225)
+        self.assertEqual(result["fee_usd"], "2.25")
+        # setUp creates an RscExchangeRate with rate=0.5 USD/RSC,
+        # so $25.00 -> 50 RSC.
+        self.assertEqual(result["rsc_usd_rate"], "0.5")
+        self.assertEqual(result["amount_rsc"], "50.00")
+
+    def test_usd_contributions_uses_historical_rsc_rate(self):
+        # Arrange — record a newer exchange rate AFTER the contribution,
+        # then verify the contribution serializes with the rate that was
+        # in effect at its created_date, not the latest one.
+        fundraise_response = self._create_fundraise(self.post.id)
+        fundraise = Fundraise.objects.get(id=fundraise_response.data["id"])
+        contributor = create_random_authenticated_user("usd_contrib_history")
+
+        contribution = UsdFundraiseContribution.objects.create(
+            user=contributor,
+            fundraise=fundraise,
+            amount_cents=1000,
+        )
+        # New rate created strictly after the contribution should not affect it.
+        newer_rate = RscExchangeRate.objects.create(
+            rate=2.0,
+            real_rate=2.0,
+            price_source="COIN_GECKO",
+            target_currency="USD",
+        )
+        self.assertGreater(newer_rate.created_date, contribution.created_date)
+
+        # Act
+        self.client.force_authenticate(contributor)
+        response = self.client.get("/api/fundraise/usd_contributions/")
+
+        # Assert — historical rate of 0.5 from setUp, $10 -> 20 RSC.
+        result = response.data["results"][0]
+        self.assertEqual(result["rsc_usd_rate"], "0.5")
+        self.assertEqual(result["amount_rsc"], "20.00")
+
+    def test_usd_contributions_orders_most_recent_first(self):
+        # Arrange
+        fundraise_response = self._create_fundraise(self.post.id)
+        fundraise = Fundraise.objects.get(id=fundraise_response.data["id"])
+        contributor = create_random_authenticated_user("usd_contrib_order")
+
+        older = UsdFundraiseContribution.objects.create(
+            user=contributor, fundraise=fundraise, amount_cents=1000
+        )
+        newer = UsdFundraiseContribution.objects.create(
+            user=contributor, fundraise=fundraise, amount_cents=2000
+        )
+
+        # Act
+        self.client.force_authenticate(contributor)
+        response = self.client.get("/api/fundraise/usd_contributions/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        ids = [row["id"] for row in response.data["results"]]
+        self.assertEqual(ids, [newer.id, older.id])
+
+    def test_usd_contributions_excludes_refunded(self):
+        # Arrange
+        fundraise_response = self._create_fundraise(self.post.id)
+        fundraise = Fundraise.objects.get(id=fundraise_response.data["id"])
+        contributor = create_random_authenticated_user("usd_contrib_refunded")
+
+        kept = UsdFundraiseContribution.objects.create(
+            user=contributor, fundraise=fundraise, amount_cents=500
+        )
+        UsdFundraiseContribution.objects.create(
+            user=contributor,
+            fundraise=fundraise,
+            amount_cents=1000,
+            is_refunded=True,
+        )
+
+        # Act
+        self.client.force_authenticate(contributor)
+        response = self.client.get("/api/fundraise/usd_contributions/")
+
+        # Assert
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["id"], kept.id)

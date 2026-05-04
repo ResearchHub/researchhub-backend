@@ -17,7 +17,6 @@ from purchase.services.fundraise_service import FundraiseService
 from reputation.models import Bounty
 from researchhub.celery import app
 from researchhub_comment.models import RhCommentModel
-from researchhub_comment.views.rh_comment_view import remove_bounties
 from researchhub_document.models import ResearchhubUnifiedDocument
 from review.models.peer_review_model import PeerReview
 from review.models.review_model import Review
@@ -41,8 +40,9 @@ def handle_spam_user_task(user_id, requestor=None):
     # Censor comments and cancel any bounties attached to them
     comments = user.created_researchhub_comment_rhcommentmodel.all()
     for comment in comments.iterator():
-        remove_bounties(comment)
+        comment.cancel_bounties()
         if requestor:
+            comment.soft_delete_descendants()
             censor(comment)
             comment.refresh_related_discussion_count()
 
