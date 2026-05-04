@@ -11,6 +11,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from ai_peer_review.models import ProposalReview
 from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
@@ -108,6 +109,12 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
                     "unified_document__reviews",
                     queryset=Review.objects.select_related(
                         "created_by__author_profile"
+                    ),
+                ),
+                Prefetch(
+                    "unified_document__grants__proposal_reviews",
+                    queryset=ProposalReview.objects.prefetch_related(
+                        "key_insight__items"
                     ),
                 ),
                 "unified_document__grants__applications__applicant__author_profile",

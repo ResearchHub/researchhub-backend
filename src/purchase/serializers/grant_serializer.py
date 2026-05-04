@@ -1,5 +1,7 @@
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
+from ai_peer_review.serializers import ProposalKeyInsightSerializer
 from purchase.models import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -84,6 +86,7 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
     def get_applications(self, grant):
         """Return grant applications with applicant and fundraise information"""
 
+        review_by_ud = {r.unified_document_id: r for r in grant.proposal_reviews.all()}
         application_data = []
         for application in grant.applications.all():
             if (
@@ -105,10 +108,28 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                         else None
                     ),
                     "fundraise": self._serialize_application_fundraise(application),
+                    "key_insight": self._serialize_application_key_insight(
+                        application, review_by_ud
+                    ),
                 }
                 application_data.append(entry)
 
         return application_data
+
+    @classmethod
+    def _serialize_application_key_insight(cls, application, review_by_ud):
+        proposal_review = None
+        if application.preregistration_post_id:
+            ud = application.preregistration_post.unified_document
+            if ud is not None:
+                proposal_review = review_by_ud.get(ud.id)
+        if proposal_review is None:
+            return None
+        try:
+            ki = proposal_review.key_insight
+        except ObjectDoesNotExist:
+            return None
+        return ProposalKeyInsightSerializer(ki).data
 
     @classmethod
     def _serialize_application_fundraise(cls, application):
