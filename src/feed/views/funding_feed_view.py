@@ -111,7 +111,6 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
                 "unified_document__hubs",
                 "unified_document__fundraises",
                 "unified_document__fundraises__nonprofit_links__nonprofit",
-                "unified_document__proposal_reviews",
                 "grant_applications__grant__unified_document__posts",
                 "grant_applications__grant__applications",
             )

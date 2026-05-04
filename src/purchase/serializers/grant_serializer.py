@@ -1,6 +1,5 @@
 from rest_framework import serializers
 
-from ai_peer_review.serializers import serialize_ai_peer_review_summary
 from purchase.models import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -85,7 +84,6 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
     def get_applications(self, grant):
         """Return grant applications with applicant and fundraise information"""
 
-        review_by_ud = {r.unified_document_id: r for r in grant.proposal_reviews.all()}
         application_data = []
         for application in grant.applications.all():
             if (
@@ -97,10 +95,6 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                     application.applicant.author_profile
                 ).data
 
-                ai_rev = None
-                if application.preregistration_post_id:
-                    ud = application.preregistration_post.unified_document
-                    ai_rev = review_by_ud.get(ud.id)
                 entry = {
                     "id": application.id,
                     "created_date": application.created_date,
@@ -111,7 +105,6 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                         else None
                     ),
                     "fundraise": self._serialize_application_fundraise(application),
-                    "ai_peer_review": serialize_ai_peer_review_summary(ai_rev),
                 }
                 application_data.append(entry)
 

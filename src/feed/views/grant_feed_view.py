@@ -110,7 +110,6 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
                         "created_by__author_profile"
                     ),
                 ),
-                "unified_document__grants__proposal_reviews",
                 "unified_document__grants__applications__applicant__author_profile",
                 Prefetch(
                     "unified_document__grants__applications__preregistration_post__unified_document__reviews",
