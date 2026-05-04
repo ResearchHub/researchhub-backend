@@ -967,6 +967,7 @@ class PostSerializerTests(AWSMockTestCase):
         self.assertIn("applicant", app1_data)
         self.assertIn("preregistration_post_id", app1_data)
         self.assertIn("fundraise", app1_data)
+        self.assertIn("key_insight", app1_data)
 
         # Check applicant data structure (should use SimpleAuthorSerializer)
         applicant_data = app1_data["applicant"]
@@ -987,6 +988,85 @@ class PostSerializerTests(AWSMockTestCase):
         # Applications without fundraises should have fundraise=None
         for app_data in applications:
             self.assertIsNone(app_data["fundraise"])
+            self.assertIsNone(app_data["key_insight"])
+
+    def test_serializes_grant_post_application_includes_key_insight_when_present(self):
+        """ProposalReview + ProposalKeyInsight for the grant/proposal pair appear on application."""
+        from datetime import datetime, timedelta
+
+        import pytz
+
+        from ai_peer_review.models import (
+            KeyInsightItemType,
+            ProposalKeyInsight,
+            ProposalKeyInsightItem,
+            ProposalReview,
+            Status,
+        )
+
+        grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.GRANT,
+        )
+        grant_post = ResearchhubPost.objects.create(
+            title="Grant with KI",
+            created_by=self.user,
+            document_type=document_type.GRANT,
+            renderable_text="Grant",
+            unified_document=grant_unified_doc,
+        )
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_unified_doc,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Org",
+            description="Desc",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+        applicant = create_random_default_user("ki_grant_applicant")
+        prereg_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+        prereg_post = ResearchhubPost.objects.create(
+            title="Proposal",
+            created_by=applicant,
+            document_type=document_type.PREREGISTRATION,
+            unified_document=prereg_doc,
+        )
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=prereg_post,
+            applicant=applicant,
+        )
+        review = ProposalReview.objects.create(
+            created_by=applicant,
+            unified_document=prereg_doc,
+            grant=grant,
+            status=Status.COMPLETED,
+            result_data={},
+        )
+        ki = ProposalKeyInsight.objects.create(
+            proposal_review=review,
+            status=Status.COMPLETED,
+            tldr="Summary line.",
+        )
+        ProposalKeyInsightItem.objects.create(
+            key_insight=ki,
+            item_type=KeyInsightItemType.STRENGTH,
+            label="Strength one",
+            description="D",
+            order=0,
+        )
+
+        context = FeedViewMixin().get_common_serializer_context()
+        data = PostSerializer(grant_post, context=context).data
+        app = data["grant"]["applications"][0]
+        self.assertEqual(app["preregistration_post_id"], prereg_post.id)
+        self.assertIsNotNone(app["key_insight"])
+        self.assertEqual(app["key_insight"]["tldr"], "Summary line.")
+        self.assertEqual(len(app["key_insight"]["items"]), 1)
+        self.assertEqual(app["key_insight"]["items"][0]["label"], "Strength one")
 
     def test_serializes_non_grant_post_returns_none_for_grant(self):
         """Test that non-grant posts return None for the grant field"""
