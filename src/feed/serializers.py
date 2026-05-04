@@ -899,6 +899,8 @@ def serialize_feed_item(feed_item, item_content_type):
     Returns:
         The serialized JSON for the item or None if no serializer is found
     """
+    if feed_item is None:
+        return None
 
     match item_content_type.model:
         case "paper":

@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
@@ -5,6 +6,10 @@ from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
+from researchhub_comment.models import RhCommentModel
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    hidden_comment_ids,
+)
 from user.filters import ContributionFilter
 from user.models import Action
 from user.serializers import DynamicActionSerializer
@@ -39,10 +44,13 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         return self.filter_queryset(qs)
 
     def _get_latest_actions(self, author_id: str = None):
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+
         actions = (
             self.get_filtered_queryset()
             .exclude(Q(is_removed=True) | Q(display=False))
             .exclude(user__is_active=False)
+            .exclude(content_type=comment_ct, object_id__in=hidden_comment_ids())
             .filter(
                 user__isnull=False,
                 content_type__model__in=self._get_allowed_models(),

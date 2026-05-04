@@ -147,6 +147,67 @@ class AuditViewTests(APITestCase):
         self.assertEqual(http_response.status_code, 403)
 
 
+    def test_flag_and_remove_comment_cascades_to_descendants(self):
+        """flag_and_remove on a comment with children soft-deletes the
+        entire subtree and updates the discussion count."""
+        from researchhub_comment.models import RhCommentModel
+
+        creator = create_random_authenticated_user("comment_creator")
+        replier = create_random_authenticated_user("comment_replier")
+        paper = create_paper(uploaded_by=creator)
+
+        # Build a parent + child comment chain
+        self.client.force_authenticate(creator)
+        parent_res = self.client.post(
+            f"/api/paper/{paper.id}/comments/create_rh_comment/",
+            {"comment_content_json": {"ops": [{"insert": "parent"}]}},
+        )
+        self.client.force_authenticate(replier)
+        child_res = self.client.post(
+            f"/api/paper/{paper.id}/comments/create_rh_comment/",
+            {
+                "comment_content_json": {"ops": [{"insert": "child"}]},
+                "parent_id": parent_res.data["id"],
+            },
+        )
+        self.assertEqual(child_res.status_code, 200)
+
+        # Verify baseline discussion count
+        paper_res = self.client.get(f"/api/paper/{paper.id}/")
+        self.assertEqual(paper_res.data["discussion_count"], 2)
+
+        # Act -- editor flags and removes the parent via audit dashboard
+        parent_comment = RhCommentModel.objects.get(id=parent_res.data["id"])
+        self.client.force_authenticate(self.test_editor)
+        response = self.client.post(
+            FLAG_AND_REMOVE_URL,
+            {
+                "flag": [
+                    {
+                        "content_type": get_content_type_for_model(parent_comment).id,
+                        "object_id": parent_comment.id,
+                        "reason_choice": SPAM,
+                    },
+                ],
+                "verdict": {
+                    "verdict_choice": SPAM,
+                    "is_content_removed": True,
+                },
+                "send_email": False,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Assert -- both parent and child are removed, count drops to 0
+        paper_res = self.client.get(f"/api/paper/{paper.id}/")
+        self.assertEqual(paper_res.data["discussion_count"], 0)
+
+        parent_comment.refresh_from_db()
+        child_comment = RhCommentModel.all_objects.get(id=child_res.data["id"])
+        self.assertTrue(parent_comment.is_removed)
+        self.assertTrue(child_comment.is_removed)
+
+
 class AutoPaymentAuditTests(APITestCase):
     def setUp(self):
         self.community_user = create_user(email="main@researchhub.foundation")
