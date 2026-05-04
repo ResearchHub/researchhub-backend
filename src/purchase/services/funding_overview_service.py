@@ -1,7 +1,7 @@
 """Services for funding and grant overview dashboard metrics."""
 
-from django.db.models import Count
-
+from institution.models import Institution
+from institution.serializers import DynamicInstitutionSerializer
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.services.overview_mixin import OverviewMixin
@@ -27,7 +27,7 @@ class FundingOverviewService(OverviewMixin):
                 user.id, all_funded_ids
             ),
             "supported_proposals": self._supported_proposals(all_funded_ids),
-            "supported_institutions_count": self._distinct_supported_institution_count(
+            "supported_institutions": self._supported_institutions_serialized(
                 all_funded_ids
             ),
         }
@@ -62,10 +62,10 @@ class FundingOverviewService(OverviewMixin):
         return [self._serialize_proposal(post) for post in posts]
 
     @staticmethod
-    def _distinct_supported_institution_count(funded_fundraise_ids: list[int]) -> int:
-        """Count distinct Institution ids for AuthorInstitution of supported proposal creators."""
+    def _supported_institutions_serialized(funded_fundraise_ids: list[int]) -> list:
+        """Distinct institutions for supported proposal creators."""
         if not funded_fundraise_ids:
-            return 0
+            return []
 
         author_ids = (
             ResearchhubPost.objects.filter(
@@ -75,10 +75,21 @@ class FundingOverviewService(OverviewMixin):
             .values_list("created_by__author_profile__id", flat=True)
             .distinct()
         )
-        row = AuthorInstitution.objects.filter(author_id__in=author_ids).aggregate(
-            n=Count("institution_id", distinct=True),
+        institution_ids = (
+            AuthorInstitution.objects.filter(author_id__in=author_ids)
+            .values_list("institution_id", flat=True)
+            .distinct()
         )
-        return row["n"] or 0
+        institutions = Institution.objects.filter(id__in=institution_ids).order_by(
+            "display_name",
+            "id",
+        )
+
+        return DynamicInstitutionSerializer(
+            institutions,
+            many=True,
+            _exclude_fields=["institutions"],
+        ).data
 
     def _serialize_proposal(self, post: ResearchhubPost) -> dict:
         creator = post.created_by
@@ -91,12 +102,14 @@ class FundingOverviewService(OverviewMixin):
                 "slug": post.slug,
             },
             "id": post.id,
-            "created_by": {
-                "id": creator.id,
-                "author_profile": self._serialize_author_profile(author),
-            }
-            if creator
-            else None,
+            "created_by": (
+                {
+                    "id": creator.id,
+                    "author_profile": self._serialize_author_profile(author),
+                }
+                if creator
+                else None
+            ),
         }
 
     @staticmethod

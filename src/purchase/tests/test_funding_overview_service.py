@@ -6,13 +6,15 @@ from django.test import TestCase
 from institution.models import Institution
 from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from purchase.services.funding_overview_service import FundingOverviewService
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT as GRANT_DOC_TYPE,
-    PREREGISTRATION,
 )
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.related_models.author_institution import AuthorInstitution
 from user.tests.helpers import create_random_authenticated_user
 
@@ -86,7 +88,7 @@ class TestFundingOverviewService(TestCase):
         self.assertEqual(result["matched_funds"], {"rsc": 0.0, "usd": 0.0})
         self.assertEqual(result["distributed_funds"], {"rsc": 0.0, "usd": 0.0})
         self.assertEqual(result["supported_proposals"], [])
-        self.assertEqual(result["supported_institutions_count"], 0)
+        self.assertEqual(result["supported_institutions"], [])
 
     def test_distributed_funds_tracks_funder_contributions(self):
         # Arrange
@@ -137,15 +139,21 @@ class TestFundingOverviewService(TestCase):
         self.assertEqual(len(result["supported_proposals"]), 1)
         proposal = result["supported_proposals"][0]
         self.assertEqual(proposal["id"], proposal_post.id)
-        self.assertEqual(proposal["unified_document"]["id"], proposal_post.unified_document_id)
+        self.assertEqual(
+            proposal["unified_document"]["id"], proposal_post.unified_document_id
+        )
         self.assertEqual(proposal["unified_document"]["title"], proposal_post.title)
         self.assertEqual(proposal["unified_document"]["slug"], proposal_post.slug)
         self.assertEqual(proposal["created_by"]["id"], applicant.id)
         author = applicant.author_profile
         self.assertEqual(proposal["created_by"]["author_profile"]["id"], author.id)
-        self.assertEqual(proposal["created_by"]["author_profile"]["first_name"], author.first_name)
-        self.assertEqual(proposal["created_by"]["author_profile"]["last_name"], author.last_name)
-        self.assertEqual(result["supported_institutions_count"], 0)
+        self.assertEqual(
+            proposal["created_by"]["author_profile"]["first_name"], author.first_name
+        )
+        self.assertEqual(
+            proposal["created_by"]["author_profile"]["last_name"], author.last_name
+        )
+        self.assertEqual(result["supported_institutions"], [])
 
     def test_supported_proposals_empty_when_not_funded(self):
         # Arrange
@@ -156,9 +164,9 @@ class TestFundingOverviewService(TestCase):
 
         # Assert
         self.assertEqual(result["supported_proposals"], [])
-        self.assertEqual(result["supported_institutions_count"], 0)
+        self.assertEqual(result["supported_institutions"], [])
 
-    def test_supported_institutions_count_one_linked_institution(self):
+    def test_supported_institutions_one_linked_institution(self):
         _, proposal_post, fundraise, applicant = self._create_grant_with_proposal()
         institution = Institution.objects.create(
             openalex_id="https://openalex.org/S1234567890",
@@ -176,10 +184,14 @@ class TestFundingOverviewService(TestCase):
 
         result = self.service.get_funding_overview(self.user)
 
-        self.assertEqual(result["supported_institutions_count"], 1)
+        insts = result["supported_institutions"]
+        self.assertEqual(len(insts), 1)
+        self.assertEqual(insts[0]["id"], institution.id)
+        self.assertEqual(insts[0]["display_name"], "Test University")
+        self.assertEqual(insts[0]["type"], "education")
 
-    def test_supported_institutions_count_dedupes_same_institution_across_pis(self):
-        """Two funded proposals / two PIs linked to the same Institution count once."""
+    def test_supported_institutions_dedupes_same_institution_across_pis(self):
+        """Two funded proposals / two PIs linked to the same Institution appear once."""
         applicant1 = create_random_authenticated_user("pi_one")
         applicant2 = create_random_authenticated_user("pi_two")
         institution = Institution.objects.create(
@@ -240,7 +252,8 @@ class TestFundingOverviewService(TestCase):
         result = self.service.get_funding_overview(self.user)
 
         self.assertEqual(len(result["supported_proposals"]), 2)
-        self.assertEqual(result["supported_institutions_count"], 1)
+        self.assertEqual(len(result["supported_institutions"]), 1)
+        self.assertEqual(result["supported_institutions"][0]["id"], institution.id)
 
     def test_supported_proposals_deduplicates_by_post(self):
         # Arrange
@@ -283,4 +296,6 @@ class TestFundingOverviewService(TestCase):
 
         # Assert
         self.assertEqual(len(result["supported_proposals"]), 1)
-        self.assertEqual(result["supported_institutions_count"], 0)
+        self.assertEqual(result["supported_institutions"], [])
+        self.assertEqual(len(result["supported_proposals"]), 1)
+        self.assertEqual(result["supported_institutions"], [])
