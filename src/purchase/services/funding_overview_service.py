@@ -1,14 +1,12 @@
 """Services for funding and grant overview dashboard metrics."""
 
-from institution.models import Institution
-from institution.serializers import DynamicInstitutionSerializer
+from organizations.models import NonprofitOrg
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.services.overview_mixin import OverviewMixin
 from purchase.utils import get_funded_fundraise_ids
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.models import User
-from user.related_models.author_institution import AuthorInstitution
 
 
 class FundingOverviewService(OverviewMixin):
@@ -27,9 +25,7 @@ class FundingOverviewService(OverviewMixin):
                 user.id, all_funded_ids
             ),
             "supported_proposals": self._supported_proposals(all_funded_ids),
-            "supported_institutions": self._supported_institutions_serialized(
-                all_funded_ids
-            ),
+            "supported_nonprofits": self._supported_nonprofits(all_funded_ids),
         }
 
     def _grant_fundraise_ids(self, user: User) -> list[int]:
@@ -62,34 +58,30 @@ class FundingOverviewService(OverviewMixin):
         return [self._serialize_proposal(post) for post in posts]
 
     @staticmethod
-    def _supported_institutions_serialized(funded_fundraise_ids: list[int]) -> list:
-        """Distinct institutions for supported proposal creators."""
+    def _supported_nonprofits(funded_fundraise_ids: list[int]) -> list[dict]:
+        """Distinct nonprofits linked to fundraises the funder has contributed to."""
         if not funded_fundraise_ids:
             return []
 
-        author_ids = (
-            ResearchhubPost.objects.filter(
-                unified_document__fundraises__id__in=funded_fundraise_ids,
-                created_by__author_profile__isnull=False,
+        orgs = (
+            NonprofitOrg.objects.filter(
+                fundraise_links__fundraise_id__in=funded_fundraise_ids,
             )
-            .values_list("created_by__author_profile__id", flat=True)
             .distinct()
+            .order_by("name", "id")
         )
-        institution_ids = (
-            AuthorInstitution.objects.filter(author_id__in=author_ids)
-            .values_list("institution_id", flat=True)
-            .distinct()
-        )
-        institutions = Institution.objects.filter(id__in=institution_ids).order_by(
-            "display_name",
-            "id",
-        )
+        return [
+            FundingOverviewService._serialize_supported_nonprofit(org) for org in orgs
+        ]
 
-        return DynamicInstitutionSerializer(
-            institutions,
-            many=True,
-            _exclude_fields=["institutions"],
-        ).data
+    @staticmethod
+    def _serialize_supported_nonprofit(org: NonprofitOrg) -> dict:
+        return {
+            "id": org.id,
+            "name": org.name,
+            "ein": org.ein or "",
+            "endaoment_org_id": org.endaoment_org_id or "",
+        }
 
     def _serialize_proposal(self, post: ResearchhubPost) -> dict:
         creator = post.created_by
