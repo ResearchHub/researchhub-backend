@@ -18,6 +18,7 @@ from django.views.decorators.cache import cache_page
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.response import Response
 
 from analytics.tasks import track_revenue_event
@@ -179,13 +180,13 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             logger.error(f"Invalid withdrawal: {message}")
             return Response(message, status=400)
 
-    def _check_mfa(self, user, request) -> str | None:
+    def _check_mfa(self, user: User, request: Request) -> str | None:
         """
-        When MFA is enabled by the user, validate the given MFA code from the request.
+        Validate if MFA is enabled. If enabled, validate the provided MFA code.
         Returns an error message if invalid, or None if MFA passes (or is disabled).
         """
         if not is_mfa_enabled(user):
-            return None
+            return "MFA must be enabled to make withdrawals"
 
         code = (request.data.get("mfa_code") or "").strip()
         if not code:
