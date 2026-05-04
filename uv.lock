@@ -355,14 +355,13 @@ wheels = [
 
 [[package]]
 name = "cdp-sdk"
-version = "1.40.0"
+version = "1.44.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
     { name = "aiohttp-retry" },
     { name = "base58" },
     { name = "cryptography" },
-    { name = "nest-asyncio" },
     { name = "pydantic" },
     { name = "pyjwt" },
     { name = "python-dateutil" },
@@ -371,9 +370,9 @@ dependencies = [
     { name = "urllib3" },
     { name = "web3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/85/ee/66024a3a90b9477f81953247ea2ab0d29ecbbb380bab46cfb63284057c29/cdp_sdk-1.40.0.tar.gz", hash = "sha256:964da968062f65aa9ee09f3d92294078c200533a4b6260a4af5870c99e4d480a", size = 361895, upload-time = "2026-03-06T21:42:12.576Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/11/23/68cd0604cefa157f0013e4ebce17f5096fe701a010a8c7292c8f8f19d108/cdp_sdk-1.44.0.tar.gz", hash = "sha256:c2613e8792567fd1a5ca7b26b492e5011febd0c01c6505bc29fb4c7916977bdd", size = 399347, upload-time = "2026-04-23T15:09:13.083Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3e/5d/968f51e8f44f3d4bd15f53f0911cadfc12a1ff4f64f99cc4891f4fbf9e2d/cdp_sdk-1.40.0-py3-none-any.whl", hash = "sha256:45691cc6a36a799a81b74b2cc65d0081352a7c366320cb1e2c59cf86adb72183", size = 940665, upload-time = "2026-03-06T21:42:10.958Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/7f/755dd61a28a9e561c5134edc08a7e03700282b4dd33d1842f177f1107000/cdp_sdk-1.44.0-py3-none-any.whl", hash = "sha256:f11d4ba7d9461a27dfb71ca58aca78f25fa48d875a8aefe4a7213b49ca5c7814", size = 1032598, upload-time = "2026-04-23T15:09:10.853Z" },
 ]
 
 [[package]]
@@ -1875,15 +1874,6 @@ wheels = [
 ]
 
 [[package]]
-name = "nest-asyncio"
-version = "1.6.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/83/f8/51569ac65d696c8ecbee95938f89d4abf00f47d58d48f6fbabfe8f0baefe/nest_asyncio-1.6.0.tar.gz", hash = "sha256:6f172d5449aca15afd6c646851f4e31e02c598d553a667e38cafa997cfec55fe", size = 7418, upload-time = "2024-01-21T14:25:19.227Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a0/c4/c2971a3ba4c6103a3d10c4b0f24f461ddc027f0f09763220cf35ca1401b3/nest_asyncio-1.6.0-py3-none-any.whl", hash = "sha256:87af6efd6b5e897c81050477ef65c62e2b2f35d51703cae01aff2905b1852e1c", size = 5195, upload-time = "2024-01-21T14:25:17.223Z" },
-]
-
-[[package]]
 name = "nodeenv"
 version = "1.10.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2778,7 +2768,7 @@ requires-dist = [
     { name = "authlib", specifier = ">=1.3.0,<2.0.0" },
     { name = "beautifulsoup4", specifier = "==4.12.2" },
     { name = "boto3", specifier = "==1.34.69" },
-    { name = "cdp-sdk", specifier = "==1.40.0" },
+    { name = "cdp-sdk", specifier = ">=1.44.0" },
     { name = "celery", specifier = "==5.6.3" },
     { name = "celery-redbeat", specifier = "==2.3.3" },
     { name = "channels", specifier = ">=4.1.0,<5.0.0" },
