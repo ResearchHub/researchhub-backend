@@ -36,3 +36,4 @@ class FundingOverviewSerializer(serializers.Serializer):
     matched_funds = CurrencyBreakdownSerializer()
     distributed_funds = CurrencyBreakdownSerializer()
     supported_proposals = SupportedProposalSerializer(many=True)
+    supported_institutions = serializers.ListField(child=serializers.DictField())
