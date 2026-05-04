@@ -5,6 +5,9 @@ from paper.serializers import DynamicPaperSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import PRIVATE, PUBLIC, WORKSPACE
 from researchhub_comment.models import RhCommentThreadModel
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    exclude_orphaned_comments,
+)
 from researchhub_comment.serializers.constants import (
     rh_comment_thread_serializer_constants,
 )
@@ -91,7 +94,9 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_comment_count(self, thread):
-        return thread.rh_comments.count()
+        return exclude_orphaned_comments(
+            thread.rh_comments.filter(is_removed=False)
+        ).count()
 
     def get_content_object(self, thread):
         from researchhub_comment.serializers.utils import (

@@ -31,6 +31,7 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from researchhub_comment.tasks import celery_create_comment_content_src
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.related_models.user_verification_model import UserVerification
 from utils.models import DefaultAuthenticatedModel, SoftDeletableModel
 
@@ -240,19 +241,22 @@ class RhCommentModel(
             related_document.save(update_fields=["discussion_count"])
 
     def refresh_related_discussion_count(self):
+        from feed.views.funding_cache_mixin import FundingCacheMixin
+
         thread = self.thread
         unified_doc = thread.unified_document
         if unified_doc is None:
             return
         related_document = unified_doc.get_document()
 
-        # Ensure the document has the `rh_threads` relation which provides the
-        # custom manager with the `get_discussion_aggregates` helper.
         if hasattr(related_document, "rh_threads") and hasattr(
             related_document, "discussion_count"
         ):
             related_document.discussion_count = related_document.get_discussion_count()
             related_document.save(update_fields=["discussion_count"])
+
+        if getattr(related_document, "document_type", None) == PREREGISTRATION:
+            FundingCacheMixin.invalidate_funding_feed_cache()
 
     @classmethod
     def annotate_weighted_score(cls, qs):

@@ -11,54 +11,49 @@ from researchhub_comment.constants.rh_comment_thread_types import (
 )
 from utils.models import AbstractGenericRelationModel
 
+ANCESTOR_DEPTH_LIMIT = 5
+
+
+def exclude_orphaned_comments(qs):
+    """Exclude comments whose parent chain contains a removed comment.
+
+    Walks up to ``ANCESTOR_DEPTH_LIMIT`` ancestor levels, which covers all
+    practical nesting depths.
+    """
+    lookup = "parent"
+    for _ in range(ANCESTOR_DEPTH_LIMIT):
+        qs = qs.exclude(**{f"{lookup}__is_removed": True})
+        lookup = f"parent__{lookup}"
+    return qs
+
 
 class RhCommentThreadQuerySet(models.QuerySet):
-    def get_discussion_count(self):
-        """
-        Counts GENERIC_COMMENT type comments without bounties, but only in threads
-        where the root (top-level) comment is also GENERIC_COMMENT (regardless of
-        whether the root is removed or not).
-        """
+    def _countable_discussion_comments(self):
+        """Return non-removed, non-orphaned GENERIC_COMMENTs for counting."""
         from researchhub_comment.models import RhCommentModel
 
-        # Find threads that have a GENERIC_COMMENT as their root comment
-        # Don't filter by is_removed for the root - we want to include threads
-        # even if the root is censored, as long as it was originally GENERIC_COMMENT
-        threads_with_generic_root = self.filter(
+        threads = self.filter(
             rh_comments__parent__isnull=True,
             rh_comments__comment_type=GENERIC_COMMENT,
         ).distinct()
 
-        # Count all visible GENERIC_COMMENT type comments in those threads
-        visible_comments = RhCommentModel.objects.filter(
-            thread__in=threads_with_generic_root,
-            comment_type=GENERIC_COMMENT,
-            bounties__isnull=True,
-            is_removed=False,
+        return exclude_orphaned_comments(
+            RhCommentModel.objects.filter(
+                thread__in=threads,
+                comment_type=GENERIC_COMMENT,
+                bounties__isnull=True,
+                is_removed=False,
+            )
         )
 
-        return visible_comments.count()
+    def get_discussion_count(self):
+        """Count visible GENERIC_COMMENTs (no bounties) in threads whose root
+        comment is also GENERIC_COMMENT, regardless of whether the root itself
+        is removed."""
+        return self._countable_discussion_comments().count()
 
     def get_discussion_aggregates(self, item):
-        """
-        Example aggregator, adapted from your code.
-        Note: self.exclude(...) etc. uses the QuerySet instead of Manager.
-        """
-        from researchhub_comment.models import RhCommentModel
-
-        # Find threads that have a GENERIC_COMMENT as their root comment
-        threads_with_generic_root = self.filter(
-            rh_comments__parent__isnull=True,
-            rh_comments__comment_type=GENERIC_COMMENT,
-        ).distinct()
-
-        # Count visible GENERIC_COMMENT type comments in those threads, excluding bounties
-        discussion_count = RhCommentModel.objects.filter(
-            thread__in=threads_with_generic_root,
-            comment_type=GENERIC_COMMENT,
-            bounties__isnull=True,
-            is_removed=False,
-        ).count()
+        discussion_count = self._countable_discussion_comments().count()
 
         # Single aggregate query for other counts
         aggregator = self.aggregate(
