@@ -1238,7 +1238,7 @@ wheels = [
 
 [[package]]
 name = "eth-tester"
-version = "0.12.1b1"
+version = "0.13.0b1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "eth-abi" },
@@ -1248,9 +1248,9 @@ dependencies = [
     { name = "rlp" },
     { name = "semantic-version" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5e/14/5a29f89f78810a6aa196b446aea7b087ba9480460aba544fb9b0783e9cb1/eth_tester-0.12.1b1.tar.gz", hash = "sha256:7aeb3b5839fb1bc20e7f15c5e289ba95809fa41117a5ac194e8d270467982832", size = 100028, upload-time = "2025-02-13T19:06:13.249Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/28/3d/d9b8191fd252b3c99c86f939d2fbe5c3cd259984e61505052ccf2a91bc85/eth_tester-0.13.0b1.tar.gz", hash = "sha256:87fb561d450cd3639ce82eed52e566c902a0ac241f3e9581c6b7545690fcece5", size = 102766, upload-time = "2025-04-23T21:02:29.906Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/d1/acb0bfd0985c491f8a69fc08ae422a6427d6902d30da0cbd59d8086ed0c6/eth_tester-0.12.1b1-py3-none-any.whl", hash = "sha256:aa3f91960e5ce9fe74eac4a0dcb22ffada84b8e28dc11d0f0a69085a5879be60", size = 75265, upload-time = "2025-02-13T19:06:10.949Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/81/809ff0b461a7f7688925675cb99071b272bf3863e8d16e01a91434f03633/eth_tester-0.13.0b1-py3-none-any.whl", hash = "sha256:872108cea7df1340f56bab25b9ed5cf0f835aa467c1a8195d0891238c0e73ab3", size = 76168, upload-time = "2025-04-23T21:02:28.67Z" },
 ]
 
 [package.optional-dependencies]
@@ -2209,7 +2209,7 @@ wheels = [
 
 [[package]]
 name = "py-evm"
-version = "0.10.1b2"
+version = "0.12.1b1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cached-property" },
@@ -2223,9 +2223,9 @@ dependencies = [
     { name = "rlp" },
     { name = "trie" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c4/56/f90ebb53e121d5e1dea0eff713dd0434d2ea938431311e6d8e99fdbb8a8d/py_evm-0.10.1b2.tar.gz", hash = "sha256:7a06fbd1d966eb0cd4f6c6d9e7fe1e2c43473804ac12b12325b0a31cbab5670f", size = 836114, upload-time = "2024-08-21T17:25:28.075Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0a/57/a0a84d991bac43058200245d853de9e7e819d216b56e22f66654fdf596d5/py_evm-0.12.1b1.tar.gz", hash = "sha256:7bcd9935a3ac2989c8f068b2006f136189281ebc6e279663405cb2c5397ed890", size = 851927, upload-time = "2025-05-14T17:25:14.686Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/86/c5/9f3e66a43083a715055f0503d283dca7186f4253754b474f5804304ef297/py_evm-0.10.1b2-py3-none-any.whl", hash = "sha256:511bd52c9c08837ae2a02cce923a756e85330dc14cc6abb15986ea99dc2832ac", size = 778907, upload-time = "2024-08-21T17:25:26.187Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/be/1e0de8a1f1dbe3911ccae2d598a2c60610e2f4984a918690b5469e8c8774/py_evm-0.12.1b1-py3-none-any.whl", hash = "sha256:015ebc8dd95925030be87ce4b3fd31e3c70df626c5ad8665fb06cd611c73eb68", size = 798589, upload-time = "2025-05-14T17:25:12.707Z" },
 ]
 
 [[package]]
@@ -2816,7 +2816,7 @@ requires-dist = [
     { name = "responses", specifier = "==0.21.0" },
     { name = "sentry-sdk", specifier = ">=2.49.0,<3.0.0" },
     { name = "stripe", specifier = ">=11.2.0,<12.0.0" },
-    { name = "web3", extras = ["tester"], specifier = "==7.10.0" },
+    { name = "web3", extras = ["tester"], specifier = ">=7.16.0" },
     { name = "xdk", specifier = ">=0.4.5" },
 ]
 
@@ -3329,7 +3329,7 @@ wheels = [
 
 [[package]]
 name = "web3"
-version = "7.10.0"
+version = "7.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -3347,9 +3347,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6d/19/c1e213dd87ead2ace55ff1dd179df6050bcf5d9006440c9153969c7d6863/web3-7.10.0.tar.gz", hash = "sha256:0cace05ea14f800a4497649ecd99332ca4e85c8a90ea577e05ae909cb08902b9", size = 2193725, upload-time = "2025-03-27T17:02:27.919Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f1/d9/bdfa9e715804020c3f3676346065c18adbc207c9343a3458246d7430f45c/web3-7.16.0.tar.gz", hash = "sha256:b4a75a3fa94fef4d23d502eb3c2244146ef9a1ee0082cf1cb0a91586ba0510c3", size = 2211469, upload-time = "2026-05-01T21:22:20.666Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4c/c5/a8e25e3ff51c7cd6d2bdecf75da2afb2923b29eba28e5dfe4fde72ad2322/web3-7.10.0-py3-none-any.whl", hash = "sha256:06fcab920554450e9f7d108da5e6b9d29c0d1a981a59a5551cc82d2cb2233b34", size = 1365880, upload-time = "2025-03-27T17:02:25.04Z" },
+    { url = "https://files.pythonhosted.org/packages/2c/f9/5345c13f8469f3ce344b4d9934c0387b83a49420192482111e9c1fa95ec2/web3-7.16.0-py3-none-any.whl", hash = "sha256:760b2718c473980d70708c3593d9d28395db4b482f45e38a63a36fa028178f51", size = 1372181, upload-time = "2026-05-01T21:22:17.015Z" },
 ]
 
 [package.optional-dependencies]
