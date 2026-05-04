@@ -20,6 +20,7 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
@@ -28,6 +29,7 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_DISCUSSED,
     SORT_UPVOTED,
 )
+from search.utils import remove_from_search_index
 from user.models import User
 from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -39,6 +41,15 @@ def censor(item):
         item.delete(soft=True)
     else:
         item.unified_document.delete(soft=True)
+
+    if isinstance(item, Paper) and not item.is_removed:
+        item.is_removed = True
+        item.save(update_fields=["is_removed"])
+
+    searchable_item = item
+    if isinstance(item, ResearchhubUnifiedDocument):
+        searchable_item = item.get_document()
+    remove_from_search_index(searchable_item)
 
     if reviews := getattr(item, "reviews", None):
         reviews.all().update(

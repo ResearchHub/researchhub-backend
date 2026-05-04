@@ -20,6 +20,7 @@ from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
 from review.models.peer_review_model import PeerReview
 from review.models.review_model import Review
+from search.utils import bulk_remove_from_search_index
 from user.editor_payout_tasks import editor_daily_payout_task
 from user.models import User
 from user.related_models.verdict_model import Verdict
@@ -51,6 +52,7 @@ def handle_spam_user_task(user_id, requestor=None):
     ResearchhubUnifiedDocument.all_objects.filter(paper__in=papers).update(
         is_removed=True
     )
+    bulk_remove_from_search_index(papers)
 
     # Remove posts (discussions, questions, preregistrations, grants, etc.)
     posts = user.created_posts.all()
@@ -58,6 +60,7 @@ def handle_spam_user_task(user_id, requestor=None):
         posts__in=posts
     ).distinct()
     post_unified_docs.update(is_removed=True)
+    bulk_remove_from_search_index(posts)
 
     # Hide all activity feed actions
     user.actions.update(display=False, is_removed=True)

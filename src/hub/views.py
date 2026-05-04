@@ -31,6 +31,7 @@ from researchhub_access_group.constants import (
 )
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
+from search.utils import bulk_remove_from_search_index
 from user.models import User
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.http import DELETE, GET, PATCH, POST, PUT
@@ -136,6 +137,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         # Remove papers of unified documents with no other hubs
         papers = Paper.objects.filter(unified_document__in=unified_documents)
         papers.update(is_removed=True)
+        bulk_remove_from_search_index(papers)
 
         # Update Hub
         hub.is_removed = True
