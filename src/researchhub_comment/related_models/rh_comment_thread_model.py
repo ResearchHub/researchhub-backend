@@ -14,17 +14,33 @@ from utils.models import AbstractGenericRelationModel
 ANCESTOR_DEPTH_LIMIT = 5
 
 
+def _has_removed_ancestor():
+    """Build a Q matching comments with at least one removed ancestor."""
+    q = Q()
+    lookup = "parent"
+    for _ in range(ANCESTOR_DEPTH_LIMIT):
+        q |= Q(**{f"{lookup}__is_removed": True})
+        lookup = f"parent__{lookup}"
+    return q
+
+
 def exclude_orphaned_comments(qs):
     """Exclude comments whose parent chain contains a removed comment.
 
     Walks up to ``ANCESTOR_DEPTH_LIMIT`` ancestor levels, which covers all
     practical nesting depths.
     """
-    lookup = "parent"
-    for _ in range(ANCESTOR_DEPTH_LIMIT):
-        qs = qs.exclude(**{f"{lookup}__is_removed": True})
-        lookup = f"parent__{lookup}"
-    return qs
+    return qs.exclude(_has_removed_ancestor())
+
+
+def hidden_comment_ids():
+    """Return IDs of all comments that should not appear in feeds:
+    directly removed or orphaned by a removed ancestor."""
+    from researchhub_comment.models import RhCommentModel
+
+    return RhCommentModel.all_objects.filter(
+        Q(is_removed=True) | _has_removed_ancestor()
+    ).values_list("id", flat=True)
 
 
 class RhCommentThreadQuerySet(models.QuerySet):

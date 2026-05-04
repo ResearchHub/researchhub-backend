@@ -18,6 +18,9 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     PEER_REVIEW,
 )
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    hidden_comment_ids,
+)
 
 
 class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
@@ -72,12 +75,9 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         queryset = queryset.exclude(user__is_active=False)
 
         comment_ct = ContentType.objects.get_for_model(RhCommentModel)
-        removed_comment_ids = RhCommentModel.all_objects.filter(
-            is_removed=True
-        ).values_list("id", flat=True)
         queryset = queryset.exclude(
             content_type=comment_ct,
-            object_id__in=removed_comment_ids,
+            object_id__in=hidden_comment_ids(),
         )
 
         scope = self.request.query_params.get("scope", "").lower()
