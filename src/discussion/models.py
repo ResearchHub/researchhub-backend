@@ -100,22 +100,7 @@ class Flag(DefaultModel):
         ]
 
 
-class Endorsement(DefaultModel):
-    content_type = ForeignKey(ContentType, on_delete=CASCADE)
-    created_by = ForeignKey("user.User", on_delete=CASCADE)
-    item = GenericForeignKey("content_type", "object_id")
-    object_id = PositiveIntegerField()
-
-    class Meta:
-        constraints = [
-            UniqueConstraint(
-                fields=["content_type", "object_id"], name="unique_endorsement"
-            )
-        ]
-
-
 class AbstractGenericReactionModel(DefaultModel):
-    endorsements = GenericRelation(Endorsement)
     flags = GenericRelation(Flag)
     votes = GenericRelation(Vote)
     score = IntegerField(default=0)
