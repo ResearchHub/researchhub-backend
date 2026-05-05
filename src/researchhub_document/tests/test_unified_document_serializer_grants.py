@@ -11,8 +11,7 @@ from purchase.serializers import DynamicGrantSerializer
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
-from user.models import UserVerification
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import create_random_authenticated_user, make_user_verified
 
 
 class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
@@ -252,20 +251,6 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
         self.assertIsNotNone(data["grant"])
 
 
-def _make_user_verified(user):
-    """Create UserVerification (APPROVED) so user.is_verified is True."""
-    UserVerification.objects.get_or_create(
-        user=user,
-        defaults={
-            "first_name": user.first_name or "Test",
-            "last_name": user.last_name or "User",
-            "status": UserVerification.Status.APPROVED,
-            "verified_by": UserVerification.Type.MANUAL,
-            "external_id": f"test-verified-{user.id}",
-        },
-    )
-
-
 class ResearchhubPostGrantModeratorTests(APITestCase):
     """Test moderator restrictions for creating GRANT posts with grant data"""
 
@@ -274,8 +259,8 @@ class ResearchhubPostGrantModeratorTests(APITestCase):
             "moderator", moderator=True
         )
         self.regular_user = create_random_authenticated_user("regular", moderator=False)
-        _make_user_verified(self.moderator_user)
-        _make_user_verified(self.regular_user)
+        make_user_verified(self.moderator_user)
+        make_user_verified(self.regular_user)
 
         self.grant_post_data = {
             "title": "Test Grant Post with Grant Data",
