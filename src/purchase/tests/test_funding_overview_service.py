@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from institution.models import Institution
+from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import (
@@ -15,7 +15,6 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT as GRANT_DOC_TYPE,
 )
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
-from user.related_models.author_institution import AuthorInstitution
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -88,7 +87,7 @@ class TestFundingOverviewService(TestCase):
         self.assertEqual(result["matched_funds"], {"rsc": 0.0, "usd": 0.0})
         self.assertEqual(result["distributed_funds"], {"rsc": 0.0, "usd": 0.0})
         self.assertEqual(result["supported_proposals"], [])
-        self.assertEqual(result["supported_institutions"], [])
+        self.assertEqual(result["supported_nonprofits"], [])
 
     def test_distributed_funds_tracks_funder_contributions(self):
         # Arrange
@@ -153,7 +152,7 @@ class TestFundingOverviewService(TestCase):
         self.assertEqual(
             proposal["created_by"]["author_profile"]["last_name"], author.last_name
         )
-        self.assertEqual(result["supported_institutions"], [])
+        self.assertEqual(result["supported_nonprofits"], [])
 
     def test_supported_proposals_empty_when_not_funded(self):
         # Arrange
@@ -164,52 +163,39 @@ class TestFundingOverviewService(TestCase):
 
         # Assert
         self.assertEqual(result["supported_proposals"], [])
-        self.assertEqual(result["supported_institutions"], [])
+        self.assertEqual(result["supported_nonprofits"], [])
 
-    def test_supported_institutions_one_linked_institution(self):
-        _, proposal_post, fundraise, applicant = self._create_grant_with_proposal()
-        institution = Institution.objects.create(
-            openalex_id="https://openalex.org/S1234567890",
-            ror_id="https://ror.org/00test0001",
-            display_name="Test University",
-            type="education",
-            associated_institutions=[],
+    def test_supported_nonprofits_includes_linked_org_when_funded(self):
+        _, _, fundraise, _ = self._create_grant_with_proposal()
+        nonprofit = NonprofitOrg.objects.create(
+            name="Hope Charity",
+            ein="460845996",
+            endaoment_org_id="a0cf93cb-3b1d-4425-b871-b0b1b7356ef9",
         )
-        AuthorInstitution.objects.create(
-            author=applicant.author_profile,
-            institution=institution,
-            years=[],
+        NonprofitFundraiseLink.objects.create(
+            nonprofit=nonprofit, fundraise=fundraise, note=""
         )
         self._contribute(self.user, fundraise, rsc=100)
 
         result = self.service.get_funding_overview(self.user)
 
-        insts = result["supported_institutions"]
-        self.assertEqual(len(insts), 1)
-        self.assertEqual(insts[0]["id"], institution.id)
-        self.assertEqual(insts[0]["display_name"], "Test University")
-        self.assertEqual(insts[0]["type"], "education")
+        self.assertEqual(len(result["supported_nonprofits"]), 1)
+        row = result["supported_nonprofits"][0]
+        self.assertEqual(row["id"], nonprofit.id)
+        self.assertEqual(row["name"], "Hope Charity")
+        self.assertEqual(row["ein"], "460845996")
+        self.assertEqual(
+            row["endaoment_org_id"], "a0cf93cb-3b1d-4425-b871-b0b1b7356ef9"
+        )
 
-    def test_supported_institutions_dedupes_same_institution_across_pis(self):
-        """Two funded proposals / two PIs linked to the same Institution appear once."""
+    def test_supported_nonprofits_dedupes_same_org_across_funded_fundraises(self):
+        """Same nonprofit linked to two funded fundraises appears once."""
         applicant1 = create_random_authenticated_user("pi_one")
         applicant2 = create_random_authenticated_user("pi_two")
-        institution = Institution.objects.create(
-            openalex_id="https://openalex.org/Sshared0001",
-            ror_id="https://ror.org/00shared01",
-            display_name="Shared Lab",
-            type="facility",
-            associated_institutions=[],
-        )
-        AuthorInstitution.objects.create(
-            author=applicant1.author_profile,
-            institution=institution,
-            years=[],
-        )
-        AuthorInstitution.objects.create(
-            author=applicant2.author_profile,
-            institution=institution,
-            years=[],
+        nonprofit = NonprofitOrg.objects.create(
+            name="Shared Nonprofit",
+            ein="111111111",
+            endaoment_org_id="shared-np-id",
         )
 
         grant_post = create_post(created_by=self.user, document_type=GRANT_DOC_TYPE)
@@ -232,6 +218,7 @@ class TestFundingOverviewService(TestCase):
             preregistration_post=proposal1,
             applicant=applicant1,
         )
+        NonprofitFundraiseLink.objects.create(nonprofit=nonprofit, fundraise=fr1)
 
         proposal2 = create_post(created_by=applicant2, document_type=PREREGISTRATION)
         fr2 = Fundraise.objects.create(
@@ -245,6 +232,7 @@ class TestFundingOverviewService(TestCase):
             preregistration_post=proposal2,
             applicant=applicant2,
         )
+        NonprofitFundraiseLink.objects.create(nonprofit=nonprofit, fundraise=fr2)
 
         self._contribute(self.user, fr1, rsc=50)
         self._contribute(self.user, fr2, rsc=50)
@@ -252,8 +240,12 @@ class TestFundingOverviewService(TestCase):
         result = self.service.get_funding_overview(self.user)
 
         self.assertEqual(len(result["supported_proposals"]), 2)
-        self.assertEqual(len(result["supported_institutions"]), 1)
-        self.assertEqual(result["supported_institutions"][0]["id"], institution.id)
+        self.assertEqual(len(result["supported_nonprofits"]), 1)
+        row = result["supported_nonprofits"][0]
+        self.assertEqual(row["id"], nonprofit.id)
+        self.assertEqual(row["name"], "Shared Nonprofit")
+        self.assertEqual(row["ein"], "111111111")
+        self.assertEqual(row["endaoment_org_id"], "shared-np-id")
 
     def test_supported_proposals_deduplicates_by_post(self):
         # Arrange
@@ -296,6 +288,4 @@ class TestFundingOverviewService(TestCase):
 
         # Assert
         self.assertEqual(len(result["supported_proposals"]), 1)
-        self.assertEqual(result["supported_institutions"], [])
-        self.assertEqual(len(result["supported_proposals"]), 1)
-        self.assertEqual(result["supported_institutions"], [])
+        self.assertEqual(result["supported_nonprofits"], [])
