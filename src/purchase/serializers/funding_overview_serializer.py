@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 class CurrencyBreakdownSerializer(serializers.Serializer):
     rsc = serializers.FloatField()
+    rsc_usd_snapshot = serializers.FloatField()
     usd = serializers.FloatField()
 
 
