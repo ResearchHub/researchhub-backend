@@ -3,8 +3,15 @@ from rest_framework import serializers
 from feed.serializers import SimpleAuthorSerializer
 from paper.serializers import PaperSerializer
 from research_ai.constants import ExpertiseLevel, Gender, Region
-from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail, SearchExpert
+from research_ai.models import (
+    EmailTemplate,
+    Expert,
+    ExpertSearch,
+    GeneratedEmail,
+    SearchExpert,
+)
 from research_ai.services.expert_display import ExpertDisplay
+from research_ai.utils import trimmed_str
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import ResearchhubPostSerializer
 from user.models import Author
@@ -168,6 +175,68 @@ class ExpertSerializer(serializers.Serializer):
 
     def get_display_name(self, obj):
         return ExpertDisplay.display_name_for(obj)
+
+
+class ExpertUpdateSerializerV2(serializers.ModelSerializer):
+    """PATCH body for ``/expert-finder/v2/experts/<id>/``."""
+
+    class Meta:
+        model = Expert
+        fields = [
+            "email",
+            "honorific",
+            "first_name",
+            "middle_name",
+            "last_name",
+            "name_suffix",
+            "academic_title",
+            "affiliation",
+            "expertise",
+            "notes",
+        ]
+        extra_kwargs = {
+            "email": {"required": False},
+            "honorific": {"required": False},
+            "first_name": {"required": False},
+            "middle_name": {"required": False},
+            "last_name": {"required": False},
+            "name_suffix": {"required": False},
+            "academic_title": {"required": False},
+            "affiliation": {"required": False},
+            "expertise": {"required": False},
+            "notes": {"required": False},
+        }
+
+    def validate_email(self, value):
+        email = ExpertDisplay.normalize_email(value)
+        if not email:
+            raise serializers.ValidationError("This field may not be blank.")
+        qs = Expert.objects.filter(email__iexact=email)
+        if self.instance is not None:
+            qs = qs.exclude(id=self.instance.id)
+        if qs.exists():
+            raise serializers.ValidationError(
+                "An expert with this email already exists."
+            )
+        return email
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        capped_fields = {
+            "honorific": 64,
+            "first_name": 255,
+            "middle_name": 255,
+            "last_name": 255,
+            "name_suffix": 64,
+            "academic_title": 255,
+        }
+        for field, max_len in capped_fields.items():
+            if field in attrs:
+                attrs[field] = trimmed_str(attrs[field], max_len=max_len)
+        for field in ("affiliation", "expertise", "notes"):
+            if field in attrs:
+                attrs[field] = trimmed_str(attrs[field])
+        return attrs
 
 
 class ResearchAIAuthorSerializer(serializers.ModelSerializer):

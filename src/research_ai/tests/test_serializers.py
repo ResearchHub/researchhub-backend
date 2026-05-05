@@ -18,8 +18,8 @@ from research_ai.serializers import (
     ExpertSearchCreateSerializerV2,
     ExpertSearchDetailSerializerV2,
     ExpertSearchListItemSerializer,
-    ExpertSearchListItemSerializerV2,
     ExpertSearchSerializer,
+    ExpertUpdateSerializerV2,
     GeneratedEmailSerializer,
     ResearchAIAuthorSerializer,
     _get_created_by_payload,
@@ -214,6 +214,33 @@ class ExpertSearchV2SerializerTests(TestCase):
         self.assertNotIn("expert_results", ser.data)
         self.assertEqual(len(ser.data["experts"]), 1)
         self.assertEqual(ser.data["experts"][0]["email"], "v2@x.edu")
+
+
+class ExpertUpdateSerializerV2Tests(TestCase):
+    def setUp(self):
+        self.expert = Expert.objects.create(
+            email="old@uni.edu",
+            first_name="Old",
+        )
+
+    def test_normalizes_email_and_preserves_sources(self):
+        self.expert.sources = [{"text": "Keep", "url": "https://keep.example"}]
+        self.expert.save(update_fields=["sources"])
+        ser = ExpertUpdateSerializerV2(
+            self.expert,
+            data={
+                "email": " NEW@uni.edu ",
+                "first_name": "  New ",
+            },
+            partial=True,
+        )
+        self.assertTrue(ser.is_valid(), ser.errors)
+        updated = ser.save()
+        self.assertEqual(updated.email, "new@uni.edu")
+        self.assertEqual(updated.first_name, "New")
+        self.assertEqual(
+            updated.sources, [{"text": "Keep", "url": "https://keep.example"}]
+        )
 
 
 class ExpertSearchSerializerTests(TestCase):

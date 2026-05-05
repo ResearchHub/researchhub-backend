@@ -17,6 +17,7 @@ from research_ai.views.expert_finder_views import (
     InvitedExpertsDocumentView,
 )
 from research_ai.views.expert_finder_views_v2 import (
+    ExpertDetailViewV2,
     ExpertSearchDetailViewV2,
     ExpertSearchListCreateViewV2,
 )
@@ -44,6 +45,10 @@ urlpatterns = [
     path(
         "expert-finder/v2/searches/<int:search_id>/",
         ExpertSearchDetailViewV2.as_view(),
+    ),
+    path(
+        "expert-finder/v2/experts/<int:expert_id>/",
+        ExpertDetailViewV2.as_view(),
     ),
     path(
         "expert-finder/progress/<int:search_id>/",

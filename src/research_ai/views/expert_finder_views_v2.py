@@ -5,12 +5,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from research_ai.constants import ExpertiseLevel, Gender, Region
-from research_ai.models import ExpertSearch, SearchExpert
+from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.permissions import ResearchAIPermission
 from research_ai.serializers import (
     ExpertSearchCreateSerializerV2,
     ExpertSearchDetailSerializerV2,
     ExpertSearchListItemSerializerV2,
+    ExpertSerializer,
+    ExpertUpdateSerializerV2,
 )
 from research_ai.services.expert_finder_service import get_document_content
 from research_ai.tasks import run_expert_finder_search_v2
@@ -29,7 +31,8 @@ def _v2_search_prefetch():
 class ExpertSearchListCreateViewV2(APIView):
     """
     GET ``/expert-finder/v2/searches/`` — list searches (v2 payload shape).
-    POST ``/expert-finder/v2/searches/`` — create and enqueue ``run_expert_finder_search_v2``.
+    POST ``/expert-finder/v2/searches/`` — create and enqueue
+    ``run_expert_finder_search_v2``.
     """
 
     permission_classes = [
@@ -171,3 +174,27 @@ class ExpertSearchDetailViewV2(APIView):
             expert_search, context={"request": request}
         )
         return Response(ser.data)
+
+
+class ExpertDetailViewV2(APIView):
+    """PATCH ``/expert-finder/v2/experts/<id>/`` — partial update on one expert."""
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def patch(self, request, expert_id):
+        try:
+            expert = Expert.objects.get(id=expert_id)
+        except Expert.DoesNotExist:
+            return Response(
+                {"detail": "Expert not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        ser = ExpertUpdateSerializerV2(expert, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ExpertSerializer(expert).data)
