@@ -12,22 +12,12 @@ from reputation.distributor import Distributor
 from reputation.models import Score
 from researchhub_comment.models import RhCommentModel
 from review.models import Review
-from user.models import UserVerification
-from user.tests.helpers import create_moderator, create_random_default_user, create_user
-
-
-def _make_user_verified(user):
-    """Create UserVerification (APPROVED) so user.is_verified is True."""
-    UserVerification.objects.get_or_create(
-        user=user,
-        defaults={
-            "first_name": user.first_name or "Test",
-            "last_name": user.last_name or "User",
-            "status": UserVerification.Status.APPROVED,
-            "verified_by": UserVerification.Type.MANUAL,
-            "external_id": f"test-verified-{user.id}",
-        },
-    )
+from user.tests.helpers import (
+    create_moderator,
+    create_random_default_user,
+    create_user,
+    make_user_verified,
+)
 
 
 class CommentViewTests(APITestCase):
@@ -41,7 +31,7 @@ class CommentViewTests(APITestCase):
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
         self.paper = create_paper(uploaded_by=self.paper_uploader)
         self.verified_user = create_random_default_user("verified_user")
-        _make_user_verified(self.verified_user)
+        make_user_verified(self.verified_user)
 
     def _create_comment(self, obj_name, obj_id, created_by, data):
         self.client.force_authenticate(created_by)
