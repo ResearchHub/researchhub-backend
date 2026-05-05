@@ -33,6 +33,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from user.related_models.user_model import AI_EXPERT_EMAIL
 from utils.test_helpers import AWSMockTestCase, create_test_user
 
 User = get_user_model()
@@ -121,9 +122,41 @@ class ActivityFeedListTests(ActivityFeedBaseTests):
     """Test the base list endpoint returns all content types."""
 
     def test_returns_all_entries(self):
+        ai_user = User.objects.create(
+            email=AI_EXPERT_EMAIL,
+            first_name="AI",
+            last_name="Expert",
+            is_official_account=True,
+        )
+        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=COMMUNITY_REVIEW,
+            content_type=post_ct,
+            object_id=self.prereg_post.id,
+            created_by=self.user,
+        )
+        ai_comment = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "AI review"}]},
+            comment_type=COMMUNITY_REVIEW,
+            created_by=ai_user,
+            thread=thread,
+        )
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        ai_entry = FeedEntry.objects.create(
+            content_type=comment_ct,
+            object_id=ai_comment.id,
+            unified_document=self.prereg_doc,
+            user=ai_user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content={},
+            metrics={},
+        )
+
         resp = self.client.get(ACTIVITY_LIST_URL)
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         ids = {e["id"] for e in resp.data["results"]}
+        self.assertNotIn(ai_entry.id, ids)
         self.assertEqual(
             ids,
             {
