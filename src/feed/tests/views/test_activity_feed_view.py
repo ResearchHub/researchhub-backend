@@ -6,7 +6,7 @@ from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APIClient
+from rest_framework.test import APIClient, APITestCase
 
 from feed.models import FeedEntry
 from purchase.models import Fundraise
@@ -888,3 +888,359 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
         self.assertIn(self.usd_entry.id, ids)
         self.assertNotIn(self.unrelated_entry.id, ids)
         self.assertNotIn(self.boost_entry.id, ids)
+
+
+class ActivityFeedFunderFilterTests(APITestCase):
+    """Test ?funder_id= filtering across grants created by or
+    contacted by a funder."""
+
+    def setUp(self):
+        super().setUp()
+        self.funder = create_test_user("funder", email="funder@example.com")
+        self.other_user = create_test_user("other", email="other@example.com")
+        self.applicant = create_test_user("applicant", email="applicant@example.com")
+        self.client = APIClient()
+
+        # OPEN grant created by funder, with an applied preregistration
+        self.funder_open_grant_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=GRANT,
+        )
+        self.funder_open_grant_post = ResearchhubPost.objects.create(
+            title="Funder Open Grant",
+            created_by=self.funder,
+            document_type=GRANT,
+            unified_document=self.funder_open_grant_doc,
+        )
+        self.funder_open_grant = Grant.objects.create(
+            created_by=self.funder,
+            unified_document=self.funder_open_grant_doc,
+            amount=1000,
+            currency="USD",
+            status=Grant.OPEN,
+        )
+        self.applied_prereg_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        self.applied_prereg_post = ResearchhubPost.objects.create(
+            title="Applied Prereg",
+            created_by=self.applicant,
+            document_type=PREREGISTRATION,
+            unified_document=self.applied_prereg_doc,
+        )
+        GrantApplication.objects.create(
+            grant=self.funder_open_grant,
+            preregistration_post=self.applied_prereg_post,
+            applicant=self.applicant,
+        )
+
+        # OPEN grant created by other_user, with funder as a contact, no apps
+        self.contact_open_grant_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=GRANT,
+        )
+        self.contact_open_grant_post = ResearchhubPost.objects.create(
+            title="Contact Open Grant",
+            created_by=self.other_user,
+            document_type=GRANT,
+            unified_document=self.contact_open_grant_doc,
+        )
+        self.contact_open_grant = Grant.objects.create(
+            created_by=self.other_user,
+            unified_document=self.contact_open_grant_doc,
+            amount=2000,
+            currency="USD",
+            status=Grant.OPEN,
+        )
+        self.contact_open_grant.contacts.add(self.funder)
+
+        # OPEN grant with no funder involvement (excluded)
+        self.unrelated_grant_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=GRANT,
+        )
+        self.unrelated_grant_post = ResearchhubPost.objects.create(
+            title="Unrelated Grant",
+            created_by=self.other_user,
+            document_type=GRANT,
+            unified_document=self.unrelated_grant_doc,
+        )
+        Grant.objects.create(
+            created_by=self.other_user,
+            unified_document=self.unrelated_grant_doc,
+            amount=3000,
+            currency="USD",
+            status=Grant.OPEN,
+        )
+
+        # PENDING grant created by funder (excluded by status)
+        self.funder_pending_grant_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=GRANT,
+        )
+        self.funder_pending_grant_post = ResearchhubPost.objects.create(
+            title="Funder Pending Grant",
+            created_by=self.funder,
+            document_type=GRANT,
+            unified_document=self.funder_pending_grant_doc,
+        )
+        Grant.objects.create(
+            created_by=self.funder,
+            unified_document=self.funder_pending_grant_doc,
+            amount=4000,
+            currency="USD",
+            status=Grant.PENDING,
+        )
+
+        # COMPLETED grant created by funder (included)
+        self.funder_completed_grant_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=GRANT,
+        )
+        self.funder_completed_grant_post = ResearchhubPost.objects.create(
+            title="Funder Completed Grant",
+            created_by=self.funder,
+            document_type=GRANT,
+            unified_document=self.funder_completed_grant_doc,
+        )
+        Grant.objects.create(
+            created_by=self.funder,
+            unified_document=self.funder_completed_grant_doc,
+            amount=5000,
+            currency="USD",
+            status=Grant.COMPLETED,
+        )
+
+        # CLOSED grant created by funder (excluded by status)
+        self.funder_closed_grant_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=GRANT,
+        )
+        self.funder_closed_grant_post = ResearchhubPost.objects.create(
+            title="Funder Closed Grant",
+            created_by=self.funder,
+            document_type=GRANT,
+            unified_document=self.funder_closed_grant_doc,
+        )
+        Grant.objects.create(
+            created_by=self.funder,
+            unified_document=self.funder_closed_grant_doc,
+            amount=6000,
+            currency="USD",
+            status=Grant.CLOSED,
+        )
+
+        # Preregistration that did not apply to any grant (excluded)
+        self.lone_prereg_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        self.lone_prereg_post = ResearchhubPost.objects.create(
+            title="Lone Prereg",
+            created_by=self.applicant,
+            document_type=PREREGISTRATION,
+            unified_document=self.lone_prereg_doc,
+        )
+
+        # Feed entries for each post above
+        self.funder_open_grant_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.funder_open_grant_post.id,
+            self.funder_open_grant_doc,
+            user=self.funder,
+        )
+        self.applied_prereg_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.applied_prereg_post.id,
+            self.applied_prereg_doc,
+            user=self.applicant,
+        )
+        self.contact_open_grant_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.contact_open_grant_post.id,
+            self.contact_open_grant_doc,
+            user=self.other_user,
+        )
+        self.unrelated_grant_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.unrelated_grant_post.id,
+            self.unrelated_grant_doc,
+            user=self.other_user,
+        )
+        self.funder_pending_grant_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.funder_pending_grant_post.id,
+            self.funder_pending_grant_doc,
+            user=self.funder,
+        )
+        self.funder_completed_grant_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.funder_completed_grant_post.id,
+            self.funder_completed_grant_doc,
+            user=self.funder,
+        )
+        self.funder_closed_grant_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.funder_closed_grant_post.id,
+            self.funder_closed_grant_doc,
+            user=self.funder,
+        )
+        self.lone_prereg_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.lone_prereg_post.id,
+            self.lone_prereg_doc,
+            user=self.applicant,
+        )
+
+    def test_funder_filter_includes_grant_created_by_funder(self):
+        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertIn(self.funder_open_grant_entry.id, ids)
+
+    def test_funder_filter_includes_applied_preregistration(self):
+        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertIn(self.applied_prereg_entry.id, ids)
+
+    def test_funder_filter_includes_grant_where_funder_is_contact(self):
+        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertIn(self.contact_open_grant_entry.id, ids)
+
+    def test_funder_filter_excludes_unrelated_grants(self):
+        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertNotIn(self.unrelated_grant_entry.id, ids)
+
+    def test_funder_filter_excludes_pending_grants(self):
+        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertNotIn(self.funder_pending_grant_entry.id, ids)
+
+    def test_funder_filter_includes_completed_grants(self):
+        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertIn(self.funder_completed_grant_entry.id, ids)
+
+    def test_funder_filter_excludes_closed_grants(self):
+        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertNotIn(self.funder_closed_grant_entry.id, ids)
+
+    def test_funder_filter_excludes_unrelated_preregistration(self):
+        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertNotIn(self.lone_prereg_entry.id, ids)
+
+    def test_funder_filter_includes_comments_on_funder_grant(self):
+        comment_entry = _make_feed_entry(
+            RhCommentModel,
+            object_id=11111,
+            unified_document=self.funder_open_grant_doc,
+            user=self.applicant,
+        )
+        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertIn(comment_entry.id, ids)
+
+    def test_funder_filter_includes_comments_on_applied_prereg(self):
+        comment_entry = _make_feed_entry(
+            RhCommentModel,
+            object_id=22222,
+            unified_document=self.applied_prereg_doc,
+            user=self.applicant,
+        )
+        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertIn(comment_entry.id, ids)
+
+    def test_funder_filter_nonexistent_funder(self):
+        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": 999999})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data["results"]), 0)
+
+    def test_funder_filter_funder_with_no_grants(self):
+        no_grant_funder = create_test_user("no_grants", email="nogrants@example.com")
+        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": no_grant_funder.id})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data["results"]), 0)
+
+    def test_funder_filter_combined_with_content_type_comments(self):
+        """funder_id + content_type=RHCOMMENTMODEL → only comments on
+        funder's docs."""
+        comment_on_grant = _make_feed_entry(
+            RhCommentModel,
+            object_id=33333,
+            unified_document=self.funder_open_grant_doc,
+            user=self.applicant,
+        )
+        resp = self.client.get(
+            ACTIVITY_LIST_URL,
+            {"funder_id": self.funder.id, "content_type": "RHCOMMENTMODEL"},
+        )
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertIn(comment_on_grant.id, ids)
+        self.assertNotIn(self.funder_open_grant_entry.id, ids)
+        self.assertNotIn(self.applied_prereg_entry.id, ids)
+
+    def test_funder_filter_combined_with_scope_peer_reviews(self):
+        """funder_id + scope=peer_reviews → only peer review comments
+        on funder's docs."""
+        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=PEER_REVIEW,
+            content_type=post_ct,
+            object_id=self.applied_prereg_post.id,
+            created_by=self.other_user,
+        )
+        peer_review = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "peer review"}]},
+            comment_type=PEER_REVIEW,
+            created_by=self.other_user,
+            thread=thread,
+        )
+        generic = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "generic"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.other_user,
+            thread=thread,
+        )
+        peer_review_entry = _make_feed_entry(
+            RhCommentModel,
+            object_id=peer_review.id,
+            unified_document=self.applied_prereg_doc,
+            user=self.other_user,
+        )
+        generic_entry = _make_feed_entry(
+            RhCommentModel,
+            object_id=generic.id,
+            unified_document=self.applied_prereg_doc,
+            user=self.other_user,
+        )
+
+        resp = self.client.get(
+            ACTIVITY_LIST_URL,
+            {"funder_id": self.funder.id, "scope": "peer_reviews"},
+        )
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertIn(peer_review_entry.id, ids)
+        self.assertNotIn(generic_entry.id, ids)
+        self.assertNotIn(self.funder_open_grant_entry.id, ids)
+
+    def test_funder_filter_grant_id_takes_precedence(self):
+        """If both funder_id and grant_id are passed, grant_id wins."""
+        resp = self.client.get(
+            ACTIVITY_LIST_URL,
+            {
+                "funder_id": self.funder.id,
+                "grant_id": self.contact_open_grant.id,
+            },
+        )
+        ids = {e["id"] for e in resp.data["results"]}
+        # contact_open_grant is in funder's set, but with grant_id set the
+        # query narrows to that grant's docs only (not funder_open_grant
+        # or its applied prereg)
+        self.assertIn(self.contact_open_grant_entry.id, ids)
+        self.assertNotIn(self.funder_open_grant_entry.id, ids)
+        self.assertNotIn(self.applied_prereg_entry.id, ids)
+
+    def test_funder_filter_no_duplicates_when_creator_and_contact(self):
+        """Funder being both creator and contact of the same grant
+        should not produce duplicate feed entries."""
+        self.funder_open_grant.contacts.add(self.funder)
+        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
+        ids = [e["id"] for e in resp.data["results"]]
+        self.assertEqual(len(ids), len(set(ids)))
