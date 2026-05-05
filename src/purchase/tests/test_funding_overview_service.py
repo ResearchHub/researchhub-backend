@@ -14,7 +14,9 @@ from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT as GRANT_DOC_TYPE,
 )
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    PREREGISTRATION,
+)
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -56,7 +58,7 @@ class TestFundingOverviewService(TestCase):
 
         return grant, proposal_post, fundraise, applicant
 
-    def _contribute(self, user, fundraise, rsc=0, usd_cents=0):
+    def _contribute(self, user, fundraise, rsc=0, usd_cents=0, rsc_usd_rate=None):
         """Create RSC and/or USD contribution from user to fundraise."""
         if rsc:
             Purchase.objects.create(
@@ -66,6 +68,7 @@ class TestFundingOverviewService(TestCase):
                 purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
                 purchase_method=Purchase.OFF_CHAIN,
                 amount=str(rsc),
+                rsc_usd_rate=rsc_usd_rate,
             )
         if usd_cents:
             UsdFundraiseContribution.objects.create(
@@ -84,8 +87,14 @@ class TestFundingOverviewService(TestCase):
         result = self.service.get_funding_overview(self.user)
 
         # Assert
-        self.assertEqual(result["matched_funds"], {"rsc": 0.0, "usd": 0.0})
-        self.assertEqual(result["distributed_funds"], {"rsc": 0.0, "usd": 0.0})
+        self.assertEqual(
+            result["matched_funds"],
+            {"rsc": 0.0, "rsc_usd_snapshot": 0.0, "usd": 0.0},
+        )
+        self.assertEqual(
+            result["distributed_funds"],
+            {"rsc": 0.0, "rsc_usd_snapshot": 0.0, "usd": 0.0},
+        )
         self.assertEqual(result["supported_proposals"], [])
         self.assertEqual(result["supported_nonprofits"], [])
 
@@ -100,6 +109,25 @@ class TestFundingOverviewService(TestCase):
         # Assert
         self.assertEqual(result["distributed_funds"]["rsc"], 100.0)
         self.assertEqual(result["distributed_funds"]["usd"], 50.0)
+        # No rsc_usd_rate captured -> falls back to current rate (0.5): 100 * 0.5 = 50
+        self.assertAlmostEqual(result["distributed_funds"]["rsc_usd_snapshot"], 50.0)
+
+    def test_distributed_funds_uses_captured_rsc_usd_rate_for_snapshot(self):
+        # Arrange
+        _, _, fundraise, _ = self._create_grant_with_proposal()
+        # 100 RSC at $0.10 -> $10 snapshot
+        self._contribute(self.user, fundraise, rsc=100, rsc_usd_rate=0.10)
+        # 50 RSC at $0.20 -> $10 snapshot
+        self._contribute(self.user, fundraise, rsc=50, rsc_usd_rate=0.20)
+        # 20 RSC with no captured rate -> falls back to current (0.5) -> $10
+        self._contribute(self.user, fundraise, rsc=20)
+
+        # Act
+        result = self.service.get_funding_overview(self.user)
+
+        # Assert
+        self.assertEqual(result["distributed_funds"]["rsc"], 170.0)
+        self.assertAlmostEqual(result["distributed_funds"]["rsc_usd_snapshot"], 30.0)
 
     def test_matched_funds_tracks_others_contributions(self):
         # Arrange
@@ -113,11 +141,29 @@ class TestFundingOverviewService(TestCase):
         # Assert
         self.assertEqual(result["matched_funds"]["rsc"], 200.0)
         self.assertEqual(result["matched_funds"]["usd"], 100.0)
+        # No rsc_usd_rate captured -> falls back to current rate (0.5): 200 * 0.5 = 100
+        self.assertAlmostEqual(result["matched_funds"]["rsc_usd_snapshot"], 100.0)
+
+    def test_matched_funds_uses_captured_rsc_usd_rate_for_snapshot(self):
+        # Arrange
+        _, _, fundraise, _ = self._create_grant_with_proposal()
+        other_user = create_random_authenticated_user("other")
+        # 200 RSC at $0.05 -> $10 snapshot
+        self._contribute(other_user, fundraise, rsc=200, rsc_usd_rate=0.05)
+        # 100 RSC at $0.20 -> $20 snapshot
+        self._contribute(other_user, fundraise, rsc=100, rsc_usd_rate=0.20)
+
+        # Act
+        result = self.service.get_funding_overview(self.user)
+
+        # Assert
+        self.assertEqual(result["matched_funds"]["rsc"], 300.0)
+        self.assertAlmostEqual(result["matched_funds"]["rsc_usd_snapshot"], 30.0)
 
     def test_matched_funds_excludes_funder_contributions(self):
         # Arrange
         _, _, fundraise, _ = self._create_grant_with_proposal()
-        self._contribute(self.user, fundraise, rsc=100)
+        self._contribute(self.user, fundraise, rsc=100, rsc_usd_rate=0.10)
 
         # Act
         result = self.service.get_funding_overview(self.user)
@@ -125,6 +171,7 @@ class TestFundingOverviewService(TestCase):
         # Assert
         self.assertEqual(result["matched_funds"]["rsc"], 0.0)
         self.assertEqual(result["matched_funds"]["usd"], 0.0)
+        self.assertEqual(result["matched_funds"]["rsc_usd_snapshot"], 0.0)
 
     def test_supported_proposals_returns_funded_proposals(self):
         # Arrange
