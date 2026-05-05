@@ -339,20 +339,13 @@ urlpatterns = [
         name="paper_upload",
     ),
     path("robots.txt", researchhub.views.robots_txt, name="robots_txt"),
+    #
+    # Webhooks
+    #
     path(
         "webhooks/amplitude/",
         AmplitudeWebhookView.as_view(),
         name="amplitude_webhook",
-    ),
-    path(
-        "webhooks/persona/",
-        persona_webhook_view.PersonaWebhookView.as_view(),
-        name="persona_webhook",
-    ),
-    path(
-        "webhooks/stripe/",
-        stripe_webhook_view.StripeWebhookView.as_view(),
-        name="stripe_webhook",
     ),
     path(
         "webhooks/circle/",
@@ -360,9 +353,19 @@ urlpatterns = [
         name="circle_webhook",
     ),
     path(
+        "webhooks/persona/",
+        persona_webhook_view.PersonaWebhookView.as_view(),
+        name="persona_webhook",
+    ),
+    path(
         "webhooks/ses/",
         SESEventWebhookView.as_view(),
         name="ses_event_webhook",
+    ),
+    path(
+        "webhooks/stripe/",
+        stripe_webhook_view.StripeWebhookView.as_view(),
+        name="stripe_webhook",
     ),
     path(
         "api/payment/checkout-session/",
