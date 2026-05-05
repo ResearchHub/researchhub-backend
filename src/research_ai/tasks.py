@@ -11,6 +11,7 @@ from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.email_sending_service import send_plain_email
 from research_ai.services.expert_finder_service import ExpertFinderService
 from research_ai.services.expert_finder_v2 import run_v2_expert_search
+from research_ai.services.expert_persist import ExpertPersist
 from researchhub.celery import app
 from user.models import User
 from utils import sentry
@@ -558,6 +559,7 @@ def send_queued_emails_task(
                 ses_message_id=ses_message_id or "",
                 updated_date=timezone.now(),
             )
+            ExpertPersist.mark_last_email_sent_at(rec.expert_email or "")
             sent += 1
         except Exception as e:
             logger.exception("Send to expert failed id=%s: %s", rec.id, e)

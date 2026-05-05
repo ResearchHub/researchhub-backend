@@ -517,7 +517,10 @@ class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
 
 
 class GenerateEmailRequestSerializer(serializers.Serializer):
-    """Request body for POST /expert-finder/generate-email/. Expert data is resolved from expert_results by email."""
+    """
+    Request body for POST /expert-finder/generate-email/ and .../v2/generate-email/.
+    The view resolves the expert by email.
+    """
 
     expert_search_id = serializers.IntegerField()
     expert_email = serializers.EmailField()
@@ -529,13 +532,18 @@ class GenerateEmailRequestSerializer(serializers.Serializer):
 
 
 class BulkGenerateEmailExpertSerializer(serializers.Serializer):
-    """One expert in a bulk generate request; expert data is resolved from expert_results by email."""
+    """
+    One expert in a bulk generate request.
+    The view resolves expert data by email against the search.
+    """
 
     expert_email = serializers.EmailField()
 
 
 class BulkGenerateEmailRequestSerializer(serializers.Serializer):
-    """Request body for POST /expert-finder/generate-emails-bulk/."""
+    """
+    Request body for POST .../generate-emails-bulk/ and .../v2/generate-emails-bulk/.
+    """
 
     expert_search_id = serializers.IntegerField()
     experts = serializers.ListField(

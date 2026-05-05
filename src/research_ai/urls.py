@@ -8,6 +8,10 @@ from research_ai.views.email_views import (
     PreviewEmailView,
     SendEmailView,
 )
+from research_ai.views.email_views_v2 import (
+    BulkGenerateEmailViewV2,
+    GenerateEmailViewV2,
+)
 from research_ai.views.expert_finder_views import (
     ExpertSearchCreateView,
     ExpertSearchDetailView,
@@ -49,6 +53,14 @@ urlpatterns = [
     path(
         "expert-finder/v2/experts/<int:expert_id>/",
         ExpertDetailViewV2.as_view(),
+    ),
+    path(
+        "expert-finder/v2/generate-email/",
+        GenerateEmailViewV2.as_view(),
+    ),
+    path(
+        "expert-finder/v2/generate-emails-bulk/",
+        BulkGenerateEmailViewV2.as_view(),
     ),
     path(
         "expert-finder/progress/<int:search_id>/",
