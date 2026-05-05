@@ -73,6 +73,7 @@ dev = [
     "black==26.3.1",
     "coverage>=7.6.1",
     "flake8==5.0.4",
+    "isort>=8.0.1",
     "pre-commit==2.17.0",
     "setuptools>=78.1.1",
     "tblib>=3.2.2",
