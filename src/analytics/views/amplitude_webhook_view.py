@@ -67,10 +67,10 @@ class AmplitudeWebhookView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             logger.exception("Invalid JSON payload")
             return Response(
-                {"message": f"Invalid JSON payload: {e}"},
+                {"message": "Invalid JSON payload"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception:
