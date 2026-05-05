@@ -14,6 +14,7 @@ from dj_rest_auth.views import (
 )
 from django.conf import settings
 from django.urls import include, path, re_path
+from django_ses.views import SESEventWebhookView
 from rest_framework import routers
 
 import hub.views
@@ -357,6 +358,11 @@ urlpatterns = [
         "webhooks/circle/",
         CircleWebhookView.as_view(),
         name="circle_webhook",
+    ),
+    path(
+        "webhooks/ses/",
+        SESEventWebhookView.as_view(),
+        name="ses_event_webhook",
     ),
     path(
         "api/payment/checkout-session/",
