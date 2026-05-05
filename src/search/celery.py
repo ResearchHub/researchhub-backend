@@ -1,6 +1,7 @@
 from celery import shared_task
 from django.apps import apps
 from django.core.cache import cache
+from django.db import transaction
 from django_opensearch_dsl.registries import registry
 from django_opensearch_dsl.signals import RealTimeSignalProcessor
 
@@ -20,8 +21,10 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
         if model in registry._models:
             cache_key = f"registry_update_task_{app_label}_{model_name}_{pk}"
             if not cache.get(cache_key):
-                self.registry_update_task.apply_async(
-                    (pk, app_label, model_name), countdown=DEBOUNCE_PERIOD
+                transaction.on_commit(
+                    lambda: self.registry_update_task.apply_async(
+                        (pk, app_label, model_name), countdown=DEBOUNCE_PERIOD
+                    )
                 )
                 # Add cache entry to prevent duplicate tasks within debounce period
                 cache.set(cache_key, True, timeout=DEBOUNCE_PERIOD)
@@ -29,8 +32,10 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
         if model in registry._related_models:
             cache_key = f"registry_update_related_task_{app_label}_{model_name}_{pk}"
             if not cache.get(cache_key):
-                self.registry_update_related_task.apply_async(
-                    (pk, app_label, model_name), countdown=DEBOUNCE_PERIOD
+                transaction.on_commit(
+                    lambda: self.registry_update_related_task.apply_async(
+                        (pk, app_label, model_name), countdown=DEBOUNCE_PERIOD
+                    )
                 )
                 # Add cache entry to prevent duplicate tasks within debounce period
                 cache.set(cache_key, True, timeout=DEBOUNCE_PERIOD)
