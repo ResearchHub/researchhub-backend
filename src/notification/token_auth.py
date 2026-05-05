@@ -4,8 +4,6 @@ from django.contrib.auth.models import AnonymousUser
 from django.db import close_old_connections
 from rest_framework.authtoken.models import Token
 
-from user.models import User
-
 
 class TokenAuthMiddleware(BaseMiddleware):
     """
@@ -20,8 +18,10 @@ class TokenAuthMiddleware(BaseMiddleware):
                 token = headers[b"sec-websocket-protocol"].decode().split(", ")
                 token_name, token_key = token
                 if token_name == "Token":
-                    token = await Token.objects.aget(key=token_key)
-                    user = await User.objects.aget(auth_token=token)
+                    token = await Token.objects.select_related("user").aget(
+                        key=token_key
+                    )
+                    user = token.user
                     scope["user"] = user
         except Token.DoesNotExist:
             scope["user"] = AnonymousUser()
