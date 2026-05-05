@@ -12,9 +12,6 @@ class TokenAuthMiddleware(BaseMiddleware):
     Token authorization middleware for Django Channels 3
     """
 
-    def __init__(self, inner):
-        super().__init__(inner)
-
     async def __call__(self, scope, receive, send):
         close_old_connections()
         headers = dict(scope["headers"])
