@@ -1,17 +1,10 @@
 from channels.auth import AuthMiddlewareStack
-from channels.db import database_sync_to_async
 from channels.middleware import BaseMiddleware
 from django.contrib.auth.models import AnonymousUser
 from django.db import close_old_connections
 from rest_framework.authtoken.models import Token
 
 from user.models import User
-
-
-@database_sync_to_async
-def get_user(token_key):
-    token = Token.objects.get(key=token_key)
-    return token.user
 
 
 class TokenAuthMiddleware(BaseMiddleware):
@@ -32,7 +25,6 @@ class TokenAuthMiddleware(BaseMiddleware):
                 if token_name == "Token":
                     token = await Token.objects.aget(key=token_key)
                     user = await User.objects.aget(auth_token=token)
-                    # user = await get_user(token_key)
                     scope["user"] = user
         except Token.DoesNotExist:
             scope["user"] = AnonymousUser()
