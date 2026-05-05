@@ -144,7 +144,7 @@ class PaperViewSet(
     @action(
         detail=False,
         methods=["post"],
-        permission_classes=[IsAuthenticated & CreatePaper & IsVerifiedUser],
+        permission_classes=[IsAuthenticated, CreatePaper, IsVerifiedUser],
     )
     def create_researchhub_paper(self, request):
         """
