@@ -69,3 +69,16 @@ class SesEventSignalTests(TestCase):
         self.email.refresh_from_db()
         self.assertEqual(self.email.status, GeneratedEmail.Status.BOUNCED)
         self.assertIsNotNone(self.email.bounced_at)
+
+    def test_bounce_does_not_reopen_closed_email(self):
+        # Arrange
+        self.email.status = GeneratedEmail.Status.CLOSED
+        self.email.save(update_fields=["status"])
+
+        # Act
+        self._send_bounce()
+
+        # Assert
+        self.email.refresh_from_db()
+        self.assertEqual(self.email.status, GeneratedEmail.Status.CLOSED)
+        self.assertIsNone(self.email.bounced_at)

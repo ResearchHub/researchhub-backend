@@ -92,7 +92,10 @@ def handle_ses_bounce_event(
 
     # Set status to bounced and record bounce timestamp.
     bounce_timestamp = parse_datetime((bounce_obj or {}).get("timestamp", ""))
-    GeneratedEmail.objects.filter(id=email.id).update(
+    GeneratedEmail.objects.filter(
+        id=email.id,
+        status=GeneratedEmail.Status.SENT,
+    ).update(
         status=GeneratedEmail.Status.BOUNCED,
         bounced_at=bounce_timestamp,
     )
