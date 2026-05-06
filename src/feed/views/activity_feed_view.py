@@ -21,6 +21,7 @@ from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     hidden_comment_ids,
 )
+from user.related_models.user_model import AI_EXPERT_EMAIL
 
 
 class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
@@ -81,6 +82,10 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         queryset = queryset.exclude(
             content_type=comment_ct,
             object_id__in=hidden_comment_ids(),
+        )
+        queryset = queryset.exclude(
+            content_type=comment_ct,
+            user__email=AI_EXPERT_EMAIL,
         )
 
         scope = self.request.query_params.get("scope", "").lower()
