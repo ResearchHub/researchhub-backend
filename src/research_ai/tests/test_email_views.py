@@ -405,7 +405,7 @@ class BulkGenerateEmailViewV2Tests(APITestCase):
             status=ExpertSearch.Status.COMPLETED,
         )
         self.expert = Expert.objects.create(
-            email="bulklinked@edu",
+            email="bulklinked@example.edu",
             first_name="B",
             last_name="ULK",
             academic_title="PI",
@@ -426,7 +426,7 @@ class BulkGenerateEmailViewV2Tests(APITestCase):
             self.url,
             {
                 "expert_search_id": self.search.id,
-                "experts": [{"expert_email": "bulklinked@edu"}],
+                "experts": [{"expert_email": "bulklinked@example.edu"}],
                 "template": "collaboration",
             },
             format="json",
@@ -435,7 +435,7 @@ class BulkGenerateEmailViewV2Tests(APITestCase):
         body = r.json()
         self.assertEqual(len(body["ids"]), 1)
         rec = GeneratedEmail.objects.get(id=body["ids"][0])
-        self.assertEqual(rec.expert_email, "bulklinked@edu")
+        self.assertEqual(rec.expert_email, "bulklinked@example.edu")
         self.assertEqual(rec.expert_title, "PI")
         self.assertEqual(rec.notes, "bulk note")
         mock_bulk_task.delay.assert_called_once()
