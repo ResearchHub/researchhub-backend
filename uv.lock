@@ -2752,8 +2752,6 @@ dependencies = [
     { name = "pyyaml" },
     { name = "q5-django-inlinecss" },
     { name = "reportlab" },
-    { name = "requests-mock" },
-    { name = "responses" },
     { name = "sentry-sdk" },
     { name = "stripe" },
     { name = "web3", extra = ["tester"] },
@@ -2767,6 +2765,8 @@ dev = [
     { name = "flake8" },
     { name = "isort" },
     { name = "pre-commit" },
+    { name = "requests-mock" },
+    { name = "responses" },
     { name = "setuptools" },
     { name = "tblib" },
 ]
@@ -2822,8 +2822,6 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "q5-django-inlinecss", specifier = "==0.0.2" },
     { name = "reportlab", specifier = ">=4.0.0" },
-    { name = "requests-mock", specifier = ">=1.12.1,<2.0.0" },
-    { name = "responses", specifier = "==0.21.0" },
     { name = "sentry-sdk", specifier = ">=2.49.0,<3.0.0" },
     { name = "stripe", specifier = ">=11.2.0,<12.0.0" },
     { name = "web3", extras = ["tester"], specifier = ">=7.16.0" },
@@ -2837,21 +2835,24 @@ dev = [
     { name = "flake8", specifier = "==5.0.4" },
     { name = "isort", specifier = ">=8.0.1" },
     { name = "pre-commit", specifier = "==2.17.0" },
+    { name = "requests-mock", specifier = ">=1.12.1,<2.0.0" },
+    { name = "responses", specifier = ">=0.26.0" },
     { name = "setuptools", specifier = ">=78.1.1" },
     { name = "tblib", specifier = ">=3.2.2" },
 ]
 
 [[package]]
 name = "responses"
-version = "0.21.0"
+version = "0.26.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "pyyaml" },
     { name = "requests" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6d/db/b949a6bf2a75c64caea0a6b39d05e433aa2e51bea78ae9d5dda1110b31a5/responses-0.21.0.tar.gz", hash = "sha256:b82502eb5f09a0289d8e209e7bad71ef3978334f56d09b444253d5ad67bf5253", size = 65501, upload-time = "2022-05-25T14:20:48.308Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9f/b4/b7e040379838cc71bf5aabdb26998dfbe5ee73904c92c1c161faf5de8866/responses-0.26.0.tar.gz", hash = "sha256:c7f6923e6343ef3682816ba421c006626777893cb0d5e1434f674b649bac9eb4", size = 81303, upload-time = "2026-02-19T14:38:05.574Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bb/ad/fdd56219f0e320293c513ef0b3cdd018802a1bcfdb29ed9bc0c3bcb97f31/responses-0.21.0-py3-none-any.whl", hash = "sha256:2dcc863ba63963c0c3d9ee3fa9507cbe36b7d7b0fccb4f0bdfd9e96c539b1487", size = 45987, upload-time = "2022-05-25T14:20:48.508Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/04/7f73d05b556da048923e31a0cc878f03be7c5425ed1f268082255c75d872/responses-0.26.0-py3-none-any.whl", hash = "sha256:03ec4409088cd5c66b71ecbbbd27fe2c58ddfad801c66203457b3e6a04868c37", size = 35099, upload-time = "2026-02-19T14:38:03.847Z" },
 ]
 
 [[package]]
