@@ -394,6 +394,9 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "template",
             "status",
             "notes",
+            "opened_at",
+            "open_count",
+            "bounced_at",
             "created_at",
             "updated_at",
         ]
@@ -402,6 +405,9 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "ses_message_id",
+            "opened_at",
+            "open_count",
+            "bounced_at",
         ]
 
     def get_created_by(self, obj):
