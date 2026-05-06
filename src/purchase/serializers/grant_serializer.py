@@ -89,19 +89,19 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         review_by_ud = {r.unified_document_id: r for r in grant.proposal_reviews.all()}
         application_data = []
         for application in grant.applications.all():
-            if (
-                application.applicant
-                and hasattr(application.applicant, "author_profile")
-                and application.applicant.author_profile
-            ):
-                applicant_data = DynamicAuthorSerializer(
-                    application.applicant.author_profile
-                ).data
+            author_profile = getattr(application.applicant, "author_profile", None)
+            if not author_profile:
+                continue
 
-                entry = {
+            ud = getattr(application.preregistration_post, "unified_document", None)
+            if ud and ud.is_removed:
+                continue
+
+            application_data.append(
+                {
                     "id": application.id,
                     "created_date": application.created_date,
-                    "applicant": applicant_data,
+                    "applicant": DynamicAuthorSerializer(author_profile).data,
                     "preregistration_post_id": (
                         application.preregistration_post.id
                         if application.preregistration_post
@@ -112,7 +112,7 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                         application, review_by_ud
                     ),
                 }
-                application_data.append(entry)
+            )
 
         return application_data
 
