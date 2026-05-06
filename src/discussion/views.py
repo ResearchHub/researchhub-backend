@@ -99,17 +99,6 @@ class ReactionViewActionMixin:
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    def delete_flag(self, request, *args, pk=None, **kwargs):
-        item = self.get_object()
-        user = request.user
-        try:
-            flag = retrieve_flag(user, item)
-            serialized = FlagSerializer(flag)
-            flag.delete()
-            return Response(serialized.data, status=200)
-        except Exception as e:
-            return Response(f"Failed to delete flag: {e}", status=400)
-
     @action(
         detail=True,
         methods=["put", "patch", "delete"],
