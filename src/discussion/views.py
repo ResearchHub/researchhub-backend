@@ -205,15 +205,6 @@ class ReactionViewActionMixin:
         except Exception as e:
             return Response(f"Failed to delete vote: {e}", status=400)
 
-    def get_action_context(self):
-        return {
-            "ordering": [
-                "created_date",
-                "-score",
-            ],
-            "needs_score": True,
-        }
-
     def add_upvote(self, user, obj):
         vote = create_vote(user, obj, Vote.UPVOTE)
         obj.score += 1
