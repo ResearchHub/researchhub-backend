@@ -404,7 +404,6 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "id",
             "created_at",
             "updated_at",
-            "ses_message_id",
             "opened_at",
             "open_count",
             "bounced_at",
