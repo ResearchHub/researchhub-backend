@@ -47,14 +47,13 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
         except LookupError as e:
             logger.error("Failed to get model for update task: %s", e)
         except model.DoesNotExist:
-            # No-op: Instance was deleted before it could be updated.
+            # Instance was deleted before it could be updated.
             logger.warning(
                 "Instance=%s of model=%s.%s does not exist for update task",
                 pk,
                 app_label,
                 model_name,
             )
-            pass
 
     @shared_task(ignore_result=True)
     def registry_update_related_task(pk, app_label, model_name):
@@ -65,11 +64,10 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
         except LookupError as e:
             logger.error("Failed to get model for update related task: %s", e)
         except model.DoesNotExist:
+            # Instance was deleted before it could be updated.
             logger.warning(
                 "Instance=%s of model=%s.%s does not exist for update related task",
                 pk,
                 app_label,
                 model_name,
             )
-            # No-op: Instance was deleted before it could be updated.
-            pass
