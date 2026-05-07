@@ -31,6 +31,7 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from researchhub_comment.tasks import celery_create_comment_content_src
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.related_models.user_verification_model import UserVerification
 from utils.models import DefaultAuthenticatedModel, SoftDeletableModel
 
@@ -201,41 +202,31 @@ class RhCommentModel(
 
     """ --- METHODS --- """
 
-    # Recursively counts all direct and indirect children of a comment.
     def get_total_children_count(self):
-        """Return the total number of **direct and indirect** children, **including
-        censored / soft-deleted comments**.
-
-        The default related manager (`self.children`) only yields comments from
-        the default manager (i.e. *non-removed* ones).  For discussion metrics
-        we need to include comments that have been *censored* (soft-deleted)
-        because they still participate in the thread and must be counted.  To
-        achieve this we query through `RhCommentModel.all_objects`, which does
-        **not** filter out removed comments.
-        """
-
-        from researchhub_comment.models import (
-            RhCommentModel,  # local import to avoid circular
-        )
-
         total_count = 0
-
-        # Fetch **all** direct children regardless of `is_removed` status so we
-        # can traverse into the sub-tree even if an intermediate node is
-        # censored.  We will *only* count the child itself if it is **not**
-        # removed.
-        children_qs = RhCommentModel.all_objects.filter(parent=self)
-
-        for child in children_qs:
-            # Include the child in the tally only if it hasn't been censored
-            if not child.is_removed:
-                total_count += 1
-
-            # Always recurse into the child's descendants – they might contain
-            # visible comments even when the parent is censored.
-            total_count += child.get_total_children_count()
-
+        children = self.children.all()
+        for child in children:
+            total_count += 1 + child.get_total_children_count()
         return total_count
+
+    def cancel_bounties(self):
+        """Cancel all open bounties attached to this comment."""
+        from reputation.models import Bounty
+
+        for bounty in self.bounties.iterator():
+            if not bounty.close(Bounty.CANCELLED):
+                raise RuntimeError("Failed to close bounties on comment")
+
+    def soft_delete_descendants(self):
+        """Soft-delete all descendants (not self).
+
+        Cancels bounties on each descendant before removing it so
+        orphaned children never inflate discussion counts.
+        """
+        for child in self.children.all():
+            child.soft_delete_descendants()
+            child.cancel_bounties()
+            child.delete(soft=True)
 
     def update_comment_content(self):
         celery_create_comment_content_src.apply_async(
@@ -250,19 +241,22 @@ class RhCommentModel(
             related_document.save(update_fields=["discussion_count"])
 
     def refresh_related_discussion_count(self):
+        from feed.views.funding_cache_mixin import FundingCacheMixin
+
         thread = self.thread
         unified_doc = thread.unified_document
         if unified_doc is None:
             return
         related_document = unified_doc.get_document()
 
-        # Ensure the document has the `rh_threads` relation which provides the
-        # custom manager with the `get_discussion_aggregates` helper.
         if hasattr(related_document, "rh_threads") and hasattr(
             related_document, "discussion_count"
         ):
             related_document.discussion_count = related_document.get_discussion_count()
             related_document.save(update_fields=["discussion_count"])
+
+        if getattr(related_document, "document_type", None) == PREREGISTRATION:
+            FundingCacheMixin.invalidate_funding_feed_cache()
 
     @classmethod
     def annotate_weighted_score(cls, qs):

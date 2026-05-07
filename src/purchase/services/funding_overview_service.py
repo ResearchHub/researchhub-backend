@@ -1,5 +1,6 @@
 """Services for funding and grant overview dashboard metrics."""
 
+from organizations.models import NonprofitOrg
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.services.overview_mixin import OverviewMixin
@@ -24,6 +25,7 @@ class FundingOverviewService(OverviewMixin):
                 user.id, all_funded_ids
             ),
             "supported_proposals": self._supported_proposals(all_funded_ids),
+            "supported_nonprofits": self._supported_nonprofits(all_funded_ids),
         }
 
     def _grant_fundraise_ids(self, user: User) -> list[int]:
@@ -55,6 +57,32 @@ class FundingOverviewService(OverviewMixin):
 
         return [self._serialize_proposal(post) for post in posts]
 
+    @staticmethod
+    def _supported_nonprofits(funded_fundraise_ids: list[int]) -> list[dict]:
+        """Distinct nonprofits linked to fundraises the funder has contributed to."""
+        if not funded_fundraise_ids:
+            return []
+
+        orgs = (
+            NonprofitOrg.objects.filter(
+                fundraise_links__fundraise_id__in=funded_fundraise_ids,
+            )
+            .distinct()
+            .order_by("name", "id")
+        )
+        return [
+            FundingOverviewService._serialize_supported_nonprofit(org) for org in orgs
+        ]
+
+    @staticmethod
+    def _serialize_supported_nonprofit(org: NonprofitOrg) -> dict:
+        return {
+            "id": org.id,
+            "name": org.name,
+            "ein": org.ein or "",
+            "endaoment_org_id": org.endaoment_org_id or "",
+        }
+
     def _serialize_proposal(self, post: ResearchhubPost) -> dict:
         creator = post.created_by
         author = getattr(creator, "author_profile", None) if creator else None
@@ -66,12 +94,14 @@ class FundingOverviewService(OverviewMixin):
                 "slug": post.slug,
             },
             "id": post.id,
-            "created_by": {
-                "id": creator.id,
-                "author_profile": self._serialize_author_profile(author),
-            }
-            if creator
-            else None,
+            "created_by": (
+                {
+                    "id": creator.id,
+                    "author_profile": self._serialize_author_profile(author),
+                }
+                if creator
+                else None
+            ),
         }
 
     @staticmethod

@@ -18,6 +18,10 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     PEER_REVIEW,
 )
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    hidden_comment_ids,
+)
+from user.related_models.user_model import AI_EXPERT_EMAIL
 
 
 class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
@@ -33,6 +37,9 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         across RSC and USD contributions.
       - document_type: PREREGISTRATION, GRANT, etc.
       - grant_id: all activity on a grant and its applied preregistrations
+      - funder_id: all activity on OPEN/COMPLETED grants where this user is
+        the creator or a contact, plus every preregistration applied to
+        those grants.
       - content_type: RHCOMMENTMODEL, RESEARCHHUBPOST, PAPER, etc.
 
     Filters can be combined: e.g. ?scope=grants&content_type=RHCOMMENTMODEL
@@ -71,19 +78,32 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         queryset = queryset.exclude(content_type=paper_ct)
         queryset = queryset.exclude(user__is_active=False)
 
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        queryset = queryset.exclude(
+            content_type=comment_ct,
+            object_id__in=hidden_comment_ids(),
+        )
+        queryset = queryset.exclude(
+            content_type=comment_ct,
+            user__email=AI_EXPERT_EMAIL,
+        )
+
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
+        funder_id = self.request.query_params.get("funder_id")
 
         if grant_id:
             queryset = self._filter_by_grant(queryset, grant_id)
+        elif funder_id:
+            queryset = self._filter_by_funder(queryset, funder_id)
 
-        if scope == "grants" and not grant_id:
+        if scope == "grants" and not grant_id and not funder_id:
             queryset = self._filter_all_grants(queryset)
         elif scope == "peer_reviews":
             queryset = self._filter_peer_reviews(queryset)
         elif scope == "financial":
             queryset = self._filter_financial_activities(queryset)
-        elif not grant_id:
+        elif not grant_id and not funder_id:
             document_type = self.request.query_params.get("document_type")
             if document_type:
                 queryset = queryset.filter(
@@ -138,6 +158,32 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         )
         all_ud_ids = set(grant_ud_ids) | set(prereg_ud_ids)
         return queryset.filter(unified_document_id__in=all_ud_ids)
+
+    @staticmethod
+    def _filter_by_funder(queryset, funder_id):
+        """
+        Return feed entries for every OPEN or COMPLETED grant where
+        `funder_id` is the creator OR a contact, plus every
+        preregistration that has applied to those grants. Excludes
+        PENDING, CLOSED, and DECLINED grants.
+        """
+        funder_grants = Grant.objects.filter(
+            Q(created_by_id=funder_id) | Q(contacts__id=funder_id),
+            status__in=[Grant.OPEN, Grant.COMPLETED],
+        ).distinct()
+
+        grant_ud_ids = funder_grants.values_list("unified_document_id", flat=True)
+        prereg_ud_ids = GrantApplication.objects.filter(
+            grant__in=funder_grants,
+        ).values_list(
+            "preregistration_post__unified_document_id",
+            flat=True,
+        )
+
+        ud_ids = set(grant_ud_ids) | set(prereg_ud_ids)
+        if not ud_ids:
+            return queryset.none()
+        return queryset.filter(unified_document_id__in=ud_ids)
 
     @staticmethod
     def _filter_peer_reviews(queryset):

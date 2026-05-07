@@ -33,24 +33,13 @@ from researchhub_document.views.researchhub_post_views import (
     MIN_POST_TITLE_LENGTH,
 )
 from review.models import Review
-from user.models import UserVerification
 from user.related_models.author_model import Author
 from user.related_models.organization_model import Organization
-from user.tests.helpers import create_organization, create_random_default_user
-
-
-def make_user_verified(user):
-    """Create UserVerification (APPROVED) for user so user.is_verified is True."""
-    UserVerification.objects.get_or_create(
-        user=user,
-        defaults={
-            "first_name": user.first_name or "Test",
-            "last_name": user.last_name or "User",
-            "status": UserVerification.Status.APPROVED,
-            "verified_by": UserVerification.Type.MANUAL,
-            "external_id": f"test-verified-{user.id}",
-        },
-    )
+from user.tests.helpers import (
+    create_organization,
+    create_random_default_user,
+    make_user_verified,
+)
 
 
 class ViewTests(APITestCase):

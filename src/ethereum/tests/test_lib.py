@@ -2,7 +2,11 @@ from unittest.mock import Mock, call, patch
 
 from django.test import TestCase, override_settings
 
-from ethereum.lib import convert_reputation_amount_to_token_amount, get_private_key
+from ethereum.lib import (
+    convert_reputation_amount_to_token_amount,
+    get_nonce,
+    get_private_key,
+)
 
 
 class EthereumLibTests(TestCase):
@@ -33,6 +37,19 @@ class EthereumLibTests(TestCase):
         rep = -5
         with self.assertRaises(ValueError):
             convert_reputation_amount_to_token_amount(self.token_ticker, rep)
+
+    def test_get_nonce_includes_pending(self):
+        # Counting only mined txs lets a back-to-back submission build with
+        # a duplicate nonce, which the RPC silently drops. Must use "pending".
+        w3 = Mock()
+        w3.eth.get_transaction_count.return_value = 42
+
+        nonce = get_nonce(w3, "0xFbB75A59193A3525a8825BeBe7D4b56899E2f7e1")
+
+        w3.eth.get_transaction_count.assert_called_once_with(
+            "0xFbB75A59193A3525a8825BeBe7D4b56899E2f7e1", "pending"
+        )
+        self.assertEqual(nonce, 42)
 
     @override_settings(
         WEB3_KEYSTORE_SECRET_ID="researchhub-web3-keystore",

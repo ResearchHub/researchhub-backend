@@ -14,6 +14,7 @@ from discussion.permissions import CensorDiscussion as CensorDiscussionPermissio
 from discussion.permissions import EditorCensorDiscussion
 from discussion.permissions import Vote as VotePermission
 from discussion.serializers import FlagSerializer, VoteSerializer
+from feed.views.grant_cache_mixin import GrantCacheMixin
 from paper.models import Paper
 from purchase.models import RscExchangeRate
 from reputation.models import Contribution
@@ -55,6 +56,8 @@ def censor(item):
     if purchases := getattr(item, "purchases", None):
         for purchase in purchases.iterator():
             purchase.actions.update(is_removed=True, display=False)
+
+    GrantCacheMixin.invalidate_if_grant_linked(getattr(item, "unified_document", None))
 
     return True
 

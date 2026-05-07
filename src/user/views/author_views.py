@@ -22,6 +22,9 @@ from reputation.models import Bounty, BountySolution, Contribution
 from reputation.serializers import DynamicContributionSerializer
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentModel
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    exclude_orphaned_comments,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -776,8 +779,9 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         user = author.user
 
         if user:
-            user_threads = RhCommentModel.objects.filter(Q(created_by=user))
-            return user_threads
+            return exclude_orphaned_comments(
+                RhCommentModel.objects.filter(created_by=user)
+            )
         return []
 
     def _get_author_contribution_queryset(self, author_id, ordering, asset_type):
