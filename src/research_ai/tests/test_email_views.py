@@ -7,7 +7,13 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
+from research_ai.models import (
+    EmailTemplate,
+    Expert,
+    ExpertSearch,
+    GeneratedEmail,
+    SearchExpert,
+)
 from research_ai.services.email_sending_service import send_plain_email
 from research_ai.views.email_views import _normalize_template
 from user.tests.helpers import create_random_authenticated_user
@@ -300,6 +306,152 @@ class GenerateEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Expert not found", response.json().get("detail", ""))
+
+
+class GenerateEmailViewV2Tests(APITestCase):
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("v2gen_mod", moderator=True)
+        self.user = create_random_authenticated_user("v2gen_user", moderator=False)
+        self.url = "/api/research_ai/expert-finder/v2/generate-email/"
+        self.expert_search = ExpertSearch.objects.create(
+            created_by=self.moderator,
+            name="V2 search",
+            query="ML",
+            input_type=ExpertSearch.InputType.CUSTOM_QUERY,
+            status=ExpertSearch.Status.COMPLETED,
+            progress=100,
+            expert_results=[
+                {
+                    "name": "Legacy Only",
+                    "email": "legacy@example.com",
+                    "title": "",
+                    "affiliation": "",
+                    "expertise": "",
+                    "notes": "",
+                },
+            ],
+        )
+        self.linked = Expert.objects.create(
+            email="linked@example.edu",
+            honorific="Dr",
+            first_name="Linked",
+            last_name="Expert",
+            academic_title="Prof",
+            affiliation="Inst",
+            expertise="Physics",
+            notes="N",
+        )
+        SearchExpert.objects.create(
+            expert_search=self.expert_search,
+            expert=self.linked,
+            position=0,
+        )
+
+    def test_requires_moderator(self):
+        self.client.force_authenticate(self.user)
+        r = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": "linked@example.edu",
+                "template": "collaboration",
+            },
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_legacy_expert_results_alone_returns_404_expert_not_found(self):
+        """V2 does not read ``expert_results``; legacy-only emails are rejected."""
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": "legacy@example.com",
+                "template": "collaboration",
+            },
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch("research_ai.views.email_views_v2.generate_expert_email")
+    def test_linked_expert_returns_201(self, mock_generate):
+        mock_generate.return_value = ("S", "B")
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": "linked@example.edu",
+                "template": "collaboration",
+            },
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
+        rec = GeneratedEmail.objects.get()
+        self.assertEqual(rec.expert_email, "linked@example.edu")
+        self.assertEqual(rec.expert_title, "Prof")
+        _args, kwargs = mock_generate.call_args
+        self.assertEqual(kwargs["resolved_expert"]["email"], "linked@example.edu")
+
+
+class BulkGenerateEmailViewV2Tests(APITestCase):
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("v2blk_mod", moderator=True)
+        self.url = "/api/research_ai/expert-finder/v2/generate-emails-bulk/"
+        self.search = ExpertSearch.objects.create(
+            created_by=self.moderator,
+            query="Q",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        self.expert = Expert.objects.create(
+            email="bulklinked@example.edu",
+            first_name="B",
+            last_name="ULK",
+            academic_title="PI",
+            affiliation="Lab",
+            expertise="Chem",
+            notes="bulk note",
+        )
+        SearchExpert.objects.create(
+            expert_search=self.search,
+            expert=self.expert,
+            position=0,
+        )
+
+    @patch("research_ai.views.email_views_v2.process_bulk_generate_emails_task")
+    def test_bulk_resolves_via_search_expert(self, mock_bulk_task):
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.search.id,
+                "experts": [{"expert_email": "bulklinked@example.edu"}],
+                "template": "collaboration",
+            },
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_202_ACCEPTED)
+        body = r.json()
+        self.assertEqual(len(body["ids"]), 1)
+        rec = GeneratedEmail.objects.get(id=body["ids"][0])
+        self.assertEqual(rec.expert_email, "bulklinked@example.edu")
+        self.assertEqual(rec.expert_title, "PI")
+        self.assertEqual(rec.notes, "bulk note")
+        mock_bulk_task.delay.assert_called_once()
+
+    def test_bulk_unknown_email_returns_400(self):
+        self.client.force_authenticate(self.moderator)
+        r = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.search.id,
+                "experts": [{"expert_email": "noone@edu"}],
+                "template": "collaboration",
+            },
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class GeneratedEmailListViewTests(APITestCase):

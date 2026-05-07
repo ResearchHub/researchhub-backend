@@ -37,6 +37,7 @@ def format_expert_name_from_raw(raw: str) -> str:
         return tokens[0]
     return f"{tokens[0]} {tokens[-1]}"
 
+
 # Regex for {{entity.field}} placeholders.
 VARIABLE_PATTERN = re.compile(r"\{\{(\w+)\.(\w+)\}\}")
 
@@ -99,7 +100,9 @@ def _build_proposal_context(proposal_context_dict: dict | None) -> dict[str, str
         "created_by_name": (proposal_context_dict.get("created_by_name") or "").strip(),
         "goal_amount": (proposal_context_dict.get("goal_amount") or "").strip(),
         "amount_raised": (proposal_context_dict.get("amount_raised") or "").strip(),
-        "contributor_count": (proposal_context_dict.get("contributor_count") or "").strip(),
+        "contributor_count": (
+            proposal_context_dict.get("contributor_count") or ""
+        ).strip(),
         "deadline": (proposal_context_dict.get("deadline") or "").strip(),
         "blurb": (proposal_context_dict.get("blurb") or "").strip(),
     }
