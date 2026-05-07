@@ -1,3 +1,5 @@
+import logging
+
 from celery import shared_task
 from django.apps import apps
 from django.core.cache import cache
@@ -5,10 +7,11 @@ from django.db import transaction
 from django_opensearch_dsl.registries import registry
 from django_opensearch_dsl.signals import RealTimeSignalProcessor
 
-import utils.sentry as sentry
-
 # The debounce period in seconds
 DEBOUNCE_PERIOD = 10
+
+
+logger = logging.getLogger(__name__)
 
 
 class CelerySignalProcessor(RealTimeSignalProcessor):
@@ -47,10 +50,15 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
             instance = model.objects.get(pk=pk)
             registry.update(instance)
         except LookupError as e:
-            sentry.log_error(e)
+            logger.error("Failed to get model for update task: %s", e)
         except model.DoesNotExist:
-            # No-op: Instance was deleted before it could be updated.
-            pass
+            # Instance was deleted before it could be updated.
+            logger.warning(
+                "Instance=%s of model=%s.%s does not exist for update task",
+                pk,
+                app_label,
+                model_name,
+            )
 
     @shared_task(ignore_result=True)
     def registry_update_related_task(pk, app_label, model_name):
@@ -59,7 +67,12 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
             instance = model.objects.get(pk=pk)
             registry.update_related(instance)
         except LookupError as e:
-            sentry.log_error(e)
+            logger.error("Failed to get model for update related task: %s", e)
         except model.DoesNotExist:
-            # No-op: Instance was deleted before it could be updated.
-            pass
+            # Instance was deleted before it could be updated.
+            logger.warning(
+                "Instance=%s of model=%s.%s does not exist for update related task",
+                pk,
+                app_label,
+                model_name,
+            )
