@@ -736,3 +736,93 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         titles = [r["content_object"]["title"] for r in response.data["results"]]
         self.assertEqual(titles, ["Pending Grant"])
+
+    def test_removed_proposals_excluded_from_applications(self):
+        """Censored proposals must not appear in a grant's applications list."""
+        # Arrange
+        applicant1 = create_random_authenticated_user("app_removed_1")
+        applicant2 = create_random_authenticated_user("app_removed_2")
+        post1 = create_post(
+            created_by=applicant1, document_type=PREREGISTRATION, title="Visible"
+        )
+        post2 = create_post(
+            created_by=applicant2, document_type=PREREGISTRATION, title="Removed"
+        )
+        GrantApplication.objects.create(
+            grant=self.open_grant, preregistration_post=post1, applicant=applicant1
+        )
+        GrantApplication.objects.create(
+            grant=self.open_grant, preregistration_post=post2, applicant=applicant2
+        )
+        post2.unified_document.is_removed = True
+        post2.unified_document.save()
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get("/api/grant_feed/")
+
+        # Assert
+        grant_entry = next(
+            e for e in response.data["results"]
+            if e["content_object"]["id"] == self.open_post.id
+        )
+        applications = grant_entry["content_object"]["grant"]["applications"]
+        self.assertEqual(len(applications), 1)
+        self.assertEqual(applications[0]["preregistration_post_id"], post1.id)
+
+    def test_most_applicants_sorting_excludes_removed(self):
+        """most_applicants ordering must not count removed proposals."""
+        # Arrange
+        applicant = create_random_authenticated_user("sort_applicant")
+        visible = create_post(
+            created_by=applicant, document_type=PREREGISTRATION, title="Visible"
+        )
+        removed = create_post(
+            created_by=applicant, document_type=PREREGISTRATION, title="Removed"
+        )
+        GrantApplication.objects.create(
+            grant=self.closed_grant, preregistration_post=visible, applicant=applicant
+        )
+        GrantApplication.objects.create(
+            grant=self.open_grant, preregistration_post=removed, applicant=applicant
+        )
+        removed.unified_document.is_removed = True
+        removed.unified_document.save()
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get("/api/grant_feed/?ordering=-most_applicants")
+
+        # Assert — closed_grant (1 visible) ranks above open_grant (0 visible)
+        titles = [r["content_object"]["title"] for r in response.data["results"]]
+        self.assertLess(titles.index("Closed Grant"), titles.index("Open Grant"))
+
+    def test_invalidate_if_grant_linked(self):
+        """invalidate_if_grant_linked clears cache for grant-linked docs only."""
+        from feed.views.grant_cache_mixin import GrantCacheMixin
+
+        # Arrange
+        applicant = create_random_authenticated_user("cache_applicant")
+        proposal = create_post(
+            created_by=applicant, document_type=PREREGISTRATION, title="Proposal"
+        )
+        unrelated = create_post(
+            created_by=self.user, document_type=PREREGISTRATION, title="Unrelated"
+        )
+        GrantApplication.objects.create(
+            grant=self.open_grant, preregistration_post=proposal, applicant=applicant
+        )
+        self.client.force_authenticate(self.user)
+        self.client.get("/api/grant_feed/")
+        cache_key = (
+            f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::"
+        )
+        self.assertIsNotNone(cache.get(cache_key))
+
+        # Act + Assert — unrelated doc does not clear cache
+        GrantCacheMixin.invalidate_if_grant_linked(unrelated.unified_document)
+        self.assertIsNotNone(cache.get(cache_key))
+
+        # Act + Assert — grant-linked doc clears cache
+        GrantCacheMixin.invalidate_if_grant_linked(proposal.unified_document)
+        self.assertIsNone(cache.get(cache_key))

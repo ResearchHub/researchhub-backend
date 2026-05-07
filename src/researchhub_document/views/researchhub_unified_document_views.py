@@ -9,6 +9,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from discussion.models import Vote
 from discussion.serializers import VoteSerializer
+from feed.views.grant_cache_mixin import GrantCacheMixin
 from paper.models import Paper
 from researchhub_document.filters import UnifiedDocumentFilter
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
@@ -72,6 +73,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             action.display = False
             action.save()
 
+        GrantCacheMixin.invalidate_if_grant_linked(doc)
+
         return Response(self.get_serializer(instance=doc).data, status=200)
 
     @action(
@@ -94,6 +97,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             action.is_removed = False
             action.display = True
             action.save()
+
+        GrantCacheMixin.invalidate_if_grant_linked(doc)
 
         return Response(self.get_serializer(instance=doc).data, status=200)
 

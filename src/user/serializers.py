@@ -427,6 +427,7 @@ class UserSerializer(ModelSerializer):
     author_profile = AuthorSerializer(read_only=True)
     balance = SerializerMethodField(read_only=True)
     balances = SerializerMethodField(read_only=True)
+    is_funder = SerializerMethodField()
     subscribed = SerializerMethodField(read_only=True)
     hub_rep = SerializerMethodField()
     time_rep = SerializerMethodField()
@@ -442,6 +443,7 @@ class UserSerializer(ModelSerializer):
             "created_date",
             "has_seen_first_coin_modal",
             "has_seen_orcid_connect_modal",
+            "is_funder",
             "is_staking_opted_in",
             "is_suspended",
             "probable_spammer",
@@ -460,6 +462,7 @@ class UserSerializer(ModelSerializer):
             "created_date",
             "has_seen_first_coin_modal",
             "has_seen_orcid_connect_modal",
+            "is_funder",
             "is_staking_opted_in",
             "is_suspended",
             "probable_spammer",
@@ -472,6 +475,9 @@ class UserSerializer(ModelSerializer):
             "hub_rep",
             "time_rep",
         ]
+
+    def get_is_funder(self, obj):
+        return getattr(obj, "is_funder", False)
 
     def get_balance(self, obj):
         if (
@@ -536,6 +542,7 @@ class UserEditableSerializer(ModelSerializer):
     author_profile = AuthorSerializer()
     balance = SerializerMethodField()
     balances = SerializerMethodField()
+    is_funder = SerializerMethodField()
     locked_balance = SerializerMethodField()
     balance_history = SerializerMethodField()
     email = SerializerMethodField()
@@ -559,6 +566,9 @@ class UserEditableSerializer(ModelSerializer):
             "date_joined",
         ]
         read_only_fields = ["moderator", "referral_code"]
+
+    def get_is_funder(self, obj):
+        return getattr(obj, "is_funder", False)
 
     def get_auth_provider(self, obj):
         social_account = obj.socialaccount_set.first()
@@ -702,6 +712,7 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
 class DynamicUserSerializer(DynamicModelFieldSerializer):
     author_profile = SerializerMethodField()
+    is_funder = SerializerMethodField()
     rsc_earned = SerializerMethodField()
     balances = SerializerMethodField()
     benefits_expire_on = SerializerMethodField()
@@ -711,6 +722,9 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = User
         exclude = ("password",)
+
+    def get_is_funder(self, obj):
+        return getattr(obj, "is_funder", False)
 
     def get_author_profile(self, user):
         context = self.context

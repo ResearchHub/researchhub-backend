@@ -113,7 +113,7 @@ class TestCelerySignalProcessor(TestCase):
         model_mock.objects.get.assert_called_once_with(pk=1)
         registry_update_mock.assert_called_once_with(self.instance)
 
-    @patch("search.celery.sentry.log_error")
+    @patch("search.celery.logger.error")
     @patch("search.celery.apps.get_model", side_effect=LookupError("Model not found"))
     def test_registry_update_task_lookup_error(self, get_model_mock, log_error_mock):
         # Act
@@ -155,7 +155,7 @@ class TestCelerySignalProcessor(TestCase):
         model_mock.objects.get.assert_called_once_with(pk=1)
         registry_update_related_mock.assert_called_once_with(self.instance)
 
-    @patch("search.celery.sentry.log_error")
+    @patch("search.celery.logger.error")
     @patch("search.celery.apps.get_model", side_effect=LookupError("Model not found"))
     def test_registry_update_related_task_lookup_error(
         self, get_model_mock, log_error_mock

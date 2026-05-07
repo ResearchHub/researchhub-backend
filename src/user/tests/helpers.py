@@ -8,7 +8,7 @@ from hub.tests.helpers import create_hub
 from reputation.related_models.score import Score
 from researchhub_access_group.constants import ASSOCIATE_EDITOR
 from researchhub_access_group.models import Permission
-from user.models import Action, Author, University, User
+from user.models import Action, Author, University, User, UserVerification
 from user.related_models.organization_model import Organization
 from utils.test_helpers import generate_password
 
@@ -100,6 +100,20 @@ def create_moderator(
         email=email,
         password=password,
         moderator=True,
+    )
+
+
+def make_user_verified(user):
+    """Create UserVerification (APPROVED) for user so user.is_verified is True."""
+    UserVerification.objects.get_or_create(
+        user=user,
+        defaults={
+            "first_name": user.first_name or "Test",
+            "last_name": user.last_name or "User",
+            "status": UserVerification.Status.APPROVED,
+            "verified_by": UserVerification.Type.MANUAL,
+            "external_id": f"test-verified-{user.id}",
+        },
     )
 
 

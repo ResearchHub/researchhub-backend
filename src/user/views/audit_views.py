@@ -16,7 +16,6 @@ from reputation.models import Distribution
 from reputation.serializers import DynamicDistributionSerializer
 from researchhub.settings import EMAIL_DOMAIN
 from researchhub_comment.models import RhCommentModel
-from researchhub_comment.views.rh_comment_view import remove_bounties
 from user.filters import AUTO_PAYMENT_TYPES, AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
@@ -458,11 +457,15 @@ class AuditViewSet(viewsets.GenericViewSet):
     def _remove_flagged_content(self, flag):
         with transaction.atomic():
             flag_item = flag.item
-            if isinstance(flag_item, RhCommentModel):
-                remove_bounties(flag_item)
+            is_comment = isinstance(flag_item, RhCommentModel)
+
+            if is_comment:
+                flag_item.cancel_bounties()
+                flag_item.soft_delete_descendants()
+
             censor_response = censor(flag_item)
 
-            if isinstance(flag_item, RhCommentModel):
+            if is_comment:
                 flag_item.refresh_related_discussion_count()
 
             return censor_response
