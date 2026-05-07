@@ -31,6 +31,10 @@ def handle_post_create_feed_entry(sender, instance, **kwargs):
     if instance.document_type == GRANT:
         return
 
+    unified_document = getattr(instance, "unified_document", None)
+    if unified_document is not None and not unified_document.is_public:
+        return
+
     try:
         _create_post_feed_entries(instance)
     except Exception as e:
