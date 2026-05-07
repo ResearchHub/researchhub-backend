@@ -53,10 +53,11 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
     queryset = (
         User.objects.select_related("userverification")
         .annotate(
-            _is_funder=Exists(
+            is_funder=Exists(
                 Grant.objects.filter(
                     created_by=OuterRef("pk"),
-                    status__in=[Grant.OPEN, Grant.CLOSED, Grant.COMPLETED],
+                    status__in=[Grant.OPEN, Grant.COMPLETED],
+                    unified_document__is_removed=False,
                 )
             ),
         )

@@ -477,7 +477,7 @@ class UserSerializer(ModelSerializer):
         ]
 
     def get_is_funder(self, obj):
-        return getattr(obj, "_is_funder", False)
+        return getattr(obj, "is_funder", False)
 
     def get_balance(self, obj):
         if (
@@ -568,7 +568,7 @@ class UserEditableSerializer(ModelSerializer):
         read_only_fields = ["moderator", "referral_code"]
 
     def get_is_funder(self, obj):
-        return getattr(obj, "_is_funder", False)
+        return getattr(obj, "is_funder", False)
 
     def get_auth_provider(self, obj):
         social_account = obj.socialaccount_set.first()
@@ -724,7 +724,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
         exclude = ("password",)
 
     def get_is_funder(self, obj):
-        return getattr(obj, "_is_funder", False)
+        return getattr(obj, "is_funder", False)
 
     def get_author_profile(self, user):
         context = self.context
