@@ -66,6 +66,12 @@ concurrency = ["multiprocessing"]
 parallel = true
 omit = ["*/setup-uv-cache/*"]
 
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+src = ["src"]
+extend-exclude = ["*/migrations/*"]
+
 [dependency-groups]
 dev = [
     "black==26.3.1",
