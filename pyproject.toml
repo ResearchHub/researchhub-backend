@@ -66,6 +66,26 @@ concurrency = ["multiprocessing"]
 parallel = true
 omit = ["*/setup-uv-cache/*"]
 
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+src = ["src"]
+extend-exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+extend-ignore = [
+    # Temporarily ignore these violations until cleaned up:
+    "E402",
+    "E722",
+    "F401",
+    "F403",
+    "F541",
+    "F601",
+    "F811",
+    "F821",
+    "F841",
+]
+
 [dependency-groups]
 dev = [
     "black==26.3.1",
@@ -75,6 +95,7 @@ dev = [
     "pre-commit==2.17.0",
     "requests-mock>=1.12.1,<2.0.0",
     "responses>=0.26.0",
+    "ruff==0.15.12",
     "setuptools>=78.1.1",
     "tblib>=3.2.2",
 ]
