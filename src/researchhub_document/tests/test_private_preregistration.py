@@ -1,16 +1,23 @@
 import uuid
 
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from feed.models import FeedEntry
+from feed.tasks import create_feed_entry
 from hub.models import Hub
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    RhCommentThreadModel,
+)
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
@@ -294,3 +301,99 @@ class FundingFeedPrivacyTests(AWSMockTestCase):
         response = client.get(reverse("funding_feed-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn(self.private_post.id, self._ids(response))
+
+
+class FeedEntrySuppressionTests(AWSMockTestCase):
+    """create_feed_entry must skip any item whose unified document is private.
+
+    Centralizes the rule at the chokepoint so posts, comments, bounties, and
+    fundraise contributions on a private preregistration all stay out of feeds.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.author = _make_user("author")
+
+        self.public_post = create_post(
+            title="Public", created_by=self.author, document_type=PREREGISTRATION
+        )
+        self.private_post = create_post(
+            title="Private", created_by=self.author, document_type=PREREGISTRATION
+        )
+        self.private_post.unified_document.is_public = False
+        self.private_post.unified_document.save()
+
+        self.post_ct = ContentType.objects.get_for_model(ResearchhubPost)
+        self.comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+
+    def _make_comment(self, post):
+        thread = RhCommentThreadModel.objects.create(
+            content_type=self.post_ct,
+            object_id=post.id,
+            created_by=self.author,
+        )
+        return RhCommentModel.objects.create(thread=thread, created_by=self.author)
+
+    def test_post_on_private_doc_skips_feed_entry(self):
+        result = create_feed_entry(
+            item_id=self.private_post.id,
+            item_content_type_id=self.post_ct.id,
+            action=FeedEntry.PUBLISH,
+            user_id=self.author.id,
+        )
+
+        self.assertIsNone(result)
+        self.assertFalse(
+            FeedEntry.objects.filter(
+                content_type=self.post_ct, object_id=self.private_post.id
+            ).exists()
+        )
+
+    def test_post_on_public_doc_creates_feed_entry(self):
+        result = create_feed_entry(
+            item_id=self.public_post.id,
+            item_content_type_id=self.post_ct.id,
+            action=FeedEntry.PUBLISH,
+            user_id=self.author.id,
+        )
+
+        self.assertIsNotNone(result)
+        self.assertTrue(
+            FeedEntry.objects.filter(
+                content_type=self.post_ct, object_id=self.public_post.id
+            ).exists()
+        )
+
+    def test_comment_on_private_doc_skips_feed_entry(self):
+        comment = self._make_comment(self.private_post)
+
+        result = create_feed_entry(
+            item_id=comment.id,
+            item_content_type_id=self.comment_ct.id,
+            action=FeedEntry.PUBLISH,
+            user_id=self.author.id,
+        )
+
+        self.assertIsNone(result)
+        self.assertFalse(
+            FeedEntry.objects.filter(
+                content_type=self.comment_ct, object_id=comment.id
+            ).exists()
+        )
+
+    def test_comment_on_public_doc_creates_feed_entry(self):
+        comment = self._make_comment(self.public_post)
+
+        result = create_feed_entry(
+            item_id=comment.id,
+            item_content_type_id=self.comment_ct.id,
+            action=FeedEntry.PUBLISH,
+            user_id=self.author.id,
+        )
+
+        self.assertIsNotNone(result)
+        self.assertTrue(
+            FeedEntry.objects.filter(
+                content_type=self.comment_ct, object_id=comment.id
+            ).exists()
+        )

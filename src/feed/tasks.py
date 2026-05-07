@@ -52,6 +52,11 @@ def create_feed_entry(
 
     unified_document = _get_unified_document(item, item_content_type)
 
+    # Suppress feed entries for items attached to a private unified document.
+    # Covers posts, comments, bounties, and fundraise contributions in one place.
+    if unified_document is not None and not unified_document.is_public:
+        return None
+
     content = serialize_feed_item(item, item_content_type)
     if content is None:
         logger.warning(
