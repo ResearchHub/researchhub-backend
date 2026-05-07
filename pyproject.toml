@@ -72,6 +72,20 @@ line-length = 88
 src = ["src"]
 extend-exclude = ["*/migrations/*"]
 
+[tool.ruff.lint]
+extend-ignore = [
+    # Temporarily ignore these violations until cleaned up:
+    "E402",
+    "E722",
+    "F401",
+    "F403",
+    "F541",
+    "F601",
+    "F811",
+    "F821",
+    "F841",
+]
+
 [dependency-groups]
 dev = [
     "black==26.3.1",
