@@ -1,10 +1,11 @@
 from unittest.mock import patch
 
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from research_ai.models import DocumentInvitedExpert, ExpertSearch
+from research_ai.models import DocumentInvitedExpert, Expert, ExpertSearch
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -397,6 +398,71 @@ class InvitedExpertsDocumentViewTests(APITestCase):
         self.assertIn("generated_email_id", item)
 
 
+class InvitedExpertsDocumentViewV2Tests(APITestCase):
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("mod_inv2", moderator=True)
+        self.user = create_random_authenticated_user("user_inv2", moderator=False)
+
+    def test_v2_invited_requires_authentication(self):
+        response = self.client.get(
+            "/api/research_ai/expert-finder/v2/documents/1/invited/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_v2_invited_requires_moderator(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(
+            "/api/research_ai/expert-finder/v2/documents/1/invited/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_v2_invited_nonexistent_document_returns_404(self):
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(
+            "/api/research_ai/expert-finder/v2/documents/999999/invited/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_v2_invited_returns_user_and_author_not_expert_entity(self):
+        from paper.tests.helpers import create_paper
+
+        paper = create_paper(
+            title="V2 invited paper",
+            paper_publish_date="2021-01-01",
+        )
+        ud_id = paper.unified_document_id
+
+        ExpertSearch.objects.create(
+            created_by=self.moderator,
+            unified_document_id=ud_id,
+            query="Test",
+            status=ExpertSearch.Status.COMPLETED,
+            completed_at=timezone.now(),
+            expert_results=[],
+        )
+
+        DocumentInvitedExpert.objects.create(
+            unified_document_id=ud_id,
+            user=self.moderator,
+            expert_search_id=None,
+            generated_email_id=None,
+        )
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(
+            f"/api/research_ai/expert-finder/v2/documents/{ud_id}/invited/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["total_count"], 1)
+        item = data["invited"][0]
+        self.assertNotIn("expert", item)
+        self.assertNotIn("author", item)
+        self.assertIn("user", item)
+        self.assertEqual(item["user"]["user_id"], self.moderator.id)
+        self.assertIsInstance(item["user"]["author"], (dict, type(None)))
+
+
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
 class ExpertSearchV2ListCreateViewTests(APITestCase):
     def setUp(self):
@@ -444,7 +510,9 @@ class ExpertSearchV2ListCreateViewTests(APITestCase):
 
     @patch("research_ai.views.expert_finder_views_v2.get_document_content")
     @patch("research_ai.views.expert_finder_views_v2.run_expert_finder_search_v2.delay")
-    def test_create_persists_excluded_search_ids(self, mock_delay, mock_get_document_content):
+    def test_create_persists_excluded_search_ids(
+        self, mock_delay, mock_get_document_content
+    ):
         from paper.tests.helpers import create_paper
 
         mock_get_document_content.return_value = ("abstract text", "abstract")
@@ -532,3 +600,58 @@ class ExpertSearchV2DetailViewTests(APITestCase):
         self.assertEqual(data["experts"][0]["email"], "d@v.edu")
         self.assertEqual(data["experts"][0]["id"], ex.id)
         self.assertEqual(data["excluded_search_ids"], [7])
+
+
+class ExpertV2PatchViewTests(APITestCase):
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("v2pmod", moderator=True)
+        self.user = create_random_authenticated_user("v2pusr", moderator=False)
+        self.expert = Expert.objects.create(
+            email="before@uni.edu",
+            first_name="Before",
+            last_name="Name",
+            sources=[{"text": "Old", "url": "https://old.example"}],
+        )
+        self.url = f"/api/research_ai/expert-finder/v2/experts/{self.expert.id}/"
+
+    def test_patch_requires_moderator(self):
+        self.client.force_authenticate(self.user)
+        r = self.client.patch(self.url, {"first_name": "After"}, format="json")
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_patch_updates_expert(self):
+        self.client.force_authenticate(self.moderator)
+        r = self.client.patch(
+            self.url,
+            {
+                "first_name": "  Ada  ",
+                "last_name": "  Lovelace ",
+                "email": " ADA@UNI.EDU ",
+            },
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        body = r.json()
+        self.assertEqual(body["id"], self.expert.id)
+        self.assertEqual(body["first_name"], "Ada")
+        self.assertEqual(body["last_name"], "Lovelace")
+        self.assertEqual(body["email"], "ada@uni.edu")
+        self.assertEqual(
+            body["sources"],
+            [{"text": "Old", "url": "https://old.example"}],
+        )
+        self.expert.refresh_from_db()
+        self.assertEqual(self.expert.email, "ada@uni.edu")
+        self.assertEqual(
+            self.expert.sources,
+            [{"text": "Old", "url": "https://old.example"}],
+        )
+
+    def test_patch_not_found_returns_404(self):
+        self.client.force_authenticate(self.moderator)
+        r = self.client.patch(
+            "/api/research_ai/expert-finder/v2/experts/999999/",
+            {"first_name": "X"},
+            format="json",
+        )
+        self.assertEqual(r.status_code, status.HTTP_404_NOT_FOUND)

@@ -1,20 +1,30 @@
 from django.db.models import Prefetch
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from research_ai.constants import ExpertiseLevel, Gender, Region
-from research_ai.models import ExpertSearch, SearchExpert
+from research_ai.models import DocumentInvitedExpert, Expert, ExpertSearch, SearchExpert
 from research_ai.permissions import ResearchAIPermission
 from research_ai.serializers import (
     ExpertSearchCreateSerializerV2,
     ExpertSearchDetailSerializerV2,
     ExpertSearchListItemSerializerV2,
+    ExpertSerializer,
+    ExpertUpdateSerializerV2,
+    InvitedExpertSerializerV2,
 )
 from research_ai.services.expert_finder_service import get_document_content
 from research_ai.tasks import run_expert_finder_search_v2
-from research_ai.views.expert_finder_views import _get_document_title, _get_sse_url
+from research_ai.views.expert_finder_views import (
+    INVITED_CACHE_SEC,
+    INVITED_LIMIT,
+    _get_document_title,
+    _get_sse_url,
+)
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.permissions import IsModerator, UserIsEditor
 
@@ -29,7 +39,8 @@ def _v2_search_prefetch():
 class ExpertSearchListCreateViewV2(APIView):
     """
     GET ``/expert-finder/v2/searches/`` — list searches (v2 payload shape).
-    POST ``/expert-finder/v2/searches/`` — create and enqueue ``run_expert_finder_search_v2``.
+    POST ``/expert-finder/v2/searches/`` — create and enqueue
+    ``run_expert_finder_search_v2``.
     """
 
     permission_classes = [
@@ -171,3 +182,70 @@ class ExpertSearchDetailViewV2(APIView):
             expert_search, context={"request": request}
         )
         return Response(ser.data)
+
+
+class ExpertDetailViewV2(APIView):
+    """PATCH ``/expert-finder/v2/experts/<id>/`` — partial update on one expert."""
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def patch(self, request, expert_id):
+        try:
+            expert = Expert.objects.get(id=expert_id)
+        except Expert.DoesNotExist:
+            return Response(
+                {"detail": "Expert not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        ser = ExpertUpdateSerializerV2(expert, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ExpertSerializer(expert).data)
+
+
+class InvitedExpertsDocumentViewV2(APIView):
+    """
+    GET ``/expert-finder/v2/documents/<unified_document_id>/invited/``.
+
+    Each row includes the invited RH account as ``user`` (``user_id`` + ``author``).
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    @method_decorator(cache_page(INVITED_CACHE_SEC))
+    def get(self, request, unified_document_id):
+        try:
+            ResearchhubUnifiedDocument.objects.get(id=unified_document_id)
+        except ResearchhubUnifiedDocument.DoesNotExist:
+            return Response(
+                {"detail": "Unified document not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        qs = (
+            DocumentInvitedExpert.objects.filter(
+                unified_document_id=unified_document_id
+            )
+            .select_related(
+                "user", "user__author_profile", "expert_search", "generated_email"
+            )
+            .order_by("-created_date")
+        )
+        total_count = qs.count()
+        page = list(qs[:INVITED_LIMIT])
+        invited_data = InvitedExpertSerializerV2(page, many=True).data
+        return Response(
+            {
+                "unified_document_id": unified_document_id,
+                "invited": invited_data,
+                "total_count": total_count,
+            }
+        )

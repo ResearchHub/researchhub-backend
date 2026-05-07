@@ -26,7 +26,7 @@ class ExpertFinderJson:
         return True
 
     @staticmethod
-    def _normalize_sources(raw: Any) -> list[dict[str, str]]:
+    def normalize_sources(raw: Any) -> list[dict[str, str]]:
         if not isinstance(raw, list):
             return []
         out: list[dict[str, str]] = []
@@ -108,7 +108,7 @@ class ExpertFinderJson:
                 "affiliation": trimmed_str(row.get("affiliation", "")),
                 "expertise": trimmed_str(row.get("expertise", "")),
                 "notes": trimmed_str(row.get("notes", "")),
-                "sources": ExpertFinderJson._normalize_sources(row.get("sources")),
+                "sources": ExpertFinderJson.normalize_sources(row.get("sources")),
             }
             out.append(row_dict)
 

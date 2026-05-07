@@ -11,6 +11,10 @@ from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.email_sending_service import send_plain_email
 from research_ai.services.expert_finder_service import ExpertFinderService
 from research_ai.services.expert_finder_v2 import run_v2_expert_search
+from research_ai.services.expert_persist import ExpertPersist
+from research_ai.services.invited_experts_service import (
+    materialize_document_invited_experts_for_user,
+)
 from researchhub.celery import app
 from user.models import User
 from utils import sentry
@@ -160,6 +164,29 @@ def _finalize_v2_expert_search_in_db(
         llm_model=result.get("llm_model", ""),
     )
     return False
+
+
+@app.task
+def materialize_document_invited_experts_async(
+    normalized_email: str,
+    user_id: int,
+) -> None:
+    """
+    For a newly created user: link ``Expert`` rows (``registered_user``) when outreach
+    qualifies, then create ``DocumentInvitedExpert`` rows where applicable.
+    """
+    try:
+        user = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        logger.warning(
+            "materialize_document_invited_experts_async: user_id=%s not found",
+            user_id,
+        )
+        return
+    materialize_document_invited_experts_for_user(
+        normalized_email=normalized_email,
+        user=user,
+    )
 
 
 @app.task(bind=True)
@@ -558,6 +585,7 @@ def send_queued_emails_task(
                 ses_message_id=ses_message_id or "",
                 updated_date=timezone.now(),
             )
+            ExpertPersist.mark_last_email_sent_at(rec.expert_email or "")
             sent += 1
         except Exception as e:
             logger.exception("Send to expert failed id=%s: %s", rec.id, e)
