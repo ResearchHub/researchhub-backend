@@ -104,7 +104,7 @@ def convert_reputation_amount_to_token_amount(
 
 
 def get_nonce(w3, account):
-    return w3.eth.get_transaction_count(account)
+    return w3.eth.get_transaction_count(account, "pending")
 
 
 def get_gas_estimate(method_call):

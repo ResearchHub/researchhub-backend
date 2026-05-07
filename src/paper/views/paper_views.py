@@ -46,6 +46,7 @@ from reputation.related_models.paper_reward import (
 )
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
+from user.permissions import IsVerifiedUser
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
@@ -143,7 +144,7 @@ class PaperViewSet(
     @action(
         detail=False,
         methods=["post"],
-        permission_classes=[IsAuthenticated & CreatePaper],
+        permission_classes=[IsAuthenticated, CreatePaper, IsVerifiedUser],
     )
     def create_researchhub_paper(self, request):
         """

@@ -56,7 +56,7 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
         choices=Region.choices,
         default=Region.ALL_REGIONS,
     )
-    state = serializers.CharField(default="All States")
+    state = serializers.CharField(default=EXPERT_FINDER_DEFAULT_STATE)
     gender = serializers.ChoiceField(
         choices=Gender.choices,
         default=Gender.ALL_GENDERS,
@@ -77,7 +77,7 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
         else:
             attrs["expertise_level"] = list(expertise_level)
         attrs["region"] = attrs.get("region") or Region.ALL_REGIONS
-        attrs["state"] = attrs.get("state", "All States")
+        attrs["state"] = attrs.get("state", EXPERT_FINDER_DEFAULT_STATE)
         attrs["gender"] = attrs.get("gender") or Gender.ALL_GENDERS
         return attrs
 
@@ -632,6 +632,9 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "template",
             "status",
             "notes",
+            "opened_at",
+            "open_count",
+            "bounced_at",
             "created_at",
             "updated_at",
         ]
@@ -639,7 +642,9 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "id",
             "created_at",
             "updated_at",
-            "ses_message_id",
+            "opened_at",
+            "open_count",
+            "bounced_at",
         ]
 
     def get_created_by(self, obj):

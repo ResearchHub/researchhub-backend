@@ -2,7 +2,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from research_ai.constants import ExpertiseLevel, Region
+from research_ai.constants import EXPERT_FINDER_DEFAULT_STATE, ExpertiseLevel, Region
 from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.prompts.expert_finder_prompts import (
     build_system_prompt_v2,
@@ -27,19 +27,19 @@ from research_ai.services.report_generator_service import (
 
 logger = logging.getLogger(__name__)
 
-V2_PROMPT_EXPERT_RESERVE_PCT = 0.1
+# Extra percent to request beyond remaining need (10 → ask for ceil(need × 110%)).
+PROMPT_EXPERT_HEADROOM_PCT = 10
 
 
 def _prompt_expert_count_for_round(remaining: int) -> int:
     """
     How many experts to ask for in system/user prompts for this fill round.
 
-    We ask for ~10% more (rounded up) to absorb duplicates that are dropped in deduplication.
+    Remaining need (at least 1), scaled by ``(100 + PROMPT_EXPERT_HEADROOM_PCT) / 100``
+    rounded up, so deduplication / validation drops still leave enough rows.
     """
-    base = max(1, remaining)
-    p_ct = int(round(100 * V2_PROMPT_EXPERT_RESERVE_PCT))
-    with_headroom = (base * (100 + p_ct) + 99) // 100
-    return max(base, with_headroom)
+    need = max(1, remaining)
+    return (need * (100 + PROMPT_EXPERT_HEADROOM_PCT) + 99) // 100
 
 
 def clear_expert_search_links(expert_search_id: int) -> None:
@@ -207,19 +207,14 @@ class ExpertFinderServiceV2(ExpertFinderService):
             else:
                 expertise_level = [ExpertiseLevel.ALL_LEVELS]
             region_filter = config.get("region", Region.ALL_REGIONS)
-            state_filter = config.get("state", "All States")
+            state_filter = config.get("state", EXPERT_FINDER_DEFAULT_STATE)
             llm_response = ""
             accumulated: list[dict[str, Any]] = []
             all_filtered_by_exclusion = False
 
-            # Each round: one model call asking for (remaining + reserve) experts in
-            # the prompt—more than the gap we need, so dedupes still let us fill—then
-            # parse/filter/dedupe and merge into `accumulated`. We iterate a
-            # fixed maximum number of rounds (not "one round per expert") because a
-            # single response can return many rows; rounds exist to recover when the
-            # first batch is thin after validation. Stops early when we hit the target,
-            # when a round adds no new unique experts, or when the "near target"
-            # tolerance applies (large targets only).
+            # Each round: model → parse/filter → ``dedupe(batch)``, then merge with
+            # ``dedupe(accumulated + batch)`` so the first time we see an email wins
+            # across rounds. Stops on target, no new uniques, or near-target tolerance.
             for round_num in range(1, EXPERT_FILL_MAX_ROUNDS + 1):
                 if len(accumulated) >= target_expert_count:
                     break
@@ -310,7 +305,13 @@ class ExpertFinderServiceV2(ExpertFinderService):
                 batch = [r for r in kept if not self._expert_row_suggests_deceased(r)]
 
                 batch = self._dedupe_experts_by_normalized_email(batch)
-                accumulated.extend(batch)
+
+                acc_before = len(accumulated)
+                accumulated = self._dedupe_experts_by_normalized_email(
+                    accumulated + batch
+                )
+                if len(accumulated) == acc_before:
+                    break
 
                 if len(accumulated) >= target_expert_count:
                     break
