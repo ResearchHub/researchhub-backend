@@ -1,10 +1,10 @@
-"""Tests for research_ai.tasks: expert search, bulk email generation, send queued emails."""
+"""Tests for research_ai.tasks: expert search, bulk email, send queued emails."""
 
 from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 
-from research_ai.models import ExpertSearch, GeneratedEmail
+from research_ai.models import Expert, ExpertSearch, GeneratedEmail
 from research_ai.tasks import (
     _maybe_obfuscate_expert_emails_for_non_production,
     _update_search_progress,
@@ -476,3 +476,33 @@ class SendQueuedEmailsTaskTests(TestCase):
         self.assertEqual(result["failed"], 1)
         rec.refresh_from_db()
         self.assertEqual(rec.status, GeneratedEmail.Status.SEND_FAILED)
+
+    @patch("research_ai.tasks.send_plain_email")
+    def test_send_queued_success_sets_expert_last_email_sent_at(self, mock_send):
+        mock_send.return_value = "ses-1"
+        Expert.objects.create(
+            email="sentmark@edu",
+            first_name="S",
+            last_name="ent",
+        )
+        rec = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_name="Dr. S",
+            expert_email="sentmark@edu",
+            email_subject="Subj",
+            email_body="Body",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        before = Expert.objects.get(email__iexact="sentmark@edu").last_email_sent_at
+        send_queued_emails_task.apply(
+            kwargs={
+                "generated_email_ids": [rec.id],
+                "reply_to": None,
+                "cc": None,
+                "from_email": None,
+            }
+        ).get()
+        ex = Expert.objects.get(email__iexact="sentmark@edu")
+        self.assertIsNotNone(ex.last_email_sent_at)
+        if before:
+            self.assertGreaterEqual(ex.last_email_sent_at, before)

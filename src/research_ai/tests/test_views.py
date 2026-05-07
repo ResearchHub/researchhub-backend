@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -395,6 +396,71 @@ class InvitedExpertsDocumentViewTests(APITestCase):
         self.assertIn("author", item)
         self.assertIn("expert_search_id", item)
         self.assertIn("generated_email_id", item)
+
+
+class InvitedExpertsDocumentViewV2Tests(APITestCase):
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("mod_inv2", moderator=True)
+        self.user = create_random_authenticated_user("user_inv2", moderator=False)
+
+    def test_v2_invited_requires_authentication(self):
+        response = self.client.get(
+            "/api/research_ai/expert-finder/v2/documents/1/invited/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_v2_invited_requires_moderator(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(
+            "/api/research_ai/expert-finder/v2/documents/1/invited/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_v2_invited_nonexistent_document_returns_404(self):
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(
+            "/api/research_ai/expert-finder/v2/documents/999999/invited/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_v2_invited_returns_user_and_author_not_expert_entity(self):
+        from paper.tests.helpers import create_paper
+
+        paper = create_paper(
+            title="V2 invited paper",
+            paper_publish_date="2021-01-01",
+        )
+        ud_id = paper.unified_document_id
+
+        ExpertSearch.objects.create(
+            created_by=self.moderator,
+            unified_document_id=ud_id,
+            query="Test",
+            status=ExpertSearch.Status.COMPLETED,
+            completed_at=timezone.now(),
+            expert_results=[],
+        )
+
+        DocumentInvitedExpert.objects.create(
+            unified_document_id=ud_id,
+            user=self.moderator,
+            expert_search_id=None,
+            generated_email_id=None,
+        )
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(
+            f"/api/research_ai/expert-finder/v2/documents/{ud_id}/invited/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["total_count"], 1)
+        item = data["invited"][0]
+        self.assertNotIn("expert", item)
+        self.assertNotIn("author", item)
+        self.assertIn("user", item)
+        self.assertEqual(item["user"]["user_id"], self.moderator.id)
+        self.assertIsInstance(item["user"]["author"], (dict, type(None)))
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)

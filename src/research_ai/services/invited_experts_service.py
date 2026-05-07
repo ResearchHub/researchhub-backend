@@ -1,8 +1,70 @@
 from datetime import timedelta
 
-from research_ai.models import GeneratedEmail
+from django.db.models import Exists, OuterRef
+from django.utils import timezone
+
+from research_ai.constants import EXPERT_REGISTERED_USER_LINK_WINDOW_DAYS
+from research_ai.models import DocumentInvitedExpert, Expert, GeneratedEmail
 
 INVITE_WINDOW_DAYS = 7
+
+
+def link_experts_registered_user_for_signup(*, normalized_email: str, user) -> int:
+    """
+    Set ``Expert.registered_user`` for rows matching the signup email when a qualifying
+    ``GeneratedEmail`` exists in the link window.
+    """
+    email = (normalized_email or "").strip().lower()
+    if not email:
+        return 0
+
+    date_joined = getattr(user, "date_joined", None) or timezone.now()
+    window_end = date_joined
+    window_start = window_end - timedelta(days=EXPERT_REGISTERED_USER_LINK_WINDOW_DAYS)
+
+    qualifying_ge = GeneratedEmail.objects.filter(
+        expert_email__iexact=OuterRef("email"),
+        created_date__gte=window_start,
+        created_date__lte=window_end,
+    ).exclude(status=GeneratedEmail.Status.CLOSED)
+
+    return (
+        Expert.objects.filter(
+            email__iexact=email,
+            registered_user__isnull=True,
+        )
+        .filter(Exists(qualifying_ge))
+        .update(registered_user_id=user.id)
+    )
+
+
+def materialize_document_invited_experts_for_user(
+    *, normalized_email: str, user
+) -> None:
+    """
+    Link ``Expert`` rows for this signup email, then create ``DocumentInvitedExpert`` rows
+    for document-backed outreach within INVITE_WINDOW_DAYS.
+    """
+    email = (normalized_email or "").strip().lower()
+    if not email:
+        return
+
+    date_joined = getattr(user, "date_joined", None)
+    if not date_joined:
+        return
+
+    link_experts_registered_user_for_signup(normalized_email=email, user=user)
+
+    candidates = get_document_invite_candidates_for_email(email, date_joined)
+    for unified_document_id, expert_search_id, generated_email_id in candidates:
+        DocumentInvitedExpert.objects.get_or_create(
+            unified_document_id=unified_document_id,
+            user=user,
+            defaults={
+                "expert_search_id": expert_search_id,
+                "generated_email_id": generated_email_id,
+            },
+        )
 
 
 def get_document_invite_candidates_for_email(normalized_email, date_joined):
