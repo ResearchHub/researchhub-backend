@@ -1,9 +1,9 @@
 from datetime import timedelta
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from research_ai.models import DocumentInvitedExpert, ExpertSearch, GeneratedEmail
+from research_ai.models import DocumentInvitedExpert, Expert, ExpertSearch, GeneratedEmail
 from research_ai.services.invited_experts_service import (
     get_document_invite_candidates_for_email,
 )
@@ -151,6 +151,7 @@ class GetDocumentInviteCandidatesForEmailTests(TestCase):
         self.assertEqual(ge_id, ge.id)
 
 
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
 class DocumentInvitedExpertSignalTests(TestCase):
     """Test that creating a User with matching email creates DocumentInvitedExpert."""
 
@@ -191,6 +192,36 @@ class DocumentInvitedExpertSignalTests(TestCase):
         )
         self.assertEqual(records.count(), 1)
         self.assertEqual(records.first().expert_search_id, search.id)
+
+    def test_user_created_sets_expert_registered_user_when_expert_row_exists(self):
+        first_seen = timezone.now() - timedelta(days=2)
+        search = ExpertSearch.objects.create(
+            created_by=self.creator,
+            unified_document_id=self.ud_id,
+            query="Test",
+            status=ExpertSearch.Status.COMPLETED,
+            completed_at=first_seen,
+            expert_results=[],
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.creator,
+            expert_search=search,
+            expert_email="linkedexpert@example.com",
+            created_date=first_seen,
+        )
+        Expert.objects.create(
+            email="linkedexpert@example.com",
+            first_name="Link",
+            last_name="Expert",
+        )
+        new_user = create_user(
+            email="linkedexpert@example.com",
+            first_name="Link",
+            last_name="User",
+        )
+        expert = Expert.objects.get(email="linkedexpert@example.com")
+        expert.refresh_from_db()
+        self.assertEqual(expert.registered_user_id, new_user.id)
 
     def test_user_created_after_7_days_does_not_create_row(self):
         first_seen = timezone.now() - timedelta(days=10)

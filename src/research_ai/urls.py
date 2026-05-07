@@ -24,6 +24,7 @@ from research_ai.views.expert_finder_views_v2 import (
     ExpertDetailViewV2,
     ExpertSearchDetailViewV2,
     ExpertSearchListCreateViewV2,
+    InvitedExpertsDocumentViewV2,
 )
 from research_ai.views.template_views import TemplateDetailView, TemplateListView
 
@@ -53,6 +54,10 @@ urlpatterns = [
     path(
         "expert-finder/v2/experts/<int:expert_id>/",
         ExpertDetailViewV2.as_view(),
+    ),
+    path(
+        "expert-finder/v2/documents/<int:unified_document_id>/invited/",
+        InvitedExpertsDocumentViewV2.as_view(),
     ),
     path(
         "expert-finder/v2/generate-email/",

@@ -261,14 +261,23 @@ class ResearchAIAuthorSerializer(serializers.ModelSerializer):
         return None
 
 
+def _get_user_with_author_payload(user):
+    """
+    Build ``{ user_id, author }`` for a ``User``.
+    Returns ``None`` if ``user`` is None.
+    """
+    if user is None:
+        return None
+    author = getattr(user, "author_profile", None)
+    author_data = ResearchAIAuthorSerializer(author).data if author else None
+    return {"user_id": user.id, "author": author_data}
+
+
 def _get_created_by_payload(obj):
     """
     Build { user_id: int, author: {...} } for list/detail responses.
     """
-    created_by = obj.created_by
-    author = getattr(created_by, "author_profile", None)
-    author_data = ResearchAIAuthorSerializer(author).data if author else None
-    return {"user_id": created_by.id, "author": author_data}
+    return _get_user_with_author_payload(obj.created_by)
 
 
 def resolve_work_for_unified_document(unified_doc, context=None):
@@ -500,6 +509,23 @@ class InvitedExpertSerializer(serializers.Serializer):
         if author is None:
             return None
         return SimpleAuthorSerializer(author).data
+
+    def get_expert_search_id(self, obj):
+        return obj.expert_search_id
+
+    def get_generated_email_id(self, obj):
+        return obj.generated_email_id
+
+
+class InvitedExpertSerializerV2(serializers.Serializer):
+
+    user = serializers.SerializerMethodField()
+    expert_search_id = serializers.SerializerMethodField()
+    generated_email_id = serializers.SerializerMethodField()
+    invited_at = serializers.DateTimeField(source="created_date", read_only=True)
+
+    def get_user(self, obj):
+        return _get_user_with_author_payload(getattr(obj, "user", None))
 
     def get_expert_search_id(self, obj):
         return obj.expert_search_id

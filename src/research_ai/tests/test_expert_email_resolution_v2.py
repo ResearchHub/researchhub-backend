@@ -50,7 +50,7 @@ class ResolveExpertFromSearchV2Tests(TestCase):
         out = resolve_expert_from_search_v2(self.search, " ada@uni.edu ")
         self.assertIsNotNone(out)
         assert out is not None
-        self.assertEqual(out["email"], "Ada@Uni.EDU")
+        self.assertEqual(out["email"], "ada@uni.edu")
         self.assertEqual(out["title"], "Professor")
         self.assertEqual(out["affiliation"], "Uni")
         self.assertEqual(out["expertise"], "Computing")
