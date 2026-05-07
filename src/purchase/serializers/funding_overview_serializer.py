@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 class CurrencyBreakdownSerializer(serializers.Serializer):
     rsc = serializers.FloatField()
+    rsc_usd_snapshot = serializers.FloatField()
     usd = serializers.FloatField()
 
 
@@ -30,9 +31,19 @@ class SupportedProposalSerializer(serializers.Serializer):
     created_by = ProposalCreatorSerializer(allow_null=True)
 
 
+class SupportedNonprofitSerializer(serializers.Serializer):
+    """Subset of ``organizations.models.NonprofitOrg`` for funding overview."""
+
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    ein = serializers.CharField(allow_blank=True)
+    endaoment_org_id = serializers.CharField(allow_blank=True)
+
+
 class FundingOverviewSerializer(serializers.Serializer):
     """Serializer for funding overview response."""
 
     matched_funds = CurrencyBreakdownSerializer()
     distributed_funds = CurrencyBreakdownSerializer()
     supported_proposals = SupportedProposalSerializer(many=True)
+    supported_nonprofits = SupportedNonprofitSerializer(many=True)

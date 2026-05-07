@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import F, Q, Sum
+from django.db.models import Exists, F, OuterRef, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -21,6 +21,7 @@ from rest_framework.response import Response
 from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
+from purchase.related_models.grant_model import Grant
 from reputation.models import Distribution
 from reputation.serializers import (
     DynamicBountySerializer,
@@ -49,9 +50,19 @@ from utils.http import POST, RequestMethods
 
 
 class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
-    queryset = User.objects.select_related(
-        "userverification",
-    ).filter(is_suspended=False)
+    queryset = (
+        User.objects.select_related("userverification")
+        .annotate(
+            is_funder=Exists(
+                Grant.objects.filter(
+                    created_by=OuterRef("pk"),
+                    status__in=[Grant.OPEN, Grant.COMPLETED],
+                    unified_document__is_removed=False,
+                )
+            ),
+        )
+        .filter(is_suspended=False)
+    )
     serializer_class = UserEditableSerializer
     permission_classes = [IsAuthenticatedOrReadOnly, DeleteUserPermission]
     filter_backends = (DjangoFilterBackend,)

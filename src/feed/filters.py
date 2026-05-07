@@ -219,7 +219,10 @@ class FundOrderingFilter(OrderingFilter):
             return queryset.annotate(
                 application_count=Count(
                     "unified_document__grants__applications",
-                    distinct=True
+                    distinct=True,
+                    filter=Q(
+                        unified_document__grants__applications__preregistration_post__unified_document__is_removed=False
+                    ),
                 )
             ).order_by("-application_count", "-created_date")
         else:

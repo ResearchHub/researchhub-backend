@@ -1,12 +1,13 @@
 from django.core.cache import cache
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import Prefetch, Q, Sum
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from ai_peer_review.models import ProposalReview
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
@@ -22,6 +23,15 @@ class GrantViewSet(viewsets.ModelViewSet):
     queryset = Grant.objects.all()
     serializer_class = DynamicGrantSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return qs.prefetch_related(
+            Prefetch(
+                "proposal_reviews",
+                queryset=ProposalReview.objects.prefetch_related("key_insight__items"),
+            ),
+        )
 
     def dispatch(self, request, *args, **kwargs):
         self.grant_service = kwargs.pop("grant_service", GrantModerationService())
@@ -137,9 +147,7 @@ class GrantViewSet(viewsets.ModelViewSet):
         reason_choice = request.data.get("reason_choice", "")
 
         try:
-            self.grant_service.decline_grant(
-                grant, request.user, reason, reason_choice
-            )
+            self.grant_service.decline_grant(grant, request.user, reason, reason_choice)
         except ValueError as e:
             return Response({"message": str(e)}, status=400)
 
@@ -297,4 +305,3 @@ class GrantViewSet(viewsets.ModelViewSet):
         }
         cache.set(cache_key, data, timeout=60 * 60 * 12)
         return Response(data)
-
