@@ -2,7 +2,12 @@ from rest_framework import serializers
 
 from feed.serializers import SimpleAuthorSerializer
 from paper.serializers import PaperSerializer
-from research_ai.constants import ExpertiseLevel, Gender, Region
+from research_ai.constants import (
+    EXPERT_FINDER_DEFAULT_STATE,
+    ExpertiseLevel,
+    Gender,
+    Region,
+)
 from research_ai.models import (
     EmailTemplate,
     Expert,
@@ -715,6 +720,11 @@ class EmailTemplateCreateSerializer(serializers.Serializer):
 
 
 class EmailTemplateUpdateSerializer(serializers.Serializer):
+    """Partial update for EmailTemplate."""
+
+    name = serializers.CharField(max_length=255, required=False, allow_blank=False)
+    email_subject = serializers.CharField(required=False, allow_blank=True)
+    email_body = serializers.CharField(required=False, allow_blank=True)
     """Partial update for EmailTemplate."""
 
     name = serializers.CharField(max_length=255, required=False, allow_blank=False)
