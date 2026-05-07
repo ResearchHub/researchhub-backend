@@ -8,7 +8,13 @@ from django.core.validators import EmailValidator
 
 from paper.tasks.tasks import create_download_url
 from paper.utils import download_pdf_from_url
-from research_ai.constants import MAX_PDF_SIZE_BYTES, ExpertiseLevel, Gender, Region
+from research_ai.constants import (
+    EXPERT_FINDER_DEFAULT_STATE,
+    MAX_PDF_SIZE_BYTES,
+    ExpertiseLevel,
+    Gender,
+    Region,
+)
 from research_ai.models import ExpertSearch
 from research_ai.prompts.expert_finder_prompts import (
     build_system_prompt,
@@ -223,7 +229,7 @@ class ExpertFinderService:
             else:
                 expertise_level = [ExpertiseLevel.ALL_LEVELS]
             region_filter = config.get("region", Region.ALL_REGIONS)
-            state_filter = config.get("state", "All States")
+            state_filter = config.get("state", EXPERT_FINDER_DEFAULT_STATE)
             gender_filter = config.get("gender", Gender.ALL_GENDERS)
             excluded = excluded_expert_names or []
             target_expert_count = max(0, int(expert_count))

@@ -7,7 +7,7 @@ class ExpertDisplay:
     """
 
     @staticmethod
-    def build_display_name(
+    def build_name(
         *,
         honorific: str = "",
         first_name: str = "",
@@ -46,12 +46,21 @@ class ExpertDisplay:
     @staticmethod
     def display_name_for(expert: Expert) -> str:
         """Build display name from an Expert model instance."""
-        return ExpertDisplay.build_display_name(
+        return ExpertDisplay.build_name(
             honorific=expert.honorific,
             first_name=expert.first_name,
             middle_name=expert.middle_name,
             last_name=expert.last_name,
             name_suffix=expert.name_suffix,
+        )
+
+    @staticmethod
+    def personal_name_for(expert: Expert) -> str:
+        """First, middle, and last from an ``Expert`` only."""
+        return ExpertDisplay.build_name(
+            first_name=expert.first_name,
+            middle_name=expert.middle_name,
+            last_name=expert.last_name,
         )
 
     @staticmethod

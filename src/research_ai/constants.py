@@ -37,6 +37,10 @@ class Gender(models.TextChoices):
     ALL_GENDERS = "all_genders", "All Genders"
 
 
+# Sentinel US state filter: no state narrowing (matches API / frontend default).
+EXPERT_FINDER_DEFAULT_STATE = "All States"
+
+
 def get_choice_label(value: str, enum_class: type) -> str:
     """Return human-readable label for a choice value (e.g. for display in PDF/UI)."""
     for choice in enum_class:
