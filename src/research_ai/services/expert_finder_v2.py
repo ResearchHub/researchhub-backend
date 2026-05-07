@@ -212,14 +212,9 @@ class ExpertFinderServiceV2(ExpertFinderService):
             accumulated: list[dict[str, Any]] = []
             all_filtered_by_exclusion = False
 
-            # Each round: one model call asking for (remaining + reserve) experts in
-            # the prompt—more than the gap we need, so dedupes still let us fill—then
-            # parse/filter/dedupe and merge into `accumulated`. We iterate a
-            # fixed maximum number of rounds (not "one round per expert") because a
-            # single response can return many rows; rounds exist to recover when the
-            # first batch is thin after validation. Stops early when we hit the target,
-            # when a round adds no new unique experts, or when the "near target"
-            # tolerance applies (large targets only).
+            # Each round: model → parse/filter → ``dedupe(batch)``, then merge with
+            # ``dedupe(accumulated + batch)`` so the first time we see an email wins
+            # across rounds. Stops on target, no new uniques, or near-target tolerance.
             for round_num in range(1, EXPERT_FILL_MAX_ROUNDS + 1):
                 if len(accumulated) >= target_expert_count:
                     break
@@ -310,7 +305,13 @@ class ExpertFinderServiceV2(ExpertFinderService):
                 batch = [r for r in kept if not self._expert_row_suggests_deceased(r)]
 
                 batch = self._dedupe_experts_by_normalized_email(batch)
-                accumulated.extend(batch)
+
+                acc_before = len(accumulated)
+                accumulated = self._dedupe_experts_by_normalized_email(
+                    accumulated + batch
+                )
+                if len(accumulated) == acc_before:
+                    break
 
                 if len(accumulated) >= target_expert_count:
                     break
