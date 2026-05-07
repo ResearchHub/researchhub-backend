@@ -2,7 +2,12 @@ from rest_framework import serializers
 
 from feed.serializers import SimpleAuthorSerializer
 from paper.serializers import PaperSerializer
-from research_ai.constants import ExpertiseLevel, Gender, Region
+from research_ai.constants import (
+    EXPERT_FINDER_DEFAULT_STATE,
+    ExpertiseLevel,
+    Gender,
+    Region,
+)
 from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import ResearchhubPostSerializer
@@ -48,7 +53,7 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
         choices=Region.choices,
         default=Region.ALL_REGIONS,
     )
-    state = serializers.CharField(default="All States")
+    state = serializers.CharField(default=EXPERT_FINDER_DEFAULT_STATE)
     gender = serializers.ChoiceField(
         choices=Gender.choices,
         default=Gender.ALL_GENDERS,
@@ -69,7 +74,7 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
         else:
             attrs["expertise_level"] = list(expertise_level)
         attrs["region"] = attrs.get("region") or Region.ALL_REGIONS
-        attrs["state"] = attrs.get("state", "All States")
+        attrs["state"] = attrs.get("state", EXPERT_FINDER_DEFAULT_STATE)
         attrs["gender"] = attrs.get("gender") or Gender.ALL_GENDERS
         return attrs
 

@@ -12,7 +12,12 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from research_ai.constants import ExpertiseLevel, Region, get_choice_label
+from research_ai.constants import (
+    EXPERT_FINDER_DEFAULT_STATE,
+    ExpertiseLevel,
+    Region,
+    get_choice_label,
+)
 from research_ai.models import Expert
 from research_ai.services.expert_display import ExpertDisplay
 
@@ -179,7 +184,7 @@ def generate_pdf_report(
             )
         region_val = config.get("region", Region.ALL_REGIONS)
         region = get_choice_label(region_val, Region)
-        state = config.get("state", "All States")
+        state = config.get("state", EXPERT_FINDER_DEFAULT_STATE)
         config_text = (
             f"• Expert Count: {expert_count}<br/>"
             f"• Expertise Level: {expertise_level}<br/>"

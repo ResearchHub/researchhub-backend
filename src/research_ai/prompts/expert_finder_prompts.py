@@ -1,6 +1,12 @@
 import os
 
-from research_ai.constants import ExpertiseLevel, Gender, Region, get_choice_label
+from research_ai.constants import (
+    EXPERT_FINDER_DEFAULT_STATE,
+    ExpertiseLevel,
+    Gender,
+    Region,
+    get_choice_label,
+)
 
 # Descriptions for prompt building; keys are choice values from constants.
 EXPERTISE_DESCRIPTIONS: dict[str, str] = {
@@ -92,7 +98,7 @@ def build_system_prompt(
     expert_count: int,
     expertise_level: list[str] | str,
     region_filter: str,
-    state_filter: str = "All States",
+    state_filter: str = EXPERT_FINDER_DEFAULT_STATE,
     gender_filter: str = "all_genders",
     excluded_expert_names: list[str] | None = None,
 ) -> str:
@@ -121,7 +127,7 @@ def build_system_prompt(
         )
 
     state_instruction = ""
-    if region_filter == Region.US and state_filter != "All States":
+    if region_filter == Region.US and state_filter != EXPERT_FINDER_DEFAULT_STATE:
         state_instruction = (
             f"\n\n## US State-Specific Targeting\n"
             f"Further narrow your search to experts affiliated with institutions "
@@ -211,7 +217,7 @@ def build_system_prompt_v2(
     expert_count: int,
     expertise_level: list[str] | str,
     region_filter: str,
-    state_filter: str = "All States",
+    state_filter: str = EXPERT_FINDER_DEFAULT_STATE,
     excluded_expert_names: list[str] | None = None,
 ) -> str:
     """Build the system prompt for the expert finder v2."""
@@ -236,7 +242,7 @@ def build_system_prompt_v2(
         )
 
     state_instruction = ""
-    if region_filter == Region.US and state_filter != "All States":
+    if region_filter == Region.US and state_filter != EXPERT_FINDER_DEFAULT_STATE:
         state_instruction = (
             f"\n\n## US State-Specific Targeting\n"
             f"Further narrow your search to experts affiliated with institutions "

@@ -2,7 +2,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from research_ai.constants import ExpertiseLevel, Region
+from research_ai.constants import EXPERT_FINDER_DEFAULT_STATE, ExpertiseLevel, Region
 from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.prompts.expert_finder_prompts import (
     build_system_prompt_v2,
@@ -27,19 +27,19 @@ from research_ai.services.report_generator_service import (
 
 logger = logging.getLogger(__name__)
 
-V2_PROMPT_EXPERT_RESERVE_PCT = 0.1
+# Extra percent to request beyond remaining need (10 → ask for ceil(need × 110%)).
+PROMPT_EXPERT_HEADROOM_PCT = 10
 
 
 def _prompt_expert_count_for_round(remaining: int) -> int:
     """
     How many experts to ask for in system/user prompts for this fill round.
 
-    We ask for ~10% more (rounded up) to absorb duplicates that are dropped in deduplication.
+    Remaining need (at least 1), scaled by ``(100 + PROMPT_EXPERT_HEADROOM_PCT) / 100``
+    rounded up, so deduplication / validation drops still leave enough rows.
     """
-    base = max(1, remaining)
-    p_ct = int(round(100 * V2_PROMPT_EXPERT_RESERVE_PCT))
-    with_headroom = (base * (100 + p_ct) + 99) // 100
-    return max(base, with_headroom)
+    need = max(1, remaining)
+    return (need * (100 + PROMPT_EXPERT_HEADROOM_PCT) + 99) // 100
 
 
 def clear_expert_search_links(expert_search_id: int) -> None:
@@ -207,7 +207,7 @@ class ExpertFinderServiceV2(ExpertFinderService):
             else:
                 expertise_level = [ExpertiseLevel.ALL_LEVELS]
             region_filter = config.get("region", Region.ALL_REGIONS)
-            state_filter = config.get("state", "All States")
+            state_filter = config.get("state", EXPERT_FINDER_DEFAULT_STATE)
             llm_response = ""
             accumulated: list[dict[str, Any]] = []
             all_filtered_by_exclusion = False

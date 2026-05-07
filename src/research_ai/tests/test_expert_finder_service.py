@@ -11,10 +11,7 @@ from research_ai.services.expert_finder_service import (
     _get_paper_pdf_bytes,
     get_document_content,
 )
-from research_ai.services.expert_finder_v2 import (
-    _prompt_expert_count_for_round,
-    run_v2_expert_search,
-)
+from research_ai.services.expert_finder_v2 import run_v2_expert_search
 from research_ai.services.openai_expert_finder_service import OPENAI_EXPERT_FINDER_MODEL
 from user.tests.helpers import create_random_authenticated_user
 
