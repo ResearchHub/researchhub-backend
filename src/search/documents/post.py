@@ -162,4 +162,4 @@ class PostDocument(BaseDocument):
 
     @override
     def should_index_object(self, obj) -> bool:  # type: ignore[override]
-        return not obj.is_removed
+        return not obj.is_removed and obj.unified_document.is_public

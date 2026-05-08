@@ -28,6 +28,7 @@ from researchhub_document.related_models.researchhub_post_model import (
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from user.models import Action
 from user.tests.helpers import make_user_verified
 from utils.test_helpers import AWSMockTestCase
 
@@ -93,6 +94,32 @@ class PrivatePreregistrationCreateTests(AWSMockTestCase):
         self.assertEqual(response.status_code, 200)
         post = ResearchhubPost.objects.get(id=response.data["id"])
         self.assertFalse(post.unified_document.is_public)
+
+    def test_is_public_false_string_marks_unified_doc_private(self):
+        response = self.client.post(
+            "/api/researchhubpost/",
+            self._payload(is_public="false"),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        post = ResearchhubPost.objects.get(id=response.data["id"])
+        self.assertFalse(post.unified_document.is_public)
+
+    def test_private_preregistration_action_is_hidden(self):
+        response = self.client.post(
+            "/api/researchhubpost/",
+            self._payload(is_public=False),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        post = ResearchhubPost.objects.get(id=response.data["id"])
+        action = Action.objects.get(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+        )
+        self.assertFalse(action.display)
 
     def test_is_public_false_ignored_for_non_preregistration(self):
         response = self.client.post(
@@ -301,6 +328,18 @@ class FundingFeedPrivacyTests(AWSMockTestCase):
         response = client.get(reverse("funding_feed-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn(self.private_post.id, self._ids(response))
+
+    def test_authenticated_private_response_not_cached_for_anonymous(self):
+        author_client = APIClient()
+        author_client.force_authenticate(self.author)
+        author_response = author_client.get(reverse("funding_feed-list"))
+        self.assertEqual(author_response.status_code, status.HTTP_200_OK)
+        self.assertIn(self.private_post.id, self._ids(author_response))
+
+        anonymous_client = APIClient()
+        anonymous_response = anonymous_client.get(reverse("funding_feed-list"))
+        self.assertEqual(anonymous_response.status_code, status.HTTP_200_OK)
+        self.assertNotIn(self.private_post.id, self._ids(anonymous_response))
 
 
 class FeedEntrySuppressionTests(AWSMockTestCase):

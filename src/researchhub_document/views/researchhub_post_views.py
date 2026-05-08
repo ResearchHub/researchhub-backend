@@ -539,13 +539,15 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             request_data = request.data
             hubs = Hub.objects.filter(id__in=request_data.get("hubs", [])).all()
             document_type = request_data.get("document_type")
-            is_public = request_data.get("is_public", True)
+            is_public = True
             # Only PREREGISTRATION posts may be created as private today.
-            if document_type != PREREGISTRATION:
-                is_public = True
+            if document_type == PREREGISTRATION:
+                is_public = serializers.BooleanField().run_validation(
+                    request_data.get("is_public", True)
+                )
             uni_doc = ResearchhubUnifiedDocument.objects.create(
                 document_type=document_type,
-                is_public=bool(is_public),
+                is_public=is_public,
             )
             uni_doc.hubs.add(*hubs)
             uni_doc.save()

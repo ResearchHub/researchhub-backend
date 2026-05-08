@@ -69,3 +69,13 @@ class PostDocumentTests(TestCase):
 
         self.assertEqual(result, 0)
 
+    def test_should_index_object_excludes_private_unified_document(self):
+        post = self._create_post("Private Post")
+        post.unified_document.is_public = False
+
+        self.assertFalse(self.document.should_index_object(post))
+
+    def test_should_index_object_includes_public_unremoved_post(self):
+        post = self._create_post("Public Post")
+
+        self.assertTrue(self.document.should_index_object(post))

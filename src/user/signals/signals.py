@@ -62,6 +62,10 @@ def create_action(sender, instance, created, **kwargs):
                     and (hasattr(instance, "is_removed") and instance.is_removed)
                 )
                 or (sender == RhCommentModel and not instance.is_public)
+                or (
+                    sender == ResearchhubPost
+                    and not instance.unified_document.is_public
+                )
                 or (sender == Bounty and instance.parent)  # Only show parent bounties
             )
             else True
