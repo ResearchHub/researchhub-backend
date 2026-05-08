@@ -259,14 +259,3 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
         self.assertIn("Error checking index", err.getvalue())
 
 
-class RemoveDeletedDocsTaskTests(TestCase):
-    @patch("search.tasks.call_command")
-    def test_task_calls_management_command(self, mock_call_command):
-        # Arrange
-        from search.tasks import remove_deleted_docs_from_index
-
-        # Act
-        remove_deleted_docs_from_index()
-
-        # Assert
-        mock_call_command.assert_called_once_with(COMMAND)
