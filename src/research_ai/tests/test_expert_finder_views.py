@@ -25,8 +25,8 @@ class ExpertSearchListCreateViewTests(APITestCase):
         response = self.client.post(self.url, {"query": "ML"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @patch("research_ai.views.expert_finder_views_v2.get_document_content")
-    @patch("research_ai.views.expert_finder_views_v2.run_expert_finder_search_v2.delay")
+    @patch("research_ai.views.expert_finder_views.get_document_content")
+    @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")
     def test_create_with_document_returns_201(
         self, mock_delay, mock_get_document_content
     ):
@@ -53,8 +53,8 @@ class ExpertSearchListCreateViewTests(APITestCase):
         self.assertEqual(search.created_by, self.moderator)
         mock_delay.assert_called_once()
 
-    @patch("research_ai.views.expert_finder_views_v2.get_document_content")
-    @patch("research_ai.views.expert_finder_views_v2.run_expert_finder_search_v2.delay")
+    @patch("research_ai.views.expert_finder_views.get_document_content")
+    @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")
     def test_create_persists_additional_context_and_passes_to_task(
         self, mock_delay, mock_get_document_content
     ):

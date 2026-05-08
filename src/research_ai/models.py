@@ -57,11 +57,6 @@ class ExpertSearch(DefaultModel):
         blank=True,
         db_comment="Expert count, expertise_level, region, state, gender, etc.",
     )
-    excluded_expert_names = models.JSONField(
-        default=list,
-        blank=True,
-        db_comment="Expert full names to exclude (multiple runs on same doc).",
-    )
     excluded_search_ids = models.JSONField(
         default=list,
         blank=True,
@@ -83,11 +78,6 @@ class ExpertSearch(DefaultModel):
     )
     progress = models.IntegerField(default=0)  # 0-100
     current_step = models.CharField(max_length=512, blank=True)
-    expert_results = models.JSONField(
-        default=list,
-        blank=True,
-        db_comment="Expert dicts: name, title, affiliation, expertise, email, notes, sources.",
-    )
     expert_count = models.IntegerField(default=0)
     report_pdf_url = models.URLField(max_length=2048, blank=True)
     report_csv_url = models.URLField(max_length=2048, blank=True)
@@ -296,64 +286,6 @@ class GeneratedEmail(DefaultModel):
 
     def __str__(self):
         return f"GeneratedEmail {self.id} ({self.expert_name})"
-
-
-class DocumentInvitedExpert(DefaultModel):
-    """
-    Materialized "invited" experts per unified document.
-    """
-
-    unified_document = models.ForeignKey(
-        ResearchhubUnifiedDocument,
-        on_delete=models.CASCADE,
-        related_name="document_invited_experts",
-    )
-    user = models.ForeignKey(
-        "user.User",
-        on_delete=models.CASCADE,
-        related_name="document_invited_expert_records",
-    )
-    expert_search = models.ForeignKey(
-        ExpertSearch,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="document_invited_experts",
-        db_comment="Search that surfaced this expert for this document.",
-    )
-    generated_email = models.ForeignKey(
-        GeneratedEmail,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="document_invited_experts",
-        db_comment="Generated email if invite tied to one; null if only in expert_results.",
-    )
-
-    class Meta:
-        db_table = "research_ai_document_invited_expert"
-        ordering = ["-created_date"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["unified_document", "user"],
-                name="research_ai_die_doc_user_unique",
-            ),
-        ]
-        indexes = [
-            models.Index(
-                fields=["unified_document"],
-                name="research_ai_die_unified_doc",
-            ),
-            models.Index(
-                fields=["expert_search"],
-                name="research_ai_die_expert_search",
-            ),
-        ]
-
-    def __str__(self):
-        return (
-            f"DocumentInvitedExpert doc={self.unified_document_id} user={self.user_id}"
-        )
 
 
 class EmailTemplate(DefaultModel):

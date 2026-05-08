@@ -24,7 +24,7 @@ def on_user_created_maybe_add_document_invited_expert(
 ):
     """
     When a new user is created, enqueue work to link ``Expert.registered_user`` when
-    outreach qualifies and to add ``DocumentInvitedExpert`` rows for matching documents.
+    outreach qualifies.
     """
     if not created:
         return

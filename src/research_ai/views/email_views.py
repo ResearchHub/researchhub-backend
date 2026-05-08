@@ -106,7 +106,7 @@ def _stored_template_for_bulk(request_data: dict, validated_data: dict) -> str |
 
 
 class GenerateEmailView(APIView):
-    """POST /api/research_ai/expert-finder/generate-email/ - Generate outreach email via LLM and save as draft."""
+    """POST /api/research_ai/expert-finder/generate-email/ — generate outreach email and save as draft."""
 
     permission_classes = [
         IsAuthenticated,
@@ -157,12 +157,6 @@ class GenerateEmailView(APIView):
                 {"detail": str(e)},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-
-        # Optional: generate-only (no save) via query param save=false or action=generate
-        save_param = request.query_params.get("save", "true").lower()
-        action_param = request.query_params.get("action", "").lower()
-        if save_param == "false" or action_param == "generate":
-            return Response({"subject": subject, "body": body})
 
         stored_template = None if template_key is None else template_key
         email_record = GeneratedEmail.objects.create(

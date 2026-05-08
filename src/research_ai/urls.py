@@ -1,40 +1,36 @@
 from django.urls import path
 
 from research_ai.views.email_views import (
+    BulkGenerateEmailView,
     GeneratedEmailDetailView,
     GeneratedEmailListView,
+    GenerateEmailView,
     PreviewEmailView,
     SendEmailView,
 )
-from research_ai.views.email_views_v2 import (
-    BulkGenerateEmailViewV2,
-    GenerateEmailViewV2,
-)
 from research_ai.views.expert_finder_views import (
+    ExpertDetailView,
+    ExpertSearchDetailView,
+    ExpertSearchListCreateView,
     ExpertSearchProgressStreamView,
     ExpertSearchWorkView,
-)
-from research_ai.views.expert_finder_views_v2 import (
-    ExpertDetailViewV2,
-    ExpertSearchDetailViewV2,
-    ExpertSearchListCreateViewV2,
-    InvitedExpertsDocumentViewV2,
+    InvitedExpertsDocumentView,
 )
 from research_ai.views.template_views import TemplateDetailView, TemplateListView
 
 urlpatterns = [
-    path("expert-finder/searches/", ExpertSearchListCreateViewV2.as_view()),
+    path("expert-finder/searches/", ExpertSearchListCreateView.as_view()),
     path(
         "expert-finder/searches/<int:search_id>/",
-        ExpertSearchDetailViewV2.as_view(),
+        ExpertSearchDetailView.as_view(),
     ),
     path(
         "expert-finder/experts/<int:expert_id>/",
-        ExpertDetailViewV2.as_view(),
+        ExpertDetailView.as_view(),
     ),
     path(
         "expert-finder/documents/<int:unified_document_id>/invited/",
-        InvitedExpertsDocumentViewV2.as_view(),
+        InvitedExpertsDocumentView.as_view(),
     ),
     path(
         "expert-finder/work/<int:unified_document_id>/",
@@ -44,10 +40,10 @@ urlpatterns = [
         "expert-finder/progress/<int:search_id>/",
         ExpertSearchProgressStreamView.as_view(),
     ),
-    path("expert-finder/generate-email/", GenerateEmailViewV2.as_view()),
+    path("expert-finder/generate-email/", GenerateEmailView.as_view()),
     path(
         "expert-finder/generate-emails-bulk/",
-        BulkGenerateEmailViewV2.as_view(),
+        BulkGenerateEmailView.as_view(),
     ),
     path(
         "expert-finder/emails/",
