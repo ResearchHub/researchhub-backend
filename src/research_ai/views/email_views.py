@@ -21,7 +21,8 @@ from research_ai.serializers import (
 from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.email_sending_service import send_plain_email
 from research_ai.services.email_template_variables import format_expert_name_from_raw
-from research_ai.services.rfp_email_context import resolve_expert_from_search
+from research_ai.services.expert_display import ExpertDisplay
+from research_ai.services.rfp_email_context import get_expert_for_search_by_email
 from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
 from user.permissions import IsModerator, UserIsEditor
 
@@ -127,12 +128,13 @@ class GenerateEmailView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        resolved = resolve_expert_from_search(expert_search, data["expert_email"])
-        if not resolved:
+        expert = get_expert_for_search_by_email(expert_search, data["expert_email"])
+        if not expert:
             return Response(
                 {"detail": "Expert not found in search results for this email."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        resolved = ExpertDisplay.email_generation_dict(expert)
 
         template_key, custom_use_case = _resolve_generate_llm_params(request.data, data)
         template_id = data.get("template_id")
@@ -163,15 +165,15 @@ class GenerateEmailView(APIView):
             created_by=request.user,
             expert_search=expert_search,
             expert_name=format_expert_name_from_raw(resolved.get("name") or ""),
-            expert_title=resolved.get("title") or "",
-            expert_affiliation=resolved.get("affiliation") or "",
-            expert_email=(resolved.get("email") or "").strip(),
-            expertise=resolved.get("expertise") or "",
+            expert_title=expert.academic_title or "",
+            expert_affiliation=expert.affiliation or "",
+            expert_email=(expert.email or "").strip(),
+            expertise=expert.expertise or "",
             email_subject=subject,
             email_body=body,
             template=stored_template,
             status="draft",
-            notes=resolved.get("notes") or "",
+            notes=expert.notes or "",
         )
 
         out = GeneratedEmailSerializer(email_record)
@@ -205,28 +207,27 @@ class BulkGenerateEmailView(APIView):
         try:
             with transaction.atomic():
                 for item in data["experts"]:
-                    resolved = resolve_expert_from_search(
+                    expert = get_expert_for_search_by_email(
                         expert_search, item["expert_email"]
                     )
-                    if not resolved:
+                    if not expert:
                         raise ValueError(
                             f"Expert not found in search results: {item['expert_email']}."
                         )
+                    ctx = ExpertDisplay.email_generation_dict(expert)
                     email_record = GeneratedEmail.objects.create(
                         created_by=request.user,
                         expert_search=expert_search,
-                        expert_name=format_expert_name_from_raw(
-                            resolved.get("name") or ""
-                        ),
-                        expert_title=resolved.get("title") or "",
-                        expert_affiliation=resolved.get("affiliation") or "",
-                        expert_email=(resolved.get("email") or "").strip(),
-                        expertise=resolved.get("expertise") or "",
+                        expert_name=format_expert_name_from_raw(ctx.get("name") or ""),
+                        expert_title=expert.academic_title or "",
+                        expert_affiliation=expert.affiliation or "",
+                        expert_email=(expert.email or "").strip(),
+                        expertise=expert.expertise or "",
                         email_subject="",
                         email_body="",
                         template=stored_template,
                         status=GeneratedEmail.Status.PROCESSING,
-                        notes=resolved.get("notes") or "",
+                        notes=expert.notes or "",
                     )
                     placeholders.append(email_record)
         except ValueError as e:

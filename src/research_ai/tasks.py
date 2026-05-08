@@ -8,10 +8,10 @@ from research_ai.models import ExpertSearch, GeneratedEmail
 from research_ai.services import expert_finder_service as expert_finder_service_mod
 from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.email_sending_service import send_plain_email
+from research_ai.services.expert_display import ExpertDisplay
 from research_ai.services.expert_persist import ExpertPersist
-from research_ai.services.invited_experts_service import (
-    materialize_document_invited_experts_for_user,
-)
+from research_ai.services.invited_experts_service import link_experts_for_new_user
+from research_ai.services.rfp_email_context import get_expert_for_search_by_email
 from researchhub.celery import app
 from user.models import User
 from utils import sentry
@@ -135,7 +135,7 @@ def _finalize_expert_search_in_db(
 
 
 @app.task
-def materialize_document_invited_experts_async(
+def link_experts_after_signup(
     normalized_email: str,
     user_id: int,
 ) -> None:
@@ -147,11 +147,11 @@ def materialize_document_invited_experts_async(
         user = User.objects.get(pk=user_id)
     except User.DoesNotExist:
         logger.warning(
-            "materialize_document_invited_experts_async: user_id=%s not found",
+            "link_experts_after_signup: user_id=%s not found",
             user_id,
         )
         return
-    materialize_document_invited_experts_for_user(
+    link_experts_for_new_user(
         normalized_email=normalized_email,
         user=user,
     )
@@ -279,6 +279,25 @@ def _get_bulk_emails_task_context(
     return (user, template_key, custom_use_case)
 
 
+def _resolved_expert_dict_for_bulk(rec: GeneratedEmail) -> dict:
+    """
+    Prefer live ``Expert`` on the search; fall back to denormalized ``GeneratedEmail``.
+    """
+    es = rec.expert_search
+    if es and rec.expert_email:
+        expert = get_expert_for_search_by_email(es, rec.expert_email)
+        if expert is not None:
+            return ExpertDisplay.email_generation_dict(expert)
+    return {
+        "name": rec.expert_name or "",
+        "title": rec.expert_title or "",
+        "affiliation": rec.expert_affiliation or "",
+        "expertise": rec.expertise or "",
+        "email": (rec.expert_email or "").strip(),
+        "notes": rec.notes or "",
+    }
+
+
 def _process_one_bulk_email(
     email_id: int,
     template_key: str | None,
@@ -300,14 +319,7 @@ def _process_one_bulk_email(
     if not rec:
         return 0, 0
     try:
-        resolved_expert = {
-            "name": rec.expert_name or "",
-            "title": rec.expert_title or "",
-            "affiliation": rec.expert_affiliation or "",
-            "expertise": rec.expertise or "",
-            "email": rec.expert_email or "",
-            "notes": rec.notes or "",
-        }
+        resolved_expert = _resolved_expert_dict_for_bulk(rec)
         subject, body = generate_expert_email(
             resolved_expert=resolved_expert,
             template=template_key,

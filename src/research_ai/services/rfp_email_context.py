@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from research_ai.constants import BASE_FRONTEND_URL
-from research_ai.models import ExpertSearch, SearchExpert
+from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.services.expert_display import ExpertDisplay
 
 logger = logging.getLogger(__name__)
@@ -89,13 +89,16 @@ def build_rfp_context(grant, description_snippet_length: int = 500) -> dict:
         return {}
 
 
-def resolve_expert_from_search(expert_search, expert_email: str) -> dict | None:
+def get_expert_for_search_by_email(
+    expert_search: ExpertSearch | None, expert_email: str
+) -> Expert | None:
     """
-    Resolve one expert on the search (``SearchExpert`` / ``Expert``) by email for
-    email generation. Returns dict with name, title, affiliation, expertise, email, notes.
+    Return the ``Expert`` linked to this search (via ``SearchExpert``) for the given
+    email, or ``None`` if not found.
     """
     if expert_search is None:
         return None
+
     email = ExpertDisplay.normalize_email(expert_email)
     if not email:
         return None
@@ -107,15 +110,7 @@ def resolve_expert_from_search(expert_search, expert_email: str) -> dict | None:
     )
     if se is None:
         return None
-    ex = se.expert
-    return {
-        "name": ExpertDisplay.personal_name_for(ex),
-        "title": (ex.academic_title or "").strip(),
-        "affiliation": (ex.affiliation or "").strip(),
-        "expertise": (ex.expertise or "").strip(),
-        "email": (ex.email or "").strip(),
-        "notes": (ex.notes or "").strip(),
-    }
+    return se.expert
 
 
 def resolve_grant(*, expert_search: ExpertSearch | None = None):

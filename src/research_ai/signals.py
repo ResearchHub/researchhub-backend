@@ -8,7 +8,7 @@ from django.utils.dateparse import parse_datetime
 from django_ses.signals import bounce_received, open_received
 
 from research_ai.models import GeneratedEmail
-from research_ai.tasks import materialize_document_invited_experts_async
+from research_ai.tasks import link_experts_after_signup
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -17,11 +17,9 @@ logger = logging.getLogger(__name__)
 @receiver(
     post_save,
     sender=User,
-    dispatch_uid="research_ai_document_invited_expert_on_user_created",
+    dispatch_uid="link_experts_on_user_created",
 )
-def on_user_created_maybe_add_document_invited_expert(
-    sender, instance, created, **kwargs
-):
+def on_user_created_link_experts(sender, instance, created, **kwargs):
     """
     When a new user is created, enqueue work to link ``Expert.registered_user`` when
     outreach qualifies.
@@ -32,7 +30,7 @@ def on_user_created_maybe_add_document_invited_expert(
     if not email:
         return
     normalized = email.lower()
-    materialize_document_invited_experts_async.delay(
+    link_experts_after_signup.delay(
         normalized_email=normalized,
         user_id=instance.pk,
     )

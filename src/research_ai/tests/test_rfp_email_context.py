@@ -7,10 +7,11 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase
 
 from research_ai.models import Expert, ExpertSearch, SearchExpert
+from research_ai.services.expert_display import ExpertDisplay
 from research_ai.services.rfp_email_context import (
     build_rfp_context,
+    get_expert_for_search_by_email,
     get_grant_frontend_url,
-    resolve_expert_from_search,
     resolve_grant,
 )
 from user.tests.helpers import create_random_authenticated_user
@@ -126,12 +127,12 @@ class BuildRfpContextTests(TestCase):
         self.assertEqual(build_rfp_context(grant), {})
 
 
-class ResolveExpertFromSearchTests(TestCase):
+class GetExpertForSearchByEmailTests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("resolve_user")
 
     def test_returns_none_when_expert_search_none(self):
-        self.assertIsNone(resolve_expert_from_search(None, "a@b.com"))
+        self.assertIsNone(get_expert_for_search_by_email(None, "a@b.com"))
 
     def test_returns_none_when_no_search_expert_rows(self):
         search = ExpertSearch.objects.create(
@@ -139,7 +140,7 @@ class ResolveExpertFromSearchTests(TestCase):
             query="Q",
             status=ExpertSearch.Status.COMPLETED,
         )
-        self.assertIsNone(resolve_expert_from_search(search, "a@b.com"))
+        self.assertIsNone(get_expert_for_search_by_email(search, "a@b.com"))
 
     def test_returns_none_when_email_empty(self):
         ex = Expert.objects.create(
@@ -153,8 +154,8 @@ class ResolveExpertFromSearchTests(TestCase):
             status=ExpertSearch.Status.COMPLETED,
         )
         SearchExpert.objects.create(expert_search=search, expert=ex, position=0)
-        self.assertIsNone(resolve_expert_from_search(search, ""))
-        self.assertIsNone(resolve_expert_from_search(search, "   "))
+        self.assertIsNone(get_expert_for_search_by_email(search, ""))
+        self.assertIsNone(get_expert_for_search_by_email(search, "   "))
 
     def test_returns_expert_when_email_matches(self):
         ex = Expert.objects.create(
@@ -173,9 +174,10 @@ class ResolveExpertFromSearchTests(TestCase):
             status=ExpertSearch.Status.COMPLETED,
         )
         SearchExpert.objects.create(expert_search=search, expert=ex, position=0)
-        result = resolve_expert_from_search(search, "jane@example.com")
-        self.assertIsNotNone(result)
-        assert result is not None
+        expert = get_expert_for_search_by_email(search, "jane@example.com")
+        self.assertIsNotNone(expert)
+        assert expert is not None
+        result = ExpertDisplay.email_generation_dict(expert)
         self.assertEqual(result["email"], "jane@example.com")
         self.assertEqual(result["title"], "Prof")
         self.assertEqual(result["affiliation"], "MIT")
@@ -194,7 +196,10 @@ class ResolveExpertFromSearchTests(TestCase):
             status=ExpertSearch.Status.COMPLETED,
         )
         SearchExpert.objects.create(expert_search=search, expert=ex, position=0)
-        result = resolve_expert_from_search(search, "  Jane@Example.COM  ")
+        expert = get_expert_for_search_by_email(search, "  Jane@Example.COM  ")
+        self.assertIsNotNone(expert)
+        assert expert is not None
+        result = ExpertDisplay.email_generation_dict(expert)
         self.assertEqual(result["email"], "jane@example.com")
 
     def test_returns_none_when_no_match(self):
@@ -205,7 +210,7 @@ class ResolveExpertFromSearchTests(TestCase):
             status=ExpertSearch.Status.COMPLETED,
         )
         SearchExpert.objects.create(expert_search=search, expert=ex, position=0)
-        self.assertIsNone(resolve_expert_from_search(search, "other@b.com"))
+        self.assertIsNone(get_expert_for_search_by_email(search, "other@b.com"))
 
 
 class ResolveGrantTests(TestCase):
