@@ -129,7 +129,7 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
 
 
 class ExpertSearchCreateSerializerV2(serializers.Serializer):
-    """POST body for ``/expert-finder/v2/searches/`` (v2 JSON pipeline)."""
+    """POST body for ``/expert-finder/searches/``."""
 
     unified_document_id = serializers.IntegerField(required=True)
     additional_context = serializers.CharField(
@@ -183,7 +183,7 @@ class ExpertSerializer(serializers.Serializer):
 
 
 class ExpertUpdateSerializerV2(serializers.ModelSerializer):
-    """PATCH body for ``/expert-finder/v2/experts/<id>/``."""
+    """PATCH body for ``/expert-finder/experts/<id>/``."""
 
     class Meta:
         model = Expert
@@ -549,7 +549,7 @@ class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
 
 class GenerateEmailRequestSerializer(serializers.Serializer):
     """
-    Request body for POST /expert-finder/generate-email/ and .../v2/generate-email/.
+    Request body for POST /expert-finder/generate-email/.
     The view resolves the expert by email.
     """
 
@@ -572,9 +572,7 @@ class BulkGenerateEmailExpertSerializer(serializers.Serializer):
 
 
 class BulkGenerateEmailRequestSerializer(serializers.Serializer):
-    """
-    Request body for POST .../generate-emails-bulk/ and .../v2/generate-emails-bulk/.
-    """
+    """Request body for POST /expert-finder/generate-emails-bulk/."""
 
     expert_search_id = serializers.IntegerField()
     experts = serializers.ListField(

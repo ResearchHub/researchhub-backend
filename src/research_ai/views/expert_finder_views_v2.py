@@ -38,9 +38,8 @@ def _v2_search_prefetch():
 
 class ExpertSearchListCreateViewV2(APIView):
     """
-    GET ``/expert-finder/v2/searches/`` — list searches (v2 payload shape).
-    POST ``/expert-finder/v2/searches/`` — create and enqueue
-    ``run_expert_finder_search_v2``.
+    GET ``/expert-finder/searches/`` — list searches.
+    POST ``/expert-finder/searches/`` — create and enqueue ``run_expert_finder_search_v2``.
     """
 
     permission_classes = [
@@ -155,7 +154,7 @@ class ExpertSearchListCreateViewV2(APIView):
 
 
 class ExpertSearchDetailViewV2(APIView):
-    """GET ``/expert-finder/v2/searches/<id>/`` — detail with relational ``experts``."""
+    """GET ``/expert-finder/searches/<id>/`` — detail with relational ``experts``."""
 
     permission_classes = [
         IsAuthenticated,
@@ -185,7 +184,7 @@ class ExpertSearchDetailViewV2(APIView):
 
 
 class ExpertDetailViewV2(APIView):
-    """PATCH ``/expert-finder/v2/experts/<id>/`` — partial update on one expert."""
+    """PATCH ``/expert-finder/experts/<id>/`` — partial update on one expert."""
 
     permission_classes = [
         IsAuthenticated,
@@ -210,7 +209,7 @@ class ExpertDetailViewV2(APIView):
 
 class InvitedExpertsDocumentViewV2(APIView):
     """
-    GET ``/expert-finder/v2/documents/<unified_document_id>/invited/``.
+    GET ``/expert-finder/documents/<unified_document_id>/invited/``.
 
     Each row includes the invited RH account as ``user`` (``user_id`` + ``author``).
     """

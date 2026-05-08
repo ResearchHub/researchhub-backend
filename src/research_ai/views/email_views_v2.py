@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 class GenerateEmailViewV2(APIView):
     """
-    POST ``/expert-finder/v2/generate-email/`` — always persists a draft ``GeneratedEmail``
+    POST ``/expert-finder/generate-email/`` — always persists a draft ``GeneratedEmail``
     (no ``save=false`` / ``action=generate`` preview-only mode).
     """
 
@@ -106,7 +106,7 @@ class GenerateEmailViewV2(APIView):
 
 class BulkGenerateEmailViewV2(APIView):
     """
-    POST ``/expert-finder/v2/generate-emails-bulk/``
+    POST ``/expert-finder/generate-emails-bulk/``
     """
 
     permission_classes = [
