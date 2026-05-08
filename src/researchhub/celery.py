@@ -216,7 +216,7 @@ app.conf.beat_schedule = {
     "paper-github-metrics-update": {
         "task": "paper.ingestion.tasks.update_recent_papers_with_github_metrics",
         "kwargs": {"days": 14},
-        "schedule": crontab(hour=7, minute=0),
+        "schedule": crontab(hour=7, minute=0, day_of_week="mon"),
         "options": {
             "priority": 2,
             "queue": QUEUE_GITHUB_METRICS,
@@ -225,7 +225,7 @@ app.conf.beat_schedule = {
     "paper-bluesky-metrics-update": {
         "task": "paper.ingestion.tasks.update_recent_papers_with_bluesky_metrics",
         "kwargs": {"days": 14},
-        "schedule": crontab(hour=10, minute=0),
+        "schedule": crontab(hour=10, minute=0, day_of_week="wed"),
         "options": {
             "priority": 2,
             "queue": QUEUE_BLUESKY_METRICS,
@@ -234,7 +234,7 @@ app.conf.beat_schedule = {
     "paper-x-metrics-update": {
         "task": "paper.ingestion.tasks.update_recent_papers_with_x_metrics",
         "kwargs": {"days": 14},
-        "schedule": crontab(hour=13, minute=0),
+        "schedule": crontab(hour=13, minute=0, day_of_week="fri"),
         "options": {
             "priority": 2,
             "queue": QUEUE_X_METRICS,

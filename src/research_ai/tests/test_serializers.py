@@ -3,14 +3,23 @@ from unittest.mock import MagicMock, PropertyMock
 from django.test import TestCase
 
 from research_ai.constants import ExpertiseLevel, Gender, Region
-from research_ai.models import EmailTemplate, ExpertSearch, GeneratedEmail
+from research_ai.models import (
+    EmailTemplate,
+    Expert,
+    ExpertSearch,
+    GeneratedEmail,
+    SearchExpert,
+)
 from research_ai.serializers import (
     ADDITIONAL_CONTEXT_MAX_LENGTH,
     EmailTemplateSerializer,
     ExpertSearchConfigSerializer,
     ExpertSearchCreateSerializer,
+    ExpertSearchCreateSerializerV2,
+    ExpertSearchDetailSerializerV2,
     ExpertSearchListItemSerializer,
     ExpertSearchSerializer,
+    ExpertUpdateSerializerV2,
     GeneratedEmailSerializer,
     ResearchAIAuthorSerializer,
     _get_created_by_payload,
@@ -163,6 +172,75 @@ class ExpertSearchCreateSerializerTests(TestCase):
         )
         self.assertFalse(ser.is_valid())
         self.assertIn("additional_context", ser.errors)
+
+
+class ExpertSearchCreateSerializerV2Tests(TestCase):
+    def test_valid_document_and_dedupes_excluded_search_ids(self):
+        ser = ExpertSearchCreateSerializerV2(
+            data={
+                "unified_document_id": 1,
+                "input_type": "abstract",
+                "excluded_search_ids": [1, 2, 1],
+            }
+        )
+        self.assertTrue(ser.is_valid())
+        self.assertEqual(ser.validated_data["excluded_search_ids"], [1, 2])
+
+    def test_requires_input_type_with_unified_document(self):
+        ser = ExpertSearchCreateSerializerV2(data={"unified_document_id": 1})
+        self.assertFalse(ser.is_valid())
+        self.assertIn("input_type", ser.errors)
+
+    def test_requires_unified_document_id(self):
+        ser = ExpertSearchCreateSerializerV2(data={"input_type": "abstract"})
+        self.assertFalse(ser.is_valid())
+        self.assertIn("unified_document_id", ser.errors)
+
+
+class ExpertSearchV2SerializerTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("v2ser")
+        self.search = ExpertSearch.objects.create(
+            created_by=self.user,
+            query="V2",
+            status=ExpertSearch.Status.COMPLETED,
+            excluded_search_ids=[9],
+        )
+        ex = Expert.objects.create(email="v2@x.edu", first_name="Vi", last_name="Two")
+        SearchExpert.objects.create(expert_search=self.search, expert=ex, position=0)
+
+    def test_detail_has_experts_array(self):
+        ser = ExpertSearchDetailSerializerV2(self.search)
+        self.assertNotIn("expert_results", ser.data)
+        self.assertEqual(len(ser.data["experts"]), 1)
+        self.assertEqual(ser.data["experts"][0]["email"], "v2@x.edu")
+
+
+class ExpertUpdateSerializerV2Tests(TestCase):
+    def setUp(self):
+        self.expert = Expert.objects.create(
+            email="old@uni.edu",
+            first_name="Old",
+        )
+
+    def test_normalizes_email_and_preserves_sources(self):
+        self.expert.sources = [{"text": "Keep", "url": "https://keep.example"}]
+        self.expert.save(update_fields=["sources"])
+        ser = ExpertUpdateSerializerV2(
+            self.expert,
+            data={
+                "email": " NEW@uni.edu ",
+                "first_name": "  New ",
+            },
+            partial=True,
+        )
+        self.assertTrue(ser.is_valid(), ser.errors)
+        updated = ser.save()
+        self.assertEqual(updated.email, "new@uni.edu")
+        self.assertEqual(updated.first_name, "New")
+        self.assertEqual(
+            updated.sources, [{"text": "Keep", "url": "https://keep.example"}]
+        )
 
 
 class ExpertSearchSerializerTests(TestCase):
@@ -361,6 +439,12 @@ class GetCreatedByPayloadTests(TestCase):
     def test_author_none_when_user_has_no_author_profile(self):
         obj = MagicMock()
         user = MagicMock()
+        user.id = 42
+        user.author_profile = None
+        obj.created_by = user
+        payload = _get_created_by_payload(obj)
+        self.assertEqual(payload["user_id"], 42)
+        self.assertIsNone(payload["author"])
         user.id = 42
         user.author_profile = None
         obj.created_by = user

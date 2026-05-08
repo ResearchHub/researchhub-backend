@@ -55,8 +55,6 @@ dependencies = [
     "reportlab>=4.0.0",
     "pyyaml>=6.0.2",
     "q5-django-inlinecss==0.0.2",
-    "requests-mock>=1.12.1,<2.0.0",
-    "responses==0.21.0",
     "sentry-sdk>=2.49.0,<3.0.0",
     "stripe>=11.2.0,<12.0.0",
     "web3[tester]>=7.16.0",
@@ -68,6 +66,26 @@ concurrency = ["multiprocessing"]
 parallel = true
 omit = ["*/setup-uv-cache/*"]
 
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+src = ["src"]
+extend-exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+extend-ignore = [
+    # Temporarily ignore these violations until cleaned up:
+    "E402",
+    "E722",
+    "F401",
+    "F403",
+    "F541",
+    "F601",
+    "F811",
+    "F821",
+    "F841",
+]
+
 [dependency-groups]
 dev = [
     "black==26.3.1",
@@ -75,6 +93,9 @@ dev = [
     "flake8==5.0.4",
     "isort>=8.0.1",
     "pre-commit==2.17.0",
+    "requests-mock>=1.12.1,<2.0.0",
+    "responses>=0.26.0",
+    "ruff==0.15.12",
     "setuptools>=78.1.1",
     "tblib>=3.2.2",
 ]

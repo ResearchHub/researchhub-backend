@@ -15,7 +15,11 @@ from paper.related_models.authorship_model import Authorship
 from paper.tests.helpers import create_paper
 from paper.views.paper_views import PaperViewSet
 from user.models import Author
-from user.tests.helpers import create_random_authenticated_user, create_user
+from user.tests.helpers import (
+    create_random_authenticated_user,
+    create_user,
+    make_user_verified,
+)
 from utils.openalex import OpenAlex
 from utils.test_helpers import (
     create_test_user,
@@ -169,11 +173,24 @@ class PaperApiTests(APITestCase):
         self.assertEqual(len(unclaimed_works), 3)
         self.assertEqual(unclaimed_works, openalex_works)
 
+    def test_unverified_user_cannot_create_researchhub_paper(self):
+        """Test that unverified users are blocked from creating papers"""
+        user = create_random_authenticated_user("unverified_user")
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/", {}, format="json"
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("verified", (response.data.get("detail") or "").lower())
+
     @patch("utils.doi.requests.post")
     def test_create_researchhub_paper_creates_first_version(self, crossref_post_mock):
         """Test that creating a new paper sets version 1"""
         crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
         hub = Hub.objects.create(name="Test Hub")
         author = Author.objects.create(first_name="Test", last_name="Author")
@@ -224,6 +241,7 @@ class PaperApiTests(APITestCase):
         """Test creating a paper with multiple authors in different positions"""
         crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
 
         first_author = Author.objects.create(first_name="First", last_name="Author")
@@ -286,6 +304,7 @@ class PaperApiTests(APITestCase):
     def test_create_researchhub_paper_requires_corresponding_author(self):
         """Test that at least one corresponding author is required"""
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
         author = Author.objects.create(first_name="Test", last_name="Author")
 
@@ -326,6 +345,7 @@ class PaperApiTests(APITestCase):
         author = Author.objects.create(first_name="Test", last_name="Author")
 
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
 
         data = {
@@ -361,6 +381,7 @@ class PaperApiTests(APITestCase):
     def test_create_researchhub_paper_with_invalid_previous_paper(self):
         """Test handling of invalid previous_paper_id"""
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
         author = Author.objects.create(first_name="Test", last_name="Author")
 
@@ -392,6 +413,7 @@ class PaperApiTests(APITestCase):
     def test_create_researchhub_paper_requires_title_and_abstract(self):
         """Test validation of required fields"""
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
 
         # Missing title
@@ -428,6 +450,7 @@ class PaperApiTests(APITestCase):
     def test_create_researchhub_paper_with_unaccepted_declarations(self):
         """Test that paper creation fails if valid declarations are not accepted"""
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
         author = Author.objects.create(first_name="Test", last_name="Author")
 
@@ -462,6 +485,7 @@ class PaperApiTests(APITestCase):
     def test_create_researchhub_paper_with_missing_declarations(self):
         """Test that paper creation fails if valid declarations are not accepted"""
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
         author = Author.objects.create(first_name="Test", last_name="Author")
 
@@ -494,6 +518,7 @@ class PaperApiTests(APITestCase):
         """Test that updating a paper (new version) doesn't require declarations"""
         crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
 
         # Create initial paper with version
@@ -532,6 +557,7 @@ class PaperApiTests(APITestCase):
         """Test that creating multiple versions maintains consistent base_doi and original_paper_id"""
         crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
 
         # Create an author
@@ -642,6 +668,7 @@ class PaperApiTests(APITestCase):
         """Test that journal and publication_status are preserved across versions"""
         crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
 
         # Create an author
@@ -741,6 +768,7 @@ class PaperApiTests(APITestCase):
         crossref_post_mock.return_value.status_code = 200
         # Create a user and authenticate
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
 
         # Get the ResearchHub Journal hub

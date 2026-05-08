@@ -1,15 +1,16 @@
-"""Tests for research_ai.tasks: expert search, bulk email generation, send queued emails."""
+"""Tests for research_ai.tasks: expert search, bulk email, send queued emails."""
 
 from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 
-from research_ai.models import ExpertSearch, GeneratedEmail
+from research_ai.models import Expert, ExpertSearch, GeneratedEmail
 from research_ai.tasks import (
     _maybe_obfuscate_expert_emails_for_non_production,
     _update_search_progress,
     process_bulk_generate_emails_task,
     process_expert_search_task,
+    run_expert_finder_search_v2,
     send_queued_emails_task,
 )
 from user.tests.helpers import create_random_authenticated_user
@@ -213,6 +214,43 @@ class ProcessExpertSearchTaskTests(TestCase):
             ).get()
         self.search.refresh_from_db()
         self.assertEqual(self.search.status, ExpertSearch.Status.FAILED)
+
+
+# --- run_expert_finder_search_v2 ---
+
+
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+class RunExpertFinderSearchV2TaskTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("v2_task_user")
+        self.search = ExpertSearch.objects.create(
+            created_by=self.user,
+            query="Task v2",
+            status=ExpertSearch.Status.PENDING,
+            excluded_search_ids=[42],
+        )
+
+    @patch("research_ai.tasks.run_v2_expert_search")
+    def test_v2_task_merges_excluded_search_ids_from_model_when_kwargs_omitted(
+        self, mock_run_v2
+    ):
+        mock_run_v2.return_value = {
+            "status": ExpertSearch.Status.COMPLETED,
+            "experts": [{"name": "A", "email": "a@b.com"}],
+            "expert_count": 1,
+            "report_urls": {"pdf": "/p", "csv": "/c"},
+            "llm_model": "m",
+        }
+        run_expert_finder_search_v2.apply(
+            kwargs={
+                "search_id": str(self.search.id),
+                "query": self.search.query,
+                "config": {},
+            }
+        ).get()
+        mock_run_v2.assert_called_once()
+        kw = mock_run_v2.call_args.kwargs
+        self.assertEqual(kw["excluded_search_ids"], [42])
 
 
 # --- process_bulk_generate_emails_task ---
@@ -438,3 +476,33 @@ class SendQueuedEmailsTaskTests(TestCase):
         self.assertEqual(result["failed"], 1)
         rec.refresh_from_db()
         self.assertEqual(rec.status, GeneratedEmail.Status.SEND_FAILED)
+
+    @patch("research_ai.tasks.send_plain_email")
+    def test_send_queued_success_sets_expert_last_email_sent_at(self, mock_send):
+        mock_send.return_value = "ses-1"
+        Expert.objects.create(
+            email="sentmark@edu",
+            first_name="S",
+            last_name="ent",
+        )
+        rec = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_name="Dr. S",
+            expert_email="sentmark@edu",
+            email_subject="Subj",
+            email_body="Body",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        before = Expert.objects.get(email__iexact="sentmark@edu").last_email_sent_at
+        send_queued_emails_task.apply(
+            kwargs={
+                "generated_email_ids": [rec.id],
+                "reply_to": None,
+                "cc": None,
+                "from_email": None,
+            }
+        ).get()
+        ex = Expert.objects.get(email__iexact="sentmark@edu")
+        self.assertIsNotNone(ex.last_email_sent_at)
+        if before:
+            self.assertGreaterEqual(ex.last_email_sent_at, before)

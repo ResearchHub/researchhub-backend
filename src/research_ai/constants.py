@@ -37,6 +37,10 @@ class Gender(models.TextChoices):
     ALL_GENDERS = "all_genders", "All Genders"
 
 
+# Sentinel US state filter: no state narrowing (matches API / frontend default).
+EXPERT_FINDER_DEFAULT_STATE = "All States"
+
+
 def get_choice_label(value: str, enum_class: type) -> str:
     """Return human-readable label for a choice value (e.g. for display in PDF/UI)."""
     for choice in enum_class:
@@ -59,6 +63,8 @@ class EmailTemplateType(models.TextChoices):
 
 VALID_EMAIL_TEMPLATE_KEYS = frozenset(e.value for e in EmailTemplateType)
 DEFAULT_EMAIL_TEMPLATE_KEY = EmailTemplateType.COLLABORATION.value
+
+EXPERT_REGISTERED_USER_LINK_WINDOW_DAYS = 7
 
 EMAIL_TEMPLATE_PROMPT_FILES = {
     EmailTemplateType.CUSTOM.value: "email_custom.txt",

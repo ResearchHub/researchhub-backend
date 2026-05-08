@@ -1,6 +1,8 @@
 from django.core.cache import cache
 
 from feed.views.common import FeedPagination
+from feed.views.funding_cache_mixin import FundingCacheMixin
+from purchase.models import GrantApplication
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
@@ -42,3 +44,16 @@ class GrantCacheMixin:
                             f"{page}-{page_size}{sort_part}:{status}:{created_by}"
                         )
                         cache.delete(cache_key)
+
+    @staticmethod
+    def invalidate_if_grant_linked(unified_document):
+        if unified_document is None:
+            return
+        if (
+            unified_document.grants.exists()
+            or GrantApplication.objects.filter(
+                preregistration_post__unified_document=unified_document
+            ).exists()
+        ):
+            GrantCacheMixin.invalidate_grant_feed_cache()
+            FundingCacheMixin.invalidate_funding_feed_cache()
