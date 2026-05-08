@@ -2,7 +2,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from purchase.models import Fundraise, Purchase
-from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from purchase.utils import get_funded_fundraise_ids
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_unified_document_model import (

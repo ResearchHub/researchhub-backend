@@ -1,12 +1,6 @@
-from note.models import (
-    Note, NoteContent
-)
-from researchhub_document.related_models.constants.document_type import (
-    NOTE
-)
-from researchhub_document.models import (
-    ResearchhubUnifiedDocument
-)
+from note.models import Note, NoteContent
+from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import NOTE
 
 
 def create_note(

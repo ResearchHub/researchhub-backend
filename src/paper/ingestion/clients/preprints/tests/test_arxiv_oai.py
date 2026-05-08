@@ -13,7 +13,6 @@ from paper.ingestion.clients.preprints.arxiv_oai import (
     parse_xml_metadata,
 )
 
-
 fixtures_dir = Path(__file__).parent / "fixtures"
 
 
