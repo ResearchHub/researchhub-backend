@@ -1,4 +1,5 @@
 from django.core.management.base import BaseCommand
+from opensearchpy import NotFoundError
 
 from hub.models import Hub
 from paper.models import Paper
@@ -77,36 +78,78 @@ class Command(BaseCommand):
             total_processed += self._process_index(index_name, dry_run, batch_size)
 
         self.stdout.write(
-            self.style.SUCCESS(f"Done. Total processed: {total_processed}")
+            self.style.SUCCESS(f"Done. Total removed from index: {total_processed}")
         )
 
     def _process_index(self, index_name, dry_run, batch_size):
         config = INDEX_CONFIGS[index_name]
+        doc = config["document"]()
         qs = config["queryset"]()
-        count = qs.count()
+        label = config["label"]
 
-        self.stdout.write(f"{config['label']} marked as removed: {count}")
-
-        if dry_run or count == 0:
+        removed_ids = list(qs.values_list("id", flat=True))
+        if not removed_ids:
+            self.stdout.write(f"{label}: 0 in database, 0 still in index")
             return 0
 
-        doc = config["document"]()
-        return self._bulk_remove_from_index(doc, qs, count, batch_size, index_name)
+        ids_still_in_index = self._find_ids_in_index(doc, removed_ids, batch_size)
 
-    def _bulk_remove_from_index(self, doc, queryset, total, batch_size, label):
+        self.stdout.write(
+            f"{label}: {len(removed_ids)} removed in database, "
+            f"{len(ids_still_in_index)} still in index"
+        )
+
+        if not ids_still_in_index:
+            return 0
+
+        if dry_run:
+            return 0
+
+        return self._bulk_remove_from_index(
+            doc, qs, ids_still_in_index, batch_size, label
+        )
+
+    def _find_ids_in_index(self, doc, ids, batch_size):
+        """Check which of the given IDs still exist in the OpenSearch index."""
+        index_name = doc._index._name
+        client = doc._get_connection()
+        found_ids = []
+
+        for batch_start in range(0, len(ids), batch_size):
+            batch_ids = ids[batch_start : batch_start + batch_size]
+            try:
+                response = client.mget(
+                    index=index_name,
+                    body={"ids": [str(pk) for pk in batch_ids]},
+                )
+                for result in response.get("docs", []):
+                    if result.get("found"):
+                        found_ids.append(int(result["_id"]))
+            except NotFoundError:
+                continue
+            except Exception as e:
+                self.stderr.write(
+                    self.style.ERROR(
+                        f"Error checking index {index_name} "
+                        f"at offset {batch_start}: {e}"
+                    )
+                )
+
+        return found_ids
+
+    def _bulk_remove_from_index(self, doc, queryset, ids_to_remove, batch_size, label):
         """
         Feeds removed objects through the document update pipeline.
         BaseDocument._get_actions converts these into delete actions
         because should_index_object returns False for removed objects.
         """
+        total = len(ids_to_remove)
         processed = 0
         errors = 0
-        last_pk = 0
 
-        while processed < total:
-            batch = list(
-                queryset.filter(pk__gt=last_pk).order_by("pk")[:batch_size]
-            )
+        for batch_start in range(0, total, batch_size):
+            batch_ids = ids_to_remove[batch_start : batch_start + batch_size]
+            batch = list(queryset.filter(pk__in=batch_ids))
             if not batch:
                 break
 
@@ -116,13 +159,13 @@ class Command(BaseCommand):
             except Exception as e:
                 errors += 1
                 self.stderr.write(
-                    self.style.ERROR(f"Error in {label} batch after pk={last_pk}: {e}")
+                    self.style.ERROR(
+                        f"Error in {label} batch at offset {batch_start}: {e}"
+                    )
                 )
                 processed += len(batch)
 
-            last_pk = batch[-1].pk
-
-            if processed % 1000 == 0:
+            if processed % 1000 == 0 and processed > 0:
                 self.stdout.write(f"  {label}: {processed}/{total}")
 
         self.stdout.write(

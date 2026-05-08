@@ -240,4 +240,13 @@ app.conf.beat_schedule = {
             "queue": QUEUE_X_METRICS,
         },
     },
+    # Search index cleanup
+    "search-remove-deleted-docs-from-index": {
+        "task": "search.tasks.remove_deleted_docs_from_index",
+        "schedule": crontab(hour="*", minute=30),
+        "options": {
+            "priority": 5,
+            "queue": QUEUE_ELASTIC_SEARCH,
+        },
+    },
 }
