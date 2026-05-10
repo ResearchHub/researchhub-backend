@@ -1,11 +1,11 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 
-from django.db.models import Exists, OuterRef
+from django.db.models import Count, Exists, OuterRef, Q
 from django.utils import timezone
 
 from research_ai.constants import EXPERT_REGISTERED_USER_LINK_WINDOW_DAYS
-from research_ai.models import Expert, GeneratedEmail, SearchExpert
+from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
 
 INVITE_WINDOW_DAYS = 7
 
@@ -87,3 +87,61 @@ def link_experts_for_new_user(*, normalized_email: str, user) -> None:
         return
 
     link_experts_registered_user_for_signup(normalized_email=email, user=user)
+
+
+def get_invited_expert_overview(
+    *,
+    unified_document_id: int | None,
+    start: datetime | None,
+    end: datetime | None,
+) -> dict[str, int]:
+    """
+    Aggregate invited-expert and outreach-email metrics for ``ExpertSearch`` rows
+    filtered by optional document id and ``created_date`` bounds.
+    """
+    qs = ExpertSearch.objects.all()
+    if unified_document_id is not None:
+        qs = qs.filter(unified_document_id=unified_document_id)
+    if start is not None:
+        qs = qs.filter(created_date__gte=start)
+    if end is not None:
+        qs = qs.filter(created_date__lte=end)
+
+    search_ids = list(qs.values_list("pk", flat=True))
+    if not search_ids:
+        return {
+            "experts_total": 0,
+            "experts_signed_up": 0,
+            "emails_generated": 0,
+            "emails_sent": 0,
+            "emails_bounced": 0,
+            "emails_opened": 0,
+        }
+
+    se_agg = SearchExpert.objects.filter(expert_search_id__in=search_ids).aggregate(
+        experts_total=Count("expert_id", distinct=True),
+        experts_signed_up=Count(
+            "expert_id",
+            distinct=True,
+            filter=Q(expert__registered_user__isnull=False),
+        ),
+    )
+
+    ge_qs = GeneratedEmail.objects.filter(expert_search_id__in=search_ids)
+    emails_generated = ge_qs.count()
+    emails_sent = ge_qs.filter(status=GeneratedEmail.Status.SENT).count()
+    emails_bounced = ge_qs.filter(
+        Q(status=GeneratedEmail.Status.BOUNCED) | Q(bounced_at__isnull=False)
+    ).count()
+    emails_opened = ge_qs.filter(
+        Q(opened_at__isnull=False) | Q(open_count__gt=0)
+    ).count()
+
+    return {
+        "experts_total": se_agg["experts_total"] or 0,
+        "experts_signed_up": se_agg["experts_signed_up"] or 0,
+        "emails_generated": emails_generated,
+        "emails_sent": emails_sent,
+        "emails_bounced": emails_bounced,
+        "emails_opened": emails_opened,
+    }
