@@ -5,10 +5,15 @@ from django.test import TestCase
 
 from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from purchase.services.funding_overview_service import GrantOverviewService
 from researchhub_document.helpers import create_post
-from researchhub_document.related_models.constants.document_type import GRANT as GRANT_DOC_TYPE, PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    GRANT as GRANT_DOC_TYPE,
+)
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.tests.helpers import create_random_authenticated_user
 
 

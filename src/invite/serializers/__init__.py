@@ -1,2 +1,8 @@
-from invite.serializers.organization_invitation_serializer import OrganizationInvitationSerializer, DynamicOrganizationInvitationSerializer
-from invite.serializers.note_invitation_serializer import NoteInvitationSerializer, DynamicNoteInvitationSerializer
+from invite.serializers.note_invitation_serializer import (
+    DynamicNoteInvitationSerializer,
+    NoteInvitationSerializer,
+)
+from invite.serializers.organization_invitation_serializer import (
+    DynamicOrganizationInvitationSerializer,
+    OrganizationInvitationSerializer,
+)

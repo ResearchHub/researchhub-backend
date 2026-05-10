@@ -4,10 +4,10 @@ from django_filters import rest_framework as filters
 from django_filters import utils
 
 from discussion.constants.flag_reasons import (
-    VERDICT_FILTER_CHOICES,
-    VERDICT_REMOVED,
     VERDICT_APPROVED,
+    VERDICT_FILTER_CHOICES,
     VERDICT_OPEN,
+    VERDICT_REMOVED,
 )
 from discussion.models import Flag
 from reputation.related_models.distribution import Distribution

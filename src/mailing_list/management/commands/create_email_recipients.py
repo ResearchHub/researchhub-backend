@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
-from user.models import User
+
 from mailing_list.models import EmailRecipient
+from user.models import User
 
 
 class Command(BaseCommand):

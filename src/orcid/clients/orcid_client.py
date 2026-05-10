@@ -3,7 +3,7 @@ from typing import Optional
 
 import requests
 
-from orcid.config import APPLICATION_JSON , ORCID_API_URL, ORCID_BASE_URL
+from orcid.config import APPLICATION_JSON, ORCID_API_URL, ORCID_BASE_URL
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,12 @@ from datetime import timedelta
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from research_ai.models import DocumentInvitedExpert, Expert, ExpertSearch, GeneratedEmail
+from research_ai.models import (
+    DocumentInvitedExpert,
+    Expert,
+    ExpertSearch,
+    GeneratedEmail,
+)
 from research_ai.services.invited_experts_service import (
     get_document_invite_candidates_for_email,
 )

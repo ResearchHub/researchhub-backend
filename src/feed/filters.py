@@ -1,4 +1,5 @@
 from typing import Any, Type, Union
+
 from django.db.models import (
     Case,
     Count,
@@ -8,12 +9,12 @@ from django.db.models import (
     F,
     IntegerField,
     OuterRef,
+    Q,
     QuerySet,
     Subquery,
     Sum,
     Value,
     When,
-    Q,
 )
 from django.db.models.functions import Coalesce
 from django.utils import timezone
