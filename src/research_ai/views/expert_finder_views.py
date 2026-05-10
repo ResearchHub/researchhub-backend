@@ -5,8 +5,6 @@ from django.core.cache import cache
 from django.db.models import Prefetch
 from django.http import StreamingHttpResponse
 from django.utils import timezone
-from django.utils.decorators import method_decorator
-from django.views.decorators.cache import cache_page
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -23,14 +21,10 @@ from research_ai.serializers import (
     ExpertUpdateSerializer,
     InvitedExpertOverviewQuerySerializer,
     InvitedExpertOverviewSerializer,
-    InvitedExpertSerializer,
     resolve_work_for_unified_document,
 )
 from research_ai.services.expert_finder_service import get_document_content
-from research_ai.services.invited_experts_service import (
-    get_invited_expert_overview,
-    get_invited_rows_for_unified_document,
-)
+from research_ai.services.invited_experts_service import get_invited_expert_overview
 from research_ai.services.progress_service import ProgressService, TaskType
 from research_ai.tasks import run_expert_finder_search
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -236,9 +230,6 @@ class ExpertDetailView(APIView):
         return Response(ExpertSerializer(expert).data)
 
 
-INVITED_LIMIT = 20
-INVITED_CACHE_SEC = 60 * 60 * 3  # 3 hours
-
 INVITED_OVERVIEW_CACHE_TTL = 60 * 60 * 1  # 1 hour
 
 
@@ -301,41 +292,6 @@ class InvitedExpertOverviewView(APIView):
         response_data = InvitedExpertOverviewSerializer(body).data
         cache.set(cache_key, response_data, INVITED_OVERVIEW_CACHE_TTL)
         return Response(response_data)
-
-
-class InvitedExpertsDocumentView(APIView):
-    """
-    GET ``/expert-finder/documents/<unified_document_id>/invited/``.
-
-    Each row includes the invited RH account as ``user`` (``user_id`` + ``author``).
-    """
-
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
-
-    @method_decorator(cache_page(INVITED_CACHE_SEC))
-    def get(self, request, unified_document_id):
-        try:
-            ResearchhubUnifiedDocument.objects.get(id=unified_document_id)
-        except ResearchhubUnifiedDocument.DoesNotExist:
-            return Response(
-                {"detail": "Unified document not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        rows = get_invited_rows_for_unified_document(unified_document_id)
-        total_count = len(rows)
-        page = rows[:INVITED_LIMIT]
-        invited_data = InvitedExpertSerializer(page, many=True).data
-        return Response(
-            {
-                "unified_document_id": unified_document_id,
-                "invited": invited_data,
-                "total_count": total_count,
-            }
-        )
 
 
 class ExpertSearchWorkView(APIView):
