@@ -8,6 +8,7 @@ from research_ai.services.expert_finder_service import (
     PDF_TOO_LARGE_MESSAGE,
     _extract_text_from_pdf_bytes,
     _get_paper_pdf_bytes,
+    _maybe_obfuscate_expert_emails_for_non_production,
     get_document_content,
     run_expert_finder_search,
 )
@@ -254,12 +255,14 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
             status=ExpertSearch.Status.PENDING,
         )
 
+    @override_settings(PRODUCTION=False, TESTING=False)
     @patch(
         "research_ai.services.expert_finder_service.upload_report_to_storage",
         return_value="https://x/r",
     )
     @patch(
-        "research_ai.services.expert_finder_service.generate_csv_file", return_value=b"c"
+        "research_ai.services.expert_finder_service.generate_csv_file",
+        return_value=b"c",
     )
     @patch(
         "research_ai.services.expert_finder_service.generate_pdf_report",
@@ -292,4 +295,5 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
         self.assertEqual(r["expert_count"], 1)
         se = SearchExpert.objects.filter(expert_search_id=self.search.id)
         self.assertEqual(se.count(), 1)
-        self.assertTrue(Expert.objects.filter(email="u@mit.edu").exists())
+        self.assertTrue(Expert.objects.filter(email="u_test@mit.edu").exists())
+        self.assertFalse(Expert.objects.filter(email="u@mit.edu").exists())

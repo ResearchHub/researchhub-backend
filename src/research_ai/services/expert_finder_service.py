@@ -1,9 +1,11 @@
 import logging
 import re
 from collections.abc import Callable
+from copy import deepcopy
 from typing import Any
 
 import fitz
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator
 
@@ -34,6 +36,30 @@ from research_ai.services.report_generator_service import (
 from researchhub_document.related_models.constants.document_type import PAPER
 
 logger = logging.getLogger(__name__)
+
+NON_PROD_EMAIL_SUFFIX = "_test"
+
+
+def _maybe_obfuscate_expert_emails_for_non_production(
+    experts: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    In non-production (and not TESTING), mangle each expert's email
+    (e.g. user@domain.com -> user_test@domain.com) so we don't accidentally
+    use real addresses from dev/staging in the database.
+    """
+    if settings.PRODUCTION or settings.TESTING or not experts:
+        return experts
+    result: list[dict[str, Any]] = []
+    for row in experts:
+        copy = deepcopy(row)
+        email = (copy.get("email") or "").strip()
+        if email and "@" in email:
+            local, _, domain = email.partition("@")
+            copy["email"] = f"{local}{NON_PROD_EMAIL_SUFFIX}@{domain}"
+        result.append(copy)
+    return result
+
 
 PDF_TOO_LARGE_MESSAGE = (
     "PDF is too large. Maximum size is 10 MB. "
@@ -512,8 +538,11 @@ class ExpertFinderService:
                 )
 
             try:
+                to_persist = _maybe_obfuscate_expert_emails_for_non_production(
+                    experts_rows
+                )
                 replace_count = ExpertPersist.replace_search_experts_for_search(
-                    expert_search_id, experts_rows
+                    expert_search_id, to_persist
                 )
             except Exception as e:  # noqa: BLE001
                 logger.exception("Expert persist failed search_id=%s: %s", search_id, e)
