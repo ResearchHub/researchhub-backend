@@ -1,8 +1,10 @@
 import json
 import logging
 
+from django.core.cache import cache
 from django.db.models import Prefetch
 from django.http import StreamingHttpResponse
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from rest_framework import status
@@ -19,11 +21,14 @@ from research_ai.serializers import (
     ExpertSearchListItemSerializer,
     ExpertSerializer,
     ExpertUpdateSerializer,
+    InvitedExpertOverviewQuerySerializer,
+    InvitedExpertOverviewSerializer,
     InvitedExpertSerializer,
     resolve_work_for_unified_document,
 )
 from research_ai.services.expert_finder_service import get_document_content
 from research_ai.services.invited_experts_service import (
+    get_invited_expert_overview,
     get_invited_rows_for_unified_document,
 )
 from research_ai.services.progress_service import ProgressService, TaskType
@@ -203,9 +208,7 @@ class ExpertSearchDetailView(APIView):
                 {"detail": "Expert search not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        ser = ExpertSearchDetailSerializer(
-            expert_search, context={"request": request}
-        )
+        ser = ExpertSearchDetailSerializer(expert_search, context={"request": request})
         return Response(ser.data)
 
 
@@ -235,6 +238,69 @@ class ExpertDetailView(APIView):
 
 INVITED_LIMIT = 20
 INVITED_CACHE_SEC = 60 * 60 * 3  # 3 hours
+
+INVITED_OVERVIEW_CACHE_TTL = 60 * 60 * 1  # 1 hour
+
+
+def _invited_expert_overview_cache_key(*, unified_document_id, start, end):
+    ud_part = (
+        str(int(unified_document_id)) if unified_document_id is not None else "none"
+    )
+    start_part = start.isoformat() if start is not None else "none"
+    end_part = end.isoformat() if end is not None else "none"
+    return f"invited_expert_overview:ud={ud_part}:start={start_part}:end={end_part}"
+
+
+class InvitedExpertOverviewView(APIView):
+    """
+    GET ``/expert-finder/invited-experts/overview/``.
+
+    Aggregates invited experts and generated-email metrics for ``ExpertSearch`` rows,
+    optionally scoped by unified document and ``created_date`` (calendar-day bounds).
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def get(self, request):
+        qser = InvitedExpertOverviewQuerySerializer(data=request.query_params)
+        qser.is_valid(raise_exception=True)
+        params = qser.validated_data
+        unified_document_id = params.get("unified_document_id")
+        start = params.get("start")
+        end = params.get("end")
+
+        if unified_document_id is not None:
+            try:
+                ResearchhubUnifiedDocument.objects.get(id=unified_document_id)
+            except ResearchhubUnifiedDocument.DoesNotExist:
+                return Response(
+                    {"detail": "Unified document not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+        cache_key = _invited_expert_overview_cache_key(
+            unified_document_id=unified_document_id,
+            start=start,
+            end=end,
+        )
+        cached_payload = cache.get(cache_key)
+        if cached_payload is not None:
+            return Response(cached_payload)
+
+        overview = get_invited_expert_overview(
+            unified_document_id=unified_document_id,
+            start=start,
+            end=end,
+        )
+        cached_at = timezone.now()
+        body = {**overview, "cached_at": cached_at}
+        response_data = InvitedExpertOverviewSerializer(body).data
+        cache.set(cache_key, response_data, INVITED_OVERVIEW_CACHE_TTL)
+        return Response(response_data)
 
 
 class InvitedExpertsDocumentView(APIView):
