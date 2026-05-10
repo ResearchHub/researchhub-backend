@@ -598,16 +598,28 @@ class GeneratedEmailDetailViewTests(APITestCase):
         self.assertEqual(response.json()["id"], email.id)
 
     def test_patch_updates_and_returns_200(self):
-        email = self._create_email()
+        expert = Expert.objects.create(
+            email="patchbody@uni.edu", first_name="P", last_name="T"
+        )
+        email = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_email="patchbody@uni.edu",
+            expert_name="Dr. Test",
+            email_subject="Subj",
+            email_body="Body",
+        )
         self.client.force_authenticate(self.moderator)
         response = self.client.patch(
             f"/api/research_ai/expert-finder/emails/{email.id}/",
-            {"email_body": "Updated body"},
+            {"email_body": "Updated body", "status": "sent"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         email.refresh_from_db()
         self.assertEqual(email.email_body, "Updated body")
+        self.assertEqual(email.status, "sent")
+        expert.refresh_from_db()
+        self.assertIsNotNone(expert.last_email_sent_at)
 
     def test_patch_can_set_status_closed(self):
         email = self._create_email()

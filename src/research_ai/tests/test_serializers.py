@@ -145,6 +145,8 @@ class ExpertSearchDetailSerializerTests(TestCase):
         self.assertNotIn("expert_results", ser.data)
         self.assertEqual(len(ser.data["experts"]), 1)
         self.assertEqual(ser.data["experts"][0]["email"], "v2@x.edu")
+        self.assertIn("last_email_sent_at", ser.data["experts"][0])
+        self.assertIsNone(ser.data["experts"][0]["last_email_sent_at"])
 
 
 class ExpertUpdateSerializerTests(TestCase):

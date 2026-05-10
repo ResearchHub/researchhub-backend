@@ -134,6 +134,7 @@ class ExpertSerializer(serializers.Serializer):
     email = serializers.CharField(allow_blank=True)
     notes = serializers.CharField(allow_blank=True)
     sources = serializers.ListField(required=False, allow_null=True)
+    last_email_sent_at = serializers.DateTimeField(allow_null=True)
     display_name = serializers.SerializerMethodField()
 
     def get_display_name(self, obj):
