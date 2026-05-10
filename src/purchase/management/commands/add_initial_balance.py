@@ -2,11 +2,11 @@
 Creates an initial balance for pre-existing users
 '''
 
-from django.core.management.base import BaseCommand
 from django.contrib.contenttypes.models import ContentType
+from django.core.management.base import BaseCommand
 
-from reputation.models import Distribution
 from purchase.models import Balance
+from reputation.models import Distribution
 from user.models import User
 
 DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model='distribution')

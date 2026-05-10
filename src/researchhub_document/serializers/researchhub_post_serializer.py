@@ -7,8 +7,8 @@ from ai_peer_review.serializers import ProposalReviewSerializer
 from discussion.models import Vote
 from discussion.serializers import (
     DynamicVoteSerializer,  # Import is needed for discussion serializer imports
+    GenericReactionSerializerMixin,
 )
-from discussion.serializers import GenericReactionSerializerMixin
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from purchase.models import GrantApplication, Purchase
 from researchhub.serializers import DynamicModelFieldSerializer

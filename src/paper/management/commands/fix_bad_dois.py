@@ -1,7 +1,9 @@
 from django.core.management.base import BaseCommand
-from django.db.models import Q
 from django.db import IntegrityError
+from django.db.models import Q
+
 from paper.models import Paper
+
 
 class Command(BaseCommand):
     help = 'Correct DOIs for papers with specific invalid DOIs or missing prefixes.'

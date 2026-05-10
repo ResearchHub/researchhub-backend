@@ -10,7 +10,9 @@ from django.utils import timezone
 from purchase.models import Fundraise, GrantApplication, Purchase
 from purchase.related_models.purchase_model import DECIMAL_FIELD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from purchase.utils import get_funded_fundraise_ids, rsc_and_cents_to_usd
 from user.models import User
 

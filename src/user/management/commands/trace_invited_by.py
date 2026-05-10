@@ -1,8 +1,7 @@
 from django.core.management.base import BaseCommand
-from django.contrib.contenttypes.models import ContentType
 
 from user.models import User
-import uuid
+
 
 class Command(BaseCommand):
 

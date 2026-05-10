@@ -1,6 +1,7 @@
+from user.related_models.gatekeeper_model import Gatekeeper
 from utils.http import RequestMethods
 from utils.permissions import AuthorizationBasedPermission
-from user.related_models.gatekeeper_model import Gatekeeper
+
 
 class CanSendRSC(AuthorizationBasedPermission):
     message = 'User cannot send RSC.'

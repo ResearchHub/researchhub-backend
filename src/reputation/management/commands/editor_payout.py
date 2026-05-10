@@ -3,16 +3,17 @@ Creates a wallet for users
 '''
 
 import time
+
 import pandas as pd
-
-from django.core.management.base import BaseCommand
 from django.contrib.contenttypes.models import ContentType
-from researchhub_access_group.constants import EDITOR
+from django.core.management.base import BaseCommand
 
-from reputation.distributor import Distributor
-from reputation.distributions import Distribution as dist
-from user.models import User
 from hub.models import Hub
+from reputation.distributions import Distribution as dist
+from reputation.distributor import Distributor
+from researchhub_access_group.constants import EDITOR
+from user.models import User
+
 
 class Command(BaseCommand):
 

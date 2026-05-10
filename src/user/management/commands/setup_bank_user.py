@@ -1,9 +1,9 @@
-from django.core.management.base import BaseCommand
 from django.contrib.contenttypes.models import ContentType
+from django.core.management.base import BaseCommand
 
-from user.models import User
 from purchase.models import Balance
 from reputation.models import Distribution
+from user.models import User
 
 BALANCE = 6000000
 BANK_EMAIL = 'bank@researchhub.com'

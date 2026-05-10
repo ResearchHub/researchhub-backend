@@ -4,6 +4,7 @@ from purchase.models import (
     Wallet,
 )
 
+
 class WalletSerializer(serializers.ModelSerializer):
     class Meta:
         model = Wallet
