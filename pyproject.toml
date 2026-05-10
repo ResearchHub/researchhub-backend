@@ -75,15 +75,15 @@ extend-exclude = ["*/migrations/*"]
 [tool.ruff.lint]
 extend-ignore = [
     # Temporarily ignore these violations until cleaned up:
-    "E402",
-    "E722",
-    "F401",
-    "F403",
-    "F541",
-    "F601",
-    "F811",
-    "F821",
-    "F841",
+    "E402",  # module-import-not-at-top-of-file
+    "E722",  # bare-except
+    "F401",  # unused-import
+    "F403",  # undefined-local-with-import-star
+    "F541",  # f-string-missing-placeholders
+    "F601",  # multi-value-repeated-key-literal
+    "F811",  # redefined-while-unused
+    "F821",  # undefined-name
+    "F841",  # unused-variable
 ]
 
 [dependency-groups]
