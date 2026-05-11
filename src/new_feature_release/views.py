@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from .models import NewFeatureClick
 from .serializers import NewFeatureClickSerializer
 
+
 class NewFeatureViewSet(viewsets.ModelViewSet):
     queryset = NewFeatureClick.objects.all()
     serializer_class = NewFeatureClickSerializer

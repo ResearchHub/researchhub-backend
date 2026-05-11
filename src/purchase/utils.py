@@ -1,7 +1,9 @@
 import time
 
 from purchase.models import Purchase
-from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
 from reputation.models import Escrow

@@ -1,7 +1,5 @@
 from rest_framework.permissions import BasePermission
 
-from utils.http import POST
-
 
 class IsOrganizationAdmin(BasePermission):
     # This permission is used for Organization based views
@@ -12,20 +10,6 @@ class IsOrganizationAdmin(BasePermission):
         user = request.user
         if user.is_anonymous:
             return False
-
-        return obj.org_has_admin_user(user)
-
-
-class IsAdminOrCreateOnly(BasePermission):
-    message = "User is not an admin of the organization"
-
-    def has_object_permission(self, request, view, obj):
-        user = request.user
-        if user.is_anonymous:
-            return False
-
-        if request.method == POST:
-            return True
 
         return obj.org_has_admin_user(user)
 

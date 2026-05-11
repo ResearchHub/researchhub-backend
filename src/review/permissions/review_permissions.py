@@ -2,6 +2,7 @@ from utils.permissions import (
     AuthorizationBasedPermission,
 )
 
+
 class AllowedToUpdateReview(AuthorizationBasedPermission):
     message = 'Action not permitted.'
 

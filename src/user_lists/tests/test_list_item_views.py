@@ -3,7 +3,9 @@ from rest_framework.test import APITestCase
 
 from paper.models import Paper
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-from researchhub_comment.related_models.rh_comment_thread_model import RhCommentThreadModel
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    RhCommentThreadModel,
+)
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     PAPER,
@@ -13,8 +15,9 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.tests.helpers import create_random_authenticated_user
-
 from user_lists.models import List, ListItem
+
+
 class ListItemViewSetTests(APITestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("user1")

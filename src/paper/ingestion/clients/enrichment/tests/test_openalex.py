@@ -9,7 +9,6 @@ import requests
 from paper.ingestion.clients.enrichment.openalex import OpenAlexClient, OpenAlexConfig
 from paper.ingestion.exceptions import FetchError, TimeoutError
 
-
 fixtures_dir = Path(__file__).parent / "fixtures"
 
 

@@ -1,10 +1,10 @@
-from django.core.management.base import BaseCommand
-from purchase.models import Balance
-from reputation.lib import (
-    PendingWithdrawal
-)
-from reputation.models import Withdrawal
 from django.contrib.contenttypes.models import ContentType
+from django.core.management.base import BaseCommand
+
+from purchase.models import Balance
+from reputation.lib import PendingWithdrawal
+from reputation.models import Withdrawal
+
 
 class Command(BaseCommand):
 

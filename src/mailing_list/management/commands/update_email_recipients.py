@@ -1,4 +1,5 @@
 from django.core.management.base import BaseCommand
+
 from mailing_list.models import EmailRecipient
 
 

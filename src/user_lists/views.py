@@ -2,14 +2,15 @@ from django.db import IntegrityError
 from django.db.models import Count, Prefetch, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.mixins import CreateModelMixin, DestroyModelMixin, ListModelMixin
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.decorators import action
-from rest_framework.pagination import PageNumberPagination
 
 from .models import List, ListItem
-from .serializers import ListOverviewSerializer, ListSerializer, ListItemSerializer
+from .serializers import ListItemSerializer, ListOverviewSerializer, ListSerializer
+
 
 class ListPagination(PageNumberPagination):
     page_size = 20

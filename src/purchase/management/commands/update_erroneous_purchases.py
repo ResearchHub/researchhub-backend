@@ -1,7 +1,7 @@
-from django.core.management.base import BaseCommand
 from django.contrib.contenttypes.models import ContentType
+from django.core.management.base import BaseCommand
 
-from purchase.models import Purchase, Balance
+from purchase.models import Balance, Purchase
 
 
 class Command(BaseCommand):

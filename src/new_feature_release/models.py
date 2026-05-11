@@ -1,5 +1,7 @@
 from django.db import models
+
 from user.models import User
+
 
 class NewFeatureClick(models.Model):
     """A record of a new feature being clicked"""
