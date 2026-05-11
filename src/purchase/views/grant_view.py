@@ -272,7 +272,12 @@ class GrantViewSet(viewsets.ModelViewSet):
                 {"error": "Grant is no longer accepting applications"}, status=400
             )
 
-        # Create application
+        # Reject the application if the post's visibility doesn't match a
+        # grant that requires a specific public/private setting. The caller
+        # must update the post first, then retry.
+        if mismatch := self._visibility_mismatch(grant, post):
+            return Response({"error": mismatch}, status=400)
+
         _, created = GrantApplication.objects.get_or_create(
             grant=grant, preregistration_post=post, applicant=request.user
         )
@@ -282,6 +287,21 @@ class GrantViewSet(viewsets.ModelViewSet):
             return Response({"message": "Application submitted"}, status=201)
         else:
             return Response({"message": "Already applied"}, status=200)
+
+    @staticmethod
+    def _visibility_mismatch(grant, post):
+        is_public = post.unified_document.is_public
+        if (
+            grant.application_visibility == Grant.APPLICATION_VISIBILITY_PRIVATE
+            and is_public
+        ):
+            return "This grant requires applications to be private."
+        if (
+            grant.application_visibility == Grant.APPLICATION_VISIBILITY_PUBLIC
+            and not is_public
+        ):
+            return "This grant requires applications to be public."
+        return None
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def available_funding(self, request, *args, **kwargs):

@@ -165,9 +165,25 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             with transaction.atomic():
                 created_by = request.user
 
+                # Resolve the target grant up front when applying to one so
+                # that create_unified_doc can honor the grant's privacy
+                # requirement before the post (and its action signal) fires.
+                target_grant = None
+                if grant_id and document_type == PREREGISTRATION:
+                    try:
+                        target_grant = Grant.objects.get(id=grant_id)
+                    except (Grant.DoesNotExist, ValueError, TypeError):
+                        raise serializers.ValidationError("Grant not found")
+                    if not target_grant.is_active():
+                        raise serializers.ValidationError(
+                            "Grant is no longer accepting applications"
+                        )
+
                 # logical ordering & not using signals to avoid race-conditions
                 access_group = self.create_access_group(request)
-                unified_document = self.create_unified_doc(request)
+                unified_document = self.create_unified_doc(
+                    request, target_grant=target_grant
+                )
                 if access_group is not None:
                     unified_document.access_groups = access_group
                     unified_document.save()
@@ -231,19 +247,30 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     if grant_contacts is not None:
                         grant_data["contact_ids"] = grant_contacts
 
+                    if (application_visibility := data.get(
+                        "grant_application_visibility"
+                    )) is not None:
+                        grant_data["application_visibility"] = application_visibility
+
                     grant_serializer = GrantCreateSerializer(data=grant_data)
                     grant_serializer.is_valid(raise_exception=True)
 
+                    grant_create_kwargs = {
+                        "created_by": created_by,
+                        "unified_document": unified_document,
+                        "amount": grant_serializer.validated_data["amount"],
+                        "currency": grant_serializer.validated_data["currency"],
+                        "organization": grant_serializer.validated_data["organization"],
+                        "description": grant_serializer.validated_data["description"],
+                        "end_date": grant_serializer.validated_data.get("end_date"),
+                    }
+                    if "application_visibility" in grant_serializer.validated_data:
+                        grant_create_kwargs["application_visibility"] = (
+                            grant_serializer.validated_data["application_visibility"]
+                        )
+
                     # Create grant without contacts first
-                    grant = Grant.objects.create(
-                        created_by=created_by,
-                        unified_document=unified_document,
-                        amount=grant_serializer.validated_data["amount"],
-                        currency=grant_serializer.validated_data["currency"],
-                        organization=grant_serializer.validated_data["organization"],
-                        description=grant_serializer.validated_data["description"],
-                        end_date=grant_serializer.validated_data.get("end_date"),
-                    )
+                    grant = Grant.objects.create(**grant_create_kwargs)
 
                     # Handle contacts properly - get contact_ids and convert to User objects
                     contact_ids = grant_serializer.validated_data.get("contact_ids", [])
@@ -268,15 +295,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     )
                 )
 
-                if grant_id and document_type == PREREGISTRATION:
-                    try:
-                        target_grant = Grant.objects.get(id=grant_id)
-                    except (Grant.DoesNotExist, ValueError, TypeError):
-                        raise serializers.ValidationError("Grant not found")
-                    if not target_grant.is_active():
-                        raise serializers.ValidationError(
-                            "Grant is no longer accepting applications"
-                        )
+                if target_grant is not None:
                     GrantApplication.objects.create(
                         grant=target_grant,
                         preregistration_post=rh_post,
@@ -534,7 +553,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     def create_access_group(self, request):
         return None
 
-    def create_unified_doc(self, request):
+    def create_unified_doc(self, request, target_grant=None):
         try:
             request_data = request.data
             hubs = Hub.objects.filter(id__in=request_data.get("hubs", [])).all()
@@ -542,9 +561,29 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             is_public = True
             # Only PREREGISTRATION posts may be created as private today.
             if document_type == PREREGISTRATION:
-                is_public = serializers.BooleanField().run_validation(
-                    request_data.get("is_public", True)
-                )
+                explicit_is_public = "is_public" in request_data
+                if explicit_is_public:
+                    is_public = serializers.BooleanField().run_validation(
+                        request_data["is_public"]
+                    )
+
+                if target_grant is not None:
+                    required = target_grant.application_visibility
+                    # An explicit is_public that conflicts with the grant's
+                    # requirement is treated as a client error. When is_public
+                    # is omitted we fall back to whatever the grant requires.
+                    if required == Grant.APPLICATION_VISIBILITY_PRIVATE:
+                        if explicit_is_public and is_public:
+                            raise serializers.ValidationError(
+                                "This grant requires applications to be private."
+                            )
+                        is_public = False
+                    elif required == Grant.APPLICATION_VISIBILITY_PUBLIC:
+                        if explicit_is_public and not is_public:
+                            raise serializers.ValidationError(
+                                "This grant requires applications to be public."
+                            )
+                        is_public = True
             uni_doc = ResearchhubUnifiedDocument.objects.create(
                 document_type=document_type,
                 is_public=is_public,
