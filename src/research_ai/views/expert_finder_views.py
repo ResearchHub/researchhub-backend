@@ -1,6 +1,7 @@
 import json
 import logging
 
+from django.db.models import Prefetch
 from django.http import StreamingHttpResponse
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
@@ -9,24 +10,24 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from research_ai.constants import (
-    EXPERT_FINDER_DEFAULT_STATE,
-    ExpertiseLevel,
-    Gender,
-    Region,
-)
-from research_ai.models import DocumentInvitedExpert, ExpertSearch
+from research_ai.constants import ExpertiseLevel, Gender, Region
+from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.permissions import ResearchAIPermission
 from research_ai.serializers import (
     ExpertSearchCreateSerializer,
+    ExpertSearchDetailSerializer,
     ExpertSearchListItemSerializer,
-    ExpertSearchSerializer,
+    ExpertSerializer,
+    ExpertUpdateSerializer,
     InvitedExpertSerializer,
     resolve_work_for_unified_document,
 )
 from research_ai.services.expert_finder_service import get_document_content
+from research_ai.services.invited_experts_service import (
+    get_invited_rows_for_unified_document,
+)
 from research_ai.services.progress_service import ProgressService, TaskType
-from research_ai.tasks import process_expert_search_task
+from research_ai.tasks import run_expert_finder_search
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.permissions import IsModerator, UserIsEditor
 
@@ -55,25 +56,63 @@ def _get_document_title(unified_doc):
         return ""
 
 
-class ExpertSearchCreateView(APIView):
+def _search_prefetch():
+    return Prefetch(
+        "search_experts",
+        queryset=SearchExpert.objects.select_related("expert").order_by("position"),
+    )
+
+
+class ExpertSearchListCreateView(APIView):
+    """
+    GET ``/expert-finder/searches/`` — list searches.
+    POST ``/expert-finder/searches/`` — create and enqueue expert finder task.
+    """
+
     permission_classes = [
         IsAuthenticated,
         ResearchAIPermission,
         UserIsEditor | IsModerator,
     ]
 
+    def get_queryset(self):
+        return (
+            ExpertSearch.objects.select_related(
+                "created_by",
+                "created_by__author_profile",
+            )
+            .prefetch_related(_search_prefetch())
+            .order_by("-created_date")
+        )
+
+    def get(self, request):
+        limit = max(1, min(100, int(request.query_params.get("limit", 10))))
+        offset = max(0, int(request.query_params.get("offset", 0)))
+        qs = self.get_queryset()
+        total = qs.count()
+        end = offset + limit
+        items = list(qs[offset:end])
+        ser = ExpertSearchListItemSerializer(items, many=True)
+        return Response(
+            {
+                "searches": ser.data,
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+            }
+        )
+
     def post(self, request):
         ser = ExpertSearchCreateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
-        unified_document_id = data.get("unified_document_id")
-        query_text = (data.get("query") or "").strip()
+        unified_document_id = data["unified_document_id"]
         additional_context = (data.get("additional_context") or "").strip()
         search_name = (data.get("name") or "").strip()
-        input_type = data.get("input_type")
+        input_type = data["input_type"]
         config = data.get("config") or {}
-        excluded_expert_names = data.get("excluded_expert_names") or []
+        excluded_search_ids = data.get("excluded_search_ids") or []
 
         search_config = {
             "expert_count": config.get("expert_count", 10),
@@ -81,60 +120,49 @@ class ExpertSearchCreateView(APIView):
                 "expertise_level", [ExpertiseLevel.ALL_LEVELS]
             ),
             "region": config.get("region", Region.ALL_REGIONS),
-            "state": config.get("state", EXPERT_FINDER_DEFAULT_STATE),
+            "state": config.get("state", "All States"),
             "gender": config.get("gender", Gender.ALL_GENDERS),
         }
 
-        if unified_document_id:
-            try:
-                unified_doc = ResearchhubUnifiedDocument.objects.get(
-                    id=unified_document_id
-                )
-            except ResearchhubUnifiedDocument.DoesNotExist:
-                return Response(
-                    {"detail": "Unified document not found."},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-            try:
-                content_text, content_type = get_document_content(
-                    unified_doc, input_type
-                )
-            except ValueError as e:
-                return Response(
-                    {"detail": str(e)},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            query_text = content_text
-            effective_input_type = content_type
-            is_pdf = content_type == ExpertSearch.InputType.PDF
-            if not search_name:
-                search_name = _get_document_title(unified_doc)
-        else:
-            effective_input_type = ExpertSearch.InputType.CUSTOM_QUERY
-            is_pdf = False
+        try:
+            unified_doc = ResearchhubUnifiedDocument.objects.get(id=unified_document_id)
+        except ResearchhubUnifiedDocument.DoesNotExist:
+            return Response(
+                {"detail": "Unified document not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        try:
+            query_text, content_type = get_document_content(unified_doc, input_type)
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        effective_input_type = content_type
+        is_pdf = content_type == ExpertSearch.InputType.PDF
+        if not search_name:
+            search_name = _get_document_title(unified_doc)
 
         expert_search = ExpertSearch.objects.create(
             created_by=request.user,
-            unified_document_id=unified_document_id or None,
+            unified_document_id=unified_document_id,
             name=search_name,
             query=query_text,
             additional_context=additional_context,
             input_type=effective_input_type,
             config=search_config,
-            excluded_expert_names=excluded_expert_names,
+            excluded_search_ids=excluded_search_ids,
             status=ExpertSearch.Status.PENDING,
             progress=0,
             current_step="Queued for processing",
         )
 
         search_id = expert_search.id
-        process_expert_search_task.delay(
+        run_expert_finder_search.delay(
             search_id=str(search_id),
             query=query_text,
             config=search_config,
-            excluded_expert_names=(
-                excluded_expert_names if excluded_expert_names else None
-            ),
+            excluded_search_ids=excluded_search_ids or None,
             is_pdf=is_pdf,
             additional_context=additional_context or None,
         )
@@ -148,6 +176,99 @@ class ExpertSearchCreateView(APIView):
                 "sse_url": sse_url,
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+class ExpertSearchDetailView(APIView):
+    """GET ``/expert-finder/searches/<id>/`` — detail with relational ``experts``."""
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def get(self, request, search_id):
+        try:
+            expert_search = (
+                ExpertSearch.objects.select_related(
+                    "created_by",
+                    "created_by__author_profile",
+                )
+                .prefetch_related(_search_prefetch())
+                .get(id=search_id)
+            )
+        except ExpertSearch.DoesNotExist:
+            return Response(
+                {"detail": "Expert search not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        ser = ExpertSearchDetailSerializer(
+            expert_search, context={"request": request}
+        )
+        return Response(ser.data)
+
+
+class ExpertDetailView(APIView):
+    """PATCH ``/expert-finder/experts/<id>/`` — partial update on one expert."""
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def patch(self, request, expert_id):
+        try:
+            expert = Expert.objects.get(id=expert_id)
+        except Expert.DoesNotExist:
+            return Response(
+                {"detail": "Expert not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        ser = ExpertUpdateSerializer(expert, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ExpertSerializer(expert).data)
+
+
+INVITED_LIMIT = 20
+INVITED_CACHE_SEC = 60 * 60 * 3  # 3 hours
+
+
+class InvitedExpertsDocumentView(APIView):
+    """
+    GET ``/expert-finder/documents/<unified_document_id>/invited/``.
+
+    Each row includes the invited RH account as ``user`` (``user_id`` + ``author``).
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    @method_decorator(cache_page(INVITED_CACHE_SEC))
+    def get(self, request, unified_document_id):
+        try:
+            ResearchhubUnifiedDocument.objects.get(id=unified_document_id)
+        except ResearchhubUnifiedDocument.DoesNotExist:
+            return Response(
+                {"detail": "Unified document not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        rows = get_invited_rows_for_unified_document(unified_document_id)
+        total_count = len(rows)
+        page = rows[:INVITED_LIMIT]
+        invited_data = InvitedExpertSerializer(page, many=True).data
+        return Response(
+            {
+                "unified_document_id": unified_document_id,
+                "invited": invited_data,
+                "total_count": total_count,
+            }
         )
 
 
@@ -177,106 +298,6 @@ class ExpertSearchWorkView(APIView):
         return Response({"work": work})
 
 
-INVITED_LIMIT = 20
-INVITED_CACHE_SEC = 60 * 60 * 3  # 3 hours
-
-
-class InvitedExpertsDocumentView(APIView):
-    """
-    GET invited experts for a unified document (limit 20, total_count).
-    Response is cached for 3 hours.
-    Returns author entity, expert_search_id, generated_email_id per invited person.
-    """
-
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
-
-    @method_decorator(cache_page(INVITED_CACHE_SEC))
-    def get(self, request, unified_document_id):
-        try:
-            ResearchhubUnifiedDocument.objects.get(id=unified_document_id)
-        except ResearchhubUnifiedDocument.DoesNotExist:
-            return Response(
-                {"detail": "Unified document not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        qs = (
-            DocumentInvitedExpert.objects.filter(
-                unified_document_id=unified_document_id
-            )
-            .select_related(
-                "user", "user__author_profile", "expert_search", "generated_email"
-            )
-            .order_by("-created_date")
-        )
-        total_count = qs.count()
-        page = list(qs[:INVITED_LIMIT])
-        invited_data = InvitedExpertSerializer(page, many=True).data
-        return Response(
-            {
-                "unified_document_id": unified_document_id,
-                "invited": invited_data,
-                "total_count": total_count,
-            }
-        )
-
-
-class ExpertSearchDetailView(APIView):
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
-
-    def get(self, request, search_id):
-        try:
-            expert_search = ExpertSearch.objects.select_related(
-                "created_by",
-                "created_by__author_profile",
-            ).get(id=search_id)
-        except ExpertSearch.DoesNotExist:
-            return Response(
-                {"detail": "Expert search not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        ser = ExpertSearchSerializer(expert_search, context={"request": request})
-        return Response(ser.data)
-
-
-class ExpertSearchListView(APIView):
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
-
-    def get_queryset(self):
-        return ExpertSearch.objects.select_related(
-            "created_by",
-            "created_by__author_profile",
-        ).order_by("-created_date")
-
-    def get(self, request):
-        limit = max(1, min(100, int(request.query_params.get("limit", 10))))
-        offset = max(0, int(request.query_params.get("offset", 0)))
-        qs = self.get_queryset()
-        total = qs.count()
-        end = offset + limit
-        items = list(qs[offset:end])
-        ser = ExpertSearchListItemSerializer(items, many=True)
-        return Response(
-            {
-                "searches": ser.data,
-                "total": total,
-                "limit": limit,
-                "offset": offset,
-            }
-        )
-
-
 def _final_progress_payload(search):
     """Build SSE progress payload from ExpertSearch for completed/failed state."""
     return {
@@ -303,7 +324,6 @@ def _sse_event_stream(search_id):
     }
     yield "data: " + json.dumps(payload) + "\n\n"
 
-    # If already completed/failed, return current state and close (no stuck)
     if search_id_int is not None:
         try:
             search = ExpertSearch.objects.filter(id=search_id_int).first()
@@ -322,9 +342,8 @@ def _sse_event_stream(search_id):
         except Exception:
             pass
 
-    # Subscribe to Redis; periodically re-check DB so we never wait forever
     none_count = 0
-    db_check_interval = 10  # check DB every ~10 seconds when no Redis message
+    db_check_interval = 10
 
     for progress_data in progress_service.subscribe_to_progress_sync(
         TaskType.EXPERTS,

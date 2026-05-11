@@ -45,7 +45,7 @@ class NormalizeTemplateTests(APITestCase):
         )
 
 
-def _make_expert_search(created_by, expert_results=None):
+def _make_expert_search(created_by):
     return ExpertSearch.objects.create(
         created_by=created_by,
         name="Test Search",
@@ -53,7 +53,6 @@ def _make_expert_search(created_by, expert_results=None):
         input_type=ExpertSearch.InputType.CUSTOM_QUERY,
         status=ExpertSearch.Status.COMPLETED,
         progress=100,
-        expert_results=expert_results or [],
     )
 
 
@@ -69,7 +68,6 @@ class GenerateEmailViewTests(APITestCase):
             input_type=ExpertSearch.InputType.CUSTOM_QUERY,
             status=ExpertSearch.Status.COMPLETED,
             progress=100,
-            expert_results=[],
         )
         self.jane = Expert.objects.create(
             email="jane@example.com",
@@ -121,7 +119,7 @@ class GenerateEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("research_ai.views.email_views_v2.generate_expert_email")
+    @patch("research_ai.views.email_views.generate_expert_email")
     def test_post_success_creates_record_and_returns_201(self, mock_generate):
         mock_generate.return_value = ("Subject here", "Body here")
         self.client.force_authenticate(self.moderator)
@@ -148,7 +146,7 @@ class GenerateEmailViewTests(APITestCase):
         rec = GeneratedEmail.objects.get()
         self.assertEqual(rec.created_by, self.moderator)
 
-    @patch("research_ai.views.email_views_v2.generate_expert_email")
+    @patch("research_ai.views.email_views.generate_expert_email")
     def test_post_runtime_error_returns_503(self, mock_generate):
         mock_generate.side_effect = RuntimeError("LLM unavailable")
         self.client.force_authenticate(self.moderator)
@@ -164,7 +162,7 @@ class GenerateEmailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertIn("LLM unavailable", response.json().get("detail", ""))
 
-    @patch("research_ai.views.email_views_v2.generate_expert_email")
+    @patch("research_ai.views.email_views.generate_expert_email")
     def test_post_with_expert_search_id_links_record(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         search = ExpertSearch.objects.create(
@@ -174,7 +172,6 @@ class GenerateEmailViewTests(APITestCase):
             input_type=ExpertSearch.InputType.CUSTOM_QUERY,
             status=ExpertSearch.Status.COMPLETED,
             progress=100,
-            expert_results=[],
         )
         ex = Expert.objects.create(
             email="a@example.com",
@@ -196,7 +193,7 @@ class GenerateEmailViewTests(APITestCase):
         rec = GeneratedEmail.objects.get()
         self.assertEqual(rec.expert_search_id, search.id)
 
-    @patch("research_ai.views.email_views_v2.generate_expert_email")
+    @patch("research_ai.views.email_views.generate_expert_email")
     def test_post_with_template_id_passes_template_id_and_user(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         self.client.force_authenticate(self.moderator)
@@ -216,7 +213,7 @@ class GenerateEmailViewTests(APITestCase):
         self.assertEqual(call_kw["user"], self.moderator)
         self.assertEqual(call_kw["template"], "collaboration")
 
-    @patch("research_ai.views.email_views_v2.generate_expert_email")
+    @patch("research_ai.views.email_views.generate_expert_email")
     def test_post_template_null_requires_template_id(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         self.client.force_authenticate(self.moderator)
@@ -231,7 +228,7 @@ class GenerateEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("research_ai.views.email_views_v2.generate_expert_email")
+    @patch("research_ai.views.email_views.generate_expert_email")
     def test_post_template_null_with_template_id_fixed_path(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         t = EmailTemplate.objects.create(
@@ -284,25 +281,20 @@ class GenerateEmailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Expert not found", response.json().get("detail", ""))
 
-    def test_legacy_expert_results_json_without_search_expert_returns_400(self):
-        """Expert rows must exist on SearchExpert; legacy ``expert_results`` alone is ignored."""
+    def test_expert_not_linked_via_search_expert_returns_400(self):
+        """Expert must be on the search via ``SearchExpert``."""
         legacy_only = ExpertSearch.objects.create(
             created_by=self.moderator,
-            name="Legacy json",
+            name="No link",
             query="ML",
             input_type=ExpertSearch.InputType.CUSTOM_QUERY,
             status=ExpertSearch.Status.COMPLETED,
             progress=100,
-            expert_results=[
-                {
-                    "name": "Legacy Only",
-                    "email": "legacy@example.com",
-                    "title": "",
-                    "affiliation": "",
-                    "expertise": "",
-                    "notes": "",
-                },
-            ],
+        )
+        Expert.objects.create(
+            email="legacy@example.com",
+            first_name="Legacy",
+            last_name="Only",
         )
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
@@ -316,7 +308,7 @@ class GenerateEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("research_ai.views.email_views_v2.generate_expert_email")
+    @patch("research_ai.views.email_views.generate_expert_email")
     def test_resolve_passes_normalized_email_to_llm(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         self.client.force_authenticate(self.moderator)
@@ -606,16 +598,28 @@ class GeneratedEmailDetailViewTests(APITestCase):
         self.assertEqual(response.json()["id"], email.id)
 
     def test_patch_updates_and_returns_200(self):
-        email = self._create_email()
+        expert = Expert.objects.create(
+            email="patchbody@uni.edu", first_name="P", last_name="T"
+        )
+        email = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_email="patchbody@uni.edu",
+            expert_name="Dr. Test",
+            email_subject="Subj",
+            email_body="Body",
+        )
         self.client.force_authenticate(self.moderator)
         response = self.client.patch(
             f"/api/research_ai/expert-finder/emails/{email.id}/",
-            {"email_body": "Updated body"},
+            {"email_body": "Updated body", "status": "sent"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         email.refresh_from_db()
         self.assertEqual(email.email_body, "Updated body")
+        self.assertEqual(email.status, "sent")
+        expert.refresh_from_db()
+        self.assertIsNotNone(expert.last_email_sent_at)
 
     def test_patch_can_set_status_closed(self):
         email = self._create_email()
@@ -674,7 +678,6 @@ class BulkGenerateEmailViewTests(APITestCase):
             input_type=ExpertSearch.InputType.CUSTOM_QUERY,
             status=ExpertSearch.Status.COMPLETED,
             progress=100,
-            expert_results=[],
         )
         ex_a = Expert.objects.create(email="a@x.com", first_name="A", last_name="Alpha")
         ex_b = Expert.objects.create(email="b@x.com", first_name="B", last_name="Beta")
@@ -697,7 +700,7 @@ class BulkGenerateEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @patch("research_ai.views.email_views_v2.process_bulk_generate_emails_task")
+    @patch("research_ai.views.email_views.process_bulk_generate_emails_task")
     def test_post_creates_placeholders_and_returns_202(self, mock_task):
         mock_task.delay.return_value = None
         self.client.force_authenticate(self.moderator)
@@ -732,7 +735,7 @@ class BulkGenerateEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("research_ai.views.email_views_v2.process_bulk_generate_emails_task")
+    @patch("research_ai.views.email_views.process_bulk_generate_emails_task")
     def test_post_template_null_stores_null_template_on_placeholder(self, mock_task):
         mock_task.delay.return_value = None
         t = EmailTemplate.objects.create(
@@ -773,7 +776,7 @@ class BulkGenerateEmailViewTests(APITestCase):
         self.assertIn("Expert not found", response.json().get("detail", ""))
         self.assertEqual(GeneratedEmail.objects.count(), initial_count)
 
-    @patch("research_ai.views.email_views_v2.process_bulk_generate_emails_task")
+    @patch("research_ai.views.email_views.process_bulk_generate_emails_task")
     def test_post_second_expert_invalid_rolls_back_all_placeholders(self, mock_task):
         """When second expert is invalid, no placeholders are created (atomic rollback)."""
         self.client.force_authenticate(self.moderator)

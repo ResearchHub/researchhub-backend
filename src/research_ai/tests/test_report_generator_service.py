@@ -4,9 +4,9 @@ from django.test import TestCase
 
 from research_ai.models import Expert
 from research_ai.services.report_generator_service import (
+    expert_to_report_row,
     generate_csv_file,
     generate_pdf_report,
-    generate_pdf_report_v2,
     upload_report_to_storage,
 )
 
@@ -59,15 +59,15 @@ class GenerateCsvFileTests(TestCase):
         self.assertIn(b"name", csv_bytes)
 
 
-class GenerateReportV2FromExpertTests(TestCase):
-
-    def test_generate_pdf_v2_returns_pdf_bytes(self):
+class GenerateReportFromExpertModelTests(TestCase):
+    def test_generate_pdf_from_expert_rows_returns_pdf_bytes(self):
         ex = Expert(
             email="a@b.edu",
             first_name="A",
             last_name="B",
         )
-        pdf = generate_pdf_report_v2([ex], "Q", {})
+        rows = [expert_to_report_row(ex)]
+        pdf = generate_pdf_report(rows, "Q", {})
         self.assertIsInstance(pdf, bytes)
         self.assertTrue(pdf.startswith(b"%PDF"))
 

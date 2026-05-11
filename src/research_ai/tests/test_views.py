@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from research_ai.models import DocumentInvitedExpert, Expert, ExpertSearch
+from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -283,20 +283,24 @@ class InvitedExpertsDocumentViewTests(APITestCase):
         )
         ud_id = paper.unified_document_id
 
-        ExpertSearch.objects.create(
+        search = ExpertSearch.objects.create(
             created_by=self.moderator,
             unified_document_id=ud_id,
             query="Test",
             status=ExpertSearch.Status.COMPLETED,
             completed_at=timezone.now(),
-            expert_results=[],
         )
-
-        DocumentInvitedExpert.objects.create(
-            unified_document_id=ud_id,
-            user=self.moderator,
-            expert_search_id=None,
-            generated_email_id=None,
+        ex = Expert.objects.create(
+            email="invited-view@edu",
+            first_name="Inv",
+            last_name="Expert",
+            registered_user=self.moderator,
+        )
+        SearchExpert.objects.create(expert_search=search, expert=ex, position=0)
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=search,
+            expert_email="invited-view@edu",
         )
         self.client.force_authenticate(self.moderator)
         response = self.client.get(
@@ -332,8 +336,8 @@ class ExpertSearchListCreateViewTests(APITestCase):
         r = self.client.post(self.base, {"query": "x"}, format="json")
         self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
 
-    @patch("research_ai.views.expert_finder_views_v2.get_document_content")
-    @patch("research_ai.views.expert_finder_views_v2.run_expert_finder_search_v2.delay")
+    @patch("research_ai.views.expert_finder_views.get_document_content")
+    @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")
     def test_create_enqueues_v2_task(self, mock_delay, mock_get_document_content):
         from paper.tests.helpers import create_paper
 
@@ -354,15 +358,13 @@ class ExpertSearchListCreateViewTests(APITestCase):
         self.assertEqual(r.status_code, status.HTTP_201_CREATED)
         data = r.json()
         self.assertIn("search_id", data)
-        self.assertIn("v2", data.get("message", "").lower())
         mock_delay.assert_called_once()
         search = ExpertSearch.objects.get(id=data["search_id"])
-        self.assertEqual(search.excluded_expert_names, [])
         self.assertEqual(search.excluded_search_ids, [])
         self.assertEqual(search.unified_document_id, paper.unified_document_id)
 
-    @patch("research_ai.views.expert_finder_views_v2.get_document_content")
-    @patch("research_ai.views.expert_finder_views_v2.run_expert_finder_search_v2.delay")
+    @patch("research_ai.views.expert_finder_views.get_document_content")
+    @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")
     def test_create_persists_excluded_search_ids(
         self, mock_delay, mock_get_document_content
     ):
@@ -420,8 +422,8 @@ class ExpertSearchListCreateViewTests(APITestCase):
         self.assertNotIn("expert_names", row)
         self.assertEqual(row["expert_count"], 1)
 
-    @patch("research_ai.views.expert_finder_views_v2.get_document_content")
-    @patch("research_ai.views.expert_finder_views_v2.run_expert_finder_search_v2.delay")
+    @patch("research_ai.views.expert_finder_views.get_document_content")
+    @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")
     def test_create_autofills_name_from_paper_title(
         self, mock_delay, mock_get_document_content
     ):

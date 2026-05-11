@@ -15,11 +15,9 @@ from research_ai.serializers import (
     EmailTemplateSerializer,
     ExpertSearchConfigSerializer,
     ExpertSearchCreateSerializer,
-    ExpertSearchCreateSerializerV2,
-    ExpertSearchDetailSerializerV2,
+    ExpertSearchDetailSerializer,
     ExpertSearchListItemSerializer,
-    ExpertSearchSerializer,
-    ExpertUpdateSerializerV2,
+    ExpertUpdateSerializer,
     GeneratedEmailSerializer,
     ResearchAIAuthorSerializer,
     _get_created_by_payload,
@@ -97,86 +95,8 @@ class ExpertSearchConfigSerializerTests(TestCase):
 
 
 class ExpertSearchCreateSerializerTests(TestCase):
-    def test_query_only_valid(self):
-        ser = ExpertSearchCreateSerializer(data={"query": "Machine learning"})
-        self.assertTrue(ser.is_valid())
-        self.assertEqual(ser.validated_data["query"], "Machine learning")
-        # input_type is optional when using custom query (no document)
-
-    def test_unified_document_id_only_valid(self):
-        ser = ExpertSearchCreateSerializer(
-            data={"unified_document_id": 123, "input_type": "abstract"}
-        )
-        self.assertTrue(ser.is_valid())
-        self.assertEqual(ser.validated_data["unified_document_id"], 123)
-        self.assertEqual(ser.validated_data["input_type"], "abstract")
-
-    def test_neither_query_nor_document_invalid(self):
-        ser = ExpertSearchCreateSerializer(data={})
-        self.assertFalse(ser.is_valid())
-        ser2 = ExpertSearchCreateSerializer(data={"query": ""})
-        self.assertFalse(ser2.is_valid())
-
-    def test_both_query_and_document_invalid(self):
-        ser = ExpertSearchCreateSerializer(
-            data={"query": "Foo", "unified_document_id": 1}
-        )
-        self.assertFalse(ser.is_valid())
-
-    def test_excluded_expert_names(self):
-        ser = ExpertSearchCreateSerializer(
-            data={"query": "Bar", "excluded_expert_names": ["Alice", "Bob"]}
-        )
-        self.assertTrue(ser.is_valid())
-        self.assertEqual(ser.validated_data["excluded_expert_names"], ["Alice", "Bob"])
-
-    def test_name_optional_accepted(self):
-        ser = ExpertSearchCreateSerializer(
-            data={"query": "Q", "name": "My expert search"}
-        )
-        self.assertTrue(ser.is_valid())
-        self.assertEqual(ser.validated_data["name"], "My expert search")
-
-    def test_name_optional_omitted(self):
-        ser = ExpertSearchCreateSerializer(data={"query": "Q"})
-        self.assertTrue(ser.is_valid())
-        # When omitted, name may be absent (None) or "" depending on serializer
-        self.assertFalse(ser.validated_data.get("name"))
-
-    def test_additional_context_optional_with_query(self):
-        ser = ExpertSearchCreateSerializer(
-            data={"query": "Q", "additional_context": "Extra hints for the model."}
-        )
-        self.assertTrue(ser.is_valid())
-        self.assertEqual(
-            ser.validated_data["additional_context"], "Extra hints for the model."
-        )
-
-    def test_additional_context_optional_with_document(self):
-        ser = ExpertSearchCreateSerializer(
-            data={
-                "unified_document_id": 42,
-                "input_type": "abstract",
-                "additional_context": "RFP nuance here.",
-            }
-        )
-        self.assertTrue(ser.is_valid())
-        self.assertEqual(ser.validated_data["additional_context"], "RFP nuance here.")
-
-    def test_additional_context_max_length(self):
-        ser = ExpertSearchCreateSerializer(
-            data={
-                "query": "q",
-                "additional_context": "x" * (ADDITIONAL_CONTEXT_MAX_LENGTH + 1),
-            }
-        )
-        self.assertFalse(ser.is_valid())
-        self.assertIn("additional_context", ser.errors)
-
-
-class ExpertSearchCreateSerializerV2Tests(TestCase):
     def test_valid_document_and_dedupes_excluded_search_ids(self):
-        ser = ExpertSearchCreateSerializerV2(
+        ser = ExpertSearchCreateSerializer(
             data={
                 "unified_document_id": 1,
                 "input_type": "abstract",
@@ -187,17 +107,28 @@ class ExpertSearchCreateSerializerV2Tests(TestCase):
         self.assertEqual(ser.validated_data["excluded_search_ids"], [1, 2])
 
     def test_requires_input_type_with_unified_document(self):
-        ser = ExpertSearchCreateSerializerV2(data={"unified_document_id": 1})
+        ser = ExpertSearchCreateSerializer(data={"unified_document_id": 1})
         self.assertFalse(ser.is_valid())
         self.assertIn("input_type", ser.errors)
 
     def test_requires_unified_document_id(self):
-        ser = ExpertSearchCreateSerializerV2(data={"input_type": "abstract"})
+        ser = ExpertSearchCreateSerializer(data={"input_type": "abstract"})
         self.assertFalse(ser.is_valid())
         self.assertIn("unified_document_id", ser.errors)
 
+    def test_additional_context_max_length(self):
+        ser = ExpertSearchCreateSerializer(
+            data={
+                "unified_document_id": 1,
+                "input_type": "abstract",
+                "additional_context": "x" * (ADDITIONAL_CONTEXT_MAX_LENGTH + 1),
+            }
+        )
+        self.assertFalse(ser.is_valid())
+        self.assertIn("additional_context", ser.errors)
 
-class ExpertSearchV2SerializerTests(TestCase):
+
+class ExpertSearchDetailSerializerTests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("v2ser")
         self.search = ExpertSearch.objects.create(
@@ -210,13 +141,15 @@ class ExpertSearchV2SerializerTests(TestCase):
         SearchExpert.objects.create(expert_search=self.search, expert=ex, position=0)
 
     def test_detail_has_experts_array(self):
-        ser = ExpertSearchDetailSerializerV2(self.search)
+        ser = ExpertSearchDetailSerializer(self.search)
         self.assertNotIn("expert_results", ser.data)
         self.assertEqual(len(ser.data["experts"]), 1)
         self.assertEqual(ser.data["experts"][0]["email"], "v2@x.edu")
+        self.assertIn("last_email_sent_at", ser.data["experts"][0])
+        self.assertIsNone(ser.data["experts"][0]["last_email_sent_at"])
 
 
-class ExpertUpdateSerializerV2Tests(TestCase):
+class ExpertUpdateSerializerTests(TestCase):
     def setUp(self):
         self.expert = Expert.objects.create(
             email="old@uni.edu",
@@ -226,7 +159,7 @@ class ExpertUpdateSerializerV2Tests(TestCase):
     def test_normalizes_email_and_preserves_sources(self):
         self.expert.sources = [{"text": "Keep", "url": "https://keep.example"}]
         self.expert.save(update_fields=["sources"])
-        ser = ExpertUpdateSerializerV2(
+        ser = ExpertUpdateSerializer(
             self.expert,
             data={
                 "email": " NEW@uni.edu ",
@@ -243,7 +176,7 @@ class ExpertUpdateSerializerV2Tests(TestCase):
         )
 
 
-class ExpertSearchSerializerTests(TestCase):
+class ExpertSearchDetailSerializerWorkTests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("ser")
         self.search = ExpertSearch.objects.create(
@@ -251,50 +184,36 @@ class ExpertSearchSerializerTests(TestCase):
             query="Test",
             name="Test search",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[
-                {"name": "A", "email": "a@x.com"},
-                {"name": "B", "email": "b@x.com"},
-            ],
             report_pdf_url="https://example.com/a.pdf",
             report_csv_url="https://example.com/a.csv",
         )
 
     def test_serializer_includes_name(self):
-        ser = ExpertSearchSerializer(self.search)
+        ser = ExpertSearchDetailSerializer(self.search)
         self.assertEqual(ser.data["name"], "Test search")
 
     def test_serializer_includes_additional_context(self):
         self.search.additional_context = "User notes"
         self.search.save(update_fields=["additional_context"])
-        ser = ExpertSearchSerializer(self.search)
+        ser = ExpertSearchDetailSerializer(self.search)
         self.assertEqual(ser.data["additional_context"], "User notes")
 
-    def test_get_expert_names(self):
-        ser = ExpertSearchSerializer(self.search)
-        self.assertEqual(ser.data["expert_names"], ["A", "B"])
-
     def test_get_report_urls(self):
-        ser = ExpertSearchSerializer(self.search)
+        ser = ExpertSearchDetailSerializer(self.search)
         self.assertEqual(
             ser.data["report_urls"],
             {"pdf": "https://example.com/a.pdf", "csv": "https://example.com/a.csv"},
         )
 
-    def test_get_expert_names_empty(self):
-        self.search.expert_results = []
-        self.search.save()
-        ser = ExpertSearchSerializer(self.search)
-        self.assertEqual(ser.data["expert_names"], [])
-
     def test_get_report_urls_none_when_empty(self):
         self.search.report_pdf_url = ""
         self.search.report_csv_url = ""
         self.search.save()
-        ser = ExpertSearchSerializer(self.search)
+        ser = ExpertSearchDetailSerializer(self.search)
         self.assertIsNone(ser.data["report_urls"])
 
     def test_created_by_payload_has_user_id_and_author_key(self):
-        ser = ExpertSearchSerializer(self.search)
+        ser = ExpertSearchDetailSerializer(self.search)
         created_by = ser.data["created_by"]
         self.assertEqual(created_by["user_id"], self.user.id)
         self.assertIn("author", created_by)
@@ -302,13 +221,11 @@ class ExpertSearchSerializerTests(TestCase):
             self.assertIn("id", created_by["author"])
 
     def test_work_is_none_when_no_unified_document(self):
-        """ExpertSearch without unified_document has work=None."""
-        ser = ExpertSearchSerializer(self.search)
+        ser = ExpertSearchDetailSerializer(self.search)
         self.assertIsNone(self.search.unified_document_id)
         self.assertIsNone(ser.data["work"])
 
     def test_work_resolves_paper_when_unified_document_is_paper(self):
-        """Unified doc pointing to paper yields work with type paper."""
         from paper.tests.helpers import create_paper
 
         paper = create_paper(
@@ -321,7 +238,7 @@ class ExpertSearchSerializerTests(TestCase):
             query="From paper",
             status=ExpertSearch.Status.COMPLETED,
         )
-        ser = ExpertSearchSerializer(search_with_paper)
+        ser = ExpertSearchDetailSerializer(search_with_paper)
         work = ser.data["work"]
         self.assertIsNotNone(work)
         self.assertEqual(work["type"], "paper")
@@ -340,14 +257,14 @@ class ExpertSearchListItemSerializerTests(TestCase):
             created_by=self.user,
             query="List test",
             status=ExpertSearch.Status.COMPLETED,
-            expert_results=[{"name": "X", "email": "x@y.com"}],
+            excluded_search_ids=[3],
         )
 
     def test_list_item_fields(self):
         ser = ExpertSearchListItemSerializer(self.search)
         self.assertEqual(ser.data["search_id"], self.search.id)
         self.assertEqual(ser.data["query"], "List test")
-        self.assertEqual(ser.data["expert_names"], ["X"])
+        self.assertEqual(ser.data["excluded_search_ids"], [3])
 
     def test_created_by_payload_has_user_id_and_author_key(self):
         ser = ExpertSearchListItemSerializer(self.search)

@@ -28,7 +28,9 @@ EXPERT_VARIABLES = ("name", "title", "affiliation", "email", "expertise")
 
 
 def format_expert_name_from_raw(raw: str) -> str:
-    """Stored expert_name and {{expert.name}}: first and last word only, middle dropped."""
+    """
+    Stored expert_name / {{expert.name}}: keep first and last token; drop middle.
+    """
     s = " ".join((raw or "").split())
     if not s:
         return ""
@@ -109,7 +111,7 @@ def _build_proposal_context(proposal_context_dict: dict | None) -> dict[str, str
 
 
 def _build_expert_context(resolved_expert: dict | None) -> dict[str, str]:
-    """Build expert entity dict from resolve_expert_from_search() result."""
+    """Build expert entity dict from ``ExpertDisplay.email_generation_dict`` output."""
     if not resolved_expert:
         return dict.fromkeys(EXPERT_VARIABLES, "")
     return {
