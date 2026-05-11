@@ -39,22 +39,6 @@ def expert_to_report_row(expert: Expert) -> dict[str, Any]:
     }
 
 
-def generate_pdf_report_v2(
-    experts: list[Expert],
-    query: str,
-    config: dict[str, Any],
-) -> bytes:
-    rows = [expert_to_report_row(e) for e in experts]
-
-    return generate_pdf_report(rows, query, config)
-
-
-def generate_csv_file_v2(experts: list[Expert]) -> bytes:
-    rows = [expert_to_report_row(e) for e in experts]
-
-    return generate_csv_file(rows)
-
-
 def generate_pdf_report(
     experts: list[dict[str, Any]],
     query: str,

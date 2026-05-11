@@ -45,7 +45,7 @@ class NormalizeTemplateTests(APITestCase):
         )
 
 
-def _make_expert_search(created_by, expert_results=None):
+def _make_expert_search(created_by):
     return ExpertSearch.objects.create(
         created_by=created_by,
         name="Test Search",
@@ -53,7 +53,6 @@ def _make_expert_search(created_by, expert_results=None):
         input_type=ExpertSearch.InputType.CUSTOM_QUERY,
         status=ExpertSearch.Status.COMPLETED,
         progress=100,
-        expert_results=expert_results or [],
     )
 
 
@@ -62,18 +61,28 @@ class GenerateEmailViewTests(APITestCase):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
         self.user = create_random_authenticated_user("user", moderator=False)
         self.url = "/api/research_ai/expert-finder/generate-email/"
-        self.expert_search = _make_expert_search(
-            self.moderator,
-            expert_results=[
-                {
-                    "name": "Dr. Jane Marie Smith",
-                    "email": "jane@example.com",
-                    "title": "Professor",
-                    "affiliation": "MIT",
-                    "expertise": "ML",
-                    "notes": "",
-                },
-            ],
+        self.expert_search = ExpertSearch.objects.create(
+            created_by=self.moderator,
+            name="Test Search",
+            query="ML",
+            input_type=ExpertSearch.InputType.CUSTOM_QUERY,
+            status=ExpertSearch.Status.COMPLETED,
+            progress=100,
+        )
+        self.jane = Expert.objects.create(
+            email="jane@example.com",
+            first_name="Jane",
+            middle_name="Marie",
+            last_name="Smith",
+            academic_title="Professor",
+            affiliation="MIT",
+            expertise="ML",
+            notes="",
+        )
+        SearchExpert.objects.create(
+            expert_search=self.expert_search,
+            expert=self.jane,
+            position=0,
         )
 
     def test_post_requires_authentication(self):
@@ -127,8 +136,8 @@ class GenerateEmailViewTests(APITestCase):
         data = response.json()
         self.assertEqual(
             data["expert_name"],
-            "Dr. Smith",
-            msg="Middle name trimmed from stored expert_name (first + last token)",
+            "Jane Smith",
+            msg="Stored expert_name uses first+last token from resolved personal name",
         )
         self.assertEqual(data["email_subject"], "Subject here")
         self.assertEqual(data["email_body"], "Body here")
@@ -136,42 +145,6 @@ class GenerateEmailViewTests(APITestCase):
         self.assertEqual(GeneratedEmail.objects.count(), 1)
         rec = GeneratedEmail.objects.get()
         self.assertEqual(rec.created_by, self.moderator)
-
-    @patch("research_ai.views.email_views.generate_expert_email")
-    def test_post_save_false_returns_subject_body_only(self, mock_generate):
-        mock_generate.return_value = ("Subj", "Body text")
-        self.client.force_authenticate(self.moderator)
-        response = self.client.post(
-            self.url + "?save=false",
-            {
-                "expert_search_id": self.expert_search.id,
-                "expert_email": "jane@example.com",
-                "template": "collaboration",
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        data = response.json()
-        self.assertEqual(data["subject"], "Subj")
-        self.assertEqual(data["body"], "Body text")
-        self.assertEqual(GeneratedEmail.objects.count(), 0)
-
-    @patch("research_ai.views.email_views.generate_expert_email")
-    def test_post_action_generate_returns_subject_body_only(self, mock_generate):
-        mock_generate.return_value = ("A", "B")
-        self.client.force_authenticate(self.moderator)
-        response = self.client.post(
-            self.url + "?action=generate",
-            {
-                "expert_search_id": self.expert_search.id,
-                "expert_email": "jane@example.com",
-                "template": "consultation",
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json(), {"subject": "A", "body": "B"})
-        self.assertEqual(GeneratedEmail.objects.count(), 0)
 
     @patch("research_ai.views.email_views.generate_expert_email")
     def test_post_runtime_error_returns_503(self, mock_generate):
@@ -192,19 +165,20 @@ class GenerateEmailViewTests(APITestCase):
     @patch("research_ai.views.email_views.generate_expert_email")
     def test_post_with_expert_search_id_links_record(self, mock_generate):
         mock_generate.return_value = ("S", "B")
-        search = _make_expert_search(
-            self.moderator,
-            expert_results=[
-                {
-                    "name": "Dr. A",
-                    "email": "a@example.com",
-                    "title": "",
-                    "affiliation": "",
-                    "expertise": "",
-                    "notes": "",
-                },
-            ],
+        search = ExpertSearch.objects.create(
+            created_by=self.moderator,
+            name="Other",
+            query="Q",
+            input_type=ExpertSearch.InputType.CUSTOM_QUERY,
+            status=ExpertSearch.Status.COMPLETED,
+            progress=100,
         )
+        ex = Expert.objects.create(
+            email="a@example.com",
+            first_name="Ann",
+            last_name="Other",
+        )
+        SearchExpert.objects.create(expert_search=search, expert=ex, position=0)
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
             self.url,
@@ -307,151 +281,49 @@ class GenerateEmailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Expert not found", response.json().get("detail", ""))
 
-
-class GenerateEmailViewV2Tests(APITestCase):
-    def setUp(self):
-        self.moderator = create_random_authenticated_user("v2gen_mod", moderator=True)
-        self.user = create_random_authenticated_user("v2gen_user", moderator=False)
-        self.url = "/api/research_ai/expert-finder/v2/generate-email/"
-        self.expert_search = ExpertSearch.objects.create(
+    def test_expert_not_linked_via_search_expert_returns_400(self):
+        """Expert must be on the search via ``SearchExpert``."""
+        legacy_only = ExpertSearch.objects.create(
             created_by=self.moderator,
-            name="V2 search",
+            name="No link",
             query="ML",
             input_type=ExpertSearch.InputType.CUSTOM_QUERY,
             status=ExpertSearch.Status.COMPLETED,
             progress=100,
-            expert_results=[
-                {
-                    "name": "Legacy Only",
-                    "email": "legacy@example.com",
-                    "title": "",
-                    "affiliation": "",
-                    "expertise": "",
-                    "notes": "",
-                },
-            ],
         )
-        self.linked = Expert.objects.create(
-            email="linked@example.edu",
-            honorific="Dr",
-            first_name="Linked",
-            last_name="Expert",
-            academic_title="Prof",
-            affiliation="Inst",
-            expertise="Physics",
-            notes="N",
+        Expert.objects.create(
+            email="legacy@example.com",
+            first_name="Legacy",
+            last_name="Only",
         )
-        SearchExpert.objects.create(
-            expert_search=self.expert_search,
-            expert=self.linked,
-            position=0,
-        )
-
-    def test_requires_moderator(self):
-        self.client.force_authenticate(self.user)
-        r = self.client.post(
-            self.url,
-            {
-                "expert_search_id": self.expert_search.id,
-                "expert_email": "linked@example.edu",
-                "template": "collaboration",
-            },
-            format="json",
-        )
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_legacy_expert_results_alone_returns_404_expert_not_found(self):
-        """V2 does not read ``expert_results``; legacy-only emails are rejected."""
         self.client.force_authenticate(self.moderator)
-        r = self.client.post(
+        response = self.client.post(
             self.url,
             {
-                "expert_search_id": self.expert_search.id,
+                "expert_search_id": legacy_only.id,
                 "expert_email": "legacy@example.com",
                 "template": "collaboration",
             },
             format="json",
         )
-        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("research_ai.views.email_views_v2.generate_expert_email")
-    def test_linked_expert_returns_201(self, mock_generate):
+    @patch("research_ai.views.email_views.generate_expert_email")
+    def test_resolve_passes_normalized_email_to_llm(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         self.client.force_authenticate(self.moderator)
         r = self.client.post(
             self.url,
             {
                 "expert_search_id": self.expert_search.id,
-                "expert_email": "linked@example.edu",
+                "expert_email": "JANE@EXAMPLE.COM",
                 "template": "collaboration",
             },
             format="json",
         )
         self.assertEqual(r.status_code, status.HTTP_201_CREATED)
-        rec = GeneratedEmail.objects.get()
-        self.assertEqual(rec.expert_email, "linked@example.edu")
-        self.assertEqual(rec.expert_title, "Prof")
         _args, kwargs = mock_generate.call_args
-        self.assertEqual(kwargs["resolved_expert"]["email"], "linked@example.edu")
-
-
-class BulkGenerateEmailViewV2Tests(APITestCase):
-    def setUp(self):
-        self.moderator = create_random_authenticated_user("v2blk_mod", moderator=True)
-        self.url = "/api/research_ai/expert-finder/v2/generate-emails-bulk/"
-        self.search = ExpertSearch.objects.create(
-            created_by=self.moderator,
-            query="Q",
-            status=ExpertSearch.Status.COMPLETED,
-        )
-        self.expert = Expert.objects.create(
-            email="bulklinked@example.edu",
-            first_name="B",
-            last_name="ULK",
-            academic_title="PI",
-            affiliation="Lab",
-            expertise="Chem",
-            notes="bulk note",
-        )
-        SearchExpert.objects.create(
-            expert_search=self.search,
-            expert=self.expert,
-            position=0,
-        )
-
-    @patch("research_ai.views.email_views_v2.process_bulk_generate_emails_task")
-    def test_bulk_resolves_via_search_expert(self, mock_bulk_task):
-        self.client.force_authenticate(self.moderator)
-        r = self.client.post(
-            self.url,
-            {
-                "expert_search_id": self.search.id,
-                "experts": [{"expert_email": "bulklinked@example.edu"}],
-                "template": "collaboration",
-            },
-            format="json",
-        )
-        self.assertEqual(r.status_code, status.HTTP_202_ACCEPTED)
-        body = r.json()
-        self.assertEqual(len(body["ids"]), 1)
-        rec = GeneratedEmail.objects.get(id=body["ids"][0])
-        self.assertEqual(rec.expert_email, "bulklinked@example.edu")
-        self.assertEqual(rec.expert_title, "PI")
-        self.assertEqual(rec.notes, "bulk note")
-        mock_bulk_task.delay.assert_called_once()
-
-    def test_bulk_unknown_email_returns_400(self):
-        self.client.force_authenticate(self.moderator)
-        r = self.client.post(
-            self.url,
-            {
-                "expert_search_id": self.search.id,
-                "experts": [{"expert_email": "noone@edu"}],
-                "template": "collaboration",
-            },
-            format="json",
-        )
-        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(kwargs["resolved_expert"]["email"], "jane@example.com")
 
 
 class GeneratedEmailListViewTests(APITestCase):
@@ -726,16 +598,28 @@ class GeneratedEmailDetailViewTests(APITestCase):
         self.assertEqual(response.json()["id"], email.id)
 
     def test_patch_updates_and_returns_200(self):
-        email = self._create_email()
+        expert = Expert.objects.create(
+            email="patchbody@uni.edu", first_name="P", last_name="T"
+        )
+        email = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_email="patchbody@uni.edu",
+            expert_name="Dr. Test",
+            email_subject="Subj",
+            email_body="Body",
+        )
         self.client.force_authenticate(self.moderator)
         response = self.client.patch(
             f"/api/research_ai/expert-finder/emails/{email.id}/",
-            {"email_body": "Updated body"},
+            {"email_body": "Updated body", "status": "sent"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         email.refresh_from_db()
         self.assertEqual(email.email_body, "Updated body")
+        self.assertEqual(email.status, "sent")
+        expert.refresh_from_db()
+        self.assertIsNotNone(expert.last_email_sent_at)
 
     def test_patch_can_set_status_closed(self):
         email = self._create_email()
@@ -787,26 +671,21 @@ class BulkGenerateEmailViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
         self.url = "/api/research_ai/expert-finder/generate-emails-bulk/"
-        self.expert_search = _make_expert_search(
-            self.moderator,
-            expert_results=[
-                {
-                    "name": "Dr. A",
-                    "email": "a@x.com",
-                    "title": "",
-                    "affiliation": "",
-                    "expertise": "",
-                    "notes": "",
-                },
-                {
-                    "name": "Dr. B",
-                    "email": "b@x.com",
-                    "title": "",
-                    "affiliation": "",
-                    "expertise": "",
-                    "notes": "",
-                },
-            ],
+        self.expert_search = ExpertSearch.objects.create(
+            created_by=self.moderator,
+            name="Bulk search",
+            query="Q",
+            input_type=ExpertSearch.InputType.CUSTOM_QUERY,
+            status=ExpertSearch.Status.COMPLETED,
+            progress=100,
+        )
+        ex_a = Expert.objects.create(email="a@x.com", first_name="A", last_name="Alpha")
+        ex_b = Expert.objects.create(email="b@x.com", first_name="B", last_name="Beta")
+        SearchExpert.objects.create(
+            expert_search=self.expert_search, expert=ex_a, position=0
+        )
+        SearchExpert.objects.create(
+            expert_search=self.expert_search, expert=ex_b, position=1
         )
 
     def test_post_requires_authentication(self):

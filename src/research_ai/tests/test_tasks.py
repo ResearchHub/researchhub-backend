@@ -6,59 +6,12 @@ from django.test import TestCase, override_settings
 
 from research_ai.models import Expert, ExpertSearch, GeneratedEmail
 from research_ai.tasks import (
-    _maybe_obfuscate_expert_emails_for_non_production,
     _update_search_progress,
     process_bulk_generate_emails_task,
-    process_expert_search_task,
-    run_expert_finder_search_v2,
+    run_expert_finder_search,
     send_queued_emails_task,
 )
 from user.tests.helpers import create_random_authenticated_user
-
-# --- _maybe_obfuscate_expert_emails_for_non_production ---
-
-
-class MaybeObfuscateExpertEmailsTests(TestCase):
-    """Test email obfuscation for non-production."""
-
-    def test_returns_experts_unchanged_when_empty(self):
-        self.assertEqual(_maybe_obfuscate_expert_emails_for_non_production([]), [])
-
-    @override_settings(PRODUCTION=True)
-    def test_returns_experts_unchanged_when_production(self):
-        experts = [{"name": "Jane", "email": "jane@example.com"}]
-        result = _maybe_obfuscate_expert_emails_for_non_production(experts)
-        self.assertEqual(result, experts)
-        self.assertEqual(result[0]["email"], "jane@example.com")
-
-    @override_settings(TESTING=True)
-    def test_returns_experts_unchanged_when_testing(self):
-        experts = [{"name": "Jane", "email": "jane@example.com"}]
-        result = _maybe_obfuscate_expert_emails_for_non_production(experts)
-        self.assertEqual(result, experts)
-
-    @override_settings(PRODUCTION=False, TESTING=False)
-    def test_obfuscates_email_when_not_production_not_testing(self):
-        experts = [
-            {"name": "Jane", "email": "jane@example.com"},
-            {"name": "Bob", "email": "bob@uni.edu"},
-        ]
-        result = _maybe_obfuscate_expert_emails_for_non_production(experts)
-        self.assertEqual(len(result), 2)
-        self.assertEqual(result[0]["email"], "jane_test@example.com")
-        self.assertEqual(result[1]["email"], "bob_test@uni.edu")
-        self.assertEqual(result[0]["name"], "Jane")
-
-    @override_settings(PRODUCTION=False, TESTING=False)
-    def test_skips_obfuscation_when_no_email_or_no_at(self):
-        experts = [
-            {"name": "NoEmail"},
-            {"name": "Bad", "email": "no-at-sign"},
-        ]
-        result = _maybe_obfuscate_expert_emails_for_non_production(experts)
-        self.assertEqual(result[0].get("email"), None)
-        self.assertEqual(result[1]["email"], "no-at-sign")
-
 
 # --- _update_search_progress ---
 
@@ -94,162 +47,40 @@ class UpdateSearchProgressTests(TestCase):
         _update_search_progress("99999999", 0, "No-op")  # no such id – should not raise
 
 
-# --- process_expert_search_task ---
+# --- run_expert_finder_search (Celery) ---
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-class ProcessExpertSearchTaskTests(TestCase):
+class RunExpertFinderSearchTaskTests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("task_user")
         self.search = ExpertSearch.objects.create(
             created_by=self.user,
             query="Task query",
             status=ExpertSearch.Status.PENDING,
-        )
-
-    @patch("research_ai.tasks.ExpertFinderService")
-    def test_process_expert_search_success_updates_search_and_obfuscates_in_non_prod(
-        self, mock_service_class
-    ):
-        mock_instance = mock_service_class.return_value
-        mock_instance.process_expert_search.return_value = {
-            "status": ExpertSearch.Status.COMPLETED,
-            "experts": [
-                {"name": "Dr. A", "email": "a@lab.org"},
-                {"name": "Dr. B", "email": "b@lab.org"},
-            ],
-            "expert_count": 2,
-            "report_urls": {"pdf": "/r/1.pdf", "csv": "/r/1.csv"},
-            "llm_model": "test-model",
-        }
-        with override_settings(PRODUCTION=False, TESTING=False):
-            result = process_expert_search_task.apply(
-                kwargs={
-                    "search_id": str(self.search.id),
-                    "query": self.search.query,
-                    "config": {},
-                    "excluded_expert_names": None,
-                    "is_pdf": False,
-                }
-            ).get()
-        self.search.refresh_from_db()
-        self.assertEqual(self.search.status, ExpertSearch.Status.COMPLETED)
-        self.assertEqual(self.search.expert_count, 2)
-        self.assertEqual(result["status"], ExpertSearch.Status.COMPLETED)
-        # Emails obfuscated when not production
-        self.assertEqual(
-            [e["email"] for e in self.search.expert_results],
-            ["a_test@lab.org", "b_test@lab.org"],
-        )
-
-    @patch("research_ai.tasks.ExpertFinderService")
-    def test_process_expert_search_when_service_returns_failed_saves_error(
-        self, mock_service_class
-    ):
-        mock_instance = mock_service_class.return_value
-        mock_instance.process_expert_search.return_value = {
-            "status": ExpertSearch.Status.FAILED,
-            "error_message": "No table parsed",
-            "current_step": "No expert table returned",
-            "experts": [],
-            "expert_count": 0,
-            "report_urls": {},
-            "llm_model": "",
-        }
-        result = process_expert_search_task.apply(
-            kwargs={
-                "search_id": str(self.search.id),
-                "query": self.search.query,
-                "config": {},
-                "excluded_expert_names": None,
-                "is_pdf": False,
-            }
-        ).get()
-        self.search.refresh_from_db()
-        self.assertEqual(self.search.status, ExpertSearch.Status.FAILED)
-        self.assertIn("No table parsed", self.search.error_message)
-        self.assertEqual(result["status"], ExpertSearch.Status.FAILED)
-
-    @patch("research_ai.tasks.ExpertFinderService")
-    def test_process_expert_search_passes_additional_context_to_service(
-        self, mock_service_class
-    ):
-        mock_instance = mock_service_class.return_value
-        mock_instance.process_expert_search.return_value = {
-            "status": ExpertSearch.Status.COMPLETED,
-            "experts": [{"name": "Dr. A", "email": "a@lab.org"}],
-            "expert_count": 1,
-            "report_urls": {"pdf": "/r/1.pdf", "csv": "/r/1.csv"},
-            "llm_model": "test-model",
-        }
-        process_expert_search_task.apply(
-            kwargs={
-                "search_id": str(self.search.id),
-                "query": self.search.query,
-                "config": {},
-                "excluded_expert_names": None,
-                "is_pdf": False,
-                "additional_context": "Focus on cardiology.",
-            }
-        ).get()
-        mock_instance.process_expert_search.assert_called_once()
-        call_kw = mock_instance.process_expert_search.call_args.kwargs
-        self.assertEqual(call_kw.get("additional_context"), "Focus on cardiology.")
-
-    @patch("research_ai.tasks.ExpertFinderService")
-    def test_process_expert_search_exception_updates_status_and_reraises(
-        self, mock_service_class
-    ):
-        mock_instance = mock_service_class.return_value
-        mock_instance.process_expert_search.side_effect = RuntimeError("LLM error")
-        with self.assertRaises(RuntimeError):
-            process_expert_search_task.apply(
-                kwargs={
-                    "search_id": str(self.search.id),
-                    "query": self.search.query,
-                    "config": {},
-                    "excluded_expert_names": None,
-                    "is_pdf": False,
-                }
-            ).get()
-        self.search.refresh_from_db()
-        self.assertEqual(self.search.status, ExpertSearch.Status.FAILED)
-
-
-# --- run_expert_finder_search_v2 ---
-
-
-@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-class RunExpertFinderSearchV2TaskTests(TestCase):
-    def setUp(self):
-        self.user = create_random_authenticated_user("v2_task_user")
-        self.search = ExpertSearch.objects.create(
-            created_by=self.user,
-            query="Task v2",
-            status=ExpertSearch.Status.PENDING,
             excluded_search_ids=[42],
         )
 
-    @patch("research_ai.tasks.run_v2_expert_search")
-    def test_v2_task_merges_excluded_search_ids_from_model_when_kwargs_omitted(
-        self, mock_run_v2
+    @patch("research_ai.tasks.expert_finder_service_mod.run_expert_finder_search")
+    def test_task_merges_excluded_search_ids_from_model_when_kwargs_omitted(
+        self, mock_run
     ):
-        mock_run_v2.return_value = {
+        mock_run.return_value = {
             "status": ExpertSearch.Status.COMPLETED,
-            "experts": [{"name": "A", "email": "a@b.com"}],
+            "experts": [],
             "expert_count": 1,
             "report_urls": {"pdf": "/p", "csv": "/c"},
             "llm_model": "m",
         }
-        run_expert_finder_search_v2.apply(
+        run_expert_finder_search.apply(
             kwargs={
                 "search_id": str(self.search.id),
                 "query": self.search.query,
                 "config": {},
             }
         ).get()
-        mock_run_v2.assert_called_once()
-        kw = mock_run_v2.call_args.kwargs
+        mock_run.assert_called_once()
+        kw = mock_run.call_args.kwargs
         self.assertEqual(kw["excluded_search_ids"], [42])
 
 
