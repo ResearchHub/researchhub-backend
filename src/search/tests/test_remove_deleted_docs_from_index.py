@@ -5,6 +5,8 @@ from unittest.mock import Mock, patch
 from django.core.management import call_command
 from django.test import TestCase
 
+from opensearchpy.exceptions import ConnectionError as OpenSearchConnectionError
+
 from hub.models import Hub
 from paper.models import Paper
 from paper.tests.helpers import create_paper
@@ -243,7 +245,7 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
     def test_mget_exception_is_handled_gracefully(self):
         # Arrange
         def mget_raises(index, body):
-            raise Exception("OpenSearch unavailable")
+            raise OpenSearchConnectionError("OpenSearch unavailable")
 
         out = StringIO()
         err = StringIO()
