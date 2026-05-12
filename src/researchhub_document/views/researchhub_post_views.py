@@ -553,7 +553,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     def create_access_group(self, request):
         return None
 
-    def create_unified_doc(self, request, target_grant=None):
+    def create_unified_doc(self, request, target_grant: Grant | None = None):
         try:
             request_data = request.data
             hubs = Hub.objects.filter(id__in=request_data.get("hubs", [])).all()

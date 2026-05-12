@@ -289,7 +289,7 @@ class GrantViewSet(viewsets.ModelViewSet):
             return Response({"message": "Already applied"}, status=200)
 
     @staticmethod
-    def _visibility_mismatch(grant, post):
+    def _visibility_mismatch(grant: Grant, post: ResearchhubPost) -> str | None:
         is_public = post.unified_document.is_public
         if (
             grant.application_visibility == Grant.APPLICATION_VISIBILITY_PRIVATE
