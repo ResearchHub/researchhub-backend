@@ -20,7 +20,7 @@ class Migration(migrations.Migration):
                     ("PUBLIC", "Applications must be public"),
                 ],
                 default="OPTIONAL",
-                help_text="Privacy rule applied to preregistrations applying to this grant. OPTIONAL lets the applicant choose; PRIVATE/PUBLIC overrides the applicant's is_public setting.",
+                help_text="Privacy rule applied to preregistrations applying to this grant. OPTIONAL lets the applicant choose; PRIVATE/PUBLIC require the applicant's preregistration to match (mismatched applications are rejected with a 400).",
                 max_length=16,
             ),
         ),
