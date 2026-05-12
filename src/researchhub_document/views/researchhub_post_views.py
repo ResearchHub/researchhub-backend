@@ -354,6 +354,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         "is_active",
                         "created_by",
                         "contacts",
+                        "application_visibility",
                     ],
                 ).data
                 if grant
@@ -461,6 +462,11 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 if grant_contacts is not None:
                     grant_data["contact_ids"] = grant_contacts
 
+                if (application_visibility := data.get(
+                    "grant_application_visibility"
+                )) is not None:
+                    grant_data["application_visibility"] = application_visibility
+
                 grant_serializer = GrantCreateSerializer(data=grant_data)
                 grant_serializer.is_valid(raise_exception=True)
 
@@ -476,6 +482,10 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 existing_grant.end_date = grant_serializer.validated_data.get(
                     "end_date"
                 )
+                if "application_visibility" in grant_serializer.validated_data:
+                    existing_grant.application_visibility = (
+                        grant_serializer.validated_data["application_visibility"]
+                    )
 
                 # Handle contacts properly - get contact_ids and convert to User objects
                 contact_ids = grant_serializer.validated_data.get("contact_ids", [])
@@ -539,6 +549,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         "is_active",
                         "created_by",
                         "contacts",
+                        "application_visibility",
                     ],
                 ).data
                 if grant
