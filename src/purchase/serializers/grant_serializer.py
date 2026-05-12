@@ -86,6 +86,14 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
     def get_applications(self, grant):
         """Return grant applications with applicant and fundraise information"""
 
+        request = self.context.get("request")
+        viewer = getattr(request, "user", None) if request else None
+        is_grant_reviewer = (
+            viewer is not None
+            and getattr(viewer, "is_authenticated", False)
+            and grant.created_by_id == viewer.id
+        )
+
         review_by_ud = {r.unified_document_id: r for r in grant.proposal_reviews.all()}
         application_data = []
         for application in grant.applications.all():
@@ -96,6 +104,12 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             ud = getattr(application.preregistration_post, "unified_document", None)
             if ud and ud.is_removed:
                 continue
+
+            if ud and not ud.is_public and not is_grant_reviewer:
+                if not viewer or not getattr(viewer, "is_authenticated", False):
+                    continue
+                if application.applicant_id != viewer.id:
+                    continue
 
             application_data.append(
                 {
