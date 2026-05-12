@@ -101,7 +101,7 @@ python manage.py opensearch index rebuild
     ## Clean all indices
     python manage.py remove_deleted_docs_from_index
 
-    ## Clean only the paper index
+    ## Clean only the paper index (index options are journal, hub, post, paper)
     python manage.py remove_deleted_docs_from_index --index=paper
 
     ## Custom batch size

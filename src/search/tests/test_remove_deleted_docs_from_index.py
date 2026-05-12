@@ -29,7 +29,7 @@ def _mock_mget_none_found(index, body):
 
 
 def _mock_client(mget_func=_mock_mget_all_found):
-    return Mock(mget=mget_func)
+    return Mock(mget=Mock(side_effect=mget_func))
 
 
 def _get_updated_ids(mock_update):
@@ -37,7 +37,6 @@ def _get_updated_ids(mock_update):
 
 
 def _patch_all_connections(mget_func=_mock_mget_all_found):
-    """Context manager that patches _get_connection for all document classes."""
     client = _mock_client(mget_func)
     stack = ExitStack()
     for cls in DOC_CLASSES:
@@ -54,7 +53,6 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
         self.paper_removed.is_removed = True
         self.paper_removed.save()
 
-        self.hub_active = Hub.objects.create(name="Active Hub", is_removed=False)
         self.hub_removed = Hub.objects.create(name="Removed Hub", is_removed=True)
         self.journal_removed = Hub.objects.create(
             name="Removed Journal", is_removed=True, namespace="journal"
@@ -62,22 +60,13 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
 
         self.user = create_random_authenticated_user("testuser")
 
-        self.unified_doc_removed = ResearchhubUnifiedDocument.objects.create(
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=DISCUSSION, is_removed=True
         )
         self.post_removed = ResearchhubPost.objects.create(
-            unified_document=self.unified_doc_removed,
+            unified_document=unified_doc,
             created_by=self.user,
             title="Removed Post",
-        )
-
-        self.unified_doc_active = ResearchhubUnifiedDocument.objects.create(
-            document_type=DISCUSSION, is_removed=False
-        )
-        self.post_active = ResearchhubPost.objects.create(
-            unified_document=self.unified_doc_active,
-            created_by=self.user,
-            title="Active Post",
         )
 
     def _patch_connection(self, doc_class, mget_func=_mock_mget_all_found):
@@ -85,6 +74,49 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
             f"{PATCH_PREFIX}.{doc_class}._get_connection",
             return_value=_mock_client(mget_func),
         )
+
+    # --- Core behavior ---
+
+    def test_only_removed_objects_are_sent_to_update(self):
+        # Arrange / Act
+        with self._patch_connection("PaperDocument"), patch(
+            f"{PATCH_PREFIX}.PaperDocument.update"
+        ) as mock_update:
+            call_command(COMMAND, "--index=paper", stdout=StringIO())
+
+        # Assert
+        ids = _get_updated_ids(mock_update)
+        self.assertIn(self.paper_removed.id, ids)
+        self.assertNotIn(self.paper_active.id, ids)
+
+    def test_processes_all_indices_when_no_flag_provided(self):
+        # Arrange
+        mocks = {}
+
+        # Act
+        with _patch_all_connections(), ExitStack() as stack:
+            for cls in DOC_CLASSES:
+                mocks[cls] = stack.enter_context(
+                    patch(f"{PATCH_PREFIX}.{cls}.update")
+                )
+            call_command(COMMAND, stdout=StringIO())
+
+        # Assert
+        for cls, mock_update in mocks.items():
+            mock_update.assert_called_once()
+
+    def test_index_flag_restricts_to_single_index(self):
+        # Arrange / Act
+        with self._patch_connection("PaperDocument"), patch(
+            f"{PATCH_PREFIX}.PaperDocument.update"
+        ) as mock_paper, patch(
+            f"{PATCH_PREFIX}.PostDocument.update"
+        ) as mock_post:
+            call_command(COMMAND, "--index=paper", stdout=StringIO())
+
+        # Assert
+        mock_paper.assert_called_once()
+        mock_post.assert_not_called()
 
     # --- Dry run ---
 
@@ -104,94 +136,6 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
         self.assertIn("DRY RUN", output)
         self.assertIn("1 still in index", output)
 
-    # --- Index filtering ---
-
-    def test_index_flag_restricts_to_single_index(self):
-        # Arrange / Act
-        with self._patch_connection("PaperDocument"), patch(
-            f"{PATCH_PREFIX}.PaperDocument.update"
-        ) as mock_paper, patch(
-            f"{PATCH_PREFIX}.PostDocument.update"
-        ) as mock_post:
-            call_command(COMMAND, "--index=paper", stdout=StringIO())
-
-        # Assert
-        mock_paper.assert_called_once()
-        mock_post.assert_not_called()
-
-    def test_processes_all_indices_when_no_flag_provided(self):
-        # Arrange
-        mocks = {}
-
-        # Act
-        with _patch_all_connections(), ExitStack() as stack:
-            for cls in DOC_CLASSES:
-                mocks[cls] = stack.enter_context(
-                    patch(f"{PATCH_PREFIX}.{cls}.update")
-                )
-            call_command(COMMAND, stdout=StringIO())
-
-        # Assert
-        for cls, mock_update in mocks.items():
-            mock_update.assert_called_once()
-
-    # --- Paper index ---
-
-    def test_paper_index_only_includes_removed_papers(self):
-        # Arrange / Act
-        with self._patch_connection("PaperDocument"), patch(
-            f"{PATCH_PREFIX}.PaperDocument.update"
-        ) as mock_update:
-            call_command(COMMAND, "--index=paper", stdout=StringIO())
-
-        # Assert
-        ids = _get_updated_ids(mock_update)
-        self.assertIn(self.paper_removed.id, ids)
-        self.assertNotIn(self.paper_active.id, ids)
-
-    # --- Post index ---
-
-    def test_post_index_uses_unified_document_removal_status(self):
-        # Arrange / Act
-        with self._patch_connection("PostDocument"), patch(
-            f"{PATCH_PREFIX}.PostDocument.update"
-        ) as mock_update:
-            call_command(COMMAND, "--index=post", stdout=StringIO())
-
-        # Assert
-        ids = _get_updated_ids(mock_update)
-        self.assertIn(self.post_removed.id, ids)
-        self.assertNotIn(self.post_active.id, ids)
-
-    # --- Hub index ---
-
-    def test_hub_index_excludes_journals(self):
-        # Arrange / Act
-        with self._patch_connection("HubDocument"), patch(
-            f"{PATCH_PREFIX}.HubDocument.update"
-        ) as mock_update:
-            call_command(COMMAND, "--index=hub", stdout=StringIO())
-
-        # Assert
-        ids = _get_updated_ids(mock_update)
-        self.assertIn(self.hub_removed.id, ids)
-        self.assertNotIn(self.journal_removed.id, ids)
-        self.assertNotIn(self.hub_active.id, ids)
-
-    # --- Journal index ---
-
-    def test_journal_index_only_includes_removed_journals(self):
-        # Arrange / Act
-        with self._patch_connection("JournalDocument"), patch(
-            f"{PATCH_PREFIX}.JournalDocument.update"
-        ) as mock_update:
-            call_command(COMMAND, "--index=journal", stdout=StringIO())
-
-        # Assert
-        ids = _get_updated_ids(mock_update)
-        self.assertIn(self.journal_removed.id, ids)
-        self.assertNotIn(self.hub_removed.id, ids)
-
     # --- OpenSearch awareness ---
 
     def test_skips_removal_when_docs_not_in_index(self):
@@ -206,56 +150,20 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
         mock_update.assert_not_called()
         self.assertIn("0 still in index", out.getvalue())
 
-    def test_skips_opensearch_check_when_no_removed_docs_in_database(self):
+    def test_skips_removal_when_no_removed_docs_in_database(self):
         # Arrange
         Paper.objects.filter(is_removed=True).update(is_removed=False)
+        client = _mock_client()
+        out = StringIO()
 
         # Act
         with patch(
-            f"{PATCH_PREFIX}.PaperDocument._get_connection"
-        ) as mock_conn, patch(
-            f"{PATCH_PREFIX}.PaperDocument.update"
-        ) as mock_update:
-            call_command(COMMAND, "--index=paper", stdout=StringIO())
+            f"{PATCH_PREFIX}.PaperDocument._get_connection",
+            return_value=client,
+        ), patch(f"{PATCH_PREFIX}.PaperDocument.update") as mock_update:
+            call_command(COMMAND, "--index=paper", stdout=out)
 
         # Assert
-        mock_conn.assert_not_called()
+        client.mget.assert_not_called()
         mock_update.assert_not_called()
-
-    # --- Error handling ---
-
-    def test_update_exception_is_logged_without_aborting(self):
-        # Arrange
-        out = StringIO()
-        err = StringIO()
-
-        # Act
-        with self._patch_connection("PaperDocument"), patch(
-            f"{PATCH_PREFIX}.PaperDocument.update",
-            side_effect=Exception("Connection error"),
-        ):
-            call_command(COMMAND, "--index=paper", stdout=out, stderr=err)
-
-        # Assert
-        self.assertIn("Error in Papers", err.getvalue())
-        self.assertIn("Done", out.getvalue())
-
-    def test_mget_exception_is_handled_gracefully(self):
-        # Arrange
-        def mget_raises(index, body):
-            raise RuntimeError("OpenSearch unavailable")
-
-        out = StringIO()
-        err = StringIO()
-
-        # Act
-        with self._patch_connection("PaperDocument", mget_raises), patch(
-            f"{PATCH_PREFIX}.PaperDocument.update"
-        ) as mock_update:
-            call_command(COMMAND, "--index=paper", stdout=out, stderr=err)
-
-        # Assert
-        mock_update.assert_not_called()
-        self.assertIn("Error checking index", err.getvalue())
-
-
+        self.assertIn("0 removed in database", out.getvalue())

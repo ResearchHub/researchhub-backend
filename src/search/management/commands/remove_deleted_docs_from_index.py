@@ -1,3 +1,5 @@
+from itertools import batched
+
 from django.core.management.base import BaseCommand, CommandParser
 from django.db.models import QuerySet
 from opensearchpy import NotFoundError
@@ -88,98 +90,83 @@ class Command(BaseCommand):
         doc: BaseDocument = config["document"]()
         qs: QuerySet = config["queryset"]()
         label: str = config["label"]
-
-        removed_ids: list[int] = list(qs.values_list("id", flat=True))
-        if not removed_ids:
-            self.stdout.write(f"{label}: 0 in database, 0 still in index")
-            return 0
-
-        ids_still_in_index = self._find_ids_in_index(doc, removed_ids, batch_size)
-
-        self.stdout.write(
-            f"{label}: {len(removed_ids)} removed in database, "
-            f"{len(ids_still_in_index)} still in index"
-        )
-
-        if not ids_still_in_index or dry_run:
-            return 0
-
-        return self._bulk_remove_from_index(
-            doc, qs, ids_still_in_index, batch_size, label
-        )
-
-    def _find_ids_in_index(
-        self, doc: BaseDocument, ids: list[int], batch_size: int
-    ) -> list[int]:
-        """Check which of the given IDs still exist in the OpenSearch index."""
-        index_name = doc._index._name
         client = doc._get_connection()
-        found_ids: list[int] = []
+        opensearch_index = doc._index._name
 
-        for batch_start in range(0, len(ids), batch_size):
-            batch_ids = ids[batch_start : batch_start + batch_size]
-            try:
-                response = client.mget(
-                    index=index_name,
-                    body={"ids": [str(pk) for pk in batch_ids]},
-                )
-                for result in response.get("docs", []):
-                    if result.get("found"):
-                        found_ids.append(int(result["_id"]))
-            except NotFoundError:
-                continue
-            except Exception as e:
-                self.stderr.write(
-                    self.style.ERROR(
-                        f"Error checking index {index_name} "
-                        f"at offset {batch_start}: {e}"
-                    )
-                )
-
-        return found_ids
-
-    def _bulk_remove_from_index(
-        self,
-        doc: BaseDocument,
-        queryset: QuerySet,
-        ids_to_remove: list[int],
-        batch_size: int,
-        label: str,
-    ) -> int:
-        """
-        Feeds removed objects through the document update pipeline.
-        BaseDocument._get_actions converts these into delete actions
-        because should_index_object returns False for removed objects.
-        """
-        total = len(ids_to_remove)
+        removed_in_db = 0
+        still_in_index = 0
         processed = 0
         errors = 0
 
-        for batch_start in range(0, total, batch_size):
-            batch_ids = ids_to_remove[batch_start : batch_start + batch_size]
-            batch = list(queryset.filter(pk__in=batch_ids))
-            if not batch:
-                break
-
-            try:
-                doc.update(batch, action="index", raise_on_error=False)
-                processed += len(batch)
-            except Exception as e:
-                errors += 1
-                self.stderr.write(
-                    self.style.ERROR(
-                        f"Error in {label} batch at offset {batch_start}: {e}"
-                    )
-                )
-                processed += len(batch)
-
-            if processed % 1000 == 0 and processed > 0:
-                self.stdout.write(f"  {label}: {processed}/{total}")
+        for batch in batched(qs.iterator(chunk_size=batch_size), batch_size):
+            removed_in_db += len(batch)
+            found, removed, errs = self._check_and_remove_batch(
+                doc, client, opensearch_index, label, batch, dry_run
+            )
+            still_in_index += found
+            processed += removed
+            errors += errs
 
         self.stdout.write(
-            self.style.SUCCESS(
-                f"  {label}: removed {processed} from index"
-                + (f" ({errors} batch errors)" if errors else "")
-            )
+            f"{label}: {removed_in_db} removed in database, "
+            f"{still_in_index} still in index"
         )
+        if processed > 0:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"  {label}: removed {processed} from index"
+                    + (f" ({errors} batch errors)" if errors else "")
+                )
+            )
         return processed
+
+    def _check_and_remove_batch(
+        self,
+        doc: BaseDocument,
+        client,
+        opensearch_index: str,
+        label: str,
+        batch: tuple,
+        dry_run: bool,
+    ) -> tuple[int, int, int]:
+        """Returns (found_count, removed_count, error_count)."""
+        batch_ids = [obj.pk for obj in batch]
+        ids_in_index = self._find_ids_in_index(client, opensearch_index, batch_ids)
+
+        if not ids_in_index or dry_run:
+            return len(ids_in_index), 0, 0
+
+        ids_set = set(ids_in_index)
+        to_remove = [obj for obj in batch if obj.pk in ids_set]
+        try:
+            doc.update(to_remove, action="index", raise_on_error=False)
+            return len(ids_in_index), len(to_remove), 0
+        except Exception as e:
+            self.stderr.write(
+                self.style.ERROR(f"Error removing {label} batch: {e}")
+            )
+            return len(ids_in_index), len(to_remove), 1
+
+    def _find_ids_in_index(
+        self, client, opensearch_index: str, ids: list[int]
+    ) -> list[int]:
+        """Check which of the given IDs exist in the OpenSearch index."""
+        try:
+            response = client.mget(
+                index=opensearch_index,
+                body={"ids": [str(pk) for pk in ids]},
+            )
+            return [
+                int(result["_id"])
+                for result in response.get("docs", [])
+                if result.get("found")
+            ]
+        except NotFoundError:
+            return []
+        except Exception as e:
+            self.stderr.write(
+                self.style.ERROR(
+                    f"Error checking index {opensearch_index}: {e}"
+                )
+            )
+            return []
