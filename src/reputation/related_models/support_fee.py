@@ -2,6 +2,7 @@ from django.db import models
 
 from utils.models import DefaultModel
 
+
 # Fee for "Supporting" Posts/Papers (i.e. Tips)
 class SupportFee(DefaultModel):
     expiration_date = models.DateTimeField(null=True)

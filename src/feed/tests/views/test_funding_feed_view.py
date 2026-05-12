@@ -24,8 +24,8 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.document_filter_model import DocumentFilter
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )

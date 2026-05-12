@@ -2,10 +2,7 @@ from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from note.models import NoteTemplate
 from researchhub.serializers import DynamicModelFieldSerializer
-from user.serializers import (
-    DynamicOrganizationSerializer,
-    DynamicUserSerializer
-)
+from user.serializers import DynamicOrganizationSerializer, DynamicUserSerializer
 
 
 class NoteTemplateSerializer(ModelSerializer):

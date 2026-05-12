@@ -1,6 +1,6 @@
 from django.db import models
 
-from user.models import User, Organization
+from user.models import Organization, User
 from utils.models import DefaultModel
 
 

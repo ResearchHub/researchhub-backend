@@ -14,7 +14,6 @@ from paper.ingestion.clients.preprints.arxiv import (
     parse_xml_entry,
 )
 
-
 fixtures_dir = Path(__file__).parent / "fixtures"
 
 

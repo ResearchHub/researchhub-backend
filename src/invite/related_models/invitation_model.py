@@ -1,11 +1,11 @@
-import pytz
-
-from django.db import models
-from django.utils.crypto import get_random_string
 from datetime import datetime, timedelta
 
+import pytz
+from django.db import models
+from django.utils.crypto import get_random_string
+
 from user.constants.gatekeeper_constants import ELN
-from user.models import User, Gatekeeper
+from user.models import Gatekeeper, User
 from utils.models import DefaultModel
 
 

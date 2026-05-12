@@ -1,6 +1,5 @@
 from rest_framework import serializers
 
-from feed.serializers import SimpleAuthorSerializer
 from paper.serializers import PaperSerializer
 from research_ai.constants import (
     EXPERT_FINDER_DEFAULT_STATE,
@@ -88,48 +87,7 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
 
 
 class ExpertSearchCreateSerializer(serializers.Serializer):
-
-    unified_document_id = serializers.IntegerField(required=False, allow_null=True)
-    query = serializers.CharField(required=False, allow_blank=True)
-    additional_context = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        max_length=ADDITIONAL_CONTEXT_MAX_LENGTH,
-    )
-    name = serializers.CharField(required=False, allow_blank=True, max_length=512)
-    input_type = serializers.ChoiceField(
-        choices=ExpertSearch.InputType.choices,
-        required=False,
-    )
-    config = ExpertSearchConfigSerializer(required=False, default=dict)
-    excluded_expert_names = serializers.ListField(
-        child=serializers.CharField(),
-        required=False,
-        default=list,
-    )
-
-    def validate(self, attrs):
-        unified_document_id = attrs.get("unified_document_id")
-        query = attrs.get("query") or ""
-        if not unified_document_id and not query.strip():
-            raise serializers.ValidationError(
-                "Provide either unified_document_id or query."
-            )
-        if unified_document_id and query.strip():
-            raise serializers.ValidationError(
-                "Provide either unified_document_id or query, not both."
-            )
-        if unified_document_id is not None and attrs.get("input_type") is None:
-            raise serializers.ValidationError(
-                {"input_type": "This field is required when using a document."}
-            )
-        attrs["excluded_expert_names"] = attrs.get("excluded_expert_names") or []
-        attrs["config"] = attrs.get("config") or {}
-        return attrs
-
-
-class ExpertSearchCreateSerializerV2(serializers.Serializer):
-    """POST body for ``/expert-finder/v2/searches/`` (v2 JSON pipeline)."""
+    """POST body for ``/expert-finder/searches/``."""
 
     unified_document_id = serializers.IntegerField(required=True)
     additional_context = serializers.CharField(
@@ -176,14 +134,15 @@ class ExpertSerializer(serializers.Serializer):
     email = serializers.CharField(allow_blank=True)
     notes = serializers.CharField(allow_blank=True)
     sources = serializers.ListField(required=False, allow_null=True)
+    last_email_sent_at = serializers.DateTimeField(allow_null=True)
     display_name = serializers.SerializerMethodField()
 
     def get_display_name(self, obj):
         return ExpertDisplay.display_name_for(obj)
 
 
-class ExpertUpdateSerializerV2(serializers.ModelSerializer):
-    """PATCH body for ``/expert-finder/v2/experts/<id>/``."""
+class ExpertUpdateSerializer(serializers.ModelSerializer):
+    """PATCH body for ``/expert-finder/experts/<id>/``."""
 
     class Meta:
         model = Expert
@@ -319,100 +278,8 @@ def _resolve_expert_search_work(expert_search, context=None):
     return resolve_work_for_unified_document(unified_doc, context=context)
 
 
-class ExpertSearchSerializer(serializers.ModelSerializer):
-
-    search_id = serializers.IntegerField(source="id", read_only=True)
-    created_by = serializers.SerializerMethodField()
-    expert_names = serializers.SerializerMethodField()
-    report_urls = serializers.SerializerMethodField()
-    work = serializers.SerializerMethodField()
-    created_at = serializers.DateTimeField(source="created_date", read_only=True)
-    updated_at = serializers.DateTimeField(source="updated_date", read_only=True)
-
-    class Meta:
-        model = ExpertSearch
-        fields = [
-            "search_id",
-            "created_by",
-            "name",
-            "query",
-            "additional_context",
-            "work",
-            "input_type",
-            "config",
-            "excluded_expert_names",
-            "llm_model",
-            "status",
-            "progress",
-            "current_step",
-            "expert_results",
-            "expert_count",
-            "expert_names",
-            "report_urls",
-            "report_pdf_url",
-            "report_csv_url",
-            "processing_time",
-            "error_message",
-            "created_at",
-            "updated_at",
-            "completed_at",
-        ]
-        read_only_fields = fields
-
-    def get_created_by(self, obj):
-        return _get_created_by_payload(obj)
-
-    def get_work(self, obj):
-        return _resolve_expert_search_work(obj, context=self.context)
-
-    def get_expert_names(self, obj):
-        """List of expert names for FE excluder (SearchHistoryExcluder)."""
-        if not obj.expert_results:
-            return []
-        return [e.get("name") or "" for e in obj.expert_results if e.get("name")]
-
-    def get_report_urls(self, obj):
-        out = {}
-        if obj.report_pdf_url:
-            out["pdf"] = obj.report_pdf_url
-        if obj.report_csv_url:
-            out["csv"] = obj.report_csv_url
-        return out or None
-
-
 class ExpertSearchListItemSerializer(serializers.ModelSerializer):
-
-    search_id = serializers.IntegerField(source="id", read_only=True)
-    created_by = serializers.SerializerMethodField()
-    expert_names = serializers.SerializerMethodField()
-    created_at = serializers.DateTimeField(source="created_date", read_only=True)
-
-    class Meta:
-        model = ExpertSearch
-        fields = [
-            "search_id",
-            "created_by",
-            "name",
-            "query",
-            "status",
-            "expert_count",
-            "expert_names",
-            "created_at",
-            "completed_at",
-        ]
-        read_only_fields = fields
-
-    def get_created_by(self, obj):
-        return _get_created_by_payload(obj)
-
-    def get_expert_names(self, obj):
-        if not obj.expert_results:
-            return []
-        return [e.get("name") or "" for e in obj.expert_results if e.get("name")]
-
-
-class ExpertSearchListItemSerializerV2(serializers.ModelSerializer):
-    """V2 list row: search metadata (no per-expert name list; use detail ``experts`` if needed)."""
+    """List row: search metadata (use detail ``experts`` for full expert list)."""
 
     search_id = serializers.IntegerField(source="id", read_only=True)
     created_by = serializers.SerializerMethodField()
@@ -437,7 +304,7 @@ class ExpertSearchListItemSerializerV2(serializers.ModelSerializer):
         return _get_created_by_payload(obj)
 
 
-class ExpertSearchDetailSerializerV2(serializers.ModelSerializer):
+class ExpertSearchDetailSerializer(serializers.ModelSerializer):
     """Detail: experts from ``SearchExpert`` / ``Expert``."""
 
     search_id = serializers.IntegerField(source="id", read_only=True)
@@ -504,26 +371,6 @@ class ExpertSearchDetailSerializerV2(serializers.ModelSerializer):
 
 class InvitedExpertSerializer(serializers.Serializer):
 
-    author = serializers.SerializerMethodField()
-    expert_search_id = serializers.SerializerMethodField()
-    generated_email_id = serializers.SerializerMethodField()
-    invited_at = serializers.DateTimeField(source="created_date", read_only=True)
-
-    def get_author(self, obj):
-        author = getattr(obj.user, "author_profile", None)
-        if author is None:
-            return None
-        return SimpleAuthorSerializer(author).data
-
-    def get_expert_search_id(self, obj):
-        return obj.expert_search_id
-
-    def get_generated_email_id(self, obj):
-        return obj.generated_email_id
-
-
-class InvitedExpertSerializerV2(serializers.Serializer):
-
     user = serializers.SerializerMethodField()
     expert_search_id = serializers.SerializerMethodField()
     generated_email_id = serializers.SerializerMethodField()
@@ -549,7 +396,7 @@ class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
 
 class GenerateEmailRequestSerializer(serializers.Serializer):
     """
-    Request body for POST /expert-finder/generate-email/ and .../v2/generate-email/.
+    Request body for POST /expert-finder/generate-email/.
     The view resolves the expert by email.
     """
 
@@ -572,9 +419,7 @@ class BulkGenerateEmailExpertSerializer(serializers.Serializer):
 
 
 class BulkGenerateEmailRequestSerializer(serializers.Serializer):
-    """
-    Request body for POST .../generate-emails-bulk/ and .../v2/generate-emails-bulk/.
-    """
+    """Request body for POST /expert-finder/generate-emails-bulk/."""
 
     expert_search_id = serializers.IntegerField()
     experts = serializers.ListField(
@@ -720,11 +565,6 @@ class EmailTemplateCreateSerializer(serializers.Serializer):
 
 
 class EmailTemplateUpdateSerializer(serializers.Serializer):
-    """Partial update for EmailTemplate."""
-
-    name = serializers.CharField(max_length=255, required=False, allow_blank=False)
-    email_subject = serializers.CharField(required=False, allow_blank=True)
-    email_body = serializers.CharField(required=False, allow_blank=True)
     """Partial update for EmailTemplate."""
 
     name = serializers.CharField(max_length=255, required=False, allow_blank=False)

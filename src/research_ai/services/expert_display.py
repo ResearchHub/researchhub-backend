@@ -66,3 +66,17 @@ class ExpertDisplay:
     @staticmethod
     def normalize_email(email: str) -> str:
         return (email or "").strip().lower()
+
+    @staticmethod
+    def email_generation_dict(expert: Expert) -> dict[str, str]:
+        """
+        Flat dict for ``generate_expert_email`` / template variable replacement.
+        """
+        return {
+            "name": ExpertDisplay.personal_name_for(expert),
+            "title": (expert.academic_title or "").strip(),
+            "affiliation": (expert.affiliation or "").strip(),
+            "expertise": (expert.expertise or "").strip(),
+            "email": (expert.email or "").strip(),
+            "notes": (expert.notes or "").strip(),
+        }

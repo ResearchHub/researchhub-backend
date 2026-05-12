@@ -1,9 +1,5 @@
 from mailing_list.lib import NotificationFrequencies
-from mailing_list.models import (
-    CommentSubscription,
-    EmailRecipient,
-    ThreadSubscription
-)
+from mailing_list.models import CommentSubscription, EmailRecipient, ThreadSubscription
 
 
 class TestData:

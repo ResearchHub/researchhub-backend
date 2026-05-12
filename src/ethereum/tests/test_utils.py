@@ -1,4 +1,5 @@
 from decimal import Decimal
+
 from django.test import TestCase
 
 from ethereum.utils import decimal_to_token_amount

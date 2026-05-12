@@ -1,7 +1,7 @@
-from decimal import Decimal
 import json
+from decimal import Decimal
 
-from eth_keys import keys, KeyAPI
+from eth_keys import KeyAPI, keys
 
 
 def decimal_to_token_amount(value, denomination):
