@@ -1,9 +1,11 @@
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandParser
+from django.db.models import QuerySet
 from opensearchpy import NotFoundError
 
 from hub.models import Hub
 from paper.models import Paper
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from search.documents.base import BaseDocument
 from search.documents.hub import HubDocument
 from search.documents.journal import JournalDocument
 from search.documents.paper import PaperDocument
@@ -44,7 +46,7 @@ INDEX_CONFIGS = {
 class Command(BaseCommand):
     help = "Remove soft-deleted documents from OpenSearch indices"
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument(
             "--dry-run",
             action="store_true",
@@ -65,9 +67,9 @@ class Command(BaseCommand):
             help="Number of documents to process per bulk request (default: 500).",
         )
 
-    def handle(self, *args, **options):
-        dry_run = options["dry_run"]
-        batch_size = options["batch_size"]
+    def handle(self, *args, **options) -> None:
+        dry_run: bool = options["dry_run"]
+        batch_size: int = options["batch_size"]
         indices = [options["index"]] if options["index"] else INDEX_CONFIGS.keys()
 
         if dry_run:
@@ -81,13 +83,13 @@ class Command(BaseCommand):
             self.style.SUCCESS(f"Done. Total removed from index: {total_processed}")
         )
 
-    def _process_index(self, index_name, dry_run, batch_size):
+    def _process_index(self, index_name: str, dry_run: bool, batch_size: int) -> int:
         config = INDEX_CONFIGS[index_name]
-        doc = config["document"]()
-        qs = config["queryset"]()
-        label = config["label"]
+        doc: BaseDocument = config["document"]()
+        qs: QuerySet = config["queryset"]()
+        label: str = config["label"]
 
-        removed_ids = list(qs.values_list("id", flat=True))
+        removed_ids: list[int] = list(qs.values_list("id", flat=True))
         if not removed_ids:
             self.stdout.write(f"{label}: 0 in database, 0 still in index")
             return 0
@@ -99,21 +101,20 @@ class Command(BaseCommand):
             f"{len(ids_still_in_index)} still in index"
         )
 
-        if not ids_still_in_index:
-            return 0
-
-        if dry_run:
+        if not ids_still_in_index or dry_run:
             return 0
 
         return self._bulk_remove_from_index(
             doc, qs, ids_still_in_index, batch_size, label
         )
 
-    def _find_ids_in_index(self, doc, ids, batch_size):
+    def _find_ids_in_index(
+        self, doc: BaseDocument, ids: list[int], batch_size: int
+    ) -> list[int]:
         """Check which of the given IDs still exist in the OpenSearch index."""
         index_name = doc._index._name
         client = doc._get_connection()
-        found_ids = []
+        found_ids: list[int] = []
 
         for batch_start in range(0, len(ids), batch_size):
             batch_ids = ids[batch_start : batch_start + batch_size]
@@ -137,7 +138,14 @@ class Command(BaseCommand):
 
         return found_ids
 
-    def _bulk_remove_from_index(self, doc, queryset, ids_to_remove, batch_size, label):
+    def _bulk_remove_from_index(
+        self,
+        doc: BaseDocument,
+        queryset: QuerySet,
+        ids_to_remove: list[int],
+        batch_size: int,
+        label: str,
+    ) -> int:
         """
         Feeds removed objects through the document update pipeline.
         BaseDocument._get_actions converts these into delete actions
