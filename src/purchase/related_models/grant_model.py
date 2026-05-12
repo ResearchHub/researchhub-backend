@@ -97,8 +97,7 @@ class Grant(DefaultModel):
         help_text=(
             "Privacy rule applied to preregistrations applying to this grant. "
             "OPTIONAL lets the applicant choose; PRIVATE/PUBLIC require the "
-            "applicant's preregistration to match (mismatched applications "
-            "are rejected with a 400)."
+            "applicant's preregistration to match."
         ),
     )
     flags = GenericRelation("discussion.Flag")
