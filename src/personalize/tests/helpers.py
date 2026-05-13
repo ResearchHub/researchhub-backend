@@ -15,14 +15,16 @@ from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from reputation.models import Bounty, BountySolution, Escrow
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import DISCUSSION
+from researchhub_document.related_models.constants.document_type import (
+    DISCUSSION,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.constants.document_type import (
     GRANT as GRANT_DOC_TYPE,
 )
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
 )
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.models import Author, User
 
 

@@ -6,10 +6,10 @@ from django.db import transaction
 
 from discussion.views import create_flag
 from feed.signals.post_signals import _create_post_feed_entries
-from user.related_models.verdict_model import Verdict
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from notification.models import Notification
 from purchase.models import Grant
+from user.related_models.verdict_model import Verdict
 from utils.doi import DOI
 
 logger = logging.getLogger(__name__)

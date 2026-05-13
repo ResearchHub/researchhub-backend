@@ -1,9 +1,8 @@
 from django.core.management.base import BaseCommand
-from django.contrib.contenttypes.models import ContentType
 
 from user.models import User
-import uuid
 from user.tasks import handle_spam_user_task
+
 
 class Command(BaseCommand):
 

@@ -1,6 +1,6 @@
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
-from django.db.models import IntegerField, Sum
+from django.db.models import IntegerField, Q, Sum
 from django.db.models.functions import Cast
 
 from discussion.models import AbstractGenericReactionModel, Vote
@@ -18,6 +18,22 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import Author, User
+
+
+class ResearchhubPostQuerySet(models.QuerySet):
+    def visible_to(self, user):
+        """Restrict to posts the given user is allowed to see.
+
+        Public posts (unified_document.is_public=True) are visible to anyone.
+        Private posts are visible only to their author and to the creator of
+        any grant the post has applied to (via GrantApplication).
+        """
+        public = Q(unified_document__is_public=True)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return self.filter(public)
+        return self.filter(
+            public | Q(created_by=user) | Q(grant_applications__grant__created_by=user)
+        ).distinct()
 
 
 class ResearchhubPost(AbstractGenericReactionModel):
@@ -124,6 +140,8 @@ class ResearchhubPost(AbstractGenericReactionModel):
     doi = models.CharField(
         max_length=255, default=None, null=True, blank=True, unique=True
     )
+
+    objects = ResearchhubPostQuerySet.as_manager()
 
     @property
     def is_latest_version(self):

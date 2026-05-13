@@ -1,8 +1,7 @@
-from django.db.models import CharField, EmailField, ForeignKey, CASCADE
-
-from utils.models import DefaultModel
+from django.db.models import CASCADE, CharField, EmailField, ForeignKey
 
 from user.constants.gatekeeper_constants import GATE_KEEPER_TYPES
+from utils.models import DefaultModel
 
 
 class Gatekeeper(DefaultModel):

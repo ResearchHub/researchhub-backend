@@ -51,6 +51,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
         cache_key = self.get_cache_key(request, "funding")
         use_cache = (
             page_num <= FUNDING_FEED_MAX_CACHED_PAGE
+            and not request.user.is_authenticated
             and grant_id is None
             and created_by is None
             and funded_by is None
@@ -102,7 +103,8 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
         funded_by = self.request.query_params.get("funded_by")
 
         queryset = (
-            ResearchhubPost.objects.select_related(
+            ResearchhubPost.objects.visible_to(self.request.user)
+            .select_related(
                 "created_by",
                 "created_by__author_profile",
                 "unified_document",

@@ -3,6 +3,10 @@ from decimal import Decimal
 from unittest.mock import PropertyMock, patch
 
 import pytz
+from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
+from django.core.files.storage import FileSystemStorage, default_storage
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 from ai_peer_review.models import (
     KeyInsightItemType,
@@ -11,11 +15,6 @@ from ai_peer_review.models import (
     ProposalReview,
     Status,
 )
-from django.conf import settings
-from django.contrib.contenttypes.models import ContentType
-from django.core.files.storage import FileSystemStorage, default_storage
-from django.core.files.uploadedfile import SimpleUploadedFile
-
 from feed.models import FeedEntry
 from feed.serializers import (
     CommentSerializer,

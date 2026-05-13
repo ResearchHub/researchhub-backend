@@ -1,8 +1,8 @@
 from django.db import models
 
 from invite.models import Invitation
-from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
 from mailing_list.lib import send_email
+from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
 from researchhub_access_group.constants import ACCESS_TYPE_CHOICES, VIEWER
 from user.models import Organization
 

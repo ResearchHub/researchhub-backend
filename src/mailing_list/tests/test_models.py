@@ -5,7 +5,7 @@ from mailing_list.lib import send_email
 from mailing_list.models import EmailRecipient
 from user.tests.helpers import (
     create_random_authenticated_user,
-    create_random_default_user
+    create_random_default_user,
 )
 
 

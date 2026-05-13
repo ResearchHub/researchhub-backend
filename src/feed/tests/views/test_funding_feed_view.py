@@ -24,8 +24,8 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.document_filter_model import DocumentFilter
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -197,7 +197,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         mock_cache.get.return_value = None
 
         url = reverse("funding_feed-list")
-        response = self.client.get(url)
+        anonymous_client = APIClient()
+        response = anonymous_client.get(url)
 
         self.assertTrue(mock_cache.get.called)
         self.assertTrue(mock_cache.set.called)
@@ -209,7 +210,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         mock_cache.get.return_value = mock_cache.set.call_args[0][1]
         mock_cache.set.reset_mock()
 
-        response2 = self.client.get(url)
+        response2 = anonymous_client.get(url)
 
         self.assertTrue(mock_cache.get.called)
         self.assertFalse(mock_cache.set.called)
@@ -253,8 +254,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(vote_type, 1)  # 1 corresponds to UPVOTE
 
     @patch("feed.views.funding_feed_view.cache")
-    def test_add_user_votes_with_cached_response(self, mock_cache):
-        """Test that user votes are added even with cached response"""
+    def test_authenticated_request_bypasses_cached_response(self, mock_cache):
+        """Authenticated funding feed responses are viewer-specific."""
         # Create a vote for the post
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         vote = Vote.objects.create(
@@ -285,11 +286,16 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         url = reverse("funding_feed-list")
         response = self.client.get(url)
 
-        # Check that votes were added to the cached response
+        self.assertFalse(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertIn("user_vote", response.data["results"][0])
-        self.assertEqual(response.data["results"][0]["user_vote"]["id"], vote.id)
+        post_data = next(
+            item
+            for item in response.data["results"]
+            if item["content_object"]["id"] == self.post.id
+        )
+        self.assertIn("user_vote", post_data)
+        self.assertEqual(post_data["user_vote"]["id"], vote.id)
 
     def test_get_cache_key(self):
         """Test cache key generation logic"""

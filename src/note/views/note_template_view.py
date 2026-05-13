@@ -1,18 +1,15 @@
 from django.core.files.base import ContentFile
-from rest_framework.viewsets import ModelViewSet
-from rest_framework.response import Response
 from rest_framework.decorators import action
-from rest_framework.permissions import (
-    IsAuthenticated,
-    AllowAny
-)
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
+
+from note.models import NoteTemplate
+from note.serializers import NoteTemplateSerializer
 from researchhub_access_group.permissions import (
     HasEditingPermission,
     HasOrgEditingPermission,
 )
-
-from note.models import NoteTemplate
-from note.serializers import NoteTemplateSerializer
 from user.models import Organization
 
 

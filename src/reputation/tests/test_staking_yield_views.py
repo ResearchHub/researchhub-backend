@@ -1,14 +1,13 @@
-from datetime import date, datetime, timedelta, timezone, time
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from rest_framework.test import APIClient, APITestCase
 
-from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from django.contrib.contenttypes.models import ContentType
-
 from purchase.models import Balance
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import (
     StakingGlobalSnapshot,
     StakingUserSnapshot,

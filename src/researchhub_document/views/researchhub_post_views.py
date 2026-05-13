@@ -74,7 +74,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         request = self.request
         try:
             query_set = (
-                ResearchhubPost.objects.all()
+                ResearchhubPost.objects.visible_to(request.user)
                 .select_related("unified_document")
                 .prefetch_related(
                     Prefetch(
@@ -538,8 +538,16 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         try:
             request_data = request.data
             hubs = Hub.objects.filter(id__in=request_data.get("hubs", [])).all()
+            document_type = request_data.get("document_type")
+            is_public = True
+            # Only PREREGISTRATION posts may be created as private today.
+            if document_type == PREREGISTRATION:
+                is_public = serializers.BooleanField().run_validation(
+                    request_data.get("is_public", True)
+                )
             uni_doc = ResearchhubUnifiedDocument.objects.create(
-                document_type=request_data.get("document_type"),
+                document_type=document_type,
+                is_public=is_public,
             )
             uni_doc.hubs.add(*hubs)
             uni_doc.save()
