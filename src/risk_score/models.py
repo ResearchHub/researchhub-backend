@@ -80,9 +80,8 @@ class RiskScoreEvent(models.Model):
         EventType.ACCOUNT_AGE_BONUS: -5,
         EventType.PERSONA_VERIFIED_WHITELISTED: -51,
         EventType.PERSONA_VERIFIED_NON_WHITELISTED: -10,
-        # System (variable delta, passed at call time)
-        EventType.ACCOUNT_CREATED: 0,
-        EventType.BACKFILL: 0,
+        EventType.ACCOUNT_CREATED: None,
+        EventType.BACKFILL: None,
     }
 
     VOTE_TYPES = {
