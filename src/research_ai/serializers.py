@@ -392,9 +392,7 @@ class InvitedExpertOverviewQuerySerializer(serializers.Serializer):
                 datetime.combine(start_date, time.min), tz
             )
         if end_date is not None:
-            attrs["end"] = timezone.make_aware(
-                datetime.combine(end_date, time.max), tz
-            )
+            attrs["end"] = timezone.make_aware(datetime.combine(end_date, time.max), tz)
         return attrs
 
 
@@ -407,23 +405,6 @@ class InvitedExpertOverviewSerializer(serializers.Serializer):
     emails_sent = serializers.IntegerField(read_only=True)
     emails_bounced = serializers.IntegerField(read_only=True)
     emails_opened = serializers.IntegerField(read_only=True)
-
-
-class InvitedExpertSerializer(serializers.Serializer):
-
-    user = serializers.SerializerMethodField()
-    expert_search_id = serializers.SerializerMethodField()
-    generated_email_id = serializers.SerializerMethodField()
-    invited_at = serializers.DateTimeField(source="created_date", read_only=True)
-
-    def get_user(self, obj):
-        return _get_user_with_author_payload(getattr(obj, "user", None))
-
-    def get_expert_search_id(self, obj):
-        return obj.expert_search_id
-
-    def get_generated_email_id(self, obj):
-        return obj.generated_email_id
 
 
 class ExpertSearchSubmitResponseSerializer(serializers.Serializer):

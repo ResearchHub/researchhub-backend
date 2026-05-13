@@ -4,9 +4,6 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
-from research_ai.services.invited_experts_service import (
-    get_invited_rows_for_unified_document,
-)
 from user.tests.helpers import create_user
 
 
@@ -54,9 +51,6 @@ class InvitedExpertsSignalTests(TestCase):
         )
         ex.refresh_from_db()
         self.assertEqual(ex.registered_user_id, new_user.id)
-        rows = get_invited_rows_for_unified_document(self.ud_id)
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0].user.id, new_user.id)
 
     def test_user_created_sets_expert_registered_user_when_expert_row_exists(self):
         first_seen = timezone.now() - timedelta(days=2)
@@ -115,18 +109,14 @@ class InvitedExpertsSignalTests(TestCase):
         )
         ex.refresh_from_db()
         self.assertIsNone(ex.registered_user_id)
-        self.assertEqual(
-            len(get_invited_rows_for_unified_document(self.ud_id)),
-            0,
-        )
 
     def test_user_created_email_not_in_any_search_does_not_link(self):
-        create_user(
+        stranger = create_user(
             email="stranger@example.com",
             first_name="Stranger",
             last_name="User",
         )
-        self.assertEqual(len(get_invited_rows_for_unified_document(self.ud_id)), 0)
+        self.assertFalse(Expert.objects.filter(registered_user_id=stranger.id).exists())
 
     def test_case_insensitive_email_links_expert(self):
         first_seen = timezone.now() - timedelta(days=2)
@@ -154,4 +144,3 @@ class InvitedExpertsSignalTests(TestCase):
         )
         ex.refresh_from_db()
         self.assertEqual(ex.registered_user_id, new_user.id)
-        self.assertEqual(len(get_invited_rows_for_unified_document(self.ud_id)), 1)
