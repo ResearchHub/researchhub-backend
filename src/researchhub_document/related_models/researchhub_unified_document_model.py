@@ -291,16 +291,20 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
     def frontend_view_link(self):
         doc = self.get_document()
         document_type = self.document_type
-        if document_type in (
+        if document_type == GRANT:
+            path_segment = "grant"
+        elif document_type == PREREGISTRATION:
+            path_segment = "proposal"
+        elif document_type in (
             QUESTION,
             DISCUSSION,
             POSTS,
             BOUNTY,
-            PREREGISTRATION,
-            GRANT,
         ):
-            document_type = "post"
-        url = f"{BASE_FRONTEND_URL}/{document_type.lower()}/{doc.id}/{doc.slug}"
+            path_segment = "post"
+        else:
+            path_segment = document_type.lower()
+        url = f"{BASE_FRONTEND_URL}/{path_segment}/{doc.id}/{doc.slug}"
         return url
 
     # ========================================================================
