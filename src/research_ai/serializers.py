@@ -1,3 +1,6 @@
+from datetime import datetime, time
+
+from django.utils import timezone
 from rest_framework import serializers
 
 from paper.serializers import PaperSerializer
@@ -367,6 +370,43 @@ class ExpertSearchDetailSerializer(serializers.ModelSerializer):
         if obj.report_csv_url:
             out["csv"] = obj.report_csv_url
         return out or None
+
+
+class InvitedExpertOverviewQuerySerializer(serializers.Serializer):
+    """Query params for GET invited-experts overview."""
+
+    unified_document_id = serializers.IntegerField(required=False, allow_null=True)
+    start = serializers.DateField(required=False, allow_null=True)
+    end = serializers.DateField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        start_date = attrs.get("start")
+        end_date = attrs.get("end")
+        if start_date is not None and end_date is not None and start_date > end_date:
+            raise serializers.ValidationError(
+                {"end": "Must be greater than or equal to start."}
+            )
+        tz = timezone.get_current_timezone()
+        if start_date is not None:
+            attrs["start"] = timezone.make_aware(
+                datetime.combine(start_date, time.min), tz
+            )
+        if end_date is not None:
+            attrs["end"] = timezone.make_aware(
+                datetime.combine(end_date, time.max), tz
+            )
+        return attrs
+
+
+class InvitedExpertOverviewSerializer(serializers.Serializer):
+    """Response body for invited-experts overview (counts)."""
+
+    experts_total = serializers.IntegerField(read_only=True)
+    experts_signed_up = serializers.IntegerField(read_only=True)
+    emails_generated = serializers.IntegerField(read_only=True)
+    emails_sent = serializers.IntegerField(read_only=True)
+    emails_bounced = serializers.IntegerField(read_only=True)
+    emails_opened = serializers.IntegerField(read_only=True)
 
 
 class InvitedExpertSerializer(serializers.Serializer):
