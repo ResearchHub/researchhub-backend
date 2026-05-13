@@ -399,7 +399,7 @@ class InvitedExpertOverviewQuerySerializer(serializers.Serializer):
 
 
 class InvitedExpertOverviewSerializer(serializers.Serializer):
-    """Response body for invited-experts overview (counts + cache timestamp)."""
+    """Response body for invited-experts overview (counts)."""
 
     experts_total = serializers.IntegerField(read_only=True)
     experts_signed_up = serializers.IntegerField(read_only=True)
@@ -407,7 +407,6 @@ class InvitedExpertOverviewSerializer(serializers.Serializer):
     emails_sent = serializers.IntegerField(read_only=True)
     emails_bounced = serializers.IntegerField(read_only=True)
     emails_opened = serializers.IntegerField(read_only=True)
-    cached_at = serializers.DateTimeField(read_only=True)
 
 
 class InvitedExpertSerializer(serializers.Serializer):

@@ -242,15 +242,6 @@ INVITED_CACHE_SEC = 60 * 60 * 3  # 3 hours
 INVITED_OVERVIEW_CACHE_TTL = 60 * 60 * 1  # 1 hour
 
 
-def _invited_expert_overview_cache_key(*, unified_document_id, start, end):
-    ud_part = (
-        str(int(unified_document_id)) if unified_document_id is not None else "none"
-    )
-    start_part = start.isoformat() if start is not None else "none"
-    end_part = end.isoformat() if end is not None else "none"
-    return f"invited_expert_overview:ud={ud_part}:start={start_part}:end={end_part}"
-
-
 class InvitedExpertOverviewView(APIView):
     """
     GET ``/expert-finder/invited-experts/overview/``.
@@ -264,6 +255,15 @@ class InvitedExpertOverviewView(APIView):
         ResearchAIPermission,
         UserIsEditor | IsModerator,
     ]
+
+    @staticmethod
+    def _cache_key(*, unified_document_id, start, end):
+        ud_part = (
+            str(int(unified_document_id)) if unified_document_id is not None else "none"
+        )
+        start_part = start.isoformat() if start is not None else "none"
+        end_part = end.isoformat() if end is not None else "none"
+        return f"invited_expert_overview:ud={ud_part}:start={start_part}:end={end_part}"
 
     def get(self, request):
         qser = InvitedExpertOverviewQuerySerializer(data=request.query_params)
@@ -282,25 +282,27 @@ class InvitedExpertOverviewView(APIView):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-        cache_key = _invited_expert_overview_cache_key(
+        cache_key = self._cache_key(
             unified_document_id=unified_document_id,
             start=start,
             end=end,
         )
-        cached_payload = cache.get(cache_key)
-        if cached_payload is not None:
-            return Response(cached_payload)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
 
         overview = get_invited_expert_overview(
             unified_document_id=unified_document_id,
             start=start,
             end=end,
         )
-        cached_at = timezone.now()
-        body = {**overview, "cached_at": cached_at}
-        response_data = InvitedExpertOverviewSerializer(body).data
-        cache.set(cache_key, response_data, INVITED_OVERVIEW_CACHE_TTL)
-        return Response(response_data)
+        response_data = InvitedExpertOverviewSerializer(overview).data
+        payload = {
+            **response_data,
+            "meta": {"cached_at": timezone.now().isoformat()},
+        }
+        cache.set(cache_key, payload, INVITED_OVERVIEW_CACHE_TTL)
+        return Response(payload)
 
 
 class InvitedExpertsDocumentView(APIView):
