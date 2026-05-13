@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
             fields=[
                 (
                     "id",
-                    models.AutoField(
+                    models.BigAutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
@@ -43,7 +43,7 @@ class Migration(migrations.Migration):
             fields=[
                 (
                     "id",
-                    models.AutoField(
+                    models.BigAutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
@@ -55,12 +55,12 @@ class Migration(migrations.Migration):
                 ("score_after", models.IntegerField()),
                 ("metadata", models.JSONField(blank=True, default=dict)),
                 (
-                    "related_object_id",
+                    "source_object_id",
                     models.PositiveIntegerField(blank=True, null=True),
                 ),
                 ("created_date", models.DateTimeField(auto_now_add=True)),
                 (
-                    "related_content_type",
+                    "source_content_type",
                     models.ForeignKey(
                         blank=True,
                         null=True,
