@@ -1,5 +1,3 @@
-from itertools import batched
-
 from django.core.management.base import BaseCommand, CommandParser
 from django.db.models import QuerySet
 from opensearchpy import NotFoundError
@@ -93,13 +91,29 @@ class Command(BaseCommand):
         client = doc._get_connection()
         opensearch_index = doc._index._name
 
-        removed_in_db = 0
+        total_removed = 0
         still_in_index = 0
         processed = 0
         errors = 0
+        batch = []
 
-        for batch in batched(qs.iterator(chunk_size=batch_size), batch_size):
-            removed_in_db += len(batch)
+        for obj in qs.iterator(chunk_size=batch_size):
+            batch.append(obj)
+
+            if len(batch) < batch_size:
+                continue
+
+            total_removed += len(batch)
+            found, removed, errs = self._check_and_remove_batch(
+                doc, client, opensearch_index, label, batch, dry_run
+            )
+            still_in_index += found
+            processed += removed
+            errors += errs
+            batch = []
+
+        if batch:
+            total_removed += len(batch)
             found, removed, errs = self._check_and_remove_batch(
                 doc, client, opensearch_index, label, batch, dry_run
             )
@@ -108,7 +122,7 @@ class Command(BaseCommand):
             errors += errs
 
         self.stdout.write(
-            f"{label}: {removed_in_db} removed in database, "
+            f"{label}: {total_removed} removed in database, "
             f"{still_in_index} still in index"
         )
         if processed > 0:
@@ -126,7 +140,7 @@ class Command(BaseCommand):
         client,
         opensearch_index: str,
         label: str,
-        batch: tuple,
+        batch: list,
         dry_run: bool,
     ) -> tuple[int, int, int]:
         """Returns (found_count, removed_count, error_count)."""
