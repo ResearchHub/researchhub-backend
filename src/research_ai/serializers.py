@@ -1,3 +1,6 @@
+from datetime import datetime, time
+
+from django.utils import timezone
 from rest_framework import serializers
 
 from paper.serializers import PaperSerializer
@@ -369,21 +372,39 @@ class ExpertSearchDetailSerializer(serializers.ModelSerializer):
         return out or None
 
 
-class InvitedExpertSerializer(serializers.Serializer):
+class InvitedExpertOverviewQuerySerializer(serializers.Serializer):
+    """Query params for GET invited-experts overview."""
 
-    user = serializers.SerializerMethodField()
-    expert_search_id = serializers.SerializerMethodField()
-    generated_email_id = serializers.SerializerMethodField()
-    invited_at = serializers.DateTimeField(source="created_date", read_only=True)
+    unified_document_id = serializers.IntegerField(required=False, allow_null=True)
+    start = serializers.DateField(required=False, allow_null=True)
+    end = serializers.DateField(required=False, allow_null=True)
 
-    def get_user(self, obj):
-        return _get_user_with_author_payload(getattr(obj, "user", None))
+    def validate(self, attrs):
+        start_date = attrs.get("start")
+        end_date = attrs.get("end")
+        if start_date is not None and end_date is not None and start_date > end_date:
+            raise serializers.ValidationError(
+                {"end": "Must be greater than or equal to start."}
+            )
+        tz = timezone.get_current_timezone()
+        if start_date is not None:
+            attrs["start"] = timezone.make_aware(
+                datetime.combine(start_date, time.min), tz
+            )
+        if end_date is not None:
+            attrs["end"] = timezone.make_aware(datetime.combine(end_date, time.max), tz)
+        return attrs
 
-    def get_expert_search_id(self, obj):
-        return obj.expert_search_id
 
-    def get_generated_email_id(self, obj):
-        return obj.generated_email_id
+class InvitedExpertOverviewSerializer(serializers.Serializer):
+    """Response body for invited-experts overview (counts)."""
+
+    experts_total = serializers.IntegerField(read_only=True)
+    experts_signed_up = serializers.IntegerField(read_only=True)
+    emails_generated = serializers.IntegerField(read_only=True)
+    emails_sent = serializers.IntegerField(read_only=True)
+    emails_bounced = serializers.IntegerField(read_only=True)
+    emails_opened = serializers.IntegerField(read_only=True)
 
 
 class ExpertSearchSubmitResponseSerializer(serializers.Serializer):

@@ -1,5 +1,7 @@
+from datetime import timedelta
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
@@ -222,63 +224,47 @@ class ExpertSearchWorkViewTests(APITestCase):
         self.assertIsNone(data["work"])
 
 
-class InvitedExpertsDocumentViewTests(APITestCase):
+class InvitedExpertOverviewViewTests(APITestCase):
+    URL = "/api/research_ai/expert-finder/invited-experts/overview/"
+
+    OVERVIEW_FIELDS = (
+        "experts_total",
+        "experts_signed_up",
+        "emails_generated",
+        "emails_sent",
+        "emails_bounced",
+        "emails_opened",
+    )
+
     def setUp(self):
-        self.moderator = create_random_authenticated_user("mod_inv", moderator=True)
-        self.user = create_random_authenticated_user("user_inv", moderator=False)
-
-    def test_invited_requires_authentication(self):
-        response = self.client.get(
-            "/api/research_ai/expert-finder/documents/1/invited/"
+        self.moderator = create_random_authenticated_user(
+            "mod_overview", moderator=True
         )
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.user = create_random_authenticated_user("user_overview", moderator=False)
+        cache.clear()
 
-    def test_invited_requires_moderator(self):
+    def tearDown(self):
+        cache.clear()
+
+    def test_overview_requires_moderator(self):
         self.client.force_authenticate(self.user)
-        response = self.client.get(
-            "/api/research_ai/expert-finder/documents/1/invited/"
-        )
+        response = self.client.get(self.URL)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_invited_nonexistent_document_returns_404(self):
+    def test_overview_nonexistent_document_returns_404(self):
         self.client.force_authenticate(self.moderator)
-        response = self.client.get(
-            "/api/research_ai/expert-finder/documents/999999/invited/"
-        )
+        response = self.client.get(self.URL, {"unified_document_id": 999999})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(
             response.json().get("detail"),
             "Unified document not found.",
         )
 
-    def test_invited_valid_document_returns_200_and_structure(self):
+    def test_overview_aggregates_counts_for_document(self):
         from paper.tests.helpers import create_paper
 
         paper = create_paper(
-            title="Invited endpoint paper",
-            paper_publish_date="2021-01-01",
-        )
-        self.client.force_authenticate(self.moderator)
-        response = self.client.get(
-            "/api/research_ai/expert-finder/documents/{}/invited/".format(
-                paper.unified_document_id
-            )
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        data = response.json()
-        self.assertIn("unified_document_id", data)
-        self.assertEqual(data["unified_document_id"], paper.unified_document_id)
-        self.assertIn("invited", data)
-        self.assertIsInstance(data["invited"], list)
-        self.assertIn("total_count", data)
-        self.assertEqual(data["total_count"], 0)
-        self.assertEqual(len(data["invited"]), 0)
-
-    def test_invited_returns_chain_ids_and_user_payload(self):
-        from paper.tests.helpers import create_paper
-
-        paper = create_paper(
-            title="Invited with data",
+            title="Overview paper",
             paper_publish_date="2021-01-01",
         )
         ud_id = paper.unified_document_id
@@ -286,38 +272,117 @@ class InvitedExpertsDocumentViewTests(APITestCase):
         search = ExpertSearch.objects.create(
             created_by=self.moderator,
             unified_document_id=ud_id,
-            query="Test",
+            query="Overview",
             status=ExpertSearch.Status.COMPLETED,
             completed_at=timezone.now(),
         )
-        ex = Expert.objects.create(
-            email="invited-view@edu",
-            first_name="Inv",
-            last_name="Expert",
+        signed_up_expert = Expert.objects.create(
+            email="signedup@example.com",
+            first_name="Signed",
+            last_name="Up",
             registered_user=self.moderator,
         )
-        SearchExpert.objects.create(expert_search=search, expert=ex, position=0)
+        not_signed_up_expert = Expert.objects.create(
+            email="invited@example.com",
+            first_name="Inv",
+            last_name="Expert",
+        )
+        SearchExpert.objects.create(
+            expert_search=search, expert=signed_up_expert, position=0
+        )
+        SearchExpert.objects.create(
+            expert_search=search, expert=not_signed_up_expert, position=1
+        )
         GeneratedEmail.objects.create(
             created_by=self.moderator,
             expert_search=search,
-            expert_email="invited-view@edu",
+            expert_email="signedup@example.com",
+            status=GeneratedEmail.Status.SENT,
+            opened_at=timezone.now(),
+            open_count=2,
         )
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=search,
+            expert_email="invited@example.com",
+            status=GeneratedEmail.Status.BOUNCED,
+            bounced_at=timezone.now(),
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=search,
+            expert_email="other@example.com",
+            status=GeneratedEmail.Status.DRAFT,
+        )
+
         self.client.force_authenticate(self.moderator)
-        response = self.client.get(
-            "/api/research_ai/expert-finder/documents/{}/invited/".format(ud_id)
-        )
+        response = self.client.get(self.URL, {"unified_document_id": ud_id})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
-        self.assertEqual(data["total_count"], 1)
-        self.assertEqual(len(data["invited"]), 1)
-        item = data["invited"][0]
-        self.assertNotIn("expert", item)
-        self.assertNotIn("author", item)
-        self.assertIn("user", item)
-        self.assertEqual(item["user"]["user_id"], self.moderator.id)
-        self.assertIsInstance(item["user"]["author"], (dict, type(None)))
-        self.assertIn("expert_search_id", item)
-        self.assertIn("generated_email_id", item)
+        self.assertEqual(data["experts_total"], 2)
+        self.assertEqual(data["experts_signed_up"], 1)
+        self.assertEqual(data["emails_generated"], 3)
+        self.assertEqual(data["emails_sent"], 1)
+        self.assertEqual(data["emails_bounced"], 1)
+        self.assertEqual(data["emails_opened"], 1)
+        self.assertIn("cached_at", data["meta"])
+
+    def test_overview_filters_by_date_range(self):
+        old_search = ExpertSearch.objects.create(
+            created_by=self.moderator,
+            query="Old",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        ExpertSearch.objects.filter(pk=old_search.pk).update(
+            created_date=timezone.now() - timedelta(days=30)
+        )
+        recent_search = ExpertSearch.objects.create(
+            created_by=self.moderator,
+            query="Recent",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        old_expert = Expert.objects.create(email="old@example.com")
+        recent_expert = Expert.objects.create(email="recent@example.com")
+        SearchExpert.objects.create(
+            expert_search=old_search, expert=old_expert, position=0
+        )
+        SearchExpert.objects.create(
+            expert_search=recent_search, expert=recent_expert, position=0
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=old_search,
+            expert_email="old@example.com",
+            status=GeneratedEmail.Status.SENT,
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=recent_search,
+            expert_email="recent@example.com",
+            status=GeneratedEmail.Status.SENT,
+        )
+
+        self.client.force_authenticate(self.moderator)
+        today = timezone.localdate()
+        start = (today - timedelta(days=2)).isoformat()
+        response = self.client.get(self.URL, {"start": start})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["experts_total"], 1)
+        self.assertEqual(data["emails_generated"], 1)
+        self.assertEqual(data["emails_sent"], 1)
+
+    def test_overview_invalid_date_range_returns_400(self):
+        self.client.force_authenticate(self.moderator)
+        today = timezone.localdate()
+        response = self.client.get(
+            self.URL,
+            {
+                "start": today.isoformat(),
+                "end": (today - timedelta(days=1)).isoformat(),
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
