@@ -325,7 +325,7 @@ class InvitedExpertOverviewViewTests(APITestCase):
         self.assertEqual(data["emails_sent"], 1)
         self.assertEqual(data["emails_bounced"], 1)
         self.assertEqual(data["emails_opened"], 1)
-        self.assertIn("cached_at", data)
+        self.assertIn("cached_at", data["meta"])
 
     def test_overview_filters_by_date_range(self):
         old_search = ExpertSearch.objects.create(

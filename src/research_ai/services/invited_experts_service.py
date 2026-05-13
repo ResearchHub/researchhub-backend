@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from django.db.models import Count, Exists, OuterRef, Q
@@ -49,12 +50,22 @@ def link_experts_for_new_user(*, normalized_email: str, user) -> None:
     link_experts_registered_user_for_signup(normalized_email=email, user=user)
 
 
+@dataclass(frozen=True)
+class InvitedExpertOverview:
+    experts_total: int = 0
+    experts_signed_up: int = 0
+    emails_generated: int = 0
+    emails_sent: int = 0
+    emails_bounced: int = 0
+    emails_opened: int = 0
+
+
 def get_invited_expert_overview(
     *,
     unified_document_id: int | None,
     start: datetime | None,
     end: datetime | None,
-) -> dict[str, int]:
+) -> InvitedExpertOverview:
     """
     Aggregate invited-expert and outreach-email metrics for ``ExpertSearch`` rows
     filtered by optional document id and ``created_date`` bounds.
@@ -69,16 +80,11 @@ def get_invited_expert_overview(
 
     search_ids = list(qs.values_list("pk", flat=True))
     if not search_ids:
-        return {
-            "experts_total": 0,
-            "experts_signed_up": 0,
-            "emails_generated": 0,
-            "emails_sent": 0,
-            "emails_bounced": 0,
-            "emails_opened": 0,
-        }
+        return InvitedExpertOverview()
 
-    se_agg = SearchExpert.objects.filter(expert_search_id__in=search_ids).aggregate(
+    se_agg = SearchExpert.objects.filter(
+        expert_search_id__in=search_ids,
+    ).aggregate(
         experts_total=Count("expert_id", distinct=True),
         experts_signed_up=Count(
             "expert_id",
@@ -87,9 +93,13 @@ def get_invited_expert_overview(
         ),
     )
 
-    ge_qs = GeneratedEmail.objects.filter(expert_search_id__in=search_ids)
+    ge_qs = GeneratedEmail.objects.filter(
+        expert_search_id__in=search_ids,
+    )
     emails_generated = ge_qs.count()
-    emails_sent = ge_qs.filter(status=GeneratedEmail.Status.SENT).count()
+    emails_sent = ge_qs.filter(
+        status=GeneratedEmail.Status.SENT,
+    ).count()
     emails_bounced = ge_qs.filter(
         Q(status=GeneratedEmail.Status.BOUNCED) | Q(bounced_at__isnull=False)
     ).count()
@@ -97,11 +107,11 @@ def get_invited_expert_overview(
         Q(opened_at__isnull=False) | Q(open_count__gt=0)
     ).count()
 
-    return {
-        "experts_total": se_agg["experts_total"] or 0,
-        "experts_signed_up": se_agg["experts_signed_up"] or 0,
-        "emails_generated": emails_generated,
-        "emails_sent": emails_sent,
-        "emails_bounced": emails_bounced,
-        "emails_opened": emails_opened,
-    }
+    return InvitedExpertOverview(
+        experts_total=se_agg["experts_total"] or 0,
+        experts_signed_up=se_agg["experts_signed_up"] or 0,
+        emails_generated=emails_generated,
+        emails_sent=emails_sent,
+        emails_bounced=emails_bounced,
+        emails_opened=emails_opened,
+    )
