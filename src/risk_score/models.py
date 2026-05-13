@@ -21,95 +21,84 @@ class RiskScore(DefaultModel):
 
 class RiskScoreEvent(models.Model):
     class EventType(models.TextChoices):
-        # Content moderation (positive)
-        GRANT_APPROVED = "GRANT_APPROVED", _("Grant approved")
-        POST_APPROVED = "POST_APPROVED", _("Post approved")
-        JOURNAL_ENTRY_APPROVED = "JOURNAL_ENTRY_APPROVED", _("Journal entry approved")
-        PROPOSAL_APPROVED = "PROPOSAL_APPROVED", _("Proposal approved")
-
-        # Content moderation (negative)
-        GRANT_DECLINED = "GRANT_DECLINED", _("Grant declined")
-        POST_DECLINED = "POST_DECLINED", _("Post declined")
-        JOURNAL_ENTRY_DECLINED = "JOURNAL_ENTRY_DECLINED", _("Journal entry declined")
-        PROPOSAL_DECLINED = "PROPOSAL_DECLINED", _("Proposal declined")
+        # Content moderation
+        WORK_APPROVED = "WORK_APPROVED", _("Work approved")
+        WORK_DECLINED = "WORK_DECLINED", _("Work declined")
+        WORK_CENSORED = "WORK_CENSORED", _("Work censored after approval")
 
         # Community signals
-        COMMENT_UPVOTED = "COMMENT_UPVOTED", _("Comment upvoted")
-        POST_UPVOTED = "POST_UPVOTED", _("Post upvoted")
-        COMMENT_DOWNVOTED = "COMMENT_DOWNVOTED", _("Comment downvoted")
-
-        # Content removal
+        CONTENT_UPVOTED = "CONTENT_UPVOTED", _("Content upvoted")
+        CONTENT_DOWNVOTED = "CONTENT_DOWNVOTED", _("Content downvoted")
         COMMENT_CENSORED = "COMMENT_CENSORED", _("Comment censored")
-        POST_CENSORED = "POST_CENSORED", _("Post censored")
-        PAPER_CENSORED = "PAPER_CENSORED", _("Paper censored")
 
-        # Bounties
-        BOUNTY_AWARDED_FOUNDATION = "BOUNTY_AWARDED_FOUNDATION", _("Bounty awarded (foundation)")
-        BOUNTY_AWARDED_COMMUNITY = "BOUNTY_AWARDED_COMMUNITY", _("Bounty awarded (community)")
-
-        # Expert activity
+        # Bounties and tips
+        BOUNTY_AWARDED = "BOUNTY_AWARDED", _("Bounty awarded")
+        PEER_REVIEW_TIPPED = "PEER_REVIEW_TIPPED", _("Peer review tipped")
         PEER_REVIEW_ASSESSED = "PEER_REVIEW_ASSESSED", _("Peer review assessed")
-        PAPER_SURVIVED_30_DAYS = "PAPER_SURVIVED_30_DAYS", _("Paper survived 30 days")
 
-        # Flags / moderation
+        # Flags
         FLAG_UPHELD = "FLAG_UPHELD", _("Flag upheld")
-        MARKED_PROBABLE_SPAMMER = "MARKED_PROBABLE_SPAMMER", _("Marked probable spammer")
 
         # One-time profile signals
         EXPERT_FINDER_SIGNUP = "EXPERT_FINDER_SIGNUP", _("Expert Finder signup")
-        ORCID_CONNECTED = "ORCID_CONNECTED", _("ORCID connected")
-        IDENTITY_VERIFIED = "IDENTITY_VERIFIED", _("Identity verified")
-        EMAIL_VERIFIED = "EMAIL_VERIFIED", _("Email verified")
+        EDU_EMAIL_SIGNUP = "EDU_EMAIL_SIGNUP", _("Signed up with edu email")
+        ORCID_VERIFIED_EDU = "ORCID_VERIFIED_EDU", _("ORCID verified edu email")
+        GOOGLE_SIGNUP = "GOOGLE_SIGNUP", _("Signed up via Google")
         ACCOUNT_AGE_BONUS = "ACCOUNT_AGE_BONUS", _("Account age bonus")
+        PERSONA_VERIFIED_WHITELISTED = (
+            "PERSONA_VERIFIED_WHITELISTED",
+            _("Persona verified (whitelisted country)"),
+        )
+        PERSONA_VERIFIED_NON_WHITELISTED = (
+            "PERSONA_VERIFIED_NON_WHITELISTED",
+            _("Persona verified (non-whitelisted country)"),
+        )
 
         # System
         ACCOUNT_CREATED = "ACCOUNT_CREATED", _("Account created")
-        MANUAL_ADJUSTMENT = "MANUAL_ADJUSTMENT", _("Manual adjustment")
         BACKFILL = "BACKFILL", _("Backfill")
 
     DELTAS = {
-        EventType.GRANT_APPROVED: -15,
-        EventType.POST_APPROVED: -5,
-        EventType.JOURNAL_ENTRY_APPROVED: -5,
-        EventType.PROPOSAL_APPROVED: -10,
-        EventType.GRANT_DECLINED: 20,
-        EventType.POST_DECLINED: 10,
-        EventType.JOURNAL_ENTRY_DECLINED: 10,
-        EventType.PROPOSAL_DECLINED: 15,
-        EventType.COMMENT_UPVOTED: -1,
-        EventType.POST_UPVOTED: -1,
-        EventType.COMMENT_DOWNVOTED: 1,
+        # Content moderation
+        EventType.WORK_APPROVED: -50,
+        EventType.WORK_DECLINED: 20,
+        EventType.WORK_CENSORED: 15,
+        # Community signals
+        EventType.CONTENT_UPVOTED: -1,
+        EventType.CONTENT_DOWNVOTED: 1,
         EventType.COMMENT_CENSORED: 10,
-        EventType.POST_CENSORED: 15,
-        EventType.PAPER_CENSORED: 15,
-        EventType.BOUNTY_AWARDED_FOUNDATION: -10,
-        EventType.BOUNTY_AWARDED_COMMUNITY: -5,
+        # Bounties and tips
+        EventType.BOUNTY_AWARDED: -10,
+        EventType.PEER_REVIEW_TIPPED: -5,
         EventType.PEER_REVIEW_ASSESSED: -5,
-        EventType.PAPER_SURVIVED_30_DAYS: -3,
+        # Flags
         EventType.FLAG_UPHELD: 10,
-        EventType.MARKED_PROBABLE_SPAMMER: 50,
-        EventType.EXPERT_FINDER_SIGNUP: -20,
-        EventType.ORCID_CONNECTED: -10,
-        EventType.IDENTITY_VERIFIED: -15,
-        EventType.EMAIL_VERIFIED: -5,
+        # One-time profile signals
+        EventType.EXPERT_FINDER_SIGNUP: -51,
+        EventType.EDU_EMAIL_SIGNUP: -20,
+        EventType.ORCID_VERIFIED_EDU: -10,
+        EventType.GOOGLE_SIGNUP: -10,
         EventType.ACCOUNT_AGE_BONUS: -5,
+        EventType.PERSONA_VERIFIED_WHITELISTED: -51,
+        EventType.PERSONA_VERIFIED_NON_WHITELISTED: -10,
+        # System (variable delta, passed at call time)
         EventType.ACCOUNT_CREATED: 0,
-        EventType.MANUAL_ADJUSTMENT: 0,
         EventType.BACKFILL: 0,
     }
 
     VOTE_TYPES = {
-        EventType.COMMENT_UPVOTED,
-        EventType.POST_UPVOTED,
-        EventType.COMMENT_DOWNVOTED,
+        EventType.CONTENT_UPVOTED,
+        EventType.CONTENT_DOWNVOTED,
     }
 
     ONE_TIME_TYPES = {
         EventType.EXPERT_FINDER_SIGNUP,
-        EventType.ORCID_CONNECTED,
-        EventType.IDENTITY_VERIFIED,
-        EventType.EMAIL_VERIFIED,
+        EventType.EDU_EMAIL_SIGNUP,
+        EventType.ORCID_VERIFIED_EDU,
+        EventType.GOOGLE_SIGNUP,
         EventType.ACCOUNT_AGE_BONUS,
+        EventType.PERSONA_VERIFIED_WHITELISTED,
+        EventType.PERSONA_VERIFIED_NON_WHITELISTED,
     }
 
     user = models.ForeignKey(
