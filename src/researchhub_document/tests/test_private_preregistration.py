@@ -14,6 +14,8 @@ from purchase.related_models.constants.currency import USD
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from researchhub_access_group.constants import NO_ACCESS, VIEWER
+from researchhub_access_group.models import Permission
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
@@ -205,9 +207,6 @@ class VisibleToQuerySetTests(AWSMockTestCase):
         self.assertIn(self.private_post.id, ids)
 
     def test_invited_expert_with_viewer_permission_sees_private(self):
-        from researchhub_access_group.constants import NO_ACCESS, VIEWER
-        from researchhub_access_group.models import Permission
-
         invited = _make_user("invited")
         revoked = _make_user("revoked")
 

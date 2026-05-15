@@ -5,6 +5,7 @@ from django.db.models.functions import Cast
 
 from discussion.models import AbstractGenericReactionModel, Vote
 from purchase.models import Purchase
+from researchhub_access_group.constants import NO_ACCESS
 from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
@@ -30,8 +31,6 @@ class ResearchhubPostQuerySet(models.QuerySet):
         users with a non-revoked Permission on the post's unified document
         (e.g. invited experts).
         """
-        from researchhub_access_group.constants import NO_ACCESS
-
         public = Q(unified_document__is_public=True)
         if user is None or not getattr(user, "is_authenticated", False):
             return self.filter(public)

@@ -4,8 +4,12 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
+from paper.tests.helpers import create_paper
 from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
-from researchhub_access_group.constants import NO_ACCESS, VIEWER
+from research_ai.services.invited_experts_service import (
+    grant_invited_expert_access_for_signup,
+)
+from researchhub_access_group.constants import VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
@@ -23,8 +27,6 @@ class InvitedExpertsSignalTests(TestCase):
     """Signup links ``Expert.registered_user`` when outreach qualifies."""
 
     def setUp(self):
-        from paper.tests.helpers import create_paper
-
         self.creator = create_user(email="creator@signal.test")
         self.paper = create_paper(
             title="Signal doc",
@@ -325,10 +327,6 @@ class GrantInvitedExpertAccessTests(TestCase):
         search = self._make_search(post.unified_document, when)
         self._make_generated_email(
             search=search, email="dupe@example.com", created_at=when
-        )
-
-        from research_ai.services.invited_experts_service import (
-            grant_invited_expert_access_for_signup,
         )
 
         new_user = create_user(
