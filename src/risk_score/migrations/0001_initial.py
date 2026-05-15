@@ -52,13 +52,10 @@ class Migration(migrations.Migration):
                 ),
                 ("event_type", models.CharField(max_length=64)),
                 ("delta", models.IntegerField()),
-                ("score_after", models.IntegerField()),
-                ("metadata", models.JSONField(blank=True, default=dict)),
                 (
-                    "source_object_id",
+                    "source_content_id",
                     models.PositiveIntegerField(blank=True, null=True),
                 ),
-                ("created_date", models.DateTimeField(auto_now_add=True)),
                 (
                     "source_content_type",
                     models.ForeignKey(
@@ -68,6 +65,7 @@ class Migration(migrations.Migration):
                         to="contenttypes.contenttype",
                     ),
                 ),
+                ("created_date", models.DateTimeField(auto_now_add=True)),
                 (
                     "user",
                     models.ForeignKey(
