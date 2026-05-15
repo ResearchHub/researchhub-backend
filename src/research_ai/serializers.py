@@ -211,7 +211,7 @@ class ManualExpertCreateSerializer(serializers.Serializer):
     rejected), unlike :class:`ExpertUpdateSerializer` which forbids duplicates.
     """
 
-    email = serializers.CharField(required=True, allow_blank=False)
+    email = serializers.EmailField(required=True, allow_blank=False)
     honorific = serializers.CharField(required=False, allow_blank=True)
     first_name = serializers.CharField(required=False, allow_blank=True)
     middle_name = serializers.CharField(required=False, allow_blank=True)
