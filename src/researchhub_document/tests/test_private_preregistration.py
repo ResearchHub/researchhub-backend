@@ -209,20 +209,19 @@ class VisibleToQuerySetTests(AWSMockTestCase):
     def test_invited_expert_with_viewer_permission_sees_private(self):
         invited = _make_user("invited")
         revoked = _make_user("revoked")
+        ud_ct = ContentType.objects.get_for_model(
+            self.private_post.unified_document.__class__
+        )
 
         Permission.objects.create(
             access_type=VIEWER,
-            content_type=ContentType.objects.get_for_model(
-                self.private_post.unified_document.__class__
-            ),
+            content_type=ud_ct,
             object_id=self.private_post.unified_document_id,
             user=invited,
         )
         Permission.objects.create(
             access_type=NO_ACCESS,
-            content_type=ContentType.objects.get_for_model(
-                self.private_post.unified_document.__class__
-            ),
+            content_type=ud_ct,
             object_id=self.private_post.unified_document_id,
             user=revoked,
         )
@@ -236,6 +235,34 @@ class VisibleToQuerySetTests(AWSMockTestCase):
             ResearchhubPost.objects.visible_to(revoked).values_list("id", flat=True)
         )
         self.assertNotIn(self.private_post.id, revoked_ids)
+
+    def test_no_access_revokes_even_when_viewer_row_exists(self):
+        """A NO_ACCESS row must override any other Permission rows for the same
+        user on the same document — the model has no uniqueness constraint, so
+        stale VIEWER rows can coexist with a later NO_ACCESS revocation.
+        """
+        user = _make_user("dual")
+        ud_ct = ContentType.objects.get_for_model(
+            self.private_post.unified_document.__class__
+        )
+
+        Permission.objects.create(
+            access_type=VIEWER,
+            content_type=ud_ct,
+            object_id=self.private_post.unified_document_id,
+            user=user,
+        )
+        Permission.objects.create(
+            access_type=NO_ACCESS,
+            content_type=ud_ct,
+            object_id=self.private_post.unified_document_id,
+            user=user,
+        )
+
+        ids = set(
+            ResearchhubPost.objects.visible_to(user).values_list("id", flat=True)
+        )
+        self.assertNotIn(self.private_post.id, ids)
 
 
 class PostViewSetVisibilityTests(AWSMockTestCase):
