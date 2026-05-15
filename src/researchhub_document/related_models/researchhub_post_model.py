@@ -25,14 +25,24 @@ class ResearchhubPostQuerySet(models.QuerySet):
         """Restrict to posts the given user is allowed to see.
 
         Public posts (unified_document.is_public=True) are visible to anyone.
-        Private posts are visible only to their author and to the creator of
-        any grant the post has applied to (via GrantApplication).
+        Private posts are visible only to their author, to the creator of
+        any grant the post has applied to (via GrantApplication), and to
+        users with a non-revoked Permission on the post's unified document
+        (e.g. invited experts).
         """
+        from researchhub_access_group.constants import NO_ACCESS
+
         public = Q(unified_document__is_public=True)
         if user is None or not getattr(user, "is_authenticated", False):
             return self.filter(public)
         return self.filter(
-            public | Q(created_by=user) | Q(grant_applications__grant__created_by=user)
+            public
+            | Q(created_by=user)
+            | Q(grant_applications__grant__created_by=user)
+            | (
+                Q(unified_document__permissions__user=user)
+                & ~Q(unified_document__permissions__access_type=NO_ACCESS)
+            )
         ).distinct()
 
 

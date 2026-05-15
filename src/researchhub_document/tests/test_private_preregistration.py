@@ -204,6 +204,40 @@ class VisibleToQuerySetTests(AWSMockTestCase):
         )
         self.assertIn(self.private_post.id, ids)
 
+    def test_invited_expert_with_viewer_permission_sees_private(self):
+        from researchhub_access_group.constants import NO_ACCESS, VIEWER
+        from researchhub_access_group.models import Permission
+
+        invited = _make_user("invited")
+        revoked = _make_user("revoked")
+
+        Permission.objects.create(
+            access_type=VIEWER,
+            content_type=ContentType.objects.get_for_model(
+                self.private_post.unified_document.__class__
+            ),
+            object_id=self.private_post.unified_document_id,
+            user=invited,
+        )
+        Permission.objects.create(
+            access_type=NO_ACCESS,
+            content_type=ContentType.objects.get_for_model(
+                self.private_post.unified_document.__class__
+            ),
+            object_id=self.private_post.unified_document_id,
+            user=revoked,
+        )
+
+        invited_ids = set(
+            ResearchhubPost.objects.visible_to(invited).values_list("id", flat=True)
+        )
+        self.assertIn(self.private_post.id, invited_ids)
+
+        revoked_ids = set(
+            ResearchhubPost.objects.visible_to(revoked).values_list("id", flat=True)
+        )
+        self.assertNotIn(self.private_post.id, revoked_ids)
+
 
 class PostViewSetVisibilityTests(AWSMockTestCase):
     """ResearchhubPostViewSet hides private posts from non-authorized requesters."""
