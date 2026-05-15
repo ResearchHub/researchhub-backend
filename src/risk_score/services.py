@@ -35,7 +35,7 @@ class RiskScoreService:
     def is_restricted(self, user):
         return self.get_score(user) >= RESTRICTED_THRESHOLD
 
-    def record_event(self, user, event_type, *, delta=None, metadata=None, source=None):
+    def record_event(self, user, event_type, *, delta=None, source=None):
         delta = self._resolve_delta(event_type, delta)
 
         with transaction.atomic():
@@ -57,8 +57,6 @@ class RiskScoreService:
                 user=user,
                 event_type=event_type,
                 delta=delta,
-                score_after=new_score,
-                metadata=metadata or {},
                 **self._source_fields(source),
             )
 
@@ -114,5 +112,5 @@ class RiskScoreService:
             return {}
         return {
             "source_content_type": ContentType.objects.get_for_model(source),
-            "source_object_id": source.pk,
+            "source_content_id": source.pk,
         }
