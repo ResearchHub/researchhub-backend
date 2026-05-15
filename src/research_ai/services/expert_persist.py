@@ -87,3 +87,29 @@ class ExpertPersist:
         Expert.objects.filter(email__iexact=em).update(
             last_email_sent_at=timezone.now()
         )
+
+    @staticmethod
+    def tag_manual_source(expert: Expert, user) -> None:
+        """Append a ``{"type": "manual", ...}`` marker to ``expert.sources``.
+
+        Idempotent per user: skips if a manual entry by the same user is already
+        present. Existing (e.g. LLM-populated) source entries are preserved.
+        """
+        sources = expert.sources if isinstance(expert.sources, list) else []
+        user_id = getattr(user, "id", None)
+        for entry in sources:
+            if (
+                isinstance(entry, dict)
+                and entry.get("type") == "manual"
+                and entry.get("added_by") == user_id
+            ):
+                return
+        sources.append(
+            {
+                "type": "manual",
+                "added_by": user_id,
+                "added_at": timezone.now().isoformat(),
+            }
+        )
+        expert.sources = sources
+        expert.save(update_fields=["sources"])
