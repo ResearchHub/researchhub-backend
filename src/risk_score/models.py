@@ -23,20 +23,16 @@ class RiskScoreEvent(models.Model):
         # Content moderation
         WORK_APPROVED = "WORK_APPROVED", "Work approved"
         WORK_DECLINED = "WORK_DECLINED", "Work declined"
-        WORK_CENSORED = "WORK_CENSORED", "Work censored after approval"
+        CONTENT_CENSORED = "CONTENT_CENSORED", "Content censored"
 
         # Community signals
         CONTENT_UPVOTED = "CONTENT_UPVOTED", "Content upvoted"
         CONTENT_DOWNVOTED = "CONTENT_DOWNVOTED", "Content downvoted"
-        COMMENT_CENSORED = "COMMENT_CENSORED", "Comment censored"
 
         # Bounties and tips
         BOUNTY_AWARDED = "BOUNTY_AWARDED", "Bounty awarded"
         PEER_REVIEW_TIPPED = "PEER_REVIEW_TIPPED", "Peer review tipped"
         PEER_REVIEW_ASSESSED = "PEER_REVIEW_ASSESSED", "Peer review assessed"
-
-        # Flags
-        FLAG_UPHELD = "FLAG_UPHELD", "Flag upheld"
 
         # One-time profile signals
         EXPERT_FINDER_SIGNUP = "EXPERT_FINDER_SIGNUP", "Expert Finder signup"
@@ -61,17 +57,14 @@ class RiskScoreEvent(models.Model):
         # Content moderation
         EventType.WORK_APPROVED: -50,
         EventType.WORK_DECLINED: 20,
-        EventType.WORK_CENSORED: 15,
+        EventType.CONTENT_CENSORED: 15,
         # Community signals
         EventType.CONTENT_UPVOTED: -1,
         EventType.CONTENT_DOWNVOTED: 1,
-        EventType.COMMENT_CENSORED: 10,
         # Bounties and tips
         EventType.BOUNTY_AWARDED: -10,
         EventType.PEER_REVIEW_TIPPED: -5,
         EventType.PEER_REVIEW_ASSESSED: -5,
-        # Flags
-        EventType.FLAG_UPHELD: 10,
         # One-time profile signals
         EventType.EXPERT_FINDER_SIGNUP: -51,
         EventType.EDU_EMAIL_SIGNUP: -20,
@@ -106,17 +99,15 @@ class RiskScoreEvent(models.Model):
     )
     event_type = models.CharField(max_length=64)
     delta = models.IntegerField()
-    score_after = models.IntegerField()
-    metadata = models.JSONField(default=dict, blank=True)
 
+    source_content_id = models.PositiveIntegerField(null=True, blank=True)
     source_content_type = models.ForeignKey(
         ContentType,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
     )
-    source_object_id = models.PositiveIntegerField(null=True, blank=True)
-    source = GenericForeignKey("source_content_type", "source_object_id")
+    source = GenericForeignKey("source_content_type", "source_content_id")
 
     created_date = models.DateTimeField(auto_now_add=True)
 
