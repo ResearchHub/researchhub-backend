@@ -84,7 +84,7 @@ class RiskScoreServiceTests(TestCase):
 
         # Assert
         self.assertEqual(event.delta, -50)
-        self.assertEqual(event.score_after, DEFAULT_SCORE - 50)
+        self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE - 50)
 
     def test_record_event_explicit_delta_overrides_default(self):
         # Act
@@ -94,24 +94,12 @@ class RiskScoreServiceTests(TestCase):
 
         # Assert
         self.assertEqual(event.delta, -5)
-        self.assertEqual(event.score_after, DEFAULT_SCORE - 5)
+        self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE - 5)
 
     def test_record_event_raises_when_delta_required(self):
         # Act & Assert
         with self.assertRaises(ValueError):
             self.service.record_event(self.user, EventType.BACKFILL)
-
-    def test_record_event_stores_metadata(self):
-        # Arrange
-        meta = {"reason": "test"}
-
-        # Act
-        event = self.service.record_event(
-            self.user, EventType.WORK_DECLINED, metadata=meta
-        )
-
-        # Assert
-        self.assertEqual(event.metadata, meta)
 
     def test_record_event_stores_source(self):
         # Arrange
@@ -123,39 +111,36 @@ class RiskScoreServiceTests(TestCase):
         )
 
         # Assert
-        self.assertEqual(event.source_object_id, source_obj.pk)
+        self.assertEqual(event.source_content_id, source_obj.pk)
         self.assertIsNotNone(event.source_content_type)
 
     def test_record_event_accumulates(self):
-        # Arrange
-        self.service.record_event(self.user, EventType.WORK_DECLINED)
-        self.service.record_event(self.user, EventType.WORK_DECLINED)
-
         # Act
-        result = self.service.get_score(self.user)
+        self.service.record_event(self.user, EventType.WORK_DECLINED)
+        self.service.record_event(self.user, EventType.WORK_DECLINED)
 
         # Assert
-        self.assertEqual(result, DEFAULT_SCORE + 40)
+        self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE + 40)
 
     def test_clamps_to_floor(self):
         # Arrange
         RiskScore.objects.create(user=self.user, score=10)
 
         # Act
-        event = self.service.record_event(self.user, EventType.BACKFILL, delta=-50)
+        self.service.record_event(self.user, EventType.BACKFILL, delta=-50)
 
         # Assert
-        self.assertEqual(event.score_after, SCORE_FLOOR)
+        self.assertEqual(self.service.get_score(self.user), SCORE_FLOOR)
 
     def test_clamps_to_ceiling(self):
         # Arrange
         RiskScore.objects.create(user=self.user, score=SCORE_CEILING - 5)
 
         # Act
-        event = self.service.record_event(self.user, EventType.WORK_DECLINED)
+        self.service.record_event(self.user, EventType.WORK_DECLINED)
 
         # Assert
-        self.assertEqual(event.score_after, SCORE_CEILING)
+        self.assertEqual(self.service.get_score(self.user), SCORE_CEILING)
 
     def test_upvote_cap_enforced(self):
         # Arrange
