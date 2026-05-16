@@ -1,17 +1,8 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Sum
-from django.utils import timezone
 
-from risk_score.constants import (
-    DAILY_DOWNVOTE_SCORE_CAP,
-    DAILY_UPVOTE_SCORE_CAP,
-    DEFAULT_SCORE,
-    RESTRICTED_THRESHOLD,
-    SCORE_CEILING,
-    SCORE_FLOOR,
-    TRUSTED_THRESHOLD,
-)
+from risk_score.constants import DEFAULT_SCORE, RESTRICTED_THRESHOLD, TRUSTED_THRESHOLD
 from risk_score.models import RiskScore, RiskScoreEvent
 
 EventType = RiskScoreEvent.EventType
@@ -19,11 +10,6 @@ EventType = RiskScoreEvent.EventType
 
 class RiskScoreService:
     """Service for managing user risk score calculations and event recording."""
-
-    VOTE_CAPS = {
-        EventType.CONTENT_UPVOTED: DAILY_UPVOTE_SCORE_CAP,
-        EventType.CONTENT_DOWNVOTED: DAILY_DOWNVOTE_SCORE_CAP,
-    }
 
     def get_score(self, user):
         risk_score, _ = RiskScore.objects.get_or_create(user=user)
@@ -47,12 +33,6 @@ class RiskScoreService:
                 if self._one_time_event_exists(user, event_type):
                     return None
 
-            if event_type in RiskScoreEvent.VOTE_TYPES:
-                if self._daily_vote_cap_reached(user, event_type):
-                    return None
-
-            new_score = self._clamp(risk_score.score + delta)
-
             event = RiskScoreEvent.objects.create(
                 user=user,
                 event_type=event_type,
@@ -60,7 +40,7 @@ class RiskScoreService:
                 **self._source_fields(source),
             )
 
-            risk_score.score = new_score
+            risk_score.score += delta
             risk_score.save(update_fields=["score"])
 
         return event
@@ -72,7 +52,7 @@ class RiskScoreService:
             ]
             or 0
         )
-        new_score = self._clamp(DEFAULT_SCORE + total_delta)
+        new_score = DEFAULT_SCORE + total_delta
 
         risk_score, _ = RiskScore.objects.get_or_create(user=user)
         risk_score.score = new_score
@@ -90,22 +70,10 @@ class RiskScoreService:
 
         return default_delta
 
-    def _clamp(self, score):
-        return max(SCORE_FLOOR, min(SCORE_CEILING, score))
-
     def _one_time_event_exists(self, user, event_type):
         return RiskScoreEvent.objects.filter(
             user=user, event_type=event_type
         ).exists()
-
-    def _daily_vote_cap_reached(self, user, event_type):
-        today = timezone.now().date()
-        count = RiskScoreEvent.objects.filter(
-            user=user,
-            event_type=event_type,
-            created_date__date=today,
-        ).count()
-        return count >= self.VOTE_CAPS[event_type]
 
     def _source_fields(self, source):
         if source is None:

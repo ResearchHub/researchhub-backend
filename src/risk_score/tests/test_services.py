@@ -1,14 +1,6 @@
 from django.test import TestCase
 
-from risk_score.constants import (
-    DAILY_DOWNVOTE_SCORE_CAP,
-    DAILY_UPVOTE_SCORE_CAP,
-    DEFAULT_SCORE,
-    RESTRICTED_THRESHOLD,
-    SCORE_CEILING,
-    SCORE_FLOOR,
-    TRUSTED_THRESHOLD,
-)
+from risk_score.constants import DEFAULT_SCORE, RESTRICTED_THRESHOLD, TRUSTED_THRESHOLD
 from risk_score.models import RiskScore, RiskScoreEvent
 from risk_score.services import RiskScoreService
 from user.tests.helpers import create_user
@@ -96,10 +88,10 @@ class RiskScoreServiceTests(TestCase):
         self.assertEqual(event.delta, -5)
         self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE - 5)
 
-    def test_record_event_raises_when_delta_required(self):
+    def test_record_event_raises_for_unknown_type(self):
         # Act & Assert
         with self.assertRaises(ValueError):
-            self.service.record_event(self.user, EventType.BACKFILL)
+            self.service.record_event(self.user, "UNKNOWN_TYPE")
 
     def test_record_event_stores_source(self):
         # Arrange
@@ -121,54 +113,6 @@ class RiskScoreServiceTests(TestCase):
 
         # Assert
         self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE + 40)
-
-    def test_clamps_to_floor(self):
-        # Arrange
-        RiskScore.objects.create(user=self.user, score=10)
-
-        # Act
-        self.service.record_event(self.user, EventType.BACKFILL, delta=-50)
-
-        # Assert
-        self.assertEqual(self.service.get_score(self.user), SCORE_FLOOR)
-
-    def test_clamps_to_ceiling(self):
-        # Arrange
-        RiskScore.objects.create(user=self.user, score=SCORE_CEILING - 5)
-
-        # Act
-        self.service.record_event(self.user, EventType.WORK_DECLINED)
-
-        # Assert
-        self.assertEqual(self.service.get_score(self.user), SCORE_CEILING)
-
-    def test_upvote_cap_enforced(self):
-        # Arrange
-        for _ in range(DAILY_UPVOTE_SCORE_CAP):
-            self.service.record_event(self.user, EventType.CONTENT_UPVOTED)
-
-        # Act
-        result = self.service.record_event(self.user, EventType.CONTENT_UPVOTED)
-
-        # Assert
-        self.assertIsNone(result)
-        self.assertEqual(
-            self.service.get_score(self.user), DEFAULT_SCORE - DAILY_UPVOTE_SCORE_CAP
-        )
-
-    def test_downvote_cap_enforced(self):
-        # Arrange
-        for _ in range(DAILY_DOWNVOTE_SCORE_CAP):
-            self.service.record_event(self.user, EventType.CONTENT_DOWNVOTED)
-
-        # Act
-        result = self.service.record_event(self.user, EventType.CONTENT_DOWNVOTED)
-
-        # Assert
-        self.assertIsNone(result)
-        self.assertEqual(
-            self.service.get_score(self.user), DEFAULT_SCORE + DAILY_DOWNVOTE_SCORE_CAP
-        )
 
     def test_one_time_event_duplicate_ignored(self):
         # Arrange
@@ -192,16 +136,6 @@ class RiskScoreServiceTests(TestCase):
 
         # Assert
         self.assertEqual(result, DEFAULT_SCORE - 30)
-
-    def test_recalculate_clamps(self):
-        # Arrange
-        self.service.record_event(self.user, EventType.BACKFILL, delta=-200)
-
-        # Act
-        result = self.service.recalculate_from_ledger(self.user)
-
-        # Assert
-        self.assertEqual(result, SCORE_FLOOR)
 
     def test_recalculate_with_no_events(self):
         # Act
