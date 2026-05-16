@@ -12,7 +12,12 @@ class RiskScore(DefaultModel):
         on_delete=models.CASCADE,
         related_name="risk_score",
     )
-    score = models.IntegerField(default=DEFAULT_SCORE, db_index=True)
+    score = models.IntegerField(default=DEFAULT_SCORE)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["score"], name="risk_score_score_idx"),
+        ]
 
     def __str__(self):
         return f"User {self.user_id} - Score: {self.score}"
@@ -24,10 +29,6 @@ class RiskScoreEvent(models.Model):
         WORK_APPROVED = "WORK_APPROVED", "Work approved"
         WORK_DECLINED = "WORK_DECLINED", "Work declined"
         CONTENT_CENSORED = "CONTENT_CENSORED", "Content censored"
-
-        # Community signals
-        CONTENT_UPVOTED = "CONTENT_UPVOTED", "Content upvoted"
-        CONTENT_DOWNVOTED = "CONTENT_DOWNVOTED", "Content downvoted"
 
         # Bounties and tips
         BOUNTY_AWARDED = "BOUNTY_AWARDED", "Bounty awarded"
@@ -49,18 +50,11 @@ class RiskScoreEvent(models.Model):
             "Persona verified (non-whitelisted country)",
         )
 
-        # System
-        ACCOUNT_CREATED = "ACCOUNT_CREATED", "Account created"
-        BACKFILL = "BACKFILL", "Backfill"
-
     DELTAS = {
         # Content moderation
         EventType.WORK_APPROVED: -50,
         EventType.WORK_DECLINED: 20,
         EventType.CONTENT_CENSORED: 15,
-        # Community signals
-        EventType.CONTENT_UPVOTED: -1,
-        EventType.CONTENT_DOWNVOTED: 1,
         # Bounties and tips
         EventType.BOUNTY_AWARDED: -10,
         EventType.PEER_REVIEW_TIPPED: -5,
@@ -73,15 +67,10 @@ class RiskScoreEvent(models.Model):
         EventType.ACCOUNT_AGE_BONUS: -5,
         EventType.PERSONA_VERIFIED_WHITELISTED: -51,
         EventType.PERSONA_VERIFIED_NON_WHITELISTED: -10,
-        EventType.ACCOUNT_CREATED: None,
-        EventType.BACKFILL: None,
     }
 
-    VOTE_TYPES = {
-        EventType.CONTENT_UPVOTED,
-        EventType.CONTENT_DOWNVOTED,
-    }
-
+    # Events that can only be recorded once per user. The service layer
+    # enforces idempotency by checking for existing events before recording.
     ONE_TIME_TYPES = {
         EventType.EXPERT_FINDER_SIGNUP,
         EventType.EDU_EMAIL_SIGNUP,
