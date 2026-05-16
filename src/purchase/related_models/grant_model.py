@@ -31,6 +31,17 @@ class Grant(DefaultModel):
         (DECLINED, "Declined"),
     )
 
+    # Visibility rule applied to preregistrations applying to this grant.
+    APPLICATION_VISIBILITY_OPTIONAL = "OPTIONAL"
+    APPLICATION_VISIBILITY_PRIVATE = "PRIVATE"
+    APPLICATION_VISIBILITY_PUBLIC = "PUBLIC"
+
+    APPLICATION_VISIBILITY_CHOICES = (
+        (APPLICATION_VISIBILITY_OPTIONAL, "Applicant chooses"),
+        (APPLICATION_VISIBILITY_PRIVATE, "Applications must be private"),
+        (APPLICATION_VISIBILITY_PUBLIC, "Applications must be public"),
+    )
+
     # Foreign key relationships
     created_by = models.ForeignKey(
         "user.User",
@@ -78,6 +89,16 @@ class Grant(DefaultModel):
         default=PENDING,
         max_length=32,
         help_text="Current status of the grant",
+    )
+    application_visibility = models.CharField(
+        choices=APPLICATION_VISIBILITY_CHOICES,
+        default=APPLICATION_VISIBILITY_OPTIONAL,
+        max_length=16,
+        help_text=(
+            "Privacy rule applied to preregistrations applying to this grant. "
+            "OPTIONAL lets the applicant choose; PRIVATE/PUBLIC require the "
+            "applicant's preregistration to match."
+        ),
     )
     flags = GenericRelation("discussion.Flag")
 

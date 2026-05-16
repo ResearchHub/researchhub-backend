@@ -436,3 +436,279 @@ class FeedEntrySuppressionTests(AWSMockTestCase):
                 content_type=self.comment_ct, object_id=comment.id
             ).exists()
         )
+
+
+class GrantEnforcedApplicationVisibilityTests(AWSMockTestCase):
+    """RFP creators can require applications be private, public, or optional."""
+
+    def setUp(self):
+        super().setUp()
+        self.author = _make_user("author")
+        self.grant_owner = _make_user("grant_owner")
+        self.hub = Hub.objects.create(name=f"hub-{uuid.uuid4().hex[:8]}")
+        RscExchangeRate.objects.create(rate=1.0)
+
+        self.optional_grant = self._make_grant(
+            Grant.APPLICATION_VISIBILITY_OPTIONAL
+        )
+        self.private_required_grant = self._make_grant(
+            Grant.APPLICATION_VISIBILITY_PRIVATE
+        )
+        self.public_required_grant = self._make_grant(
+            Grant.APPLICATION_VISIBILITY_PUBLIC
+        )
+
+        self.client = APIClient()
+        self.client.force_authenticate(self.author)
+
+    def _make_grant(self, application_visibility):
+        ud = ResearchhubUnifiedDocument.objects.create(document_type="GRANT")
+        return Grant.objects.create(
+            created_by=self.grant_owner,
+            unified_document=ud,
+            amount=1000,
+            currency=USD,
+            organization="Org",
+            description="desc",
+            status=Grant.OPEN,
+            application_visibility=application_visibility,
+        )
+
+    def _payload(self, **overrides):
+        payload = {
+            "document_type": PREREGISTRATION,
+            "created_by": self.author.id,
+            "full_src": "body",
+            "renderable_text": LONG_BODY,
+            "title": LONG_TITLE,
+            "hubs": [self.hub.id],
+            "fundraise_goal_amount": 1000,
+        }
+        payload.update(overrides)
+        return payload
+
+    # --- Create-with-grant_id (new preregistration applying to an RFP) -------
+
+    def test_create_with_optional_grant_honors_applicant_default(self):
+        response = self.client.post(
+            "/api/researchhubpost/",
+            self._payload(grant_id=self.optional_grant.id),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        post = ResearchhubPost.objects.get(id=response.data["id"])
+        self.assertTrue(post.unified_document.is_public)
+
+    def test_create_with_optional_grant_honors_applicant_private_choice(self):
+        response = self.client.post(
+            "/api/researchhubpost/",
+            self._payload(grant_id=self.optional_grant.id, is_public=False),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        post = ResearchhubPost.objects.get(id=response.data["id"])
+        self.assertFalse(post.unified_document.is_public)
+
+    def test_create_with_private_required_grant_omits_is_public_silently(self):
+        """Omitted is_public falls back to the grant's required visibility."""
+        response = self.client.post(
+            "/api/researchhubpost/",
+            self._payload(grant_id=self.private_required_grant.id),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        post = ResearchhubPost.objects.get(id=response.data["id"])
+        self.assertFalse(post.unified_document.is_public)
+        action = Action.objects.get(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+        )
+        self.assertFalse(action.display)
+
+    def test_create_with_private_required_grant_explicit_public_errors(self):
+        response = self.client.post(
+            "/api/researchhubpost/",
+            self._payload(grant_id=self.private_required_grant.id, is_public=True),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(
+            ResearchhubPost.objects.filter(
+                title=LONG_TITLE, created_by=self.author
+            ).exists()
+        )
+        self.assertFalse(
+            GrantApplication.objects.filter(
+                grant=self.private_required_grant, applicant=self.author
+            ).exists()
+        )
+
+    def test_create_with_private_required_grant_explicit_private_succeeds(self):
+        response = self.client.post(
+            "/api/researchhubpost/",
+            self._payload(grant_id=self.private_required_grant.id, is_public=False),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        post = ResearchhubPost.objects.get(id=response.data["id"])
+        self.assertFalse(post.unified_document.is_public)
+
+    def test_create_with_public_required_grant_omits_is_public_silently(self):
+        response = self.client.post(
+            "/api/researchhubpost/",
+            self._payload(grant_id=self.public_required_grant.id),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        post = ResearchhubPost.objects.get(id=response.data["id"])
+        self.assertTrue(post.unified_document.is_public)
+
+    def test_create_with_public_required_grant_explicit_private_errors(self):
+        response = self.client.post(
+            "/api/researchhubpost/",
+            self._payload(grant_id=self.public_required_grant.id, is_public=False),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(
+            GrantApplication.objects.filter(
+                grant=self.public_required_grant, applicant=self.author
+            ).exists()
+        )
+
+    # --- Standalone /api/grant/{id}/application/ -----------------------------
+
+    def test_apply_to_private_required_grant_with_public_post_errors(self):
+        public_post = create_post(
+            title="Stays unchanged",
+            created_by=self.author,
+            document_type=PREREGISTRATION,
+        )
+        self.assertTrue(public_post.unified_document.is_public)
+
+        response = self.client.post(
+            f"/api/grant/{self.private_required_grant.id}/application/",
+            {"preregistration_post_id": public_post.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("private", response.data["error"].lower())
+
+        public_post.unified_document.refresh_from_db()
+        self.assertTrue(public_post.unified_document.is_public)
+        self.assertFalse(
+            GrantApplication.objects.filter(
+                grant=self.private_required_grant,
+                preregistration_post=public_post,
+            ).exists()
+        )
+
+    def test_apply_to_private_required_grant_with_private_post_succeeds(self):
+        private_post = create_post(
+            title="Already private",
+            created_by=self.author,
+            document_type=PREREGISTRATION,
+        )
+        private_post.unified_document.is_public = False
+        private_post.unified_document.save(update_fields=["is_public"])
+
+        response = self.client.post(
+            f"/api/grant/{self.private_required_grant.id}/application/",
+            {"preregistration_post_id": private_post.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            GrantApplication.objects.filter(
+                grant=self.private_required_grant,
+                preregistration_post=private_post,
+                applicant=self.author,
+            ).exists()
+        )
+
+    def test_apply_to_public_required_grant_with_private_post_errors(self):
+        private_post = create_post(
+            title="Stays unchanged",
+            created_by=self.author,
+            document_type=PREREGISTRATION,
+        )
+        private_post.unified_document.is_public = False
+        private_post.unified_document.save(update_fields=["is_public"])
+
+        response = self.client.post(
+            f"/api/grant/{self.public_required_grant.id}/application/",
+            {"preregistration_post_id": private_post.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("public", response.data["error"].lower())
+
+        private_post.unified_document.refresh_from_db()
+        self.assertFalse(private_post.unified_document.is_public)
+        self.assertFalse(
+            GrantApplication.objects.filter(
+                grant=self.public_required_grant,
+                preregistration_post=private_post,
+            ).exists()
+        )
+
+    def test_apply_to_public_required_grant_with_public_post_succeeds(self):
+        public_post = create_post(
+            title="Already public",
+            created_by=self.author,
+            document_type=PREREGISTRATION,
+        )
+
+        response = self.client.post(
+            f"/api/grant/{self.public_required_grant.id}/application/",
+            {"preregistration_post_id": public_post.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_apply_to_optional_grant_accepts_public_post(self):
+        public_post = create_post(
+            title="Stays public",
+            created_by=self.author,
+            document_type=PREREGISTRATION,
+        )
+
+        response = self.client.post(
+            f"/api/grant/{self.optional_grant.id}/application/",
+            {"preregistration_post_id": public_post.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        public_post.unified_document.refresh_from_db()
+        self.assertTrue(public_post.unified_document.is_public)
+
+    def test_apply_to_optional_grant_accepts_private_post(self):
+        private_post = create_post(
+            title="Stays private",
+            created_by=self.author,
+            document_type=PREREGISTRATION,
+        )
+        private_post.unified_document.is_public = False
+        private_post.unified_document.save(update_fields=["is_public"])
+
+        response = self.client.post(
+            f"/api/grant/{self.optional_grant.id}/application/",
+            {"preregistration_post_id": private_post.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        private_post.unified_document.refresh_from_db()
+        self.assertFalse(private_post.unified_document.is_public)
