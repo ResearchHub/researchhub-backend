@@ -27,7 +27,7 @@ class Migration(migrations.Migration):
                 ),
                 ("created_date", models.DateTimeField(auto_now_add=True)),
                 ("updated_date", models.DateTimeField(auto_now=True)),
-                ("score", models.IntegerField(db_index=True, default=100)),
+                ("score", models.IntegerField(default=100)),
                 (
                     "user",
                     models.OneToOneField(
@@ -37,6 +37,14 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
+            options={
+                "indexes": [
+                    models.Index(
+                        fields=["score"],
+                        name="risk_score_score_idx",
+                    ),
+                ],
+            },
         ),
         migrations.CreateModel(
             name="RiskScoreEvent",
