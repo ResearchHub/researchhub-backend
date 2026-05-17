@@ -7,7 +7,6 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
-from discussion.models import Vote
 from purchase.related_models.grant_model import Grant
 from research_ai.models import Expert
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
@@ -25,14 +24,16 @@ EventType = RiskScoreEvent.EventType
 DELTAS = RiskScoreEvent.DELTAS
 
 
-class BackfillOneTimeSignalTests(TestCase):
-    def setUp(self):
-        self.user = create_user(email="backfill@test.com")
-
+class BackfillCommandMixin:
     def _call(self, *args, **kwargs):
         out = StringIO()
         call_command("backfill_risk_scores", *args, stdout=out, **kwargs)
         return out.getvalue()
+
+
+class BackfillOneTimeSignalTests(BackfillCommandMixin, TestCase):
+    def setUp(self):
+        self.user = create_user(email="backfill@test.com")
 
     def test_expert_finder_signal(self):
         # Arrange
@@ -191,19 +192,14 @@ class BackfillOneTimeSignalTests(TestCase):
         self.assertFalse(RiskScoreEvent.objects.filter(user=self.user).exists())
 
 
-class BackfillHistoricalActionsTests(TestCase):
+class BackfillHistoricalActionsTests(BackfillCommandMixin, TestCase):
     def setUp(self):
         self.user = create_user(email="historical@test.com")
         self.post = create_post(created_by=self.user)
 
-    def _call(self, *args, **kwargs):
-        out = StringIO()
-        call_command("backfill_risk_scores", *args, stdout=out, **kwargs)
-        return out.getvalue()
-
-    def test_approved_grant_counted(self):
+    def test_approved_grant_creates_work_approved_event(self):
         # Arrange
-        Grant.objects.create(
+        grant = Grant.objects.create(
             created_by=self.user,
             unified_document=self.post.unified_document,
             amount=1000,
@@ -215,14 +211,15 @@ class BackfillHistoricalActionsTests(TestCase):
         self._call()
 
         # Assert
-        backfill_event = RiskScoreEvent.objects.get(
-            user=self.user, event_type=EventType.BACKFILL
+        event = RiskScoreEvent.objects.get(
+            user=self.user, event_type=EventType.WORK_APPROVED
         )
-        self.assertEqual(backfill_event.delta, DELTAS[EventType.WORK_APPROVED])
+        self.assertEqual(event.delta, DELTAS[EventType.WORK_APPROVED])
+        self.assertEqual(event.source_content_id, grant.pk)
 
-    def test_declined_grant_counted(self):
+    def test_declined_grant_creates_work_declined_event(self):
         # Arrange
-        Grant.objects.create(
+        grant = Grant.objects.create(
             created_by=self.user,
             unified_document=self.post.unified_document,
             amount=1000,
@@ -234,19 +231,20 @@ class BackfillHistoricalActionsTests(TestCase):
         self._call()
 
         # Assert
-        backfill_event = RiskScoreEvent.objects.get(
-            user=self.user, event_type=EventType.BACKFILL
+        event = RiskScoreEvent.objects.get(
+            user=self.user, event_type=EventType.WORK_DECLINED
         )
-        self.assertEqual(backfill_event.delta, DELTAS[EventType.WORK_DECLINED])
+        self.assertEqual(event.delta, DELTAS[EventType.WORK_DECLINED])
+        self.assertEqual(event.source_content_id, grant.pk)
 
-    def test_censored_comment_counted(self):
+    def test_censored_comment_creates_content_censored_event(self):
         # Arrange
         thread = RhCommentThreadModel.objects.create(
             content_type=ContentType.objects.get_for_model(self.post),
             object_id=self.post.id,
             created_by=self.user,
         )
-        RhCommentModel.objects.create(
+        comment = RhCommentModel.objects.create(
             thread=thread,
             created_by=self.user,
             is_removed=True,
@@ -256,45 +254,19 @@ class BackfillHistoricalActionsTests(TestCase):
         self._call()
 
         # Assert
-        backfill_event = RiskScoreEvent.objects.get(
-            user=self.user, event_type=EventType.BACKFILL
+        event = RiskScoreEvent.objects.get(
+            user=self.user, event_type=EventType.CONTENT_CENSORED
         )
-        self.assertEqual(backfill_event.delta, DELTAS[EventType.CONTENT_CENSORED])
+        self.assertEqual(event.delta, DELTAS[EventType.CONTENT_CENSORED])
+        self.assertEqual(event.source_content_id, comment.pk)
 
-    def test_upvotes_on_comments_counted(self):
-        # Arrange
-        thread = RhCommentThreadModel.objects.create(
-            content_type=ContentType.objects.get_for_model(self.post),
-            object_id=self.post.id,
-            created_by=self.user,
-        )
-        comment = RhCommentModel.objects.create(
-            thread=thread, created_by=self.user
-        )
-        voter = create_user(email="voter@test.com")
-        Vote.objects.create(
-            content_type=ContentType.objects.get_for_model(comment),
-            object_id=comment.id,
-            created_by=voter,
-            vote_type=Vote.UPVOTE,
-        )
-
-        # Act
-        self._call()
-
-        # Assert
-        backfill_event = RiskScoreEvent.objects.get(
-            user=self.user, event_type=EventType.BACKFILL
-        )
-        self.assertEqual(backfill_event.delta, DELTAS[EventType.CONTENT_UPVOTED])
-
-    def test_multiple_actions_aggregate(self):
+    def test_multiple_grants_create_individual_events(self):
         # Arrange
         Grant.objects.create(
             created_by=self.user,
             unified_document=self.post.unified_document,
             amount=1000,
-            description="Test",
+            description="Test 1",
             status=Grant.OPEN,
         )
         Grant.objects.create(
@@ -309,13 +281,20 @@ class BackfillHistoricalActionsTests(TestCase):
         self._call()
 
         # Assert
-        backfill_event = RiskScoreEvent.objects.get(
-            user=self.user, event_type=EventType.BACKFILL
+        self.assertEqual(
+            RiskScoreEvent.objects.filter(
+                user=self.user, event_type=EventType.WORK_APPROVED
+            ).count(),
+            1,
         )
-        expected = DELTAS[EventType.WORK_APPROVED] + DELTAS[EventType.WORK_DECLINED]
-        self.assertEqual(backfill_event.delta, expected)
+        self.assertEqual(
+            RiskScoreEvent.objects.filter(
+                user=self.user, event_type=EventType.WORK_DECLINED
+            ).count(),
+            1,
+        )
 
-    def test_backfill_recomputed_on_repeat_run(self):
+    def test_historical_events_idempotent_on_repeat_run(self):
         # Arrange
         Grant.objects.create(
             created_by=self.user,
@@ -326,25 +305,15 @@ class BackfillHistoricalActionsTests(TestCase):
         )
         self._call()
 
-        # Add another grant and re-run
-        Grant.objects.create(
-            created_by=self.user,
-            unified_document=self.post.unified_document,
-            amount=2000,
-            description="Test 2",
-            status=Grant.OPEN,
-        )
-
         # Act
         self._call()
 
         # Assert
-        backfill_events = RiskScoreEvent.objects.filter(
-            user=self.user, event_type=EventType.BACKFILL
-        )
-        self.assertEqual(backfill_events.count(), 1)
         self.assertEqual(
-            backfill_events.first().delta, 2 * DELTAS[EventType.WORK_APPROVED]
+            RiskScoreEvent.objects.filter(
+                user=self.user, event_type=EventType.WORK_APPROVED
+            ).count(),
+            1,
         )
 
     def test_score_reflects_combined_signals_and_history(self):
@@ -371,13 +340,22 @@ class BackfillHistoricalActionsTests(TestCase):
         )
         self.assertEqual(RiskScoreService().get_score(self.user), expected)
 
-    def test_no_backfill_event_when_delta_is_zero(self):
-        # Act (user has no historical actions)
+    def test_inactive_user_historical_events_skipped(self):
+        # Arrange
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+        Grant.objects.create(
+            created_by=self.user,
+            unified_document=self.post.unified_document,
+            amount=1000,
+            description="Test",
+            status=Grant.OPEN,
+        )
+
+        # Act
         self._call()
 
         # Assert
         self.assertFalse(
-            RiskScoreEvent.objects.filter(
-                user=self.user, event_type=EventType.BACKFILL
-            ).exists()
+            RiskScoreEvent.objects.filter(user=self.user).exists()
         )
