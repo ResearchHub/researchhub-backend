@@ -14,8 +14,8 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
     def setUp(self):
         """Set up test data and common variables."""
         # Create a test user
-        user_model = get_user_model()
-        self.user = user_model.objects.create_user(
+        self.user_model = get_user_model()
+        self.user = self.user_model.objects.create_user(
             username="testuser",
             email="test@example.com",
             password="testpassword",
@@ -144,6 +144,101 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
         # Verify the link was updated in the database
         link.refresh_from_db()
         self.assertEqual(link.note, "Updated note")
+
+    def test_link_to_fundraise_rejects_non_owner_create(self):
+        """Test that users cannot link nonprofits to another user's fundraise."""
+        other_user = self.user_model.objects.create_user(
+            username="otheruser",
+            email="other@example.com",
+            password="testpassword",
+        )
+        other_document = ResearchhubUnifiedDocument.objects.create()
+        other_fundraise = Fundraise.objects.create(
+            created_by=other_user,
+            unified_document=other_document,
+            goal_amount=1000.00,
+        )
+        data = {
+            "nonprofit_id": self.nonprofit.id,
+            "fundraise_id": other_fundraise.id,
+            "note": "Unauthorized note",
+        }
+
+        response = self.client.post(self.link_to_fundraise_url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(
+            NonprofitFundraiseLink.objects.filter(fundraise=other_fundraise).exists()
+        )
+
+    def test_link_to_fundraise_rejects_non_owner_update(self):
+        """Test that users cannot overwrite another user's nonprofit link."""
+        other_user = self.user_model.objects.create_user(
+            username="otheruser",
+            email="other@example.com",
+            password="testpassword",
+        )
+        other_document = ResearchhubUnifiedDocument.objects.create()
+        other_fundraise = Fundraise.objects.create(
+            created_by=other_user,
+            unified_document=other_document,
+            goal_amount=1000.00,
+        )
+        replacement_nonprofit = NonprofitOrg.objects.create(
+            name="Replacement Nonprofit",
+            ein="333333333",
+            endaoment_org_id="replacement-org-id",
+        )
+        link = NonprofitFundraiseLink.objects.create(
+            nonprofit=self.nonprofit,
+            fundraise=other_fundraise,
+            note="Original note",
+        )
+        data = {
+            "nonprofit_id": replacement_nonprofit.id,
+            "fundraise_id": other_fundraise.id,
+            "note": "Test lagi",
+        }
+
+        response = self.client.post(self.link_to_fundraise_url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        link.refresh_from_db()
+        self.assertEqual(link.nonprofit_id, self.nonprofit.id)
+        self.assertEqual(link.note, "Original note")
+
+    def test_link_to_fundraise_allows_moderator_update(self):
+        """Test that moderators can update nonprofit links."""
+        moderator = self.user_model.objects.create_user(
+            username="moderator",
+            email="moderator@example.com",
+            password="testpassword",
+        )
+        moderator.moderator = True
+        moderator.save()
+        self.client.force_authenticate(user=moderator)
+        replacement_nonprofit = NonprofitOrg.objects.create(
+            name="Replacement Nonprofit",
+            ein="333333333",
+            endaoment_org_id="replacement-org-id",
+        )
+        link = NonprofitFundraiseLink.objects.create(
+            nonprofit=self.nonprofit,
+            fundraise=self.fundraise,
+            note="Original note",
+        )
+        data = {
+            "nonprofit_id": replacement_nonprofit.id,
+            "fundraise_id": self.fundraise.id,
+            "note": "Moderator note",
+        }
+
+        response = self.client.post(self.link_to_fundraise_url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        link.refresh_from_db()
+        self.assertEqual(link.nonprofit_id, replacement_nonprofit.id)
+        self.assertEqual(link.note, "Moderator note")
 
     def test_link_to_fundraise_missing_required_fields(self):
         """Test validation of required fields."""
