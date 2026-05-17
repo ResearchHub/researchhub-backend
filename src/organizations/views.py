@@ -268,15 +268,6 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
                 {"error": "Fundraise not found"}, status=status.HTTP_404_NOT_FOUND
             )
 
-        if (
-            fundraise.created_by_id != request.user.id
-            and not request.user.moderator
-        ):
-            return Response(
-                {"error": "Need to be fundraise owner or moderator"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         # Check if fundraise is already linked to any nonprofit
         existing_link = NonprofitFundraiseLink.objects.filter(
             fundraise=fundraise
