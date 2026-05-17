@@ -87,11 +87,10 @@ class Command(BaseCommand):
         )
 
         for model, filters, event_type in HISTORICAL_SOURCES:
-            qs = (
-                model.objects.filter(created_by_id__in=active_user_ids, **filters)
-                .select_related("created_by")
-                .iterator()
-            )
+            manager = getattr(model, "all_objects", model.objects)
+            qs = manager.filter(
+                created_by_id__in=active_user_ids, **filters
+            ).select_related("created_by")
             for obj in qs:
                 self._record_if_new(obj.created_by, event_type, obj, dry_run)
 
