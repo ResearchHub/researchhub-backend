@@ -14,6 +14,7 @@ from research_ai.views.expert_finder_views import (
     ExpertSearchListCreateView,
     ExpertSearchProgressStreamView,
     ExpertSearchWorkView,
+    InvitedExpertEditorsOverviewView,
     InvitedExpertOverviewView,
 )
 from research_ai.views.template_views import TemplateDetailView, TemplateListView
@@ -31,6 +32,10 @@ urlpatterns = [
     path(
         "expert-finder/invited-experts/overview/",
         InvitedExpertOverviewView.as_view(),
+    ),
+    path(
+        "expert-finder/invited-experts/editors-overview/",
+        InvitedExpertEditorsOverviewView.as_view(),
     ),
     path(
         "expert-finder/work/<int:unified_document_id>/",

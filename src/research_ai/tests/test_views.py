@@ -8,7 +8,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 
 class ExpertSearchDetailViewTests(APITestCase):
@@ -251,14 +251,13 @@ class InvitedExpertOverviewViewTests(APITestCase):
         response = self.client.get(self.URL)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_overview_nonexistent_document_returns_404(self):
+    def test_overview_nonexistent_document_returns_empty_metrics(self):
         self.client.force_authenticate(self.moderator)
         response = self.client.get(self.URL, {"unified_document_id": 999999})
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertEqual(
-            response.json().get("detail"),
-            "Unified document not found.",
-        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["experts_total"], 0)
+        self.assertEqual(data["summary"]["searches_total"], 0)
 
     def test_overview_aggregates_counts_for_document(self):
         from paper.tests.helpers import create_paper
@@ -326,6 +325,10 @@ class InvitedExpertOverviewViewTests(APITestCase):
         self.assertEqual(data["emails_bounced"], 1)
         self.assertEqual(data["emails_opened"], 1)
         self.assertIn("cached_at", data["meta"])
+        self.assertIn("filters", data["meta"])
+        self.assertIn("summary", data)
+        self.assertEqual(data["summary"]["searches_total"], 1)
+        self.assertEqual(data["summary"]["searches_completed"], 1)
 
     def test_overview_filters_by_date_range(self):
         old_search = ExpertSearch.objects.create(
@@ -382,6 +385,51 @@ class InvitedExpertOverviewViewTests(APITestCase):
                 "end": (today - timedelta(days=1)).isoformat(),
             },
         )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class InvitedExpertEditorsOverviewViewTests(APITestCase):
+    URL = "/api/research_ai/expert-finder/invited-experts/editors-overview/"
+
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("mod_editors", moderator=True)
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_editors_overview_ranks_by_experts_total(self):
+        editor_a, _ = create_hub_editor("stats_editor_a", "stats_hub_a")
+        editor_b, _ = create_hub_editor("stats_editor_b", "stats_hub_b")
+        search_a = ExpertSearch.objects.create(
+            created_by=editor_a,
+            query="A",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        search_b = ExpertSearch.objects.create(
+            created_by=editor_b,
+            query="B",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        for i in range(3):
+            expert = Expert.objects.create(email=f"ed_a_{i}@example.com")
+            SearchExpert.objects.create(
+                expert_search=search_a, expert=expert, position=i
+            )
+        expert_b = Expert.objects.create(email="ed_b_0@example.com")
+        SearchExpert.objects.create(expert_search=search_b, expert=expert_b, position=0)
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(self.URL, {"limit": 5})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["total"], 2)
+        self.assertEqual(data["items"][0]["experts_total"], 3)
+        self.assertEqual(data["items"][0]["editor"]["user_id"], editor_a.id)
+
+    def test_editors_invalid_sort_by_returns_400(self):
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(self.URL, {"sort_by": "invalid"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 

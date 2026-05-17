@@ -19,12 +19,21 @@ from research_ai.serializers import (
     ExpertSearchListItemSerializer,
     ExpertSerializer,
     ExpertUpdateSerializer,
+    InvitedExpertEditorRowSerializer,
+    InvitedExpertEditorsOverviewQuerySerializer,
     InvitedExpertOverviewQuerySerializer,
     InvitedExpertOverviewSerializer,
+    InvitedExpertOverviewSummarySerializer,
+    _get_user_with_author_payload,
     resolve_work_for_unified_document,
 )
 from research_ai.services.expert_finder_service import get_document_content
-from research_ai.services.invited_experts_service import get_invited_expert_overview
+from research_ai.services.invited_experts_service import (
+    get_invited_expert_editors_overview,
+    get_invited_expert_overview,
+    invited_stats_cache_key,
+    load_editor_users,
+)
 from research_ai.services.progress_service import ProgressService, TaskType
 from research_ai.tasks import run_expert_finder_search
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -230,16 +239,22 @@ class ExpertDetailView(APIView):
         return Response(ExpertSerializer(expert).data)
 
 
-INVITED_OVERVIEW_CACHE_TTL = 60 * 60 * 1  # 1 hour
+INVITED_STATS_CACHE_TTL = 60 * 60 * 1  # 1 hour
 
 
-class InvitedExpertOverviewView(APIView):
-    """
-    GET ``/expert-finder/invited-experts/overview/``.
+def _invited_stats_filters_meta(*, unified_document_id, start, end, editor_id=None):
+    filters = {
+        "unified_document_id": unified_document_id,
+        "start": start.isoformat() if start else None,
+        "end": end.isoformat() if end else None,
+    }
+    if editor_id is not None:
+        filters["editor_id"] = editor_id
+    return filters
 
-    Aggregates invited experts and generated-email metrics for ``ExpertSearch`` rows,
-    optionally scoped by unified document and ``created_date`` (calendar-day bounds).
-    """
+
+class InvitedExpertStatsMixin:
+    """Shared cache helpers for invited-expert stats endpoints."""
 
     permission_classes = [
         IsAuthenticated,
@@ -247,14 +262,54 @@ class InvitedExpertOverviewView(APIView):
         UserIsEditor | IsModerator,
     ]
 
-    @staticmethod
-    def _cache_key(*, unified_document_id, start, end):
-        ud_part = (
-            str(int(unified_document_id)) if unified_document_id is not None else "none"
-        )
-        start_part = start.isoformat() if start is not None else "none"
-        end_part = end.isoformat() if end is not None else "none"
-        return f"invited_expert_overview:ud={ud_part}:start={start_part}:end={end_part}"
+    cache_prefix = ""
+
+    def _get_cached_or_build(self, *, cache_key, build_payload):
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+        payload = build_payload()
+        cache.set(cache_key, payload, INVITED_STATS_CACHE_TTL)
+        return Response(payload)
+
+    def _editor_items_payload(self, editors_overview):
+        user_ids = [row.user_id for row in editors_overview.items]
+        editor_users = load_editor_users(user_ids)
+        items = []
+        for row in editors_overview.items:
+            user = editor_users.get(row.user_id)
+            items.append(
+                {
+                    "editor": _get_user_with_author_payload(user),
+                    "searches_total": row.searches_total,
+                    "searches_completed": row.searches_completed,
+                    "experts_total": row.experts_total,
+                    "experts_signed_up": row.experts_signed_up,
+                    "emails_generated": row.emails_generated,
+                    "emails_sent": row.emails_sent,
+                    "emails_opened": row.emails_opened,
+                    "emails_bounced": row.emails_bounced,
+                    "signup_rate": row.signup_rate,
+                    "open_rate": row.open_rate,
+                    "bounce_rate": row.bounce_rate,
+                }
+            )
+        return {
+            "items": InvitedExpertEditorRowSerializer(items, many=True).data,
+            "total": editors_overview.total,
+            "limit": editors_overview.limit,
+            "offset": editors_overview.offset,
+            "sort_by": editors_overview.sort_by,
+            "sort_order": editors_overview.sort_order,
+        }
+
+
+class InvitedExpertOverviewView(InvitedExpertStatsMixin, APIView):
+    """
+    GET ``/expert-finder/invited-experts/overview/``.
+    """
+
+    cache_prefix = "overview"
 
     def get(self, request):
         qser = InvitedExpertOverviewQuerySerializer(data=request.query_params)
@@ -263,37 +318,115 @@ class InvitedExpertOverviewView(APIView):
         unified_document_id = params.get("unified_document_id")
         start = params.get("start")
         end = params.get("end")
+        editor_id = params.get("editor_id")
 
-        if unified_document_id is not None:
-            try:
-                ResearchhubUnifiedDocument.objects.get(id=unified_document_id)
-            except ResearchhubUnifiedDocument.DoesNotExist:
-                return Response(
-                    {"detail": "Unified document not found."},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-        cache_key = self._cache_key(
-            unified_document_id=unified_document_id,
-            start=start,
-            end=end,
+        cache_key = invited_stats_cache_key(
+            self.cache_prefix,
+            ud=(
+                str(int(unified_document_id))
+                if unified_document_id is not None
+                else "none"
+            ),
+            start=start.isoformat() if start is not None else "none",
+            end=end.isoformat() if end is not None else "none",
+            editor_id=editor_id if editor_id is not None else "none",
         )
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return Response(cached)
 
-        overview = get_invited_expert_overview(
-            unified_document_id=unified_document_id,
-            start=start,
-            end=end,
+        def build_payload():
+            result = get_invited_expert_overview(
+                unified_document_id=unified_document_id,
+                start=start,
+                end=end,
+                editor_id=editor_id,
+            )
+            counts_data = InvitedExpertOverviewSerializer(result.counts).data
+            summary_data = InvitedExpertOverviewSummarySerializer(result.summary).data
+            return {
+                **counts_data,
+                "summary": summary_data,
+                "meta": {
+                    "cached_at": timezone.now().isoformat(),
+                    "filters": _invited_stats_filters_meta(
+                        unified_document_id=unified_document_id,
+                        start=start,
+                        end=end,
+                        editor_id=editor_id,
+                    ),
+                },
+            }
+
+        return self._get_cached_or_build(
+            cache_key=cache_key, build_payload=build_payload
         )
-        response_data = InvitedExpertOverviewSerializer(overview).data
-        payload = {
-            **response_data,
-            "meta": {"cached_at": timezone.now().isoformat()},
-        }
-        cache.set(cache_key, payload, INVITED_OVERVIEW_CACHE_TTL)
-        return Response(payload)
+
+
+class InvitedExpertEditorsOverviewView(InvitedExpertStatsMixin, APIView):
+    """
+    GET ``/expert-finder/invited-experts/editors-overview/``.
+
+    Paginated per-editor outreach metrics for the date/document window.
+    """
+
+    cache_prefix = "editors_overview"
+
+    def get(self, request):
+        qser = InvitedExpertEditorsOverviewQuerySerializer(
+            data=request.query_params
+        )
+        qser.is_valid(raise_exception=True)
+        params = qser.validated_data
+        unified_document_id = params.get("unified_document_id")
+        start = params.get("start")
+        end = params.get("end")
+        limit = params.get("limit", 5)
+        offset = params.get("offset", 0)
+        sort_by = params.get("sort_by", "experts_total")
+        sort_order = params.get("sort_order", "desc")
+        min_searches = params.get("min_searches", 1)
+
+        cache_key = invited_stats_cache_key(
+            self.cache_prefix,
+            ud=(
+                str(int(unified_document_id))
+                if unified_document_id is not None
+                else "none"
+            ),
+            start=start.isoformat() if start is not None else "none",
+            end=end.isoformat() if end is not None else "none",
+            limit=limit,
+            offset=offset,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            min_searches=min_searches,
+        )
+
+        def build_payload():
+            overview = get_invited_expert_editors_overview(
+                unified_document_id=unified_document_id,
+                start=start,
+                end=end,
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                min_searches=min_searches,
+            )
+            body = self._editor_items_payload(overview)
+            return {
+                **body,
+                "meta": {
+                    "cached_at": timezone.now().isoformat(),
+                    "filters": _invited_stats_filters_meta(
+                        unified_document_id=unified_document_id,
+                        start=start,
+                        end=end,
+                    ),
+                },
+            }
+
+        return self._get_cached_or_build(
+            cache_key=cache_key, build_payload=build_payload
+        )
 
 
 class ExpertSearchWorkView(APIView):
