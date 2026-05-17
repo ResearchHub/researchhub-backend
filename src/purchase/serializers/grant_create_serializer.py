@@ -23,6 +23,10 @@ class GrantCreateSerializer(serializers.ModelSerializer):
         allow_empty=True,
         help_text="List of user IDs to set as contacts for this grant",
     )
+    application_visibility = serializers.ChoiceField(
+        choices=Grant.APPLICATION_VISIBILITY_CHOICES,
+        required=False,
+    )
 
     class Meta:
         model = Grant
@@ -35,6 +39,7 @@ class GrantCreateSerializer(serializers.ModelSerializer):
             "post_id",
             "end_date",
             "contact_ids",
+            "application_visibility",
         ]
 
     def validate(self, data):
