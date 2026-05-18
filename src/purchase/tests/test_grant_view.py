@@ -631,7 +631,6 @@ class GrantViewTests(APITestCase):
 
 
 class GrantCacheInvalidationTests(APITestCase):
-
     def setUp(self):
         cache.clear()
 

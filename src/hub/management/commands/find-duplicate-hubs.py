@@ -59,8 +59,7 @@ class Command(BaseCommand):
             action="store_true",
             default=True,
             help=(
-                "Show what would be consolidated without making "
-                "changes (default: True)"
+                "Show what would be consolidated without making changes (default: True)"
             ),
         )
         parser.add_argument(
@@ -192,8 +191,7 @@ class Command(BaseCommand):
                 mode_msg = "⚠️  LIVE MODE - Changes WILL be applied to the database! ⚠️\n"
                 if hard_delete:
                     mode_msg += (
-                        "🗑️  HARD DELETE enabled - "
-                        "Hubs will be PERMANENTLY deleted! 🗑️\n"
+                        "🗑️  HARD DELETE enabled - Hubs will be PERMANENTLY deleted! 🗑️\n"
                     )
                 self.stdout.write(
                     self.style.ERROR("=" * 80 + "\n" + mode_msg + "=" * 80 + "\n")
@@ -1018,8 +1016,7 @@ class Command(BaseCommand):
 
         if subscribers_count == 0 and not has_permissions and doc_count == 0:
             self.stdout.write(
-                f"  → Hub {duplicate_hub.id} ({duplicate_hub.slug}) "
-                f"is safe to remove"
+                f"  → Hub {duplicate_hub.id} ({duplicate_hub.slug}) is safe to remove"
             )
         else:
             self.stdout.write(

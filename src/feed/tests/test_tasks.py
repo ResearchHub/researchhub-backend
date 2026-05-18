@@ -368,7 +368,7 @@ class FeedTasksTest(AWSMockTestCase):
 
             # Create a paper with different creation dates to affect hot score
             paper = Paper.objects.create(
-                title=f"Test Paper {i+1}",
+                title=f"Test Paper {i + 1}",
                 paper_publish_date="2025-01-01",
                 unified_document=unified_doc,
                 score=10 * (i + 1),  # Different scores to get different hot scores
@@ -691,7 +691,7 @@ class FeedTasksTest(AWSMockTestCase):
         for i in range(2):
             unified_doc = ResearchhubUnifiedDocument.objects.create()
             paper = Paper.objects.create(
-                title=f"Test Paper {i+1}",
+                title=f"Test Paper {i + 1}",
                 paper_publish_date="2025-01-01",
                 unified_document=unified_doc,
                 score=100,  # High score to get high hot_score_v2

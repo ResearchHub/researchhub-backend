@@ -23,7 +23,7 @@ class RscExchangeRateFilter(filters.FilterSet):
 
     class Meta:
         model = RscExchangeRate
-        fields = ['created_date', 'price_source']
+        fields = ["created_date", "price_source"]
 
 
 class RscExchangeRateViewSet(viewsets.ReadOnlyModelViewSet):

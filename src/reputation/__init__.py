@@ -1,1 +1,1 @@
-default_app_config = 'reputation.apps.ReputationConfig'
+default_app_config = "reputation.apps.ReputationConfig"

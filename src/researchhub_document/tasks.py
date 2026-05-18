@@ -20,16 +20,13 @@ logger = logging.getLogger(__name__)
 def assign_post_dois():
     week_ago = timezone.now() - timedelta(days=7)
 
-    eligible_posts = (
-        ResearchhubPost.objects.filter(
-            document_type__in=[DISCUSSION, PREREGISTRATION],
-            doi__isnull=True,
-            created_date__lte=week_ago,
-            unified_document__is_removed=False,
-            flags__isnull=True,
-        )
-        .select_related("created_by__author_profile", "unified_document")
-    )
+    eligible_posts = ResearchhubPost.objects.filter(
+        document_type__in=[DISCUSSION, PREREGISTRATION],
+        doi__isnull=True,
+        created_date__lte=week_ago,
+        unified_document__is_removed=False,
+        flags__isnull=True,
+    ).select_related("created_by__author_profile", "unified_document")
 
     total = eligible_posts.count()
     assigned_count = 0

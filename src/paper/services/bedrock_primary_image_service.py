@@ -246,7 +246,7 @@ class BedrockPrimaryImageService:
             desc = criterion_data["description"]
             metrics = criterion_data["key_metrics"]
             criteria_section += (
-                f"- **{title} ({weight}%)**: {desc}\n" f"  - Key Metrics: {metrics}\n\n"
+                f"- **{title} ({weight}%)**: {desc}\n  - Key Metrics: {metrics}\n\n"
             )
 
         prompt = (
@@ -589,15 +589,14 @@ on other criteria."""
 
             if selected_index is None:
                 logger.error(
-                    f"Bedrock response for {batch_label} missing "
-                    f"selected_figure_index"
+                    f"Bedrock response for {batch_label} missing selected_figure_index"
                 )
                 return None, None
 
             if selected_index < 0 or selected_index >= len(batch_figures):
                 logger.error(
                     f"Invalid figure index {selected_index} for {batch_label} "
-                    f"(must be 0-{len(batch_figures)-1})"
+                    f"(must be 0-{len(batch_figures) - 1})"
                 )
                 return None, None
 

@@ -15,4 +15,3 @@ class ReviewAvailabilityView(APIView):
         availability = get_review_availability(request.user)
         serializer = ReviewAvailabilitySerializer(availability)
         return Response(serializer.data)
-

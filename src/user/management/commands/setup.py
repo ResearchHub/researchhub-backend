@@ -39,7 +39,7 @@ class Command(BaseCommand):
             key="",
         )
         orcid_app.sites.add(site)
-        
+
         manage_py_path = os.path.join(settings.BASE_DIR, "manage.py")
 
         hub_csv_path = os.path.join(settings.BASE_DIR, "..", "misc", "hub_hub.csv")

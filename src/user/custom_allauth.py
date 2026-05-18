@@ -12,10 +12,14 @@ BRANDED_TEMPLATE = "general_branded_email.html"
 
 
 class CustomAccountAdapter(DefaultAccountAdapter):
-    def get_email_confirmation_url(self, request: HttpRequest, emailconfirmation) -> str:
+    def get_email_confirmation_url(
+        self, request: HttpRequest, emailconfirmation
+    ) -> str:
         return f"{settings.BASE_FRONTEND_URL}/verify/{emailconfirmation.key}"
 
-    def send_confirmation_mail(self, request: HttpRequest, emailconfirmation, signup: bool) -> None:
+    def send_confirmation_mail(
+        self, request: HttpRequest, emailconfirmation, signup: bool
+    ) -> None:
         activate_url = self.get_email_confirmation_url(request, emailconfirmation)
         subject = "Confirm Your Email Address"
         send_email(

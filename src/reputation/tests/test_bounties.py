@@ -1752,7 +1752,9 @@ class BountyViewTests(APITestCase):
             "Proposal review bounties should appear first in get_bounties",
         )
 
-    def _create_paper_and_proposal_bounties(self, paper_amount=100, proposal_amount=100):
+    def _create_paper_and_proposal_bounties(
+        self, paper_amount=100, proposal_amount=100
+    ):
         """Create a regular review bounty and a preregistration review bounty."""
         paper_bounty_res = self.client.post(
             "/api/bounty/",

@@ -112,7 +112,9 @@ class UpdatePaperJournalStatusSignalTest(TransactionTestCase):
         """Test updating an existing paper version."""
         # Create a paper version that's already part of another journal
         paper_version = PaperVersion.objects.create(
-            paper=self.paper, version=1, journal="OTHER_JOURNAL"  # Some other journal
+            paper=self.paper,
+            version=1,
+            journal="OTHER_JOURNAL",  # Some other journal
         )
 
         # Create a payment for the paper

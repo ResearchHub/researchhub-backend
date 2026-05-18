@@ -43,6 +43,6 @@ class Command(BaseCommand):
 
         for i, paper in enumerate(papers.iterator()):
             self.stdout.write(
-                f"Queuing download for paper {paper.id} ({i+1}/{papers.count()})"
+                f"Queuing download for paper {paper.id} ({i + 1}/{papers.count()})"
             )
             download_pdf.apply_async((paper.id,), priority=9, countdown=2)

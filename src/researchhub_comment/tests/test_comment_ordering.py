@@ -261,5 +261,5 @@ class CommentOrderingTests(APITestCase):
                 self.assertLessEqual(
                     date_current,
                     date_next,
-                    f"Comments not in ascending order: {results[i]['id']} ({date_current}) should come before {results[i+1]['id']} ({date_next})",
+                    f"Comments not in ascending order: {results[i]['id']} ({date_current}) should come before {results[i + 1]['id']} ({date_next})",
                 )

@@ -130,9 +130,7 @@ class EndaomentService:
             try:
                 self.client.revoke_token(account.refresh_token)
             except Exception:
-                logger.warning(
-                    "Failed to revoke Endaoment token for user %s", user.id
-                )
+                logger.warning("Failed to revoke Endaoment token for user %s", user.id)
 
         account.delete()
         return True
