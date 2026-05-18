@@ -186,9 +186,9 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
-    # Post DOI assignment
-    "researchhub-document_assign-post-dois": {
-        "task": "researchhub_document.tasks.assign_post_dois",
+    # Proposal DOI assignment
+    "researchhub-document_assign-proposal-dois": {
+        "task": "researchhub_document.tasks.assign_proposal_dois",
         "schedule": crontab(hour=6, minute=0),
         "options": {
             "priority": 3,

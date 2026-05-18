@@ -185,10 +185,8 @@ class PaperApiTests(APITestCase):
         self.assertEqual(response.status_code, 403)
         self.assertIn("verified", (response.data.get("detail") or "").lower())
 
-    @patch("utils.doi.requests.post")
-    def test_create_researchhub_paper_creates_first_version(self, crossref_post_mock):
+    def test_create_researchhub_paper_creates_first_version(self):
         """Test that creating a new paper sets version 1"""
-        crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
         make_user_verified(user)
         self.client.force_authenticate(user)
@@ -236,10 +234,8 @@ class PaperApiTests(APITestCase):
 
         self.assertEqual(paper.hubs.first().id, hub.id)
 
-    @patch("utils.doi.requests.post")
-    def test_create_researchhub_paper_with_multiple_authors(self, crossref_post_mock):
+    def test_create_researchhub_paper_with_multiple_authors(self):
         """Test creating a paper with multiple authors in different positions"""
-        crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
         make_user_verified(user)
         self.client.force_authenticate(user)
@@ -333,10 +329,8 @@ class PaperApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("corresponding author is required", str(response.data["error"]))
 
-    @patch("utils.doi.requests.post")
-    def test_create_researchhub_paper_increments_version(self, crossref_post_mock):
+    def test_create_researchhub_paper_increments_version(self):
         """Test that creating a new version of an existing paper increments the version number"""
-        crossref_post_mock.return_value.status_code = 200
         # Create initial paper
         original_paper = create_paper()
         PaperVersion.objects.create(
@@ -511,12 +505,8 @@ class PaperApiTests(APITestCase):
             str(response.data["error"]),
         )
 
-    @patch("utils.doi.requests.post")
-    def test_create_researchhub_paper_update_doesnt_require_declarations(
-        self, crossref_post_mock
-    ):
+    def test_create_researchhub_paper_update_doesnt_require_declarations(self):
         """Test that updating a paper (new version) doesn't require declarations"""
-        crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
         make_user_verified(user)
         self.client.force_authenticate(user)
@@ -552,10 +542,8 @@ class PaperApiTests(APITestCase):
         self.assertEqual(paper_version.message, "Updated content")
         self.assertEqual(paper_version.original_paper_id, original_paper.id)
 
-    @patch("utils.doi.requests.post")
-    def test_create_researchhub_paper_version_lineage(self, crossref_post_mock):
-        """Test that creating multiple versions maintains consistent base_doi and original_paper_id"""
-        crossref_post_mock.return_value.status_code = 200
+    def test_create_researchhub_paper_version_lineage(self):
+        """Test that creating multiple versions maintains consistent original_paper_id"""
         user = create_random_authenticated_user("test_user")
         make_user_verified(user)
         self.client.force_authenticate(user)
@@ -593,7 +581,6 @@ class PaperApiTests(APITestCase):
 
         # Verify first version
         self.assertEqual(paper_version_v1.version, 1)
-        self.assertIsNotNone(paper_version_v1.base_doi)
         self.assertEqual(paper_version_v1.original_paper_id, paper_v1_id)
 
         # Create the second version
@@ -619,7 +606,6 @@ class PaperApiTests(APITestCase):
 
         # Verify second version
         self.assertEqual(paper_version_v2.version, 2)
-        self.assertEqual(paper_version_v2.base_doi, paper_version_v1.base_doi)
         self.assertEqual(paper_version_v2.original_paper_id, paper_v1_id)
         self.assertEqual(paper_version_v2.message, "Second version")
 
@@ -646,27 +632,11 @@ class PaperApiTests(APITestCase):
 
         # Verify third version
         self.assertEqual(paper_version_v3.version, 3)
-        self.assertEqual(paper_version_v3.base_doi, paper_version_v1.base_doi)
         self.assertEqual(paper_version_v3.original_paper_id, paper_v1_id)
         self.assertEqual(paper_version_v3.message, "Third version")
 
-        # Verify DOIs have the same base but different version numbers
-        self.assertNotEqual(paper_v1.doi, paper_v2.doi)
-        self.assertNotEqual(paper_v2.doi, paper_v3.doi)
-        self.assertNotEqual(paper_v1.doi, paper_v3.doi)
-
-        # The DOI should be structured with the same base but different version numbers
-        doi_base = paper_version_v1.base_doi
-        self.assertTrue(paper_v1.doi.startswith(doi_base))
-        self.assertTrue(paper_v2.doi.startswith(doi_base))
-        self.assertTrue(paper_v3.doi.startswith(doi_base))
-
-    @patch("utils.doi.requests.post")
-    def test_create_researchhub_paper_preserves_publication_metadata(
-        self, crossref_post_mock
-    ):
+    def test_create_researchhub_paper_preserves_publication_metadata(self):
         """Test that journal and publication_status are preserved across versions"""
-        crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
         make_user_verified(user)
         self.client.force_authenticate(user)
@@ -760,12 +730,8 @@ class PaperApiTests(APITestCase):
         self.assertEqual(paper_version_v3.journal, PaperVersion.RESEARCHHUB)
         self.assertEqual(paper_version_v3.publication_status, PaperVersion.PUBLISHED)
 
-    @patch("utils.doi.requests.post")
-    def test_researchhub_journal_hub_preserved_across_versions(
-        self, crossref_post_mock
-    ):
+    def test_researchhub_journal_hub_preserved_across_versions(self):
         """Test that ResearchHub Journal hub is preserved in new paper versions"""
-        crossref_post_mock.return_value.status_code = 200
         # Create a user and authenticate
         user = create_random_authenticated_user("test_user")
         make_user_verified(user)

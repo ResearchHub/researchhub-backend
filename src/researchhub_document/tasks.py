@@ -7,7 +7,6 @@ from django.utils import timezone
 from researchhub.celery import QUEUE_HOT_SCORE, QUEUE_PAPER_MISC, app
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
-    DISCUSSION,
     PREREGISTRATION,
 )
 from utils import sentry
@@ -17,11 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
-def assign_post_dois():
+def assign_proposal_dois():
     week_ago = timezone.now() - timedelta(days=7)
 
     eligible_posts = ResearchhubPost.objects.filter(
-        document_type__in=[DISCUSSION, PREREGISTRATION],
+        document_type=PREREGISTRATION,
         doi__isnull=True,
         created_date__lte=week_ago,
         unified_document__is_removed=False,
@@ -49,7 +48,7 @@ def assign_post_dois():
         except Exception:
             logger.exception(f"Failed to assign DOI to post {post.id}")
 
-    logger.info(f"Assigned DOIs to {assigned_count}/{total} eligible posts")
+    logger.info(f"Assigned DOIs to {assigned_count}/{total} eligible proposals")
 
 
 @app.task(queue=QUEUE_HOT_SCORE)

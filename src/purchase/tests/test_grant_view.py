@@ -1011,36 +1011,17 @@ class GrantModerationServiceTests(APITestCase):
             description="Test grant",
         )
 
-    @patch("purchase.services.grant_service.DOI")
-    def test_approve_assigns_doi_and_notifies(self, mock_doi_class):
-        # Arrange
-        mock_doi_class.return_value.doi = "10.55277/rhj.test"
-
-        # Act
+    def test_approve_notifies_and_does_not_assign_doi(self):
         self.service.approve_grant(self.grant, self.moderator)
 
-        # Assert
         self.post.refresh_from_db()
-        self.assertEqual(self.post.doi, "10.55277/rhj.test")
-        mock_doi_class.return_value.register_doi_for_post.assert_called_once()
+        self.assertIsNone(self.post.doi)
         self.assertTrue(
             Notification.objects.filter(
                 notification_type=Notification.GRANT_APPROVED,
                 recipient=self.author,
             ).exists()
         )
-
-    @patch("purchase.services.grant_service.DOI")
-    def test_approve_skips_doi_when_already_set(self, mock_doi_class):
-        # Arrange
-        self.post.doi = "10.55277/existing"
-        self.post.save(update_fields=["doi"])
-
-        # Act
-        self.service.approve_grant(self.grant, self.moderator)
-
-        # Assert
-        mock_doi_class.assert_not_called()
 
     def test_decline_creates_flag_removes_doc_and_notifies(self):
         # Act
@@ -1063,29 +1044,6 @@ class GrantModerationServiceTests(APITestCase):
                 recipient=self.author,
             ).exists()
         )
-
-    @patch("purchase.services.grant_service.DOI")
-    def test_approve_skips_doi_when_no_post(self, mock_doi_class):
-        # Arrange
-        self.post.unified_document.posts.all().delete()
-
-        # Act
-        self.service.approve_grant(self.grant, self.moderator)
-
-        # Assert
-        mock_doi_class.assert_not_called()
-
-    @patch("purchase.services.grant_service.DOI")
-    def test_approve_doi_failure_does_not_block(self, mock_doi_class):
-        # Arrange
-        mock_doi_class.side_effect = Exception("DOI service unavailable")
-
-        # Act
-        self.service.approve_grant(self.grant, self.moderator)
-
-        # Assert
-        self.grant.refresh_from_db()
-        self.assertEqual(self.grant.status, Grant.OPEN)
 
     @patch("purchase.services.grant_service.Notification")
     def test_notification_failure_does_not_block_approve(self, mock_notif_cls):
@@ -1114,10 +1072,7 @@ class GrantModerationServiceTests(APITestCase):
         self.assertEqual(self.grant.status, Grant.DECLINED)
 
     @patch("purchase.services.grant_service._create_post_feed_entries")
-    @patch("purchase.services.grant_service.DOI")
-    def test_approve_handles_feed_entry_creation_failure(self, mock_doi, mock_create):
-        # Arrange
-        mock_doi.return_value.doi = "10.55277/test"
+    def test_approve_handles_feed_entry_creation_failure(self, mock_create):
         mock_create.side_effect = Exception("Feed entry creation failed")
 
         # Act
