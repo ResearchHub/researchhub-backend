@@ -9,21 +9,9 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
 
-  - repo: https://github.com/PyCQA/isort
-    rev: 8.0.1
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
     hooks:
-      - id: isort
-        exclude: /migrations
-        args: [--profile=black]
-
-  - repo: https://github.com/psf/black
-    rev: 26.3.1
-    hooks:
-      - id: black
-        exclude: /migrations
-        # It is recommended to specify the latest version of Python
-        # supported by your project here, or alternatively use
-        # pre-commit's default_language_version, see
-        # https://pre-commit.com/#top_level-default_language_version
-        language_version: python3.13
-        additional_dependencies: ["click==8.0.4"]
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
