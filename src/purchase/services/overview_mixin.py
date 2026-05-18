@@ -118,3 +118,62 @@ class OverviewMixin:
             "rsc_usd_snapshot": round(snapshot, 2),
             "usd": round(cents / 100, 2),
         }
+
+    def _per_fundraise_user_contributions(
+        self, user_id: int, fundraise_ids: list[int]
+    ) -> dict[int, dict]:
+        """Per-fundraise {rsc, rsc_usd_snapshot, usd} for user."""
+        if not fundraise_ids:
+            return {}
+
+        rsc_qs = (
+            Purchase.objects.for_user(user_id)
+            .funding_contributions()
+            .for_fundraises(fundraise_ids)
+            .annotate(amount_float=Cast("amount", FloatField()))
+            .values("object_id")
+            .annotate(
+                rsc_total=Coalesce(Sum("amount_float"), 0.0),
+                snapshot_with_rate=Coalesce(
+                    Sum(
+                        F("amount_float") * F("rsc_usd_rate"),
+                        filter=Q(rsc_usd_rate__isnull=False),
+                        output_field=FloatField(),
+                    ),
+                    0.0,
+                ),
+                rsc_without_rate=Coalesce(
+                    Sum("amount_float", filter=Q(rsc_usd_rate__isnull=True)),
+                    0.0,
+                ),
+            )
+        )
+
+        usd_qs = (
+            UsdFundraiseContribution.objects.for_user(user_id)
+            .not_refunded()
+            .for_fundraises(fundraise_ids)
+            .values("fundraise_id")
+            .annotate(total_cents=Coalesce(Sum("amount_cents"), 0))
+        )
+
+        result: dict[int, dict] = {}
+        for row in rsc_qs:
+            fid = row["object_id"]
+            snapshot = row["snapshot_with_rate"]
+            if row["rsc_without_rate"] > 0:
+                snapshot += RscExchangeRate.rsc_to_usd(row["rsc_without_rate"])
+            result[fid] = {
+                "rsc": round(row["rsc_total"], 2),
+                "rsc_usd_snapshot": round(snapshot, 2),
+                "usd": 0.0,
+            }
+
+        for row in usd_qs:
+            fid = row["fundraise_id"]
+            entry = result.setdefault(
+                fid, {"rsc": 0.0, "rsc_usd_snapshot": 0.0, "usd": 0.0}
+            )
+            entry["usd"] = round(row["total_cents"] / 100, 2)
+
+        return result
