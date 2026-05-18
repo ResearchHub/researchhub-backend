@@ -1,6 +1,6 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from purchase.models import Grant
@@ -12,19 +12,6 @@ from purchase.services.funding_overview_service import (
     FundingOverviewService,
     GrantOverviewService,
 )
-from user.models import User
-
-
-# Temporary function for testing different user data, will be removed before release
-def _resolve_target_user(request) -> User | None:
-    """Return the user specified by ?user_id, falling back to the requester."""
-    user_id = request.query_params.get("user_id")
-    if user_id:
-        try:
-            return User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return None
-    return request.user
 
 
 class FunderViewSet(viewsets.ViewSet):
@@ -42,32 +29,28 @@ class FunderViewSet(viewsets.ViewSet):
         )
         return super().dispatch(request, *args, **kwargs)
 
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def funding_overview(self, request, *args, **kwargs):
-        """Return funding overview metrics. Accepts optional ?user_id param."""
-        user = _resolve_target_user(request)
-        if user is None:
-            return Response({"error": "User not found"}, status=404)
-        data = self.funding_overview_service.get_funding_overview(user)
+        """Return funding overview metrics for the authenticated user."""
+        data = self.funding_overview_service.get_funding_overview(request.user)
         serializer = FundingOverviewSerializer(data)
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def funding_impact(self, request, *args, **kwargs):
-        """Return funding impact metrics. Accepts optional ?user_id param."""
-        user = _resolve_target_user(request)
-        if user is None:
-            return Response({"error": "User not found"}, status=404)
-        data = self.funding_impact_service.get_funding_impact_overview(user)
+        """Return funding impact metrics for the authenticated user."""
+        data = self.funding_impact_service.get_funding_impact_overview(request.user)
         serializer = FundingImpactSerializer(data)
         return Response(serializer.data)
 
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
     def grant_overview(self, request, pk=None, *args, **kwargs):
-        """Return dashboard metrics for a grant."""
+        """Return dashboard metrics for a grant owned by the authenticated user."""
         grant = Grant.objects.filter(unified_document__posts__id=pk).first()
         if not grant:
             return Response(status=404)
-        data = self.grant_overview_service.get_grant_overview(grant.created_by, grant)
+        if request.user != grant.created_by and not request.user.moderator:
+            return Response({"message": "Permission denied"}, status=403)
+        data = self.grant_overview_service.get_grant_overview(request.user, grant)
         serializer = GrantOverviewSerializer(data)
         return Response(serializer.data)
