@@ -576,7 +576,6 @@ class PaperApiTests(APITestCase):
 
         self.assertEqual(response_v1.status_code, 201)
         paper_v1_id = response_v1.data["id"]
-        paper_v1 = Paper.objects.get(id=paper_v1_id)
         paper_version_v1 = PaperVersion.objects.get(paper_id=paper_v1_id)
 
         # Verify first version
@@ -601,7 +600,6 @@ class PaperApiTests(APITestCase):
 
         self.assertEqual(response_v2.status_code, 201)
         paper_v2_id = response_v2.data["id"]
-        paper_v2 = Paper.objects.get(id=paper_v2_id)
         paper_version_v2 = PaperVersion.objects.get(paper_id=paper_v2_id)
 
         # Verify second version
@@ -627,7 +625,6 @@ class PaperApiTests(APITestCase):
 
         self.assertEqual(response_v3.status_code, 201)
         paper_v3_id = response_v3.data["id"]
-        paper_v3 = Paper.objects.get(id=paper_v3_id)
         paper_version_v3 = PaperVersion.objects.get(paper_id=paper_v3_id)
 
         # Verify third version
