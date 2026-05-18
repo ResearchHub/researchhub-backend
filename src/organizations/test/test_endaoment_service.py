@@ -1,14 +1,12 @@
 from unittest.mock import MagicMock, patch
 
-from django.conf import settings
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from requests.exceptions import HTTPError, RequestException
 
 from organizations.services.endaoment_service import (
     EndaomentOrgNotFound,
     EndaomentService,
     base_wallet_from_org,
-    normalize_ein,
 )
 
 
