@@ -6,7 +6,6 @@ from user.models import User
 
 
 class Command(BaseCommand):
-
     def handle(self, *args, **options):
         # three_days_ago = timezone.now().date() - timedelta(days=3)
         static_start_date = datetime(

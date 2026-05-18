@@ -39,7 +39,7 @@ def handle_comment_created_or_removed(sender, instance, created, **kwargs):
         _update_metrics(comment)
     except Exception as e:
         action = "create" if created else "update"
-        logger.error(f"Failed to {action} feed entry for comment " f"{comment.id}: {e}")
+        logger.error(f"Failed to {action} feed entry for comment {comment.id}: {e}")
 
 
 def _update_metrics(comment):

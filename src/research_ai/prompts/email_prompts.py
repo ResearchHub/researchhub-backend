@@ -39,11 +39,11 @@ def build_email_prompt(
     common_raw = _load_email_template("email_common_instructions.txt")
     common = common_raw.format(base_rules=base_rules)
 
-    sender_info = f"""Expert Name: {expert_name or 'N/A'}
-Title: {expert_title or 'N/A'}
-Affiliation: {expert_affiliation or 'N/A'}
-Expertise: {expertise or 'N/A'}
-Additional Context: {notes or 'N/A'}"""
+    sender_info = f"""Expert Name: {expert_name or "N/A"}
+Title: {expert_title or "N/A"}
+Affiliation: {expert_affiliation or "N/A"}
+Expertise: {expertise or "N/A"}
+Additional Context: {notes or "N/A"}"""
     if sender_context and sender_context.strip():
         sender_info += f"""
 

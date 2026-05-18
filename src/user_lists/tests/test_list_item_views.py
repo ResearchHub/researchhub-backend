@@ -35,52 +35,71 @@ class ListItemViewSetTests(APITestCase):
         )
 
     def test_user_can_add_item_to_list(self):
-        response = self.client.post(f"/api/list/{self.list.id}/item/", {
-            "parent_list": self.list.id,
-            "unified_document": self.doc.id,
-        })
+        response = self.client.post(
+            f"/api/list/{self.list.id}/item/",
+            {
+                "parent_list": self.list.id,
+                "unified_document": self.doc.id,
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(ListItem.objects.filter(
-            parent_list=self.list,
-            unified_document=self.doc,
-            created_by=self.user
-        ).exists())
+        self.assertTrue(
+            ListItem.objects.filter(
+                parent_list=self.list, unified_document=self.doc, created_by=self.user
+            ).exists()
+        )
 
     def test_unauthenticated_user_cannot_add_item_to_list(self):
         self.client.force_authenticate(user=None)
-        response = self.client.post(f"/api/list/{self.list.id}/item/", {
-            "parent_list": self.list.id,
-            "unified_document": self.doc.id,
-        })
+        response = self.client.post(
+            f"/api/list/{self.list.id}/item/",
+            {
+                "parent_list": self.list.id,
+                "unified_document": self.doc.id,
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_cannot_add_duplicate_item_to_list(self):
-        ListItem.objects.create(parent_list=self.list, unified_document=self.doc, created_by=self.user)
-        response = self.client.post(f"/api/list/{self.list.id}/item/", {
-            "parent_list": self.list.id,
-            "unified_document": self.doc.id,
-        })
+        ListItem.objects.create(
+            parent_list=self.list, unified_document=self.doc, created_by=self.user
+        )
+        response = self.client.post(
+            f"/api/list/{self.list.id}/item/",
+            {
+                "parent_list": self.list.id,
+                "unified_document": self.doc.id,
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_cannot_add_item_to_another_users_list(self):
         other_list = List.objects.create(name="Other List", created_by=self.other_user)
-        response = self.client.post(f"/api/list/{other_list.id}/item/", {
-            "parent_list": other_list.id,
-            "unified_document": self.doc.id,
-        })
+        response = self.client.post(
+            f"/api/list/{other_list.id}/item/",
+            {
+                "parent_list": other_list.id,
+                "unified_document": self.doc.id,
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_cannot_add_item_to_deleted_list(self):
         self.list.is_removed = True
         self.list.save()
-        response = self.client.post(f"/api/list/{self.list.id}/item/", {
-            "parent_list": self.list.id,
-            "unified_document": self.doc.id,
-        })
+        response = self.client.post(
+            f"/api/list/{self.list.id}/item/",
+            {
+                "parent_list": self.list.id,
+                "unified_document": self.doc.id,
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_delete_item_from_their_list(self):
-        item = ListItem.objects.create(parent_list=self.list, unified_document=self.doc, created_by=self.user)
+        item = ListItem.objects.create(
+            parent_list=self.list, unified_document=self.doc, created_by=self.user
+        )
         response = self.client.delete(f"/api/list/{self.list.id}/item/{item.id}/")
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         item = ListItem.all_objects.get(pk=item.pk)
@@ -88,7 +107,11 @@ class ListItemViewSetTests(APITestCase):
 
     def test_user_cannot_delete_item_from_another_users_list(self):
         other_list = List.objects.create(name="Other List", created_by=self.other_user)
-        item = ListItem.objects.create(parent_list=other_list, unified_document=self.doc, created_by=self.other_user)
+        item = ListItem.objects.create(
+            parent_list=other_list,
+            unified_document=self.doc,
+            created_by=self.other_user,
+        )
         response = self.client.delete(f"/api/list/{other_list.id}/item/{item.id}/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
@@ -188,4 +211,3 @@ class ListItemViewSetTests(APITestCase):
         document_data = response.data["results"][0]["document"]
         self.assertIsNotNone(document_data["author"])
         self.assertEqual(document_data["author"]["id"], self.user.author_profile.id)
-

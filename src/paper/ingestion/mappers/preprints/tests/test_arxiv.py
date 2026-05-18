@@ -105,10 +105,12 @@ class TestArXivMapper(TestCase):
 
         # Check URLs
         self.assertEqual(
-            paper.pdf_url, "http://arxiv.org/pdf/2509.08827v1"  # NOSONAR - Ignore http
+            paper.pdf_url,
+            "http://arxiv.org/pdf/2509.08827v1",  # NOSONAR - Ignore http
         )
         self.assertEqual(
-            paper.url, "http://arxiv.org/abs/2509.08827v1"  # NOSONAR - Ignore http
+            paper.url,
+            "http://arxiv.org/abs/2509.08827v1",  # NOSONAR - Ignore http
         )
 
         # Check external metadata - should only have arxiv_id

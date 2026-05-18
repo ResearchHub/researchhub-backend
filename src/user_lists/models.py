@@ -12,10 +12,10 @@ class List(DefaultAuthenticatedModel, SoftDeletableModel):
 
     def __str__(self):
         return f"{self.created_by}:{self.name or 'Unnamed'}"
-    
+
     class Meta:
         ordering = ["name"]
-        indexes = [ 
+        indexes = [
             models.Index(
                 fields=["created_by", "is_removed"],
                 name="idx_list_user_removed",
@@ -61,4 +61,3 @@ class ListItem(DefaultAuthenticatedModel, SoftDeletableModel):
 
     def __str__(self):
         return str(self.id)
-

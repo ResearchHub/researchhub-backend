@@ -5,7 +5,6 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 
 
 class Command(BaseCommand):
-
     def add_arguments(self, parser):
         parser.add_argument("--save", default=False, help="Should save the score")
 

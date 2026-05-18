@@ -18,8 +18,16 @@ class NormalizeOrcidTests(TestCase):
     def test_normalizes_all_formats_to_consistent_output(self):
         # Arrange
         cases = [
-            ("https://orcid.org/0000-0001-2345-6789", "https://orcid.org/0000-0001-2345-6789", "0000-0001-2345-6789"),
-            ("0000-0001-2345-6789", "https://orcid.org/0000-0001-2345-6789", "0000-0001-2345-6789"),
+            (
+                "https://orcid.org/0000-0001-2345-6789",
+                "https://orcid.org/0000-0001-2345-6789",
+                "0000-0001-2345-6789",
+            ),
+            (
+                "0000-0001-2345-6789",
+                "https://orcid.org/0000-0001-2345-6789",
+                "0000-0001-2345-6789",
+            ),
             (None, None, None),
             ("", None, None),
         ]
@@ -32,7 +40,6 @@ class NormalizeOrcidTests(TestCase):
 
 
 class OrcidFetchServiceTests(TestCase):
-
     def setUp(self):
         self.mock_client = Mock()
         self.mock_openalex = Mock()
@@ -49,13 +56,38 @@ class OrcidFetchServiceTests(TestCase):
         # Arrange
         works = {
             "group": [
-                {"work-summary": [{"external-ids": {"external-id": [
-                    {"external-id-type": "doi", "external-id-value": "10.1/a"}
-                ]}}]},
-                {"work-summary": [{"external-ids": {"external-id": [
-                    {"external-id-type": "pmid", "external-id-value": "123"},
-                    {"external-id-type": "doi", "external-id-value": "10.1/b"}
-                ]}}]},
+                {
+                    "work-summary": [
+                        {
+                            "external-ids": {
+                                "external-id": [
+                                    {
+                                        "external-id-type": "doi",
+                                        "external-id-value": "10.1/a",
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "work-summary": [
+                        {
+                            "external-ids": {
+                                "external-id": [
+                                    {
+                                        "external-id-type": "pmid",
+                                        "external-id-value": "123",
+                                    },
+                                    {
+                                        "external-id-type": "doi",
+                                        "external-id-value": "10.1/b",
+                                    },
+                                ]
+                            }
+                        }
+                    ]
+                },
             ]
         }
 
@@ -105,7 +137,9 @@ class OrcidFetchServiceTests(TestCase):
     def test_sync_skips_when_openalex_returns_nothing(self):
         # Arrange
         user = OrcidTestHelper.create_author()
-        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/x")
+        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response(
+            "10.1/x"
+        )
         self.mock_openalex.get_work_by_doi.return_value = None
 
         # Act
@@ -117,8 +151,12 @@ class OrcidFetchServiceTests(TestCase):
     def test_sync_skips_when_no_matching_paper(self):
         # Arrange
         user = OrcidTestHelper.create_author()
-        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/missing")
-        self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/missing")
+        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response(
+            "10.1/missing"
+        )
+        self.mock_openalex.get_work_by_doi.return_value = (
+            OrcidTestHelper.make_openalex_work("10.1/missing")
+        )
 
         # Act
         result = self.service.sync_orcid(user.author_profile.id)
@@ -131,28 +169,47 @@ class OrcidFetchServiceTests(TestCase):
         # Arrange
         user = OrcidTestHelper.create_author()
         openalex_author = Author.objects.create(
-            first_name="J", last_name="D",
+            first_name="J",
+            last_name="D",
             openalex_ids=[OrcidTestHelper.OPENALEX_AUTHOR_ID],
             created_source=Author.SOURCE_OPENALEX,
         )
         # Add a co-author who is also ORCID-connected (tests _link_authorship_to_user)
         coauthor_orcid = "https://orcid.org/9999-0000-1111-2222"
         coauthor_openalex_id = "https://openalex.org/A9999999999"
-        coauthor_user = OrcidTestHelper.create_author("coauthor", orcid_id=coauthor_orcid)
+        coauthor_user = OrcidTestHelper.create_author(
+            "coauthor", orcid_id=coauthor_orcid
+        )
         coauthor_paper_author = Author.objects.create(
-            first_name="Co", last_name="Author",
+            first_name="Co",
+            last_name="Author",
             openalex_ids=[coauthor_openalex_id],
             created_source=Author.SOURCE_OPENALEX,
         )
         paper = Paper.objects.create(title="T", doi="10.1/x")
-        Authorship.objects.create(paper=paper, author=openalex_author, author_position="first")
-        Authorship.objects.create(paper=paper, author=coauthor_paper_author, author_position="last")
-        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/x")
+        Authorship.objects.create(
+            paper=paper, author=openalex_author, author_position="first"
+        )
+        Authorship.objects.create(
+            paper=paper, author=coauthor_paper_author, author_position="last"
+        )
+        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response(
+            "10.1/x"
+        )
         self.mock_openalex.get_work_by_doi.return_value = {
             "doi": "https://doi.org/10.1/x",
             "authorships": [
-                {"author": {"id": OrcidTestHelper.OPENALEX_AUTHOR_ID, "orcid": OrcidTestHelper.ORCID_URL}, "author_position": "first"},
-                {"author": {"id": coauthor_openalex_id, "orcid": coauthor_orcid}, "author_position": "last"},
+                {
+                    "author": {
+                        "id": OrcidTestHelper.OPENALEX_AUTHOR_ID,
+                        "orcid": OrcidTestHelper.ORCID_URL,
+                    },
+                    "author_position": "first",
+                },
+                {
+                    "author": {"id": coauthor_openalex_id, "orcid": coauthor_orcid},
+                    "author_position": "last",
+                },
             ],
         }
 
@@ -166,25 +223,39 @@ class OrcidFetchServiceTests(TestCase):
         self.assertEqual(openalex_author.merged_with_author, user.author_profile)
         # Co-author's authorship is also merged (via _link_authorship_to_user)
         coauthor_paper_author.refresh_from_db()
-        self.assertEqual(coauthor_paper_author.merged_with_author, coauthor_user.author_profile)
+        self.assertEqual(
+            coauthor_paper_author.merged_with_author, coauthor_user.author_profile
+        )
 
     def test_sync_does_not_link_when_orcid_not_in_paper(self):
         """Malicious user scenario: user adds paper to ORCID they didn't write."""
         # Arrange
         user = OrcidTestHelper.create_author()
         other_author = Author.objects.create(
-            first_name="Real", last_name="Author",
+            first_name="Real",
+            last_name="Author",
             openalex_ids=["https://openalex.org/A9999999999"],
             created_source=Author.SOURCE_OPENALEX,
         )
         paper = Paper.objects.create(title="T", doi="10.1/x")
         Authorship.objects.create(paper=paper, author=other_author)
-        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/x")
+        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response(
+            "10.1/x"
+        )
         self.mock_openalex.get_work_by_doi.return_value = {
             "doi": "https://doi.org/10.1/x",
             "authorships": [
-                {"author": {"id": "https://openalex.org/A1111111111", "orcid": None}, "author_position": "first"},
-                {"author": {"id": "https://openalex.org/A9999999999", "orcid": "https://orcid.org/9999-9999-9999-9999"}, "author_position": "last"},
+                {
+                    "author": {"id": "https://openalex.org/A1111111111", "orcid": None},
+                    "author_position": "first",
+                },
+                {
+                    "author": {
+                        "id": "https://openalex.org/A9999999999",
+                        "orcid": "https://orcid.org/9999-9999-9999-9999",
+                    },
+                    "author_position": "last",
+                },
             ],
         }
 
@@ -193,7 +264,9 @@ class OrcidFetchServiceTests(TestCase):
 
         # Assert
         self.assertEqual(result["papers_processed"], 0)
-        self.assertFalse(Authorship.objects.filter(paper=paper, author=user.author_profile).exists())
+        self.assertFalse(
+            Authorship.objects.filter(paper=paper, author=user.author_profile).exists()
+        )
 
     def test_sync_skips_paper_when_user_already_has_authorship(self):
         """If user already has authorship on a paper, skip processing it."""
@@ -201,8 +274,12 @@ class OrcidFetchServiceTests(TestCase):
         user = OrcidTestHelper.create_author()
         paper = Paper.objects.create(title="T", doi="10.1/x")
         Authorship.objects.create(paper=paper, author=user.author_profile)
-        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/x")
-        self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/x")
+        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response(
+            "10.1/x"
+        )
+        self.mock_openalex.get_work_by_doi.return_value = (
+            OrcidTestHelper.make_openalex_work("10.1/x")
+        )
 
         # Act
         result = self.service.sync_orcid(user.author_profile.id)
@@ -218,8 +295,12 @@ class OrcidFetchServiceTests(TestCase):
         other_user = OrcidTestHelper.create_author("u2", orcid_id=other_orcid)
         paper = Paper.objects.create(title="T", doi="10.1/x")
         Authorship.objects.create(paper=paper, author=other_user.author_profile)
-        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/x")
-        self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/x")
+        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response(
+            "10.1/x"
+        )
+        self.mock_openalex.get_work_by_doi.return_value = (
+            OrcidTestHelper.make_openalex_work("10.1/x")
+        )
 
         # Act
         self.service.sync_orcid(user.author_profile.id)
@@ -233,14 +314,19 @@ class OrcidFetchServiceTests(TestCase):
         # Arrange
         user = OrcidTestHelper.create_author(orcid_connected=False)
         openalex_author = Author.objects.create(
-            first_name="J", last_name="D",
+            first_name="J",
+            last_name="D",
             openalex_ids=[OrcidTestHelper.OPENALEX_AUTHOR_ID],
             created_source=Author.SOURCE_OPENALEX,
         )
         paper = Paper.objects.create(title="T", doi="10.1/x")
         Authorship.objects.create(paper=paper, author=openalex_author)
-        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/x")
-        self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/x")
+        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response(
+            "10.1/x"
+        )
+        self.mock_openalex.get_work_by_doi.return_value = (
+            OrcidTestHelper.make_openalex_work("10.1/x")
+        )
 
         # Act
         result = self.service.sync_orcid(user.author_profile.id)
@@ -262,28 +348,39 @@ class OrcidFetchServiceTests(TestCase):
         app = OrcidTestHelper.create_app()
         account = SocialAccount.objects.get(user=user)
         SocialToken.objects.create(account=account, token="access_token", app=app)
-        self.mock_email_service.fetch_verified_edu_emails.return_value = ["user@stanford.edu"]
+        self.mock_email_service.fetch_verified_edu_emails.return_value = [
+            "user@stanford.edu"
+        ]
 
         # Act
         self.service._sync_edu_emails(user, OrcidTestHelper.ORCID_ID)
 
         # Assert
         account.refresh_from_db()
-        self.assertEqual(account.extra_data["verified_edu_emails"], ["user@stanford.edu"])
+        self.assertEqual(
+            account.extra_data["verified_edu_emails"], ["user@stanford.edu"]
+        )
 
     def test_sync_clears_author_caches(self):
         """Cache should be cleared for both user's author and paper's author after sync."""
         # Arrange
         user = OrcidTestHelper.create_author()
         openalex_author = Author.objects.create(
-            first_name="J", last_name="D",
+            first_name="J",
+            last_name="D",
             openalex_ids=[OrcidTestHelper.OPENALEX_AUTHOR_ID],
             created_source=Author.SOURCE_OPENALEX,
         )
         paper = Paper.objects.create(title="T", doi="10.1/x")
-        Authorship.objects.create(paper=paper, author=openalex_author, author_position="middle")
-        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/x")
-        self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/x")
+        Authorship.objects.create(
+            paper=paper, author=openalex_author, author_position="middle"
+        )
+        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response(
+            "10.1/x"
+        )
+        self.mock_openalex.get_work_by_doi.return_value = (
+            OrcidTestHelper.make_openalex_work("10.1/x")
+        )
 
         # Set cache values
         user_author_id = user.author_profile.id
@@ -316,24 +413,31 @@ class OrcidFetchServiceTests(TestCase):
         user.author_profile.save()
 
         openalex_author = Author.objects.create(
-            first_name="J", last_name="D",
+            first_name="J",
+            last_name="D",
             openalex_ids=[OrcidTestHelper.OPENALEX_AUTHOR_ID],
             created_source=Author.SOURCE_OPENALEX,
         )
         paper = Paper.objects.create(title="T", doi="10.1/x")
-        Authorship.objects.create(paper=paper, author=openalex_author, author_position="middle")
+        Authorship.objects.create(
+            paper=paper, author=openalex_author, author_position="middle"
+        )
 
-        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/x")
+        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response(
+            "10.1/x"
+        )
         # OpenAlex has NO ORCID in authorship data
         self.mock_openalex.get_work_by_doi.return_value = {
             "doi": "https://doi.org/10.1/x",
-            "authorships": [{
-                "author": {
-                    "id": OrcidTestHelper.OPENALEX_AUTHOR_ID,
-                    "orcid": None,
-                },
-                "author_position": "first",
-            }],
+            "authorships": [
+                {
+                    "author": {
+                        "id": OrcidTestHelper.OPENALEX_AUTHOR_ID,
+                        "orcid": None,
+                    },
+                    "author_position": "first",
+                }
+            ],
         }
 
         # Act
@@ -352,16 +456,23 @@ class OrcidFetchServiceTests(TestCase):
         user.author_profile.save()
 
         existing_paper_author = Author.objects.create(
-            first_name="Existing", last_name="Author",
+            first_name="Existing",
+            last_name="Author",
             openalex_ids=[OrcidTestHelper.OPENALEX_AUTHOR_ID],
             created_source=Author.SOURCE_OPENALEX,
         )
 
         paper = Paper.objects.create(title="T", doi="10.1/x")
-        Authorship.objects.create(paper=paper, author=user.author_profile, author_position="first")
+        Authorship.objects.create(
+            paper=paper, author=user.author_profile, author_position="first"
+        )
 
-        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/x")
-        self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/x")
+        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response(
+            "10.1/x"
+        )
+        self.mock_openalex.get_work_by_doi.return_value = (
+            OrcidTestHelper.make_openalex_work("10.1/x")
+        )
 
         # Act
         self.service.sync_orcid(user.author_profile.id)
@@ -372,7 +483,7 @@ class OrcidFetchServiceTests(TestCase):
                 openalex_ids__contains=[OrcidTestHelper.OPENALEX_AUTHOR_ID],
                 user__isnull=True,
             ).count(),
-            1
+            1,
         )
         existing_paper_author.refresh_from_db()
         self.assertEqual(existing_paper_author.merged_with_author, user.author_profile)
@@ -380,7 +491,7 @@ class OrcidFetchServiceTests(TestCase):
     def test_fix_creates_paper_author_when_authorship_incorrectly_on_user(self):
         """
         When an authorship was incorrectly created with a user-connected author
-        (because they have an OpenAlex ID in their profile), create a new 
+        (because they have an OpenAlex ID in their profile), create a new
         paper-specific author and link via merged_with_author.
         """
         # Arrange
@@ -398,13 +509,17 @@ class OrcidFetchServiceTests(TestCase):
             is_corresponding=False,
         )
 
-        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/x")
+        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response(
+            "10.1/x"
+        )
         openalex_work = OrcidTestHelper.make_openalex_work("10.1/x")
         # Set a display name that should be preserved
         openalex_work["authorships"][0]["author"]["display_name"] = "Paper Author Name"
         openalex_work["authorships"][0]["is_corresponding"] = False
         # Add authorship with empty ID to cover the continue branch (id: None filtered by sanitize)
-        openalex_work["authorships"].append({"author": {"id": ""}, "author_position": "last"})
+        openalex_work["authorships"].append(
+            {"author": {"id": ""}, "author_position": "last"}
+        )
         self.mock_openalex.get_work_by_doi.return_value = openalex_work
 
         # Act
@@ -413,7 +528,9 @@ class OrcidFetchServiceTests(TestCase):
         # Assert
         # User's author keeps their OpenAlex ID (we no longer remove it)
         user.author_profile.refresh_from_db()
-        self.assertIn(OrcidTestHelper.OPENALEX_AUTHOR_ID, user.author_profile.openalex_ids)
+        self.assertIn(
+            OrcidTestHelper.OPENALEX_AUTHOR_ID, user.author_profile.openalex_ids
+        )
 
         # A new paper-specific author should also exist with the OpenAlex ID
         paper_author = Author.objects.filter(
@@ -439,13 +556,20 @@ class OrcidFetchServiceTests(TestCase):
         user = OrcidTestHelper.create_author()
         # Create a paper author that's merged with the user and has h-index
         Author.objects.create(
-            first_name="Paper", last_name="Author",
-            h_index=15, i10_index=8, two_year_mean_citedness=3.5,
+            first_name="Paper",
+            last_name="Author",
+            h_index=15,
+            i10_index=8,
+            two_year_mean_citedness=3.5,
             merged_with_author=user.author_profile,
             created_source=Author.SOURCE_OPENALEX,
         )
-        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response("10.1/x")
-        self.mock_openalex.get_work_by_doi.return_value = OrcidTestHelper.make_openalex_work("10.1/x")
+        self.mock_client.get_works.return_value = OrcidTestHelper.make_works_response(
+            "10.1/x"
+        )
+        self.mock_openalex.get_work_by_doi.return_value = (
+            OrcidTestHelper.make_openalex_work("10.1/x")
+        )
 
         # Act
         self.service.sync_orcid(user.author_profile.id)

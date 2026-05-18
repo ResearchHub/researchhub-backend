@@ -60,8 +60,7 @@ def create_funding_activity_task(source_type, source_id):
             )
     except Exception as e:
         logger.exception(
-            "create_funding_activity_task: failed for source_type=%s "
-            "source_id=%s: %s",
+            "create_funding_activity_task: failed for source_type=%s source_id=%s: %s",
             source_type,
             source_id,
             e,

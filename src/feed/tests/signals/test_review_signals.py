@@ -18,7 +18,6 @@ from utils.test_helpers import AWSMockTestCase
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
 class ReviewSignalsTests(AWSMockTestCase):
-
     def setUp(self):
         super().setUp()
         self.user = User.objects.create_user(username="reviewer")

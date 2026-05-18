@@ -7,7 +7,6 @@ from user.related_models.user_model import User
 
 
 class AssetUploadViewTest(APITestCase):
-
     def setUp(self):
         self.factory = APIRequestFactory()
         self.view = AssetUploadView.as_view()

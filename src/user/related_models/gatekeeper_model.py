@@ -12,7 +12,9 @@ class Gatekeeper(DefaultModel):
         max_length=128,
         null=False,
     )
-    user = ForeignKey('user.User', on_delete=CASCADE, related_name='gatekeeper', null=True, blank=True)
+    user = ForeignKey(
+        "user.User", on_delete=CASCADE, related_name="gatekeeper", null=True, blank=True
+    )
     email = EmailField(
         blank=True,
         db_index=True,
@@ -20,4 +22,4 @@ class Gatekeeper(DefaultModel):
     )
 
     def __str__(self):
-        return f'{self.__class__}'
+        return f"{self.__class__}"

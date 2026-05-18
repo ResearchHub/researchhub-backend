@@ -12,7 +12,6 @@ from utils.test_helpers import get_authenticated_post_response, get_get_response
 
 
 class HubViewsTests(APITestCase):
-
     def setUp(self):
         self.base_url = "/api/hub/"
         self.hub = create_hub(name="View Test Hub")

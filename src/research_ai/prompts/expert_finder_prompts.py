@@ -157,7 +157,7 @@ def format_additional_context_section(additional_context: str | None) -> str:
     stripped = (additional_context or "").strip()
     if not stripped:
         return ""
-    return "\n\n## Additional guidance from the requester\n" f"{stripped}\n"
+    return f"\n\n## Additional guidance from the requester\n{stripped}\n"
 
 
 def build_user_prompt(

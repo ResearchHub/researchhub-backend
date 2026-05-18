@@ -8,7 +8,6 @@ from user.models import Organization
 
 
 class OrganizationInvitation(Invitation):
-
     invite_type = models.CharField(
         max_length=16, choices=ACCESS_TYPE_CHOICES, default=VIEWER
     )

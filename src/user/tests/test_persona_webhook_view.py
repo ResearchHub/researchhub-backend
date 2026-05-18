@@ -11,7 +11,6 @@ fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class PersonaWebhookViewTests(TestCase):
-
     webhook_secret = "wbhsec_researchhub"
 
     def setUp(self):

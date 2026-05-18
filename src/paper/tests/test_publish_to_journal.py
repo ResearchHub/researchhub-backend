@@ -153,7 +153,9 @@ class PublishToResearchHubJournalTestCase(TestCase):
         self.client.force_authenticate(user=self.moderator)
 
         response = self.client.post(
-            self.url, {"previous_paper_id": 99999}, format="json"  # Invalid ID
+            self.url,
+            {"previous_paper_id": 99999},
+            format="json",  # Invalid ID
         )
 
         # Verify bad request response

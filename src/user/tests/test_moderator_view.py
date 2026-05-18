@@ -23,7 +23,6 @@ from utils.test_helpers import (
 
 
 class ModeratorTests(APITestCase):
-
     def test_moderator_can_view_details(self):
         self.user = create_user(
             email="mod@example.com",

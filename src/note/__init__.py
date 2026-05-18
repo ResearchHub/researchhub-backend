@@ -1,1 +1,1 @@
-default_app_config = 'note.apps.NoteConfig'
+default_app_config = "note.apps.NoteConfig"

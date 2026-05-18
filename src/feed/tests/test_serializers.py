@@ -1786,7 +1786,7 @@ class FeedEntrySerializerTests(AWSMockTestCase):
             RhCommentModel.objects.create(
                 thread=thread,
                 created_by=self.user,
-                comment_content_json={"ops": [{"insert": f"Reply {i+1}"}]},
+                comment_content_json={"ops": [{"insert": f"Reply {i + 1}"}]},
                 parent=comment,
             )
 

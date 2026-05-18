@@ -5,7 +5,6 @@ from hub.models import Hub
 
 
 class HubFilterTests(TestCase):
-
     def test_filter_name__iexact(self):
         # Arrange
         Hub.objects.create(name="hubName1")

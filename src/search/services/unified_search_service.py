@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 class UnifiedSearchService:
-
     SORT_RELEVANCE = "relevance"
     SORT_NEWEST = "newest"
 

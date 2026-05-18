@@ -399,7 +399,6 @@ class PaymentServiceTest(TestCase):
                 "purchase.services.payment_service.Distributor"
             ) as mock_distributor_class,
         ):
-
             mock_distribution = MagicMock()
             mock_create_dist.return_value = mock_distribution
 
@@ -466,7 +465,6 @@ class PaymentServiceTest(TestCase):
             ) as mock_distributor_class,
             patch("purchase.services.payment_service.deduct_rsc_purchase_fees"),
         ):
-
             mock_distribution = MagicMock()
             mock_create_dist.return_value = mock_distribution
 
@@ -521,7 +519,6 @@ class PaymentServiceTest(TestCase):
                 ],
             ),
         ):
-
             # Act
             result = self.service.create_payment_intent(
                 user_id=self.user.id,
@@ -579,7 +576,6 @@ class PaymentServiceTest(TestCase):
                 "purchase.services.payment_service.deduct_rsc_purchase_fees"
             ) as mock_deduct_fees,
         ):
-
             mock_distribution = MagicMock()
             mock_create_dist.return_value = mock_distribution
 
@@ -640,7 +636,6 @@ class PaymentServiceTest(TestCase):
                 "purchase.services.payment_service.deduct_rsc_purchase_fees"
             ) as mock_deduct_fees,
         ):
-
             mock_distribution = MagicMock()
             mock_create_dist.return_value = mock_distribution
 

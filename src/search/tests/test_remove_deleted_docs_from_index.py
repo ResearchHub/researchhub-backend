@@ -79,9 +79,10 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
 
     def test_only_removed_objects_are_sent_to_update(self):
         # Arrange / Act
-        with self._patch_connection("PaperDocument"), patch(
-            f"{PATCH_PREFIX}.PaperDocument.update"
-        ) as mock_update:
+        with (
+            self._patch_connection("PaperDocument"),
+            patch(f"{PATCH_PREFIX}.PaperDocument.update") as mock_update,
+        ):
             call_command(COMMAND, "--index=paper", stdout=StringIO())
 
         # Assert
@@ -96,9 +97,7 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
         # Act
         with _patch_all_connections(), ExitStack() as stack:
             for cls in DOC_CLASSES:
-                mocks[cls] = stack.enter_context(
-                    patch(f"{PATCH_PREFIX}.{cls}.update")
-                )
+                mocks[cls] = stack.enter_context(patch(f"{PATCH_PREFIX}.{cls}.update"))
             call_command(COMMAND, stdout=StringIO())
 
         # Assert
@@ -107,11 +106,11 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
 
     def test_index_flag_restricts_to_single_index(self):
         # Arrange / Act
-        with self._patch_connection("PaperDocument"), patch(
-            f"{PATCH_PREFIX}.PaperDocument.update"
-        ) as mock_paper, patch(
-            f"{PATCH_PREFIX}.PostDocument.update"
-        ) as mock_post:
+        with (
+            self._patch_connection("PaperDocument"),
+            patch(f"{PATCH_PREFIX}.PaperDocument.update") as mock_paper,
+            patch(f"{PATCH_PREFIX}.PostDocument.update") as mock_post,
+        ):
             call_command(COMMAND, "--index=paper", stdout=StringIO())
 
         # Assert
@@ -125,9 +124,10 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
         out = StringIO()
 
         # Act
-        with _patch_all_connections(), patch(
-            f"{PATCH_PREFIX}.PaperDocument.update"
-        ) as mock_update:
+        with (
+            _patch_all_connections(),
+            patch(f"{PATCH_PREFIX}.PaperDocument.update") as mock_update,
+        ):
             call_command(COMMAND, "--dry-run", stdout=out)
 
         # Assert
@@ -140,9 +140,10 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
 
     def test_skips_removal_when_docs_not_in_index(self):
         # Arrange / Act
-        with self._patch_connection("PaperDocument", _mock_mget_none_found), patch(
-            f"{PATCH_PREFIX}.PaperDocument.update"
-        ) as mock_update:
+        with (
+            self._patch_connection("PaperDocument", _mock_mget_none_found),
+            patch(f"{PATCH_PREFIX}.PaperDocument.update") as mock_update,
+        ):
             out = StringIO()
             call_command(COMMAND, "--index=paper", stdout=out)
 
@@ -157,10 +158,13 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
         out = StringIO()
 
         # Act
-        with patch(
-            f"{PATCH_PREFIX}.PaperDocument._get_connection",
-            return_value=client,
-        ), patch(f"{PATCH_PREFIX}.PaperDocument.update") as mock_update:
+        with (
+            patch(
+                f"{PATCH_PREFIX}.PaperDocument._get_connection",
+                return_value=client,
+            ),
+            patch(f"{PATCH_PREFIX}.PaperDocument.update") as mock_update,
+        ):
             call_command(COMMAND, "--index=paper", stdout=out)
 
         # Assert

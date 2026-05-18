@@ -141,8 +141,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             return Response(
                 {
                     "msg": (
-                        f"Title cannot be less than "
-                        f"{MIN_POST_TITLE_LENGTH} characters"
+                        f"Title cannot be less than {MIN_POST_TITLE_LENGTH} characters"
                     )
                 },
                 400,
@@ -247,9 +246,11 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     if grant_contacts is not None:
                         grant_data["contact_ids"] = grant_contacts
 
-                    if (application_visibility := data.get(
-                        "grant_application_visibility"
-                    )) is not None:
+                    if (
+                        application_visibility := data.get(
+                            "grant_application_visibility"
+                        )
+                    ) is not None:
                         grant_data["application_visibility"] = application_visibility
 
                     grant_serializer = GrantCreateSerializer(data=grant_data)
@@ -418,7 +419,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             post = serializer.instance
 
             file_name = (
-                f'RH-POST-{request.data.get("document_type")}-'
+                f"RH-POST-{request.data.get('document_type')}-"
                 f"USER-{request.user.id}.txt"
             )
             full_src_file = ContentFile(request.data["full_src"].encode())
@@ -462,9 +463,9 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 if grant_contacts is not None:
                     grant_data["contact_ids"] = grant_contacts
 
-                if (application_visibility := data.get(
-                    "grant_application_visibility"
-                )) is not None:
+                if (
+                    application_visibility := data.get("grant_application_visibility")
+                ) is not None:
                     grant_data["application_visibility"] = application_visibility
 
                 grant_serializer = GrantCreateSerializer(data=grant_data)
