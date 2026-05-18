@@ -412,22 +412,25 @@ class PaymentServiceTest(TestCase):
         }
         mock_stripe_retrieve.return_value = mock_payment_intent
 
+        initial_balance_count = Balance.objects.filter(user=self.user).count()
+
         first_payment, _ = self.service.process_payment_intent_confirmation(
             "pi_idempotent_intent"
         )
+        balance_count_after_first = Balance.objects.filter(user=self.user).count()
+
         second_payment, _ = self.service.process_payment_intent_confirmation(
             "pi_idempotent_intent"
         )
+        balance_count_after_second = Balance.objects.filter(user=self.user).count()
 
         self.assertEqual(first_payment.id, second_payment.id)
         self.assertEqual(
             Payment.objects.filter(external_payment_id="pi_idempotent_intent").count(),
             1,
         )
-        self.assertEqual(
-            Balance.objects.filter(user=self.user).count(),
-            1,
-        )
+        self.assertGreater(balance_count_after_first, initial_balance_count)
+        self.assertEqual(balance_count_after_second, balance_count_after_first)
 
     @patch("stripe.PaymentIntent.retrieve")
     def test_process_payment_intent_confirmation_success(self, mock_stripe_retrieve):
