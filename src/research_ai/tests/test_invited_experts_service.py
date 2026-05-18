@@ -1,9 +1,24 @@
 from datetime import timedelta
 
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
+from paper.tests.helpers import create_paper
 from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
+from research_ai.services.invited_experts_service import (
+    grant_invited_expert_access_for_signup,
+)
+from researchhub_access_group.constants import VIEWER
+from researchhub_access_group.models import Permission
+from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import (
+    DISCUSSION,
+    PREREGISTRATION,
+)
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.tests.helpers import create_user
 
 
@@ -12,8 +27,6 @@ class InvitedExpertsSignalTests(TestCase):
     """Signup links ``Expert.registered_user`` when outreach qualifies."""
 
     def setUp(self):
-        from paper.tests.helpers import create_paper
-
         self.creator = create_user(email="creator@signal.test")
         self.paper = create_paper(
             title="Signal doc",
@@ -144,3 +157,191 @@ class InvitedExpertsSignalTests(TestCase):
         )
         ex.refresh_from_db()
         self.assertEqual(ex.registered_user_id, new_user.id)
+
+
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+class GrantInvitedExpertAccessTests(TestCase):
+    """Signup grants VIEWER permission on private preregistrations the user was
+    invited to via a sent expert-finder outreach email."""
+
+    def setUp(self):
+        self.creator = create_user(email="creator@invited.test")
+        self.unified_doc_ct = ContentType.objects.get_for_model(
+            ResearchhubUnifiedDocument
+        )
+
+    def _make_private_preregistration(self):
+        post = create_post(
+            title="Private prereg",
+            created_by=self.creator,
+            document_type=PREREGISTRATION,
+        )
+        post.unified_document.is_public = False
+        post.unified_document.save(update_fields=["is_public"])
+        return post
+
+    def _make_search(self, unified_document, completed_at):
+        return ExpertSearch.objects.create(
+            created_by=self.creator,
+            unified_document=unified_document,
+            query="Test",
+            status=ExpertSearch.Status.COMPLETED,
+            completed_at=completed_at,
+        )
+
+    def _make_generated_email(
+        self,
+        *,
+        search,
+        email,
+        status=GeneratedEmail.Status.SENT,
+        created_at=None,
+    ):
+        ge = GeneratedEmail.objects.create(
+            created_by=self.creator,
+            expert_search=search,
+            expert_email=email,
+            status=status,
+        )
+        if created_at is not None:
+            GeneratedEmail.objects.filter(pk=ge.pk).update(created_date=created_at)
+        return ge
+
+    def test_sent_email_in_window_grants_viewer_permission(self):
+        when = timezone.now() - timedelta(days=2)
+        post = self._make_private_preregistration()
+        search = self._make_search(post.unified_document, when)
+        self._make_generated_email(
+            search=search, email="invitee@example.com", created_at=when
+        )
+
+        new_user = create_user(
+            email="invitee@example.com", first_name="In", last_name="Vitee"
+        )
+
+        perm = Permission.objects.get(
+            content_type=self.unified_doc_ct,
+            object_id=post.unified_document_id,
+            user=new_user,
+        )
+        self.assertEqual(perm.access_type, VIEWER)
+
+    def test_draft_email_does_not_grant_permission(self):
+        when = timezone.now() - timedelta(days=1)
+        post = self._make_private_preregistration()
+        search = self._make_search(post.unified_document, when)
+        self._make_generated_email(
+            search=search,
+            email="draftonly@example.com",
+            status=GeneratedEmail.Status.DRAFT,
+            created_at=when,
+        )
+
+        new_user = create_user(
+            email="draftonly@example.com", first_name="D", last_name="Raft"
+        )
+
+        self.assertFalse(
+            Permission.objects.filter(
+                content_type=self.unified_doc_ct,
+                object_id=post.unified_document_id,
+                user=new_user,
+            ).exists()
+        )
+
+    def test_sent_email_outside_window_does_not_grant_permission(self):
+        when = timezone.now() - timedelta(days=10)
+        post = self._make_private_preregistration()
+        search = self._make_search(post.unified_document, when)
+        self._make_generated_email(
+            search=search, email="late@example.com", created_at=when
+        )
+
+        new_user = create_user(
+            email="late@example.com", first_name="La", last_name="Te"
+        )
+
+        self.assertFalse(
+            Permission.objects.filter(
+                content_type=self.unified_doc_ct,
+                object_id=post.unified_document_id,
+                user=new_user,
+            ).exists()
+        )
+
+    def test_public_document_does_not_grant_permission(self):
+        when = timezone.now() - timedelta(days=2)
+        public_post = create_post(
+            title="Public prereg",
+            created_by=self.creator,
+            document_type=PREREGISTRATION,
+        )
+        # default is_public=True
+        search = self._make_search(public_post.unified_document, when)
+        self._make_generated_email(
+            search=search, email="onpublic@example.com", created_at=when
+        )
+
+        new_user = create_user(
+            email="onpublic@example.com", first_name="O", last_name="Pub"
+        )
+
+        self.assertFalse(
+            Permission.objects.filter(
+                content_type=self.unified_doc_ct,
+                object_id=public_post.unified_document_id,
+                user=new_user,
+            ).exists()
+        )
+
+    def test_non_preregistration_document_does_not_grant_permission(self):
+        when = timezone.now() - timedelta(days=2)
+        post = create_post(
+            title="Private discussion",
+            created_by=self.creator,
+            document_type=DISCUSSION,
+        )
+        post.unified_document.is_public = False
+        post.unified_document.save(update_fields=["is_public"])
+
+        search = self._make_search(post.unified_document, when)
+        self._make_generated_email(
+            search=search, email="notprereg@example.com", created_at=when
+        )
+
+        new_user = create_user(
+            email="notprereg@example.com", first_name="N", last_name="P"
+        )
+
+        self.assertFalse(
+            Permission.objects.filter(
+                content_type=self.unified_doc_ct,
+                object_id=post.unified_document_id,
+                user=new_user,
+            ).exists()
+        )
+
+    def test_grant_is_idempotent(self):
+        when = timezone.now() - timedelta(days=2)
+        post = self._make_private_preregistration()
+        search = self._make_search(post.unified_document, when)
+        self._make_generated_email(
+            search=search, email="dupe@example.com", created_at=when
+        )
+
+        new_user = create_user(
+            email="dupe@example.com", first_name="D", last_name="Upe"
+        )
+
+        # Re-run the granter; should not create a second Permission row.
+        grant_invited_expert_access_for_signup(
+            normalized_email="dupe@example.com", user=new_user
+        )
+        self.assertEqual(
+            Permission.objects.filter(
+                content_type=self.unified_doc_ct,
+                object_id=post.unified_document_id,
+                user=new_user,
+            ).count(),
+            1,
+        )
