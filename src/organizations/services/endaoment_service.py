@@ -1,18 +1,53 @@
 import logging
-from typing import Any, Dict, Optional
+import re
+from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlencode
 
 import requests
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+
+class EndaomentServiceError(Exception):
+    """Raised when the Endaoment API cannot be reached or returns an error."""
+
+
+class EndaomentOrgNotFound(Exception):
+    """Raised when no Endaoment org matches the provided EIN and org id."""
+
+
+def normalize_ein(ein: str) -> str:
+    """Strip non-digit characters from an EIN."""
+    return re.sub(r"\D", "", ein or "")
+
+
+def default_org_search_url() -> str:
+    return f"{settings.ENDAOMENT_API_URL}/v2/orgs/search"
+
+
+def base_chain_id() -> int:
+    """Base mainnet in production, Base Sepolia in non-production."""
+    if settings.PRODUCTION:
+        return settings.BASE_MAINNET_CHAIN_ID
+    return settings.BASE_SEPOLIA_CHAIN_ID
+
+
+def base_wallet_from_org(org: Dict[str, Any]) -> str:
+    """Extract the org's Base deployment contract address from an Endaoment org payload."""
+    chain_id = base_chain_id()
+    for deployment in org.get("deployments") or []:
+        if deployment.get("chainId") == chain_id:
+            return (deployment.get("contractAddress") or "").strip()
+    return ""
 
 
 class EndaomentService:
     """Service for interacting with the Endaoment API."""
 
-    def __init__(self, base_url: str = "https://api.endaoment.org/v1/sdk/orgs/search"):
+    def __init__(self, base_url: Optional[str] = None):
         """Initialize the service with configurable base URL for testing."""
-        self.base_url = base_url
+        self.base_url = base_url or default_org_search_url()
 
     def search_nonprofit_orgs(
         self,
@@ -22,7 +57,7 @@ class EndaomentService:
         countries: Optional[str] = None,
         count: int = 15,
         offset: int = 0,
-    ) -> Dict[str, Any]:
+    ) -> Union[List[Any], Dict[str, Any]]:
         """
         Search for nonprofit organizations using the Endaoment API.
 
@@ -35,7 +70,7 @@ class EndaomentService:
             offset (int, optional): Offset for pagination (default: 0).
 
         Returns:
-            Dict[str, Any]: Response from the Endaoment API.
+            List of org dicts on success, or error dict on failure.
         """
         params = {}
 
@@ -81,3 +116,40 @@ class EndaomentService:
                     else 500
                 ),
             }
+
+    def _find_matching_org(
+        self,
+        results: List[Dict[str, Any]],
+        normalized_ein: str,
+        endaoment_org_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        for org in results:
+            if (
+                normalize_ein(org.get("ein", "")) == normalized_ein
+                and org.get("id") == endaoment_org_id
+            ):
+                return org
+        return None
+
+    def verify_nonprofit_org(self, ein: str, endaoment_org_id: str) -> Dict[str, Any]:
+        """
+        Verify that a nonprofit exists on Endaoment with the given EIN and org id.
+
+        Raises:
+            EndaomentServiceError: If the Endaoment API is unreachable or errors.
+            EndaomentOrgNotFound: If no matching org is found.
+        """
+        normalized_ein = normalize_ein(ein)
+        result = self.search_nonprofit_orgs(search_term=normalized_ein)
+
+        if isinstance(result, dict) and "error" in result:
+            raise EndaomentServiceError(result["error"])
+
+        if not isinstance(result, list):
+            raise EndaomentServiceError("Unexpected response from Endaoment")
+
+        match = self._find_matching_org(result, normalized_ein, endaoment_org_id)
+        if match is not None:
+            return match
+
+        raise EndaomentOrgNotFound()
