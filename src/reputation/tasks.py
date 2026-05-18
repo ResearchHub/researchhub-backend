@@ -25,6 +25,7 @@ from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_a
 from reputation.models import Bounty, BountySolution, Contribution, Deposit
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
+from reputation.services.deposit_service import DepositService
 from reputation.services.staking_yield_service import StakingYieldService
 from reputation.services.wallet import WalletService
 from researchhub.celery import QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
@@ -140,7 +141,9 @@ def get_contract(w3, token_address):
     )
 
 
-def evaluate_transaction(transaction_hash, w3, token_address, max_age=None):
+def evaluate_transaction(
+    transaction_hash, w3, token_address, max_age=None, expected_from_address=None
+):
     """
     Evaluate transaction details using provided Web3 instance.
 
@@ -160,6 +163,8 @@ def evaluate_transaction(transaction_hash, w3, token_address, max_age=None):
         token_address: Address of the ERC20 token contract
         max_age: Optional max age in seconds. Defaults to
             PENDING_TRANSACTION_MAX_AGE if not provided
+        expected_from_address: When set, only Transfer events whose ``_from``
+            matches this address (case-insensitive) are considered valid.
 
     Returns:
         tuple: (is_valid_and_recent, deposit_amount)
@@ -197,11 +202,15 @@ def evaluate_transaction(transaction_hash, w3, token_address, max_age=None):
             # Skip logs that can't be decoded as Transfer events
             continue
 
-    # Find transfers to our wallet address
+    # Find transfers to our wallet address from the expected sender
     valid_transfers = []
+    expected_from = expected_from_address.lower() if expected_from_address else None
     for event in transfer_events:
-        if event.args.get("_to", "").lower() == settings.WEB3_WALLET_ADDRESS.lower():
-            valid_transfers.append(event)
+        if event.args.get("_to", "").lower() != settings.WEB3_WALLET_ADDRESS.lower():
+            continue
+        if expected_from and event.args.get("_from", "").lower() != expected_from:
+            continue
+        valid_transfers.append(event)
 
     if not valid_transfers:
         return False, 0
@@ -234,9 +243,9 @@ def _check_deposits(max_age=None):
         max_age = PENDING_TRANSACTION_MAX_AGE
 
     logger.info("Starting check deposits task")
-    # Sort by created date to ensure a malicious user doesn't attempt to take
-    # credit for a deposit made by another user. This is a temporary solution
-    # until we add signed messages to validate users own wallets.
+
+    # Sort by created date so the first valid claim for a transaction is processed
+    # before duplicate claims are rejected.
     deposits = (
         Deposit.objects.filter(Q(paid_status=None) | Q(paid_status="PENDING"))
         .exclude(circle_transaction_id__isnull=False)
@@ -263,6 +272,12 @@ def _check_deposits(max_age=None):
                 continue
 
             user = deposit.user
+            if not user or not DepositService.user_owns_from_address(
+                user, deposit.from_address
+            ):
+                deposit.set_paid_failed()
+                continue
+
             try:
                 w3_instance = (
                     web3_provider.base
@@ -283,7 +298,11 @@ def _check_deposits(max_age=None):
                     continue
 
                 valid_deposit, deposit_amount = evaluate_transaction(
-                    deposit.transaction_hash, w3_instance, token_address, max_age
+                    deposit.transaction_hash,
+                    w3_instance,
+                    token_address,
+                    max_age,
+                    expected_from_address=deposit.from_address,
                 )
                 if not valid_deposit:
                     deposit.set_paid_failed()

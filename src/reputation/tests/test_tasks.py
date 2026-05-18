@@ -6,8 +6,10 @@ from django.conf import settings
 from rest_framework.test import APITestCase
 from web3.types import BlockData, TxData
 
+from purchase.models import Wallet
+from reputation.models import Deposit
 from reputation.tasks import PENDING_TRANSACTION_MAX_AGE, check_deposits
-from reputation.tests.helpers import create_deposit
+from reputation.tests.helpers import ADDRESS_1, ADDRESS_2, create_deposit
 from user.tests.helpers import create_random_authenticated_user
 
 # Test addresses for mocking
@@ -112,13 +114,9 @@ class TaskTests(APITestCase):
         user.staking_opted_in_date = None
         user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
 
-        deposit1 = create_deposit(
-            user, "2000.5", "from_address_1", "transaction_hash_1"
-        )
+        deposit1 = create_deposit(user, "2000.5", ADDRESS_1, "transaction_hash_1")
 
-        deposit2 = create_deposit(
-            user, "2000.0", "from_address_2", "transaction_hash_2"
-        )
+        deposit2 = create_deposit(user, "2000.0", ADDRESS_1, "transaction_hash_2")
 
         check_deposits()
 
@@ -137,10 +135,8 @@ class TaskTests(APITestCase):
         user = create_random_authenticated_user("deposit_user")
         transaction_hash = "transaction_hash_3"
 
-        deposit = create_deposit(user, "2000.0", "from_address_3", transaction_hash)
-        repeat_deposit = create_deposit(
-            user, "2000.0", "from_address_3", transaction_hash
-        )
+        deposit = create_deposit(user, "2000.0", ADDRESS_1, transaction_hash)
+        repeat_deposit = create_deposit(user, "2000.0", ADDRESS_1, transaction_hash)
 
         check_deposits()
 
@@ -153,7 +149,7 @@ class TaskTests(APITestCase):
     def test_old_pending_deposit(self):
         user = create_random_authenticated_user("deposit_user")
 
-        deposit = create_deposit(user, "2000.0", "from_address_4", "transaction_hash_4")
+        deposit = create_deposit(user, "2000.0", ADDRESS_1, "transaction_hash_4")
         deposit.created_date = deposit.created_date - timedelta(
             seconds=PENDING_TRANSACTION_MAX_AGE + 1
         )
@@ -173,7 +169,7 @@ class TaskTests(APITestCase):
 
         user = create_random_authenticated_user("deposit_user")
 
-        deposit = create_deposit(user, "2000.0", "from_address_5", "transaction_hash_5")
+        deposit = create_deposit(user, "2000.0", ADDRESS_1, "transaction_hash_5")
         deposit.transaction_hash = "old_transaction_hash"
         deposit.save()
 
@@ -186,7 +182,7 @@ class TaskTests(APITestCase):
     def test_transaction_exception(self):
         user = create_random_authenticated_user("deposit_user")
 
-        deposit = create_deposit(user, "2000.0", "from_address_6", "transaction_hash_6")
+        deposit = create_deposit(user, "2000.0", ADDRESS_1, "transaction_hash_6")
         self.mock_get_transaction.side_effect = ValueError
 
         check_deposits()
@@ -206,7 +202,7 @@ class TaskTests(APITestCase):
 
         self.mock_get_transaction_receipt.side_effect = mock_empty_receipt
 
-        deposit = create_deposit(user, "2000.0", "from_address_7", "transaction_hash_7")
+        deposit = create_deposit(user, "2000.0", ADDRESS_1, "transaction_hash_7")
 
         check_deposits()
 
@@ -236,7 +232,44 @@ class TaskTests(APITestCase):
         mock_contract.events.Transfer.return_value = mock_transfer_event_handler
         self.mock_get_contract.return_value = mock_contract
 
-        deposit = create_deposit(user, "2000.0", "from_address_8", "transaction_hash_8")
+        deposit = create_deposit(user, "2000.0", ADDRESS_1, "transaction_hash_8")
+
+        check_deposits()
+
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.paid_status, "FAILED")
+
+    def test_deposit_credited_only_to_from_address_owner(self):
+        """Only the user linked to the on-chain _from address is credited."""
+        owner = create_random_authenticated_user("deposit_owner")
+        attacker = create_random_authenticated_user("deposit_attacker")
+        transaction_hash = "transaction_hash_shared"
+
+        Wallet.objects.create(user=owner, address=ADDRESS_1)
+        Wallet.objects.create(user=attacker, address=ADDRESS_2)
+
+        owner_deposit = create_deposit(owner, "2000.0", ADDRESS_1, transaction_hash)
+        attacker_deposit = Deposit.objects.create(
+            user=attacker,
+            amount="2000.0",
+            from_address=ADDRESS_1,
+            transaction_hash=transaction_hash,
+        )
+
+        check_deposits()
+
+        owner_deposit.refresh_from_db()
+        attacker_deposit.refresh_from_db()
+
+        self.assertEqual(owner_deposit.paid_status, "PAID")
+        self.assertEqual(attacker_deposit.paid_status, "FAILED")
+
+    def test_deposit_fails_when_on_chain_from_does_not_match(self):
+        """Deposits fail when the claimed from_address does not match on-chain _from."""
+        user = create_random_authenticated_user("deposit_user")
+        Wallet.objects.create(user=user, address=ADDRESS_2)
+
+        deposit = create_deposit(user, "2000.0", ADDRESS_2, "transaction_hash_mismatch")
 
         check_deposits()
 

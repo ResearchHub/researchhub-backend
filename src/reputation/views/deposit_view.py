@@ -1,10 +1,11 @@
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from reputation.models import Deposit
 from reputation.serializers import DepositSerializer
+from reputation.services.deposit_service import DepositService
 
 
 class DepositViewSet(viewsets.ReadOnlyModelViewSet):
@@ -34,13 +35,19 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Create a pending deposit that will be updated by a celery task
         """
+        from_address = request.data.get("from_address")
+        if not DepositService.user_owns_from_address(request.user, from_address):
+            return Response(
+                {"detail": "from_address is not linked to this account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         Deposit.objects.create(
             user=request.user,
             amount=request.data.get("amount"),
-            from_address=request.data.get("from_address"),
+            from_address=from_address,
             transaction_hash=request.data.get("transaction_hash"),
             network=request.data.get("network"),
         )
 
-        return Response(200)
+        return Response(status=status.HTTP_200_OK)
