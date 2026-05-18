@@ -4,7 +4,6 @@ from rest_framework import filters
 
 
 class ElasticsearchFuzzyFilter(filters.SearchFilter):
-
     def filter_queryset(self, request, queryset, view, search=None, limit=None):
         """
         Builds and executes the elastic search query, returning the response.

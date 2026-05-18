@@ -448,9 +448,7 @@ class GrantEnforcedApplicationVisibilityTests(AWSMockTestCase):
         self.hub = Hub.objects.create(name=f"hub-{uuid.uuid4().hex[:8]}")
         RscExchangeRate.objects.create(rate=1.0)
 
-        self.optional_grant = self._make_grant(
-            Grant.APPLICATION_VISIBILITY_OPTIONAL
-        )
+        self.optional_grant = self._make_grant(Grant.APPLICATION_VISIBILITY_OPTIONAL)
         self.private_required_grant = self._make_grant(
             Grant.APPLICATION_VISIBILITY_PRIVATE
         )

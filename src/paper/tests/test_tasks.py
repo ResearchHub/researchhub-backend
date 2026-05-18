@@ -4,7 +4,6 @@ from paper.tasks import create_download_url
 
 
 class TestTasks(TestCase):
-
     @override_settings(SCRAPER_URL="https://scraper/?url={url}")
     def test_create_download_url(self):
         # Arrange

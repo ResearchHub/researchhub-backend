@@ -343,7 +343,7 @@ def create_automated_bounty(item):
                     {
                         "attributes": {
                             "link": "https://docs.researchhub.com/researchhub-foundation/programs-and-initiatives/peer-review-program/peer-review-program-guidelines"
-                    },
+                        },
                         "insert": "Peer Review Guide",
                     },
                     {

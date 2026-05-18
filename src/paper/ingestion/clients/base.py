@@ -108,7 +108,6 @@ class BaseClient(ABC):
             try:
                 return self.fetch_with_rate_limit(endpoint, params, **kwargs)
             except (FetchError, TimeoutError, ConnectionError) as e:
-
                 if attempt == self.config.max_retries:
                     raise RetryExhaustedError(
                         f"Failed after {self.config.max_retries + 1} attempts: "

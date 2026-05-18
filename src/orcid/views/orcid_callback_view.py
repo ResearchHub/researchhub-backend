@@ -15,7 +15,9 @@ class OrcidCallbackView(APIView):
     permission_classes = [AllowAny]
 
     def dispatch(self, request, *args, **kwargs):
-        self.orcid_callback_service = kwargs.pop("orcid_callback_service", OrcidCallbackService())
+        self.orcid_callback_service = kwargs.pop(
+            "orcid_callback_service", OrcidCallbackService()
+        )
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request: Request):
@@ -25,10 +27,14 @@ class OrcidCallbackView(APIView):
             code = request.query_params.get("code")
 
             if error or not code:
-                return redirect(self.orcid_callback_service.get_redirect_url(error="cancelled"))
+                return redirect(
+                    self.orcid_callback_service.get_redirect_url(error="cancelled")
+                )
 
             state = request.query_params.get("state", "")
-            return redirect(self.orcid_callback_service.process_callback(code=code, state=state))
+            return redirect(
+                self.orcid_callback_service.process_callback(code=code, state=state)
+            )
         except Exception:
             logger.exception("ORCID callback view failed")
             # Fallback redirect to frontend with error

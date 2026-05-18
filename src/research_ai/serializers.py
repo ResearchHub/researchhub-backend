@@ -51,7 +51,6 @@ def _apply_generate_template_rules(attrs, initial_data):
 
 
 class ExpertSearchConfigSerializer(serializers.Serializer):
-
     expert_count = serializers.IntegerField(default=10, min_value=5, max_value=100)
     expertise_level = serializers.ListField(
         child=serializers.ChoiceField(choices=ExpertiseLevel.choices),
@@ -124,7 +123,6 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
 
 
 class ExpertSerializer(serializers.Serializer):
-
     id = serializers.IntegerField()
     honorific = serializers.CharField(allow_blank=True)
     first_name = serializers.CharField(allow_blank=True)
@@ -408,7 +406,6 @@ class InvitedExpertOverviewSerializer(serializers.Serializer):
 
 
 class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
-
     search_id = serializers.IntegerField()
     status = serializers.CharField()
     message = serializers.CharField()

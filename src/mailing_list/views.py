@@ -196,8 +196,8 @@ def email_notifications(request):
                     log_error(error, base_error=e)
 
         elif notification_type == "Complaint":
-            complained_recipients = (
-                data_message.get("complaint", {}).get("complainedRecipients", [])
+            complained_recipients = data_message.get("complaint", {}).get(
+                "complainedRecipients", []
             )
             for c_r in complained_recipients:
                 email_address = c_r["emailAddress"]
@@ -208,9 +208,7 @@ def email_notifications(request):
                     recipient.do_not_email = True
                     recipient.save(update_fields=["do_not_email"])
                 except Exception as e:
-                    message = (
-                        f"Failed handling complained recipient: {email_address}"
-                    )
+                    message = f"Failed handling complained recipient: {email_address}"
                     error = EmailNotificationError(e, message)
                     log_error(error, base_error=e)
 

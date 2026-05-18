@@ -11,7 +11,6 @@ from utils.test_helpers import AWSMockTestCase, AWSMockTransactionTestCase
 
 
 class DocumentSignalsTests(AWSMockTestCase):
-
     def setUp(self):
         super().setUp()
         self.user = User.objects.create_user(username="testUser1")

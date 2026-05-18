@@ -384,7 +384,9 @@ class SuggestViewTests(TestCase):
         self.assertEqual(len(response.data), 15)  # Should return all 15 available
 
         # Test with invalid limit
-        response = self.client.get(self.url + "?q=test&limit=invalid&enable_openalex=true")
+        response = self.client.get(
+            self.url + "?q=test&limit=invalid&enable_openalex=true"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 10)  # Should use default of 10
 

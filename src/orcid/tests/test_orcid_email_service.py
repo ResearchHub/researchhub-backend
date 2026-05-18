@@ -6,7 +6,6 @@ from orcid.services import OrcidEmailService
 
 
 class OrcidEmailServiceTests(TestCase):
-
     def setUp(self):
         self.mock_client = Mock()
         self.service = OrcidEmailService(client=self.mock_client)

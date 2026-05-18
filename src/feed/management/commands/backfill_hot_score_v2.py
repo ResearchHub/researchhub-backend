@@ -200,13 +200,13 @@ class Command(BaseCommand):
         self.stdout.write(f"  Successfully updated: {updated:,}")
         self.stdout.write(f"  Errors: {errors}")
         self.stdout.write(f"  Duration: {duration:.1f} seconds")
-        self.stdout.write(f"  Rate: {processed/duration:.1f} entries/second")
+        self.stdout.write(f"  Rate: {processed / duration:.1f} entries/second")
 
         if errors > 0:
             self.stdout.write("")
             self.stdout.write(
                 self.style.WARNING(
-                    f"⚠️  {errors} entries had errors. " "Check logs for details."
+                    f"⚠️  {errors} entries had errors. Check logs for details."
                 )
             )
 

@@ -15,7 +15,8 @@ class OrcidEmailService:
         data = self.client.get_email_data(orcid_id, access_token)
         emails = data.get("email", [])
         return [
-            e["email"] for e in emails
+            e["email"]
+            for e in emails
             if e.get("verified") and self._is_edu(e.get("email", ""))
         ]
 

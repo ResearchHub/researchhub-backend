@@ -15,7 +15,9 @@ class AssignPostDoisTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("doi_test_user")
 
-    def _create_post(self, document_type="PREREGISTRATION", days_old=10, doi=None, is_removed=False):
+    def _create_post(
+        self, document_type="PREREGISTRATION", days_old=10, doi=None, is_removed=False
+    ):
         post = create_post(
             title="Test Post",
             created_by=self.user,

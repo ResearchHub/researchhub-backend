@@ -84,4 +84,6 @@ class ExpertPersist:
         em = ExpertDisplay.normalize_email(email)
         if not em:
             return
-        Expert.objects.filter(email__iexact=em).update(last_email_sent_at=timezone.now())
+        Expert.objects.filter(email__iexact=em).update(
+            last_email_sent_at=timezone.now()
+        )

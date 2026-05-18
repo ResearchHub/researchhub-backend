@@ -650,8 +650,7 @@ class Command(BaseCommand):
             )
             self.stdout.write(
                 self.style.WARNING(
-                    f"DRY RUN: Would delete {total_memberships_deleted} "
-                    f"hub memberships"
+                    f"DRY RUN: Would delete {total_memberships_deleted} hub memberships"
                 )
             )
             self.stdout.write(
@@ -735,8 +734,7 @@ class Command(BaseCommand):
             )
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Deleted {total_featured_content_deleted} "
-                    f"featured content entries"
+                    f"Deleted {total_featured_content_deleted} featured content entries"
                 )
             )
             self.stdout.write(
@@ -868,7 +866,7 @@ class Command(BaseCommand):
 
         if follow_count > 0:
             self.stdout.write(
-                f"  → Deleting {follow_count} follows for hub " f"{hub.id} ({hub.slug})"
+                f"  → Deleting {follow_count} follows for hub {hub.id} ({hub.slug})"
             )
 
             if not dry_run:

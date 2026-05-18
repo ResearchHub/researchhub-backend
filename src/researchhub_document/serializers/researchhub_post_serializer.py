@@ -245,11 +245,15 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             }
         ).order_by("id"):
             grant_post_by_ud.setdefault(p.unified_document_id, p)
-        applicant_counts = dict(
-            GrantApplication.objects.filter(grant_id__in=grant_ids)
-            .values_list("grant_id")
-            .annotate(count=Count("id"))
-        ) if grant_ids else {}
+        applicant_counts = (
+            dict(
+                GrantApplication.objects.filter(grant_id__in=grant_ids)
+                .values_list("grant_id")
+                .annotate(count=Count("id"))
+            )
+            if grant_ids
+            else {}
+        )
 
         out = []
         for application in applications:

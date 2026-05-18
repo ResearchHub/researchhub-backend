@@ -389,9 +389,11 @@ def _sse_event_stream(search_id):
                         yield "event: progress\n"
                         yield "data: " + json.dumps(final) + "\n\n"
                         yield "event: complete\n"
-                        yield "data: " + json.dumps(
-                            {"status": "stream_complete"}
-                        ) + "\n\n"
+                        yield (
+                            "data: "
+                            + json.dumps({"status": "stream_complete"})
+                            + "\n\n"
+                        )
                         return
                 except (ValueError, Exception):
                     pass

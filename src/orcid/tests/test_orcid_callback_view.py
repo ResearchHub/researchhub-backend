@@ -8,7 +8,6 @@ from orcid.views import OrcidCallbackView
 
 
 class OrcidCallbackViewTests(TestCase):
-
     def setUp(self):
         self.factory = APIRequestFactory()
         self.view = OrcidCallbackView.as_view()
@@ -19,8 +18,12 @@ class OrcidCallbackViewTests(TestCase):
         self.mock_service.get_redirect_url.return_value = "https://rh.com?err=cancelled"
 
         # Act
-        error_response = self.view(self.factory.get("/?error=denied"), orcid_callback_service=self.mock_service)
-        missing_response = self.view(self.factory.get("/?state=abc"), orcid_callback_service=self.mock_service)
+        error_response = self.view(
+            self.factory.get("/?error=denied"), orcid_callback_service=self.mock_service
+        )
+        missing_response = self.view(
+            self.factory.get("/?state=abc"), orcid_callback_service=self.mock_service
+        )
 
         # Assert
         self.assertEqual(error_response.status_code, 302)
@@ -29,7 +32,9 @@ class OrcidCallbackViewTests(TestCase):
 
     def test_valid_code_calls_process_callback(self):
         # Arrange
-        self.mock_service.process_callback.return_value = "https://rh.com?connected=true"
+        self.mock_service.process_callback.return_value = (
+            "https://rh.com?connected=true"
+        )
         request = self.factory.get("/?code=abc&state=xyz")
 
         # Act
@@ -37,7 +42,9 @@ class OrcidCallbackViewTests(TestCase):
 
         # Assert
         self.assertEqual(response.url, "https://rh.com?connected=true")
-        self.mock_service.process_callback.assert_called_once_with(code="abc", state="xyz")
+        self.mock_service.process_callback.assert_called_once_with(
+            code="abc", state="xyz"
+        )
 
     def test_exception_in_service_redirects_with_error(self):
         # Arrange
@@ -49,5 +56,6 @@ class OrcidCallbackViewTests(TestCase):
 
         # Assert
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, f"{settings.BASE_FRONTEND_URL}?orcid_error=error")
-
+        self.assertEqual(
+            response.url, f"{settings.BASE_FRONTEND_URL}?orcid_error=error"
+        )
