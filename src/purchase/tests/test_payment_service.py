@@ -154,6 +154,30 @@ class PaymentServiceTest(TestCase):
 
         self.assertEqual(str(context.exception), "Stripe error")
 
+    def test_insert_payment_from_checkout_session_idempotent(self):
+        checkout_session = {
+            "amount_total": APC_AMOUNT_CENTS,
+            "currency": "usd",
+            "payment_intent": "pi_idempotent_apc",
+            "metadata": {
+                "user_id": str(self.user.id),
+                "paper_id": str(self.paper.id),
+            },
+        }
+
+        first_payment = self.service.insert_payment_from_checkout_session(
+            checkout_session
+        )
+        second_payment = self.service.insert_payment_from_checkout_session(
+            checkout_session
+        )
+
+        self.assertEqual(first_payment.id, second_payment.id)
+        self.assertEqual(
+            Payment.objects.filter(external_payment_id="pi_idempotent_apc").count(),
+            1,
+        )
+
     def test_insert_payment_from_checkout_session_success(self):
         # Arrange
         checkout_session = {
@@ -372,6 +396,37 @@ class PaymentServiceTest(TestCase):
             },
             automatic_payment_methods={"enabled": True},
             receipt_email=self.user.email,
+        )
+
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_process_payment_intent_confirmation_idempotent(self, mock_stripe_retrieve):
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "succeeded"
+        mock_payment_intent.amount = 1000
+        mock_payment_intent.currency = "usd"
+        mock_payment_intent.id = "pi_idempotent_intent"
+        mock_payment_intent.metadata = {
+            "user_id": str(self.user.id),
+            "purpose": PaymentPurpose.RSC_PURCHASE,
+            "locked_rsc_amount": "100.0",
+        }
+        mock_stripe_retrieve.return_value = mock_payment_intent
+
+        first_payment, _ = self.service.process_payment_intent_confirmation(
+            "pi_idempotent_intent"
+        )
+        second_payment, _ = self.service.process_payment_intent_confirmation(
+            "pi_idempotent_intent"
+        )
+
+        self.assertEqual(first_payment.id, second_payment.id)
+        self.assertEqual(
+            Payment.objects.filter(external_payment_id="pi_idempotent_intent").count(),
+            1,
+        )
+        self.assertEqual(
+            Balance.objects.filter(user=self.user).count(),
+            1,
         )
 
     @patch("stripe.PaymentIntent.retrieve")
