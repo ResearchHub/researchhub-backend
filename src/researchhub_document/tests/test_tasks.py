@@ -7,11 +7,11 @@ from django.utils import timezone
 
 from discussion.models import Flag
 from researchhub_document.helpers import create_post
-from researchhub_document.tasks import assign_proposal_dois
+from researchhub_document.tasks import assign_preregistration_dois
 from user.tests.helpers import create_random_default_user
 
 
-class AssignProposalDoisTests(TestCase):
+class AssignPreregistrationDoisTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("doi_test_user")
 
@@ -40,19 +40,19 @@ class AssignProposalDoisTests(TestCase):
         return mock
 
     @patch("researchhub_document.tasks.DOI")
-    def test_assigns_doi_to_eligible_proposals(self, mock_doi_cls):
+    def test_assigns_doi_to_eligible_preregistrations(self, mock_doi_cls):
         mock_doi_cls.return_value = self._build_mock_doi("10.55277/doi1")
-        proposal = self._create_post("PREREGISTRATION", days_old=10)
+        preregistration = self._create_post("PREREGISTRATION", days_old=10)
 
-        assign_proposal_dois()
+        assign_preregistration_dois()
 
-        proposal.refresh_from_db()
-        self.assertEqual(proposal.doi, "10.55277/doi1")
+        preregistration.refresh_from_db()
+        self.assertEqual(preregistration.doi, "10.55277/doi1")
 
     @patch("researchhub_document.tasks.DOI")
     def test_skips_ineligible_posts(self, mock_doi_cls):
-        """Proposals that are too young, already have a DOI, are removed,
-        or are flagged should be skipped. Non-proposal types are always skipped."""
+        """Preregistrations that are too young, already have a DOI, are removed,
+        or are flagged should be skipped. Non-preregistration types are always skipped."""
         self._create_post(days_old=3)
         self._create_post(days_old=10, doi="10.55277/existing")
         self._create_post(days_old=10, is_removed=True)
@@ -70,7 +70,7 @@ class AssignProposalDoisTests(TestCase):
         )
 
         # Act
-        assign_proposal_dois()
+        assign_preregistration_dois()
 
         # Assert
         mock_doi_cls.assert_not_called()
@@ -87,7 +87,7 @@ class AssignProposalDoisTests(TestCase):
         mock_doi_cls.side_effect = [failing_doi, success_doi]
 
         # Act
-        assign_proposal_dois()
+        assign_preregistration_dois()
 
         # Assert
         from researchhub_document.models import ResearchhubPost

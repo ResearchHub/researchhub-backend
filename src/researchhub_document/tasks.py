@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
-def assign_proposal_dois():
+def assign_preregistration_dois():
     week_ago = timezone.now() - timedelta(days=7)
 
     eligible_posts = ResearchhubPost.objects.filter(
@@ -48,7 +48,7 @@ def assign_proposal_dois():
         except Exception:
             logger.exception(f"Failed to assign DOI to post {post.id}")
 
-    logger.info(f"Assigned DOIs to {assigned_count}/{total} eligible proposals")
+    logger.info(f"Assigned DOIs to {assigned_count}/{total} eligible preregistrations")
 
 
 @app.task(queue=QUEUE_HOT_SCORE)
