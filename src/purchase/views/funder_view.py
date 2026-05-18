@@ -12,6 +12,23 @@ from purchase.services.funding_overview_service import (
     FundingOverviewService,
     GrantOverviewService,
 )
+from user.models import User
+
+
+def _resolve_funder_user(request) -> User | None:
+    """
+    Return the user whose funder metrics should be loaded.
+
+    Regular users always receive their own data. Moderators may pass ?user_id
+    to view another user's overview.
+    """
+    user_id = request.query_params.get("user_id")
+    if user_id and request.user.moderator:
+        try:
+            return User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return None
+    return request.user
 
 
 class FunderViewSet(viewsets.ViewSet):
@@ -32,14 +49,20 @@ class FunderViewSet(viewsets.ViewSet):
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def funding_overview(self, request, *args, **kwargs):
         """Return funding overview metrics for the authenticated user."""
-        data = self.funding_overview_service.get_funding_overview(request.user)
+        user = _resolve_funder_user(request)
+        if user is None:
+            return Response({"error": "User not found"}, status=404)
+        data = self.funding_overview_service.get_funding_overview(user)
         serializer = FundingOverviewSerializer(data)
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def funding_impact(self, request, *args, **kwargs):
         """Return funding impact metrics for the authenticated user."""
-        data = self.funding_impact_service.get_funding_impact_overview(request.user)
+        user = _resolve_funder_user(request)
+        if user is None:
+            return Response({"error": "User not found"}, status=404)
+        data = self.funding_impact_service.get_funding_impact_overview(user)
         serializer = FundingImpactSerializer(data)
         return Response(serializer.data)
 
@@ -51,6 +74,6 @@ class FunderViewSet(viewsets.ViewSet):
             return Response(status=404)
         if request.user != grant.created_by and not request.user.moderator:
             return Response({"message": "Permission denied"}, status=403)
-        data = self.grant_overview_service.get_grant_overview(request.user, grant)
+        data = self.grant_overview_service.get_grant_overview(grant.created_by, grant)
         serializer = GrantOverviewSerializer(data)
         return Response(serializer.data)
