@@ -73,6 +73,7 @@ src = ["src"]
 extend-exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
+extend-select = ["I"]  # isort
 extend-ignore = [
     # Temporarily ignore these violations until cleaned up:
     "E402",  # module-import-not-at-top-of-file
