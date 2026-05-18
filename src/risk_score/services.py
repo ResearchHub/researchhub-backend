@@ -12,8 +12,10 @@ class RiskScoreService:
     """Service for managing user risk score calculations and event recording."""
 
     def get_score(self, user):
-        risk_score, _ = RiskScore.objects.get_or_create(user=user)
-        return risk_score.score
+        try:
+            return RiskScore.objects.get(user=user).score
+        except RiskScore.DoesNotExist:
+            return DEFAULT_SCORE
 
     def is_trusted(self, user):
         return self.get_score(user) <= TRUSTED_THRESHOLD

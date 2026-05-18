@@ -13,12 +13,13 @@ class RiskScoreServiceTests(TestCase):
         self.service = RiskScoreService()
         self.user = create_user(email="risk@test.com")
 
-    def test_get_score_creates_default(self):
+    def test_get_score_returns_default_when_no_record(self):
         # Act
         result = self.service.get_score(self.user)
 
         # Assert
         self.assertEqual(result, DEFAULT_SCORE)
+        self.assertFalse(RiskScore.objects.filter(user=self.user).exists())
 
     def test_get_score_returns_existing(self):
         # Arrange
