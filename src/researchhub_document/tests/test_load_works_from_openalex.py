@@ -1,11 +1,9 @@
 from unittest.mock import MagicMock, patch
 
 from django.core.management import call_command
-from django.core.management.base import CommandError
 from django.test import TestCase
-from django.utils import timezone
 
-from paper.models import Paper, PaperFetchLog
+from paper.models import PaperFetchLog
 from user.related_models.author_model import Author
 
 
