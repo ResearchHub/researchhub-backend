@@ -20,7 +20,6 @@ from researchhub_access_group.constants import (
     ASSOCIATE_EDITOR,
     SENIOR_EDITOR,
 )
-from user.services.funding_activity_service import get_funder_total_amount
 from utils.throttles import UserSustainedRateThrottle
 
 FOUNDATION_EMAIL = "main@researchhub.foundation"
@@ -400,6 +399,8 @@ class User(AbstractUser):
 
     @property
     def amount_funded(self):
+        from user.services.funding_activity_service import get_funder_total_amount
+
         return get_funder_total_amount(self.id)
 
     @property
