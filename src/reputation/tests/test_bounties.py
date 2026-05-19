@@ -115,6 +115,30 @@ class BountyViewTests(APITestCase):
         )
         return vote
 
+    def _create_pooled_bounty_on_comment(self, parent_amount=100, child_amount=200):
+        self.client.force_authenticate(self.user)
+        parent_response = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": parent_amount,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+        self.assertEqual(parent_response.status_code, 201)
+
+        self.client.force_authenticate(self.user_2)
+        child_response = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": child_amount,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+        self.assertEqual(child_response.status_code, 201)
+        return parent_response, child_response
+
     def test_user_can_create_bounty(self, amount=100):
         self.client.force_authenticate(self.user)
 
@@ -601,45 +625,45 @@ class BountyViewTests(APITestCase):
 
         self.assertEqual(approve_bounty_res.status_code, 403)
 
-    def test_contributor_cannot_approve_via_child_bounty_id(self):
-        bounty_1, bounty_2 = self.test_user_can_contribute_to_bounty(
-            amount_1=600, amount_2=400
-        )
-        parent_bounty = Bounty.objects.get(id=bounty_1.data["id"])
-        total_pool = parent_bounty.escrow.amount_holding
-
+    def test_contributor_cannot_approve_pooled_bounty_via_child_id(self):
+        parent_response, child_response = self._create_pooled_bounty_on_comment()
         self.client.force_authenticate(self.user_2)
-        approve_bounty_res = self.client.post(
-            f"/api/bounty/{bounty_2.data['id']}/approve_bounty/",
+        response = self.client.post(
+            f"/api/bounty/{child_response.data['id']}/approve_bounty/",
             [
                 {
-                    "amount": str(total_pool),
+                    "amount": "100",
                     "object_id": self.comment.id,
                     "content_type": self.comment._meta.model_name,
                 }
             ],
         )
+        self.assertEqual(response.status_code, 403)
 
-        self.assertEqual(approve_bounty_res.status_code, 403)
-
-    def test_parent_creator_can_still_approve_multi_contributor_bounty(self):
-        bounty_1, _bounty_2 = self.test_user_can_contribute_to_bounty(
-            amount_1=600, amount_2=400
-        )
-
+    def test_parent_creator_can_approve_pooled_bounty_via_parent_id(self):
+        parent_response, _child_response = self._create_pooled_bounty_on_comment()
         self.client.force_authenticate(self.user)
-        approve_bounty_res = self.client.post(
-            f"/api/bounty/{bounty_1.data['id']}/approve_bounty/",
+        response = self.client.post(
+            f"/api/bounty/{parent_response.data['id']}/approve_bounty/",
             [
                 {
-                    "amount": "200",
+                    "amount": "50",
                     "object_id": self.comment.id,
                     "content_type": self.comment._meta.model_name,
                 }
             ],
         )
+        self.assertEqual(response.status_code, 200)
 
-        self.assertEqual(approve_bounty_res.status_code, 200)
+    def test_contributor_cannot_cancel_pooled_bounty_via_child_id(self):
+        parent_response, child_response = self._create_pooled_bounty_on_comment()
+        self.client.force_authenticate(self.user_2)
+        response = self.client.post(
+            f"/api/bounty/{child_response.data['id']}/cancel_bounty/",
+        )
+        self.assertEqual(response.status_code, 403)
+        parent_bounty = Bounty.objects.get(id=parent_response.data["id"])
+        self.assertEqual(parent_bounty.status, Bounty.OPEN)
 
     def test_user_can_cancel_bounty(self):
         self.client.force_authenticate(self.user)
@@ -746,15 +770,6 @@ class BountyViewTests(APITestCase):
         )
 
         self.assertEqual(cancel_bounty_res_1.status_code, 403)
-
-    def test_contributor_cannot_cancel_via_child_bounty_id(self):
-        bounty_1, bounty_2 = self.test_user_can_contribute_to_bounty()
-        self.client.force_authenticate(self.user_2)
-        cancel_bounty_res = self.client.post(
-            f"/api/bounty/{bounty_2.data['id']}/cancel_bounty/",
-        )
-
-        self.assertEqual(cancel_bounty_res.status_code, 403)
 
     def test_random_user_cant_cancel_multi_bounty(self):
         self.client.force_authenticate(self.user)
