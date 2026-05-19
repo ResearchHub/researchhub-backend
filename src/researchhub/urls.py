@@ -112,8 +112,6 @@ router.register(
     r"notification", notification.views.NotificationViewSet, basename="notification"
 )
 
-router.register(r"figure", paper_views.FigureViewSet, basename="figure")
-
 router.register(r"purchase", purchase.views.PurchaseViewSet, basename="purchase")
 
 router.register(r"endaoment", EndaomentViewSet, basename="endaoment")
