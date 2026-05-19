@@ -78,33 +78,6 @@ def _create_bounty_checks(user, amount, item_content_type, bypass_user_balance=F
     return (amount, fee_amount, rh_fee, dao_fee, current_bounty_fee)
 
 
-def _check_existing_bounty_contribution_allowed(item_content_type, item_object_id):
-    content_type = ContentType.objects.get(model=item_content_type)
-    existing_bounties = Bounty.objects.filter(
-        status__in=(Bounty.OPEN, Bounty.ASSESSMENT),
-        item_content_type=content_type,
-        item_object_id=item_object_id,
-    )
-    if not existing_bounties.exists():
-        return None
-
-    parent = existing_bounties.first()
-    if (
-        User.is_rh_community_account(parent.created_by)
-        and parent.bounty_type == Bounty.Type.REVIEW
-    ):
-        return Response(
-            {
-                "detail": (
-                    "Contributions to ResearchHub Foundation peer-review "
-                    "bounties are not allowed."
-                )
-            },
-            status=status.HTTP_403_FORBIDDEN,
-        )
-    return None
-
-
 def _create_bounty(
     user,
     data,
@@ -278,12 +251,6 @@ class BountyViewSet(viewsets.ModelViewSet):
                 return response
             else:
                 amount, fee_amount, rh_fee, dao_fee, current_bounty_fee = response
-
-            contribution_response = _check_existing_bounty_contribution_allowed(
-                item_content_type, item_object_id
-            )
-            if contribution_response is not None:
-                return contribution_response
 
             deduct_bounty_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
             bounty = _create_bounty(
