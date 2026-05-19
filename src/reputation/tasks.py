@@ -2,27 +2,21 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import List, Optional
 
 import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
-from django.db.models import DurationField, F, Q
+from django.db.models import DurationField, F
 from django.db.models.functions import Cast
-from web3 import Web3
 
 import utils.locking as lock
-from ethereum.lib import RSC_CONTRACT_ADDRESS
 from hub.models import Hub
 from mailing_list.lib import base_email_context, send_email
 from notification.models import Notification
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
-from reputation.distributions import Distribution as Dist
-from reputation.distributor import Distributor
-from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_abi
-from reputation.models import Bounty, BountySolution, Contribution, Deposit
+from reputation.lib import check_hotwallet, check_pending_withdrawal
+from reputation.models import Bounty, BountySolution, Contribution
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
 from reputation.services.staking_yield_service import StakingYieldService
@@ -36,11 +30,8 @@ from researchhub_document.related_models.constants.document_type import (
 from user.models import User
 from user.related_models.author_model import Author
 from utils.sentry import log_error, log_info
-from utils.web3_utils import web3_provider
 
 DEFAULT_REWARD = 1000000
-
-PENDING_TRANSACTION_MAX_AGE = 60 * 60 * 1  # 1 hour
 
 logger = logging.getLogger(__name__)
 
@@ -96,210 +87,6 @@ def create_author_contribution(contribution_type, user_id, unified_doc_id, objec
 
             contributions.append(Contribution(**data))
     Contribution.objects.bulk_create(contributions)
-
-
-def get_transaction_receipt(transaction_hash, w3):
-    # Check if connected successfully
-    if not w3.is_connected():
-        raise Exception("Failed to connect to Ethereum node.")
-
-    # Get transaction receipt
-    return w3.eth.get_transaction_receipt(transaction_hash)
-
-
-def check_transaction_success(transaction_hash, w3):
-    return get_transaction_receipt(transaction_hash, w3)["status"] == 1
-
-
-def get_transaction(transaction_hash, w3):
-    """Get transaction details using provided Web3 instance."""
-    # Check if connected successfully
-    if not w3.is_connected():
-        raise Exception("Failed to connect to Ethereum node.")
-
-    return w3.eth.get_transaction(transaction_hash)
-
-
-def get_block(block_number, w3):
-    """Get block details using provided Web3 instance."""
-    # Check if connected successfully
-    if not w3.is_connected():
-        raise Exception("Failed to connect to Ethereum node.")
-
-    return w3.eth.get_block(block_number)
-
-
-def get_contract(w3, token_address):
-    """Get RSC contract instance using provided Web3 instance and token address."""
-    # Check if connected successfully
-    if not w3.is_connected():
-        raise Exception("Failed to connect to Ethereum node.")
-
-    return w3.eth.contract(
-        abi=contract_abi, address=Web3.to_checksum_address(token_address)
-    )
-
-
-def evaluate_transaction(transaction_hash, w3, token_address, max_age=None):
-    """
-    Evaluate transaction details using provided Web3 instance.
-
-    This function analyzes ERC20 token transactions by examining the transaction logs
-    rather than the transaction input. This approach supports both:
-    1. Direct calls to ERC20 contracts (traditional wallets)
-    2. Smart wallet transactions where the ERC20 transfer happens through
-       internal transactions logged as events
-
-    Smart wallets (like Coinbase Smart Wallet, Safe, etc.) execute transactions
-    through their own contract logic, so the actual ERC20 transfer appears in the
-    transaction logs as Transfer events, not in the main transaction input.
-
-    Args:
-        transaction_hash: The hash of the transaction to evaluate
-        w3: Web3 instance connected to the blockchain
-        token_address: Address of the ERC20 token contract
-        max_age: Optional max age in seconds. Defaults to
-            PENDING_TRANSACTION_MAX_AGE if not provided
-
-    Returns:
-        tuple: (is_valid_and_recent, deposit_amount)
-            - is_valid_and_recent: Boolean indicating if transaction is valid and recent
-            - deposit_amount: Amount transferred in human-readable format (not wei)
-    """
-    if max_age is None:
-        max_age = PENDING_TRANSACTION_MAX_AGE
-
-    tx = get_transaction(transaction_hash, w3)
-    block = get_block(tx["blockNumber"], w3)
-    receipt = get_transaction_receipt(transaction_hash, w3)
-
-    contract = get_contract(w3, token_address)
-
-    block_timestamp = datetime.fromtimestamp(block["timestamp"])
-    is_recent_transaction = block_timestamp > datetime.now() - timedelta(
-        seconds=max_age
-    )
-
-    # Look for Transfer events in the transaction logs
-    # This approach supports both direct calls and smart wallet transactions
-    transfer_events = []
-    for log_entry in receipt["logs"]:
-        try:
-            # Check if this log is from our token contract
-            if (
-                log_entry.address.lower()
-                == Web3.to_checksum_address(token_address).lower()
-            ):
-                # Try to decode the log as a Transfer event
-                decoded_log = contract.events.Transfer().process_log(log_entry)
-                transfer_events.append(decoded_log)
-        except Exception:
-            # Skip logs that can't be decoded as Transfer events
-            continue
-
-    # Find transfers to our wallet address
-    valid_transfers = []
-    for event in transfer_events:
-        if event.args.get("_to", "").lower() == settings.WEB3_WALLET_ADDRESS.lower():
-            valid_transfers.append(event)
-
-    if not valid_transfers:
-        return False, 0
-
-    # Sum up all valid transfers (in case there are multiple in one transaction)
-    total_amount = sum(event.args.get("_amount", 0) for event in valid_transfers)
-
-    # Convert from smallest denomination (wei equivalent)
-    deposit_amount = total_amount / (10**18)
-
-    return is_recent_transaction and len(valid_transfers) > 0, deposit_amount
-
-
-@app.task
-def check_deposits(max_age=None):
-    key = lock.name("check_deposits")
-    if not lock.acquire(key):
-        logger.warning(f"Already locked {key}, skipping task")
-        return False
-
-    try:
-        _check_deposits(max_age=max_age)
-    finally:
-        lock.release(key)
-        logger.info(f"Released lock {key}")
-
-
-def _check_deposits(max_age=None):
-    if max_age is None:
-        max_age = PENDING_TRANSACTION_MAX_AGE
-
-    logger.info("Starting check deposits task")
-    # Sort by created date to ensure a malicious user doesn't attempt to take
-    # credit for a deposit made by another user. This is a temporary solution
-    # until we add signed messages to validate users own wallets.
-    deposits = (
-        Deposit.objects.filter(Q(paid_status=None) | Q(paid_status="PENDING"))
-        .exclude(circle_transaction_id__isnull=False)
-        .order_by("created_date")
-    )
-
-    for deposit in deposits.iterator():
-        with transaction.atomic():
-            # Add a db lock on the deposit to prevent race conditions
-            deposit = Deposit.objects.select_for_update().get(id=deposit.id)
-
-            # If a deposit is not resolved after our set TTL, mark it as failed
-            if deposit.created_date < datetime.now(pytz.UTC) - timedelta(
-                seconds=max_age
-            ):
-                deposit.set_paid_failed()
-                continue
-
-            deposit_previously_paid = Deposit.objects.filter(
-                transaction_hash=deposit.transaction_hash, paid_status="PAID"
-            )
-            if deposit_previously_paid.exists():
-                deposit.set_paid_failed()
-                continue
-
-            user = deposit.user
-            try:
-                w3_instance = (
-                    web3_provider.base
-                    if deposit.network == "BASE"
-                    else web3_provider.ethereum
-                )
-                token_address = (
-                    settings.WEB3_BASE_RSC_ADDRESS
-                    if deposit.network == "BASE"
-                    else RSC_CONTRACT_ADDRESS
-                )
-
-                transaction_success = check_transaction_success(
-                    deposit.transaction_hash, w3_instance
-                )
-                if not transaction_success:
-                    deposit.set_paid_pending()
-                    continue
-
-                valid_deposit, deposit_amount = evaluate_transaction(
-                    deposit.transaction_hash, w3_instance, token_address, max_age
-                )
-                if not valid_deposit:
-                    deposit.set_paid_failed()
-                    continue
-
-                distribution = Dist("DEPOSIT", deposit_amount, give_rep=False)
-                distributor = Distributor(distribution, user, user, time.time(), user)
-                distributor.distribute()
-                deposit.amount = deposit_amount
-                deposit.set_paid()
-                user.ensure_staking_opted_in()
-            except Exception as e:
-                log_error(e, "Failed to process deposit")
-                deposit.set_paid_pending()
-
-    logger.info("Finished check deposits task")
 
 
 @app.task
