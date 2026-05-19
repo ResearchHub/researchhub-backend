@@ -358,9 +358,7 @@ class BackfillHistoricalActionsTests(BackfillCommandMixin, TestCase):
         self._call()
 
         # Assert
-        self.assertFalse(
-            RiskScoreEvent.objects.filter(user=self.user).exists()
-        )
+        self.assertFalse(RiskScoreEvent.objects.filter(user=self.user).exists())
 
     def test_foundation_tip_creates_peer_review_tipped_event(self):
         # Arrange
@@ -371,9 +369,7 @@ class BackfillHistoricalActionsTests(BackfillCommandMixin, TestCase):
             object_id=self.post.id,
             created_by=self.user,
         )
-        comment = RhCommentModel.objects.create(
-            thread=thread, created_by=self.user
-        )
+        comment = RhCommentModel.objects.create(thread=thread, created_by=self.user)
         purchase = Purchase.objects.create(
             user=community,
             content_type=comment_ct,

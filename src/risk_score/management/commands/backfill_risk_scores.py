@@ -34,8 +34,16 @@ HISTORICAL_SOURCES = [
     (Grant, {"status": Grant.OPEN}, EventType.WORK_APPROVED),
     (Grant, {"status": Grant.DECLINED}, EventType.WORK_DECLINED),
     (RhCommentModel, {"is_removed": True}, EventType.CONTENT_CENSORED),
-    (ResearchhubPost, {"unified_document__is_removed": True}, EventType.CONTENT_CENSORED),
-    (BountySolution, {"status": BountySolution.Status.AWARDED}, EventType.BOUNTY_AWARDED),
+    (
+        ResearchhubPost,
+        {"unified_document__is_removed": True},
+        EventType.CONTENT_CENSORED,
+    ),
+    (
+        BountySolution,
+        {"status": BountySolution.Status.AWARDED},
+        EventType.BOUNTY_AWARDED,
+    ),
     (Review, {"is_assessed": True}, EventType.PEER_REVIEW_ASSESSED),
 ]
 
@@ -59,14 +67,16 @@ class Command(BaseCommand):
         self.events_recorded = 0
 
         if dry_run:
-            self.stdout.write(self.style.WARNING("DRY RUN: no changes will be written."))
+            self.stdout.write(
+                self.style.WARNING("DRY RUN: no changes will be written.")
+            )
 
         self._backfill_one_time_signals(dry_run)
         self._backfill_historical_events(dry_run)
 
-        self.stdout.write(self.style.SUCCESS(
-            f"Done. Total events recorded: {self.events_recorded}"
-        ))
+        self.stdout.write(
+            self.style.SUCCESS(f"Done. Total events recorded: {self.events_recorded}")
+        )
 
     def _backfill_one_time_signals(self, dry_run):
         self.stdout.write("  Backfilling one-time profile signals...")
@@ -112,8 +122,9 @@ class Command(BaseCommand):
         comment_ids = {p.object_id for p in purchases}
         comments_by_id = {
             c.pk: c
-            for c in RhCommentModel.all_objects.filter(pk__in=comment_ids)
-            .select_related("created_by")
+            for c in RhCommentModel.all_objects.filter(
+                pk__in=comment_ids
+            ).select_related("created_by")
         }
 
         for purchase in purchases:
@@ -147,14 +158,14 @@ class Command(BaseCommand):
 
         return {
             "expert_user_ids": set(
-                Expert.objects.filter(
-                    registered_user__isnull=False
-                ).values_list("registered_user_id", flat=True)
+                Expert.objects.filter(registered_user__isnull=False).values_list(
+                    "registered_user_id", flat=True
+                )
             ),
             "google_user_ids": set(
-                SocialAccount.objects.filter(
-                    provider="google"
-                ).values_list("user_id", flat=True)
+                SocialAccount.objects.filter(provider="google").values_list(
+                    "user_id", flat=True
+                )
             ),
             "orcid_accounts_with_edu": {
                 sa.user_id
