@@ -374,7 +374,7 @@ class BountyViewTests(APITestCase):
 
         bounty_2 = self.test_user_can_create_larger_bounty()
         approve_bounty_res_2 = self.client.post(
-            f"/api/bounty/{bounty_2.data['id']}/approve_bounty/",
+            f"/api/bounty/{bounty_1.data['id']}/approve_bounty/",
             [
                 {
                     "amount": decimal.Decimal(bounty_2.data["amount"]) / 2,
