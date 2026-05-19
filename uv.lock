@@ -2659,7 +2659,7 @@ dependencies = [
     { name = "reportlab" },
     { name = "sentry-sdk" },
     { name = "stripe" },
-    { name = "web3", extra = ["tester"] },
+    { name = "web3" },
     { name = "xdk" },
 ]
 
@@ -2672,6 +2672,7 @@ dev = [
     { name = "ruff" },
     { name = "setuptools" },
     { name = "tblib" },
+    { name = "web3", extra = ["tester"] },
 ]
 
 [package.metadata]
@@ -2727,7 +2728,7 @@ requires-dist = [
     { name = "reportlab", specifier = ">=4.0.0" },
     { name = "sentry-sdk", specifier = ">=2.49.0,<3.0.0" },
     { name = "stripe", specifier = ">=11.2.0,<12.0.0" },
-    { name = "web3", extras = ["tester"], specifier = ">=7.16.0" },
+    { name = "web3", specifier = ">=7.16.0" },
     { name = "xdk", specifier = ">=0.4.5" },
 ]
 
@@ -2740,6 +2741,7 @@ dev = [
     { name = "ruff", specifier = "==0.15.12" },
     { name = "setuptools", specifier = ">=78.1.1" },
     { name = "tblib", specifier = ">=3.2.2" },
+    { name = "web3", extras = ["tester"], specifier = ">=7.16.0" },
 ]
 
 [[package]]
