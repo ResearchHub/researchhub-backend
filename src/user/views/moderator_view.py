@@ -9,6 +9,7 @@ from user.serializers import ModeratorUserSerializer
 class ModeratorView(ModelViewSet):
     queryset = User.objects.select_related(
         "userverification",
+        "risk_score",
     )
     serializer_class = ModeratorUserSerializer
     permission_classes = [UserIsEditor | IsModerator]

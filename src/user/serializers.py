@@ -29,6 +29,8 @@ from researchhub_access_group.constants import (
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
+from risk_score.constants import DEFAULT_SCORE, score_to_grade
+from risk_score.models import RiskScore
 from user.models import (
     Action,
     Author,
@@ -74,6 +76,8 @@ def compute_user_balances(user):
 
 class ModeratorUserSerializer(ModelSerializer):
     verification = SerializerMethodField()
+    risk_score = SerializerMethodField()
+    risk_score_grade = SerializerMethodField()
 
     class Meta:
         model = User
@@ -86,6 +90,8 @@ class ModeratorUserSerializer(ModelSerializer):
             "created_date",
             "is_orcid_connected",
             "orcid_verified_edu_email",
+            "risk_score",
+            "risk_score_grade",
         ]
 
     def get_verification(self, user):
@@ -102,6 +108,15 @@ class ModeratorUserSerializer(ModelSerializer):
             "external_id": user_verification.external_id,
             "status": user_verification.status,
         }
+
+    def get_risk_score(self, user):
+        try:
+            return user.risk_score.score
+        except RiskScore.DoesNotExist:
+            return DEFAULT_SCORE
+
+    def get_risk_score_grade(self, user):
+        return score_to_grade(self.get_risk_score(user))
 
 
 class UniversitySerializer(ModelSerializer):
