@@ -1,12 +1,9 @@
-import time
 from datetime import datetime, timedelta
 
-from django.test import TestCase
 from django.utils import timezone
-from rest_framework import status
 from rest_framework.test import APITestCase
 
-from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from user.tests.helpers import create_random_default_user
 
