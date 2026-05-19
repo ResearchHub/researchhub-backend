@@ -7,7 +7,6 @@ from paper.ingestion.clients.enrichment.github import GithubClient, GithubMetric
 
 
 class TestGithubClient(TestCase):
-
     def setUp(self):
         self.client = GithubClient(api_token="test_token")
 
@@ -114,7 +113,6 @@ class TestGithubClient(TestCase):
 
 
 class TestGithubMetricsClient(TestCase):
-
     def setUp(self):
         self.mock_github_client = Mock(spec=GithubClient)
         self.client = GithubMetricsClient(github_client=self.mock_github_client)

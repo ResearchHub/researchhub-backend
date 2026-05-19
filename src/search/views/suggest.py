@@ -540,8 +540,7 @@ class SuggestView(APIView):
                                 es_results.append(transformed)
                             except Exception as e:
                                 logger.error(
-                                    f"Error transforming option in mock list: "
-                                    f"{str(e)}"
+                                    f"Error transforming option in mock list: {str(e)}"
                                 )
                         results.extend(es_results)
                     # Normal ES response with suggestion attribute

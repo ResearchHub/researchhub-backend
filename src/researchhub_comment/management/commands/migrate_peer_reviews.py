@@ -110,7 +110,7 @@ class Command(BaseCommand):
                 parent_bounty = parent_comment.bounties.first()
 
                 self.stdout.write(
-                    f"  {i+1}. Comment ID: {comment.id}, "
+                    f"  {i + 1}. Comment ID: {comment.id}, "
                     f"Parent ID: {comment.parent_id} (bounty comment), "
                     f"Thread ID: {comment.thread_id}, "
                     f"Review ID: {review.id if review else 'None'}, "

@@ -134,25 +134,19 @@ class TemplateDetailViewTests(APITestCase):
 
     def test_get_requires_authentication(self):
         t = self._create_template()
-        response = self.client.get(
-            f"/api/research_ai/expert-finder/templates/{t.id}/"
-        )
+        response = self.client.get(f"/api/research_ai/expert-finder/templates/{t.id}/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_get_requires_moderator(self):
         self.client.force_authenticate(self.user)
         t = self._create_template()
-        response = self.client.get(
-            f"/api/research_ai/expert-finder/templates/{t.id}/"
-        )
+        response = self.client.get(f"/api/research_ai/expert-finder/templates/{t.id}/")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_get_returns_200_for_own_template(self):
         t = self._create_template(name="My Template")
         self.client.force_authenticate(self.moderator)
-        response = self.client.get(
-            f"/api/research_ai/expert-finder/templates/{t.id}/"
-        )
+        response = self.client.get(f"/api/research_ai/expert-finder/templates/{t.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
         self.assertEqual(data["id"], t.id)
@@ -161,9 +155,7 @@ class TemplateDetailViewTests(APITestCase):
 
     def test_get_returns_404_for_nonexistent(self):
         self.client.force_authenticate(self.moderator)
-        response = self.client.get(
-            "/api/research_ai/expert-finder/templates/999999/"
-        )
+        response = self.client.get("/api/research_ai/expert-finder/templates/999999/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIn("not found", response.json().get("detail", "").lower())
 
@@ -171,9 +163,7 @@ class TemplateDetailViewTests(APITestCase):
         """Templates are shared: any editor can retrieve any template."""
         t = self._create_template(created_by=self.user)
         self.client.force_authenticate(self.moderator)
-        response = self.client.get(
-            f"/api/research_ai/expert-finder/templates/{t.id}/"
-        )
+        response = self.client.get(f"/api/research_ai/expert-finder/templates/{t.id}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json()["id"], t.id)
         self.assertEqual(response.json()["name"], "Test Template")

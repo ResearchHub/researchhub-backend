@@ -83,7 +83,6 @@ class Command(BaseCommand):
 
         for purchase in queryset.iterator(chunk_size=500):
             try:
-
                 try:
                     fundraise = Fundraise.objects.select_related(
                         "unified_document"

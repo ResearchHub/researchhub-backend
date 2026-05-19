@@ -457,7 +457,6 @@ class AmplitudeEventParserTests(TestCase):
         with patch(
             "analytics.interactions.amplitude_event_parser.datetime", mock_datetime
         ):
-
             with self.assertLogs(
                 "analytics.interactions.amplitude_event_parser", level=logging.ERROR
             ) as log:

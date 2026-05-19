@@ -6,7 +6,6 @@ from orcid.tasks import sync_orcid_task
 
 
 class SyncOrcidPapersTaskTests(TestCase):
-
     @patch("orcid.tasks.OrcidFetchService")
     def test_calls_service(self, mock_service_class):
         mock_service = Mock()
@@ -26,4 +25,3 @@ class SyncOrcidPapersTaskTests(TestCase):
 
         with self.assertRaises(ValueError):
             sync_orcid_task(1)
-

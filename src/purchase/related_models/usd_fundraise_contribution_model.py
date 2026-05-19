@@ -77,4 +77,3 @@ class UsdFundraiseContribution(DefaultModel):
             models.Index(fields=["fundraise"]),
             models.Index(fields=["user"]),
         ]
-

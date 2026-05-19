@@ -8,9 +8,7 @@ class NewFeatureClick(models.Model):
 
     feature = models.CharField(max_length=64)
     user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='feature_clicks'
+        User, on_delete=models.CASCADE, related_name="feature_clicks"
     )
 
     def __str__(self):

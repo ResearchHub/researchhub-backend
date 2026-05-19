@@ -12,7 +12,6 @@ from utils.models import DefaultModel
 
 
 class RscExchangeRate(DefaultModel):
-
     _CACHE_TIMEOUT: int = 60 * 75  # 75 minutes
     _LATEST_EXCHANGE_RATE_CACHE_KEY: str = "latest_exchange_rate"
 

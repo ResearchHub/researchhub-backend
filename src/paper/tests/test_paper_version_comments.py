@@ -58,7 +58,7 @@ class PaperVersionDiscussionCountTests(TestCase):
         for i in range(num_comments):
             comment = RhCommentModel.objects.create(
                 thread=thread,
-                comment_content_json={"ops": [{"insert": f"Test comment {i+1}"}]},
+                comment_content_json={"ops": [{"insert": f"Test comment {i + 1}"}]},
                 created_by=self.user,
             )
             comments.append(comment)

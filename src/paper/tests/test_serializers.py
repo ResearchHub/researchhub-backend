@@ -22,7 +22,6 @@ test_storage = FileSystemStorage()
 @patch.object(Figure._meta.get_field("file"), "storage", test_storage)
 @patch.object(Figure._meta.get_field("thumbnail"), "storage", test_storage)
 class PaperSerializersTests(TestCase):
-
     def setUp(self):
         pass
 

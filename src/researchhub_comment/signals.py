@@ -194,9 +194,7 @@ def _reward_preregistration_update(comment: RhCommentModel):
             rsc_amount = RscExchangeRate.usd_to_rsc(
                 PREREGISTRATION_UPDATE_REWARD_AMOUNT_USD
             )
-            distribution = create_preregistration_update_reward_distribution(
-                rsc_amount
-            )
+            distribution = create_preregistration_update_reward_distribution(rsc_amount)
             distributor = Distributor(
                 distribution=distribution,
                 recipient=author,
@@ -205,6 +203,4 @@ def _reward_preregistration_update(comment: RhCommentModel):
             )
             distributor.distribute()
     except Exception as e:
-        logger.error(
-            f"Failed to distribute preregistration update reward: {e}"
-        )
+        logger.error(f"Failed to distribute preregistration update reward: {e}")

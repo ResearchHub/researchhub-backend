@@ -109,8 +109,7 @@ class PaperOpenAlexEnrichmentService:
 
             if not openalex_data:
                 logger.info(
-                    f"No OpenAlex data found for paper {paper.id} "
-                    f"(DOI: {paper.doi})"
+                    f"No OpenAlex data found for paper {paper.id} (DOI: {paper.doi})"
                 )
                 return EnrichmentResult(status="not_found", reason="no_openalex_data")
 

@@ -146,7 +146,6 @@ class AuditViewTests(APITestCase):
         )
         self.assertEqual(http_response.status_code, 403)
 
-
     def test_flag_and_remove_comment_cascades_to_descendants(self):
         """flag_and_remove on a comment with children soft-deletes the
         entire subtree and updates the discussion count."""
@@ -292,9 +291,7 @@ class AutoPaymentAuditTests(APITestCase):
         self.client.force_authenticate(self.editor)
 
         # Act
-        response = self.client.get(
-            AUTO_PAYMENTS_URL, {"recipient": self.recipient.id}
-        )
+        response = self.client.get(AUTO_PAYMENTS_URL, {"recipient": self.recipient.id})
 
         # Assert
         self.assertEqual(response.status_code, 200)
@@ -335,9 +332,7 @@ class AutoPaymentAuditTests(APITestCase):
         tomorrow = (timezone.now() + timedelta(days=1)).isoformat()
 
         # Act
-        response = self.client.get(
-            AUTO_PAYMENTS_URL, {"created_after": tomorrow}
-        )
+        response = self.client.get(AUTO_PAYMENTS_URL, {"created_after": tomorrow})
 
         # Assert
         self.assertEqual(response.data["count"], 0)

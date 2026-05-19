@@ -42,13 +42,14 @@ class ListSerializerTests(APITestCase):
 
         serializer = ListSerializer(list_obj)
         data = serializer.data
-        
+
         self.assertEqual(data["name"], "My List")
         self.assertEqual(data["item_count"], 1)
         self.assertIn("id", data)
         self.assertIn("is_public", data)
         self.assertIn("created_date", data)
         self.assertIn("updated_date", data)
+
 
 class ListItemSerializerTests(APITestCase):
     def setUp(self):
@@ -86,10 +87,10 @@ class ListItemSerializerTests(APITestCase):
         serializer = ListItemSerializer(item)
         self.assertIsNotNone(serializer.data["document"])
         self.assertIsNotNone(serializer.data["document"]["content_object"])
-    
+
     def test_returns_none_when_unified_document_is_missing(self):
         from unittest.mock import Mock
-        
+
         mock_item = Mock(spec=ListItem)
         mock_item.id = 1
         mock_item.parent_list = self.list
@@ -98,7 +99,7 @@ class ListItemSerializerTests(APITestCase):
         mock_item.updated_by = None
         mock_item.created_date = "2025-01-01"
         mock_item.updated_date = "2025-01-01"
-        
+
         serializer = ListItemSerializer(mock_item)
         self.assertIsNone(serializer.data["document"])
 
@@ -107,9 +108,7 @@ class ListItemSerializerTests(APITestCase):
         request = factory.post("/api/list/")
         request.user = self.user
 
-        other_list = List.objects.create(
-            name="Other List", created_by=self.other_user
-        )
+        other_list = List.objects.create(name="Other List", created_by=self.other_user)
         serializer = ListItemSerializer(
             data={"parent_list": other_list.id, "unified_document": self.doc.id},
             context={"request": Request(request)},
@@ -188,14 +187,14 @@ class ListItemUnifiedDocumentSerializerTests(APITestCase):
         )
         unsupported_doc.created_by = self.user
         unsupported_doc.save()
-        
+
         Paper.objects.create(
             title="Question Paper",
             paper_publish_date="2025-01-01",
             unified_document=unsupported_doc,
             uploaded_by=self.user,
         )
-        
+
         serializer = ListItemUnifiedDocumentSerializer(unsupported_doc)
         data = serializer.data
         self.assertIsNone(data["content_object"])
@@ -224,4 +223,3 @@ class ListItemUnifiedDocumentSerializerTests(APITestCase):
         boosted_adjusted = serializer.data["metrics"]["adjusted_score"]
 
         self.assertGreater(boosted_adjusted, base_adjusted)
-

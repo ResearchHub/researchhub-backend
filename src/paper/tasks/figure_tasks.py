@@ -203,7 +203,6 @@ def extract_pdf_figures(
         return False
 
     try:
-
         # Extract figures using service
         extraction_service = FigureExtractionService()
         extracted_figures = extraction_service.extract_figures_from_pdf(

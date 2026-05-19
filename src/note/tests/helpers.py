@@ -6,12 +6,10 @@ from researchhub_document.related_models.constants.document_type import NOTE
 def create_note(
     created_by,
     organization,
-    title='Some random post title',
-    body='some text',
+    title="Some random post title",
+    body="some text",
 ):
-    unified_doc = ResearchhubUnifiedDocument.objects.create(
-        document_type=NOTE
-    )
+    unified_doc = ResearchhubUnifiedDocument.objects.create(document_type=NOTE)
 
     note = Note.objects.create(
         created_by=created_by,

@@ -6,7 +6,6 @@ from search.documents.base import BaseDocument
 
 
 class TestBaseDocument(unittest.TestCase):
-
     def setUp(self):
         self.document = BaseDocument()
         self.document._prepare_action = Mock(

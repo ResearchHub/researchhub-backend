@@ -12,7 +12,6 @@ from user.tests.helpers import create_random_default_user
 
 
 class OrcidFetchViewTests(TestCase):
-
     def setUp(self):
         self.factory = APIRequestFactory()
         self.view = OrcidFetchView.as_view()
@@ -57,7 +56,9 @@ class OrcidFetchViewTests(TestCase):
 
     def test_sync_starts_when_connected(self):
         # Arrange
-        SocialAccount.objects.create(user=self.user, provider=OrcidProvider.id, uid=OrcidTestHelper.ORCID_ID)
+        SocialAccount.objects.create(
+            user=self.user, provider=OrcidProvider.id, uid=OrcidTestHelper.ORCID_ID
+        )
         request = self.factory.post("/")
         force_authenticate(request, user=self.user)
 

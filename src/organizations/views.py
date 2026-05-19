@@ -8,7 +8,13 @@ from organizations.serializers import (
     NonprofitFundraiseLinkSerializer,
     NonprofitOrgSerializer,
 )
-from organizations.services.endaoment_service import EndaomentService
+from organizations.services.endaoment_service import (
+    EndaomentOrgNotFound,
+    EndaomentService,
+    EndaomentServiceError,
+    nonprofit_fields_from_org,
+    normalize_ein,
+)
 from purchase.models import Fundraise
 
 
@@ -90,6 +96,23 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
     """
 
     permission_classes = [IsAuthenticated]
+    endaoment_service_class = EndaomentService
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._endaoment_service = None
+
+    @property
+    def endaoment_service(self):
+        """Lazy initialization of the service for better testability."""
+        if self._endaoment_service is None:
+            self._endaoment_service = self.endaoment_service_class()
+        return self._endaoment_service
+
+    @endaoment_service.setter
+    def endaoment_service(self, service):
+        """Setter for dependency injection in tests."""
+        self._endaoment_service = service
 
     def get_permissions(self):
         if self.action == "get_by_fundraise":
@@ -143,17 +166,15 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
         Create or retrieve a nonprofit organization.
 
         Request Body:
-            - name: Name of the nonprofit organization
-            - ein: Employer Identification Number (optional)
+            - ein: Employer Identification Number (required)
             - endaoment_org_id: Unique ID in Endaoment system
-            - base_wallet_address: Blockchain wallet address (optional)
 
         Returns:
             - id: ID of the nonprofit organization
-            - name: Name of the nonprofit organization
-            - ein: Employer Identification Number
+            - name: Name from Endaoment
+            - ein: Employer Identification Number from Endaoment
             - endaoment_org_id: Unique ID in Endaoment system
-            - base_wallet_address: Blockchain wallet address
+            - base_wallet_address: Base chain wallet from Endaoment deployments
         """
         endaoment_org_id = request.data.get("endaoment_org_id")
         if not endaoment_org_id:
@@ -162,11 +183,38 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        name = request.data.get("name")
-        if not name:
+        ein = (request.data.get("ein") or "").strip()
+        if not ein:
             return Response(
-                {"error": "name is required"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "ein is required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
+
+        if len(normalize_ein(ein)) != 9:
+            return Response(
+                {"error": "ein must be a valid 9-digit EIN"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            matched_org = self.endaoment_service.verify_nonprofit_org(
+                ein, endaoment_org_id
+            )
+        except EndaomentOrgNotFound:
+            return Response(
+                {"error": "Nonprofit organization not found on Endaoment"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except EndaomentServiceError:
+            return Response(
+                {"error": "Unable to verify nonprofit with Endaoment"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        org_fields = nonprofit_fields_from_org(matched_org)
+        name = org_fields["name"]
+        ein = org_fields["ein"]
+        base_wallet_address = org_fields["base_wallet_address"]
 
         # Try to find existing nonprofit by endaoment_org_id
         nonprofit = NonprofitOrg.objects.filter(
@@ -180,16 +228,11 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
                 has_changes = True
                 nonprofit.name = name
 
-            ein = request.data.get("ein", "")
-            if nonprofit.ein != ein and ein:
+            if nonprofit.ein != ein:
                 has_changes = True
                 nonprofit.ein = ein
 
-            base_wallet_address = request.data.get("base_wallet_address", "")
-            if (
-                nonprofit.base_wallet_address != base_wallet_address
-                and base_wallet_address
-            ):
+            if nonprofit.base_wallet_address != base_wallet_address:
                 has_changes = True
                 nonprofit.base_wallet_address = base_wallet_address
 
@@ -205,9 +248,9 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
         serializer = NonprofitOrgSerializer(
             data={
                 "name": name,
-                "ein": request.data.get("ein", ""),
+                "ein": ein,
                 "endaoment_org_id": endaoment_org_id,
-                "base_wallet_address": request.data.get("base_wallet_address", ""),
+                "base_wallet_address": base_wallet_address,
             }
         )
 
@@ -266,6 +309,12 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
         except Fundraise.DoesNotExist:
             return Response(
                 {"error": "Fundraise not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        if fundraise.created_by_id != request.user.id and not request.user.moderator:
+            return Response(
+                {"error": "Need to be fundraise owner or moderator"},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         # Check if fundraise is already linked to any nonprofit

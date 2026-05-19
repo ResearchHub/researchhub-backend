@@ -3,7 +3,13 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase
 from requests.exceptions import HTTPError, RequestException
 
-from organizations.services.endaoment_service import EndaomentService
+from organizations.services.endaoment_service import (
+    UNKNOWN_NONPROFIT_NAME,
+    EndaomentOrgNotFound,
+    EndaomentService,
+    base_wallet_from_org,
+    nonprofit_fields_from_org,
+)
 
 
 class EndaomentServiceTests(TestCase):
@@ -162,3 +168,61 @@ class EndaomentServiceTests(TestCase):
         self.assertIn("countries=USA%2CCAN", query_url)
         self.assertIn("count=20", query_url)
         self.assertIn("offset=10", query_url)
+
+    @patch("requests.get")
+    def test_verify_nonprofit_org_success(self, mock_get):
+        """Test successful verification of a nonprofit org."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = self.mock_response
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        result = self.service.verify_nonprofit_org(
+            "84-4661797",
+            "75f9643f-3927-49a2-8f3f-19f232d654c8",
+        )
+
+        self.assertEqual(result, self.mock_response[0])
+
+    @patch("requests.get")
+    def test_verify_nonprofit_org_not_found(self, mock_get):
+        """Test verification fails when no org matches EIN and id."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = [
+            {
+                "id": "other-id",
+                "name": "Other Org",
+                "ein": "844661797",
+            }
+        ]
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        with self.assertRaises(EndaomentOrgNotFound):
+            self.service.verify_nonprofit_org(
+                "844661797",
+                "75f9643f-3927-49a2-8f3f-19f232d654c8",
+            )
+
+    def test_base_wallet_from_org_missing_deployment(self):
+        """Test empty wallet when no Base deployment exists."""
+        self.assertEqual(base_wallet_from_org({"deployments": []}), "")
+
+    def test_nonprofit_fields_from_org(self):
+        """Test canonical field extraction from Endaoment org payload."""
+        org = {
+            "id": "org-uuid",
+            "name": "  Endaoment  ",
+            "ein": "844661797",
+            "deployments": [],
+        }
+        fields = nonprofit_fields_from_org(org)
+        self.assertEqual(fields["name"], "Endaoment")
+        self.assertEqual(fields["ein"], "844661797")
+        self.assertEqual(fields["endaoment_org_id"], "org-uuid")
+        self.assertEqual(fields["base_wallet_address"], "")
+
+    def test_nonprofit_fields_from_org_missing_name(self):
+        """Test fallback name when Endaoment omits org name."""
+        fields = nonprofit_fields_from_org({"id": "org-uuid", "ein": "844661797"})
+        self.assertEqual(fields["name"], UNKNOWN_NONPROFIT_NAME)
