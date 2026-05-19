@@ -53,7 +53,7 @@ from purchase.views import (
     EndaomentViewSet,
     stripe_webhook_view,
 )
-from researchhub.views import asset_upload_view
+from researchhub.views import AssetUploadView
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.peer_review_view import PeerReviewViewSet
 from review.views.review_availability_view import ReviewAvailabilityView
@@ -330,7 +330,7 @@ urlpatterns = [
     path("", researchhub.views.index, name="index"),
     path(
         "api/asset/upload/",
-        asset_upload_view.AssetUploadView.as_view(),
+        AssetUploadView.as_view(),
         name="asset_upload",
     ),
     path(
