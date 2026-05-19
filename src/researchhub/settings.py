@@ -438,20 +438,13 @@ SOCIALACCOUNT_PROVIDERS = {
 
 
 GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/google/login/callback/"
-GOOGLE_YOLO_REDIRECT_URL = "http://localhost:8000/auth/google/yolo/callback/"
 if PRODUCTION:
     GOOGLE_REDIRECT_URL = (
         "https://backend.prod.researchhub.com/auth/google/login/callback/"
     )
-    GOOGLE_YOLO_REDIRECT_URL = (
-        "https://backend.prod.researchhub.com/auth/google/yolo/callback/"
-    )
 if STAGING:
     GOOGLE_REDIRECT_URL = (
         "https://backend.staging.researchhub.com/auth/google/login/callback/"
-    )
-    GOOGLE_YOLO_REDIRECT_URL = (
-        "https://backend.staging.researchhub.com/auth/google/yolo/callback/"
     )
 
 ORCID_CLIENT_ID = os.environ.get(
