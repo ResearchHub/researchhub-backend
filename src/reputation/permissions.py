@@ -84,6 +84,9 @@ class UserCanCancelBounty(BasePermission):
     def has_object_permission(self, request, view, obj):
         self.message = "Invalid Bounty user"
 
+        if obj.parent_id:
+            obj = obj.parent
+
         if obj.status not in (Bounty.OPEN, Bounty.ASSESSMENT):
             self.message = "Bounty is closed."
             return False

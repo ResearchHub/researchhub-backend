@@ -747,6 +747,15 @@ class BountyViewTests(APITestCase):
 
         self.assertEqual(cancel_bounty_res_1.status_code, 403)
 
+    def test_contributor_cannot_cancel_via_child_bounty_id(self):
+        bounty_1, bounty_2 = self.test_user_can_contribute_to_bounty()
+        self.client.force_authenticate(self.user_2)
+        cancel_bounty_res = self.client.post(
+            f"/api/bounty/{bounty_2.data['id']}/cancel_bounty/",
+        )
+
+        self.assertEqual(cancel_bounty_res.status_code, 403)
+
     def test_random_user_cant_cancel_multi_bounty(self):
         self.client.force_authenticate(self.user)
 
