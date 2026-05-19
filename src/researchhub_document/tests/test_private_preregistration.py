@@ -14,6 +14,8 @@ from purchase.related_models.constants.currency import USD
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from researchhub_access_group.constants import NO_ACCESS, VIEWER
+from researchhub_access_group.models import Permission
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
@@ -203,6 +205,64 @@ class VisibleToQuerySetTests(AWSMockTestCase):
             )
         )
         self.assertIn(self.private_post.id, ids)
+
+    def test_invited_expert_with_viewer_permission_sees_private(self):
+        invited = _make_user("invited")
+        revoked = _make_user("revoked")
+        ud_ct = ContentType.objects.get_for_model(
+            self.private_post.unified_document.__class__
+        )
+
+        Permission.objects.create(
+            access_type=VIEWER,
+            content_type=ud_ct,
+            object_id=self.private_post.unified_document_id,
+            user=invited,
+        )
+        Permission.objects.create(
+            access_type=NO_ACCESS,
+            content_type=ud_ct,
+            object_id=self.private_post.unified_document_id,
+            user=revoked,
+        )
+
+        invited_ids = set(
+            ResearchhubPost.objects.visible_to(invited).values_list("id", flat=True)
+        )
+        self.assertIn(self.private_post.id, invited_ids)
+
+        revoked_ids = set(
+            ResearchhubPost.objects.visible_to(revoked).values_list("id", flat=True)
+        )
+        self.assertNotIn(self.private_post.id, revoked_ids)
+
+    def test_no_access_revokes_even_when_viewer_row_exists(self):
+        """A NO_ACCESS row must override any other Permission rows for the same
+        user on the same document — the model has no uniqueness constraint, so
+        stale VIEWER rows can coexist with a later NO_ACCESS revocation.
+        """
+        user = _make_user("dual")
+        ud_ct = ContentType.objects.get_for_model(
+            self.private_post.unified_document.__class__
+        )
+
+        Permission.objects.create(
+            access_type=VIEWER,
+            content_type=ud_ct,
+            object_id=self.private_post.unified_document_id,
+            user=user,
+        )
+        Permission.objects.create(
+            access_type=NO_ACCESS,
+            content_type=ud_ct,
+            object_id=self.private_post.unified_document_id,
+            user=user,
+        )
+
+        ids = set(
+            ResearchhubPost.objects.visible_to(user).values_list("id", flat=True)
+        )
+        self.assertNotIn(self.private_post.id, ids)
 
 
 class PostViewSetVisibilityTests(AWSMockTestCase):

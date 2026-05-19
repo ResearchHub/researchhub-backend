@@ -1,10 +1,13 @@
 from django.contrib.contenttypes.fields import GenericRelation
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import IntegerField, Q, Sum
+from django.db.models import Exists, IntegerField, OuterRef, Q, Sum
 from django.db.models.functions import Cast
 
 from discussion.models import AbstractGenericReactionModel, Vote
 from purchase.models import Purchase
+from researchhub_access_group.constants import NO_ACCESS
+from researchhub_access_group.models import Permission
 from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
@@ -25,14 +28,30 @@ class ResearchhubPostQuerySet(models.QuerySet):
         """Restrict to posts the given user is allowed to see.
 
         Public posts (unified_document.is_public=True) are visible to anyone.
-        Private posts are visible only to their author and to the creator of
-        any grant the post has applied to (via GrantApplication).
+        Private posts are visible only to their author, to the creator of
+        any grant the post has applied to (via GrantApplication), and to
+        users with a non-revoked Permission on the post's unified document
+        (e.g. invited experts). A NO_ACCESS Permission row revokes access even
+        when other (e.g. stale VIEWER) rows exist for the same user/document.
         """
         public = Q(unified_document__is_public=True)
         if user is None or not getattr(user, "is_authenticated", False):
             return self.filter(public)
+
+        ud_ct = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
+        user_perms = Permission.objects.filter(
+            content_type=ud_ct,
+            object_id=OuterRef("unified_document_id"),
+            user=user,
+        )
+        allowed = user_perms.exclude(access_type=NO_ACCESS)
+        revoked = user_perms.filter(access_type=NO_ACCESS)
+
         return self.filter(
-            public | Q(created_by=user) | Q(grant_applications__grant__created_by=user)
+            public
+            | Q(created_by=user)
+            | Q(grant_applications__grant__created_by=user)
+            | (Exists(allowed) & ~Exists(revoked))
         ).distinct()
 
 
