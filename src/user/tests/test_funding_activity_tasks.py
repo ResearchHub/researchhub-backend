@@ -1,7 +1,5 @@
 from decimal import Decimal
-from unittest.mock import patch
 
-from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from purchase.models import Purchase
