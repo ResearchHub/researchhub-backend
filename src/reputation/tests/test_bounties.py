@@ -17,7 +17,7 @@ from paper.tests.helpers import create_paper
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import Bounty, BountyFee, BountySolution, Distribution
+from reputation.models import Bounty, BountyFee, BountySolution, Distribution, Escrow
 from reputation.tasks import check_open_bounties
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
@@ -28,7 +28,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import User
-from user.related_models.user_model import FOUNDATION_REVENUE_EMAIL
+from user.related_models.user_model import FOUNDATION_EMAIL, FOUNDATION_REVENUE_EMAIL
 from user.tests.helpers import create_moderator, create_random_default_user, create_user
 
 
@@ -600,6 +600,78 @@ class BountyViewTests(APITestCase):
         )
 
         self.assertEqual(approve_bounty_res.status_code, 403)
+
+    def test_contributor_cannot_approve_via_child_bounty_id(self):
+        bounty_1, bounty_2 = self.test_user_can_contribute_to_bounty(
+            amount_1=600, amount_2=400
+        )
+        parent_bounty = Bounty.objects.get(id=bounty_1.data["id"])
+        total_pool = parent_bounty.escrow.amount_holding
+
+        self.client.force_authenticate(self.user_2)
+        approve_bounty_res = self.client.post(
+            f"/api/bounty/{bounty_2.data['id']}/approve_bounty/",
+            [
+                {
+                    "amount": str(total_pool),
+                    "object_id": self.comment.id,
+                    "content_type": self.comment._meta.model_name,
+                }
+            ],
+        )
+
+        self.assertEqual(approve_bounty_res.status_code, 403)
+
+    def test_parent_creator_can_still_approve_multi_contributor_bounty(self):
+        bounty_1, _bounty_2 = self.test_user_can_contribute_to_bounty(
+            amount_1=600, amount_2=400
+        )
+
+        self.client.force_authenticate(self.user)
+        approve_bounty_res = self.client.post(
+            f"/api/bounty/{bounty_1.data['id']}/approve_bounty/",
+            [
+                {
+                    "amount": "200",
+                    "object_id": self.comment.id,
+                    "content_type": self.comment._meta.model_name,
+                }
+            ],
+        )
+
+        self.assertEqual(approve_bounty_res.status_code, 200)
+
+    def test_cannot_contribute_to_foundation_review_bounty(self):
+        foundation = create_user(email=FOUNDATION_EMAIL)
+        comment_ct = ContentType.objects.get_for_model(self.comment)
+        escrow = Escrow.objects.create(
+            hold_type=Escrow.BOUNTY,
+            created_by=foundation,
+            content_type=comment_ct,
+            object_id=self.comment.id,
+            amount_holding=100,
+        )
+        Bounty.objects.create(
+            created_by=foundation,
+            escrow=escrow,
+            item=self.comment,
+            unified_document=self.comment.unified_document,
+            amount=100,
+            bounty_type=Bounty.Type.REVIEW,
+            status=Bounty.OPEN,
+        )
+
+        self.client.force_authenticate(self.user_2)
+        contribute_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 10,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+
+        self.assertEqual(contribute_res.status_code, 403)
 
     def test_user_can_cancel_bounty(self):
         self.client.force_authenticate(self.user)
