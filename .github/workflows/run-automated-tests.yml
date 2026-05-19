@@ -55,13 +55,13 @@ jobs:
         run: uv sync --all-extras
 
       - name: Run Formatter
-        uses: astral-sh/ruff-action@v4.0.0
+        uses: astral-sh/ruff-action@0ce1b0bf8b818ef400413f810f8a11cdbda0034b # v4.0.0
         with:
           src: "./src"
           args: "format --check --diff"
 
       - name: Run Linter
-        uses: astral-sh/ruff-action@v4.0.0
+        uses: astral-sh/ruff-action@0ce1b0bf8b818ef400413f810f8a11cdbda0034b # v4.0.0
         with:
           src: "./src"
 
