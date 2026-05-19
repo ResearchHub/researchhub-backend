@@ -3,7 +3,6 @@ from urllib.parse import urlparse
 import requests
 from django.conf import settings
 from django.contrib.admin.options import get_content_type_for_model
-from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -25,19 +24,16 @@ from discussion.views import ReactionViewActionMixin
 from hub.permissions import IsModerator
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
-from paper.models import Figure, Paper, PaperSubmission, PaperVersion
+from paper.models import Paper, PaperSubmission, PaperVersion
 from paper.paper_upload_tasks import celery_process_paper
-from paper.permissions import CreatePaper, IsAuthor, UpdatePaper
+from paper.permissions import CreatePaper, UpdatePaper
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_version import PaperSeries, PaperSeriesDeclaration
 from paper.serializers import (
     DynamicPaperSerializer,
-    FigureSerializer,
     PaperSerializer,
     PaperSubmissionSerializer,
 )
-from paper.utils import get_cache_key
-from researchhub.permissions import IsObjectOwnerOrModerator
 from user.permissions import IsVerifiedUser
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
@@ -953,96 +949,6 @@ class PaperViewSet(
                 {"error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-
-class FigureViewSet(viewsets.ModelViewSet):
-    queryset = Figure.objects.all()
-    serializer_class = FigureSerializer
-    throttle_classes = THROTTLE_CLASSES
-
-    permission_classes = [IsObjectOwnerOrModerator]
-
-    def get_queryset(self):
-        return self.queryset
-
-    def get_figures(self, paper_id, figure_type=None):
-        # Returns all figures
-        paper = Paper.objects.get(id=paper_id)
-        figures = self.get_queryset().filter(paper=paper)
-
-        if figure_type:
-            figures = figures.filter(figure_type=figure_type)
-
-        figures = figures.order_by("-figure_type", "created_date")
-        figure_serializer = self.serializer_class(figures, many=True)
-        return figure_serializer.data
-
-    @action(
-        detail=True,
-        methods=["post"],
-        permission_classes=[IsAuthor & CreateOrUpdateIfAllowed],
-    )
-    def add_figure(self, request, pk=None):
-        user = request.user
-        if user.is_anonymous:
-            user = None
-
-        paper = self.get_object()
-        figures = request.FILES.values()
-        figure_type = request.data.get("figure_type")
-        urls = []
-        try:
-            for figure in figures:
-                fig = Figure.objects.create(
-                    paper=paper,
-                    file=figure,
-                    figure_type=figure_type,
-                    created_by=user,
-                )
-                urls.append({"id": fig.id, "file": fig.file.url})
-            return Response({"files": urls}, status=200)
-        except Exception as e:
-            log_error(e)
-            return Response(status=500)
-
-    @action(
-        detail=True,
-        methods=["delete"],
-        permission_classes=[IsAuthor & CreateOrUpdateIfAllowed],
-    )
-    def delete_figure(self, request, pk=None):
-        figure = self.get_queryset().get(id=pk)
-        figure.delete()
-        return Response(status=200)
-
-    @action(
-        detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
-    )
-    def get_all_figures(self, request, pk=None):
-        cache_key = get_cache_key("figure", pk)
-        cache_hit = cache.get(cache_key)
-        if cache_hit is not None:
-            return Response({"data": cache_hit}, status=status.HTTP_200_OK)
-
-        serializer_data = self.get_figures(pk)
-        cache.set(cache_key, serializer_data, timeout=60 * 60 * 24 * 7)
-        return Response({"data": serializer_data}, status=status.HTTP_200_OK)
-
-    @action(
-        detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
-    )
-    def get_preview_figures(self, request, pk=None):
-        # Returns pdf preview figures
-        serializer_data = self.get_figures(pk, figure_type=Figure.PREVIEW)
-        return Response({"data": serializer_data}, status=status.HTTP_200_OK)
-
-    @action(
-        detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
-    )
-    def get_regular_figures(self, request, pk=None):
-        # Returns regular figures
-        serializer_data = self.get_figures(pk, figure_type=Figure.FIGURE)
-        return Response({"data": serializer_data}, status=status.HTTP_200_OK)
 
 
 def retrieve_vote(user, paper):
