@@ -910,10 +910,12 @@ ENDAOMENT_CLIENT_SECRET = os.environ.get(
 ENDAOMENT_REDIRECT_URL = os.environ.get(
     "ENDAOMENT_REDIRECT_URL", keys.ENDAOMENT_REDIRECT_URL
 )
+# Base chain IDs (https://chainid.network/)
+BASE_MAINNET_CHAIN_ID = 8453
+BASE_SEPOLIA_CHAIN_ID = 84532
+
 # ResearchHub's Endaoment fund IDs, indexed by chain ID.
 # Each chain requires its own fund because Endaoment does not support bridging.
-#
-# Also see: https://chainid.network/
 ENDAOMENT_RH_FUND_IDS = {
     # Ethereum
     1: os.environ.get(
@@ -936,12 +938,12 @@ ENDAOMENT_RH_FUND_IDS = {
         keys.ENDAOMENT_RH_FUND_ID_OPTIMISM,
     ),
     # Base
-    8453: os.environ.get(
+    BASE_MAINNET_CHAIN_ID: os.environ.get(
         "ENDAOMENT_RH_FUND_ID_BASE",
         keys.ENDAOMENT_RH_FUND_ID_BASE,
     ),
     # Base Sepolia Testnet
-    84532: os.environ.get(
+    BASE_SEPOLIA_CHAIN_ID: os.environ.get(
         "ENDAOMENT_RH_FUND_ID_BASE",
         keys.ENDAOMENT_RH_FUND_ID_BASE,
     ),
