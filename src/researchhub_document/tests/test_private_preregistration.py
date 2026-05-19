@@ -259,9 +259,7 @@ class VisibleToQuerySetTests(AWSMockTestCase):
             user=user,
         )
 
-        ids = set(
-            ResearchhubPost.objects.visible_to(user).values_list("id", flat=True)
-        )
+        ids = set(ResearchhubPost.objects.visible_to(user).values_list("id", flat=True))
         self.assertNotIn(self.private_post.id, ids)
 
 
