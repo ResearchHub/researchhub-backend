@@ -42,25 +42,20 @@ class RiskScoreService:
                 **self._source_fields(source),
             )
 
-            risk_score.score += delta
+            risk_score.score = self._compute_score(user)
             risk_score.save(update_fields=["score"])
 
         return event
 
-    def recalculate_from_ledger(self, user):
+    def _compute_score(self, user):
+        """Derive score from the ledger. Single source of truth."""
         total_delta = (
             RiskScoreEvent.objects.filter(user=user).aggregate(total=Sum("delta"))[
                 "total"
             ]
             or 0
         )
-        new_score = DEFAULT_SCORE + total_delta
-
-        risk_score, _ = RiskScore.objects.get_or_create(user=user)
-        risk_score.score = new_score
-        risk_score.save(update_fields=["score"])
-
-        return new_score
+        return DEFAULT_SCORE + total_delta
 
     def _resolve_delta(self, event_type, provided_delta):
         if provided_delta is not None:
