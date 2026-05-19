@@ -68,9 +68,7 @@ class RiskScoreService:
         return default_delta
 
     def _one_time_event_exists(self, user, event_type):
-        return RiskScoreEvent.objects.filter(
-            user=user, event_type=event_type
-        ).exists()
+        return RiskScoreEvent.objects.filter(user=user, event_type=event_type).exists()
 
     def _source_fields(self, source):
         if source is None:

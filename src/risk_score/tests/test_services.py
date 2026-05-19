@@ -81,9 +81,7 @@ class RiskScoreServiceTests(TestCase):
 
     def test_record_event_explicit_delta_overrides_default(self):
         # Act
-        event = self.service.record_event(
-            self.user, EventType.WORK_APPROVED, delta=-5
-        )
+        event = self.service.record_event(self.user, EventType.WORK_APPROVED, delta=-5)
 
         # Assert
         self.assertEqual(event.delta, -5)
@@ -135,6 +133,4 @@ class RiskScoreServiceTests(TestCase):
         self.service.record_event(self.user, EventType.WORK_DECLINED)
 
         # Assert - score reflects full ledger, not 999 + 20
-        self.assertEqual(
-            self.service.get_score(self.user), DEFAULT_SCORE - 50 + 20
-        )
+        self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE - 50 + 20)
