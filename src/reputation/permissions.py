@@ -51,7 +51,7 @@ class UserCanApproveBounty(BasePermission):
         if obj.status not in (Bounty.OPEN, Bounty.ASSESSMENT):
             self.message = "Bounty is closed."
             return False
-        
+
         now = datetime.now(pytz.UTC)
         if obj.status == Bounty.OPEN:
             # During OPEN phase, check expiration_date
@@ -63,7 +63,7 @@ class UserCanApproveBounty(BasePermission):
             if obj.assessment_end_date and obj.assessment_end_date <= now:
                 self.message = "Bounty assessment period has expired"
                 return False
-        
+
         if obj.item_content_type == ContentType.objects.get_for_model(
             ResearchhubUnifiedDocument
         ):  # for question bounties, the question creator can control all bounties

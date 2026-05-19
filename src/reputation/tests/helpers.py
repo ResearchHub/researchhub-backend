@@ -1,6 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 
-from purchase.models import Balance, Wallet
+from purchase.models import Balance
 from reputation.models import Deposit, Withdrawal
 from user.tests.helpers import create_random_default_user
 
@@ -15,11 +15,6 @@ def create_deposit(
     transaction_hash="0x",
     network="ethereum",
 ):
-    wallet, _ = Wallet.objects.get_or_create(user=user)
-    if from_address and not wallet.address:
-        wallet.address = from_address
-        wallet.save(update_fields=["address"])
-
     deposit = Deposit.objects.create(
         user=user,
         amount=amount,
