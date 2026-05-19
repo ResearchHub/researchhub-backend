@@ -8,6 +8,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from purchase.related_models.grant_model import Grant
+from purchase.related_models.purchase_model import Purchase
 from research_ai.models import Expert
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
@@ -18,6 +19,7 @@ from risk_score.constants import DEFAULT_SCORE
 from risk_score.models import RiskScoreEvent
 from risk_score.services import RiskScoreService
 from user.models import UserVerification
+from user.related_models.user_model import FOUNDATION_EMAIL
 from user.tests.helpers import create_user
 
 EventType = RiskScoreEvent.EventType
@@ -359,3 +361,34 @@ class BackfillHistoricalActionsTests(BackfillCommandMixin, TestCase):
         self.assertFalse(
             RiskScoreEvent.objects.filter(user=self.user).exists()
         )
+
+    def test_foundation_tip_creates_peer_review_tipped_event(self):
+        # Arrange
+        community = create_user(email=FOUNDATION_EMAIL)
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        thread = RhCommentThreadModel.objects.create(
+            content_type=ContentType.objects.get_for_model(self.post),
+            object_id=self.post.id,
+            created_by=self.user,
+        )
+        comment = RhCommentModel.objects.create(
+            thread=thread, created_by=self.user
+        )
+        purchase = Purchase.objects.create(
+            user=community,
+            content_type=comment_ct,
+            object_id=comment.pk,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.BOOST,
+            amount="100",
+            paid_status="PAID",
+        )
+
+        # Act
+        self._call()
+
+        # Assert
+        event = RiskScoreEvent.objects.get(
+            user=self.user, event_type=EventType.PEER_REVIEW_TIPPED
+        )
+        self.assertEqual(event.source_content_id, purchase.pk)

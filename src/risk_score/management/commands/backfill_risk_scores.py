@@ -99,18 +99,25 @@ class Command(BaseCommand):
 
     def _backfill_foundation_tips(self, active_user_ids, dry_run):
         """Backfill PEER_REVIEW_TIPPED for comments tipped by the foundation."""
-        community = User.objects.get_community_account()
-        if community is None:
+        try:
+            community = User.objects.get_community_account()
+        except User.DoesNotExist:
             return
 
         comment_ct = ContentType.objects.get_for_model(RhCommentModel)
-        tipped_purchases = Purchase.objects.filter(
-            user=community,
-            content_type=comment_ct,
-        ).select_related("content_type")
+        purchases = list(
+            Purchase.objects.filter(user=community, content_type=comment_ct)
+        )
 
-        for purchase in tipped_purchases:
-            comment = purchase.item
+        comment_ids = {p.object_id for p in purchases}
+        comments_by_id = {
+            c.pk: c
+            for c in RhCommentModel.all_objects.filter(pk__in=comment_ids)
+            .select_related("created_by")
+        }
+
+        for purchase in purchases:
+            comment = comments_by_id.get(purchase.object_id)
             if comment is None:
                 continue
             if comment.created_by_id not in active_user_ids:
