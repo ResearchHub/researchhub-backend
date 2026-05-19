@@ -5,4 +5,4 @@ class ResearchhubDocumentConfig(AppConfig):
     name = "researchhub_document"
 
     def ready(self):
-        import researchhub_document.signals
+        import researchhub_document.signals  # noqa: F401
