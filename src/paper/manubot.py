@@ -40,7 +40,6 @@ def get_url_csl_item(url: str) -> CSLItem:
 
 
 class RHHandler_URL(Handler):
-
     standard_prefix = "url"
 
     prefixes = [

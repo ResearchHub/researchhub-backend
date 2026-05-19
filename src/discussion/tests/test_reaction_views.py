@@ -29,7 +29,6 @@ urlpatterns = [
 
 @override_settings(ROOT_URLCONF=__name__)
 class ReactionViewTests(TestCase):
-
     def setUp(self):
         self.user = User.objects.create_user(username="testUser1")
         self.paper = Paper.objects.create(title="testPaper1")

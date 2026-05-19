@@ -85,9 +85,10 @@ class TestDOI(unittest.TestCase):
 
     def test_register_doi_basic(self):
         """Test basic DOI registration with minimal author info."""
-        with patch("utils.doi.render_to_string") as mock_render, patch(
-            "requests.post"
-        ) as mock_post:
+        with (
+            patch("utils.doi.render_to_string") as mock_render,
+            patch("requests.post") as mock_post,
+        ):
             # Add expected template name
             mock_render.return_value = "<test>xml</test>"
 
@@ -129,10 +130,10 @@ class TestDOI(unittest.TestCase):
             author.institutions.first.return_value = None
             authors.append(author)
 
-        with patch("requests.post") as mock_post, patch(
-            "utils.doi.render_to_string"
-        ) as mock_render:
-
+        with (
+            patch("requests.post") as mock_post,
+            patch("utils.doi.render_to_string") as mock_render,
+        ):
             mock_post.return_value = MagicMock(status_code=200)
             self.doi.register_doi(authors, [], self.test_title, self.test_url)
 
@@ -166,9 +167,10 @@ class TestDOI(unittest.TestCase):
 
         self.mock_author.institutions.first.return_value = mock_author_institution
 
-        with patch("requests.post") as mock_post, patch(
-            "utils.doi.render_to_string"
-        ) as mock_render:
+        with (
+            patch("requests.post") as mock_post,
+            patch("utils.doi.render_to_string") as mock_render,
+        ):
             mock_post.return_value = MagicMock(status_code=200)
             self.doi.register_doi(
                 [self.mock_author], [], self.test_title, self.test_url
@@ -192,10 +194,11 @@ class TestDOI(unittest.TestCase):
 
     def test_register_doi_timestamp_and_dates(self):
         """Test timestamp and date handling in DOI registration."""
-        with patch("requests.post") as mock_post, patch(
-            "utils.doi.render_to_string"
-        ) as mock_render, patch("time.time") as mock_time:
-
+        with (
+            patch("requests.post") as mock_post,
+            patch("utils.doi.render_to_string") as mock_render,
+            patch("time.time") as mock_time,
+        ):
             mock_time.return_value = 1234567890
             mock_post.return_value = MagicMock(status_code=200)
 
@@ -215,10 +218,10 @@ class TestDOI(unittest.TestCase):
         mock_post.id = 123
         mock_post.slug = "test-post"
 
-        with patch("requests.post") as mock_post_request, patch(
-            "utils.doi.render_to_string"
-        ) as mock_render:
-
+        with (
+            patch("requests.post") as mock_post_request,
+            patch("utils.doi.render_to_string") as mock_render,
+        ):
             mock_post_request.return_value = MagicMock(status_code=200)
 
             response = self.doi.register_doi_for_post(
@@ -237,10 +240,10 @@ class TestDOI(unittest.TestCase):
         mock_paper.id = 456
         mock_paper.slug = "test-paper"
 
-        with patch("requests.post") as mock_post_request, patch(
-            "utils.doi.render_to_string"
-        ) as mock_render:
-
+        with (
+            patch("requests.post") as mock_post_request,
+            patch("utils.doi.render_to_string") as mock_render,
+        ):
             mock_post_request.return_value = MagicMock(status_code=200)
 
             response = self.doi.register_doi_for_paper(

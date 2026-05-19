@@ -28,9 +28,9 @@ INDEX_CONFIGS = {
     },
     "hub": {
         "document": HubDocument,
-        "queryset": lambda: Hub.objects.filter(is_removed=True)
-        .exclude(namespace="journal")
-        .only("id"),
+        "queryset": lambda: (
+            Hub.objects.filter(is_removed=True).exclude(namespace="journal").only("id")
+        ),
         "label": "Hubs",
     },
     "journal": {
@@ -156,9 +156,7 @@ class Command(BaseCommand):
             doc.update(to_remove, action="index", raise_on_error=False)
             return len(ids_in_index), len(to_remove), 0
         except Exception as e:
-            self.stderr.write(
-                self.style.ERROR(f"Error removing {label} batch: {e}")
-            )
+            self.stderr.write(self.style.ERROR(f"Error removing {label} batch: {e}"))
             return len(ids_in_index), len(to_remove), 1
 
     def _find_ids_in_index(
@@ -179,8 +177,6 @@ class Command(BaseCommand):
             return []
         except Exception as e:
             self.stderr.write(
-                self.style.ERROR(
-                    f"Error checking index {opensearch_index}: {e}"
-                )
+                self.style.ERROR(f"Error checking index {opensearch_index}: {e}")
             )
             return []

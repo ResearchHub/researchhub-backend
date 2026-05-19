@@ -586,7 +586,6 @@ def find_qualified_users_and_notify(
 
     notifications_sent = []
     for author in qualified_authors:
-
         notification = Notification.objects.filter(
             object_id=bounty.id,
             content_type=ContentType.objects.get_for_model(Bounty),
@@ -594,7 +593,6 @@ def find_qualified_users_and_notify(
         )
 
         if not notification.exists():
-
             hub = Hub.objects.get(id=author.matching_hub_id)
 
             notification = Notification.objects.create(
@@ -624,7 +622,6 @@ def find_bounties_for_user_and_notify(user_id) -> Optional[Notification]:
     bounties: List[AnnotatedBounty] = Bounty.find_bounties_for_user(user)
 
     for bounty in bounties:
-
         notification = Notification.objects.filter(
             object_id=bounty.id,
             content_type=ContentType.objects.get_for_model(Bounty),
@@ -632,7 +629,6 @@ def find_bounties_for_user_and_notify(user_id) -> Optional[Notification]:
         )
 
         if not notification.exists():
-
             hub = Hub.objects.get(id=bounty.matching_hub_id)
 
             notification = Notification.objects.create(

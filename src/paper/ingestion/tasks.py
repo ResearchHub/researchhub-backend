@@ -165,7 +165,7 @@ def enrich_paper_with_github_metrics(self, paper_id: int, retry: int = 0):
     if enrichment_result.status == "retryable_error":
         # Retry with exponential backoff for rate limit errors
         logger.warning(
-            f"GitHub API rate limit hit for paper {paper_id}, " f"retrying with backoff"
+            f"GitHub API rate limit hit for paper {paper_id}, retrying with backoff"
         )
         raise self.retry(args=[paper_id, retry + 1], countdown=60 * (retry + 1))
 

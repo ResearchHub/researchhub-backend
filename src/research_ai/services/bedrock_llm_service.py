@@ -16,7 +16,6 @@ BEDROCK_MODEL_ID = getattr(
 
 
 class BedrockLLMService:
-
     def __init__(self):
         self.bedrock_client = create_client("bedrock-runtime")
         self.model_id = BEDROCK_MODEL_ID

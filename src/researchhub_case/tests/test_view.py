@@ -14,7 +14,9 @@ from user.related_models.user_verification_model import UserVerification
 from user.tests.helpers import create_moderator, create_random_default_user
 from utils.openalex import OpenAlex
 
-paper_fixtures_dir = Path(__file__).parent.parent.parent / "paper" / "tests" / "fixtures"
+paper_fixtures_dir = (
+    Path(__file__).parent.parent.parent / "paper" / "tests" / "fixtures"
+)
 
 
 class ViewTests(APITestCase):

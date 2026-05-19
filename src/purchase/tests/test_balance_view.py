@@ -11,7 +11,6 @@ from user.tests.helpers import create_random_authenticated_user
 
 
 class BalanceViewTests(APITestCase):
-
     def setUp(self):
         self.user = create_random_authenticated_user("balance_user")
         self.rsc_exchange_rate = RscExchangeRate.objects.create(
@@ -53,7 +52,7 @@ class BalanceViewTests(APITestCase):
                 ),
                 str(self.transaction.amount),
                 str(self.rsc_exchange_rate.real_rate),
-                f"{self.transaction.amount*self.rsc_exchange_rate.real_rate:.2f}",
+                f"{self.transaction.amount * self.rsc_exchange_rate.real_rate:.2f}",
                 self.transaction.content_type.name,
             ],
         ]
@@ -87,7 +86,9 @@ class BalanceViewTests(APITestCase):
             content_type=deposit_type,
         )
         Balance.objects.create(
-            amount=-50, user=self.user, content_type=fee_type  # Negative amount for fee
+            amount=-50,
+            user=self.user,
+            content_type=fee_type,  # Negative amount for fee
         )
 
         # Create a failed withdrawal that should be excluded

@@ -5,6 +5,5 @@ from .models import NewFeatureClick
 
 class NewFeatureClickSerializer(serializers.ModelSerializer):
     class Meta:
-        fields = '__all__'
+        fields = "__all__"
         model = NewFeatureClick
-

@@ -17,7 +17,6 @@ fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class TestArXivOAIClient(TestCase):
-
     def setUp(self):
         self.config = ArXivOAIConfig()
         self.client = ArXivOAIClient(self.config)

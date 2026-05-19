@@ -403,9 +403,7 @@ class User(AbstractUser):
             Bounty.objects.filter(
                 created_by=self,
                 status=Bounty.CLOSED,
-            ).aggregate(
-                total_amount=Sum("amount")
-            )["total_amount"]
+            ).aggregate(total_amount=Sum("amount"))["total_amount"]
             or 0
         )
 

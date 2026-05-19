@@ -438,20 +438,13 @@ SOCIALACCOUNT_PROVIDERS = {
 
 
 GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/google/login/callback/"
-GOOGLE_YOLO_REDIRECT_URL = "http://localhost:8000/auth/google/yolo/callback/"
 if PRODUCTION:
     GOOGLE_REDIRECT_URL = (
         "https://backend.prod.researchhub.com/auth/google/login/callback/"
     )
-    GOOGLE_YOLO_REDIRECT_URL = (
-        "https://backend.prod.researchhub.com/auth/google/yolo/callback/"
-    )
 if STAGING:
     GOOGLE_REDIRECT_URL = (
         "https://backend.staging.researchhub.com/auth/google/login/callback/"
-    )
-    GOOGLE_YOLO_REDIRECT_URL = (
-        "https://backend.staging.researchhub.com/auth/google/yolo/callback/"
     )
 
 ORCID_CLIENT_ID = os.environ.get(
@@ -506,20 +499,19 @@ if ELASTIC_BEANSTALK:
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": (
-            "django.contrib.auth.password_validation."
-            "UserAttributeSimilarityValidator"
+            "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
         ),
     },
     {
-        "NAME": ("django.contrib.auth.password_validation." "MinimumLengthValidator"),
+        "NAME": ("django.contrib.auth.password_validation.MinimumLengthValidator"),
     },
     {
-        "NAME": ("django.contrib.auth.password_validation." "CommonPasswordValidator"),
+        "NAME": ("django.contrib.auth.password_validation.CommonPasswordValidator"),
     },
     {
-        "NAME": ("django.contrib.auth.password_validation." "NumericPasswordValidator"),
+        "NAME": ("django.contrib.auth.password_validation.NumericPasswordValidator"),
     },
-    {"NAME": ("user.validators." "SymbolValidator")},
+    {"NAME": ("user.validators.SymbolValidator")},
 ]
 
 
@@ -918,10 +910,12 @@ ENDAOMENT_CLIENT_SECRET = os.environ.get(
 ENDAOMENT_REDIRECT_URL = os.environ.get(
     "ENDAOMENT_REDIRECT_URL", keys.ENDAOMENT_REDIRECT_URL
 )
+# Base chain IDs (https://chainid.network/)
+BASE_MAINNET_CHAIN_ID = 8453
+BASE_SEPOLIA_CHAIN_ID = 84532
+
 # ResearchHub's Endaoment fund IDs, indexed by chain ID.
 # Each chain requires its own fund because Endaoment does not support bridging.
-#
-# Also see: https://chainid.network/
 ENDAOMENT_RH_FUND_IDS = {
     # Ethereum
     1: os.environ.get(
@@ -944,12 +938,12 @@ ENDAOMENT_RH_FUND_IDS = {
         keys.ENDAOMENT_RH_FUND_ID_OPTIMISM,
     ),
     # Base
-    8453: os.environ.get(
+    BASE_MAINNET_CHAIN_ID: os.environ.get(
         "ENDAOMENT_RH_FUND_ID_BASE",
         keys.ENDAOMENT_RH_FUND_ID_BASE,
     ),
     # Base Sepolia Testnet
-    84532: os.environ.get(
+    BASE_SEPOLIA_CHAIN_ID: os.environ.get(
         "ENDAOMENT_RH_FUND_ID_BASE",
         keys.ENDAOMENT_RH_FUND_ID_BASE,
     ),

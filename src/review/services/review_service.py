@@ -33,10 +33,11 @@ def get_review_availability(user: User) -> ReviewAvailability:
         return ReviewAvailability(can_review=True)
 
     # User has hit the limit. Find when the oldest review expires from the window.
-    oldest_review_date = base_query.order_by("created_date").values_list(
-        "created_date", flat=True
-    ).first()
+    oldest_review_date = (
+        base_query.order_by("created_date")
+        .values_list("created_date", flat=True)
+        .first()
+    )
     next_available = oldest_review_date + window_duration
 
     return ReviewAvailability(can_review=False, available_at=next_available)
-

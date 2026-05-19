@@ -202,7 +202,7 @@ class PaperDocument(BaseDocument):
                         "first_name": author.get("first_name"),
                         "last_name": author.get("last_name"),
                         "full_name": (
-                            f"{author.get("first_name")} {author.get("last_name")}"
+                            f"{author.get('first_name')} {author.get('last_name')}"
                         ),
                     }
                 )

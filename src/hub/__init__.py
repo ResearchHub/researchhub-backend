@@ -1,1 +1,1 @@
-default_app_config = 'hub.apps.HubConfig'
+default_app_config = "hub.apps.HubConfig"

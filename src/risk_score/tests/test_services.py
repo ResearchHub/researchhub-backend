@@ -126,21 +126,15 @@ class RiskScoreServiceTests(TestCase):
         self.assertIsNone(result)
         self.assertEqual(RiskScoreEvent.objects.filter(user=self.user).count(), 1)
 
-    def test_recalculate_from_ledger(self):
-        # Arrange
+    def test_score_derived_from_ledger_not_incremental(self):
+        # Arrange - manually corrupt the score
         self.service.record_event(self.user, EventType.WORK_APPROVED)
-        self.service.record_event(self.user, EventType.WORK_DECLINED)
         RiskScore.objects.filter(user=self.user).update(score=999)
 
-        # Act
-        result = self.service.recalculate_from_ledger(self.user)
+        # Act - next event forces recalculation from ledger
+        self.service.record_event(self.user, EventType.WORK_DECLINED)
 
-        # Assert
-        self.assertEqual(result, DEFAULT_SCORE - 30)
-
-    def test_recalculate_with_no_events(self):
-        # Act
-        result = self.service.recalculate_from_ledger(self.user)
-
-        # Assert
-        self.assertEqual(result, DEFAULT_SCORE)
+        # Assert - score reflects full ledger, not 999 + 20
+        self.assertEqual(
+            self.service.get_score(self.user), DEFAULT_SCORE - 50 + 20
+        )

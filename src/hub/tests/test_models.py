@@ -6,7 +6,6 @@ from topic.models import Subfield
 
 
 class HubModelsTests(TestCase):
-
     def test_hub_str(self):
         # Arrange
         hub = Hub.objects.create(

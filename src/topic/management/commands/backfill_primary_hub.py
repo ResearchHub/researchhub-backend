@@ -1,4 +1,4 @@
-""" Single use script to backfill is_primary field in UnifiedDocumentTopics model"""
+"""Single use script to backfill is_primary field in UnifiedDocumentTopics model"""
 
 from django.core.management.base import BaseCommand
 

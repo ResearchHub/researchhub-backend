@@ -114,7 +114,7 @@ class XClient:
         """
         if not self.bearer_token:
             raise ValueError(
-                "X API bearer token not provided. " "Set X_BEARER_TOKEN in settings."
+                "X API bearer token not provided. Set X_BEARER_TOKEN in settings."
             )
 
         if self._client is None:

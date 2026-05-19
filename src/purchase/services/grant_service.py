@@ -10,7 +10,6 @@ from feed.views.grant_cache_mixin import GrantCacheMixin
 from notification.models import Notification
 from purchase.models import Grant
 from user.related_models.verdict_model import Verdict
-from utils.doi import DOI
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,6 @@ class GrantModerationService:
             grant.save(update_fields=["status"])
 
             post = grant.unified_document.posts.first()
-            self._assign_doi_to_post(post)
             self._publish_to_feed(post)
 
             cache.delete("grant_available_funding")
@@ -77,20 +75,6 @@ class GrantModerationService:
         unified_document = grant.unified_document
         unified_document.is_removed = True
         unified_document.save(update_fields=["is_removed"])
-
-    def _assign_doi_to_post(self, post):
-        if not post or post.doi:
-            return
-
-        try:
-            doi = DOI()
-            post.doi = doi.doi
-            post.save(update_fields=["doi"])
-
-            author = post.created_by.author_profile
-            doi.register_doi_for_post([author], post.title, post)
-        except Exception:
-            logger.exception("Failed to assign DOI to post %s", post.id)
 
     def _publish_to_feed(self, post):
         if not post:

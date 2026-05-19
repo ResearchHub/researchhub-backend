@@ -8,7 +8,6 @@ from user.tests.helpers import create_random_default_user
 
 
 class PaperUploadViewTest(APITestCase):
-
     def setUp(self):
         self.factory = APIRequestFactory()
         self.view = PaperUploadView.as_view()

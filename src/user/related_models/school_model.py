@@ -10,10 +10,10 @@ class University(models.Model):
     updated_date = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f'{self.name}_{self.city}'
+        return f"{self.name}_{self.city}"
 
     class Meta:
-        ordering = ['name']
+        ordering = ["name"]
 
 
 class Major(models.Model):

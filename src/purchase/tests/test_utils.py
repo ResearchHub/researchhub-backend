@@ -16,7 +16,9 @@ from user.tests.helpers import create_random_authenticated_user
 class TestGetFundedFundraiseIds(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("funder")
-        self.doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+        self.doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
         self.ct = ContentType.objects.get_for_model(Fundraise)
 
     def _create_fundraise(self):
@@ -77,4 +79,3 @@ class TestGetFundedFundraiseIds(TestCase):
 
         # Assert
         self.assertEqual(result, set())
-
