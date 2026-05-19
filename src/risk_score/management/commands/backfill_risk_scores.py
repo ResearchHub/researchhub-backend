@@ -15,6 +15,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from purchase.related_models.grant_model import Grant
+from purchase.related_models.purchase_model import Purchase
 from reputation.related_models.bounty import BountySolution
 from research_ai.models import Expert
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
@@ -69,7 +70,7 @@ class Command(BaseCommand):
 
     def _backfill_one_time_signals(self, dry_run):
         self.stdout.write("  Backfilling one-time profile signals...")
-        lookups = self._build_one_time_lookups()
+        lookups = self._build_one_time_bonus_lookups()
 
         users = User.objects.filter(is_active=True).order_by("pk")
         for user in users.iterator():
@@ -94,6 +95,30 @@ class Command(BaseCommand):
             for obj in qs:
                 self._record_if_new(obj.created_by, event_type, obj, dry_run)
 
+        self._backfill_foundation_tips(active_user_ids, dry_run)
+
+    def _backfill_foundation_tips(self, active_user_ids, dry_run):
+        """Backfill PEER_REVIEW_TIPPED for comments tipped by the foundation."""
+        community = User.objects.get_community_account()
+        if community is None:
+            return
+
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        tipped_purchases = Purchase.objects.filter(
+            user=community,
+            content_type=comment_ct,
+        ).select_related("content_type")
+
+        for purchase in tipped_purchases:
+            comment = purchase.item
+            if comment is None:
+                continue
+            if comment.created_by_id not in active_user_ids:
+                continue
+            self._record_if_new(
+                comment.created_by, EventType.PEER_REVIEW_TIPPED, purchase, dry_run
+            )
+
     def _record_if_new(self, user, event_type, source, dry_run):
         ct = ContentType.objects.get_for_model(source)
         already_exists = RiskScoreEvent.objects.filter(
@@ -110,8 +135,8 @@ class Command(BaseCommand):
             self.service.record_event(user, event_type, source=source)
         self.events_recorded += 1
 
-    def _build_one_time_lookups(self):
-        age_threshold = timezone.now() - timedelta(days=90)
+    def _build_one_time_bonus_lookups(self):
+        age_bonus_threshold = timezone.now() - timedelta(days=90)
 
         return {
             "expert_user_ids": set(
@@ -134,7 +159,7 @@ class Command(BaseCommand):
                     status=UserVerification.Status.APPROVED
                 ).values_list("user_id", flat=True)
             ),
-            "age_threshold": age_threshold,
+            "age_bonus_threshold": age_bonus_threshold,
         }
 
     def _detect_one_time_signals(self, user, lookups):
@@ -155,7 +180,7 @@ class Command(BaseCommand):
         if user.pk in lookups["persona_approved_user_ids"]:
             signals.append(EventType.PERSONA_VERIFIED_WHITELISTED)
 
-        if user.date_joined and user.date_joined < lookups["age_threshold"]:
+        if user.date_joined and user.date_joined < lookups["age_bonus_threshold"]:
             signals.append(EventType.ACCOUNT_AGE_BONUS)
 
         return signals
