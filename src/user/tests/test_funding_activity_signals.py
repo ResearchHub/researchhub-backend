@@ -2,7 +2,6 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
 from django.test import TestCase
 
 from paper.tests.helpers import create_paper
