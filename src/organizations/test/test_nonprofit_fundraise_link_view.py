@@ -86,10 +86,8 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
             self._mock_verified_org("new-org-id", ein="987654321", name="New Nonprofit")
         )
         data = {
-            "name": "New Nonprofit",
             "ein": "987654321",
             "endaoment_org_id": "new-org-id",
-            "base_wallet_address": "0x0987654321fedcba0987654321fedcba09876543",
         }
 
         response = self.client.post(self.create_nonprofit_url, data)
@@ -116,11 +114,11 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
         """Test retrieving an existing nonprofit organization."""
         self.mock_endaoment_service.verify_nonprofit_org.return_value = (
             self._mock_verified_org(
-                "test-org-id", ein="123456789", name="Different Name"
+                "test-org-id", ein="123456789", name="Endaoment Canonical Name"
             )
         )
         data = {
-            "name": "Different Name",  # This should update the name
+            "name": "Fake Name From Client",
             "ein": "123456789",
             "endaoment_org_id": "test-org-id",  # This matches the existing nonprofit
         }
@@ -128,7 +126,7 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
         response = self.client.post(self.create_nonprofit_url, data)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["name"], "Different Name")  # Updated name
+        self.assertEqual(response.data["name"], "Endaoment Canonical Name")
         self.assertEqual(response.data["ein"], "123456789")  # Original EIN
         self.assertEqual(response.data["endaoment_org_id"], "test-org-id")
         self.assertEqual(
@@ -136,19 +134,30 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
             self.endaoment_base_wallet,
         )
 
-    def test_create_nonprofit_missing_required_fields(self):
-        """Test validation of required fields."""
-        # Missing name
+    def test_create_nonprofit_ignores_client_name(self):
+        """Test that client-provided name is ignored in favor of Endaoment."""
+        self.mock_endaoment_service.verify_nonprofit_org.return_value = (
+            self._mock_verified_org(
+                "new-org-id", ein="987654321", name="Real Nonprofit Name"
+            )
+        )
         data = {
+            "name": "Fake Nonprofit Name",
             "ein": "987654321",
             "endaoment_org_id": "new-org-id",
         }
-        response = self.client.post(self.create_nonprofit_url, data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+        response = self.client.post(self.create_nonprofit_url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["name"], "Real Nonprofit Name")
+        nonprofit = NonprofitOrg.objects.get(endaoment_org_id="new-org-id")
+        self.assertEqual(nonprofit.name, "Real Nonprofit Name")
+
+    def test_create_nonprofit_missing_required_fields(self):
+        """Test validation of required fields."""
         # Missing endaoment_org_id
         data = {
-            "name": "New Nonprofit",
             "ein": "987654321",
         }
         response = self.client.post(self.create_nonprofit_url, data)
@@ -156,7 +165,6 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
 
         # Missing ein
         data = {
-            "name": "New Nonprofit",
             "endaoment_org_id": "new-org-id",
         }
         response = self.client.post(self.create_nonprofit_url, data)
@@ -166,7 +174,6 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
     def test_create_nonprofit_invalid_ein(self):
         """Test rejection of malformed EIN values."""
         data = {
-            "name": "New Nonprofit",
             "ein": "12345",
             "endaoment_org_id": "new-org-id",
         }
@@ -180,7 +187,6 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
             EndaomentOrgNotFound()
         )
         data = {
-            "name": "Fake Nonprofit",
             "ein": "987654321",
             "endaoment_org_id": "fake-org-id",
         }

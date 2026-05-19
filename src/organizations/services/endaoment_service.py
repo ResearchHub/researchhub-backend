@@ -8,6 +8,8 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+UNKNOWN_NONPROFIT_NAME = "Unknown"
+
 
 class EndaomentServiceError(Exception):
     """Raised when the Endaoment API cannot be reached or returns an error."""
@@ -40,6 +42,17 @@ def base_wallet_from_org(org: Dict[str, Any]) -> str:
         if deployment.get("chainId") == chain_id:
             return (deployment.get("contractAddress") or "").strip()
     return ""
+
+
+def nonprofit_fields_from_org(org: Dict[str, Any]) -> Dict[str, str]:
+    """Extract canonical nonprofit fields from a verified Endaoment org payload."""
+    name = (org.get("name") or "").strip() or UNKNOWN_NONPROFIT_NAME
+    return {
+        "name": name,
+        "ein": (org.get("ein") or "").strip(),
+        "endaoment_org_id": (org.get("id") or "").strip(),
+        "base_wallet_address": base_wallet_from_org(org),
+    }
 
 
 class EndaomentService:

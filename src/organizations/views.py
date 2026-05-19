@@ -12,7 +12,7 @@ from organizations.services.endaoment_service import (
     EndaomentOrgNotFound,
     EndaomentService,
     EndaomentServiceError,
-    base_wallet_from_org,
+    nonprofit_fields_from_org,
     normalize_ein,
 )
 from purchase.models import Fundraise
@@ -166,14 +166,13 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
         Create or retrieve a nonprofit organization.
 
         Request Body:
-            - name: Name of the nonprofit organization
             - ein: Employer Identification Number (required)
             - endaoment_org_id: Unique ID in Endaoment system
 
         Returns:
             - id: ID of the nonprofit organization
-            - name: Name of the nonprofit organization
-            - ein: Employer Identification Number
+            - name: Name from Endaoment
+            - ein: Employer Identification Number from Endaoment
             - endaoment_org_id: Unique ID in Endaoment system
             - base_wallet_address: Base chain wallet from Endaoment deployments
         """
@@ -182,12 +181,6 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
             return Response(
                 {"error": "endaoment_org_id is required"},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        name = request.data.get("name")
-        if not name:
-            return Response(
-                {"error": "name is required"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         ein = (request.data.get("ein") or "").strip()
@@ -218,7 +211,10 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        base_wallet_address = base_wallet_from_org(matched_org)
+        org_fields = nonprofit_fields_from_org(matched_org)
+        name = org_fields["name"]
+        ein = org_fields["ein"]
+        base_wallet_address = org_fields["base_wallet_address"]
 
         # Try to find existing nonprofit by endaoment_org_id
         nonprofit = NonprofitOrg.objects.filter(

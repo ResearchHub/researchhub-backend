@@ -4,9 +4,11 @@ from django.test import TestCase
 from requests.exceptions import HTTPError, RequestException
 
 from organizations.services.endaoment_service import (
+    UNKNOWN_NONPROFIT_NAME,
     EndaomentOrgNotFound,
     EndaomentService,
     base_wallet_from_org,
+    nonprofit_fields_from_org,
 )
 
 
@@ -205,3 +207,22 @@ class EndaomentServiceTests(TestCase):
     def test_base_wallet_from_org_missing_deployment(self):
         """Test empty wallet when no Base deployment exists."""
         self.assertEqual(base_wallet_from_org({"deployments": []}), "")
+
+    def test_nonprofit_fields_from_org(self):
+        """Test canonical field extraction from Endaoment org payload."""
+        org = {
+            "id": "org-uuid",
+            "name": "  Endaoment  ",
+            "ein": "844661797",
+            "deployments": [],
+        }
+        fields = nonprofit_fields_from_org(org)
+        self.assertEqual(fields["name"], "Endaoment")
+        self.assertEqual(fields["ein"], "844661797")
+        self.assertEqual(fields["endaoment_org_id"], "org-uuid")
+        self.assertEqual(fields["base_wallet_address"], "")
+
+    def test_nonprofit_fields_from_org_missing_name(self):
+        """Test fallback name when Endaoment omits org name."""
+        fields = nonprofit_fields_from_org({"id": "org-uuid", "ein": "844661797"})
+        self.assertEqual(fields["name"], UNKNOWN_NONPROFIT_NAME)
