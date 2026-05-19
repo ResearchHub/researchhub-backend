@@ -655,6 +655,22 @@ class BountyViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, 200)
 
+    def test_parent_creator_must_approve_pooled_bounty_via_parent_id(self):
+        _parent_response, child_response = self._create_pooled_bounty_on_comment()
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            f"/api/bounty/{child_response.data['id']}/approve_bounty/",
+            [
+                {
+                    "amount": "50",
+                    "object_id": self.comment.id,
+                    "content_type": self.comment._meta.model_name,
+                }
+            ],
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["error"], "Please approve parent bounty")
+
     def test_contributor_cannot_cancel_pooled_bounty_via_child_id(self):
         parent_response, child_response = self._create_pooled_bounty_on_comment()
         self.client.force_authenticate(self.user_2)
