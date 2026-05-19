@@ -115,9 +115,7 @@ class ExpertSearchAddExpertViewTests(APITestCase):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
         self.user = create_random_authenticated_user("user", moderator=False)
         self.search = _make_search(self.moderator)
-        self.url = (
-            f"/api/research_ai/expert-finder/searches/{self.search.id}/experts/"
-        )
+        self.url = f"/api/research_ai/expert-finder/searches/{self.search.id}/experts/"
 
     def _payload(self, **overrides):
         payload = {
@@ -180,9 +178,7 @@ class ExpertSearchAddExpertViewTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(
-            Expert.objects.filter(email="alice@example.com").exists()
-        )
+        self.assertTrue(Expert.objects.filter(email="alice@example.com").exists())
 
     def test_post_upserts_existing_expert_preserving_non_blank_fields(self):
         existing = Expert.objects.create(
@@ -236,9 +232,7 @@ class ExpertSearchAddExpertViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         new_expert = Expert.objects.get(email="alice@example.com")
-        link = SearchExpert.objects.get(
-            expert_search=self.search, expert=new_expert
-        )
+        link = SearchExpert.objects.get(expert_search=self.search, expert=new_expert)
         self.assertEqual(link.position, 3)
 
     def test_post_duplicate_in_same_search_returns_409(self):
@@ -251,9 +245,7 @@ class ExpertSearchAddExpertViewTests(APITestCase):
         self.assertEqual(
             SearchExpert.objects.filter(expert_search=self.search).count(), 1
         )
-        self.assertEqual(
-            Expert.objects.filter(email="alice@example.com").count(), 1
-        )
+        self.assertEqual(Expert.objects.filter(email="alice@example.com").count(), 1)
 
     @patch("research_ai.views.email_views.generate_expert_email")
     def test_manual_expert_can_have_email_generated(self, mock_generate):
