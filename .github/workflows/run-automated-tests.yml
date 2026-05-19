@@ -54,6 +54,17 @@ jobs:
       - name: Install Dependencies
         run: uv sync --all-extras
 
+      - name: Run Formatter
+        uses: astral-sh/ruff-action@v4.0.0
+        with:
+          src: "./src"
+          args: "format --check --diff"
+
+      - name: Run Linter
+        uses: astral-sh/ruff-action@v4.0.0
+        with:
+          src: "./src"
+
       - name: Run Tests
         env:
           APP_ENV: test
