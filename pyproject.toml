@@ -81,6 +81,7 @@ extend-select = [
 extend-ignore = [
     # Temporarily ignore these violations until cleaned up:
     "E402",  # module-import-not-at-top-of-file
+    "E501",  # line-too-long
     "E722",  # bare-except
     "F401",  # unused-import
     "F403",  # undefined-local-with-import-star
