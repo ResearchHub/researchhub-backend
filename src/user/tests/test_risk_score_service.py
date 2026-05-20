@@ -131,9 +131,7 @@ class RiskScoreServiceTests(TestCase):
     def test_source_duplicate_ignored(self):
         # Arrange
         source_obj = RiskScore.objects.create(user=self.user, score=DEFAULT_SCORE)
-        self.service.record_event(
-            self.user, EventType.WORK_APPROVED, source=source_obj
-        )
+        self.service.record_event(self.user, EventType.WORK_APPROVED, source=source_obj)
 
         # Act
         result = self.service.record_event(
