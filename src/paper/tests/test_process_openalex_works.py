@@ -12,7 +12,6 @@ from paper.openalex_util import (
     process_openalex_works,
 )
 from paper.paper_upload_tasks import (
-    PREPRINT_SOURCES_TO_HUB_SLUGS,
     _add_preprint_hub_if_applicable,
     _get_or_create_journal_hub,
 )
