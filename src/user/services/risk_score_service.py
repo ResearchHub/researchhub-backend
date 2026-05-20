@@ -17,7 +17,7 @@ class RiskScoreService:
 
     def get_score(self, user):
         try:
-            return user.risk_score.score
+            return RiskScore.objects.get(user=user).score
         except RiskScore.DoesNotExist:
             return DEFAULT_SCORE
 
