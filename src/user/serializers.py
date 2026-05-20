@@ -30,7 +30,6 @@ from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
 from user.constants.risk_score_constants import score_to_grade
-from user.services.risk_score_service import RiskScoreService
 from user.models import (
     Action,
     Author,
@@ -48,6 +47,7 @@ from user.related_models.author_institution import AuthorInstitution
 from user.related_models.coauthor_model import CoAuthor
 from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
+from user.services.risk_score_service import RiskScoreService
 from utils import sentry
 
 
