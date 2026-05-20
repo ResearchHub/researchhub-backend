@@ -148,6 +148,46 @@ class ExpertSearchDetailSerializerTests(TestCase):
         self.assertIn("last_email_sent_at", ser.data["experts"][0])
         self.assertIsNone(ser.data["experts"][0]["last_email_sent_at"])
 
+    def test_manually_added_experts_returned_first(self):
+        # Existing setUp seeded a non-manual expert at position 0.
+        auto_later = Expert.objects.create(
+            email="auto2@x.edu", first_name="Auto", last_name="Later"
+        )
+        SearchExpert.objects.create(
+            expert_search=self.search, expert=auto_later, position=1
+        )
+        manual_a = Expert.objects.create(
+            email="manual_a@x.edu",
+            first_name="Manual",
+            last_name="A",
+            sources=[{"type": "manual", "added_by": self.user.id}],
+        )
+        SearchExpert.objects.create(
+            expert_search=self.search, expert=manual_a, position=2
+        )
+        manual_b = Expert.objects.create(
+            email="manual_b@x.edu",
+            first_name="Manual",
+            last_name="B",
+            sources=[
+                {"text": "Keep", "url": "https://keep.example"},
+                {"type": "manual", "added_by": self.user.id},
+            ],
+        )
+        SearchExpert.objects.create(
+            expert_search=self.search, expert=manual_b, position=3
+        )
+
+        ser = ExpertSearchDetailSerializer(self.search)
+        emails = [e["email"] for e in ser.data["experts"]]
+
+        # Manual experts first (in original position order), then non-manual
+        # experts (also in original position order).
+        self.assertEqual(
+            emails,
+            ["manual_a@x.edu", "manual_b@x.edu", "v2@x.edu", "auto2@x.edu"],
+        )
+
 
 class ExpertUpdateSerializerTests(TestCase):
     def setUp(self):

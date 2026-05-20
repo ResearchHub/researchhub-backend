@@ -322,6 +322,14 @@ def _resolve_expert_search_work(expert_search, context=None):
     return resolve_work_for_unified_document(unified_doc, context=context)
 
 
+def _expert_was_manually_added(expert):
+    sources = expert.sources if isinstance(expert.sources, list) else []
+    return any(
+        isinstance(entry, dict) and entry.get("type") == "manual"
+        for entry in sources
+    )
+
+
 class ExpertSearchListItemSerializer(serializers.ModelSerializer):
     """List row: search metadata (use detail ``experts`` for full expert list)."""
 
@@ -401,6 +409,9 @@ class ExpertSearchDetailSerializer(serializers.ModelSerializer):
             .order_by("position")
         )
         experts = [se.expert for se in qs]
+        # Surface manually-added experts first; stable sort preserves the
+        # position-based order within each group.
+        experts.sort(key=lambda e: 0 if _expert_was_manually_added(e) else 1)
 
         return ExpertSerializer(experts, many=True).data
 
