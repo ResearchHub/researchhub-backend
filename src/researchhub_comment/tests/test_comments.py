@@ -12,6 +12,7 @@ from reputation.distributor import Distributor
 from reputation.models import Score
 from researchhub_comment.models import RhCommentModel
 from review.models import Review
+from user.related_models.user_model import FOUNDATION_EMAIL
 from user.tests.helpers import (
     create_moderator,
     create_random_default_user,
@@ -29,6 +30,7 @@ class CommentViewTests(APITestCase):
         self.user_3 = create_random_default_user("comment_user_3")
         self.user_4 = create_random_default_user("comment_user_4")
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
+        self.foundation = create_user(email=FOUNDATION_EMAIL)
         self.paper = create_paper(uploaded_by=self.paper_uploader)
         self.verified_user = create_random_default_user("verified_user")
         make_user_verified(self.verified_user)
@@ -225,7 +227,7 @@ class CommentViewTests(APITestCase):
         self.assertEqual(regular_res.data["count"], 1)
 
     def test_filter_by_bounties(self):
-        bounty_creator = self.user_1
+        bounty_creator = self.foundation
         regular_creator = self.user_2
         review_creator = self.user_3
         distribution = Dist("REWARD", 1000000000, give_rep=False)
@@ -234,8 +236,14 @@ class CommentViewTests(APITestCase):
             distribution, bounty_creator, bounty_creator, time.time(), bounty_creator
         )
         distributor.distribute()
-        self._create_paper_comment_with_bounty(self.paper.id, bounty_creator)
-        self._create_paper_comment_with_bounty(self.paper.id, bounty_creator)
+        comment_1 = self._create_paper_comment_with_bounty(
+            self.paper.id, bounty_creator
+        )
+        comment_2 = self._create_paper_comment_with_bounty(
+            self.paper.id, bounty_creator
+        )
+        self.assertEqual(comment_1.status_code, 200)
+        self.assertEqual(comment_2.status_code, 200)
         _ = self._create_paper_comment(self.paper.id, regular_creator)
         self._create_paper_comment(self.paper.id, review_creator, thread_type="REVIEW")
 
@@ -273,11 +281,11 @@ class CommentViewTests(APITestCase):
             score=100,
         )
 
-        self._give_rsc(self.user_1, 1000000)
+        self._give_rsc(self.foundation, 1000000)
 
         _ = self._create_paper_comment_with_bounty(  # noqa: F841
             self.paper.id,
-            self.user_1,
+            self.foundation,
             text="this is a test comment",
             amount=100,
             target_hub_ids=[hub.id],
@@ -300,11 +308,11 @@ class CommentViewTests(APITestCase):
             score=90,
         )
 
-        self._give_rsc(self.user_1, 1000000)
+        self._give_rsc(self.foundation, 1000000)
 
         self._create_paper_comment_with_bounty(
             self.paper.id,
-            self.user_1,
+            self.foundation,
             text="this is a test comment",
             amount=120,
             target_hub_ids=[hub.id],
@@ -461,9 +469,9 @@ class CommentViewTests(APITestCase):
         """Censoring a comment cancels its attached bounties."""
         from reputation.models import Bounty
 
-        self._give_rsc(self.user_1, 1_000_000)
+        self._give_rsc(self.foundation, 1_000_000)
         comment = self._create_paper_comment_with_bounty(
-            self.paper.id, self.user_1, amount=100
+            self.paper.id, self.foundation, amount=100
         )
         self.assertEqual(comment.status_code, 201)
 

@@ -30,7 +30,11 @@ from hub.models import Hub
 from purchase.models import Balance
 from reputation.constants import MAXIMUM_BOUNTY_AMOUNT_RSC, MINIMUM_BOUNTY_AMOUNT_RSC
 from reputation.models import Bounty, BountyFee, BountySolution, Contribution, Escrow
-from reputation.permissions import UserCanApproveBounty, UserCanCancelBounty
+from reputation.permissions import (
+    IsFoundationUser,
+    UserCanApproveBounty,
+    UserCanCancelBounty,
+)
 from reputation.serializers import (
     BountySerializer,
     DynamicBountySerializer,
@@ -47,8 +51,18 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
 from user.models import User
+from user.permissions import IsModerator
 from utils.permissions import PostOnly
 from utils.sentry import log_error
+
+
+def _open_bounty_exists_on_item(item_content_type, item_object_id):
+    content_type = ContentType.objects.get(model=item_content_type)
+    return Bounty.objects.filter(
+        status__in=(Bounty.OPEN, Bounty.ASSESSMENT),
+        item_content_type=content_type,
+        item_object_id=item_object_id,
+    ).exists()
 
 
 def _create_bounty_checks(user, amount, item_content_type, bypass_user_balance=False):
@@ -182,6 +196,12 @@ class BountyViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == "list":
             permission_classes = [AllowAny]
+        elif self.action == "create":
+            permission_classes = [
+                IsAuthenticated,
+                PostOnly,
+                IsFoundationUser | IsModerator,
+            ]
         else:
             permission_classes = self.permission_classes
 
@@ -242,6 +262,12 @@ class BountyViewSet(viewsets.ModelViewSet):
         item_content_type = data.get("item_content_type", "")
         item_object_id = data.get("item_object_id", 0)
         amount = str(data.get("amount", "0"))
+
+        if _open_bounty_exists_on_item(item_content_type, item_object_id):
+            return Response(
+                {"detail": "Contributions to existing bounties are not allowed"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
@@ -307,7 +333,11 @@ class BountyViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[IsAuthenticated, UserCanApproveBounty],
+        permission_classes=[
+            IsAuthenticated,
+            UserCanApproveBounty,
+            IsFoundationUser | IsModerator,
+        ],
     )
     def approve_bounty(self, request, pk=None):
         data = request.data
@@ -540,7 +570,11 @@ class BountyViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post", "delete"],
-        permission_classes=[IsAuthenticated, UserCanCancelBounty],
+        permission_classes=[
+            IsAuthenticated,
+            UserCanCancelBounty,
+            IsFoundationUser | IsModerator,
+        ],
     )
     def cancel_bounty(self, request, pk=None):
         with transaction.atomic():
