@@ -3,7 +3,6 @@ from rest_framework import serializers
 
 class StakingBalanceLotSerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=19, decimal_places=8)
-    created_date = serializers.DateField()
     effective_start_date = serializers.DateField()
     age_days = serializers.IntegerField()
     current_multiplier = serializers.DecimalField(max_digits=19, decimal_places=8)

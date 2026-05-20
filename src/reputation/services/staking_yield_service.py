@@ -95,25 +95,37 @@ class StakingYieldService:
 
     @staticmethod
     def get_balance_lot_details(user, reference_date):
-        """Return per-lot staking multiplier details for the given user.
+        """Return staking multiplier details grouped by effective start date.
 
-        Each entry includes the lot's effective start date (respecting the
-        user's staking opt-in date), current age and multiplier, the next
-        tier the lot will reach (if any), and the projected overall
-        weighted-average multiplier across all lots on that tier transition
-        date, assuming balances don't change before then.
+        Lots that share an effective start date (most commonly, all deposits
+        made before the user opted into staking, which collapse onto the
+        opt-in date) are combined into a single entry — they accrue
+        identically going forward, so showing them separately is noise.
+
+        Each entry includes the effective start date, current age and
+        multiplier, the next tier the group will reach (if any), and the
+        projected overall weighted-average multiplier across all lots on
+        that tier transition date, assuming balances don't change before
+        then.
         """
         lots = user.get_unlocked_balance_lots_lifo()
         opt_in_date = (
             user.staking_opted_in_date.date() if user.staking_opted_in_date else None
         )
 
-        details = []
+        grouped_amounts: dict[date, Decimal] = {}
         for lot in lots:
             effective_start_date = lot.created_date
             if opt_in_date is not None:
                 effective_start_date = max(effective_start_date, opt_in_date)
+            grouped_amounts[effective_start_date] = (
+                grouped_amounts.get(effective_start_date, Decimal("0")) + lot.amount
+            )
 
+        details = []
+        for effective_start_date, total_amount in sorted(
+            grouped_amounts.items(), reverse=True
+        ):
             age_days = max((reference_date - effective_start_date).days, 0)
             current_multiplier = StakingYieldService.compute_balance_age_multiplier(
                 age_days
@@ -136,8 +148,7 @@ class StakingYieldService:
 
             details.append(
                 {
-                    "amount": lot.amount.quantize(QUANTIZE_8, rounding=ROUND_DOWN),
-                    "created_date": lot.created_date,
+                    "amount": total_amount.quantize(QUANTIZE_8, rounding=ROUND_DOWN),
                     "effective_start_date": effective_start_date,
                     "age_days": age_days,
                     "current_multiplier": current_multiplier,
