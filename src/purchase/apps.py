@@ -5,4 +5,4 @@ class PurchaseConfig(AppConfig):
     name = "purchase"
 
     def ready(self):
-        import purchase.signals
+        import purchase.signals  # noqa: F401

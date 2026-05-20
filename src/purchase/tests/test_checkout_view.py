@@ -5,7 +5,6 @@ from rest_framework.test import APITestCase
 
 from paper.related_models.paper_model import Paper
 from purchase.related_models.payment_model import PaymentPurpose
-from purchase.views.checkout_view import CheckoutView
 from user.tests.helpers import create_user
 
 

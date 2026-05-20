@@ -1,5 +1,5 @@
 from decimal import Decimal
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from circle.web3.developer_controlled_wallets.exceptions import OpenApiException
 from django.test import TestCase
