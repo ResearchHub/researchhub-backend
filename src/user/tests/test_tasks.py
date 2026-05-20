@@ -115,6 +115,7 @@ class HandleSpamUserTaskTests(TestCase):
         # Assert
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0].user_id, self.user.id)
+        self.assertEqual(events[0].requestor_id, self.moderator.id)
 
     def test_reinstate_user_task_emits_user_reinstated_event(self):
         # Arrange
