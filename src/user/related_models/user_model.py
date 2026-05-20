@@ -13,7 +13,7 @@ from django.utils import timezone
 from hub.models import Hub
 from mailing_list.lib import send_email
 from mailing_list.models import EmailRecipient
-from reputation.models import Bounty, Distribution, PaidStatusModelMixin, Withdrawal
+from reputation.models import Distribution, PaidStatusModelMixin, Withdrawal
 from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
@@ -399,15 +399,9 @@ class User(AbstractUser):
 
     @property
     def amount_funded(self):
-        amount_funded = (
-            Bounty.objects.filter(
-                created_by=self,
-                status=Bounty.CLOSED,
-            ).aggregate(total_amount=Sum("amount"))["total_amount"]
-            or 0
-        )
+        from user.services.funding_activity_service import get_funder_total_amount
 
-        return amount_funded
+        return get_funder_total_amount(self.id)
 
     @property
     def is_verified(self):

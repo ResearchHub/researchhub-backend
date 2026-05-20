@@ -3,7 +3,7 @@ from typing import Optional
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
 
 from purchase.models import Purchase
 from purchase.related_models.fundraise_model import Fundraise
@@ -38,6 +38,19 @@ def get_leaderboard_excluded_user_ids():
             | Q(email__in=[BANK_EMAIL, FOUNDATION_EMAIL])
         ).values_list("id", flat=True)
     )
+
+
+def get_funder_total_amount(user_id, start_date=None, end_date=None):
+    """
+    Sum of FundingActivity.total_amount for a user as funder.
+    Matches funder leaderboard aggregation.
+    """
+    qs = FundingActivity.objects.filter(funder_id=user_id)
+    if start_date is not None:
+        qs = qs.filter(activity_date__gte=start_date)
+    if end_date is not None:
+        qs = qs.filter(activity_date__lte=end_date)
+    return qs.aggregate(total=Sum("total_amount"))["total"] or 0
 
 
 class FundingActivityService:
