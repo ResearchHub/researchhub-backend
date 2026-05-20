@@ -23,7 +23,7 @@ class OpenAIExpertFinderService:
         system_prompt: str,
         user_prompt: str,
         *,
-        max_tokens: int = 8192,
+        max_tokens: int = 16_384,
         temperature: float = 0.0,
     ) -> str:
         """
