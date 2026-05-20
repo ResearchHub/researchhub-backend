@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.contrib.contenttypes.models import ContentType
-from django.db import models, transaction
+from django.db import models
 from django.db.models import Count, DecimalField, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
