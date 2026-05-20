@@ -87,14 +87,6 @@ app.conf.beat_schedule = {
         },
     },
     # Reputation
-    "reputation_check-deposits": {
-        "task": "reputation.tasks.check_deposits",
-        "schedule": crontab(minute="*/1"),
-        "options": {
-            "priority": 2,
-            "queue": QUEUE_PURCHASES,
-        },
-    },
     "reputation_check-pending-withdrawals": {
         "task": "reputation.tasks.check_pending_withdrawals",
         "schedule": crontab(minute="*/5"),
