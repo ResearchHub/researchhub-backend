@@ -107,8 +107,10 @@ class WalletService:
                 contract.functions.transfer(DEAD_ADDRESS, int(amount * 10**18))
             )
 
-            # Use shared gas price calculation
-            gas_price_wei = get_gas_price_wei(network)
+            # 20% buffer on top of the etherscan-quoted price so the tx
+            # isn't underbid if the network fee creeps up before inclusion
+            # (was causing wait_for_transaction_receipt timeouts).
+            gas_price_wei = int(get_gas_price_wei(network) * 1.2)
             estimated_cost_wei = gas_estimate * gas_price_wei
             estimated_cost_eth = estimated_cost_wei / 10**18
 
@@ -137,6 +139,7 @@ class WalletService:
                 to=DEAD_ADDRESS,
                 amount=amount,
                 network=network,
+                gas_price=gas_price_wei,
             )
 
             logger.info(f"Burning transaction submitted: {tx_hash}")
