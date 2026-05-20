@@ -15,11 +15,11 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from researchhub_document.helpers import create_post
-from risk_score.constants import DEFAULT_SCORE
-from risk_score.models import RiskScoreEvent
-from risk_score.services import RiskScoreService
+from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.models import UserVerification
+from user.related_models.risk_score_model import RiskScoreEvent
 from user.related_models.user_model import FOUNDATION_EMAIL
+from user.services.risk_score_service import RiskScoreService
 from user.tests.helpers import create_user
 
 EventType = RiskScoreEvent.EventType

@@ -2,8 +2,12 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Sum
 
-from risk_score.constants import DEFAULT_SCORE, RESTRICTED_THRESHOLD, TRUSTED_THRESHOLD
-from risk_score.models import RiskScore, RiskScoreEvent
+from user.constants.risk_score_constants import (
+    DEFAULT_SCORE,
+    RESTRICTED_THRESHOLD,
+    TRUSTED_THRESHOLD,
+)
+from user.related_models.risk_score_model import RiskScore, RiskScoreEvent
 
 EventType = RiskScoreEvent.EventType
 
@@ -34,6 +38,11 @@ class RiskScoreService:
             if event_type in RiskScoreEvent.ONE_TIME_TYPES:
                 if self._one_time_event_exists(user, event_type):
                     return None
+
+            if source is not None and self._source_event_exists(
+                user, event_type, source
+            ):
+                return None
 
             event = RiskScoreEvent.objects.create(
                 user=user,
@@ -69,6 +78,14 @@ class RiskScoreService:
 
     def _one_time_event_exists(self, user, event_type):
         return RiskScoreEvent.objects.filter(user=user, event_type=event_type).exists()
+
+    def _source_event_exists(self, user, event_type, source):
+        return RiskScoreEvent.objects.filter(
+            user=user,
+            event_type=event_type,
+            source_content_type=ContentType.objects.get_for_model(source),
+            source_content_id=source.pk,
+        ).exists()
 
     def _source_fields(self, source):
         if source is None:

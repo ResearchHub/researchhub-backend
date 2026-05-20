@@ -29,8 +29,8 @@ from researchhub_access_group.constants import (
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
-from risk_score.constants import DEFAULT_SCORE, score_to_grade
-from risk_score.models import RiskScore
+from user.constants.risk_score_constants import DEFAULT_SCORE, score_to_grade
+from user.related_models.risk_score_model import RiskScore
 from user.models import (
     Action,
     Author,
