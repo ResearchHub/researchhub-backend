@@ -9,7 +9,7 @@ from notification.models import Notification
 from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import Score
+from reputation.models import BountyFee, Score
 from researchhub_comment.models import RhCommentModel
 from review.models import Review
 from user.related_models.user_model import FOUNDATION_EMAIL
@@ -31,6 +31,7 @@ class CommentViewTests(APITestCase):
         self.user_4 = create_random_default_user("comment_user_4")
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
         self.foundation = create_user(email=FOUNDATION_EMAIL)
+        BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
         self.paper = create_paper(uploaded_by=self.paper_uploader)
         self.verified_user = create_random_default_user("verified_user")
         make_user_verified(self.verified_user)
@@ -242,8 +243,8 @@ class CommentViewTests(APITestCase):
         comment_2 = self._create_paper_comment_with_bounty(
             self.paper.id, bounty_creator
         )
-        self.assertEqual(comment_1.status_code, 200)
-        self.assertEqual(comment_2.status_code, 200)
+        self.assertEqual(comment_1.status_code, 201)
+        self.assertEqual(comment_2.status_code, 201)
         _ = self._create_paper_comment(self.paper.id, regular_creator)
         self._create_paper_comment(self.paper.id, review_creator, thread_type="REVIEW")
 
