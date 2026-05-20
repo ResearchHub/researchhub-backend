@@ -325,8 +325,7 @@ def _resolve_expert_search_work(expert_search, context=None):
 def _expert_was_manually_added(expert):
     sources = expert.sources if isinstance(expert.sources, list) else []
     return any(
-        isinstance(entry, dict) and entry.get("type") == "manual"
-        for entry in sources
+        isinstance(entry, dict) and entry.get("type") == "manual" for entry in sources
     )
 
 
