@@ -380,6 +380,10 @@ class PendingWithdrawal:
         )
         amount = Decimal(self.amount)
         to = self.withdrawal.to_address
+        # 20% buffer on top of the etherscan-quoted price so the tx isn't
+        # underbid if the network fee creeps up before inclusion. Without
+        # this, BASE withdrawals can sit in the mempool indefinitely.
+        gas_price_wei = int(get_gas_price_wei(self.network) * 1.2)
         tx_hash = execute_erc20_transfer(
             self.w3,
             settings.WEB3_WALLET_ADDRESS,
@@ -388,6 +392,7 @@ class PendingWithdrawal:
             to,
             amount,
             network=self.network,
+            gas_price=gas_price_wei,
         )
         self.withdrawal.transaction_hash = tx_hash
         self.withdrawal.save()
