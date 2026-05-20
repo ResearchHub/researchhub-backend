@@ -29,8 +29,8 @@ from researchhub_access_group.constants import (
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
-from user.constants.risk_score_constants import DEFAULT_SCORE, score_to_grade
-from user.related_models.risk_score_model import RiskScore
+from user.constants.risk_score_constants import score_to_grade
+from user.services.risk_score_service import RiskScoreService
 from user.models import (
     Action,
     Author,
@@ -110,10 +110,7 @@ class ModeratorUserSerializer(ModelSerializer):
         }
 
     def get_risk_score(self, user):
-        try:
-            return user.risk_score.score
-        except RiskScore.DoesNotExist:
-            return DEFAULT_SCORE
+        return RiskScoreService().get_score(user)
 
     def get_risk_score_grade(self, user):
         return score_to_grade(self.get_risk_score(user))
