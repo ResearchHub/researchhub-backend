@@ -15,8 +15,8 @@ class UserReinstatedEvent:
     user_id: int
 
 
-user_suspended = Signal()
-user_reinstated = Signal()
+user_suspended: Signal = Signal()
+user_reinstated: Signal = Signal()
 
 
 def publish_user_suspended(*, sender: Any, user_id: int) -> None:
