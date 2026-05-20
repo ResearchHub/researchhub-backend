@@ -1,5 +1,6 @@
 from datetime import datetime, time
 
+from django.db.models import BooleanField, Case, Value, When
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -322,13 +323,6 @@ def _resolve_expert_search_work(expert_search, context=None):
     return resolve_work_for_unified_document(unified_doc, context=context)
 
 
-def _expert_was_manually_added(expert):
-    sources = expert.sources if isinstance(expert.sources, list) else []
-    return any(
-        isinstance(entry, dict) and entry.get("type") == "manual" for entry in sources
-    )
-
-
 class ExpertSearchListItemSerializer(serializers.ModelSerializer):
     """List row: search metadata (use detail ``experts`` for full expert list)."""
 
@@ -402,15 +396,23 @@ class ExpertSearchDetailSerializer(serializers.ModelSerializer):
         return _resolve_expert_search_work(obj, context=self.context)
 
     def get_experts(self, obj):
+        # Surface manually-added experts first; ties fall back to position.
         qs = (
             SearchExpert.objects.filter(expert_search_id=obj.id)
             .select_related("expert")
-            .order_by("position")
+            .annotate(
+                is_manual=Case(
+                    When(
+                        expert__sources__contains=[{"type": "manual"}],
+                        then=Value(True),
+                    ),
+                    default=Value(False),
+                    output_field=BooleanField(),
+                )
+            )
+            .order_by("-is_manual", "position")
         )
         experts = [se.expert for se in qs]
-        # Surface manually-added experts first; stable sort preserves the
-        # position-based order within each group.
-        experts.sort(key=lambda e: 0 if _expert_was_manually_added(e) else 1)
 
         return ExpertSerializer(experts, many=True).data
 
