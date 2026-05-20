@@ -175,9 +175,7 @@ class BountyViewTests(APITestCase):
         )
         self.assertEqual(create_res.status_code, 201)
 
-        other_moderator = create_random_default_user(
-            "other_mod_bounty", moderator=True
-        )
+        other_moderator = create_random_default_user("other_mod_bounty", moderator=True)
         self.client.force_authenticate(other_moderator)
         approve_res = self.client.post(
             f"/api/bounty/{create_res.data['id']}/approve_bounty/",
