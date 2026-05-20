@@ -160,7 +160,7 @@ class ExpertSearchDetailSerializerTests(TestCase):
             email="manual_a@x.edu",
             first_name="Manual",
             last_name="A",
-            sources=[{"type": "manual", "added_by": self.user.id}],
+            is_manually_added=True,
         )
         SearchExpert.objects.create(
             expert_search=self.search, expert=manual_a, position=2
@@ -169,10 +169,7 @@ class ExpertSearchDetailSerializerTests(TestCase):
             email="manual_b@x.edu",
             first_name="Manual",
             last_name="B",
-            sources=[
-                {"text": "Keep", "url": "https://keep.example"},
-                {"type": "manual", "added_by": self.user.id},
-            ],
+            is_manually_added=True,
         )
         SearchExpert.objects.create(
             expert_search=self.search, expert=manual_b, position=3

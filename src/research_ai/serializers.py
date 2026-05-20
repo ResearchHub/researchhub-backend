@@ -1,6 +1,5 @@
 from datetime import datetime, time
 
-from django.db.models import BooleanField, Case, Value, When
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -400,17 +399,7 @@ class ExpertSearchDetailSerializer(serializers.ModelSerializer):
         qs = (
             SearchExpert.objects.filter(expert_search_id=obj.id)
             .select_related("expert")
-            .annotate(
-                is_manual=Case(
-                    When(
-                        expert__sources__contains=[{"type": "manual"}],
-                        then=Value(True),
-                    ),
-                    default=Value(False),
-                    output_field=BooleanField(),
-                )
-            )
-            .order_by("-is_manual", "position")
+            .order_by("-expert__is_manually_added", "position")
         )
         experts = [se.expert for se in qs]
 
