@@ -132,7 +132,8 @@ def execute_erc20_transfer(
     to,
     amount,
     network="ETHEREUM",
-    gas_price=None,
+    max_fee_per_gas=None,
+    max_priority_fee_per_gas=None,
 ):
     """Sends `amount` of the token located at `contract` to `to`.
 
@@ -146,8 +147,11 @@ def execute_erc20_transfer(
         amount (int) - Amount of token to send (in smallest possible
             denomination)
         network (str) - Network to use ("ETHEREUM" or "BASE")
-        gas_price (int) - Optional gas price in wei. If omitted, web3.py's
-            defaults are used.
+        max_fee_per_gas (int) - Optional EIP-1559 fee cap in wei. If
+            omitted, the web3.py library's defaults are used. See
+            https://web3py.readthedocs.io/en/stable/web3.eth.html#web3.eth.Eth.send_transaction
+        max_priority_fee_per_gas (int) - Optional EIP-1559 tip in wei.
+            If omitted, the web3.py library's defaults are used.
     """
     decimals = contract.functions.decimals().call()
     decimal_amount = int(amount * 10 ** int(decimals))
@@ -157,7 +161,8 @@ def execute_erc20_transfer(
         sender,
         sender_signing_key,
         network=network,
-        gas_price=gas_price,
+        max_fee_per_gas=max_fee_per_gas,
+        max_priority_fee_per_gas=max_priority_fee_per_gas,
     )
 
 
@@ -168,7 +173,8 @@ def _transact(
     sender_signing_key,
     network="ETHEREUM",
     gas=None,
-    gas_price=None,
+    max_fee_per_gas=None,
+    max_priority_fee_per_gas=None,
 ):
     """Executes the contract's `method_call` on chain."""
     gas_estimate = get_gas_estimate(method_call)
@@ -182,8 +188,10 @@ def _transact(
         "gas": gas or gas_estimate,
         "chainId": chain_id,
     }
-    if gas_price is not None:
-        tx_params["gasPrice"] = gas_price
+    if max_fee_per_gas is not None:
+        tx_params["maxFeePerGas"] = max_fee_per_gas
+    if max_priority_fee_per_gas is not None:
+        tx_params["maxPriorityFeePerGas"] = max_priority_fee_per_gas
 
     tx = method_call.build_transaction(tx_params)
 
