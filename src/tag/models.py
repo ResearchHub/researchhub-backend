@@ -2,7 +2,6 @@ from datetime import datetime, timedelta
 
 from django.db import models
 
-from hub.models import Hub
 from utils.models import DefaultModel
 
 
