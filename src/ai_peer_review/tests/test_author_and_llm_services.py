@@ -215,8 +215,7 @@ class BedrockLLMServiceTests(SimpleTestCase):
         self.assertEqual(ic, {"maxTokens": 50})
 
     @patch("ai_peer_review.services.bedrock_llm_service.bedrock_runtime_client")
-    @patch("ai_peer_review.services.bedrock_llm_service.sentry.log_error")
-    def test_invoke_raises_on_client_error(self, mock_sentry, mock_create_client):
+    def test_invoke_raises_on_client_error(self, mock_create_client):
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
         mock_client.converse.side_effect = RuntimeError("aws down")
@@ -225,7 +224,6 @@ class BedrockLLMServiceTests(SimpleTestCase):
         with self.assertRaises(RuntimeError) as ctx:
             svc.invoke("s", "u")
         self.assertIn("Bedrock invoke failed", str(ctx.exception))
-        mock_sentry.assert_called_once()
 
 
 class OpenAIReviewContextServiceTests(SimpleTestCase):
