@@ -10,7 +10,6 @@ from user.tests.helpers import create_random_default_user
 
 
 class OrcidConnectViewTests(TestCase):
-
     def setUp(self):
         self.factory = APIRequestFactory()
         self.view = OrcidConnectView.as_view()
@@ -19,8 +18,12 @@ class OrcidConnectViewTests(TestCase):
 
     def test_returns_auth_url(self):
         # Arrange
-        self.mock_service.build_auth_url.return_value = "https://orcid.org/oauth?state=abc"
-        request = self.factory.post("/", {"return_url": "https://researchhub.com"}, format="json")
+        self.mock_service.build_auth_url.return_value = (
+            "https://orcid.org/oauth?state=abc"
+        )
+        request = self.factory.post(
+            "/", {"return_url": "https://researchhub.com"}, format="json"
+        )
         force_authenticate(request, user=self.user)
 
         # Act

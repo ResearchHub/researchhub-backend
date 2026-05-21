@@ -98,9 +98,7 @@ class OpenAIExpertFinderServiceTests(TestCase):
 
     @override_settings(OPENAI_API_KEY="sk-test")
     @patch("research_ai.services.openai_expert_finder_service.OpenAI")
-    def test_invoke_chat_completion_null_content_returns_empty(
-        self, mock_openai_cls
-    ):
+    def test_invoke_chat_completion_null_content_returns_empty(self, mock_openai_cls):
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
         mock_client.responses.create.side_effect = RuntimeError("no responses")
@@ -120,7 +118,9 @@ class OpenAIExpertFinderServiceTests(TestCase):
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
         mock_client.responses.create.side_effect = ValueError("responses failed")
-        mock_client.chat.completions.create.side_effect = ConnectionError("network down")
+        mock_client.chat.completions.create.side_effect = ConnectionError(
+            "network down"
+        )
 
         svc = OpenAIExpertFinderService()
         with self.assertRaises(RuntimeError) as ctx:

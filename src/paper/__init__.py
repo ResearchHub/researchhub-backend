@@ -1,1 +1,1 @@
-default_app_config = 'paper.apps.PaperConfig'
+default_app_config = "paper.apps.PaperConfig"

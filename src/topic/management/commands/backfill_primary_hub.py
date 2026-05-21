@@ -1,9 +1,8 @@
-""" Single use script to backfill is_primary field in UnifiedDocumentTopics model"""
+"""Single use script to backfill is_primary field in UnifiedDocumentTopics model"""
 
 from django.core.management.base import BaseCommand
 
-from topic.models import Topic, UnifiedDocumentTopics
-from utils.openalex import OpenAlex
+from topic.models import UnifiedDocumentTopics
 
 
 class Command(BaseCommand):

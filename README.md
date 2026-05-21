@@ -108,6 +108,11 @@ python manage.py opensearch index rebuild
     python manage.py remove_deleted_docs_from_index --batch-size=200
    ``` 
 
+### Backfill User Risk Scores
+ 
+```shell
+python manage.py backfill_risk_scores 
+```
 
 ### Adding new packages
 

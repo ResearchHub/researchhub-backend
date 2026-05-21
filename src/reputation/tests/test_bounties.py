@@ -115,6 +115,30 @@ class BountyViewTests(APITestCase):
         )
         return vote
 
+    def _create_pooled_bounty_on_comment(self, parent_amount=100, child_amount=200):
+        self.client.force_authenticate(self.user)
+        parent_response = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": parent_amount,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+        self.assertEqual(parent_response.status_code, 201)
+
+        self.client.force_authenticate(self.user_2)
+        child_response = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": child_amount,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+        self.assertEqual(child_response.status_code, 201)
+        return parent_response, child_response
+
     def test_user_can_create_bounty(self, amount=100):
         self.client.force_authenticate(self.user)
 
@@ -374,7 +398,7 @@ class BountyViewTests(APITestCase):
 
         bounty_2 = self.test_user_can_create_larger_bounty()
         approve_bounty_res_2 = self.client.post(
-            f"/api/bounty/{bounty_2.data['id']}/approve_bounty/",
+            f"/api/bounty/{bounty_1.data['id']}/approve_bounty/",
             [
                 {
                     "amount": decimal.Decimal(bounty_2.data["amount"]) / 2,
@@ -600,6 +624,62 @@ class BountyViewTests(APITestCase):
         )
 
         self.assertEqual(approve_bounty_res.status_code, 403)
+
+    def test_contributor_cannot_approve_pooled_bounty_via_child_id(self):
+        parent_response, child_response = self._create_pooled_bounty_on_comment()
+        self.client.force_authenticate(self.user_2)
+        response = self.client.post(
+            f"/api/bounty/{child_response.data['id']}/approve_bounty/",
+            [
+                {
+                    "amount": "100",
+                    "object_id": self.comment.id,
+                    "content_type": self.comment._meta.model_name,
+                }
+            ],
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_parent_creator_can_approve_pooled_bounty_via_parent_id(self):
+        parent_response, _child_response = self._create_pooled_bounty_on_comment()
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            f"/api/bounty/{parent_response.data['id']}/approve_bounty/",
+            [
+                {
+                    "amount": "50",
+                    "object_id": self.comment.id,
+                    "content_type": self.comment._meta.model_name,
+                }
+            ],
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_parent_creator_must_approve_pooled_bounty_via_parent_id(self):
+        _parent_response, child_response = self._create_pooled_bounty_on_comment()
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            f"/api/bounty/{child_response.data['id']}/approve_bounty/",
+            [
+                {
+                    "amount": "50",
+                    "object_id": self.comment.id,
+                    "content_type": self.comment._meta.model_name,
+                }
+            ],
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["error"], "Please approve parent bounty")
+
+    def test_contributor_cannot_cancel_pooled_bounty_via_child_id(self):
+        parent_response, child_response = self._create_pooled_bounty_on_comment()
+        self.client.force_authenticate(self.user_2)
+        response = self.client.post(
+            f"/api/bounty/{child_response.data['id']}/cancel_bounty/",
+        )
+        self.assertEqual(response.status_code, 403)
+        parent_bounty = Bounty.objects.get(id=parent_response.data["id"])
+        self.assertEqual(parent_bounty.status, Bounty.OPEN)
 
     def test_user_can_cancel_bounty(self):
         self.client.force_authenticate(self.user)
@@ -1752,7 +1832,9 @@ class BountyViewTests(APITestCase):
             "Proposal review bounties should appear first in get_bounties",
         )
 
-    def _create_paper_and_proposal_bounties(self, paper_amount=100, proposal_amount=100):
+    def _create_paper_and_proposal_bounties(
+        self, paper_amount=100, proposal_amount=100
+    ):
         """Create a regular review bounty and a preregistration review bounty."""
         paper_bounty_res = self.client.post(
             "/api/bounty/",

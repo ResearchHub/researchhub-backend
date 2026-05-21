@@ -18,7 +18,6 @@ from utils.test_helpers import AWSMockTestCase
 
 
 class CommentSignalsTests(AWSMockTestCase):
-
     def setUp(self):
         super().setUp()
         self.user = User.objects.create_user(username="user1")

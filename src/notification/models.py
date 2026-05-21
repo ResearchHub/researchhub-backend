@@ -81,7 +81,8 @@ class Notification(models.Model):
     )
 
     body = ArrayField(
-        HStoreField(), default=list  # Do not use [] because it is mutable and is shared
+        HStoreField(),
+        default=list,  # Do not use [] because it is mutable and is shared
     )
     extra = HStoreField(default=dict)
     navigation_url = models.URLField(null=True, max_length=1024)

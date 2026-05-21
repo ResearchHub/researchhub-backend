@@ -4,4 +4,3 @@ __all__ = [
     "get_orcid_app",
     "is_valid_redirect_url",
 ]
-

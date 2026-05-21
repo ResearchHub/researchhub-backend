@@ -57,8 +57,20 @@ dependencies = [
     "q5-django-inlinecss==0.0.2",
     "sentry-sdk>=2.49.0,<3.0.0",
     "stripe>=11.2.0,<12.0.0",
-    "web3[tester]>=7.16.0",
+    "web3>=7.16.0",
     "xdk>=0.4.5",
+]
+
+[dependency-groups]
+dev = [
+    "coverage>=7.6.1",
+    "pre-commit==2.17.0",
+    "requests-mock>=1.12.1,<2.0.0",
+    "responses>=0.26.0",
+    "ruff==0.15.12",
+    "setuptools>=78.1.1",
+    "tblib>=3.2.2",
+    "web3[tester]>=7.16.0",
 ]
 
 [tool.coverage.run]
@@ -73,29 +85,20 @@ src = ["src"]
 extend-exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
+extend-select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "I",  # isort
+]
 extend-ignore = [
     # Temporarily ignore these violations until cleaned up:
     "E402",  # module-import-not-at-top-of-file
+    "E501",  # line-too-long
     "E722",  # bare-except
-    "F401",  # unused-import
     "F403",  # undefined-local-with-import-star
     "F541",  # f-string-missing-placeholders
     "F601",  # multi-value-repeated-key-literal
     "F811",  # redefined-while-unused
     "F821",  # undefined-name
     "F841",  # unused-variable
-]
-
-[dependency-groups]
-dev = [
-    "black==26.3.1",
-    "coverage>=7.6.1",
-    "flake8==5.0.4",
-    "isort>=8.0.1",
-    "pre-commit==2.17.0",
-    "requests-mock>=1.12.1,<2.0.0",
-    "responses>=0.26.0",
-    "ruff==0.15.12",
-    "setuptools>=78.1.1",
-    "tblib>=3.2.2",
 ]

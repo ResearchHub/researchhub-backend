@@ -8,7 +8,6 @@ from orcid.tests.helpers import OrcidTestHelper
 
 
 class OrcidClientTests(TestCase):
-
     def setUp(self):
         self.mock_session = Mock()
         self.client = OrcidClient(session=self.mock_session)
@@ -17,11 +16,13 @@ class OrcidClientTests(TestCase):
         # Arrange
         self.mock_session.post.return_value = Mock(
             json=lambda: {"orcid": OrcidTestHelper.ORCID_ID, "access_token": "token"},
-            raise_for_status=Mock()
+            raise_for_status=Mock(),
         )
 
         # Act
-        result = self.client.exchange_code_for_token("code", "id", "secret", "https://example.com")
+        result = self.client.exchange_code_for_token(
+            "code", "id", "secret", "https://example.com"
+        )
 
         # Assert
         self.assertEqual(result["orcid"], OrcidTestHelper.ORCID_ID)
@@ -35,13 +36,15 @@ class OrcidClientTests(TestCase):
 
         # Act & Assert
         with self.assertRaises(HTTPError):
-            self.client.exchange_code_for_token("code", "id", "secret", "https://example.com")
+            self.client.exchange_code_for_token(
+                "code", "id", "secret", "https://example.com"
+            )
 
     def test_get_email_data_success(self):
         # Arrange
         self.mock_session.get.return_value = Mock(
             json=lambda: {"email": [{"email": "user@stanford.edu", "verified": True}]},
-            raise_for_status=Mock()
+            raise_for_status=Mock(),
         )
 
         # Act
@@ -63,8 +66,7 @@ class OrcidClientTests(TestCase):
     def test_get_works_success(self):
         # Arrange
         self.mock_session.get.return_value = Mock(
-            json=lambda: {"group": [{"work-summary": []}]},
-            raise_for_status=Mock()
+            json=lambda: {"group": [{"work-summary": []}]}, raise_for_status=Mock()
         )
 
         # Act
@@ -82,4 +84,3 @@ class OrcidClientTests(TestCase):
 
         # Assert
         self.assertEqual(result, {})
-

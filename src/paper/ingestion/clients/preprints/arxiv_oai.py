@@ -7,7 +7,6 @@ See: https://info.arxiv.org/help/oa/index.html
 """
 
 import logging
-import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Union

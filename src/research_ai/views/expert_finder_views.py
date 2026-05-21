@@ -2,7 +2,8 @@ import json
 import logging
 
 from django.core.cache import cache
-from django.db.models import Prefetch
+from django.db import IntegrityError, transaction
+from django.db.models import Max, Prefetch
 from django.http import StreamingHttpResponse
 from django.utils import timezone
 from rest_framework import status
@@ -24,10 +25,12 @@ from research_ai.serializers import (
     InvitedExpertOverviewQuerySerializer,
     InvitedExpertOverviewSerializer,
     InvitedExpertOverviewSummarySerializer,
+    ManualExpertCreateSerializer,
     _get_user_with_author_payload,
     resolve_work_for_unified_document,
 )
 from research_ai.services.expert_finder_service import get_document_content
+from research_ai.services.expert_persist import ExpertPersist
 from research_ai.services.invited_experts_service import (
     get_invited_expert_editors_overview,
     get_invited_expert_overview,
@@ -239,6 +242,64 @@ class ExpertDetailView(APIView):
         return Response(ExpertSerializer(expert).data)
 
 
+class ExpertSearchAddExpertView(APIView):
+    """POST ``/expert-finder/searches/<search_id>/experts/`` — manually add an expert.
+
+    Upserts the canonical ``Expert`` (one row per email) and links it to the
+    given ``ExpertSearch`` via a new ``SearchExpert`` row appended at the end
+    of the existing ordering.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def post(self, request, search_id):
+        try:
+            expert_search = ExpertSearch.objects.get(id=search_id)
+        except ExpertSearch.DoesNotExist:
+            return Response(
+                {"detail": "Expert search not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        ser = ManualExpertCreateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        try:
+            with transaction.atomic():
+                expert = ExpertPersist.upsert_from_parsed_dict(data)
+                ExpertPersist.tag_manual_source(expert, request.user)
+                max_position = SearchExpert.objects.filter(
+                    expert_search_id=expert_search.id
+                ).aggregate(Max("position"))["position__max"]
+                next_position = (max_position if max_position is not None else -1) + 1
+                SearchExpert.objects.create(
+                    expert_search_id=expert_search.id,
+                    expert_id=expert.id,
+                    position=next_position,
+                )
+        except IntegrityError:
+            return Response(
+                {"detail": "This expert is already in this search."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            ExpertSerializer(expert).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+INVITED_OVERVIEW_CACHE_TTL = 60 * 60 * 1  # 1 hour
 INVITED_STATS_CACHE_TTL = 60 * 60 * 1  # 1 hour
 
 
@@ -370,9 +431,7 @@ class InvitedExpertEditorsOverviewView(InvitedExpertStatsMixin, APIView):
     cache_prefix = "editors_overview"
 
     def get(self, request):
-        qser = InvitedExpertEditorsOverviewQuerySerializer(
-            data=request.query_params
-        )
+        qser = InvitedExpertEditorsOverviewQuerySerializer(data=request.query_params)
         qser.is_valid(raise_exception=True)
         params = qser.validated_data
         unified_document_id = params.get("unified_document_id")
@@ -522,9 +581,11 @@ def _sse_event_stream(search_id):
                         yield "event: progress\n"
                         yield "data: " + json.dumps(final) + "\n\n"
                         yield "event: complete\n"
-                        yield "data: " + json.dumps(
-                            {"status": "stream_complete"}
-                        ) + "\n\n"
+                        yield (
+                            "data: "
+                            + json.dumps({"status": "stream_complete"})
+                            + "\n\n"
+                        )
                         return
                 except (ValueError, Exception):
                     pass

@@ -55,7 +55,6 @@ def _apply_generate_template_rules(attrs, initial_data):
 
 
 class ExpertSearchConfigSerializer(serializers.Serializer):
-
     expert_count = serializers.IntegerField(default=10, min_value=5, max_value=100)
     expertise_level = serializers.ListField(
         child=serializers.ChoiceField(choices=ExpertiseLevel.choices),
@@ -128,7 +127,6 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
 
 
 class ExpertSerializer(serializers.Serializer):
-
     id = serializers.IntegerField()
     honorific = serializers.CharField(allow_blank=True)
     first_name = serializers.CharField(allow_blank=True)
@@ -189,6 +187,49 @@ class ExpertUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "An expert with this email already exists."
             )
+        return email
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        capped_fields = {
+            "honorific": 64,
+            "first_name": 255,
+            "middle_name": 255,
+            "last_name": 255,
+            "name_suffix": 64,
+            "academic_title": 255,
+        }
+        for field, max_len in capped_fields.items():
+            if field in attrs:
+                attrs[field] = trimmed_str(attrs[field], max_len=max_len)
+        for field in ("affiliation", "expertise", "notes"):
+            if field in attrs:
+                attrs[field] = trimmed_str(attrs[field])
+        return attrs
+
+
+class ManualExpertCreateSerializer(serializers.Serializer):
+    """POST body for ``/expert-finder/searches/<id>/experts/`` (manual entry).
+
+    Email is required; rest are optional. Existing emails are upserted (not
+    rejected), unlike :class:`ExpertUpdateSerializer` which forbids duplicates.
+    """
+
+    email = serializers.EmailField(required=True, allow_blank=False)
+    honorific = serializers.CharField(required=False, allow_blank=True)
+    first_name = serializers.CharField(required=False, allow_blank=True)
+    middle_name = serializers.CharField(required=False, allow_blank=True)
+    last_name = serializers.CharField(required=False, allow_blank=True)
+    name_suffix = serializers.CharField(required=False, allow_blank=True)
+    academic_title = serializers.CharField(required=False, allow_blank=True)
+    affiliation = serializers.CharField(required=False, allow_blank=True)
+    expertise = serializers.CharField(required=False, allow_blank=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_email(self, value):
+        email = ExpertDisplay.normalize_email(value)
+        if not email:
+            raise serializers.ValidationError("This field may not be blank.")
         return email
 
     def validate(self, attrs):
@@ -490,7 +531,6 @@ class InvitedExpertEditorsOverviewSerializer(serializers.Serializer):
 
 
 class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
-
     search_id = serializers.IntegerField()
     status = serializers.CharField()
     message = serializers.CharField()

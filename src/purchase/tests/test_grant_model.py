@@ -258,4 +258,3 @@ class GrantPendingModelTests(TestCase):
         for val in (Grant.PENDING, Grant.DECLINED):
             self.grant.status = val
             self.grant.full_clean()
-

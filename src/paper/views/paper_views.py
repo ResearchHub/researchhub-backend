@@ -368,7 +368,6 @@ class PaperViewSet(
                 # Create paper version
                 try:
                     paper_version_number = 1
-                    base_doi = None
                     original_paper_id = paper.id
                     journal = None
                     publication_status = PaperVersion.PREPRINT
@@ -377,8 +376,6 @@ class PaperViewSet(
                             previous_paper_version = previous_paper.version
                             original_paper_id = previous_paper_version.original_paper_id
                             paper_version_number = previous_paper_version.version + 1
-                            if previous_paper_version.base_doi:
-                                base_doi = previous_paper_version.base_doi
                             journal = previous_paper_version.journal
                             if journal == "RESEARCHHUB":
                                 paper.unified_document.hubs.add(
@@ -395,38 +392,10 @@ class PaperViewSet(
                             )
                             raise
 
-                    doi = DOI(
-                        base_doi=base_doi, version=paper_version_number, journal=journal
-                    )
-
-                    crossref_response = doi.register_doi_for_paper(
-                        authors=authors,
-                        title=title,
-                        rh_paper=paper,
-                    )
-
-                    if crossref_response.status_code != 200:
-                        error_msg = "Crossref API Failure"
-                        log_error(
-                            ValueError(error_msg),
-                            message=f"Crossref API returned status {crossref_response.status_code}",
-                            json_data={"response_text": crossref_response.text},
-                        )
-                        return Response(
-                            {
-                                "error": "Unable to register DOI for this paper. Please try again later."
-                            },
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
-                    paper.doi = doi.doi
-                    paper.save()
-
                     PaperVersion.objects.create(
                         paper=paper,
                         version=paper_version_number,
                         message=change_description,
-                        base_doi=doi.base_doi,
                         original_paper_id=original_paper_id,
                         journal=journal,
                         publication_status=publication_status,
@@ -586,9 +555,8 @@ class PaperViewSet(
                     for hub in previous_paper.unified_document.hubs.all():
                         paper.unified_document.hubs.add(hub.id)
 
-                # Handle paper versioning and DOI
+                # Handle paper versioning
                 paper_version_number = 1
-                base_doi = None
                 original_paper_id = previous_paper.id
 
                 try:
@@ -597,8 +565,6 @@ class PaperViewSet(
                         paper_version.original_paper_id or paper_version.paper_id
                     )
                     paper_version_number = paper_version.version + 1
-                    if paper_version.base_doi:
-                        base_doi = paper_version.base_doi
                 except PaperVersion.DoesNotExist:
                     log_error(
                         ValueError("Previous paper version not found"),
@@ -606,48 +572,9 @@ class PaperViewSet(
                     )
                     raise
 
-                # Get authors for DOI registration
-                authors = Author.objects.filter(
-                    id__in=Authorship.objects.filter(paper=paper).values_list(
-                        "author_id", flat=True
-                    )
-                )
-
-                doi = DOI(
-                    base_doi=base_doi,
-                    version=paper_version_number,
-                    journal=PaperVersion.RESEARCHHUB,
-                )
-
-                # Register DOI with Crossref
-                crossref_response = doi.register_doi_for_paper(
-                    authors=authors,
-                    title=paper.title,
-                    rh_paper=paper,
-                )
-
-                if crossref_response.status_code != 200:
-                    error_msg = "Crossref API Failure"
-                    log_error(
-                        ValueError(error_msg),
-                        message=f"Crossref API returned status {crossref_response.status_code}",
-                        json_data={"response_text": crossref_response.text},
-                    )
-                    return Response(
-                        {
-                            "error": "Unable to register DOI for this paper. Please try again later."
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
-                paper.doi = doi.doi
-                paper.save()
-
-                # Create PaperVersion with ResearchHub Journal publication info
                 PaperVersion.objects.create(
                     paper=paper,
                     version=paper_version_number,
-                    base_doi=doi.base_doi,
                     original_paper_id=original_paper_id,
                     journal=PaperVersion.RESEARCHHUB,
                     publication_status=PaperVersion.PUBLISHED,

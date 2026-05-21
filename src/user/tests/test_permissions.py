@@ -12,7 +12,6 @@ from user.tests.helpers import (
 
 
 class PermissionsTests(TestCase):
-
     class TestView(APIView):
         permission_classes = [IsVerifiedUser]
 

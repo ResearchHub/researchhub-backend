@@ -8,12 +8,11 @@ from django.test import TestCase
 
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
-from purchase.models import Purchase
 from purchase.related_models.balance_model import Balance
 from reputation.related_models.distribution import Distribution
 from user.related_models.follow_model import Follow
 from user.related_models.user_model import User
-from user.tests.helpers import create_random_authenticated_user, create_user
+from user.tests.helpers import create_user
 
 
 class AuthorModelsTests(TestCase):

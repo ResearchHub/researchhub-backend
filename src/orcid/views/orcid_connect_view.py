@@ -26,7 +26,13 @@ class OrcidConnectView(APIView):
             auth_url = self.orcid_service.build_auth_url(request.user.id, return_url)
             return Response({"auth_url": auth_url})
         except SocialApp.DoesNotExist:
-            return Response({"error": "ORCID not configured"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "ORCID not configured"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         except Exception:
             logger.exception("Failed to initiate ORCID connection")
-            return Response({"error": "Failed to initiate ORCID connection"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Failed to initiate ORCID connection"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

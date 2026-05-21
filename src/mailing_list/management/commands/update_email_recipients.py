@@ -4,7 +4,6 @@ from mailing_list.models import EmailRecipient
 
 
 class Command(BaseCommand):
-
     def handle(self, *args, **options):
         for email_recipient in EmailRecipient.objects.all():
             email_recipient.save()

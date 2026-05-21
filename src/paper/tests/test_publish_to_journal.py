@@ -1,5 +1,4 @@
 import uuid
-from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 from django.utils import timezone
@@ -77,15 +76,8 @@ class PublishToResearchHubJournalTestCase(TestCase):
         # URL for the endpoint
         self.url = "/api/paper/publish_to_researchhub_journal/"
 
-    @patch("utils.doi.DOI.register_doi_for_paper")
-    def test_publish_to_journal_success(self, mock_register_doi):
+    def test_publish_to_journal_success(self):
         """Test successful publication to ResearchHub Journal"""
-        # Mock the DOI registration response
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_register_doi.return_value = mock_response
-
-        # Login as moderator
         self.client.force_authenticate(user=self.moderator)
 
         # Make the request
@@ -153,29 +145,23 @@ class PublishToResearchHubJournalTestCase(TestCase):
         self.client.force_authenticate(user=self.moderator)
 
         response = self.client.post(
-            self.url, {"previous_paper_id": 99999}, format="json"  # Invalid ID
+            self.url,
+            {"previous_paper_id": 99999},
+            format="json",  # Invalid ID
         )
 
         # Verify bad request response
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Previous paper not found", response.data["error"])
 
-    @patch("utils.doi.DOI.register_doi_for_paper")
-    def test_publish_to_journal_crossref_failure(self, mock_register_doi):
-        """Test handling of Crossref API failures"""
-        # Mock the DOI registration response with a failure
-        mock_response = MagicMock()
-        mock_response.status_code = 500
-        mock_response.text = "API Error"
-        mock_register_doi.return_value = mock_response
-
-        # Login as moderator
+    def test_publish_to_journal_does_not_create_doi(self):
+        """Verify that publishing to the journal does not assign a DOI."""
         self.client.force_authenticate(user=self.moderator)
 
         response = self.client.post(
             self.url, {"previous_paper_id": self.previous_paper.id}, format="json"
         )
 
-        # Verify bad request response
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("Unable to register DOI", response.data["error"])
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        new_paper = Paper.objects.latest("id")
+        self.assertIsNone(new_paper.doi)

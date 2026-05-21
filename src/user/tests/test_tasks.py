@@ -20,6 +20,7 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from review.models.peer_review_model import PeerReview
 from review.models.review_model import Review
+from user.events import user_reinstated, user_suspended
 from user.models import Action
 from user.related_models.verdict_model import Verdict
 from user.tasks import get_latest_actions, handle_spam_user_task, reinstate_user_task
@@ -92,6 +93,51 @@ class HandleSpamUserTaskTests(TestCase):
             content_type=ContentType.objects.get_for_model(self.paper),
             object_id=self.paper.id,
         )
+
+    def test_handle_spam_user_task_emits_user_suspended_event(self):
+        # Arrange
+        events = []
+
+        def receiver(sender, event, **kwargs):
+            events.append(event)
+
+        user_suspended.connect(
+            receiver, dispatch_uid="test_user_suspended_event", weak=False
+        )
+
+        # Act
+        try:
+            with self.captureOnCommitCallbacks(execute=True):
+                handle_spam_user_task(self.user.id, self.moderator)
+        finally:
+            user_suspended.disconnect(dispatch_uid="test_user_suspended_event")
+
+        # Assert
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].user_id, self.user.id)
+
+    def test_reinstate_user_task_emits_user_reinstated_event(self):
+        # Arrange
+        handle_spam_user_task(self.user.id, self.moderator)
+        events = []
+
+        def receiver(sender, event, **kwargs):
+            events.append(event)
+
+        user_reinstated.connect(
+            receiver, dispatch_uid="test_user_reinstated_event", weak=False
+        )
+
+        # Act
+        try:
+            with self.captureOnCommitCallbacks(execute=True):
+                reinstate_user_task(self.user.id)
+        finally:
+            user_reinstated.disconnect(dispatch_uid="test_user_reinstated_event")
+
+        # Assert
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].user_id, self.user.id)
 
     def test_handle_spam_user_task_without_requestor(self):
         """Test that the task properly marks content as removed without a requestor"""

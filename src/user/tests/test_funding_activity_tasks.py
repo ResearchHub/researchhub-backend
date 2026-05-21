@@ -1,13 +1,8 @@
 from decimal import Decimal
-from unittest.mock import patch
 
-from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from purchase.models import Purchase
-from purchase.related_models.fundraise_model import Fundraise
 from reputation.models import Distribution
-from reputation.related_models.escrow import Escrow, EscrowRecipients
 from user.related_models.funding_activity_model import FundingActivity
 from user.tasks.funding_activity_tasks import create_funding_activity_task
 from user.tests.helpers import create_user

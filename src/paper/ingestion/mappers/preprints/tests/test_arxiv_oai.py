@@ -14,7 +14,6 @@ from paper.models import Paper
 
 
 class TestArXivOAIMapper(TestCase):
-
     def setUp(self):
         self.mapper = ArXivOAIMapper(None)
 

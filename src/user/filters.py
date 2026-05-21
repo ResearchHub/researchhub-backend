@@ -143,11 +143,12 @@ class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
 
             # FilterSets do not need to specify a Meta class
             if filterset_model and queryset is not None:
-                assert issubclass(
-                    queryset.model, filterset_model
-                ), "FilterSet model %s does not match queryset model %s" % (
-                    filterset_model,
-                    queryset.model,
+                assert issubclass(queryset.model, filterset_model), (
+                    "FilterSet model %s does not match queryset model %s"
+                    % (
+                        filterset_model,
+                        queryset.model,
+                    )
                 )
 
             return filterset_class

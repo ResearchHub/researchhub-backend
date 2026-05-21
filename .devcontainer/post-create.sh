@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
-
 # Install dependencies with uv
-uv sync --dev
+uv sync --frozen --dev
 
 # Apply database migrations
-uv run --active src/manage.py makemigrations
 uv run --active src/manage.py migrate
 # Copy static conent
 uv run --active src/manage.py collectstatic --no-input

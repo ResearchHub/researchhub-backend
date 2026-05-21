@@ -1080,8 +1080,7 @@ class NoteTests(APITestCase):
                 "is_public": True,
                 "note_id": note["id"],
                 "renderable_text": (
-                    "Test grant post content that is "
-                    "sufficiently long for validation"
+                    "Test grant post content that is sufficiently long for validation"
                 ),
                 "title": "Test grant post title that is sufficiently long",
                 "hubs": [],

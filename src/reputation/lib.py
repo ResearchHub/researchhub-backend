@@ -355,9 +355,7 @@ class PendingWithdrawal:
 
     def complete_token_transfer(self):
         self.withdrawal.set_paid_pending()
-        self.token_payout = (
-            self._calculate_tokens_and_update_withdrawal_amount()
-        )  # noqa
+        self.token_payout = self._calculate_tokens_and_update_withdrawal_amount()  # noqa
         self._request_transfer("RSC")
 
     def _calculate_tokens_and_update_withdrawal_amount(self):

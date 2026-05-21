@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 from django.contrib.contenttypes.models import ContentType
 from django.test import override_settings
 
-from feed.models import FeedEntry
 from feed.signals.bounty_signals import handle_bounty_delete_update_feed_entries
 from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper

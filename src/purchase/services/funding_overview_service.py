@@ -24,7 +24,7 @@ class FundingOverviewService(OverviewMixin):
             "distributed_funds": self._user_contributions_breakdown(
                 user.id, all_funded_ids
             ),
-            "supported_proposals": self._supported_proposals(all_funded_ids),
+            "supported_proposals": self._supported_proposals(user.id, all_funded_ids),
             "supported_nonprofits": self._supported_nonprofits(all_funded_ids),
         }
 
@@ -42,20 +42,37 @@ class FundingOverviewService(OverviewMixin):
             .distinct()
         )
 
-    def _supported_proposals(self, funded_fundraise_ids: list[int]) -> list[dict]:
-        """Proposals (preregistration posts) the funder contributed to."""
+    def _supported_proposals(
+        self, user_id: int, funded_fundraise_ids: list[int]
+    ) -> list[dict]:
+        """Proposals (preregistration posts) the funder contributed to, with amounts."""
         if not funded_fundraise_ids:
             return []
+
+        contributions = self._per_fundraise_user_contributions(
+            user_id, funded_fundraise_ids
+        )
 
         posts = (
             ResearchhubPost.objects.filter(
                 unified_document__fundraises__id__in=funded_fundraise_ids,
             )
             .select_related("unified_document", "created_by__author_profile")
+            .prefetch_related("unified_document__fundraises")
             .distinct()
         )
 
-        return [self._serialize_proposal(post) for post in posts]
+        results = []
+        zero = {"rsc": 0.0, "rsc_usd_snapshot": 0.0, "usd": 0.0}
+        for post in posts:
+            fundraise = post.unified_document.fundraises.first()
+            entry = self._serialize_proposal(post)
+            entry["funded_amount"] = (
+                contributions.get(fundraise.id, zero) if fundraise else zero
+            )
+            results.append(entry)
+
+        return results
 
     @staticmethod
     def _supported_nonprofits(funded_fundraise_ids: list[int]) -> list[dict]:

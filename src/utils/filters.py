@@ -35,7 +35,6 @@ FIELD_LOOKUPS = (
 
 
 class ListExcludeFilter(filters.CharFilter):
-
     def __init__(self, **kwargs):
         super(ListExcludeFilter, self).__init__(**kwargs)
 

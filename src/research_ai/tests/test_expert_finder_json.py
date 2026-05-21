@@ -96,9 +96,7 @@ class ExpertDisplayTests(TestCase):
         self.assertEqual(n, "Jane Q Doe")
 
     def test_build_name_omits_empty_name_parts(self):
-        self.assertEqual(
-            ExpertDisplay.build_name(first_name="A", last_name="B"), "A B"
-        )
+        self.assertEqual(ExpertDisplay.build_name(first_name="A", last_name="B"), "A B")
         self.assertEqual(ExpertDisplay.build_name(last_name="Z"), "Z")
 
 
