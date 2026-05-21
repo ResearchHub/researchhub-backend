@@ -399,10 +399,11 @@ class ExpertSearchDetailSerializer(serializers.ModelSerializer):
         return _resolve_expert_search_work(obj, context=self.context)
 
     def get_experts(self, obj):
+        # Surface manually-added experts first; ties fall back to position.
         qs = (
             SearchExpert.objects.filter(expert_search_id=obj.id)
             .select_related("expert")
-            .order_by("position")
+            .order_by("-expert__is_manually_added", "position")
         )
         experts = [se.expert for se in qs]
 

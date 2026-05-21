@@ -214,6 +214,7 @@ class ExpertSearchAddExpertViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         existing.refresh_from_db()
+        self.assertTrue(existing.is_manually_added)
         self.assertEqual(len(existing.sources), 2)
         self.assertEqual(existing.sources[0]["type"], "llm")
         self.assertEqual(existing.sources[1]["type"], "manual")
