@@ -1,5 +1,5 @@
 from rest_framework.permissions import SAFE_METHODS
-from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+from rest_framework.throttling import UserRateThrottle
 
 from oauth.models import Throttle
 from researchhub.settings import EMAIL_WHITELIST
