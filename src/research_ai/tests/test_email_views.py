@@ -2,7 +2,6 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.conf import settings
-from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase

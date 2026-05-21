@@ -1,4 +1,3 @@
-from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action

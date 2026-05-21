@@ -8,7 +8,6 @@ from research_ai.services.expert_finder_service import (
     PDF_TOO_LARGE_MESSAGE,
     _extract_text_from_pdf_bytes,
     _get_paper_pdf_bytes,
-    _maybe_obfuscate_expert_emails_for_non_production,
     get_document_content,
     run_expert_finder_search,
 )

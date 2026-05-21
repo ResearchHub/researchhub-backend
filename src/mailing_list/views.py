@@ -26,7 +26,7 @@ from mailing_list.models import (
 from mailing_list.serializers import EmailRecipientSerializer
 from utils.http import PATCH, POST, http_request
 from utils.parsers import PlainTextParser
-from utils.sentry import log_error, log_info, log_request_error
+from utils.sentry import log_error, log_request_error
 
 
 class EmailRecipientViewSet(viewsets.ModelViewSet):
