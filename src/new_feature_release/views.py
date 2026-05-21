@@ -1,5 +1,6 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import NewFeatureClick
@@ -7,6 +8,7 @@ from .serializers import NewFeatureClickSerializer
 
 
 class NewFeatureViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
     queryset = NewFeatureClick.objects.all()
     serializer_class = NewFeatureClickSerializer
 
