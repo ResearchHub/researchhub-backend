@@ -14,9 +14,6 @@ from web3 import Web3
 
 from purchase.models import Balance
 from reputation.models import PaidStatusModelMixin, Withdrawal
-
-# Do not remove these imports
-# Used for urls.py
 from reputation.views.bounty_view import BountyViewSet
 from reputation.views.deposit_view import DepositViewSet
 from reputation.views.staking_yield_view import StakingYieldViewSet
@@ -24,6 +21,14 @@ from reputation.views.withdrawal_view import WithdrawalViewSet
 from researchhub.settings import APP_ENV, TRANSPOSE_KEY, WEB3_RSC_ADDRESS
 from utils.http import GET
 from utils.sentry import log_error
+
+__all__ = [
+    "BountyViewSet",
+    "DepositViewSet",
+    "get_rsc_circulating_supply",
+    "StakingYieldViewSet",
+    "WithdrawalViewSet",
+]
 
 EXCLUDED_TOKEN_ADDRS = (
     Web3.to_checksum_address("0xb518536b67720d9d61f5250caf5c0494fc087d3d"),
