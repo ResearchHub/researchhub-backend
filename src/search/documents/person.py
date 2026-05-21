@@ -134,6 +134,15 @@ class PersonDocument(BaseDocument):
 
         return suggestions
 
+    @override
+    def should_index_object(self, obj: Author) -> bool:  # type: ignore[override]
+        if obj.user is None:
+            # Leave authors without user accounts in the index:
+            return True
+
+        # only index if the user is not suspended:
+        return not obj.user.is_suspended
+
     def get_instances_from_related(
         self,
         related_instance: User,
