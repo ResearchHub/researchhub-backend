@@ -2,11 +2,9 @@ import time
 import uuid
 
 from django.contrib.admin.options import get_content_type_for_model
-from django.db.models import Sum
 
 from mailing_list.lib import base_email_context, send_email
 from reputation.distributions import Distribution as dist
-from reputation.distributions import create_stored_paper_pot
 from reputation.distributor import Distributor
 from reputation.models import Escrow
 from researchhub.settings import BASE_FRONTEND_URL
