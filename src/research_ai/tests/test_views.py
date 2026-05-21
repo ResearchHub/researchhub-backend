@@ -227,7 +227,7 @@ class ExpertSearchWorkViewTests(APITestCase):
 
 
 class InvitedExpertOverviewViewTests(APITestCase):
-    URL = "/api/research_ai/expert-finder/invited-experts/overview/"
+    URL = "/api/research_ai/expert-finder/overview/"
 
     OVERVIEW_FIELDS = (
         "experts_total",
@@ -394,7 +394,7 @@ class InvitedExpertOverviewViewTests(APITestCase):
 
 
 class InvitedExpertEditorsOverviewViewTests(APITestCase):
-    URL = "/api/research_ai/expert-finder/invited-experts/editors-overview/"
+    URL = "/api/research_ai/expert-finder/editors-overview/"
 
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod_editors", moderator=True)

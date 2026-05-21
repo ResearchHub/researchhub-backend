@@ -369,7 +369,7 @@ class InvitedExpertStatsMixin:
 
 class InvitedExpertOverviewView(InvitedExpertStatsMixin, APIView):
     """
-    GET ``/expert-finder/invited-experts/overview/``.
+    GET ``/expert-finder/overview/``.
     """
 
     cache_prefix = "overview"
@@ -425,7 +425,7 @@ class InvitedExpertOverviewView(InvitedExpertStatsMixin, APIView):
 
 class InvitedExpertEditorsOverviewView(InvitedExpertStatsMixin, APIView):
     """
-    GET ``/expert-finder/invited-experts/editors-overview/``.
+    GET ``/expert-finder/editors-overview/``.
 
     Paginated per-editor outreach metrics for the date/document window.
     """

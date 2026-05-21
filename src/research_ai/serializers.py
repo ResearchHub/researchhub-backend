@@ -455,13 +455,13 @@ class InvitedExpertStatsFilterSerializer(serializers.Serializer):
 
 
 class InvitedExpertOverviewQuerySerializer(InvitedExpertStatsFilterSerializer):
-    """Query params for GET invited-experts overview."""
+    """Query params for GET expert-finder overview."""
 
     editor_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
 
 
 class InvitedExpertEditorsOverviewQuerySerializer(InvitedExpertStatsFilterSerializer):
-    """Query params for GET invited-experts editors-overview."""
+    """Query params for GET expert-finder editors-overview."""
 
     limit = serializers.IntegerField(required=False, default=5, min_value=1)
     offset = serializers.IntegerField(required=False, default=0, min_value=0)
@@ -486,7 +486,7 @@ class InvitedExpertEditorsOverviewQuerySerializer(InvitedExpertStatsFilterSerial
 
 
 class InvitedExpertOverviewSerializer(serializers.Serializer):
-    """Response body for invited-experts overview (counts)."""
+    """Response body for expert-finder overview (counts)."""
 
     experts_total = serializers.IntegerField(read_only=True)
     experts_signed_up = serializers.IntegerField(read_only=True)

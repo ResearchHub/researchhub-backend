@@ -35,11 +35,11 @@ urlpatterns = [
         ExpertDetailView.as_view(),
     ),
     path(
-        "expert-finder/invited-experts/overview/",
+        "expert-finder/overview/",
         InvitedExpertOverviewView.as_view(),
     ),
     path(
-        "expert-finder/invited-experts/editors-overview/",
+        "expert-finder/editors-overview/",
         InvitedExpertEditorsOverviewView.as_view(),
     ),
     path(
