@@ -26,3 +26,6 @@ class NewFeatureViewSet(viewsets.ModelViewSet):
         user_clicked = self.get_queryset().filter(feature=feature).exists()
 
         return Response({"clicked": user_clicked}, status=200)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
