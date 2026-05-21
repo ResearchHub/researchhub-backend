@@ -8,7 +8,6 @@ from django.utils import timezone
 
 from hub.models import Hub
 from purchase.models import Purchase
-from purchase.related_models.balance_model import Balance
 from purchase.related_models.fundraise_model import Fundraise
 from referral.models import ReferralSignup
 from referral.services.referral_metrics_service import ReferralMetricsService
