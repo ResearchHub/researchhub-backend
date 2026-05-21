@@ -4,7 +4,7 @@ from django.test import TestCase
 from opensearchpy import Document
 from rest_framework import serializers
 
-from search.base.serializers import ElasticsearchListSerializer, ElasticsearchSerializer
+from search.base.serializers import ElasticsearchSerializer
 
 
 def create_mock_document(**kwargs):
