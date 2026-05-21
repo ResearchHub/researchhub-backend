@@ -8,6 +8,7 @@ from .serializers import NewFeatureClickSerializer
 
 
 class NewFeatureViewSet(viewsets.ModelViewSet):
+    http_method_names = ["get", "head", "options", "post"]
     permission_classes = [IsAuthenticated]
     queryset = NewFeatureClick.objects.all()
     serializer_class = NewFeatureClickSerializer
