@@ -3,7 +3,6 @@ import logging
 from orcid.clients import OrcidClient
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import Author
-from utils import sentry
 from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
@@ -151,10 +150,9 @@ def build_researcher_external_context_text(
     )
     try:
         return format_openalex_author_record(raw)
-    except Exception as exc:
-        sentry.log_error(
-            exc,
-            message="build_researcher_external_context_text: format_openalex_author_record",
+    except Exception:
+        logger.exception(
+            "build_researcher_external_context_text: format_openalex_author_record"
         )
         return ""
 
@@ -257,11 +255,8 @@ def build_orcid_works_context_text(
     raw = fetch_orcid_works(orcid_bare=orcid_bare, client=client)
     try:
         return format_orcid_works_payload(raw)
-    except Exception as exc:
-        sentry.log_error(
-            exc,
-            message="build_orcid_works_context_text: format_orcid_works_payload",
-        )
+    except Exception:
+        logger.exception("build_orcid_works_context_text: format_orcid_works_payload")
         return ""
 
 
