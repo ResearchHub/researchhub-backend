@@ -95,7 +95,6 @@ extend-ignore = [
     "E402",  # module-import-not-at-top-of-file
     "E501",  # line-too-long
     "E722",  # bare-except
-    "F401",  # unused-import
     "F403",  # undefined-local-with-import-star
     "F541",  # f-string-missing-placeholders
     "F601",  # multi-value-repeated-key-literal
