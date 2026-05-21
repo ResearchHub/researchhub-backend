@@ -90,26 +90,38 @@ class ExpertPersist:
 
     @staticmethod
     def tag_manual_source(expert: Expert, user) -> None:
-        """Append a ``{"type": "manual", ...}`` marker to ``expert.sources``.
+        """Mark this expert as manually added and append an audit entry to
+        ``expert.sources``.
 
-        Idempotent per user: skips if a manual entry by the same user is already
-        present. Existing (e.g. LLM-populated) source entries are preserved.
+        Sets ``is_manually_added=True`` (the load-bearing flag used to surface
+        manual entries first in search results) and appends a
+        ``{"type": "manual", ...}`` marker to ``sources`` for audit history.
+
+        Idempotent per user for the audit entry: skips appending if a manual
+        entry by the same user is already present. Existing (e.g. LLM-populated)
+        source entries are preserved.
         """
         sources = expert.sources if isinstance(expert.sources, list) else []
         user_id = getattr(user, "id", None)
-        for entry in sources:
-            if (
-                isinstance(entry, dict)
-                and entry.get("type") == "manual"
-                and entry.get("added_by") == user_id
-            ):
-                return
-        sources.append(
-            {
-                "type": "manual",
-                "added_by": user_id,
-                "added_at": timezone.now().isoformat(),
-            }
+        update_fields = []
+        if not expert.is_manually_added:
+            expert.is_manually_added = True
+            update_fields.append("is_manually_added")
+        already_tagged = any(
+            isinstance(entry, dict)
+            and entry.get("type") == "manual"
+            and entry.get("added_by") == user_id
+            for entry in sources
         )
-        expert.sources = sources
-        expert.save(update_fields=["sources"])
+        if not already_tagged:
+            sources.append(
+                {
+                    "type": "manual",
+                    "added_by": user_id,
+                    "added_at": timezone.now().isoformat(),
+                }
+            )
+            expert.sources = sources
+            update_fields.append("sources")
+        if update_fields:
+            expert.save(update_fields=update_fields)

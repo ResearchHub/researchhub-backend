@@ -1,7 +1,5 @@
 from rest_framework import viewsets
-from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 
 from reputation.models import Deposit
 from reputation.serializers import DepositSerializer
@@ -24,23 +22,3 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(paid_status=paid_status)
 
         return qs
-
-    @action(
-        detail=False,
-        methods=["post"],
-        permission_classes=[IsAuthenticated],
-    )
-    def start_deposit_rsc(self, request):
-        """
-        Create a pending deposit that will be updated by a celery task
-        """
-
-        Deposit.objects.create(
-            user=request.user,
-            amount=request.data.get("amount"),
-            from_address=request.data.get("from_address"),
-            transaction_hash=request.data.get("transaction_hash"),
-            network=request.data.get("network"),
-        )
-
-        return Response(200)

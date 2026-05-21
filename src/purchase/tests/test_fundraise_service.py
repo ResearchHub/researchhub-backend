@@ -13,7 +13,6 @@ from purchase.related_models.usd_fundraise_contribution_model import (
 )
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.services.fundraise_service import (
-    USD_CONTRIBUTION_CSV_HEADERS,
     FundraiseService,
 )
 from reputation.models import BountyFee

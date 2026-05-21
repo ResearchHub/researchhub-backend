@@ -3,3 +3,11 @@ from .biorxiv_mappings import BIORXIV_MAPPINGS
 from .chemrxiv_mappings import CHEMRXIV_MAPPINGS
 from .external_category_mapper import ExternalCategoryMapper
 from .medrxiv_mappings import MEDRXIV_MAPPINGS
+
+__all__ = [
+    "ARXIV_MAPPINGS",
+    "BIORXIV_MAPPINGS",
+    "CHEMRXIV_MAPPINGS",
+    "ExternalCategoryMapper",
+    "MEDRXIV_MAPPINGS",
+]

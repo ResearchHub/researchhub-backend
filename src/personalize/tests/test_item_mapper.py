@@ -46,7 +46,6 @@ from personalize.config.constants import (
 )
 from personalize.services.item_mapper import ItemMapper
 from personalize.tests.helpers import (
-    create_author,
     create_batch_data,
     create_hub_with_namespace,
     create_prefetched_grant,
@@ -58,7 +57,6 @@ from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     QUESTION,
 )
-from user.models import User
 
 
 class QueryPreventionTests(TestCase):

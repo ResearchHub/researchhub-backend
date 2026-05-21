@@ -313,8 +313,11 @@ class BountyViewSet(viewsets.ModelViewSet):
         data = request.data
         with transaction.atomic():
             bounty = self.get_object()
-            if bounty.parent:
-                bounty = bounty.parent
+            if bounty.parent_id is not None:
+                return Response(
+                    {"error": "Please approve parent bounty"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
             # Validate total payout amount doesn't exceed bounty amount
             total_payout = sum(

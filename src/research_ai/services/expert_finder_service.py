@@ -70,6 +70,7 @@ MAX_ERROR_MESSAGE_LENGTH = 10000
 EXPERT_FILL_MAX_ROUNDS = 6
 EXPERT_FILL_TOLERANCE_SHORT = 10
 EXPERT_FILL_EXCLUDED_NAMES_CAP = 250
+EXPERT_FILL_BATCH_MAX = 50
 
 PROMPT_EXPERT_HEADROOM_PCT = 10
 
@@ -189,7 +190,8 @@ def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
 
 def _prompt_expert_count_for_round(remaining: int) -> int:
     need = max(1, remaining)
-    return (need * (100 + PROMPT_EXPERT_HEADROOM_PCT) + 99) // 100
+    with_headroom = (need * (100 + PROMPT_EXPERT_HEADROOM_PCT) + 99) // 100
+    return min(with_headroom, EXPERT_FILL_BATCH_MAX)
 
 
 def clear_expert_search_links(expert_search_id: int) -> None:

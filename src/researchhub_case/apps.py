@@ -5,4 +5,4 @@ class ResearchhubCaseConfig(AppConfig):
     name = "researchhub_case"
 
     def ready(self):
-        import researchhub_case.signals
+        import researchhub_case.signals  # noqa: F401
