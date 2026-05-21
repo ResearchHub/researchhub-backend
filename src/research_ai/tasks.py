@@ -10,7 +10,10 @@ from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.email_sending_service import send_plain_email
 from research_ai.services.expert_display import ExpertDisplay
 from research_ai.services.expert_persist import ExpertPersist
-from research_ai.services.invited_experts_service import link_experts_for_new_user
+from research_ai.services.invited_experts_service import (
+    grant_invited_expert_access_for_send,
+    link_experts_for_new_user,
+)
 from research_ai.services.rfp_email_context import get_expert_for_search_by_email
 from researchhub.celery import app
 from user.models import User
@@ -448,6 +451,12 @@ def send_queued_emails_task(
                 updated_date=timezone.now(),
             )
             ExpertPersist.mark_last_email_sent_at(rec.expert_email or "")
+            try:
+                grant_invited_expert_access_for_send(generated_email=rec)
+            except Exception as e:
+                # Don't let an access-grant failure mask a successful send.
+                logger.exception("Grant access on send failed id=%s: %s", rec.id, e)
+                sentry.log_error(e, message="Grant access on send failed")
             sent += 1
         except Exception as e:
             logger.exception("Send to expert failed id=%s: %s", rec.id, e)

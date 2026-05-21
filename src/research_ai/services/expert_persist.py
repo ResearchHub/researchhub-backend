@@ -1,11 +1,15 @@
 from typing import Any
 
+from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 from research_ai.models import Expert, SearchExpert
 from research_ai.services.expert_display import ExpertDisplay
 from research_ai.utils import trimmed_str
+
+User = get_user_model()
 
 
 class ExpertPersist:
@@ -50,6 +54,7 @@ class ExpertPersist:
                 expertise=candidate["expertise"] or "",
                 notes=candidate["notes"] or "",
                 sources=sources,
+                registered_user_id=ExpertPersist._find_registered_user_id(email),
             )
 
         for field, val in candidate.items():
@@ -57,8 +62,28 @@ class ExpertPersist:
                 setattr(expert, field, val)
         if sources:
             expert.sources = sources
+        if expert.registered_user_id is None:
+            match_id = ExpertPersist._find_registered_user_id(email)
+            if match_id is not None:
+                expert.registered_user_id = match_id
         expert.save()
         return expert
+
+    @staticmethod
+    def _find_registered_user_id(email: str) -> int | None:
+        """Return the ``User.id`` whose email matches case-insensitively, else None.
+
+        Uses the ``LOWER(email)`` functional index on the user table so this stays a
+        single indexed lookup even as the user table grows.
+        """
+        if not email:
+            return None
+        return (
+            User.objects.alias(_email_lower=Lower("email"))
+            .filter(_email_lower=email)
+            .values_list("id", flat=True)
+            .first()
+        )
 
     @classmethod
     def replace_search_experts_for_search(

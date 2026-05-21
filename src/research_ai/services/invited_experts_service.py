@@ -100,6 +100,56 @@ def grant_invited_expert_access_for_signup(*, normalized_email: str, user) -> in
     return granted
 
 
+def grant_invited_expert_access_for_send(*, generated_email) -> bool:
+    """
+    Grant VIEWER access on the invite's private preregistration when the
+    expert is already a registered user.
+
+    Counterpart to ``grant_invited_expert_access_for_signup``: that function
+    runs on signup and only covers users who created their account *after*
+    being invited. This one covers users who already existed at invite time
+    — they never fire the post-signup signal, so without this hook they'd
+    never receive access despite getting the email.
+
+    Returns True if a new Permission row was created.
+    """
+    expert_search = getattr(generated_email, "expert_search", None)
+    if expert_search is None or expert_search.unified_document_id is None:
+        return False
+
+    email = (getattr(generated_email, "expert_email", "") or "").strip().lower()
+    if not email:
+        return False
+
+    expert = (
+        Expert.objects.filter(
+            email__iexact=email,
+            registered_user__isnull=False,
+        )
+        .select_related("registered_user")
+        .first()
+    )
+    if expert is None:
+        return False
+
+    doc_qualifies = ResearchhubUnifiedDocument.objects.filter(
+        id=expert_search.unified_document_id,
+        is_public=False,
+        posts__document_type=PREREGISTRATION,
+    ).exists()
+    if not doc_qualifies:
+        return False
+
+    content_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
+    _, created = Permission.objects.get_or_create(
+        content_type=content_type,
+        object_id=expert_search.unified_document_id,
+        user=expert.registered_user,
+        defaults={"access_type": VIEWER},
+    )
+    return created
+
+
 def link_experts_for_new_user(*, normalized_email: str, user) -> None:
     """
     Link ``Expert`` rows for this signup email when outreach qualifies, and
