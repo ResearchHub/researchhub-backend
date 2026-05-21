@@ -8,7 +8,6 @@ from ai_peer_review.services.author_context import (
     build_author_context_text,
 )
 from ai_peer_review.services.bedrock_llm_service import (
-    BEDROCK_MODEL_ID,
     BedrockLLMService,
 )
 from ai_peer_review.services.openai_web_context_service import (
