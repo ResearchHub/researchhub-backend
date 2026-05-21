@@ -9,9 +9,8 @@ from research_ai.constants import EXPERT_REGISTERED_USER_LINK_WINDOW_DAYS
 from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
 from researchhub_access_group.constants import VIEWER
 from researchhub_access_group.models import Permission
-from researchhub_document.related_models.constants.document_type import (
-    PREREGISTRATION,
-)
+from researchhub_document.models import ResearchhubPost
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -185,6 +184,7 @@ class InvitedExpertOverview:
     emails_sent: int = 0
     emails_bounced: int = 0
     emails_opened: int = 0
+    proposals_opened: int = 0
 
 
 @dataclass(frozen=True)
@@ -216,6 +216,8 @@ class InvitedExpertEditorRow:
     emails_sent: int = 0
     emails_opened: int = 0
     emails_bounced: int = 0
+    proposals_outreach_count: int = 0
+    emails_sent_by_proposal: dict[int, int] = field(default_factory=dict)
     signup_rate: float | None = None
     open_rate: float | None = None
     bounce_rate: float | None = None
@@ -231,6 +233,32 @@ class InvitedExpertEditorsOverview:
     sort_order: str = "desc"
 
 
+def _registered_user_ids(filtered_qs) -> list[int]:
+    """Distinct RH user IDs for invited experts who signed up."""
+    return list(
+        SearchExpert.objects.filter(expert_search__in=filtered_qs)
+        .exclude(expert__registered_user_id__isnull=True)
+        .values_list("expert__registered_user_id", flat=True)
+        .distinct()
+    )
+
+
+def _count_proposals_opened(registered_user_ids: list[int]) -> int:
+    """Count PREREGISTRATION posts created by registered invited experts."""
+    if not registered_user_ids:
+        return 0
+
+    return (
+        ResearchhubPost.objects.filter(
+            document_type=PREREGISTRATION,
+            created_by_id__in=registered_user_ids,
+            unified_document__is_removed=False,
+        )
+        .distinct()
+        .count()
+    )
+
+
 def _aggregate_global_counts(filtered_qs) -> InvitedExpertOverview:
     if not filtered_qs.exists():
         return InvitedExpertOverview()
@@ -243,6 +271,7 @@ def _aggregate_global_counts(filtered_qs) -> InvitedExpertOverview:
             filter=Q(expert__registered_user__isnull=False),
         ),
     )
+    registered_user_ids = _registered_user_ids(filtered_qs)
     ge_agg = _email_aggregate_qs(
         GeneratedEmail.objects.filter(expert_search__in=filtered_qs)
     )
@@ -254,6 +283,7 @@ def _aggregate_global_counts(filtered_qs) -> InvitedExpertOverview:
         emails_sent=ge_agg["emails_sent"] or 0,
         emails_bounced=ge_agg["emails_bounced"] or 0,
         emails_opened=ge_agg["emails_opened"] or 0,
+        proposals_opened=_count_proposals_opened(registered_user_ids),
     )
 
 
@@ -309,11 +339,35 @@ def get_invited_expert_overview(
     return InvitedExpertOverviewResult(counts=counts, summary=summary)
 
 
+def _emails_sent_by_proposal_per_editor(filtered_qs) -> dict[int, dict[int, int]]:
+    """Map editor user_id -> {unified_document_id: sent email count} for PREREGISTRATION outreach."""
+    rows = (
+        GeneratedEmail.objects.filter(
+            expert_search__in=filtered_qs,
+            status=GeneratedEmail.Status.SENT,
+            expert_search__unified_document_id__isnull=False,
+            expert_search__unified_document__document_type=PREREGISTRATION,
+        )
+        .values(
+            "expert_search__created_by_id",
+            "expert_search__unified_document_id",
+        )
+        .annotate(emails_sent=Count("id"))
+    )
+    per_editor: dict[int, dict[int, int]] = {}
+    for row in rows:
+        editor_id = row["expert_search__created_by_id"]
+        proposal_id = row["expert_search__unified_document_id"]
+        per_editor.setdefault(editor_id, {})[proposal_id] = row["emails_sent"] or 0
+    return per_editor
+
+
 def _merge_editor_metrics(
     *,
     search_rows: list[dict],
     expert_rows: list[dict],
     email_rows: list[dict],
+    proposal_rows: list[dict],
 ) -> dict[int, dict[str, int]]:
     merged: dict[int, dict[str, int]] = {}
 
@@ -328,6 +382,7 @@ def _merge_editor_metrics(
                 "emails_sent": 0,
                 "emails_opened": 0,
                 "emails_bounced": 0,
+                "proposals_outreach_count": 0,
             }
         return merged[user_id]
 
@@ -351,17 +406,26 @@ def _merge_editor_metrics(
         bucket["emails_opened"] = row.get("emails_opened") or 0
         bucket["emails_bounced"] = row.get("emails_bounced") or 0
 
+    for row in proposal_rows:
+        user_id = row["created_by_id"]
+        bucket = _ensure(user_id)
+        bucket["proposals_outreach_count"] = row.get("proposals_outreach_count") or 0
+
     return merged
 
 
 def _editor_row_from_metrics(
-    user_id: int, metrics: dict[str, int]
+    user_id: int,
+    metrics: dict[str, int],
+    *,
+    emails_sent_by_proposal: dict[int, int] | None = None,
 ) -> InvitedExpertEditorRow:
     experts_total = metrics["experts_total"]
     experts_signed_up = metrics["experts_signed_up"]
     emails_sent = metrics["emails_sent"]
     emails_bounced = metrics["emails_bounced"]
     emails_opened = metrics["emails_opened"]
+    proposals_outreach_count = metrics["proposals_outreach_count"]
     return InvitedExpertEditorRow(
         user_id=user_id,
         searches_total=metrics["searches_total"],
@@ -372,6 +436,8 @@ def _editor_row_from_metrics(
         emails_sent=emails_sent,
         emails_opened=emails_opened,
         emails_bounced=emails_bounced,
+        proposals_outreach_count=proposals_outreach_count,
+        emails_sent_by_proposal=emails_sent_by_proposal or {},
         signup_rate=_safe_rate(experts_signed_up, experts_total),
         open_rate=_safe_rate(emails_opened, emails_sent),
         bounce_rate=_safe_rate(emails_bounced, emails_sent),
@@ -453,15 +519,34 @@ def get_invited_expert_editors_overview(
         )
     )
 
+    proposal_rows = list(
+        filtered_qs.values("created_by_id").annotate(
+            proposals_outreach_count=Count(
+                "unified_document_id",
+                distinct=True,
+                filter=Q(
+                    unified_document_id__isnull=False,
+                    unified_document__document_type=PREREGISTRATION,
+                ),
+            ),
+        )
+    )
+
     merged = _merge_editor_metrics(
         search_rows=search_rows,
         expert_rows=expert_rows,
         email_rows=email_rows,
+        proposal_rows=proposal_rows,
     )
+    emails_sent_by_proposal = _emails_sent_by_proposal_per_editor(filtered_qs)
 
     editor_ids = {row["created_by_id"] for row in search_rows}
     all_rows = [
-        _editor_row_from_metrics(user_id, merged[user_id])
+        _editor_row_from_metrics(
+            user_id,
+            merged[user_id],
+            emails_sent_by_proposal=emails_sent_by_proposal.get(user_id, {}),
+        )
         for user_id in editor_ids
         if user_id in merged
     ]

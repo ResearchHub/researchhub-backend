@@ -8,6 +8,8 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
+from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 
@@ -234,6 +236,7 @@ class InvitedExpertOverviewViewTests(APITestCase):
         "emails_sent",
         "emails_bounced",
         "emails_opened",
+        "proposals_opened",
     )
 
     def setUp(self):
@@ -313,6 +316,7 @@ class InvitedExpertOverviewViewTests(APITestCase):
             expert_email="other@example.com",
             status=GeneratedEmail.Status.DRAFT,
         )
+        create_post(created_by=self.moderator, document_type=PREREGISTRATION)
 
         self.client.force_authenticate(self.moderator)
         response = self.client.get(self.URL, {"unified_document_id": ud_id})
@@ -324,6 +328,7 @@ class InvitedExpertOverviewViewTests(APITestCase):
         self.assertEqual(data["emails_sent"], 1)
         self.assertEqual(data["emails_bounced"], 1)
         self.assertEqual(data["emails_opened"], 1)
+        self.assertEqual(data["proposals_opened"], 1)
         self.assertIn("cached_at", data["meta"])
         self.assertIn("filters", data["meta"])
         self.assertIn("summary", data)
@@ -426,6 +431,8 @@ class InvitedExpertEditorsOverviewViewTests(APITestCase):
         self.assertEqual(data["total"], 2)
         self.assertEqual(data["items"][0]["experts_total"], 3)
         self.assertEqual(data["items"][0]["editor"]["user_id"], editor_a.id)
+        self.assertEqual(data["items"][0]["proposals_outreach_count"], 0)
+        self.assertEqual(data["items"][0]["emails_sent_by_proposal"], {})
 
     def test_editors_invalid_sort_by_returns_400(self):
         self.client.force_authenticate(self.moderator)

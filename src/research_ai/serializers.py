@@ -493,6 +493,7 @@ class InvitedExpertOverviewSerializer(serializers.Serializer):
     emails_sent = serializers.IntegerField(read_only=True)
     emails_bounced = serializers.IntegerField(read_only=True)
     emails_opened = serializers.IntegerField(read_only=True)
+    proposals_opened = serializers.IntegerField(read_only=True)
 
 
 class InvitedExpertOverviewSummarySerializer(serializers.Serializer):
@@ -516,6 +517,11 @@ class InvitedExpertEditorRowSerializer(serializers.Serializer):
     emails_sent = serializers.IntegerField(read_only=True)
     emails_opened = serializers.IntegerField(read_only=True)
     emails_bounced = serializers.IntegerField(read_only=True)
+    proposals_outreach_count = serializers.IntegerField(read_only=True)
+    emails_sent_by_proposal = serializers.DictField(
+        child=serializers.IntegerField(),
+        read_only=True,
+    )
     signup_rate = serializers.FloatField(read_only=True, allow_null=True)
     open_rate = serializers.FloatField(read_only=True, allow_null=True)
     bounce_rate = serializers.FloatField(read_only=True, allow_null=True)

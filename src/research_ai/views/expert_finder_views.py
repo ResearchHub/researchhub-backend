@@ -350,6 +350,8 @@ class InvitedExpertStatsMixin:
                     "emails_sent": row.emails_sent,
                     "emails_opened": row.emails_opened,
                     "emails_bounced": row.emails_bounced,
+                    "proposals_outreach_count": row.proposals_outreach_count,
+                    "emails_sent_by_proposal": row.emails_sent_by_proposal,
                     "signup_rate": row.signup_rate,
                     "open_rate": row.open_rate,
                     "bounce_rate": row.bounce_rate,
