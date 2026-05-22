@@ -51,7 +51,9 @@ jobs:
         if: github.event.action == 'labeled' && github.event.label.name == 'claude-review'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh pr edit ${{ github.event.pull_request.number }} --remove-label claude-review --repo ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: gh pr edit "$PR_NUMBER" --remove-label claude-review --repo "$REPO"
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -63,6 +65,6 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
           plugins: "code-review@claude-code-plugins"
-          prompt: "/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment"
+          prompt: "/code-review:code-review https://github.com/${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment"
           claude_args: "--model claude-opus-4-7"
           show_full_output: true
