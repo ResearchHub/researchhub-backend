@@ -1,5 +1,6 @@
 from datetime import timedelta
 from io import StringIO
+from unittest.mock import patch
 
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.contenttypes.models import ContentType
@@ -25,8 +26,20 @@ from user.tests.helpers import create_user
 EventType = RiskScoreEvent.EventType
 DELTAS = RiskScoreEvent.DELTAS
 
+# Patch the signal-level service so signal handlers don't fire during
+# backfill tests (we're testing the command in isolation).
+_SILENCE_SIGNALS = patch("user.signals.risk_score_signals._service")
+
 
 class BackfillCommandMixin:
+    def setUp(self):
+        super().setUp()
+        self._mock = _SILENCE_SIGNALS.start()
+
+    def tearDown(self):
+        _SILENCE_SIGNALS.stop()
+        super().tearDown()
+
     def _call(self, *args, **kwargs):
         out = StringIO()
         call_command("backfill_risk_scores", *args, stdout=out, **kwargs)
@@ -35,6 +48,7 @@ class BackfillCommandMixin:
 
 class BackfillOneTimeSignalTests(BackfillCommandMixin, TestCase):
     def setUp(self):
+        super().setUp()
         self.user = create_user(email="backfill@test.com")
 
     def test_expert_finder_signal(self):
@@ -196,6 +210,7 @@ class BackfillOneTimeSignalTests(BackfillCommandMixin, TestCase):
 
 class BackfillHistoricalActionsTests(BackfillCommandMixin, TestCase):
     def setUp(self):
+        super().setUp()
         self.user = create_user(email="historical@test.com")
         self.post = create_post(created_by=self.user)
 
