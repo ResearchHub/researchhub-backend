@@ -21,26 +21,24 @@ class PermissionManager(models.Manager):
         if org_filters is None:
             org_filters = []
 
-        # Checks if the user exists within the permission or organization
-        main_perm_filter = Q(user=user) & ~Q(access_type=NO_ACCESS)
-        main_org_filter = Q(organization__permissions__user=user) & ~Q(
-            access_type=NO_ACCESS
-        )
-
-        if perm_filters is not None:
+        if self.filter(user=user, access_type=NO_ACCESS).exists():
+            direct_ok = False
+        else:
+            direct_qs = self.filter(user=user).exclude(access_type=NO_ACCESS)
             for extra_filter in perm_filters:
-                main_perm_filter &= extra_filter
-        else:
-            main_perm_filter = Q()
+                direct_qs = direct_qs.filter(extra_filter)
+            direct_ok = direct_qs.exists()
 
-        if org_filters is not None:
+        org_qs = self.filter(organization__permissions__user=user)
+        if org_qs.filter(access_type=NO_ACCESS).exists():
+            org_ok = False
+        else:
+            org_allowed = org_qs.exclude(access_type=NO_ACCESS)
             for extra_filter in org_filters:
-                main_org_filter &= extra_filter
-        else:
-            main_org_filter = Q()
+                org_allowed = org_allowed.filter(extra_filter)
+            org_ok = org_allowed.exists()
 
-        user_exists = self.filter((main_org_filter) | (main_perm_filter)).exists()
-        return user_exists
+        return direct_ok or org_ok
 
     def has_admin_user(self, user, perm=True, org=True):
         perm_filters = None

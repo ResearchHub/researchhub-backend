@@ -25,6 +25,7 @@ from researchhub_access_group.constants import (
     WORKSPACE,
 )
 from researchhub_access_group.models import Permission
+from researchhub_access_group.query_helpers import unified_document_user_access_q
 from researchhub_access_group.permissions import (
     HasAccessPermission,
     HasAdminPermission,
@@ -52,7 +53,7 @@ class NoteViewSet(ModelViewSet):
             self.queryset.filter(
                 Q(created_by=user)
                 | Q(organization__permissions__user=user)
-                | Q(unified_document__permissions__user=user)
+                | unified_document_user_access_q(user)
             )
             .distinct()
             .order_by("-created_date")

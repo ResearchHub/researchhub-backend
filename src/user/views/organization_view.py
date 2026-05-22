@@ -19,6 +19,7 @@ from note.serializers import DynamicNoteSerializer, NoteTemplateSerializer
 from researchhub.pagination import MediumPageLimitPagination
 from researchhub_access_group.constants import ADMIN, MEMBER, NO_ACCESS
 from researchhub_access_group.models import Permission
+from researchhub_access_group.query_helpers import unified_document_user_access_q
 from researchhub_access_group.permissions import IsOrganizationAdmin, IsOrganizationUser
 from user.models import Organization, User
 from user.serializers import (
@@ -366,16 +367,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 unified_document__is_removed=False
             )
 
-        notes = notes.filter(
-            (
-                Q(unified_document__permissions__user=user)
-                & ~Q(unified_document__permissions__access_type=NO_ACCESS)
-            )
-            | (
-                ~Q(unified_document__permissions__access_type=NO_ACCESS)
-                & Q(unified_document__permissions__organization__permissions__user=user)
-            )
-        ).distinct()
+        notes = notes.filter(unified_document_user_access_q(user)).distinct()
 
         status = request.query_params.get("status", "").upper()
         if status == "DRAFT":
