@@ -10,6 +10,24 @@ from paper.related_models.paper_model import Paper
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
+VIEW_AS_USER_ID_QUERY_PARAM = "view_as_user_id"
+
+
+def get_moderator_view_as_user_id(request) -> int | None:
+    """
+    Return the user id from ``view_as_user_id`` when the requester is a moderator.
+
+    Returns None if view-as does not apply (caller should use ``request.user.id``).
+    """
+    view_as_user_id = request.query_params.get(VIEW_AS_USER_ID_QUERY_PARAM)
+    if (
+        request.user.is_authenticated
+        and getattr(request.user, "moderator", False)
+        and view_as_user_id
+    ):
+        return int(view_as_user_id)
+    return None
+
 
 class FeedViewMixin:
     """
@@ -167,6 +185,10 @@ class FeedViewMixin:
             target_user_id = request.user.id
         else:
             target_user_id = None
+
+        view_as_user_id = get_moderator_view_as_user_id(request)
+        if view_as_user_id is not None:
+            target_user_id = view_as_user_id
 
         page = request.query_params.get("page", "1")
         page_size = request.query_params.get(
