@@ -7,7 +7,7 @@ from django.contrib.auth.models import AbstractUser, UserManager
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Count, DecimalField, Q, Sum, Value
-from django.db.models.functions import Cast, Coalesce
+from django.db.models.functions import Cast, Coalesce, Lower
 from django.utils import timezone
 
 from hub.models import Hub
@@ -154,6 +154,10 @@ class User(AbstractUser):
                 fields=["is_active", "is_suspended", "probable_spammer"],
                 name="user_active_spam_idx",
                 condition=Q(is_active=True, is_suspended=False, probable_spammer=False),
+            ),
+            models.Index(
+                Lower("email"),
+                name="user_email_lower_idx",
             ),
         ]
 
