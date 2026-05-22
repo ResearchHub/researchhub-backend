@@ -2,7 +2,9 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    # Runs on first open, draft→ready, and whenever the `claude-review` label
+    # is applied (used to manually request a re-review after pushes/reopens).
+    types: [opened, ready_for_review, labeled]
 
 permissions:
   pull-requests: write
@@ -21,6 +23,10 @@ jobs:
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       (
+        github.event.action != 'labeled' ||
+        github.event.label.name == 'claude-review'
+      ) &&
+      (
         github.event.pull_request.author_association == 'OWNER' ||
         github.event.pull_request.author_association == 'MEMBER' ||
         github.event.pull_request.author_association == 'COLLABORATOR'
@@ -29,6 +35,12 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      - name: Clear claude-review label so it can be re-applied
+        if: github.event.action == 'labeled' && github.event.label.name == 'claude-review'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr edit ${{ github.event.pull_request.number }} --remove-label claude-review --repo ${{ github.repository }}
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -39,5 +51,6 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
           plugins: "code-review@claude-code-plugins"
-          prompt: "/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
+          prompt: "/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment"
           claude_args: "--model claude-opus-4-7"
+          show_full_output: true
