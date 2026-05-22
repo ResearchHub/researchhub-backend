@@ -35,6 +35,18 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      - name: Verify label sender has write access
+        if: github.event.action == 'labeled' && github.event.label.name == 'claude-review'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SENDER: ${{ github.event.sender.login }}
+        run: |
+          PERMISSION=$(gh api "repos/${{ github.repository }}/collaborators/${SENDER}/permission" --jq .permission)
+          case "$PERMISSION" in
+            admin|write|maintain) echo "Sender ${SENDER} has ${PERMISSION} access." ;;
+            *) echo "::error::Sender ${SENDER} lacks write access (permission: ${PERMISSION}); refusing to run."; exit 1 ;;
+          esac
+
       - name: Clear claude-review label so it can be re-applied
         if: github.event.action == 'labeled' && github.event.label.name == 'claude-review'
         env:
