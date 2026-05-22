@@ -43,6 +43,7 @@ from user.models import (
 from user.related_models.author_contribution_summary_model import (
     AuthorContributionSummary,
 )
+from user.related_models.risk_score_model import RiskScoreEvent
 from user.related_models.author_institution import AuthorInstitution
 from user.related_models.coauthor_model import CoAuthor
 from user.related_models.follow_model import Follow
@@ -114,6 +115,26 @@ class ModeratorUserSerializer(ModelSerializer):
 
     def get_risk_score_grade(self, user):
         return score_to_grade(self.get_risk_score(user))
+
+
+class RiskScoreEventSerializer(ModelSerializer):
+    source_type = SerializerMethodField()
+
+    class Meta:
+        model = RiskScoreEvent
+        fields = [
+            "id",
+            "event_type",
+            "delta",
+            "source_type",
+            "source_content_id",
+            "created_date",
+        ]
+
+    def get_source_type(self, event):
+        if event.source_content_type_id is None:
+            return None
+        return event.source_content_type.model
 
 
 class UniversitySerializer(ModelSerializer):
