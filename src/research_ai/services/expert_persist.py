@@ -66,17 +66,52 @@ class ExpertPersist:
         expert_search_id: int,
         expert_dicts: list[dict[str, Any]],
     ) -> int:
-        """Replace SearchExpert links; upsert Experts. Returns count."""
+        """Replace LLM SearchExpert links; upsert Experts.
+
+        Manually-added experts (``is_manually_added=True``) already linked to this
+        search are preserved so in-flight manual additions are not lost when the
+        finder task finishes.
+        """
         with transaction.atomic():
+            manual_links = list(
+                SearchExpert.objects.filter(
+                    expert_search_id=expert_search_id,
+                    expert__is_manually_added=True,
+                )
+                .select_related("expert")
+                .order_by("position")
+            )
+            manual_emails = {
+                ExpertDisplay.normalize_email(link.expert.email or "")
+                for link in manual_links
+            }
+            manual_emails.discard("")
+
             SearchExpert.objects.filter(expert_search_id=expert_search_id).delete()
-            for position, d in enumerate(expert_dicts):
+
+            position = 0
+            for link in manual_links:
+                SearchExpert.objects.create(
+                    expert_search_id=expert_search_id,
+                    expert_id=link.expert_id,
+                    position=position,
+                )
+                position += 1
+
+            llm_count = 0
+            for d in expert_dicts:
+                email = ExpertDisplay.normalize_email(d.get("email") or "")
+                if email and email in manual_emails:
+                    continue
                 expert = cls.upsert_from_parsed_dict(d)
                 SearchExpert.objects.create(
                     expert_search_id=expert_search_id,
                     expert_id=expert.id,
                     position=position,
                 )
-            return len(expert_dicts)
+                position += 1
+                llm_count += 1
+            return llm_count
 
     @staticmethod
     def mark_last_email_sent_at(email: str) -> None:

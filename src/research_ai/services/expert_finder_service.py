@@ -195,7 +195,11 @@ def _prompt_expert_count_for_round(remaining: int) -> int:
 
 
 def clear_expert_search_links(expert_search_id: int) -> None:
-    SearchExpert.objects.filter(expert_search_id=expert_search_id).delete()
+    """Remove non-manual SearchExpert links (e.g. after a failed LLM run)."""
+    SearchExpert.objects.filter(
+        expert_search_id=expert_search_id,
+        expert__is_manually_added=False,
+    ).delete()
 
 
 def load_experts_for_expert_search(expert_search_id: int) -> list[Expert]:

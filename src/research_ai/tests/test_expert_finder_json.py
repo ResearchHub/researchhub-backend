@@ -160,6 +160,35 @@ class ExpertPersistTests(TestCase):
             SearchExpert.objects.filter(expert_search_id=self.search.id).count(), 1
         )
 
+    def test_replace_search_experts_preserves_manual_links(self):
+        manual = Expert.objects.create(
+            email="manual@u.edu",
+            first_name="Manual",
+            is_manually_added=True,
+        )
+        SearchExpert.objects.create(
+            expert_search_id=self.search.id,
+            expert_id=manual.id,
+            position=0,
+        )
+
+        llm_rows = [
+            {"email": "manual@u.edu", "first_name": "LlmDup"},
+            {"email": "llm@u.edu", "first_name": "Llm"},
+        ]
+        n = ExpertPersist.replace_search_experts_for_search(self.search.id, llm_rows)
+        self.assertEqual(n, 1)
+
+        links = list(
+            SearchExpert.objects.filter(expert_search_id=self.search.id)
+            .order_by("position")
+            .select_related("expert")
+        )
+        self.assertEqual(len(links), 2)
+        self.assertEqual(links[0].expert.email, "manual@u.edu")
+        self.assertEqual(links[0].expert.first_name, "Manual")
+        self.assertEqual(links[1].expert.email, "llm@u.edu")
+
     def test_mark_expert_last_email_sent_at(self):
         e = ExpertPersist.upsert_from_parsed_dict(
             {
