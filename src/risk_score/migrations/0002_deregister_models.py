@@ -5,7 +5,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("risk_score", "0001_initial"),
-        ("user", "0144_riskscore_transfer"),
+        ("user", "0145_riskscore_transfer"),
     ]
 
     state_operations = [
