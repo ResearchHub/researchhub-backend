@@ -7,6 +7,7 @@ from django.utils import timezone
 from paper.tests.helpers import create_paper
 from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
 from research_ai.services.invited_experts_service import (
+    grant_invited_expert_access_for_send,
     grant_invited_expert_access_for_signup,
 )
 from researchhub_access_group.constants import VIEWER
@@ -345,3 +346,146 @@ class GrantInvitedExpertAccessTests(TestCase):
             ).count(),
             1,
         )
+
+
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+class GrantInvitedExpertAccessOnSendTests(TestCase):
+    """Send-time grant covers experts who are *already* users at invite time."""
+
+    def setUp(self):
+        self.creator = create_user(email="creator@send.test")
+        self.unified_doc_ct = ContentType.objects.get_for_model(
+            ResearchhubUnifiedDocument
+        )
+
+    def _make_private_preregistration(self):
+        post = create_post(
+            title="Private prereg send",
+            created_by=self.creator,
+            document_type=PREREGISTRATION,
+        )
+        post.unified_document.is_public = False
+        post.unified_document.save(update_fields=["is_public"])
+        return post
+
+    def _make_search(self, unified_document):
+        return ExpertSearch.objects.create(
+            created_by=self.creator,
+            unified_document=unified_document,
+            query="Test",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+
+    def _make_generated_email(self, *, search, email):
+        return GeneratedEmail.objects.create(
+            created_by=self.creator,
+            expert_search=search,
+            expert_email=email,
+            status=GeneratedEmail.Status.SENDING,
+        )
+
+    def test_grants_viewer_when_expert_linked_to_user(self):
+        existing_user = create_user(email="already@example.com")
+        post = self._make_private_preregistration()
+        search = self._make_search(post.unified_document)
+        Expert.objects.create(
+            email="already@example.com",
+            registered_user=existing_user,
+        )
+        ge = self._make_generated_email(search=search, email="already@example.com")
+
+        created = grant_invited_expert_access_for_send(generated_email=ge)
+
+        self.assertTrue(created)
+        perm = Permission.objects.get(
+            content_type=self.unified_doc_ct,
+            object_id=post.unified_document_id,
+            user=existing_user,
+        )
+        self.assertEqual(perm.access_type, VIEWER)
+
+    def test_no_grant_when_expert_has_no_registered_user(self):
+        post = self._make_private_preregistration()
+        search = self._make_search(post.unified_document)
+        Expert.objects.create(email="cold@example.com")
+        ge = self._make_generated_email(search=search, email="cold@example.com")
+
+        self.assertFalse(grant_invited_expert_access_for_send(generated_email=ge))
+        self.assertFalse(
+            Permission.objects.filter(
+                content_type=self.unified_doc_ct,
+                object_id=post.unified_document_id,
+            ).exists()
+        )
+
+    def test_no_grant_for_public_document(self):
+        existing_user = create_user(email="pub@example.com")
+        public_post = create_post(
+            title="Public prereg",
+            created_by=self.creator,
+            document_type=PREREGISTRATION,
+        )
+        # default is_public=True
+        search = self._make_search(public_post.unified_document)
+        Expert.objects.create(
+            email="pub@example.com",
+            registered_user=existing_user,
+        )
+        ge = self._make_generated_email(search=search, email="pub@example.com")
+
+        self.assertFalse(grant_invited_expert_access_for_send(generated_email=ge))
+
+    def test_no_grant_for_non_preregistration(self):
+        existing_user = create_user(email="discuss@example.com")
+        post = create_post(
+            title="Discussion",
+            created_by=self.creator,
+            document_type=DISCUSSION,
+        )
+        post.unified_document.is_public = False
+        post.unified_document.save(update_fields=["is_public"])
+        search = self._make_search(post.unified_document)
+        Expert.objects.create(
+            email="discuss@example.com",
+            registered_user=existing_user,
+        )
+        ge = self._make_generated_email(search=search, email="discuss@example.com")
+
+        self.assertFalse(grant_invited_expert_access_for_send(generated_email=ge))
+
+    def test_idempotent(self):
+        existing_user = create_user(email="twice@example.com")
+        post = self._make_private_preregistration()
+        search = self._make_search(post.unified_document)
+        Expert.objects.create(
+            email="twice@example.com",
+            registered_user=existing_user,
+        )
+        ge = self._make_generated_email(search=search, email="twice@example.com")
+
+        self.assertTrue(grant_invited_expert_access_for_send(generated_email=ge))
+        # Second call: existing Permission, no new row.
+        self.assertFalse(grant_invited_expert_access_for_send(generated_email=ge))
+        self.assertEqual(
+            Permission.objects.filter(
+                content_type=self.unified_doc_ct,
+                object_id=post.unified_document_id,
+                user=existing_user,
+            ).count(),
+            1,
+        )
+
+    def test_no_search_attached_returns_false(self):
+        existing_user = create_user(email="orphan@example.com")
+        Expert.objects.create(
+            email="orphan@example.com",
+            registered_user=existing_user,
+        )
+        ge = GeneratedEmail.objects.create(
+            created_by=self.creator,
+            expert_search=None,
+            expert_email="orphan@example.com",
+            status=GeneratedEmail.Status.SENDING,
+        )
+
+        self.assertFalse(grant_invited_expert_access_for_send(generated_email=ge))

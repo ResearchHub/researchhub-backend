@@ -18,6 +18,10 @@ from research_ai.models import (
     SearchExpert,
 )
 from research_ai.services.expert_display import ExpertDisplay
+from research_ai.services.invited_experts_service import (
+    EDITOR_SORT_FIELDS,
+    default_overview_date_range,
+)
 from research_ai.utils import trimmed_str
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import ResearchhubPostSerializer
@@ -414,8 +418,8 @@ class ExpertSearchDetailSerializer(serializers.ModelSerializer):
         return out or None
 
 
-class InvitedExpertOverviewQuerySerializer(serializers.Serializer):
-    """Query params for GET invited-experts overview."""
+class InvitedExpertStatsFilterSerializer(serializers.Serializer):
+    """Shared date/document filters for invited-expert stats endpoints."""
 
     unified_document_id = serializers.IntegerField(required=False, allow_null=True)
     start = serializers.DateField(required=False, allow_null=True)
@@ -428,18 +432,61 @@ class InvitedExpertOverviewQuerySerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {"end": "Must be greater than or equal to start."}
             )
+
+        initial = self.initial_data or {}
+        has_start = "start" in initial and initial.get("start") not in (None, "")
+        has_end = "end" in initial and initial.get("end") not in (None, "")
+
         tz = timezone.get_current_timezone()
-        if start_date is not None:
-            attrs["start"] = timezone.make_aware(
-                datetime.combine(start_date, time.min), tz
-            )
-        if end_date is not None:
-            attrs["end"] = timezone.make_aware(datetime.combine(end_date, time.max), tz)
+        if not has_start and not has_end:
+            default_start, default_end = default_overview_date_range()
+            attrs["start"] = default_start
+            attrs["end"] = default_end
+        else:
+            if start_date is not None:
+                attrs["start"] = timezone.make_aware(
+                    datetime.combine(start_date, time.min), tz
+                )
+            if end_date is not None:
+                attrs["end"] = timezone.make_aware(
+                    datetime.combine(end_date, time.max), tz
+                )
         return attrs
 
 
+class InvitedExpertOverviewQuerySerializer(InvitedExpertStatsFilterSerializer):
+    """Query params for GET expert-finder overview."""
+
+    editor_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+
+
+class InvitedExpertEditorsOverviewQuerySerializer(InvitedExpertStatsFilterSerializer):
+    """Query params for GET expert-finder editors-overview."""
+
+    limit = serializers.IntegerField(required=False, default=5, min_value=1)
+    offset = serializers.IntegerField(required=False, default=0, min_value=0)
+    sort_by = serializers.CharField(required=False, default="experts_total")
+    sort_order = serializers.ChoiceField(
+        required=False,
+        default="desc",
+        choices=["asc", "desc"],
+    )
+    min_searches = serializers.IntegerField(required=False, default=1, min_value=1)
+
+    def validate_sort_by(self, value):
+        sort_by = (value or "experts_total").strip()
+        if sort_by not in EDITOR_SORT_FIELDS:
+            raise serializers.ValidationError(
+                f"Must be one of: {', '.join(sorted(EDITOR_SORT_FIELDS))}."
+            )
+        return sort_by
+
+    def validate_limit(self, value):
+        return min(50, max(1, value if value is not None else 5))
+
+
 class InvitedExpertOverviewSerializer(serializers.Serializer):
-    """Response body for invited-experts overview (counts)."""
+    """Response body for expert-finder overview (counts)."""
 
     experts_total = serializers.IntegerField(read_only=True)
     experts_signed_up = serializers.IntegerField(read_only=True)
@@ -447,6 +494,47 @@ class InvitedExpertOverviewSerializer(serializers.Serializer):
     emails_sent = serializers.IntegerField(read_only=True)
     emails_bounced = serializers.IntegerField(read_only=True)
     emails_opened = serializers.IntegerField(read_only=True)
+    proposals_opened = serializers.IntegerField(read_only=True)
+
+
+class InvitedExpertOverviewSummarySerializer(serializers.Serializer):
+    searches_total = serializers.IntegerField(read_only=True)
+    searches_completed = serializers.IntegerField(read_only=True)
+    searches_failed = serializers.IntegerField(read_only=True)
+    searches_pending = serializers.IntegerField(read_only=True)
+    signup_rate = serializers.FloatField(read_only=True, allow_null=True)
+    email_send_rate = serializers.FloatField(read_only=True, allow_null=True)
+    open_rate = serializers.FloatField(read_only=True, allow_null=True)
+    bounce_rate = serializers.FloatField(read_only=True, allow_null=True)
+
+
+class InvitedExpertEditorRowSerializer(serializers.Serializer):
+    editor = serializers.JSONField(allow_null=True)
+    searches_total = serializers.IntegerField(read_only=True)
+    searches_completed = serializers.IntegerField(read_only=True)
+    experts_total = serializers.IntegerField(read_only=True)
+    experts_signed_up = serializers.IntegerField(read_only=True)
+    emails_generated = serializers.IntegerField(read_only=True)
+    emails_sent = serializers.IntegerField(read_only=True)
+    emails_opened = serializers.IntegerField(read_only=True)
+    emails_bounced = serializers.IntegerField(read_only=True)
+    proposals_outreach_count = serializers.IntegerField(read_only=True)
+    emails_sent_by_proposal = serializers.DictField(
+        child=serializers.IntegerField(),
+        read_only=True,
+    )
+    signup_rate = serializers.FloatField(read_only=True, allow_null=True)
+    open_rate = serializers.FloatField(read_only=True, allow_null=True)
+    bounce_rate = serializers.FloatField(read_only=True, allow_null=True)
+
+
+class InvitedExpertEditorsOverviewSerializer(serializers.Serializer):
+    items = InvitedExpertEditorRowSerializer(many=True, read_only=True)
+    total = serializers.IntegerField(read_only=True)
+    limit = serializers.IntegerField(read_only=True)
+    offset = serializers.IntegerField(read_only=True)
+    sort_by = serializers.CharField(read_only=True)
+    sort_order = serializers.CharField(read_only=True)
 
 
 class ExpertSearchSubmitResponseSerializer(serializers.Serializer):

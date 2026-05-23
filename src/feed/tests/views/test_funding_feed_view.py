@@ -253,9 +253,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(vote_type, 1)  # 1 corresponds to UPVOTE
 
     @patch("feed.views.funding_feed_view.cache")
-    def test_authenticated_request_bypasses_cached_response(self, mock_cache):
-        """Authenticated funding feed responses are viewer-specific."""
-        # Create a vote for the post
+    def test_authenticated_request_uses_cache_with_votes_applied(self, mock_cache):
+        """Authenticated viewers reuse the cached payload, then get votes layered on."""
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         vote = Vote.objects.create(
             created_by=self.user,
@@ -264,7 +263,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
             vote_type=Vote.UPVOTE,
         )
 
-        # Create a mock cached response without votes
+        # Cached payload is built without per-viewer votes.
         cached_response = {
             "results": [
                 {
@@ -285,7 +284,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         url = reverse("funding_feed-list")
         response = self.client.get(url)
 
-        self.assertFalse(mock_cache.get.called)
+        self.assertTrue(mock_cache.get.called)
         self.assertFalse(mock_cache.set.called)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         post_data = next(
@@ -295,6 +294,40 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         )
         self.assertIn("user_vote", post_data)
         self.assertEqual(post_data["user_vote"]["id"], vote.id)
+
+    @patch("feed.views.funding_feed_view.cache")
+    def test_cached_payload_is_user_agnostic(self, mock_cache):
+        """The payload written to cache must not contain viewer-specific votes.
+
+        Snapshot the value at cache.set time — the real Django cache serializes
+        on write, so subsequent in-place mutation of response_data (to add
+        votes for the requester) doesn't leak into what other viewers see.
+        """
+        import copy
+
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        Vote.objects.create(
+            created_by=self.user,
+            object_id=self.post.id,
+            content_type=post_content_type,
+            vote_type=Vote.UPVOTE,
+        )
+
+        mock_cache.get.return_value = None
+        captured = {}
+
+        def capture_set(key, value, timeout=None):
+            captured["payload"] = copy.deepcopy(value)
+
+        mock_cache.set.side_effect = capture_set
+
+        url = reverse("funding_feed-list")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(mock_cache.set.called)
+        for item in captured["payload"]["results"]:
+            self.assertNotIn("user_vote", item)
 
     def test_get_cache_key(self):
         """Test cache key generation logic"""

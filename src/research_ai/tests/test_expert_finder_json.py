@@ -177,6 +177,45 @@ class ExpertPersistTests(TestCase):
         ExpertPersist.mark_last_email_sent_at("")
         # no error
 
+    def test_upsert_links_existing_registered_user_on_create(self):
+        existing = create_user(email="Match@Example.com")
+        e = ExpertPersist.upsert_from_parsed_dict(
+            {"email": "match@example.com", "first_name": "M"}
+        )
+        self.assertEqual(e.registered_user_id, existing.id)
+
+    def test_upsert_links_existing_registered_user_on_update(self):
+        e = ExpertPersist.upsert_from_parsed_dict(
+            {"email": "later@example.com", "first_name": "L"}
+        )
+        self.assertIsNone(e.registered_user_id)
+        existing = create_user(email="LATER@example.com")
+        e2 = ExpertPersist.upsert_from_parsed_dict(
+            {"email": "later@example.com", "last_name": "R"}
+        )
+        self.assertEqual(e2.id, e.id)
+        self.assertEqual(e2.registered_user_id, existing.id)
+
+    def test_upsert_does_not_overwrite_existing_registered_user(self):
+        # A prior link (e.g. set by the post-signup linker) must not be replaced
+        # by a fresh email-based lookup during a subsequent upsert.
+        other_user = create_user(email="other@example.com")
+        Expert.objects.create(
+            email="taken@example.com",
+            registered_user=other_user,
+        )
+        create_user(email="taken@example.com")
+        e = ExpertPersist.upsert_from_parsed_dict(
+            {"email": "taken@example.com", "last_name": "K"}
+        )
+        self.assertEqual(e.registered_user_id, other_user.id)
+
+    def test_upsert_leaves_registered_user_null_when_no_match(self):
+        e = ExpertPersist.upsert_from_parsed_dict(
+            {"email": "nobody@example.com", "first_name": "N"}
+        )
+        self.assertIsNone(e.registered_user_id)
+
 
 class ExpertResultsPayloadTests(TestCase):
     def setUp(self):

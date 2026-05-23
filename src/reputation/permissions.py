@@ -6,8 +6,18 @@ from rest_framework.permissions import BasePermission
 
 from reputation.models import Bounty
 from researchhub_document.models import ResearchhubUnifiedDocument
+from user.models import User
 from utils.http import PATCH, POST, RequestMethods
 from utils.permissions import AuthorizationBasedPermission
+
+
+class IsFoundationUser(BasePermission):
+    message = "Only the ResearchHub Foundation account may perform this action."
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and User.is_rh_community_account(
+            request.user
+        )
 
 
 class UpdateOrDeleteWithdrawal(AuthorizationBasedPermission):
