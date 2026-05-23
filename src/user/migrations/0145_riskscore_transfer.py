@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("user", "0143_delete_userapitoken"),
+        ("user", "0144_user_email_lower_idx"),
         ("risk_score", "0001_initial"),
         ("contenttypes", "0002_remove_content_type_name"),
     ]
