@@ -990,3 +990,161 @@ class ExportUsdContributionsTests(TestCase):
 
         refunded_flags = {row[16] for row in rows}
         self.assertEqual(refunded_flags, {True, False})
+
+
+class FundraiseContributionConcurrencyTests(TestCase):
+    """Regression tests for fundraise escrow accounting races."""
+
+    def setUp(self):
+        User.objects.get_or_create(id=1)
+        self.moderator = create_random_authenticated_user(
+            "fundraise_concurrency_mod", moderator=True
+        )
+        self.post = create_post(created_by=self.moderator, document_type=PREREGISTRATION)
+        self.service = FundraiseService()
+        self.fundraise = self.service.create_fundraise_with_escrow(
+            user=self.moderator,
+            unified_document=self.post.unified_document,
+            goal_amount=Decimal("100"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
+        RscExchangeRate.objects.create(
+            rate=0.5,
+            real_rate=0.5,
+            target_currency="USD",
+        )
+
+    def _give_user_rsc_balance(self, user, amount):
+        distribution_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount=amount,
+            user=user,
+            content_type=distribution_ct,
+        )
+
+    def test_concurrent_contributions_sum_escrow_holding(self):
+        import threading
+
+        from django.db import connection
+
+        contributor1 = create_random_authenticated_user("concurrent_contrib_1")
+        contributor2 = create_random_authenticated_user("concurrent_contrib_2")
+        self._give_user_rsc_balance(contributor1, 1000)
+        self._give_user_rsc_balance(contributor2, 1000)
+
+        barrier = threading.Barrier(2)
+        errors = []
+
+        def contribute(user, amount):
+            try:
+                barrier.wait()
+                _, error = self.service.create_rsc_contribution(
+                    user, self.fundraise, Decimal(amount), use_credits=False
+                )
+                if error:
+                    errors.append(error)
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                connection.close()
+
+        threads = [
+            threading.Thread(target=contribute, args=(contributor1, "100")),
+            threading.Thread(target=contribute, args=(contributor2, "200")),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(errors, [])
+
+        self.fundraise.escrow.refresh_from_db()
+        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal("300"))
+
+    def test_contribution_rejected_after_fundraise_completed(self):
+        contributor = create_random_authenticated_user("completed_contrib")
+        self._give_user_rsc_balance(contributor, 1000)
+
+        initial_purchase, error = self.service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal("100"), use_credits=False
+        )
+        self.assertIsNone(error)
+        self.assertIsNotNone(initial_purchase)
+
+        balance_before = contributor.get_balance()
+        self.service.complete_fundraise(self.fundraise)
+
+        purchase, error = self.service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal("50"), use_credits=False
+        )
+        self.assertIsNone(purchase)
+        self.assertEqual(error, "Fundraise is not open")
+        self.assertEqual(contributor.get_balance(), balance_before)
+
+        self.fundraise.escrow.refresh_from_db()
+        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal("0"))
+        self.assertEqual(self.fundraise.escrow.status, "PAID")
+
+    def test_concurrent_complete_and_contribute_only_one_succeeds(self):
+        import threading
+
+        from django.db import connection
+
+        contributor = create_random_authenticated_user("complete_race_contrib")
+        self._give_user_rsc_balance(contributor, 1000)
+
+        _, error = self.service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal("100"), use_credits=False
+        )
+        self.assertIsNone(error)
+
+        barrier = threading.Barrier(2)
+        results = []
+        errors = []
+
+        def complete_once():
+            try:
+                barrier.wait()
+                self.service.complete_fundraise(self.fundraise)
+                results.append("complete")
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                connection.close()
+
+        def contribute_once():
+            try:
+                barrier.wait()
+                purchase, error = self.service.create_rsc_contribution(
+                    contributor, self.fundraise, Decimal("50"), use_credits=False
+                )
+                results.append(("contribute", purchase, error))
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                connection.close()
+
+        threads = [
+            threading.Thread(target=complete_once),
+            threading.Thread(target=contribute_once),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(errors, [])
+
+        self.fundraise.refresh_from_db()
+        self.fundraise.escrow.refresh_from_db()
+        self.assertEqual(self.fundraise.status, Fundraise.COMPLETED)
+        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal("0"))
+
+        contribute_results = [result for result in results if result[0] == "contribute"]
+        self.assertEqual(len(contribute_results), 1)
+        _, purchase, error = contribute_results[0]
+        self.assertIsNone(purchase)
+        self.assertIn(error, ("Fundraise is not open", "Fundraise is not accepting contributions"))

@@ -239,6 +239,16 @@ class FundraiseService:
         total_cost = amount + fee
 
         with transaction.atomic():
+            fundraise = Fundraise.objects.select_for_update().get(pk=fundraise.pk)
+            if fundraise.status != Fundraise.OPEN:
+                return None, "Fundraise is not open"
+            if fundraise.is_expired():
+                return None, "Fundraise is expired"
+
+            escrow = Escrow.objects.select_for_update().get(pk=fundraise.escrow_id)
+            if escrow.status != Escrow.PENDING:
+                return None, "Fundraise is not accepting contributions"
+
             user = User.objects.select_for_update().get(id=user.id)
 
             if use_credits:
@@ -312,9 +322,8 @@ class FundraiseService:
                 priority=1,
             )
 
-            # Update escrow object
-            fundraise.escrow.amount_holding += amount
-            fundraise.escrow.save()
+            escrow.amount_holding += amount
+            escrow.save(update_fields=["amount_holding", "updated_date"])
 
         return purchase, None
 
@@ -477,12 +486,18 @@ class FundraiseService:
             RuntimeError: If payout fails
         """
         with transaction.atomic():
+            fundraise = Fundraise.objects.select_for_update().get(pk=fundraise.pk)
             if fundraise.status != Fundraise.OPEN:
                 raise ValueError("Fundraise is not open")
 
-            if not fundraise.escrow or fundraise.escrow.amount_holding <= 0:
+            if not fundraise.escrow_id:
                 raise ValueError("Fundraise has no funds to payout")
 
+            escrow = Escrow.objects.select_for_update().get(pk=fundraise.escrow_id)
+            if escrow.amount_holding <= 0:
+                raise ValueError("Fundraise has no funds to payout")
+
+            fundraise.escrow = escrow
             if not fundraise.payout_funds():
                 raise RuntimeError("Failed to payout funds")
 
