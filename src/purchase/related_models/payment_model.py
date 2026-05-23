@@ -26,7 +26,7 @@ class Payment(DefaultModel):
 
     amount = models.IntegerField(null=False, blank=False)
     currency = models.CharField(max_length=3, null=False, blank=False)
-    external_payment_id = models.TextField(null=False, blank=False, unique=True)
+    external_payment_id = models.TextField(null=False, blank=False)
     payment_processor = models.TextField(
         choices=PaymentProcessor.choices, null=False, blank=False
     )
