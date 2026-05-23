@@ -51,7 +51,6 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
         cache_key = self.get_cache_key(request, "funding")
         use_cache = (
             page_num <= FUNDING_FEED_MAX_CACHED_PAGE
-            and not request.user.is_authenticated
             and grant_id is None
             and created_by is None
             and funded_by is None
@@ -88,11 +87,12 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
         serializer = FundingFeedEntrySerializer(feed_entries, many=True)
         response_data = self.get_paginated_response(serializer.data).data
 
-        if request.user.is_authenticated:
-            self.add_user_votes_to_response(request.user, response_data)
-
+        # Cache before per-user vote enrichment so cached payload stays user-agnostic.
         if use_cache:
             cache.set(cache_key, response_data, timeout=self.DEFAULT_CACHE_TIMEOUT)
+
+        if request.user.is_authenticated:
+            self.add_user_votes_to_response(request.user, response_data)
 
         return Response(response_data)
 
@@ -103,8 +103,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
         funded_by = self.request.query_params.get("funded_by")
 
         queryset = (
-            ResearchhubPost.objects.visible_to(self.request.user)
-            .select_related(
+            ResearchhubPost.objects.select_related(
                 "created_by",
                 "created_by__author_profile",
                 "unified_document",
@@ -116,7 +115,11 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
                 "grant_applications__grant__unified_document__posts",
                 "grant_applications__grant__applications",
             )
-            .filter(document_type=PREREGISTRATION, unified_document__is_removed=False)
+            .filter(
+                document_type=PREREGISTRATION,
+                unified_document__is_removed=False,
+                unified_document__is_public=True,
+            )
         )
 
         if created_by:

@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import stripe
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from paper.related_models.paper_model import Paper
@@ -40,6 +40,33 @@ STRIPE_FEE_FIXED_CENTS = 30  # $0.30
 
 class PaymentService:
     """Service for handling payment-related business logic."""
+
+    def _get_or_create_payment(
+        self, external_payment_id: str, defaults: dict
+    ) -> Tuple[Payment, bool]:
+        """
+        Atomically get or create a Payment by external_payment_id.
+
+        Uses row-level locking to avoid duplicate credits when Stripe retries
+        webhooks concurrently.
+        """
+        with transaction.atomic():
+            payment = (
+                Payment.objects.select_for_update()
+                .filter(external_payment_id=external_payment_id)
+                .first()
+            )
+            if payment:
+                return payment, False
+
+            try:
+                payment = Payment.objects.create(
+                    external_payment_id=external_payment_id, **defaults
+                )
+                return payment, True
+            except IntegrityError:
+                payment = Payment.objects.get(external_payment_id=external_payment_id)
+                return payment, False
 
     def create_checkout_session(
         self,
@@ -119,20 +146,28 @@ class PaymentService:
         Returns:
             Created Payment instance
         """
-        # Create payment record
         external_payment_id = (
             checkout_session["payment_intent"] or checkout_session["id"]
         )
-        payment = Payment.objects.create(
-            amount=checkout_session["amount_total"],
-            currency=checkout_session["currency"].upper(),
+        payment, created = self._get_or_create_payment(
             external_payment_id=external_payment_id,
-            payment_processor=PaymentProcessor.STRIPE,
-            purpose=PaymentPurpose.RSC_PURCHASE,
-            user_id=user_id,
-            object_id=user_id,  # For RSC purchases, reference the user
-            content_type=ContentType.objects.get(app_label="user", model="user"),
+            defaults={
+                "amount": checkout_session["amount_total"],
+                "currency": checkout_session["currency"].upper(),
+                "payment_processor": PaymentProcessor.STRIPE,
+                "purpose": PaymentPurpose.RSC_PURCHASE,
+                "user_id": user_id,
+                "object_id": user_id,
+                "content_type": ContentType.objects.get(app_label="user", model="user"),
+            },
         )
+
+        if not created:
+            logger.info(
+                "Duplicate Stripe payment %s, skipping balance credit",
+                external_payment_id,
+            )
+            return payment
 
         # Convert cents to dollars, then USD to RSC
         usd_amount = checkout_session["amount_total"] / 100
@@ -190,16 +225,24 @@ class PaymentService:
                 checkout_session["payment_intent"] or checkout_session["id"]
             )
 
-            return Payment.objects.create(
-                amount=checkout_session["amount_total"],
-                currency=checkout_session["currency"].upper(),
+            payment, created = self._get_or_create_payment(
                 external_payment_id=external_payment_id,
-                payment_processor=PaymentProcessor.STRIPE,
-                purpose=purpose,
-                object_id=paper_id,
-                content_type=ContentType.objects.get_for_model(Paper),
-                user_id=int(user_id),
+                defaults={
+                    "amount": checkout_session["amount_total"],
+                    "currency": checkout_session["currency"].upper(),
+                    "payment_processor": PaymentProcessor.STRIPE,
+                    "purpose": purpose,
+                    "object_id": paper_id,
+                    "content_type": ContentType.objects.get_for_model(Paper),
+                    "user_id": int(user_id),
+                },
             )
+            if not created:
+                logger.info(
+                    "Duplicate Stripe payment %s, skipping APC payment creation",
+                    external_payment_id,
+                )
+            return payment
 
         else:
             raise ValueError(f"Unknown payment purpose: {purpose}")
@@ -386,16 +429,17 @@ class PaymentService:
         Returns:
             Tuple of (Payment, rsc_amount credited)
         """
-        # Create payment record
-        payment = Payment.objects.create(
-            amount=payment_intent.amount,
-            currency=payment_intent.currency.upper(),
+        payment, created = self._get_or_create_payment(
             external_payment_id=payment_intent.id,
-            payment_processor=PaymentProcessor.STRIPE,
-            purpose=purpose,
-            user_id=user_id,
-            object_id=user_id,
-            content_type=ContentType.objects.get(app_label="user", model="user"),
+            defaults={
+                "amount": payment_intent.amount,
+                "currency": payment_intent.currency.upper(),
+                "payment_processor": PaymentProcessor.STRIPE,
+                "purpose": purpose,
+                "user_id": user_id,
+                "object_id": user_id,
+                "content_type": ContentType.objects.get(app_label="user", model="user"),
+            },
         )
 
         # Use the locked RSC amount from metadata
@@ -405,6 +449,13 @@ class PaymentService:
             # Fallback: convert USD to RSC using current rate
             usd_amount = payment_intent.amount / 100
             rsc_amount = Decimal(str(RscExchangeRate.usd_to_rsc(usd_amount)))
+
+        if not created:
+            logger.info(
+                "Duplicate Stripe payment %s, skipping balance credit",
+                payment_intent.id,
+            )
+            return payment, rsc_amount
 
         # Calculate RSC purchase fees (2% platform fee)
         rsc_fee, rh_fee, dao_fee, fee_obj = calculate_rsc_purchase_fees(rsc_amount)
