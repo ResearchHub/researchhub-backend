@@ -89,11 +89,12 @@ class JournalFeedViewSet(FeedViewMixin, ModelViewSet):
         serializer = self.get_serializer(feed_entries, many=True)
         response_data = self.get_paginated_response(serializer.data).data
 
-        if request.user.is_authenticated:
-            self.add_user_votes_to_response(request.user, response_data)
-
+        # Cache before per-user vote enrichment so cached payload stays user-agnostic.
         if use_cache:
             cache.set(cache_key, response_data, timeout=self.DEFAULT_CACHE_TIMEOUT)
+
+        if request.user.is_authenticated:
+            self.add_user_votes_to_response(request.user, response_data)
 
         return Response(response_data)
 

@@ -1,10 +1,14 @@
+import copy
 from datetime import datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytz
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from rest_framework.test import APITestCase
 
+from discussion.models import Vote
 from feed.views.common import FeedPagination
 from purchase.models import Fundraise, Grant, GrantApplication
 from researchhub_document.helpers import create_post
@@ -223,6 +227,33 @@ class GrantFeedViewTests(APITestCase):
 
         # Responses should be identical
         self.assertEqual(response1.data, response2.data)
+
+    @patch("feed.views.grant_feed_view.cache")
+    def test_cached_payload_is_user_agnostic(self, mock_cache):
+        """Cached grant feed payloads must not contain viewer-specific votes."""
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        Vote.objects.create(
+            created_by=self.user,
+            object_id=self.open_post.id,
+            content_type=post_content_type,
+            vote_type=Vote.UPVOTE,
+        )
+
+        mock_cache.get.return_value = None
+        captured = {}
+
+        def capture_set(key, value, timeout=None):
+            captured["payload"] = copy.deepcopy(value)
+
+        mock_cache.set.side_effect = capture_set
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/?page=1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(mock_cache.set.called)
+        for item in captured["payload"]["results"]:
+            self.assertNotIn("user_vote", item)
 
     def test_grant_feed_includes_applications(self):
         """Test that grant feed includes application data with fundraise info"""
