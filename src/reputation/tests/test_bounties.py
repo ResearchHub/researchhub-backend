@@ -429,6 +429,7 @@ class BountyViewTests(APITestCase):
 
         initial_foundation_balance = self.foundation.get_balance()
         initial_recipient_balance = self.recipient.get_balance()
+        initial_child_1_balance = self.child_comment_1.created_by.get_balance()
         bounty_1 = self.test_user_can_create_bounty()
         half_amount = decimal.Decimal(bounty_1.data["amount"]) / 2
         approve_bounty_res_1 = self.client.post(
@@ -450,16 +451,18 @@ class BountyViewTests(APITestCase):
             [
                 {
                     "amount": half_amount,
-                    "object_id": self.comment.id,
-                    "content_type": self.comment._meta.model_name,
+                    "object_id": self.child_comment_1.id,
+                    "content_type": self.child_comment_1._meta.model_name,
                 }
             ],
         )
         foundation_balance = self.foundation.get_balance()
         recipient_balance = self.recipient.get_balance()
+        child_1_balance = self.child_comment_1.created_by.get_balance()
 
         self.assertEqual(approve_bounty_res_2.status_code, 200)
         self.assertGreater(recipient_balance, initial_recipient_balance)
+        self.assertGreater(child_1_balance, initial_child_1_balance)
         self.assertGreater(initial_foundation_balance, foundation_balance)
 
     def test_user_can_approve_full_multi_bounties(self):

@@ -349,11 +349,13 @@ class BountyViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            escrow = Escrow.objects.select_for_update().get(pk=bounty.escrow_id)
+
             # Validate total payout amount doesn't exceed bounty amount
             total_payout = sum(
                 decimal.Decimal(str(solution.get("amount", 0))) for solution in data
             )
-            if total_payout > bounty.escrow.amount_holding:
+            if total_payout > escrow.amount_holding:
                 # Return 400 Bad Request instead of raising Exception
                 return Response(
                     {"detail": "Total payout amount exceeds bounty amount"},
@@ -421,6 +423,13 @@ class BountyViewSet(viewsets.ModelViewSet):
                     )
 
                 solution_created_by = solution_obj.created_by
+
+                if solution_created_by.id == bounty.created_by.id:
+                    return Response(
+                        {"detail": "Cannot award your own solution"},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
                 bounty_solutions_to_process.append(
                     {
                         "obj": solution_obj,
@@ -450,9 +459,11 @@ class BountyViewSet(viewsets.ModelViewSet):
                     },  # Initial status
                 )
 
-                # Optional: Add logic here to handle already awarded solutions if needed
-                # e.g., if bounty_solution.status == BountySolution.Status.AWARDED:
-                #    continue # Or raise an error, depending on desired behavior
+                if bounty_solution.status == BountySolution.Status.AWARDED:
+                    return Response(
+                        {"detail": "Solution has already been awarded"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
                 # Attempt to pay out the bounty
                 bounty_paid = bounty.approve(
