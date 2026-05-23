@@ -385,11 +385,13 @@ class PaymentService:
             )
 
             # Process payment and credit balance in its own atomic transaction
-            payment, rsc_amount = self._create_payment_and_credit_balance(
-                payment_intent=payment_intent,
-                user_id=user_id,
-                purpose=purpose,
-                locked_rsc_amount=locked_rsc_amount,
+            payment, rsc_amount, payment_created = (
+                self._create_payment_and_credit_balance(
+                    payment_intent=payment_intent,
+                    user_id=user_id,
+                    purpose=purpose,
+                    locked_rsc_amount=locked_rsc_amount,
+                )
             )
 
             # Handle fundraise contribution in a separate transaction
@@ -397,7 +399,9 @@ class PaymentService:
             fundraise_contribution = None
             fundraise_id_str = payment_intent.metadata.get("fundraise_id")
 
-            if fundraise_id_str:
+            # Only auto-contribute on the first successful processing of this payment.
+            # Retries must not spend existing locked balance a second time.
+            if fundraise_id_str and payment_created:
                 fundraise_contribution = self._process_fundraise_contribution(
                     fundraise_id_str=fundraise_id_str,
                     user_id=user_id,
@@ -418,7 +422,7 @@ class PaymentService:
         user_id: int,
         purpose: str,
         locked_rsc_amount: Decimal,
-    ) -> Tuple[Payment, Decimal]:
+    ) -> Tuple[Payment, Decimal, bool]:
         """
         Create payment record and credit user's balance.
         This is an atomic operation - either both succeed or both fail.
@@ -427,7 +431,7 @@ class PaymentService:
         user's locked balance, then the fees are deducted as a separate line item.
 
         Returns:
-            Tuple of (Payment, rsc_amount credited)
+            Tuple of (Payment, rsc_amount credited, created)
         """
         payment, created = self._get_or_create_payment(
             external_payment_id=payment_intent.id,
@@ -455,7 +459,7 @@ class PaymentService:
                 "Duplicate Stripe payment %s, skipping balance credit",
                 payment_intent.id,
             )
-            return payment, rsc_amount
+            return payment, rsc_amount, False
 
         # Calculate RSC purchase fees (2% platform fee)
         rsc_fee, rh_fee, dao_fee, fee_obj = calculate_rsc_purchase_fees(rsc_amount)
@@ -493,7 +497,7 @@ class PaymentService:
             is_locked=True,
         )
 
-        return payment, rsc_amount
+        return payment, rsc_amount, True
 
     def _process_fundraise_contribution(
         self,

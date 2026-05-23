@@ -5,19 +5,29 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.test import TestCase
 
+import time
+
 from paper.related_models.paper_model import Paper
 from purchase.related_models.balance_model import Balance
 from purchase.related_models.constants.currency import USD
+from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.payment_model import (
     Payment,
     PaymentProcessor,
     PaymentPurpose,
 )
+from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.rsc_purchase_fee import RscPurchaseFee
 from purchase.services.payment_service import APC_AMOUNT_CENTS, PaymentService
+from reputation.distributions import Distribution as Dist
+from reputation.distributor import Distributor
+from reputation.models import Escrow
 from reputation.related_models.bounty_fee import BountyFee
 from reputation.related_models.distribution import Distribution
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.models import User
 from user.tests.helpers import create_user
 
@@ -431,6 +441,61 @@ class PaymentServiceTest(TestCase):
         )
         self.assertGreater(balance_count_after_first, initial_balance_count)
         self.assertEqual(balance_count_after_second, balance_count_after_first)
+
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_process_payment_intent_confirmation_skips_fundraise_on_duplicate(
+        self, mock_stripe_retrieve
+    ):
+        """Stripe retries must not auto-contribute twice from existing locked balance."""
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type="PREREGISTRATION",
+        )
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=unified_document,
+            goal_amount=1000,
+            status=Fundraise.OPEN,
+        )
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.FUNDRAISE,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=fundraise.id,
+        )
+        fundraise.escrow = escrow
+        fundraise.save()
+
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "succeeded"
+        mock_payment_intent.amount = 1000
+        mock_payment_intent.currency = "usd"
+        mock_payment_intent.id = "pi_fundraise_idempotent"
+        mock_payment_intent.metadata = {
+            "user_id": str(self.user.id),
+            "purpose": PaymentPurpose.RSC_PURCHASE,
+            "locked_rsc_amount": "100.0",
+            "fundraise_id": str(fundraise.id),
+        }
+        mock_stripe_retrieve.return_value = mock_payment_intent
+
+        # Pre-existing locked credits so a duplicate webhook could still afford a second contribution.
+        Distributor(
+            Dist("REWARD", 500, give_rep=False),
+            self.user,
+            self.user,
+            time.time(),
+            self.user,
+        ).distribute_locked_balance()
+
+        self.service.process_payment_intent_confirmation("pi_fundraise_idempotent")
+        self.service.process_payment_intent_confirmation("pi_fundraise_idempotent")
+
+        contribution_count = Purchase.objects.filter(
+            user=self.user,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            object_id=fundraise.id,
+        ).count()
+        self.assertEqual(contribution_count, 1)
 
     @patch("stripe.PaymentIntent.retrieve")
     def test_process_payment_intent_confirmation_success(self, mock_stripe_retrieve):
