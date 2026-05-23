@@ -130,9 +130,7 @@ class Escrow(DefaultModel):
                 distribution, recipient, escrow, time.time(), giver=escrow.created_by
             )
             record = distributor.distribute()
-            escrow.recipients.add(
-                recipient, through_defaults={"amount": payout_amount}
-            )
+            escrow.recipients.add(recipient, through_defaults={"amount": payout_amount})
 
             if record.distributed_status == "FAILED":
                 return False

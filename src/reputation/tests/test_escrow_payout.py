@@ -51,7 +51,9 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
         bounty = Bounty.objects.get(id=bounty_res.data["id"])
         escrow = bounty.escrow
 
-        paid = escrow.payout(recipient=self.recipient, payout_amount=decimal.Decimal(100))
+        paid = escrow.payout(
+            recipient=self.recipient, payout_amount=decimal.Decimal(100)
+        )
         self.assertTrue(paid)
 
         distribution = Distribution.objects.filter(
@@ -70,7 +72,9 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
             object_id=paper.id,
         )
 
-        paid = escrow.payout(recipient=self.recipient, payout_amount=decimal.Decimal("25"))
+        paid = escrow.payout(
+            recipient=self.recipient, payout_amount=decimal.Decimal("25")
+        )
         self.assertTrue(paid)
 
         distribution = Distribution.objects.filter(
