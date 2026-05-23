@@ -1,4 +1,3 @@
-from django.conf import settings
 from django.db.models import DecimalField, Sum
 from django.db.models.functions import Coalesce
 from rest_framework import serializers

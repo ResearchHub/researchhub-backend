@@ -27,7 +27,6 @@ class AnnotatedBounty(TypedDict):
 
 
 class Bounty(DefaultModel):
-
     class Type(models.TextChoices):
         REVIEW = "REVIEW", _("REVIEW")
         ANSWER = "ANSWER", _("ANSWER")

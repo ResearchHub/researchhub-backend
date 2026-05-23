@@ -5,15 +5,15 @@ from decimal import Decimal
 
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.contrib.contenttypes.models import ContentType
-from django.db import models, transaction
+from django.db import models
 from django.db.models import Count, DecimalField, Q, Sum, Value
-from django.db.models.functions import Cast, Coalesce
+from django.db.models.functions import Cast, Coalesce, Lower
 from django.utils import timezone
 
 from hub.models import Hub
 from mailing_list.lib import send_email
 from mailing_list.models import EmailRecipient
-from reputation.models import Bounty, Distribution, PaidStatusModelMixin, Withdrawal
+from reputation.models import Distribution, PaidStatusModelMixin, Withdrawal
 from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
@@ -154,6 +154,10 @@ class User(AbstractUser):
                 fields=["is_active", "is_suspended", "probable_spammer"],
                 name="user_active_spam_idx",
                 condition=Q(is_active=True, is_suspended=False, probable_spammer=False),
+            ),
+            models.Index(
+                Lower("email"),
+                name="user_email_lower_idx",
             ),
         ]
 
@@ -399,17 +403,9 @@ class User(AbstractUser):
 
     @property
     def amount_funded(self):
-        amount_funded = (
-            Bounty.objects.filter(
-                created_by=self,
-                status=Bounty.CLOSED,
-            ).aggregate(
-                total_amount=Sum("amount")
-            )["total_amount"]
-            or 0
-        )
+        from user.services.funding_activity_service import get_funder_total_amount
 
-        return amount_funded
+        return get_funder_total_amount(self.id)
 
     @property
     def is_verified(self):

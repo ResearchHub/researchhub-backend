@@ -19,6 +19,7 @@ class ListModelTests(APITestCase):
     def test_list_item_string_representation(self):
         list_obj = List.objects.create(name="My List", created_by=self.user)
         doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
-        item = ListItem.objects.create(parent_list=list_obj, unified_document=doc, created_by=self.user)
+        item = ListItem.objects.create(
+            parent_list=list_obj, unified_document=doc, created_by=self.user
+        )
         self.assertEqual(str(item), str(item.id))
-

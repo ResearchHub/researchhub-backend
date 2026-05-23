@@ -1,5 +1,4 @@
 import datetime
-import math
 from calendar import monthrange
 
 from django.apps import apps

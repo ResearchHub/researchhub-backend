@@ -4,7 +4,7 @@ from utils.permissions import (
 
 
 class AllowedToUpdateReview(AuthorizationBasedPermission):
-    message = 'Action not permitted.'
+    message = "Action not permitted."
 
     def is_authorized(self, request, view, obj):
         return obj.created_by == request.user

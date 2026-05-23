@@ -17,4 +17,3 @@ def is_valid_redirect_url(url: Optional[str]) -> bool:
         return False
     parsed = urlparse(url)
     return f"{parsed.scheme}://{parsed.netloc}" in settings.CORS_ORIGIN_WHITELIST
-

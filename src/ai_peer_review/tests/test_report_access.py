@@ -20,7 +20,6 @@ from user.tests.helpers import (
 
 
 class ReportAccessTests(TestCase):
-
     def test_proposal_review_visible_only_to_editor_or_moderator(self):
         author = create_random_authenticated_user("ra_author")
         editor, _hub = create_hub_editor("ra_editor", "ra_hub")

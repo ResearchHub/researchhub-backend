@@ -87,14 +87,6 @@ app.conf.beat_schedule = {
         },
     },
     # Reputation
-    "reputation_check-deposits": {
-        "task": "reputation.tasks.check_deposits",
-        "schedule": crontab(minute="*/1"),
-        "options": {
-            "priority": 2,
-            "queue": QUEUE_PURCHASES,
-        },
-    },
     "reputation_check-pending-withdrawals": {
         "task": "reputation.tasks.check_pending_withdrawals",
         "schedule": crontab(minute="*/5"),
@@ -186,9 +178,9 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
-    # Post DOI assignment
-    "researchhub-document_assign-post-dois": {
-        "task": "researchhub_document.tasks.assign_post_dois",
+    # Preregistration DOI assignment
+    "researchhub-document_assign-preregistration-dois": {
+        "task": "researchhub_document.tasks.assign_preregistration_dois",
         "schedule": crontab(hour=6, minute=0),
         "options": {
             "priority": 3,

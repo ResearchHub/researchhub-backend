@@ -403,9 +403,7 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             paid_status=Purchase.PAID,
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=10)))
-        )[
-            "total"
-        ]
+        )["total"]
 
         if tips:
             try:

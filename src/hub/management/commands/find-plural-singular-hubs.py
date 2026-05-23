@@ -180,7 +180,7 @@ class Command(BaseCommand):
                 if hub == hubs_sorted[0]:
                     self.stdout.write(
                         self.style.SUCCESS(
-                            "    >>> RECOMMENDED TO KEEP " "(highest activity)"
+                            "    >>> RECOMMENDED TO KEEP (highest activity)"
                         )
                     )
                 self.stdout.write("")

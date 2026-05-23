@@ -1,0 +1,70 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    # Runs on first open, draft→ready, and whenever the `claude-review` label
+    # is applied (used to manually request a re-review after pushes/reopens).
+    types: [opened, ready_for_review, labeled]
+
+permissions:
+  pull-requests: write
+  contents: read
+  id-token: write
+
+concurrency:
+  group: claude-code-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Internal authors only, and skip PRs from forks. The action is not hardened
+    # against prompt injection, so we never run it on untrusted diffs.
+    if: |
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (
+        github.event.action != 'labeled' ||
+        github.event.label.name == 'claude-review'
+      ) &&
+      (
+        github.event.pull_request.author_association == 'OWNER' ||
+        github.event.pull_request.author_association == 'MEMBER' ||
+        github.event.pull_request.author_association == 'COLLABORATOR'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Verify label sender has write access
+        if: github.event.action == 'labeled' && github.event.label.name == 'claude-review'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SENDER: ${{ github.event.sender.login }}
+        run: |
+          PERMISSION=$(gh api "repos/${{ github.repository }}/collaborators/${SENDER}/permission" --jq .permission)
+          case "$PERMISSION" in
+            admin|write|maintain) echo "Sender ${SENDER} has ${PERMISSION} access." ;;
+            *) echo "::error::Sender ${SENDER} lacks write access (permission: ${PERMISSION}); refusing to run."; exit 1 ;;
+          esac
+
+      - name: Clear claude-review label so it can be re-applied
+        if: github.event.action == 'labeled' && github.event.label.name == 'claude-review'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: gh pr edit "$PR_NUMBER" --remove-label claude-review --repo "$REPO"
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@20c8abf165d5f85ab3fc970db9498436377dc9d1 # v1.0.128
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
+          plugins: "code-review@claude-code-plugins"
+          prompt: "/code-review:code-review https://github.com/${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment"
+          claude_args: "--model claude-opus-4-7"
+          show_full_output: true

@@ -31,4 +31,3 @@ class OrcidFetchView(APIView):
 
         self.sync_task.delay(author.id)
         return Response({"message": "Paper sync started"})
-

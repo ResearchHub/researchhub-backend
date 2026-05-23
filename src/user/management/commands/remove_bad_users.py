@@ -5,11 +5,10 @@ from user.tasks import handle_spam_user_task
 
 
 class Command(BaseCommand):
-
     def handle(self, *args, **options):
         objects = User.objects.filter(probable_spammer=True)
         count = objects.count()
         for i, user in enumerate(objects):
-            print('{} / {}'.format(i, count))
+            print("{} / {}".format(i, count))
             handle_spam_user_task(user.id)
             user.papers.update(is_removed=True)

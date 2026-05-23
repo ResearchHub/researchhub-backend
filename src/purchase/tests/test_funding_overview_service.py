@@ -14,9 +14,7 @@ from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT as GRANT_DOC_TYPE,
 )
-from researchhub_document.related_models.constants.document_type import (
-    PREREGISTRATION,
-)
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -293,6 +291,54 @@ class TestFundingOverviewService(TestCase):
         self.assertEqual(row["name"], "Shared Nonprofit")
         self.assertEqual(row["ein"], "111111111")
         self.assertEqual(row["endaoment_org_id"], "shared-np-id")
+
+    def test_supported_proposals_includes_funded_amount(self):
+        # Arrange
+        _, _, fundraise, _ = self._create_grant_with_proposal()
+        self._contribute(
+            self.user, fundraise, rsc=100, usd_cents=2500, rsc_usd_rate=0.10
+        )
+
+        # Act
+        result = self.service.get_funding_overview(self.user)
+
+        # Assert
+        self.assertEqual(len(result["supported_proposals"]), 1)
+        funded = result["supported_proposals"][0]["funded_amount"]
+        self.assertEqual(funded["rsc"], 100.0)
+        self.assertAlmostEqual(funded["rsc_usd_snapshot"], 10.0)
+        self.assertEqual(funded["usd"], 25.0)
+
+    def test_supported_proposals_include_funded_amount_per_proposal(self):
+        # Arrange - two proposals with different funding amounts
+        _, _, fundraise1, _ = self._create_grant_with_proposal()
+        _, _, fundraise2, _ = self._create_grant_with_proposal()
+        # Proposal 1: 100 RSC at $0.50/RSC = $50 snapshot, no USD
+        self._contribute(self.user, fundraise1, rsc=100, rsc_usd_rate=0.50)
+        # Proposal 2: 100 RSC (no rate, fallback $0.50) = $50 snapshot + $20 USD
+        self._contribute(self.user, fundraise2, rsc=100, usd_cents=2000)
+
+        # Act
+        result = self.service.get_funding_overview(self.user)
+
+        # Assert
+        self.assertEqual(len(result["supported_proposals"]), 2)
+        proposals = sorted(
+            result["supported_proposals"],
+            key=lambda p: p["funded_amount"]["usd"],
+        )
+        proposal1_funding = proposals[0]["funded_amount"]
+        proposal2_funding = proposals[1]["funded_amount"]
+
+        # Proposal 1: funded with RSC only
+        self.assertEqual(proposal1_funding["rsc"], 100.0)
+        self.assertEqual(proposal1_funding["rsc_usd_snapshot"], 50.0)
+        self.assertEqual(proposal1_funding["usd"], 0.0)
+
+        # Proposal 2: funded with both RSC and USD
+        self.assertEqual(proposal2_funding["rsc"], 100.0)
+        self.assertEqual(proposal2_funding["rsc_usd_snapshot"], 50.0)
+        self.assertEqual(proposal2_funding["usd"], 20.0)
 
     def test_supported_proposals_deduplicates_by_post(self):
         # Arrange

@@ -1,6 +1,5 @@
 from django.core.management.base import BaseCommand
 from django.core.paginator import Paginator
-from django.db import transaction
 
 from paper.models import Citation, Paper
 from paper.related_models.citation_model import Source

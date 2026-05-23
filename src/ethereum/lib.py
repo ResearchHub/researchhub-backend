@@ -74,7 +74,7 @@ def get_token_address_choices():
         for network in TOKENS[token]:
             config = TOKENS[token][network]
             choices.append(
-                (config["contract_address"], f'{config["name"]} address ({network})')
+                (config["contract_address"], f"{config['name']} address ({network})")
             )
     return choices
 

@@ -22,7 +22,9 @@ class TestGrantOverviewService(TestCase):
         self.service = GrantOverviewService()
         self.grant_creator = create_random_authenticated_user("grant_creator")
         self.researcher = create_random_authenticated_user("researcher")
-        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, price_source="COIN_GECKO", target_currency="USD")
+        RscExchangeRate.objects.create(
+            rate=0.5, real_rate=0.5, price_source="COIN_GECKO", target_currency="USD"
+        )
         self.fundraise_ct = ContentType.objects.get_for_model(Fundraise)
 
     def _create_grant(self, amount=10000):
@@ -45,7 +47,9 @@ class TestGrantOverviewService(TestCase):
             goal_amount=Decimal("1000"),
             goal_currency="USD",
         )
-        GrantApplication.objects.create(grant=grant, preregistration_post=post, applicant=creator)
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=post, applicant=creator
+        )
         return fundraise
 
     def _contribute(self, user, fundraise, rsc=0, usd_cents=0):
@@ -75,8 +79,11 @@ class TestGrantOverviewService(TestCase):
         result = self.service.get_grant_overview(self.grant_creator, grant)
 
         expected_keys = {
-            "budget_used_usd", "budget_total_usd", "matched_funding_usd",
-            "total_proposals", "proposals_funded",
+            "budget_used_usd",
+            "budget_total_usd",
+            "matched_funding_usd",
+            "total_proposals",
+            "proposals_funded",
         }
         self.assertEqual(set(result.keys()), expected_keys)
 
@@ -94,7 +101,9 @@ class TestGrantOverviewService(TestCase):
     def test_budget_used_calculates_user_contributions(self):
         grant = self._create_grant(amount=10000)
         fundraise = self._create_proposal_for_grant(grant)
-        self._contribute(self.grant_creator, fundraise, rsc=200, usd_cents=5000)  # $100 + $50 = $150
+        self._contribute(
+            self.grant_creator, fundraise, rsc=200, usd_cents=5000
+        )  # $100 + $50 = $150
 
         result = self.service.get_grant_overview(self.grant_creator, grant)
 
@@ -139,4 +148,3 @@ class TestGrantOverviewService(TestCase):
         result = self.service.get_grant_overview(self.grant_creator, grant)
 
         self.assertEqual(result["total_proposals"], 3)
-

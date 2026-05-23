@@ -21,9 +21,7 @@ class StakingGlobalSnapshot(DefaultModel):
         app_label = "reputation"
 
     def __str__(self):
-        return (
-            f"StakingGlobalSnapshot(pk={self.pk}, " f"accrual_date={self.accrual_date})"
-        )
+        return f"StakingGlobalSnapshot(pk={self.pk}, accrual_date={self.accrual_date})"
 
     @classmethod
     def load(cls):

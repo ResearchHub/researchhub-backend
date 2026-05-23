@@ -103,7 +103,9 @@ class AutoRunProposalReviewGuardsTests(TestCase):
         )
         skip1, _ = AutoRunGuardsService.should_skip_proposal_review(pr1, force=False)
         self.assertFalse(skip1)
-        skip2, reason2 = AutoRunGuardsService.should_skip_proposal_review(pr2, force=False)
+        skip2, reason2 = AutoRunGuardsService.should_skip_proposal_review(
+            pr2, force=False
+        )
         self.assertTrue(skip2)
         self.assertEqual(reason2, "daily_cap")
 

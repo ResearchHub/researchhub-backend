@@ -1,1 +1,1 @@
-default_app_config = 'researchhub_case.apps.ResearchhubCaseConfig'
+default_app_config = "researchhub_case.apps.ResearchhubCaseConfig"

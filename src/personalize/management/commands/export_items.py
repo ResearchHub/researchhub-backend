@@ -394,16 +394,16 @@ class Command(BaseCommand):
 
             self.stdout.write("\n  ⏱️  AVERAGE TIME BREAKDOWN PER CHUNK:")
             self.stdout.write(
-                f"     • Queryset eval:  {sum(eval_times)/len(eval_times):.2f}s "
-                f"(avg {sum(eval_queries)/len(eval_queries):.0f} queries)"
+                f"     • Queryset eval:  {sum(eval_times) / len(eval_times):.2f}s "
+                f"(avg {sum(eval_queries) / len(eval_queries):.0f} queries)"
             )
             self.stdout.write(
-                f"     • Fetch data:     {sum(fetch_times)/len(fetch_times):.2f}s "
-                f"(avg {sum(fetch_queries)/len(fetch_queries):.0f} queries)"
+                f"     • Fetch data:     {sum(fetch_times) / len(fetch_times):.2f}s "
+                f"(avg {sum(fetch_queries) / len(fetch_queries):.0f} queries)"
             )
             self.stdout.write(
-                f"     • Map to items:   {sum(map_times)/len(map_times):.2f}s "
-                f"(avg {sum(map_queries)/len(map_queries):.0f} queries)"
+                f"     • Map to items:   {sum(map_times) / len(map_times):.2f}s "
+                f"(avg {sum(map_queries) / len(map_queries):.0f} queries)"
             )
             total_avg = (
                 sum(eval_times) / len(eval_times)
@@ -451,13 +451,13 @@ class Command(BaseCommand):
 
             self.stdout.write(f"     • Total queries: {total_q}")
             self.stdout.write(
-                f"       - Queryset eval: {total_eval_q} ({total_eval_q/total_q*100:.1f}%)"
+                f"       - Queryset eval: {total_eval_q} ({total_eval_q / total_q * 100:.1f}%)"
             )
             self.stdout.write(
-                f"       - Fetch data:    {total_fetch_q} ({total_fetch_q/total_q*100:.1f}%)"
+                f"       - Fetch data:    {total_fetch_q} ({total_fetch_q / total_q * 100:.1f}%)"
             )
             self.stdout.write(
-                f"       - Map items:     {total_map_q} ({total_map_q/total_q*100:.1f}%)"
+                f"       - Map items:     {total_map_q} ({total_map_q / total_q * 100:.1f}%)"
             )
 
         # Performance insights
@@ -592,7 +592,7 @@ class Command(BaseCommand):
                 self.stdout.write(
                     self.style.WARNING(
                         f"\nQuery {i}/{len(queries)}: "
-                        f"{query_time*1000:.2f}ms{flag_str}"
+                        f"{query_time * 1000:.2f}ms{flag_str}"
                     )
                 )
 
@@ -613,7 +613,7 @@ class Command(BaseCommand):
             )
             for i, query_time, sql_snippet in slow_queries:
                 self.stdout.write(
-                    f"  Query {i}: {query_time*1000:.2f}ms - {sql_snippet}..."
+                    f"  Query {i}: {query_time * 1000:.2f}ms - {sql_snippet}..."
                 )
 
         # Warn about potential N+1 issues

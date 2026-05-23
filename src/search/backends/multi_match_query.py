@@ -11,7 +11,6 @@ from search.base.query_backends import BaseSearchQueryBackend
 
 
 class MultiMatchQueryBackend(BaseSearchQueryBackend):
-
     query_type = "multi_match"
 
     """

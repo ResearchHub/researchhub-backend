@@ -115,8 +115,8 @@ class PaymentService:
                 metadata={
                     "user_id": str(user_id),
                     "purpose": purpose,
+                    # Include paper_id only if purpose is APC
                     **(
-                        # Include paper_id only if purpose is APC
                         {"paper_id": str(paper_id)}
                         if purpose == PaymentPurpose.APC and paper_id
                         else {}

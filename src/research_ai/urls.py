@@ -10,10 +10,12 @@ from research_ai.views.email_views import (
 )
 from research_ai.views.expert_finder_views import (
     ExpertDetailView,
+    ExpertSearchAddExpertView,
     ExpertSearchDetailView,
     ExpertSearchListCreateView,
     ExpertSearchProgressStreamView,
     ExpertSearchWorkView,
+    InvitedExpertEditorsOverviewView,
     InvitedExpertOverviewView,
 )
 from research_ai.views.template_views import TemplateDetailView, TemplateListView
@@ -25,12 +27,20 @@ urlpatterns = [
         ExpertSearchDetailView.as_view(),
     ),
     path(
+        "expert-finder/searches/<int:search_id>/experts/",
+        ExpertSearchAddExpertView.as_view(),
+    ),
+    path(
         "expert-finder/experts/<int:expert_id>/",
         ExpertDetailView.as_view(),
     ),
     path(
-        "expert-finder/invited-experts/overview/",
+        "expert-finder/overview/",
         InvitedExpertOverviewView.as_view(),
+    ),
+    path(
+        "expert-finder/editors-overview/",
+        InvitedExpertEditorsOverviewView.as_view(),
     ),
     path(
         "expert-finder/work/<int:unified_document_id>/",

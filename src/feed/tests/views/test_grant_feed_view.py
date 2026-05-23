@@ -763,7 +763,8 @@ class GrantFeedViewTests(APITestCase):
 
         # Assert
         grant_entry = next(
-            e for e in response.data["results"]
+            e
+            for e in response.data["results"]
             if e["content_object"]["id"] == self.open_post.id
         )
         applications = grant_entry["content_object"]["grant"]["applications"]
@@ -814,9 +815,7 @@ class GrantFeedViewTests(APITestCase):
         )
         self.client.force_authenticate(self.user)
         self.client.get("/api/grant_feed/")
-        cache_key = (
-            f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::"
-        )
+        cache_key = f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::"
         self.assertIsNotNone(cache.get(cache_key))
 
         # Act + Assert — unrelated doc does not clear cache

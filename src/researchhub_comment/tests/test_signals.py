@@ -26,7 +26,6 @@ from user.tests.helpers import create_random_default_user
 
 
 class CreateAuthorUpdateNotificationSignalTests(TestCase):
-
     def setUp(self):
         self.author = create_random_default_user("author")
         self.follower1 = create_random_default_user("follower1")
@@ -268,7 +267,6 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
 
 
 class RewardPreregistrationUpdateSignalTests(TestCase):
-
     def setUp(self):
         self.author = create_random_default_user("reward_author")
         self.unified_doc = ResearchhubUnifiedDocument.objects.create(
@@ -281,8 +279,10 @@ class RewardPreregistrationUpdateSignalTests(TestCase):
             unified_document=self.unified_doc,
         )
         RscExchangeRate.objects.create(
-            rate=0.5, real_rate=0.5,
-            price_source="COIN_GECKO", target_currency="USD",
+            rate=0.5,
+            real_rate=0.5,
+            price_source="COIN_GECKO",
+            target_currency="USD",
         )
         self.reward_qs = DistributionModel.objects.filter(
             recipient=self.author,
@@ -329,7 +329,9 @@ class RewardPreregistrationUpdateSignalTests(TestCase):
         # Assert
         self.assertEqual(self.reward_qs.count(), 1)
         expected_rsc = RscExchangeRate.usd_to_rsc(50)
-        self.assertAlmostEqual(float(self.reward_qs.first().amount), expected_rsc, places=2)
+        self.assertAlmostEqual(
+            float(self.reward_qs.first().amount), expected_rsc, places=2
+        )
 
     def test_skips_without_reminder(self):
         # Arrange
@@ -440,12 +442,13 @@ class RewardPreregistrationUpdateSignalTests(TestCase):
         # Assert
         self.assertEqual(self.reward_qs.count(), 0)
 
-    @patch("researchhub_comment.signals._reward_preregistration_update", side_effect=Exception("boom"))
+    @patch(
+        "researchhub_comment.signals._reward_preregistration_update",
+        side_effect=Exception("boom"),
+    )
     def test_exception_is_caught_gracefully(self, mock_reward):
         # Act
         self._post_author_update()
 
         # Assert
         mock_reward.assert_called_once()
-
-

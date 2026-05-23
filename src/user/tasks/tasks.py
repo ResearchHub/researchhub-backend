@@ -21,6 +21,7 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 from review.models.peer_review_model import PeerReview
 from review.models.review_model import Review
 from user.editor_payout_tasks import editor_daily_payout_task
+from user.events import publish_user_reinstated, publish_user_suspended
 from user.models import User
 from user.related_models.verdict_model import Verdict
 from user.rsc_exchange_rate_record_tasks import rsc_exchange_rate_record_tasks
@@ -96,6 +97,8 @@ def handle_spam_user_task(user_id, requestor=None):
 
     # Resolve any open moderation flags on the user's content
     _resolve_open_flags_for_user(user, requestor)
+
+    publish_user_suspended(sender=User, user_id=user.id)
 
 
 def _resolve_open_flags_for_user(user, requestor=None):
@@ -181,6 +184,8 @@ def reinstate_user_task(user_id):
     Review.all_objects.filter(created_by=user).update(
         is_removed=False, is_public=True, is_removed_date=None
     )
+
+    publish_user_reinstated(sender=User, user_id=user.id)
 
 
 def get_latest_actions(cursor):

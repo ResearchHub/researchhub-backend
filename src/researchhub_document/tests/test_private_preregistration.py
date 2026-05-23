@@ -14,6 +14,8 @@ from purchase.related_models.constants.currency import USD
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from researchhub_access_group.constants import NO_ACCESS, VIEWER
+from researchhub_access_group.models import Permission
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
@@ -204,6 +206,62 @@ class VisibleToQuerySetTests(AWSMockTestCase):
         )
         self.assertIn(self.private_post.id, ids)
 
+    def test_invited_expert_with_viewer_permission_sees_private(self):
+        invited = _make_user("invited")
+        revoked = _make_user("revoked")
+        ud_ct = ContentType.objects.get_for_model(
+            self.private_post.unified_document.__class__
+        )
+
+        Permission.objects.create(
+            access_type=VIEWER,
+            content_type=ud_ct,
+            object_id=self.private_post.unified_document_id,
+            user=invited,
+        )
+        Permission.objects.create(
+            access_type=NO_ACCESS,
+            content_type=ud_ct,
+            object_id=self.private_post.unified_document_id,
+            user=revoked,
+        )
+
+        invited_ids = set(
+            ResearchhubPost.objects.visible_to(invited).values_list("id", flat=True)
+        )
+        self.assertIn(self.private_post.id, invited_ids)
+
+        revoked_ids = set(
+            ResearchhubPost.objects.visible_to(revoked).values_list("id", flat=True)
+        )
+        self.assertNotIn(self.private_post.id, revoked_ids)
+
+    def test_no_access_revokes_even_when_viewer_row_exists(self):
+        """A NO_ACCESS row must override any other Permission rows for the same
+        user on the same document — the model has no uniqueness constraint, so
+        stale VIEWER rows can coexist with a later NO_ACCESS revocation.
+        """
+        user = _make_user("dual")
+        ud_ct = ContentType.objects.get_for_model(
+            self.private_post.unified_document.__class__
+        )
+
+        Permission.objects.create(
+            access_type=VIEWER,
+            content_type=ud_ct,
+            object_id=self.private_post.unified_document_id,
+            user=user,
+        )
+        Permission.objects.create(
+            access_type=NO_ACCESS,
+            content_type=ud_ct,
+            object_id=self.private_post.unified_document_id,
+            user=user,
+        )
+
+        ids = set(ResearchhubPost.objects.visible_to(user).values_list("id", flat=True))
+        self.assertNotIn(self.private_post.id, ids)
+
 
 class PostViewSetVisibilityTests(AWSMockTestCase):
     """ResearchhubPostViewSet hides private posts from non-authorized requesters."""
@@ -262,7 +320,13 @@ class PostViewSetVisibilityTests(AWSMockTestCase):
 
 
 class FundingFeedPrivacyTests(AWSMockTestCase):
-    """Funding feed excludes private posts unless the requester can see them."""
+    """Funding feed excludes private preregistrations for every viewer.
+
+    Private posts remain reachable via the direct post endpoint (see
+    PostViewSetVisibilityTests). The feed is a discovery surface and has no
+    business showing private work even to authors or grant owners — keeping
+    the feed user-agnostic also lets us cache it for everyone.
+    """
 
     def setUp(self):
         super().setUp()
@@ -315,26 +379,27 @@ class FundingFeedPrivacyTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertNotIn(self.private_post.id, self._ids(response))
 
-    def test_author_sees_own_private(self):
+    def test_author_does_not_see_own_private(self):
         client = APIClient()
         client.force_authenticate(self.author)
         response = client.get(reverse("funding_feed-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn(self.private_post.id, self._ids(response))
+        self.assertNotIn(self.private_post.id, self._ids(response))
 
-    def test_grant_owner_sees_application_private(self):
+    def test_grant_owner_does_not_see_application_private(self):
         client = APIClient()
         client.force_authenticate(self.grant_owner)
         response = client.get(reverse("funding_feed-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn(self.private_post.id, self._ids(response))
+        self.assertNotIn(self.private_post.id, self._ids(response))
 
-    def test_authenticated_private_response_not_cached_for_anonymous(self):
+    def test_response_cached_across_viewer_identities(self):
+        """Auth and anonymous viewers share one cached payload."""
         author_client = APIClient()
         author_client.force_authenticate(self.author)
         author_response = author_client.get(reverse("funding_feed-list"))
         self.assertEqual(author_response.status_code, status.HTTP_200_OK)
-        self.assertIn(self.private_post.id, self._ids(author_response))
+        self.assertNotIn(self.private_post.id, self._ids(author_response))
 
         anonymous_client = APIClient()
         anonymous_response = anonymous_client.get(reverse("funding_feed-list"))
@@ -448,9 +513,7 @@ class GrantEnforcedApplicationVisibilityTests(AWSMockTestCase):
         self.hub = Hub.objects.create(name=f"hub-{uuid.uuid4().hex[:8]}")
         RscExchangeRate.objects.create(rate=1.0)
 
-        self.optional_grant = self._make_grant(
-            Grant.APPLICATION_VISIBILITY_OPTIONAL
-        )
+        self.optional_grant = self._make_grant(Grant.APPLICATION_VISIBILITY_OPTIONAL)
         self.private_required_grant = self._make_grant(
             Grant.APPLICATION_VISIBILITY_PRIVATE
         )

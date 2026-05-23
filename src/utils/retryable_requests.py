@@ -3,7 +3,9 @@ from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 
 
-def retryable_requests_session(total_retries=3, backoff_factor=1, status_forcelist=None):
+def retryable_requests_session(
+    total_retries=3, backoff_factor=1, status_forcelist=None
+):
     retry_strategy = Retry(
         total=total_retries,
         backoff_factor=backoff_factor,

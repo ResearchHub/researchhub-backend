@@ -1,1 +1,1 @@
-default_app_config = 'researchhub_document.apps.ResearchhubDocumentConfig'
+default_app_config = "researchhub_document.apps.ResearchhubDocumentConfig"

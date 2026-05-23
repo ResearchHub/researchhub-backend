@@ -552,9 +552,9 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
 
     def get_object(self):
         """Lookup by pk without applying DRF filter backends."""
-        assert self.kwargs.get(
-            "pk"
-        ), "Expected view to be called with a URL keyword argument named 'pk'"
+        assert self.kwargs.get("pk"), (
+            "Expected view to be called with a URL keyword argument named 'pk'"
+        )
 
         queryset = self.get_queryset()
 

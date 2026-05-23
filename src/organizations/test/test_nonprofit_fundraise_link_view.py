@@ -1,9 +1,17 @@
+from unittest.mock import MagicMock, patch
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
+from organizations.services.endaoment_service import (
+    EndaomentOrgNotFound,
+    EndaomentService,
+    base_chain_id,
+)
+from organizations.views import NonprofitFundraiseLinkViewSet
 from purchase.models import Fundraise
 from researchhub_document.models import ResearchhubUnifiedDocument
 
@@ -45,13 +53,41 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
         self.link_to_fundraise_url = reverse("nonprofit-link-to-fundraise")
         self.get_by_fundraise_url = reverse("nonprofit-get-by-fundraise")
 
+        self.endaoment_base_wallet = "0x7ecc1d4936a973ec3b153c0c713e0f71c59abf53"
+        self.mock_endaoment_service = MagicMock(spec=EndaomentService)
+
+        patcher = patch.object(
+            NonprofitFundraiseLinkViewSet,
+            "endaoment_service_class",
+            return_value=self.mock_endaoment_service,
+        )
+        self.addCleanup(patcher.stop)
+        patcher.start()
+
+    def _mock_verified_org(
+        self, endaoment_org_id, ein="123456789", name="Verified Org"
+    ):
+        return {
+            "id": endaoment_org_id,
+            "ein": ein,
+            "name": name,
+            "deployments": [
+                {
+                    "chainId": base_chain_id(),
+                    "contractAddress": self.endaoment_base_wallet,
+                    "isDeployed": True,
+                }
+            ],
+        }
+
     def test_create_nonprofit_new(self):
         """Test creating a new nonprofit organization."""
+        self.mock_endaoment_service.verify_nonprofit_org.return_value = (
+            self._mock_verified_org("new-org-id", ein="987654321", name="New Nonprofit")
+        )
         data = {
-            "name": "New Nonprofit",
             "ein": "987654321",
             "endaoment_org_id": "new-org-id",
-            "base_wallet_address": "0x0987654321fedcba0987654321fedcba09876543",
         }
 
         response = self.client.post(self.create_nonprofit_url, data)
@@ -62,42 +98,107 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
         self.assertEqual(response.data["endaoment_org_id"], "new-org-id")
         self.assertEqual(
             response.data["base_wallet_address"],
-            "0x0987654321fedcba0987654321fedcba09876543",
+            self.endaoment_base_wallet,
         )
 
         # Verify the nonprofit was created in the database
         nonprofit = NonprofitOrg.objects.get(endaoment_org_id="new-org-id")
         self.assertEqual(nonprofit.name, "New Nonprofit")
+        self.assertEqual(nonprofit.base_wallet_address, self.endaoment_base_wallet)
+        self.mock_endaoment_service.verify_nonprofit_org.assert_called_once_with(
+            "987654321",
+            "new-org-id",
+        )
 
     def test_create_nonprofit_existing(self):
         """Test retrieving an existing nonprofit organization."""
+        self.mock_endaoment_service.verify_nonprofit_org.return_value = (
+            self._mock_verified_org(
+                "test-org-id", ein="123456789", name="Endaoment Canonical Name"
+            )
+        )
         data = {
-            "name": "Different Name",  # This should update the name
+            "name": "Fake Name From Client",
+            "ein": "123456789",
             "endaoment_org_id": "test-org-id",  # This matches the existing nonprofit
         }
 
         response = self.client.post(self.create_nonprofit_url, data)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["name"], "Different Name")  # Updated name
+        self.assertEqual(response.data["name"], "Endaoment Canonical Name")
         self.assertEqual(response.data["ein"], "123456789")  # Original EIN
         self.assertEqual(response.data["endaoment_org_id"], "test-org-id")
+        self.assertEqual(
+            response.data["base_wallet_address"],
+            self.endaoment_base_wallet,
+        )
+
+    def test_create_nonprofit_ignores_client_name(self):
+        """Test that client-provided name is ignored in favor of Endaoment."""
+        self.mock_endaoment_service.verify_nonprofit_org.return_value = (
+            self._mock_verified_org(
+                "new-org-id", ein="987654321", name="Real Nonprofit Name"
+            )
+        )
+        data = {
+            "name": "Fake Nonprofit Name",
+            "ein": "987654321",
+            "endaoment_org_id": "new-org-id",
+        }
+
+        response = self.client.post(self.create_nonprofit_url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["name"], "Real Nonprofit Name")
+        nonprofit = NonprofitOrg.objects.get(endaoment_org_id="new-org-id")
+        self.assertEqual(nonprofit.name, "Real Nonprofit Name")
 
     def test_create_nonprofit_missing_required_fields(self):
         """Test validation of required fields."""
-        # Missing name
+        # Missing endaoment_org_id
+        data = {
+            "ein": "987654321",
+        }
+        response = self.client.post(self.create_nonprofit_url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Missing ein
         data = {
             "endaoment_org_id": "new-org-id",
         }
         response = self.client.post(self.create_nonprofit_url, data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "ein is required")
 
-        # Missing endaoment_org_id
+    def test_create_nonprofit_invalid_ein(self):
+        """Test rejection of malformed EIN values."""
         data = {
-            "name": "New Nonprofit",
+            "ein": "12345",
+            "endaoment_org_id": "new-org-id",
         }
         response = self.client.post(self.create_nonprofit_url, data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "ein must be a valid 9-digit EIN")
+
+    def test_create_nonprofit_not_found_on_endaoment(self):
+        """Test rejection when Endaoment has no matching org."""
+        self.mock_endaoment_service.verify_nonprofit_org.side_effect = (
+            EndaomentOrgNotFound()
+        )
+        data = {
+            "ein": "987654321",
+            "endaoment_org_id": "fake-org-id",
+        }
+        response = self.client.post(self.create_nonprofit_url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["error"],
+            "Nonprofit organization not found on Endaoment",
+        )
+        self.assertFalse(
+            NonprofitOrg.objects.filter(endaoment_org_id="fake-org-id").exists()
+        )
 
     def test_link_to_fundraise_new(self):
         """Test creating a new link between a nonprofit and a fundraise."""
@@ -338,6 +439,7 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
         # Try to create a nonprofit
         data = {
             "name": "New Nonprofit",
+            "ein": "987654321",
             "endaoment_org_id": "new-org-id",
         }
         response = self.client.post(self.create_nonprofit_url, data)

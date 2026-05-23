@@ -52,9 +52,7 @@ class AuditViewSet(viewsets.GenericViewSet):
     def get_queryset(self):
         if self.action == "flagged":
             return (
-                Flag.objects.filter(
-                    content_type__in=self._get_allowed_models()
-                )
+                Flag.objects.filter(content_type__in=self._get_allowed_models())
                 .select_related("content_type")
                 .prefetch_related("verdict__created_by")
             )
@@ -343,7 +341,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                 available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
                 verdict_choice = NOT_SPECIFIED
                 if data.get("verdict_choice") in available_reasons:
-                    verdict_choice = f'NOT_{data.get("verdict_choice")}'
+                    verdict_choice = f"NOT_{data.get('verdict_choice')}"
                 elif flag.reason_choice in available_reasons:
                     verdict_choice = f"NOT_{flag.reason_choice}"
 

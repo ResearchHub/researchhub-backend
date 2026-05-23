@@ -5,10 +5,8 @@ from calendar import monthrange
 
 import requests
 from django.apps import apps
-from django.contrib.contenttypes.models import ContentType
-from django.db.models import F, Q
+from django.db.models import F
 
-from hub.models import Hub
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
@@ -16,7 +14,6 @@ from reputation.distributions import Distribution  # this is NOT the model
 from reputation.related_models.distribution import Distribution as DistributionModel
 from researchhub.settings import APP_ENV, MORALIS_API_KEY, WEB3_RSC_ADDRESS
 from researchhub_access_group.constants import (
-    ASSISTANT_EDITOR,
     ASSOCIATE_EDITOR,
     SENIOR_EDITOR,
 )

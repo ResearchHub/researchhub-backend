@@ -135,11 +135,7 @@ class ReferralMetricsService:
             Balance.objects.filter(user=self.user)
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
-        )[
-            "total"
-        ] or Decimal(
-            "0"
-        )
+        )["total"] or Decimal("0")
 
         # Used = total earned - available
         used = total_earned - available
@@ -169,11 +165,7 @@ class ReferralMetricsService:
             distributed_status=Distribution.DISTRIBUTED,
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
-        )[
-            "total"
-        ] or Decimal(
-            "0"
-        )
+        )["total"] or Decimal("0")
 
         return {
             "total": float(network_earned),
@@ -188,11 +180,7 @@ class ReferralMetricsService:
             paid_status=Purchase.PAID,
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
-        )[
-            "total"
-        ] or Decimal(
-            "0"
-        )
+        )["total"] or Decimal("0")
 
     def _get_network_funding(self):
         """Get total funding by users referred by this user."""
@@ -206,11 +194,7 @@ class ReferralMetricsService:
             paid_status=Purchase.PAID,
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
-        )[
-            "total"
-        ] or Decimal(
-            "0"
-        )
+        )["total"] or Decimal("0")
 
     def _get_used_referral_credits(self):
         """
@@ -224,22 +208,14 @@ class ReferralMetricsService:
             distributed_status=Distribution.DISTRIBUTED,
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
-        )[
-            "total"
-        ] or Decimal(
-            "0"
-        )
+        )["total"] or Decimal("0")
 
         # Then get current locked balance
         locked_balance = Balance.locked_by_referral_bonus(
             Balance.objects.filter(user=self.user)
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
-        )[
-            "total"
-        ] or Decimal(
-            "0"
-        )
+        )["total"] or Decimal("0")
 
         # Used = earned - still locked
         # Assuming unlocked funds were used for funding
@@ -251,11 +227,7 @@ class ReferralMetricsService:
             Balance.objects.filter(user=self.user)
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
-        )[
-            "total"
-        ] or Decimal(
-            "0"
-        )
+        )["total"] or Decimal("0")
 
     def _get_network_available_credits(self):
         """Get total available credits for all referred users."""
@@ -267,11 +239,7 @@ class ReferralMetricsService:
             Balance.objects.filter(user_id__in=referred_user_ids)
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
-        )[
-            "total"
-        ] or Decimal(
-            "0"
-        )
+        )["total"] or Decimal("0")
 
     def get_referral_network_details(self):
         """
@@ -316,11 +284,7 @@ class ReferralMetricsService:
             paid_status=Purchase.PAID,
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
-        )[
-            "total"
-        ] or Decimal(
-            "0"
-        )
+        )["total"] or Decimal("0")
         return float(total)
 
     def _get_user_referral_bonus(self, user):
@@ -331,11 +295,7 @@ class ReferralMetricsService:
             distributed_status=Distribution.DISTRIBUTED,
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
-        )[
-            "total"
-        ] or Decimal(
-            "0"
-        )
+        )["total"] or Decimal("0")
         return float(total)
 
     def _is_active_funder(self, user):

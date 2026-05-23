@@ -101,7 +101,6 @@ class ReferralMetricsViewSet(viewsets.ViewSet):
             pk: User ID to get metrics for
         """
         try:
-
             user = User.objects.get(pk=pk)
         except User.DoesNotExist:
             return Response(

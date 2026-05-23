@@ -8,10 +8,3 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 # Install uv and add to PATH
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 ENV PATH="/root/.local/bin:${PATH}"
-
-# Copy dependency files
-WORKDIR /workspace
-COPY pyproject.toml uv.lock ./
-
-# Install dependencies
-RUN uv sync --frozen

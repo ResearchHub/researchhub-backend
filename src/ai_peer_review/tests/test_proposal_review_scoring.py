@@ -4,7 +4,6 @@ from ai_peer_review.constants import CATEGORY_ITEMS, CATEGORY_KEYS
 from ai_peer_review.models import OverallRating
 from ai_peer_review.services.proposal_review_scoring import (
     category_scores,
-    compute_overall_rating_totals,
     normalize_category_scores_from_item_decisions,
     parse_json_response,
     recompute_overall_fields,

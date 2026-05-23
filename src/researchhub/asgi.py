@@ -21,7 +21,7 @@ from django.conf import settings
 
 import note.routing
 import notification.routing
-from notification.token_auth import TokenAuthMiddlewareStack
+from researchhub.token_auth import TokenAuthMiddlewareStack
 from researchhub.settings import CELERY_WORKER
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "researchhub.settings")

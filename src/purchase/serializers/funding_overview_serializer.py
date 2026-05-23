@@ -29,6 +29,7 @@ class SupportedProposalSerializer(serializers.Serializer):
     unified_document = UnifiedDocumentMinimalSerializer()
     id = serializers.IntegerField()
     created_by = ProposalCreatorSerializer(allow_null=True)
+    funded_amount = CurrencyBreakdownSerializer()
 
 
 class SupportedNonprofitSerializer(serializers.Serializer):

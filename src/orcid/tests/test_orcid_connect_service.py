@@ -6,7 +6,6 @@ from orcid.utils import is_valid_redirect_url
 
 
 class OrcidConnectServiceTests(TestCase):
-
     def setUp(self):
         self.service = OrcidConnectService()
 
@@ -15,7 +14,9 @@ class OrcidConnectServiceTests(TestCase):
         OrcidTestHelper.create_app()
 
         # Act
-        url_with_return = self.service.build_auth_url(123, "https://researchhub.com/settings")
+        url_with_return = self.service.build_auth_url(
+            123, "https://researchhub.com/settings"
+        )
         url_without_return = self.service.build_auth_url(123)
 
         # Assert

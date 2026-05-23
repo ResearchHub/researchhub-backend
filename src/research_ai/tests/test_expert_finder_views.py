@@ -5,7 +5,7 @@ from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from research_ai.models import ExpertSearch
+from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -97,3 +97,175 @@ class ExpertSearchListCreateViewTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+def _make_search(created_by, name="Manual Add Search"):
+    return ExpertSearch.objects.create(
+        created_by=created_by,
+        name=name,
+        query="ML",
+        input_type=ExpertSearch.InputType.CUSTOM_QUERY,
+        status=ExpertSearch.Status.COMPLETED,
+        progress=100,
+    )
+
+
+class ExpertSearchAddExpertViewTests(APITestCase):
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("mod", moderator=True)
+        self.user = create_random_authenticated_user("user", moderator=False)
+        self.search = _make_search(self.moderator)
+        self.url = f"/api/research_ai/expert-finder/searches/{self.search.id}/experts/"
+
+    def _payload(self, **overrides):
+        payload = {
+            "email": "alice@example.com",
+            "first_name": "Alice",
+            "last_name": "Test",
+            "academic_title": "Professor",
+            "affiliation": "MIT",
+            "expertise": "ML",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_post_requires_authentication(self):
+        response = self.client.post(self.url, self._payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_post_requires_editor(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.post(self.url, self._payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_post_404_for_unknown_search(self):
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            "/api/research_ai/expert-finder/searches/999999/experts/",
+            self._payload(),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_post_email_required(self):
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(self.url, {"first_name": "Alice"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_post_creates_new_expert_and_search_expert(self):
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(self.url, self._payload(), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        data = response.json()
+        self.assertEqual(data["email"], "alice@example.com")
+        self.assertEqual(data["first_name"], "Alice")
+        self.assertEqual(data["academic_title"], "Professor")
+
+        expert = Expert.objects.get(email__iexact="alice@example.com")
+        self.assertEqual(data["id"], expert.id)
+        self.assertTrue(
+            SearchExpert.objects.filter(
+                expert_search=self.search, expert=expert
+            ).exists()
+        )
+
+    def test_post_normalizes_email_to_lowercase(self):
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            self._payload(email="Alice@Example.COM"),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Expert.objects.filter(email="alice@example.com").exists())
+
+    def test_post_upserts_existing_expert_preserving_non_blank_fields(self):
+        existing = Expert.objects.create(
+            email="bob@example.com",
+            first_name="Bob",
+            last_name="Llmfound",
+            academic_title="Associate Professor",
+            affiliation="Stanford",
+            expertise="NLP",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {"email": "bob@example.com"},  # blank everywhere else
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Expert.objects.filter(email="bob@example.com").count(), 1)
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.first_name, "Bob")
+        self.assertEqual(existing.affiliation, "Stanford")
+
+    def test_post_appends_manual_source_tag(self):
+        existing = Expert.objects.create(
+            email="carol@example.com",
+            first_name="Carol",
+            sources=[{"type": "llm", "model": "test"}],
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url, self._payload(email="carol@example.com"), format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        existing.refresh_from_db()
+        self.assertTrue(existing.is_manually_added)
+        self.assertEqual(len(existing.sources), 2)
+        self.assertEqual(existing.sources[0]["type"], "llm")
+        self.assertEqual(existing.sources[1]["type"], "manual")
+        self.assertEqual(existing.sources[1]["added_by"], self.moderator.id)
+        self.assertIn("added_at", existing.sources[1])
+
+    def test_post_assigns_next_position(self):
+        for i, email in enumerate(["x@e.com", "y@e.com", "z@e.com"]):
+            ex = Expert.objects.create(email=email, first_name=email.split("@")[0])
+            SearchExpert.objects.create(
+                expert_search=self.search, expert=ex, position=i
+            )
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(self.url, self._payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        new_expert = Expert.objects.get(email="alice@example.com")
+        link = SearchExpert.objects.get(expert_search=self.search, expert=new_expert)
+        self.assertEqual(link.position, 3)
+
+    def test_post_duplicate_in_same_search_returns_409(self):
+        self.client.force_authenticate(self.moderator)
+        first = self.client.post(self.url, self._payload(), format="json")
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+
+        second = self.client.post(self.url, self._payload(), format="json")
+        self.assertEqual(second.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(
+            SearchExpert.objects.filter(expert_search=self.search).count(), 1
+        )
+        self.assertEqual(Expert.objects.filter(email="alice@example.com").count(), 1)
+
+    @patch("research_ai.views.email_views.generate_expert_email")
+    def test_manual_expert_can_have_email_generated(self, mock_generate):
+        mock_generate.return_value = ("Subject", "Body")
+        self.client.force_authenticate(self.moderator)
+        add_response = self.client.post(self.url, self._payload(), format="json")
+        self.assertEqual(add_response.status_code, status.HTTP_201_CREATED)
+
+        gen_response = self.client.post(
+            "/api/research_ai/expert-finder/generate-email/",
+            {
+                "expert_search_id": self.search.id,
+                "expert_email": "alice@example.com",
+                "template": "collaboration",
+            },
+            format="json",
+        )
+        self.assertEqual(gen_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(GeneratedEmail.objects.count(), 1)
+        rec = GeneratedEmail.objects.get()
+        self.assertEqual(rec.expert_email, "alice@example.com")
+        self.assertEqual(rec.expert_search_id, self.search.id)

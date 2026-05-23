@@ -7,20 +7,18 @@ from reputation.models import Withdrawal
 
 
 class Command(BaseCommand):
-
     def handle(self, *args, **options):
         withdrawals_to_complete = [1868, 1864]
-        withdrawals = Withdrawal.objects.filter(id__in=withdrawals_to_complete, paid_status="PENDING")
+        withdrawals = Withdrawal.objects.filter(
+            id__in=withdrawals_to_complete, paid_status="PENDING"
+        )
         for withdrawal in withdrawals:
             source_type = ContentType.objects.get_for_model(withdrawal)
             ending_balance_record = Balance.objects.get(
-                object_id=withdrawal.id,
-                content_type=source_type
+                object_id=withdrawal.id, content_type=source_type
             )
             amount = withdrawal.amount
             pending_withdrawal = PendingWithdrawal(
-                withdrawal,
-                ending_balance_record.id,
-                int(amount)
+                withdrawal, ending_balance_record.id, int(amount)
             )
             pending_withdrawal.complete_token_transfer()

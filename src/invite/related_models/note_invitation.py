@@ -8,7 +8,6 @@ from researchhub_access_group.constants import ACCESS_TYPE_CHOICES, VIEWER
 
 
 class NoteInvitation(Invitation):
-
     invite_type = models.CharField(
         max_length=16, choices=ACCESS_TYPE_CHOICES, default=VIEWER
     )
