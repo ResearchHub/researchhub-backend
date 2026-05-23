@@ -6,7 +6,6 @@ from openai import OpenAI
 from ai_peer_review.prompts.proposal_review_prompts import (
     get_openai_web_context_system_prompt,
 )
-from utils import sentry
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +84,6 @@ class OpenAIReviewContextService:
                     temperature=temperature,
                 )
             except Exception as e2:
-                sentry.log_error(e2, message="OpenAI web context API call failed")
                 logger.exception("OpenAI web context failed")
                 raise RuntimeError(f"OpenAI web context failed: {e2}") from e2
 
@@ -178,11 +176,8 @@ def fetch_proposal_review_web_context(
             max_tokens=max_output_tokens,
             temperature=0.0,
         )
-    except Exception as e:
-        logger.warning(
-            "OpenAI web context for proposal review failed: %s", e, exc_info=True
-        )
-        sentry.log_error(e, message="OpenAI proposal review web context failed")
+    except Exception:
+        logger.exception("OpenAI web context for proposal review failed: %s")
         return ""
     if len(text) > max_return_chars:
         return text[:max_return_chars] + "\n[TRUNCATED]"

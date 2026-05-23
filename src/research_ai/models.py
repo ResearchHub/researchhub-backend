@@ -132,6 +132,13 @@ class Expert(DefaultModel):
     expertise = models.TextField(blank=True)
     notes = models.TextField(blank=True)
     sources = models.JSONField(default=list, blank=True)
+    is_manually_added = models.BooleanField(
+        default=False,
+        db_comment=(
+            "True if this expert has ever been manually added to a search by a "
+            "user. Used to prioritize manual entries in search result listings."
+        ),
+    )
     registered_user = models.ForeignKey(
         "user.User",
         on_delete=models.SET_NULL,

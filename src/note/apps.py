@@ -5,4 +5,4 @@ class NoteConfig(AppConfig):
     name = "note"
 
     def ready(self):
-        import note.signals
+        import note.signals  # noqa: F401

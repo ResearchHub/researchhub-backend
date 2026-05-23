@@ -15,7 +15,6 @@ from paper.paper_upload_tasks import (
     celery_get_doi,
     celery_openalex,
 )
-from paper.related_models.paper_model import Paper
 from user.tests.helpers import create_random_default_user
 
 fixtures_dir = Path(__file__).parent / "fixtures"

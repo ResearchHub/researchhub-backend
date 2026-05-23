@@ -3,10 +3,8 @@ Update the reputation algorithm for a given hub.
 """
 
 from django.core.management.base import BaseCommand
-from django.db.models import Sum
 
-from reputation.models import AlgorithmVariables, Score, ScoreChange
-from user.models import Author
+from reputation.models import AlgorithmVariables
 
 
 class Command(BaseCommand):

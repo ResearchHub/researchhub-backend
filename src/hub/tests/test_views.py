@@ -1,4 +1,3 @@
-from django.core.cache import cache
 from rest_framework.test import APITestCase
 
 from hub.models import Hub

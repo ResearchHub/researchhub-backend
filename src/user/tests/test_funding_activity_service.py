@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from django.utils import timezone
 
 from purchase.models import Purchase
 from purchase.related_models.balance_model import Balance
@@ -17,9 +18,13 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.management.commands.setup_bank_user import BANK_EMAIL
+from user.models import User
 from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import FOUNDATION_EMAIL
-from user.services.funding_activity_service import FundingActivityService
+from user.services.funding_activity_service import (
+    FundingActivityService,
+    get_funder_total_amount,
+)
 from user.tests.helpers import create_user
 
 
@@ -346,3 +351,33 @@ class FundingActivityServiceTests(TestCase):
         )
         self.assertIsNotNone(activity)
         self.assertEqual(activity.funder_id, foundation_user.id)
+
+    def test_get_funder_total_amount_empty(self):
+        """User with no funding activities has total 0."""
+        self.assertEqual(get_funder_total_amount(self.user.id), 0)
+
+    def test_get_funder_total_amount_sums_all_source_types(self):
+        """get_funder_total_amount sums all FundingActivity rows for the funder."""
+        ct_user = ContentType.objects.get_for_model(User)
+        ud = ResearchhubUnifiedDocument.objects.create(
+            document_type="PREREGISTRATION",
+        )
+        now = timezone.now()
+        for i, (source_type, amount) in enumerate(
+            [
+                (FundingActivity.FUNDRAISE_PAYOUT, Decimal("200")),
+                (FundingActivity.TIP_DOCUMENT, Decimal("100")),
+                (FundingActivity.FEE, Decimal("50")),
+            ],
+            start=1,
+        ):
+            FundingActivity.objects.create(
+                funder=self.user,
+                source_type=source_type,
+                total_amount=amount,
+                unified_document=ud,
+                activity_date=now,
+                source_content_type=ct_user,
+                source_object_id=i,
+            )
+        self.assertEqual(get_funder_total_amount(self.user.id), Decimal("350"))

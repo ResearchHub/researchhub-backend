@@ -320,7 +320,13 @@ class PostViewSetVisibilityTests(AWSMockTestCase):
 
 
 class FundingFeedPrivacyTests(AWSMockTestCase):
-    """Funding feed excludes private posts unless the requester can see them."""
+    """Funding feed excludes private preregistrations for every viewer.
+
+    Private posts remain reachable via the direct post endpoint (see
+    PostViewSetVisibilityTests). The feed is a discovery surface and has no
+    business showing private work even to authors or grant owners — keeping
+    the feed user-agnostic also lets us cache it for everyone.
+    """
 
     def setUp(self):
         super().setUp()
@@ -373,26 +379,27 @@ class FundingFeedPrivacyTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertNotIn(self.private_post.id, self._ids(response))
 
-    def test_author_sees_own_private(self):
+    def test_author_does_not_see_own_private(self):
         client = APIClient()
         client.force_authenticate(self.author)
         response = client.get(reverse("funding_feed-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn(self.private_post.id, self._ids(response))
+        self.assertNotIn(self.private_post.id, self._ids(response))
 
-    def test_grant_owner_sees_application_private(self):
+    def test_grant_owner_does_not_see_application_private(self):
         client = APIClient()
         client.force_authenticate(self.grant_owner)
         response = client.get(reverse("funding_feed-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn(self.private_post.id, self._ids(response))
+        self.assertNotIn(self.private_post.id, self._ids(response))
 
-    def test_authenticated_private_response_not_cached_for_anonymous(self):
+    def test_response_cached_across_viewer_identities(self):
+        """Auth and anonymous viewers share one cached payload."""
         author_client = APIClient()
         author_client.force_authenticate(self.author)
         author_response = author_client.get(reverse("funding_feed-list"))
         self.assertEqual(author_response.status_code, status.HTTP_200_OK)
-        self.assertIn(self.private_post.id, self._ids(author_response))
+        self.assertNotIn(self.private_post.id, self._ids(author_response))
 
         anonymous_client = APIClient()
         anonymous_response = anonymous_client.get(reverse("funding_feed-list"))

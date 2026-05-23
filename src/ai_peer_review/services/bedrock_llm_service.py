@@ -2,7 +2,6 @@ import logging
 
 from django.conf import settings
 
-from utils import sentry
 from utils.aws import bedrock_runtime_client
 
 logger = logging.getLogger(__name__)
@@ -60,10 +59,6 @@ class BedrockLLMService:
                 ),
             )
         except Exception as e:
-            sentry.log_error(
-                e,
-                message="Bedrock Converse API call failed (ai_peer_review)",
-            )
             logger.exception("Bedrock invoke failed")
             raise RuntimeError(f"Bedrock invoke failed: {e}") from e
 

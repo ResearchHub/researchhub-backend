@@ -1,11 +1,15 @@
 from typing import Any
 
+from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 from research_ai.models import Expert, SearchExpert
 from research_ai.services.expert_display import ExpertDisplay
 from research_ai.utils import trimmed_str
+
+User = get_user_model()
 
 
 class ExpertPersist:
@@ -50,6 +54,7 @@ class ExpertPersist:
                 expertise=candidate["expertise"] or "",
                 notes=candidate["notes"] or "",
                 sources=sources,
+                registered_user_id=ExpertPersist._find_registered_user_id(email),
             )
 
         for field, val in candidate.items():
@@ -57,8 +62,28 @@ class ExpertPersist:
                 setattr(expert, field, val)
         if sources:
             expert.sources = sources
+        if expert.registered_user_id is None:
+            match_id = ExpertPersist._find_registered_user_id(email)
+            if match_id is not None:
+                expert.registered_user_id = match_id
         expert.save()
         return expert
+
+    @staticmethod
+    def _find_registered_user_id(email: str) -> int | None:
+        """Return the ``User.id`` whose email matches case-insensitively, else None.
+
+        Uses the ``LOWER(email)`` functional index on the user table so this stays a
+        single indexed lookup even as the user table grows.
+        """
+        if not email:
+            return None
+        return (
+            User.objects.alias(_email_lower=Lower("email"))
+            .filter(_email_lower=email)
+            .values_list("id", flat=True)
+            .first()
+        )
 
     @classmethod
     def replace_search_experts_for_search(
@@ -90,26 +115,38 @@ class ExpertPersist:
 
     @staticmethod
     def tag_manual_source(expert: Expert, user) -> None:
-        """Append a ``{"type": "manual", ...}`` marker to ``expert.sources``.
+        """Mark this expert as manually added and append an audit entry to
+        ``expert.sources``.
 
-        Idempotent per user: skips if a manual entry by the same user is already
-        present. Existing (e.g. LLM-populated) source entries are preserved.
+        Sets ``is_manually_added=True`` (the load-bearing flag used to surface
+        manual entries first in search results) and appends a
+        ``{"type": "manual", ...}`` marker to ``sources`` for audit history.
+
+        Idempotent per user for the audit entry: skips appending if a manual
+        entry by the same user is already present. Existing (e.g. LLM-populated)
+        source entries are preserved.
         """
         sources = expert.sources if isinstance(expert.sources, list) else []
         user_id = getattr(user, "id", None)
-        for entry in sources:
-            if (
-                isinstance(entry, dict)
-                and entry.get("type") == "manual"
-                and entry.get("added_by") == user_id
-            ):
-                return
-        sources.append(
-            {
-                "type": "manual",
-                "added_by": user_id,
-                "added_at": timezone.now().isoformat(),
-            }
+        update_fields = []
+        if not expert.is_manually_added:
+            expert.is_manually_added = True
+            update_fields.append("is_manually_added")
+        already_tagged = any(
+            isinstance(entry, dict)
+            and entry.get("type") == "manual"
+            and entry.get("added_by") == user_id
+            for entry in sources
         )
-        expert.sources = sources
-        expert.save(update_fields=["sources"])
+        if not already_tagged:
+            sources.append(
+                {
+                    "type": "manual",
+                    "added_by": user_id,
+                    "added_at": timezone.now().isoformat(),
+                }
+            )
+            expert.sources = sources
+            update_fields.append("sources")
+        if update_fields:
+            expert.save(update_fields=update_fields)

@@ -1,5 +1,4 @@
 from user.related_models.gatekeeper_model import Gatekeeper
-from utils.http import RequestMethods
 from utils.permissions import AuthorizationBasedPermission
 
 

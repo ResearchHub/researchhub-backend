@@ -163,7 +163,6 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
         self.assertEqual(Decimal(lot["next_multiplier"]), Decimal("1.05"))
         self.assertEqual(lot["days_until_next_multiplier"], 20)
         self.assertEqual(lot["next_multiplier_date"], "2026-06-21")
-        self.assertEqual(lot["created_date"], "2026-05-22")
         self.assertEqual(lot["effective_start_date"], "2026-05-22")
         # Only lot on its tier transition date — overall == its own multiplier
         self.assertEqual(Decimal(lot["projected_overall_multiplier"]), Decimal("1.05"))
@@ -208,6 +207,30 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
         self.assertEqual(len(lots), 2)
         amounts = sorted(Decimal(lot["amount"]) for lot in lots)
         self.assertEqual(amounts, [Decimal("100"), Decimal("200")])
+
+    def test_lots_with_same_effective_start_date_are_grouped(self):
+        # Two pre-opt-in deposits collapse onto the opt-in date, plus two
+        # post-opt-in deposits on the same later day — should produce 2 entries.
+        self.user.staking_opted_in_date = datetime(2026, 5, 15, tzinfo=timezone.utc)
+        self.user.save()
+        self._create_balance("100", created_offset_days=400)
+        self._create_balance("200", created_offset_days=300)
+        self._create_balance("50", created_offset_days=10)
+        self._create_balance("25", created_offset_days=10)
+
+        resp = self._get_details()
+
+        lots = resp.data["balance_lots"]
+        self.assertEqual(len(lots), 2)
+        by_start = {lot["effective_start_date"]: lot for lot in lots}
+
+        pre_opt_in = by_start["2026-05-15"]
+        self.assertEqual(Decimal(pre_opt_in["amount"]), Decimal("300"))
+        self.assertEqual(pre_opt_in["age_days"], 17)
+
+        post_opt_in = by_start["2026-05-22"]
+        self.assertEqual(Decimal(post_opt_in["amount"]), Decimal("75"))
+        self.assertEqual(post_opt_in["age_days"], 10)
 
     def test_projected_overall_multiplier_weights_all_lots(self):
         # Lot A: 100 RSC, age 25 — hits 30-day tier in 5 days
