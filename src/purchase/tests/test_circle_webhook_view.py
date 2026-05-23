@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 
-from purchase.models import Wallet
+from purchase.models import Balance, Wallet
 from reputation.models import Deposit
 
 User = get_user_model()
@@ -477,6 +477,26 @@ class TestCircleWebhookView(TestCase):
         deposit = Deposit.objects.get(circle_transaction_id="tx-001")
         self.assertEqual(deposit.paid_status, "FAILED")
         self.assertEqual(deposit.circle_status, Deposit.CIRCLE_FAILED)
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_completed_after_failed_does_not_credit(self, _mock_verify):
+        """COMPLETED after FAILED must not credit the user (late/out-of-order webhook)."""
+        self._post(_make_payload(state="CONFIRMED"))
+
+        self._post(_make_payload(state="FAILED"))
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self._post(_make_payload(state="COMPLETED"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.paid_status, "FAILED")
+        self.assertFalse(Balance.objects.filter(user=self.user).exists())
 
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True

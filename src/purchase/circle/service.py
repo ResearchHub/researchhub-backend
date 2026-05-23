@@ -96,12 +96,22 @@ def process_circle_deposit(
                 "circle_status": Deposit.CIRCLE_COMPLETED,
             },
         )
+        # Lock the deposit row so concurrent COMPLETED webhooks cannot double-credit.
+        deposit = Deposit.objects.select_for_update().get(pk=deposit.pk)
 
-        if created:
+        if deposit.paid_status == Deposit.PAID:
+            credited = False
+        elif deposit.paid_status == Deposit.FAILED:
+            logger.warning(
+                "Ignoring COMPLETED Circle deposit for failed transaction %s",
+                circle_transaction_id,
+            )
+            credited = False
+        elif created:
             # Brand-new deposit (no prior INITIATED/CONFIRMED webhook).
             deposit.set_paid()
             credited = True
-        elif deposit.paid_status != Deposit.PAID:
+        else:
             # Existing pending deposit from an earlier webhook — promote it.
             deposit.circle_status = Deposit.CIRCLE_COMPLETED
             deposit.sweep_status = Deposit.SWEEP_PENDING

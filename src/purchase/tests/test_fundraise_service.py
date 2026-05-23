@@ -1,8 +1,11 @@
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 from unittest.mock import Mock
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.db import connection
+from django.test import TestCase, TransactionTestCase
 from rest_framework.test import APITestCase
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
@@ -990,3 +993,69 @@ class ExportUsdContributionsTests(TestCase):
 
         refunded_flags = {row[16] for row in rows}
         self.assertEqual(refunded_flags, {True, False})
+
+
+class ConcurrentFundraiseContributionTests(TransactionTestCase):
+    """Concurrent RSC contributions must not lose escrow holdings."""
+
+    def setUp(self):
+        User.objects.get_or_create(id=1)
+        self.revenue_account = create_random_authenticated_user("revenue_concurrent")
+        self.revenue_account.email = "revenue@researchhub.com"
+        self.revenue_account.save()
+
+        self.fundraise_service = FundraiseService()
+        creator = create_random_authenticated_user("fundraise_creator_concurrent")
+        post = create_post(created_by=creator, document_type=PREREGISTRATION)
+        self.fundraise = self.fundraise_service.create_fundraise_with_escrow(
+            user=creator,
+            unified_document=post.unified_document,
+            goal_amount=1000,
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
+        RscExchangeRate.objects.create(
+            rate=0.5,
+            real_rate=0.5,
+            target_currency="USD",
+        )
+
+        distribution_ct = ContentType.objects.get(model="distribution")
+        self.contributor_a = create_random_authenticated_user("concurrent_a")
+        self.contributor_b = create_random_authenticated_user("concurrent_b")
+        for user in (self.contributor_a, self.contributor_b):
+            Balance.objects.create(
+                amount="500",
+                user=user,
+                content_type=distribution_ct,
+            )
+
+    def test_concurrent_contributions_update_escrow_atomically(self):
+        barrier = threading.Barrier(2)
+        amount = Decimal("100")
+        errors = []
+
+        def _contribute(user):
+            connection.close()
+            try:
+                barrier.wait(timeout=5)
+                purchase, error = self.fundraise_service.create_rsc_contribution(
+                    user, self.fundraise, amount, use_credits=False
+                )
+                if error:
+                    errors.append(error)
+            except Exception as exc:
+                errors.append(exc)
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(_contribute, self.contributor_a),
+                executor.submit(_contribute, self.contributor_b),
+            ]
+            for future in as_completed(futures):
+                future.result()
+
+        self.assertEqual(errors, [])
+        self.fundraise.escrow.refresh_from_db()
+        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal("200"))

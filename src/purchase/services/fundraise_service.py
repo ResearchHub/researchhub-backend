@@ -312,9 +312,10 @@ class FundraiseService:
                 priority=1,
             )
 
-            # Update escrow object
-            fundraise.escrow.amount_holding += amount
-            fundraise.escrow.save()
+            # Update escrow under row lock to avoid lost updates on concurrent contributions.
+            escrow = Escrow.objects.select_for_update().get(pk=fundraise.escrow_id)
+            escrow.amount_holding += amount
+            escrow.save(update_fields=["amount_holding", "updated_date"])
 
         return purchase, None
 
@@ -477,6 +478,8 @@ class FundraiseService:
             RuntimeError: If payout fails
         """
         with transaction.atomic():
+            fundraise = Fundraise.objects.select_for_update().get(pk=fundraise.pk)
+
             if fundraise.status != Fundraise.OPEN:
                 raise ValueError("Fundraise is not open")
 
@@ -503,6 +506,8 @@ class FundraiseService:
         Returns True if successful, False otherwise.
         """
         with transaction.atomic():
+            fundraise = Fundraise.objects.select_for_update().get(pk=fundraise.pk)
+
             # Check if fundraise can be closed (must be open)
             if fundraise.status != Fundraise.OPEN:
                 return False
