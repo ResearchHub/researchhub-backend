@@ -83,6 +83,14 @@ class PaymentIntentSerializerTest(TestCase):
         self.assertTrue(serializer.is_valid())
         self.assertEqual(serializer.validated_data["amount"], Decimal("50.5"))
 
+    def test_valid_minimum_fundraise_rsc_amount(self):
+        data = {"amount": "0.01"}
+
+        serializer = PaymentIntentSerializer(data=data)
+
+        self.assertTrue(serializer.is_valid())
+        self.assertEqual(serializer.validated_data["amount"], Decimal("0.01"))
+
     def test_valid_data_with_fundraise_id(self):
         # Arrange
         data = {

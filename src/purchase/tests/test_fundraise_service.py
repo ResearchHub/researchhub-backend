@@ -7,7 +7,10 @@ from rest_framework.test import APITestCase
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from purchase.models import Balance, Fundraise, Purchase, RscExchangeRate
-from purchase.related_models.constants.currency import USD
+from purchase.related_models.constants.currency import RSC, USD
+from purchase.related_models.constants.fundraise import (
+    MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
+)
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
@@ -685,6 +688,30 @@ class CloseFundraiseTests(TestCase):
         )
         self.assertIsNone(purchase)
         self.assertEqual(error, "Insufficient balance")
+
+    def test_create_contribution_accepts_rsc_below_legacy_minimum(self):
+        User.objects.get_or_create(id=1)
+        contributor = create_random_authenticated_user("small_contributor")
+        self._give_user_rsc_balance(contributor, 100)
+
+        purchase, error = self.fundraise_service.create_contribution(
+            contributor, self.fundraise, Decimal("1"), currency=RSC, use_credits=False
+        )
+
+        self.assertIsNone(error)
+        self.assertEqual(Decimal(purchase.amount), Decimal("1"))
+
+    def test_create_contribution_rejects_rsc_below_minimum(self):
+        contributor = create_random_authenticated_user("tiny_contributor")
+        self._give_user_rsc_balance(contributor, 100)
+        below_min = Decimal(str(MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC)) / 10
+
+        purchase, error = self.fundraise_service.create_contribution(
+            contributor, self.fundraise, below_min, currency=RSC, use_credits=False
+        )
+
+        self.assertIsNone(purchase)
+        self.assertIn("Minimum is 0.01", error)
 
     # --- Mixed RSC and USD tests ---
 
