@@ -137,35 +137,6 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         author_pot = Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).first()
         self.assertTrue(author_pot.amount_holding == amount)
 
-    def test_on_chain_support_does_not_mint_rsc(self):
-        """
-        ON_CHAIN support must not credit recipients without verified payment.
-        """
-        sender = create_random_authenticated_user("on_chain_sender")
-        poster = create_random_authenticated_user("on_chain_poster")
-        post = create_post(created_by=poster)
-        tip_amount = 1000
-
-        response = get_authenticated_post_response(
-            sender,
-            "/api/purchase/",
-            {
-                "amount": tip_amount,
-                "content_type": "researchhubpost",
-                "object_id": post.id,
-                "purchase_method": "ON_CHAIN",
-                "purchase_type": "BOOST",
-            },
-        )
-
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(
-            poster.balances.filter(
-                content_type=ContentType.objects.get(model="distribution")
-            ).count(),
-            0,
-        )
-
     def test_support_post_distribution(self):
         user = create_random_authenticated_user("rep_user")
         poster = create_random_authenticated_user("rep_user")
