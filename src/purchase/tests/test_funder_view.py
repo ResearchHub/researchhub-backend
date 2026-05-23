@@ -50,7 +50,9 @@ class FunderViewTests(APITestCase):
     def test_funding_overview_moderator_invalid_user_id_returns_404(self):
         self.client.force_authenticate(self.user)
 
-        response = self.client.get("/api/funder/funding_overview/", {"user_id": 999999})
+        response = self.client.get(
+            "/api/funder/funding_overview/", {"user_id": 999999}
+        )
 
         self.assertEqual(response.status_code, 404)
 
