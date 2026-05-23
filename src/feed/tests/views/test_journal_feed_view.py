@@ -361,8 +361,6 @@ class JournalFeedViewSetTests(AWSMockTestCase):
     @patch("feed.views.journal_feed_view.cache")
     def test_cached_payload_is_user_agnostic(self, mock_cache):
         """Cached journal feed payloads must not contain viewer-specific votes."""
-        import copy
-
         paper_content_type = ContentType.objects.get_for_model(Paper)
         Vote.objects.create(
             created_by=self.user,
