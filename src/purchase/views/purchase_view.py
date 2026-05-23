@@ -72,8 +72,11 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         if content_type_str not in self.ALLOWED_CONTENT_TYPES:
             return Response(status=400)
 
-        if purchase_method not in (Purchase.OFF_CHAIN, Purchase.ON_CHAIN):
-            return Response(status=400)
+        if purchase_method != Purchase.OFF_CHAIN:
+            return Response(
+                {"detail": "Only off-chain RSC support is supported."},
+                status=400,
+            )
 
         decimal_amount = decimal.Decimal(amount)
         if decimal_amount <= 0:
@@ -91,78 +94,73 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 "purchase_type": purchase_type,
             }
 
-            if purchase_method == Purchase.ON_CHAIN:
-                purchase_data["purchase_method"] = Purchase.ON_CHAIN
-            else:
-                if (
-                    decimal_amount < MINIMUM_SUPPORT_AMOUNT_RSC
-                    or decimal_amount > MAXIMUM_SUPPORT_AMOUNT_RSC
-                ):
-                    return Response(
-                        {
-                            "detail": (
-                                f"Invalid amount. Minimum of "
-                                f"{MINIMUM_SUPPORT_AMOUNT_RSC} RSC."
-                            ),
-                        },
-                        status=400,
-                    )
+            if (
+                decimal_amount < MINIMUM_SUPPORT_AMOUNT_RSC
+                or decimal_amount > MAXIMUM_SUPPORT_AMOUNT_RSC
+            ):
+                return Response(
+                    {
+                        "detail": (
+                            f"Invalid amount. Minimum of "
+                            f"{MINIMUM_SUPPORT_AMOUNT_RSC} RSC."
+                        ),
+                    },
+                    status=400,
+                )
 
-                user_balance = user.get_balance()
+            user_balance = user.get_balance()
+            (
+                total_fee,
+                rh_fee,
+                dao_fee,
+                current_support_fee,
+            ) = calculate_support_fees(decimal_amount)
+            if user_balance - (decimal_amount + total_fee) < 0:
+                return Response("Insufficient Funds", status=402)
+
+            # Deduct fees from the gross amount of the purchase.
+            deduct_support_fees(user, total_fee, rh_fee, dao_fee, current_support_fee)
+
+            # Create a purchase object with the pre-fees amount
+            purchase_data["purchase_method"] = Purchase.OFF_CHAIN
+            purchase_data["paid_status"] = Purchase.PAID
+            request._full_data = purchase_data
+            create_response = super().create(request)
+            purchase_id = create_response.data["id"]
+            purchase = self.get_queryset().get(id=purchase_id)
+            source_type = ContentType.objects.get_for_model(purchase)
+
+            # Create a balance object for the fees and the purchase amount
+            fee_str = total_fee.to_eng_string()
+            Balance.objects.create(
+                user=user,
+                content_type=ContentType.objects.get_for_model(SupportFee),
+                object_id=current_support_fee.id,
+                amount=f"-{fee_str}",
+                purchase=purchase,
+            )
+            Balance.objects.create(
+                user=user,
+                content_type=source_type,
+                object_id=purchase_id,
+                amount=f"-{amount}",
+                purchase=purchase,
+            )
+
+            # Track in Amplitude
+            rh_fee_str = rh_fee.to_eng_string()
+            track_revenue_event.apply_async(
                 (
-                    total_fee,
-                    rh_fee,
-                    dao_fee,
-                    current_support_fee,
-                ) = calculate_support_fees(decimal_amount)
-                if user_balance - (decimal_amount + total_fee) < 0:
-                    return Response("Insufficient Funds", status=402)
-
-                # Deduct fees from the gross amount of the purchase.
-                deduct_support_fees(
-                    user, total_fee, rh_fee, dao_fee, current_support_fee
-                )
-
-                # Create a purchase object with the pre-fees amount
-                purchase_data["purchase_method"] = Purchase.OFF_CHAIN
-                purchase_data["paid_status"] = Purchase.PAID
-                request._full_data = purchase_data
-                create_response = super().create(request)
-                purchase_id = create_response.data["id"]
-                purchase = self.get_queryset().get(id=purchase_id)
-                source_type = ContentType.objects.get_for_model(purchase)
-
-                # Create a balance object for the fees and the purchase amount
-                fee_str = total_fee.to_eng_string()
-                Balance.objects.create(
-                    user=user,
-                    content_type=ContentType.objects.get_for_model(SupportFee),
-                    object_id=current_support_fee.id,
-                    amount=f"-{fee_str}",
-                    purchase=purchase,
-                )
-                Balance.objects.create(
-                    user=user,
-                    content_type=source_type,
-                    object_id=purchase_id,
-                    amount=f"-{amount}",
-                    purchase=purchase,
-                )
-
-                # Track in Amplitude
-                rh_fee_str = rh_fee.to_eng_string()
-                track_revenue_event.apply_async(
-                    (
-                        user.id,
-                        "SUPPORT_FEE",
-                        rh_fee_str,
-                        None,
-                        "OFF_CHAIN",
-                        content_type.model,
-                        object_id,
-                    ),
-                    priority=1,
-                )
+                    user.id,
+                    "SUPPORT_FEE",
+                    rh_fee_str,
+                    None,
+                    "OFF_CHAIN",
+                    content_type.model,
+                    object_id,
+                ),
+                priority=1,
+            )
 
             purchase.rsc_usd_rate = RscExchangeRate.get_latest()
             purchase_hash = purchase.hash()
