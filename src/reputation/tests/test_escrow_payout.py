@@ -14,13 +14,14 @@ from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Bounty, BountyFee, Distribution, Escrow
 from researchhub_comment.tests.helpers import create_rh_comment
+from user.related_models.user_model import FOUNDATION_EMAIL
 from user.tests.helpers import create_random_default_user, create_user
 
 
 class EscrowPayoutDistributionTypeTests(APITestCase):
     def setUp(self):
         self.bank_user = create_user(email="bank@researchhub.com")
-        self.user = create_random_default_user("escrow_payout_user")
+        self.user = create_user(email=FOUNDATION_EMAIL)
         self.recipient = create_random_default_user("escrow_payout_recipient")
         self.comment = create_rh_comment(created_by=self.recipient)
         self.bounty_fee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
@@ -87,7 +88,7 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
 class EscrowPayoutApproveBountyTests(APITestCase):
     def setUp(self):
         self.bank_user = create_user(email="bank@researchhub.com")
-        self.user = create_random_default_user("approve_bounty_user")
+        self.user = create_user(email=FOUNDATION_EMAIL)
         self.recipient = create_random_default_user("approve_bounty_recipient")
         self.comment = create_rh_comment(created_by=self.recipient)
         self.child_comment = create_rh_comment(
@@ -162,7 +163,7 @@ class EscrowPayoutApproveBountyTests(APITestCase):
 class EscrowPayoutConcurrencyTests(TransactionTestCase):
     def setUp(self):
         self.bank_user = create_user(email="bank@researchhub.com")
-        self.user = create_random_default_user("concurrency_user")
+        self.user = create_user(email=FOUNDATION_EMAIL)
         self.recipient = create_random_default_user("concurrency_recipient")
         self.comment = create_rh_comment(created_by=self.recipient)
         self.child_comment = create_rh_comment(
