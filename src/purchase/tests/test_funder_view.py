@@ -17,16 +17,44 @@ class FunderViewTests(APITestCase):
             rate=0.5, real_rate=0.5, price_source="COIN_GECKO", target_currency="USD"
         )
 
-    def test_funding_overview_allows_unauthenticated(self):
+    def test_funding_overview_requires_authentication(self):
         self.client.logout()
 
+        response = self.client.get("/api/funder/funding_overview/")
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_funding_overview_ignores_user_id_for_non_moderator(self):
+        other_user = create_random_authenticated_user("other_funder")
+        regular_user = create_random_authenticated_user("regular_funder")
+        self.client.force_authenticate(regular_user)
+
         response = self.client.get(
-            "/api/funder/funding_overview/", {"user_id": self.user.id}
+            "/api/funder/funding_overview/", {"user_id": other_user.id}
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertIsInstance(response.data, dict)
-        self.assertIn("supported_nonprofits", response.data)
+
+    def test_funding_overview_moderator_can_use_user_id(self):
+        target_user = create_random_authenticated_user("target_funder")
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(
+            "/api/funder/funding_overview/", {"user_id": target_user.id}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, dict)
+
+    def test_funding_overview_moderator_invalid_user_id_returns_404(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(
+            "/api/funder/funding_overview/", {"user_id": 999999}
+        )
+
+        self.assertEqual(response.status_code, 404)
 
     def test_funding_overview_returns_200(self):
         self.client.force_authenticate(self.user)
@@ -89,3 +117,35 @@ class FunderViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 200)
         self.assertIsInstance(response.data, dict)
+
+    def test_grant_overview_moderator_can_view_other_users_grant(self):
+        grant_owner = create_random_authenticated_user("grant_owner_mod")
+        grant_post = create_post(created_by=grant_owner, document_type=GRANT_DOC_TYPE)
+        Grant.objects.create(
+            created_by=grant_owner,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("10000"),
+            status=Grant.OPEN,
+        )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(f"/api/funder/{grant_post.id}/grant_overview/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, dict)
+
+    def test_grant_overview_denies_non_owner(self):
+        grant_owner = create_random_authenticated_user("grant_owner")
+        other_user = create_random_authenticated_user("grant_intruder")
+        grant_post = create_post(created_by=grant_owner, document_type=GRANT_DOC_TYPE)
+        Grant.objects.create(
+            created_by=grant_owner,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("10000"),
+            status=Grant.OPEN,
+        )
+        self.client.force_authenticate(other_user)
+
+        response = self.client.get(f"/api/funder/{grant_post.id}/grant_overview/")
+
+        self.assertEqual(response.status_code, 403)
