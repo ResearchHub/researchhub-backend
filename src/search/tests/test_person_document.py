@@ -139,3 +139,38 @@ class PersonDocumentTests(TestCase):
 
         # Assert
         self.assertEqual(result, 0)
+
+    def test_should_index_object(self):
+        # Arrange
+        document = PersonDocument()
+        author = Mock()
+        author.user.is_suspended = False
+
+        # Act
+        result = document.should_index_object(author)
+
+        # Assert
+        self.assertTrue(result)
+
+    def test_should_index_object_includes_author_without_user(self):
+        # Arrange
+        document = PersonDocument()
+        author = Mock(user=None)
+
+        # Act
+        result = document.should_index_object(author)
+
+        # Assert
+        self.assertTrue(result)
+
+    def test_should_index_object_excludes_suspended_linked_user(self):
+        # Arrange
+        document = PersonDocument()
+        author = Mock()
+        author.user.is_suspended = True
+
+        # Act
+        result = document.should_index_object(author)
+
+        # Assert
+        self.assertFalse(result)
