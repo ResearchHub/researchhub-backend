@@ -44,7 +44,14 @@ def create_feed_entry(
     item_content_type = ContentType.objects.get(id=item_content_type_id)
 
     # Get the actual model instances
-    item = item_content_type.get_object_for_this_type(id=item_id)
+    try:
+        item = item_content_type.get_object_for_this_type(id=item_id)
+    except Exception:
+        logger.warning(
+            f"Item {item_id} (content_type={item_content_type.model}) "
+            f"not found, skipping feed entry creation"
+        )
+        return None
     if user_id:
         user = User.objects.get(id=user_id)
     else:

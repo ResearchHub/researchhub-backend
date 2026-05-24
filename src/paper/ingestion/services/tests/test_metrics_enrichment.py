@@ -213,6 +213,35 @@ class PaperMetricsEnrichmentServiceTests(TestCase):
             [self.paper.doi, self.paper.title], search_areas=["code"]
         )
 
+    def test_enrich_paper_with_github_mentions_skips_on_422(self):
+        """
+        Test that GitHub 422 (query too complex) is treated as a skip,
+        not an error.
+        """
+        mock_response = Mock()
+        mock_response.status_code = 422
+        error = Exception("422 Client Error: Unprocessable Entity")
+        error.response = mock_response
+        self.mock_github_client.get_mentions.side_effect = error
+
+        result = self.service.enrich_paper_with_github_mentions(self.paper)
+
+        self.assertEqual(result.status, "skipped")
+
+    def test_enrich_paper_with_github_mentions_retries_on_403(self):
+        """
+        Test that GitHub 403 (rate limit) is treated as retryable.
+        """
+        mock_response = Mock()
+        mock_response.status_code = 403
+        error = Exception("403 Client Error: Forbidden")
+        error.response = mock_response
+        self.mock_github_client.get_mentions.side_effect = error
+
+        result = self.service.enrich_paper_with_github_mentions(self.paper)
+
+        self.assertEqual(result.status, "retryable_error")
+
     def test_enrich_paper_with_bluesky_success(self):
         """
         Test successful enrichment of a paper with Bluesky metrics.

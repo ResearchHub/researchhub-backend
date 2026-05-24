@@ -138,9 +138,9 @@ def enrich_paper_with_github_metrics(self, paper_id: int, retry: int = 0):
     try:
         paper = Paper.objects.get(id=paper_id)
     except Paper.DoesNotExist:
-        logger.error(f"Paper {paper_id} not found")
+        logger.warning(f"Paper {paper_id} not found, skipping GitHub enrichment")
         return {
-            "status": "error",
+            "status": "skipped",
             "paper_id": paper_id,
             "reason": "paper_not_found",
         }
@@ -425,9 +425,9 @@ def enrich_paper_with_x_metrics(self, paper_id: int):
     try:
         paper = Paper.objects.get(id=paper_id)
     except Paper.DoesNotExist:
-        logger.error(f"Paper {paper_id} not found")
+        logger.warning(f"Paper {paper_id} not found, skipping X enrichment")
         return {
-            "status": "error",
+            "status": "skipped",
             "paper_id": paper_id,
             "reason": "paper_not_found",
         }

@@ -89,11 +89,23 @@ class SyncService:
         - Posts: Always sync
         - Papers: Only sync if published within last PAPER_RECENCY_DAYS days
         """
-        unified_doc = (
-            ResearchhubUnifiedDocument.objects.select_related("paper")
-            .prefetch_related("hubs", "posts")
-            .get(id=unified_document_id)
-        )
+        try:
+            unified_doc = (
+                ResearchhubUnifiedDocument.objects.select_related("paper")
+                .prefetch_related("hubs", "posts")
+                .get(id=unified_document_id)
+            )
+        except ResearchhubUnifiedDocument.DoesNotExist:
+            logger.warning(
+                f"Unified document {unified_document_id} not found, skipping sync"
+            )
+            return {
+                "success": True,
+                "synced": 0,
+                "failed": 0,
+                "skipped": 1,
+                "errors": [],
+            }
 
         if not self._is_eligible_for_sync(unified_doc):
             logger.info(
