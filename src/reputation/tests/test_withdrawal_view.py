@@ -94,6 +94,14 @@ class WithdrawalViewSetTests(APITestCase):
         user.save()
         return user
 
+    def _enable_mfa(self, user) -> str:
+        """
+        Enable MFA for given user and return a valid OTP.
+        """
+        secret = generate_totp_secret()
+        TOTP.activate(user, secret)
+        return pyotp.TOTP(secret).now()
+
     def test_list_only_shows_user_withdrawals(self):
         """Test that a user can only see their own withdrawals."""
         # Create withdrawals for various users
@@ -135,6 +143,7 @@ class WithdrawalViewSetTests(APITestCase):
     def test_create_withdrawal_success(self):
         """Test successful withdrawal creation."""
         user = self._create_withdrawer("rep_user")
+        mfa_code = self._enable_mfa(user)
 
         # Create a deposit well above the minimum
         deposit_amount = WITHDRAWAL_MINIMUM * 2
@@ -153,6 +162,7 @@ class WithdrawalViewSetTests(APITestCase):
                     "amount": str(WITHDRAWAL_MINIMUM + 10),  # Amount above minimum
                     "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
                     "network": "ETHEREUM",
+                    "mfa_code": mfa_code,
                 },
             )
 
@@ -177,6 +187,7 @@ class WithdrawalViewSetTests(APITestCase):
     def test_withdrawal_below_minimum(self):
         """Test that withdrawals below minimum amount are rejected."""
         user = self._create_withdrawer("rep_user")
+        mfa_code = self._enable_mfa(user)
 
         # Create a small deposit
         create_deposit(user, amount=str(WITHDRAWAL_MINIMUM - 1))
@@ -187,6 +198,7 @@ class WithdrawalViewSetTests(APITestCase):
             {
                 "amount": str(WITHDRAWAL_MINIMUM - 1),
                 "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                "mfa_code": mfa_code,
             },
         )
 
@@ -198,6 +210,7 @@ class WithdrawalViewSetTests(APITestCase):
     def test_withdrawal_with_pending_transaction(self):
         """Test that users can't create a new withdrawal with a pending one."""
         user = self._create_withdrawer("rep_user")
+        mfa_code = self._enable_mfa(user)
 
         # Create a deposit
         create_deposit(user, amount="1000.0")
@@ -217,6 +230,7 @@ class WithdrawalViewSetTests(APITestCase):
             {
                 "amount": "200",
                 "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                "mfa_code": mfa_code,
             },
         )
 
@@ -228,6 +242,7 @@ class WithdrawalViewSetTests(APITestCase):
     def test_withdrawal_exceeds_user_balance(self):
         """Test that users can't withdraw more than their balance."""
         user = self._create_withdrawer("rep_user")
+        mfa_code = self._enable_mfa(user)
 
         # Create a deposit
         create_deposit(user, amount="100.0")
@@ -238,6 +253,7 @@ class WithdrawalViewSetTests(APITestCase):
             {
                 "amount": "200",
                 "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                "mfa_code": mfa_code,
             },
         )
 
@@ -248,6 +264,7 @@ class WithdrawalViewSetTests(APITestCase):
     def test_locked_balance_cannot_be_withdrawn(self):
         """Test that locked balance is excluded from user withdrawals."""
         user = self._create_withdrawer("rep_user")
+        mfa_code = self._enable_mfa(user)
 
         Balance.objects.create(
             user=user,
@@ -268,6 +285,7 @@ class WithdrawalViewSetTests(APITestCase):
                 {
                     "amount": str(WITHDRAWAL_MINIMUM + 10),
                     "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                    "mfa_code": mfa_code,
                 },
             )
 
@@ -284,6 +302,7 @@ class WithdrawalViewSetTests(APITestCase):
     def test_withdrawal_does_not_consume_locked_balance(self):
         """Test that successful withdrawals only reduce unlocked balance."""
         user = self._create_withdrawer("rep_user")
+        mfa_code = self._enable_mfa(user)
 
         deposit_amount = WITHDRAWAL_MINIMUM * 2
         create_deposit(user, amount=str(deposit_amount))
@@ -307,6 +326,7 @@ class WithdrawalViewSetTests(APITestCase):
                 {
                     "amount": str(WITHDRAWAL_MINIMUM + 10),
                     "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                    "mfa_code": mfa_code,
                 },
             )
 
@@ -397,6 +417,7 @@ class WithdrawalViewSetTests(APITestCase):
     def test_withdrawal_creates_balance_record(self):
         """Test that a balance record is created when withdrawing."""
         user = self._create_withdrawer("rep_user")
+        mfa_code = self._enable_mfa(user)
 
         # Create a deposit well above the minimum
         deposit_amount = WITHDRAWAL_MINIMUM * 2
@@ -416,6 +437,7 @@ class WithdrawalViewSetTests(APITestCase):
                 {
                     "amount": str(WITHDRAWAL_MINIMUM + 10),  # Amount above minimum
                     "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                    "mfa_code": mfa_code,
                 },
             )
 
@@ -601,6 +623,7 @@ class WithdrawalViewSetTests(APITestCase):
     def test_transaction_fee_bigger_than_withdrawal_amount(self):
         """Test that withdrawal fails if transaction fee is bigger than amount."""
         user = self._create_withdrawer("rep_user")
+        mfa_code = self._enable_mfa(user)
 
         # Create a deposit with an amount above the withdrawal minimum
         deposit_amount = WITHDRAWAL_MINIMUM + 100.0
@@ -627,6 +650,7 @@ class WithdrawalViewSetTests(APITestCase):
                 {
                     "amount": str(withdrawal_amount),
                     "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                    "mfa_code": mfa_code,
                 },
             )
 
@@ -794,9 +818,9 @@ class WithdrawalViewSetTests(APITestCase):
     @mock.patch.object(
         WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
     )
-    def test_withdrawal_succeeds_without_mfa_when_user_has_no_mfa(self, _mock_balance):
+    def test_withdrawal_rejected_when_user_has_no_mfa(self, _mock_balance):
         """
-        Users without MFA enabled withdraw without supplying a code.
+        MFA is mandatory: users without MFA enabled get a 400.
         """
         # Arrange
         user = self._create_withdrawer("no_mfa_user")
@@ -814,7 +838,9 @@ class WithdrawalViewSetTests(APITestCase):
         )
 
         # Assert
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("MFA must be enabled", response.data)
+        self.assertFalse(Withdrawal.objects.filter(user=user).exists())
 
     @mock.patch.object(
         WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
