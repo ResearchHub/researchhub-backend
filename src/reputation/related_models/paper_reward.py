@@ -1,10 +1,7 @@
 import math
-from time import time
 
 from django.db import models
 from django.db.models import JSONField
-
-from reputation.distributions import create_paper_reward_distribution
 
 OPEN_ACCESS_MULTIPLIER = 1.0
 OPEN_DATA_MULTIPLIER = 3.0
@@ -125,15 +122,3 @@ class PaperReward(models.Model):
         )
 
         return paper_reward
-
-    def distribute_paper_rewards(self):
-        from reputation.distributor import Distributor
-
-        distribution = create_paper_reward_distribution(self.rsc_value)
-        distributor = Distributor(distribution, self.author.user, self, time())
-        distribution = distributor.distribute()
-
-        self.distribution = distribution
-        self.save()
-
-        return self

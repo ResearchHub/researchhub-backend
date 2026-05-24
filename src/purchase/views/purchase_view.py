@@ -3,7 +3,6 @@ import decimal
 import time
 
 from django.contrib.contenttypes.models import ContentType
-from django.core.cache import cache
 from django.db import transaction
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -15,7 +14,6 @@ from analytics.amplitude import track_event
 from analytics.tasks import track_revenue_event
 from notification.models import Notification
 from paper.models import Paper
-from paper.utils import get_cache_key
 from purchase.models import AggregatePurchase, Balance, Purchase, RscExchangeRate
 from purchase.related_models.constants.support import (
     MAXIMUM_SUPPORT_AMOUNT_RSC,
@@ -23,7 +21,6 @@ from purchase.related_models.constants.support import (
 )
 from purchase.serializers import AggregatePurchaseSerializer, PurchaseSerializer
 from purchase.tasks import send_support_email
-from purchase.utils import distribute_support_to_authors
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
 from reputation.models import Contribution, SupportFee
@@ -42,7 +39,10 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, CreateOrReadOnly]
     pagination_class = PageNumberPagination
     throttle_classes = THROTTLE_CLASSES
-    ALLOWED_CONTENT_TYPES = ("rhcommentmodel", "paper", "researchhubpost")
+    # Paper tipping (`content_type="paper"`) has been retired; tips/boosts
+    # are no longer accepted against papers or their authors. Comment and
+    # post tipping remain supported.
+    ALLOWED_CONTENT_TYPES = ("rhcommentmodel", "researchhubpost")
 
     def get_queryset(self):
         return self.queryset.filter(user=self.request.user)
@@ -171,7 +171,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             purchase.boost_time = purchase_boost_time
             purchase.group = purchase.get_aggregate_group()
             purchase.save()
-            paper = None
 
             item = purchase.item
             context = {"purchase_minimal_serialization": True, "exclude_stats": True}
@@ -179,17 +178,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
             #  transfer_rsc is set each time just in case we want
             #  to disable rsc transfer for a specific item
-            if content_type_str == "paper":
-                paper = Paper.objects.get(id=object_id)
-                unified_doc = paper.unified_document
-                recipient = paper.uploaded_by
-                cache_key = get_cache_key("paper", object_id)
-                cache.delete(cache_key)
-                transfer_rsc = False
-
-                distribute_support_to_authors(paper, purchase, amount)
-
-            elif content_type_str == "rhcommentmodel":
+            if content_type_str == "rhcommentmodel":
                 transfer_rsc = True
                 recipient = item.created_by
                 unified_doc = item.unified_document
