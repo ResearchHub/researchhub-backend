@@ -252,9 +252,6 @@ class ViewTests(APITestCase):
         )
 
     def test_approving_claim_does_not_pay_rewards_to_user(self):
-        # The paper-claim RSC payout has been retired. Approving a claim must
-        # never produce a Distribution; the PaperReward row remains as a
-        # historical record only.
         claim_create_response, paper, _ = self._create_paper_claim_via_api(
             self.verified_user, self.paper
         )

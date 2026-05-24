@@ -39,9 +39,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, CreateOrReadOnly]
     pagination_class = PageNumberPagination
     throttle_classes = THROTTLE_CLASSES
-    # Paper tipping (`content_type="paper"`) has been retired; tips/boosts
-    # are no longer accepted against papers or their authors. Comment and
-    # post tipping remain supported.
     ALLOWED_CONTENT_TYPES = ("rhcommentmodel", "researchhubpost")
 
     def get_queryset(self):
