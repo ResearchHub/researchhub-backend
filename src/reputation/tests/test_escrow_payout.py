@@ -63,7 +63,7 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
         ).latest("id")
         self.assertEqual(distribution.distribution_type, "BOUNTY_PAYOUT")
 
-    def test_author_rsc_escrow_payout_uses_stored_paper_pot_distribution_type(self):
+    def test_author_rsc_escrow_payout_is_rejected(self):
         paper = create_paper()
         escrow = Escrow.objects.create(
             hold_type=Escrow.AUTHOR_RSC,
@@ -73,16 +73,15 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
             object_id=paper.id,
         )
 
-        paid = escrow.payout(
-            recipient=self.recipient, payout_amount=decimal.Decimal("25")
-        )
-        self.assertTrue(paid)
+        with self.assertRaises(ValueError):
+            escrow.payout(recipient=self.recipient, payout_amount=decimal.Decimal("25"))
 
-        distribution = Distribution.objects.filter(
-            proof_item_object_id=escrow.id,
-            recipient=self.recipient,
-        ).latest("id")
-        self.assertEqual(distribution.distribution_type, "STORED_PAPER_POT")
+        self.assertFalse(
+            Distribution.objects.filter(
+                proof_item_object_id=escrow.id,
+                recipient=self.recipient,
+            ).exists()
+        )
 
 
 class EscrowPayoutApproveBountyTests(APITestCase):
