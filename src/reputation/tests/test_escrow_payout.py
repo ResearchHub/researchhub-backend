@@ -64,11 +64,6 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
         self.assertEqual(distribution.distribution_type, "BOUNTY_PAYOUT")
 
     def test_author_rsc_escrow_payout_is_rejected(self):
-        """
-        AUTHOR_RSC escrows are retired. Any attempt to pay one out (e.g. via a
-        manual shell call against a historical row) must fail loudly instead of
-        silently minting a STORED_PAPER_POT distribution.
-        """
         paper = create_paper()
         escrow = Escrow.objects.create(
             hold_type=Escrow.AUTHOR_RSC,
