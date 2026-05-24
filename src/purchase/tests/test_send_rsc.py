@@ -119,7 +119,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         form = {"recipient_id": user.id, "amount": self.balance_amount}
         return form
 
-    def test_support_paper_distribution(self):
+    def test_support_paper_is_rejected(self):
         user = create_random_authenticated_user("rep_user")
         uploader = create_random_authenticated_user("rep_user")
         paper = create_paper(uploaded_by=uploader)
@@ -132,10 +132,8 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         )
 
         response = self._post_support_response(user, paper.id, "paper", amount)
-        self.assertContains(response, "id", status_code=201)
-        self.assertTrue(Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).count() == 1)
-        author_pot = Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).first()
-        self.assertTrue(author_pot.amount_holding == amount)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).count(), 0)
 
     def test_support_post_distribution(self):
         user = create_random_authenticated_user("rep_user")
