@@ -23,10 +23,10 @@ from researchhub_document.related_models.researchhub_post_model import (
     ResearchhubPost,
 )
 from review.models.review_model import Review
-from risk_score.models import RiskScoreEvent
-from risk_score.services import RiskScoreService
 from user.models import User
+from user.related_models.risk_score_model import RiskScoreEvent
 from user.related_models.user_verification_model import UserVerification
+from user.services.risk_score_service import RiskScoreService
 
 EventType = RiskScoreEvent.EventType
 
@@ -138,19 +138,10 @@ class Command(BaseCommand):
             )
 
     def _record_if_new(self, user, event_type, source, dry_run):
-        ct = ContentType.objects.get_for_model(source)
-        already_exists = RiskScoreEvent.objects.filter(
-            user=user,
-            event_type=event_type,
-            source_content_type=ct,
-            source_content_id=source.pk,
-        ).exists()
-
-        if already_exists:
-            return
-
         if not dry_run:
-            self.service.record_event(user, event_type, source=source)
+            result = self.service.record_event(user, event_type, source=source)
+            if result is None:
+                return
         self.events_recorded += 1
 
     def _build_one_time_bonus_lookups(self):

@@ -46,6 +46,7 @@ from user.related_models.author_institution import AuthorInstitution
 from user.related_models.coauthor_model import CoAuthor
 from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
+from user.services.risk_score_service import RiskScoreService
 from utils import sentry
 
 
@@ -74,6 +75,7 @@ def compute_user_balances(user):
 
 class ModeratorUserSerializer(ModelSerializer):
     verification = SerializerMethodField()
+    risk_score = SerializerMethodField()
 
     class Meta:
         model = User
@@ -86,6 +88,7 @@ class ModeratorUserSerializer(ModelSerializer):
             "created_date",
             "is_orcid_connected",
             "orcid_verified_edu_email",
+            "risk_score",
         ]
 
     def get_verification(self, user):
@@ -102,6 +105,9 @@ class ModeratorUserSerializer(ModelSerializer):
             "external_id": user_verification.external_id,
             "status": user_verification.status,
         }
+
+    def get_risk_score(self, user):
+        return RiskScoreService().get_score(user)
 
 
 class UniversitySerializer(ModelSerializer):

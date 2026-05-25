@@ -1,8 +1,12 @@
 from django.test import TestCase
 
-from risk_score.constants import DEFAULT_SCORE, RESTRICTED_THRESHOLD, TRUSTED_THRESHOLD
-from risk_score.models import RiskScore, RiskScoreEvent
-from risk_score.services import RiskScoreService
+from user.constants.risk_score_constants import (
+    DEFAULT_SCORE,
+    RESTRICTED_THRESHOLD,
+    TRUSTED_THRESHOLD,
+)
+from user.related_models.risk_score_model import RiskScore, RiskScoreEvent
+from user.services.risk_score_service import RiskScoreService
 from user.tests.helpers import create_user
 
 EventType = RiskScoreEvent.EventType
@@ -119,6 +123,20 @@ class RiskScoreServiceTests(TestCase):
 
         # Act
         result = self.service.record_event(self.user, EventType.EXPERT_FINDER_SIGNUP)
+
+        # Assert
+        self.assertIsNone(result)
+        self.assertEqual(RiskScoreEvent.objects.filter(user=self.user).count(), 1)
+
+    def test_source_duplicate_ignored(self):
+        # Arrange
+        source_obj = RiskScore.objects.create(user=self.user, score=DEFAULT_SCORE)
+        self.service.record_event(self.user, EventType.WORK_APPROVED, source=source_obj)
+
+        # Act
+        result = self.service.record_event(
+            self.user, EventType.WORK_APPROVED, source=source_obj
+        )
 
         # Assert
         self.assertIsNone(result)

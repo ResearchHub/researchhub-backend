@@ -2,7 +2,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
-from risk_score.constants import DEFAULT_SCORE
+from user.constants.risk_score_constants import DEFAULT_SCORE
 from utils.models import DefaultModel
 
 
@@ -15,6 +15,7 @@ class RiskScore(DefaultModel):
     score = models.IntegerField(default=DEFAULT_SCORE)
 
     class Meta:
+        db_table = "risk_score_riskscore"
         indexes = [
             models.Index(fields=["score"], name="risk_score_score_idx"),
         ]
@@ -69,8 +70,6 @@ class RiskScoreEvent(models.Model):
         EventType.PERSONA_VERIFIED_NON_WHITELISTED: -10,
     }
 
-    # Events that can only be recorded once per user. The service layer
-    # enforces idempotency by checking for existing events before recording.
     ONE_TIME_TYPES = {
         EventType.EXPERT_FINDER_SIGNUP,
         EventType.EDU_EMAIL_SIGNUP,
@@ -101,6 +100,7 @@ class RiskScoreEvent(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        db_table = "risk_score_riskscoreevent"
         ordering = ["-created_date"]
         indexes = [
             models.Index(
