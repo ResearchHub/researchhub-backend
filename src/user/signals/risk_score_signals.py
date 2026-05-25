@@ -30,9 +30,7 @@ def _comment_content_type_id():
     return ContentType.objects.get_for_model(RhCommentModel).id
 
 
-@receiver(
-    post_save, sender=Grant, dispatch_uid="risk_score_on_grant_status_changed"
-)
+@receiver(post_save, sender=Grant, dispatch_uid="risk_score_on_grant_status_changed")
 def on_grant_status_changed(sender, instance, **kwargs):
     try:
         if not instance.created_by_id:
@@ -47,9 +45,7 @@ def on_grant_status_changed(sender, instance, **kwargs):
                 instance.created_by, EventType.WORK_DECLINED, source=instance
             )
     except Exception:
-        logger.exception(
-            "Risk score signal failed for Grant %s", instance.pk
-        )
+        logger.exception("Risk score signal failed for Grant %s", instance.pk)
 
 
 @receiver(
@@ -76,9 +72,7 @@ def on_post_status_changed(sender, instance, **kwargs):
                 instance.created_by, EventType.WORK_DECLINED, source=instance
             )
     except Exception:
-        logger.exception(
-            "Risk score signal failed for ResearchhubPost %s", instance.pk
-        )
+        logger.exception("Risk score signal failed for ResearchhubPost %s", instance.pk)
 
 
 @receiver(
@@ -94,9 +88,7 @@ def on_comment_censored(sender, instance, **kwargs):
             instance.created_by, EventType.CONTENT_CENSORED, source=instance
         )
     except Exception:
-        logger.exception(
-            "Risk score signal failed for RhCommentModel %s", instance.pk
-        )
+        logger.exception("Risk score signal failed for RhCommentModel %s", instance.pk)
 
 
 @receiver(
@@ -111,9 +103,7 @@ def on_document_censored(sender, instance, **kwargs):
         author = instance.created_by
         if author is None:
             return
-        _service.record_event(
-            author, EventType.CONTENT_CENSORED, source=instance
-        )
+        _service.record_event(author, EventType.CONTENT_CENSORED, source=instance)
     except Exception:
         logger.exception(
             "Risk score signal failed for ResearchhubUnifiedDocument %s",
@@ -142,9 +132,7 @@ def on_bounty_solution_awarded(sender, instance, **kwargs):
             return
         _record_review_assessments_on(instance.item)
     except Exception:
-        logger.exception(
-            "Risk score signal failed for BountySolution %s", instance.pk
-        )
+        logger.exception("Risk score signal failed for BountySolution %s", instance.pk)
 
 
 def _record_review_assessments_on(comment):
@@ -157,9 +145,7 @@ def _record_review_assessments_on(comment):
             )
 
 
-@receiver(
-    post_save, sender=Purchase, dispatch_uid="risk_score_on_community_tip"
-)
+@receiver(post_save, sender=Purchase, dispatch_uid="risk_score_on_community_tip")
 def on_community_tip(sender, instance, created, **kwargs):
     try:
         if not created:
@@ -179,9 +165,7 @@ def on_community_tip(sender, instance, created, **kwargs):
             )
         _record_review_assessments_on(comment)
     except Exception:
-        logger.exception(
-            "Risk score signal failed for Purchase %s", instance.pk
-        )
+        logger.exception("Risk score signal failed for Purchase %s", instance.pk)
 
 
 @receiver(
@@ -201,9 +185,7 @@ def on_social_account_created(sender, instance, created, **kwargs):
         ):
             _service.record_event(instance.user, EventType.ORCID_VERIFIED_EDU)
     except Exception:
-        logger.exception(
-            "Risk score signal failed for SocialAccount %s", instance.pk
-        )
+        logger.exception("Risk score signal failed for SocialAccount %s", instance.pk)
 
 
 @receiver(
@@ -218,9 +200,7 @@ def on_persona_verified(sender, instance, **kwargs):
         # PERSONA_VERIFIED_NON_WHITELISTED is reserved for when UserVerification
         # gains a country field. Until then, all approved verifications use
         # the WHITELISTED variant.
-        _service.record_event(
-            instance.user, EventType.PERSONA_VERIFIED_WHITELISTED
-        )
+        _service.record_event(instance.user, EventType.PERSONA_VERIFIED_WHITELISTED)
     except Exception:
         logger.exception(
             "Risk score signal failed for UserVerification %s", instance.pk
@@ -240,6 +220,4 @@ def on_user_created(sender, instance, created, **kwargs):
         if GeneratedEmail.objects.filter(expert_email__iexact=email).exists():
             _service.record_event(instance, EventType.EXPERT_FINDER_SIGNUP)
     except Exception:
-        logger.exception(
-            "Risk score signal failed for User %s", instance.pk
-        )
+        logger.exception("Risk score signal failed for User %s", instance.pk)

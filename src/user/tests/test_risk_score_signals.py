@@ -345,9 +345,7 @@ class SocialAccountSignalTests(RiskScoreSignalTestCase):
 
     def test_unrelated_provider_does_not_record(self):
         # Act
-        SocialAccount.objects.create(
-            user=self.user, provider="github", uid="gh-123"
-        )
+        SocialAccount.objects.create(user=self.user, provider="github", uid="gh-123")
 
         # Assert
         self._assert_no_events(self.user)

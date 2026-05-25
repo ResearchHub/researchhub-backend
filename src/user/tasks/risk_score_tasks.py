@@ -16,12 +16,16 @@ def apply_account_age_bonus_task():
     service = RiskScoreService()
     threshold = timezone.now() - timedelta(days=90)
 
-    users = User.objects.filter(
-        is_active=True,
-        date_joined__lt=threshold,
-    ).exclude(
-        risk_score_events__event_type=EventType.ACCOUNT_AGE_BONUS,
-    ).iterator()
+    users = (
+        User.objects.filter(
+            is_active=True,
+            date_joined__lt=threshold,
+        )
+        .exclude(
+            risk_score_events__event_type=EventType.ACCOUNT_AGE_BONUS,
+        )
+        .iterator()
+    )
 
     for user in users:
         service.record_event(user, EventType.ACCOUNT_AGE_BONUS)
