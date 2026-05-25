@@ -24,8 +24,8 @@ from user.tests.helpers import (
     create_random_authenticated_user_with_reputation,
 )
 
-TEST_WITHDRAWAL_ADDRESS = "0xabcdef1234567890abcdef1234567890abcdef12"
-TEST_WITHDRAWAL_ADDRESS_CHECKSUM = normalize_ethereum_address(TEST_WITHDRAWAL_ADDRESS)
+VALID_TEST_TO_ADDRESS = "0xabcdef1234567890abcdef1234567890abcdef12"
+VALID_TEST_TO_ADDRESS_CHECKSUM = normalize_ethereum_address(VALID_TEST_TO_ADDRESS)
 
 
 # Create a test class with proper AWS mocking
@@ -155,7 +155,7 @@ class WithdrawalViewSetTests(APITestCase):
                 self.withdrawal_url,
                 {
                     "amount": str(WITHDRAWAL_MINIMUM + 10),  # Amount above minimum
-                    "to_address": TEST_WITHDRAWAL_ADDRESS,
+                    "to_address": VALID_TEST_TO_ADDRESS,
                     "network": "ETHEREUM",
                 },
             )
@@ -168,7 +168,7 @@ class WithdrawalViewSetTests(APITestCase):
             self.assertEqual(
                 float(withdrawal.amount), float(WITHDRAWAL_MINIMUM)
             )  # amount - fee
-            self.assertEqual(withdrawal.to_address, TEST_WITHDRAWAL_ADDRESS_CHECKSUM)
+            self.assertEqual(withdrawal.to_address, VALID_TEST_TO_ADDRESS_CHECKSUM)
             self.assertEqual(withdrawal.network, "ETHEREUM")
             self.assertEqual(withdrawal.fee, "10.0")  # Mocked fee
 
@@ -211,7 +211,7 @@ class WithdrawalViewSetTests(APITestCase):
         create_deposit(user, amount=str(WITHDRAWAL_MINIMUM * 2))
         self.client.force_authenticate(user)
 
-        lowercase_address = TEST_WITHDRAWAL_ADDRESS.lower()
+        lowercase_address = VALID_TEST_TO_ADDRESS.lower()
 
         with mock.patch.object(
             WithdrawalViewSet,
@@ -229,7 +229,7 @@ class WithdrawalViewSetTests(APITestCase):
 
         self.assertEqual(response.status_code, 201)
         withdrawal = Withdrawal.objects.get(id=response.data["id"])
-        self.assertEqual(withdrawal.to_address, TEST_WITHDRAWAL_ADDRESS_CHECKSUM)
+        self.assertEqual(withdrawal.to_address, VALID_TEST_TO_ADDRESS_CHECKSUM)
 
     def test_withdrawal_below_minimum(self):
         """Test that withdrawals below minimum amount are rejected."""
