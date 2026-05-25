@@ -1,3 +1,4 @@
+import copy
 import uuid
 from datetime import timedelta
 from unittest.mock import patch
@@ -356,6 +357,33 @@ class JournalFeedViewSetTests(AWSMockTestCase):
         # Use the integer value for the vote type, as that's what gets serialized
         vote_type = paper_data["user_vote"]["vote_type"]
         self.assertEqual(vote_type, 1)  # 1 corresponds to UPVOTE
+
+    @patch("feed.views.journal_feed_view.cache")
+    def test_cached_payload_is_user_agnostic(self, mock_cache):
+        """Cached journal feed payloads must not contain viewer-specific votes."""
+        paper_content_type = ContentType.objects.get_for_model(Paper)
+        Vote.objects.create(
+            created_by=self.user,
+            object_id=self.preprint_paper.id,
+            content_type=paper_content_type,
+            vote_type=Vote.UPVOTE,
+        )
+
+        mock_cache.get.return_value = None
+        captured = {}
+
+        def capture_set(key, value, timeout=None):
+            captured["payload"] = copy.deepcopy(value)
+
+        mock_cache.set.side_effect = capture_set
+
+        url = reverse("journal_feed-list")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(mock_cache.set.called)
+        for item in captured["payload"]["results"]:
+            self.assertNotIn("user_vote", item)
 
     @patch("feed.views.journal_feed_view.cache")
     def test_add_user_votes_with_cached_response(self, mock_cache):
