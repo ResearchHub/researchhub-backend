@@ -85,7 +85,7 @@ class RiskScoreEvent(models.Model):
         on_delete=models.CASCADE,
         related_name="risk_score_events",
     )
-    event_type = models.CharField(max_length=64)
+    event_type = models.CharField(max_length=64, choices=EventType.choices)
     delta = models.IntegerField()
 
     source_content_id = models.PositiveIntegerField(null=True, blank=True)

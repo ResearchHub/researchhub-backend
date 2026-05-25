@@ -17,6 +17,7 @@ from researchhub_document.helpers import create_post
 from review.models.review_model import Review
 from user.models import User, UserVerification
 from user.related_models.risk_score_model import RiskScoreEvent
+from user.signals.risk_score_signals import on_post_status_changed
 from user.tests.helpers import create_user
 
 EventType = RiskScoreEvent.EventType
@@ -441,8 +442,6 @@ class PostStatusChangedSignalTests(RiskScoreSignalTestCase):
         self.post = create_post(created_by=self.user)
 
     def test_approved_status_records_work_approved(self):
-        from user.signals.risk_score_signals import on_post_status_changed
-
         # Simulate the future status field
         self.post.status = "APPROVED"
 
@@ -460,8 +459,6 @@ class PostStatusChangedSignalTests(RiskScoreSignalTestCase):
         )
 
     def test_declined_status_records_work_declined(self):
-        from user.signals.risk_score_signals import on_post_status_changed
-
         self.post.status = "DECLINED"
 
         # Act
@@ -478,8 +475,6 @@ class PostStatusChangedSignalTests(RiskScoreSignalTestCase):
         )
 
     def test_pending_status_does_not_record(self):
-        from user.signals.risk_score_signals import on_post_status_changed
-
         self.post.status = "PENDING"
 
         # Act
@@ -491,8 +486,6 @@ class PostStatusChangedSignalTests(RiskScoreSignalTestCase):
         self._assert_no_events(self.user)
 
     def test_no_status_field_does_not_record(self):
-        from user.signals.risk_score_signals import on_post_status_changed
-
         # Act - no status attribute set, simulating current state
         on_post_status_changed(
             sender=type(self.post), instance=self.post, created=False

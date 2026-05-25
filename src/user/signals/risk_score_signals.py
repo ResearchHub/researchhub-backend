@@ -1,4 +1,5 @@
 import logging
+from functools import lru_cache
 
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.contenttypes.models import ContentType
@@ -24,6 +25,7 @@ EventType = RiskScoreEvent.EventType
 _service = RiskScoreService()
 
 
+@lru_cache(maxsize=1)
 def _comment_content_type_id():
     return ContentType.objects.get_for_model(RhCommentModel).id
 
