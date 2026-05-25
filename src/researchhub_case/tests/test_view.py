@@ -215,18 +215,20 @@ class ViewTests(APITestCase):
             claim_create_response.data["open_data_url"], "https://opendata.example.com"
         )
 
-    def test_notify_user_after_claim_is_approved(self):
+    def test_approving_claim_does_not_send_payout_notification(self):
+        # The paper-claim RSC payout has been retired, so approving a claim
+        # must no longer create a PAPER_CLAIM_PAYOUT notification.
         claim_create_response, paper, _ = self._create_paper_claim_via_api(
             self.verified_user, self.paper
         )
-        approve_response = self._approve_claim_via_api(claim_create_response.data["id"])
+        self._approve_claim_via_api(claim_create_response.data["id"])
 
         notification = Notification.objects.filter(
             recipient=self.verified_user,
             notification_type=Notification.PAPER_CLAIM_PAYOUT,
         )
 
-        self.assertEqual(notification.exists(), True)
+        self.assertFalse(notification.exists())
 
     def test_ensure_new_claims_have_version_2(self):
         claim_create_response, paper, _ = self._create_paper_claim_via_api(
@@ -249,7 +251,7 @@ class ViewTests(APITestCase):
             self.verified_user.first_name + " " + self.verified_user.last_name,
         )
 
-    def test_approving_claim_pays_rewards_to_user(self):
+    def test_approving_claim_does_not_pay_rewards_to_user(self):
         claim_create_response, paper, _ = self._create_paper_claim_via_api(
             self.verified_user, self.paper
         )
@@ -259,7 +261,7 @@ class ViewTests(APITestCase):
             paper=paper, author=self.verified_user.author_profile
         )
         self.assertEqual(paper_reward.rsc_value, 43.77609099046774 * 5.0)
-        self.assertIsNotNone(paper_reward.distribution)
+        self.assertIsNone(paper_reward.distribution)
 
     def test_rejecting_claim_does_not_pay_rewards_to_user(self):
         claim_create_response, paper, _ = self._create_paper_claim_via_api(
