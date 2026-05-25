@@ -16,7 +16,7 @@ from ethereum.lib import (
     execute_erc20_transfer,
     get_private_key,
     normalize_ethereum_address,
-)÷
+)
 from mailing_list.lib import base_email_context, send_email
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Withdrawal
