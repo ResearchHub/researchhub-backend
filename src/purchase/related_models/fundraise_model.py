@@ -222,6 +222,22 @@ class Fundraise(DefaultModel):
             top=result,
         )
 
+    def get_escrow_amount_raised_usd(self):
+        """
+        USD value of RSC held or paid through escrow only.
+
+        Used for completion eligibility: async USD DAF transfers are recorded as
+        SUBMITTED before Endaoment confirms settlement and must not trigger payout.
+        """
+        if not self.escrow:
+            return 0.0
+
+        rsc_amount = float(self.escrow.amount_holding + self.escrow.amount_paid)
+        if rsc_amount <= 0:
+            return 0.0
+
+        return RscExchangeRate.rsc_to_usd(rsc_amount)
+
     def get_amount_raised(self, currency=USD):
         """
         Get the net amount raised from both RSC (via escrow) and USD contributions.

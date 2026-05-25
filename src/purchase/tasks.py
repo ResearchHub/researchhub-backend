@@ -57,8 +57,10 @@ def complete_eligible_fundraises():
 
     for fundraise in eligible_fundraises:
         try:
-            # Check if the fundraise has met its goal
-            amount_raised_usd = fundraise.get_amount_raised(currency=USD)
+            # Only RSC in escrow may trigger auto-completion. USD DAF transfers are
+            # stored as SUBMITTED before Endaoment confirms settlement; counting them
+            # here would pay out RSC while USD is still pending.
+            amount_raised_usd = fundraise.get_escrow_amount_raised_usd()
             goal_amount_usd = float(fundraise.goal_amount)
 
             if amount_raised_usd >= goal_amount_usd:

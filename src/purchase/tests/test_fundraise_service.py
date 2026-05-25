@@ -686,6 +686,23 @@ class CloseFundraiseTests(TestCase):
         self.assertIsNone(purchase)
         self.assertEqual(error, "Insufficient balance")
 
+    def test_create_rsc_contribution_rejects_paid_escrow(self):
+        """Contributions must not mutate escrow after payout has started."""
+        contributor = create_random_authenticated_user("paid_escrow_contributor")
+        self._give_user_rsc_balance(contributor, 1000)
+        holding_before = self.fundraise.escrow.amount_holding
+
+        self.fundraise.escrow.set_paid_status()
+
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal("100"), use_credits=False
+        )
+
+        self.assertIsNone(purchase)
+        self.assertEqual(error, "Fundraise is not accepting contributions")
+        self.fundraise.escrow.refresh_from_db()
+        self.assertEqual(self.fundraise.escrow.amount_holding, holding_before)
+
     # --- Mixed RSC and USD tests ---
 
     def test_close_fundraise_handles_both_rsc_and_usd(self):

@@ -10,6 +10,10 @@ from django.test import TestCase
 from notification.models import Notification
 from purchase.circle.client import CircleTransferError
 from purchase.models import Fundraise, Wallet
+from purchase.related_models.constants.currency import USD
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from purchase.services.fundraise_service import FundraiseService
 from purchase.tasks import (
     complete_eligible_fundraises,
@@ -136,6 +140,52 @@ class FundraiseTasksTest(TestCase):
         self.assertEqual(fundraise.status, Fundraise.OPEN)
         self.assertEqual(fundraise.escrow.amount_holding, Decimal("100.00"))
         self.assertEqual(fundraise.escrow.amount_paid, Decimal("0.00"))
+
+    def test_complete_eligible_fundraises_ignores_pending_usd_for_goal(self):
+        """
+        SUBMITTED USD DAF pledges must not satisfy the goal for auto-completion.
+        Only RSC held in escrow should trigger payout of escrowed funds.
+        """
+        fundraise = self.fundraise_service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=self.post.unified_document,
+            goal_amount=Decimal("100.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+
+        old_date = datetime.now(pytz.UTC) - timedelta(days=8)
+        fundraise.start_date = old_date
+        fundraise.save()
+
+        # $50 USD in escrow (100 RSC at 0.5 rate) — below $100 goal
+        fundraise.escrow.amount_holding = Decimal("100.00")
+        fundraise.escrow.save()
+
+        # $50 USD DAF contribution counted in get_amount_raised but still async
+        UsdFundraiseContribution.objects.create(
+            user=self.user,
+            fundraise=fundraise,
+            amount_cents=5000,
+            fee_cents=450,
+            origin_fund_id="daf-fund-1",
+            destination_org_id="org-1",
+            status=UsdFundraiseContribution.Status.SUBMITTED,
+        )
+
+        self.assertGreaterEqual(
+            fundraise.get_amount_raised(currency=USD), float(fundraise.goal_amount)
+        )
+        self.assertLess(
+            fundraise.get_escrow_amount_raised_usd(), float(fundraise.goal_amount)
+        )
+
+        result = complete_eligible_fundraises()
+
+        self.assertEqual(result["completed_count"], 0)
+        fundraise.refresh_from_db()
+        self.assertEqual(fundraise.status, Fundraise.OPEN)
+        self.assertGreater(fundraise.escrow.amount_holding, 0)
 
     def test_complete_eligible_fundraises_too_new(self):
         """Test that fundraises less than a week old are not completed"""
