@@ -242,7 +242,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
             },
         )
 
-    def test_on_chain_support_purchase_is_rejected(self):
+    def test_invalid_purchase_method_is_rejected(self):
         purchaser = create_random_authenticated_user("purchaser")
         poster = create_random_authenticated_user("poster")
         post = create_post(created_by=poster)
@@ -260,16 +260,12 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
                 "amount": tip_amount,
                 "content_type": "researchhubpost",
                 "object_id": post.id,
-                "purchase_method": Purchase.ON_CHAIN,
+                "purchase_method": "ON_CHAIN",
                 "purchase_type": "BOOST",
             },
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(
-            response.data["detail"],
-            "ON_CHAIN support purchases are not supported.",
-        )
         self.assertEqual(Purchase.objects.filter(user=purchaser).count(), 0)
         self.assertEqual(
             Balance.objects.filter(

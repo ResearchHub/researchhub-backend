@@ -69,12 +69,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         if content_type_str not in self.ALLOWED_CONTENT_TYPES:
             return Response(status=400)
 
-        if purchase_method == Purchase.ON_CHAIN:
-            return Response(
-                {"detail": "ON_CHAIN support purchases are not supported."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         if purchase_method != Purchase.OFF_CHAIN:
             return Response(status=400)
 
