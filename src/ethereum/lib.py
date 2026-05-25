@@ -8,6 +8,22 @@ from utils.aws import create_client
 from utils.web3_utils import web3_provider
 
 
+def normalize_ethereum_address(address) -> str:
+    """
+    Return an EIP-55 checksummed Ethereum address.
+
+    Raises ValueError if the input is missing or not a valid address.
+    """
+    if not isinstance(address, str) or not address.strip():
+        raise ValueError("Invalid Ethereum address")
+
+    address = address.strip()
+    if not Web3.is_address(address):
+        raise ValueError("Invalid Ethereum address")
+
+    return Web3.to_checksum_address(address)
+
+
 def get_network_config(network="ethereum"):
     """Get the appropriate network configuration based on environment"""
     base_config = {
@@ -142,9 +158,10 @@ def execute_erc20_transfer(
     """
     decimals = contract.functions.decimals().call()
     decimal_amount = int(amount * 10 ** int(decimals))
+    checksum_to = normalize_ethereum_address(to)
     return _transact(
         w3,
-        contract.functions.transfer(to, decimal_amount),
+        contract.functions.transfer(checksum_to, decimal_amount),
         sender,
         sender_signing_key,
         network=network,

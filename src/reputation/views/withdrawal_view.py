@@ -21,6 +21,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.tasks import track_revenue_event
+from ethereum.lib import normalize_ethereum_address
 from purchase.models import Balance
 from reputation.exceptions import WithdrawalError
 from reputation.lib import (
@@ -99,6 +100,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             return Response(
                 "Invalid network. Please choose either 'BASE' or 'ETHEREUM'", status=400
             )
+
+        try:
+            to_address = normalize_ethereum_address(to_address)
+        except ValueError:
+            return Response("Invalid Ethereum address", status=400)
 
         if mfa_error := self._check_mfa(user, request):
             return Response(mfa_error, status=400)
