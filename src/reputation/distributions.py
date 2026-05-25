@@ -86,16 +86,6 @@ def create_rsc_purchase_dao_fee_distribution(amount):
     return distribution
 
 
-def create_stored_paper_pot(amount):
-    distribution = Distribution("STORED_PAPER_POT", amount, give_rep=False)
-    return distribution
-
-
-def create_paper_reward_distribution(amount):
-    distribution = Distribution("PAPER_REWARD", amount, give_rep=False)
-    return distribution
-
-
 def create_referral_bonus_distribution(amount):
     """Create a distribution for referral bonus rewards"""
     distribution = Distribution("REFERRAL_BONUS", amount, give_rep=False)

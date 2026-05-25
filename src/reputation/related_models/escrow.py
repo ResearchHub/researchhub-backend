@@ -8,7 +8,6 @@ from reputation.distributions import (
     create_bounty_distriution,
     create_bounty_refund_distribution,
     create_fundraise_distribution,
-    create_stored_paper_pot,
 )
 from utils.models import DefaultModel
 
@@ -124,7 +123,10 @@ class Escrow(DefaultModel):
             elif escrow.hold_type == escrow.FUNDRAISE:
                 distribution = create_fundraise_distribution(payout_amount)
             else:
-                distribution = create_stored_paper_pot(payout_amount)
+                raise ValueError(
+                    f"Cannot payout escrow {escrow.pk}: unsupported "
+                    f"hold_type={escrow.hold_type!r}"
+                )
 
             distributor = Distributor(
                 distribution, recipient, escrow, time.time(), giver=escrow.created_by

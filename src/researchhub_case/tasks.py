@@ -1,8 +1,5 @@
-from django.db import transaction
-
-from notification.models import Notification
 from researchhub.celery import QUEUE_AUTHOR_CLAIM, app
-from researchhub_case.constants.case_constants import APPROVED, INITIATED
+from researchhub_case.constants.case_constants import INITIATED
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.utils.author_claim_case_utils import (
     get_new_validation_token,
@@ -33,27 +30,10 @@ def trigger_email_validation_flow(
 
 @app.task(queue=QUEUE_AUTHOR_CLAIM)
 def after_approval_flow(case_id):
-    instance = AuthorClaimCase.objects.get(id=case_id)
+    # The paper-claim RSC payout has been retired. Approving a claim no longer
+    # distributes RSC or sends a payout notification.
 
-    if instance.status != APPROVED:
-        Exception(
-            "Cannot continue with after approval flow since claim is not APPROVED"
-        )
-
-    requestor = instance.requestor
-    try:
-        with transaction.atomic():
-            paper_reward = instance.paper_reward
-            paper_reward.distribute_paper_rewards()
-            notification = Notification.objects.create(
-                item=instance,
-                notification_type=Notification.PAPER_CLAIM_PAYOUT,
-                recipient=requestor,
-                action_user=requestor,
-            )
-            notification.send_notification()
-    except Exception as exception:
-        sentry.log_error(exception)
+    return
 
 
 @app.task(queue=QUEUE_AUTHOR_CLAIM)
@@ -61,5 +41,4 @@ def after_rejection_flow(
     case_id,
     notify_user=False,
 ):
-    # FIXME: Send rejection email (and in-app notification)
-    pass
+    return
