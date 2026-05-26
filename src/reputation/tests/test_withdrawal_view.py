@@ -748,7 +748,7 @@ class WithdrawalViewSetTests(APITestCase):
         valid, message = self.withdrawal_view._check_meets_withdrawal_minimum(amount)
 
         self.assertFalse(valid)
-        self.assertEqual(message, f"Insufficient balance of {amount}")
+        self.assertEqual(message, "Withdrawal amount must be greater than zero")
 
     def test_check_agreed_to_terms_from_user_model(self):
         """Test _check_agreed_to_terms with agreed_to_terms=True in user model."""

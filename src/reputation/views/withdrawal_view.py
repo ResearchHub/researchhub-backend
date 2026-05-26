@@ -332,15 +332,22 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         return (True, None)
 
-    def _check_meets_withdrawal_minimum(self, balance):
-        # Withdrawal amount is full balance for now
-        if balance > WITHDRAWAL_MINIMUM:
+    def _check_meets_withdrawal_minimum(self, requested_amount):
+        """
+        Reject withdrawals below the platform minimum (WITHDRAWAL_MINIMUM).
+
+        Validates the requested withdrawal amount from the API, not the user's
+        on-platform balance. Balance sufficiency (amount minus fee) is enforced
+        later by _check_withdrawal_amount inside select_for_update.
+        """
+        if requested_amount > WITHDRAWAL_MINIMUM:
             return (True, None)
 
-        message = f"Insufficient balance of {balance}"
-        if balance > 0:
+        if requested_amount == 0:
+            message = "Withdrawal amount must be greater than zero"
+        else:
             message = (
-                f"Balance {balance} is below the withdrawal"
+                f"Withdrawal amount {requested_amount} is below the withdrawal"
                 f" minimum of {WITHDRAWAL_MINIMUM}"
             )
         return (False, message)
