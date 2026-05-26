@@ -14,6 +14,9 @@ from django.db.models.functions import Coalesce
 
 from purchase.related_models.constants.currency import ETHER, RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from utils.models import DefaultModel
 
 if TYPE_CHECKING:
@@ -233,10 +236,12 @@ class Fundraise(DefaultModel):
         if self.escrow:
             rsc_amount = float(self.escrow.amount_holding + self.escrow.amount_paid)
 
-        # Calculate USD amount from contributions (in cents), excluding refunded ones
-        usd_cents = self.usd_contributions.filter(is_refunded=False).aggregate(
-            total=Coalesce(Sum("amount_cents"), 0)
-        )["total"]
+        # Calculate USD amount from settled contributions (in cents).
+        usd_cents = (
+            self.usd_contributions.filter(is_refunded=False)
+            .exclude(status=UsdFundraiseContribution.Status.PENDING)
+            .aggregate(total=Coalesce(Sum("amount_cents"), 0))["total"]
+        )
         usd_from_contributions = usd_cents / 100.0
 
         if currency == USD:

@@ -101,6 +101,13 @@ def process_circle_deposit(
             # Brand-new deposit (no prior INITIATED/CONFIRMED webhook).
             deposit.set_paid()
             credited = True
+        elif deposit.paid_status == Deposit.FAILED:
+            # FAILED must not be promoted to PAID on a later COMPLETED webhook.
+            logger.warning(
+                "Ignoring Circle COMPLETED for previously FAILED deposit "
+                "circle_transaction_id=%s",
+                circle_transaction_id,
+            )
         elif deposit.paid_status != Deposit.PAID:
             # Existing pending deposit from an earlier webhook — promote it.
             deposit.circle_status = Deposit.CIRCLE_COMPLETED

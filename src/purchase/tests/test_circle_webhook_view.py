@@ -393,6 +393,28 @@ class TestCircleWebhookView(TestCase):
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
     )
+    def test_completed_does_not_credit_failed_deposit(
+        self, _mock_verify, _mock_dispatch
+    ):
+        """COMPLETED webhook must not credit a deposit previously marked FAILED."""
+        self._post(_make_payload(state="INITIATED"))
+        self._post(_make_payload(state="FAILED"))
+
+        with self.captureOnCommitCallbacks(execute=True):
+            self._post(_make_payload(state="COMPLETED"))
+
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.paid_status, "FAILED")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_FAILED)
+
+        from purchase.models import Balance
+
+        self.assertFalse(Balance.objects.filter(user=self.user).exists())
+
+    @patch("purchase.views.circle_webhook_view.dispatch_sweep")
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
     def test_pending_deposit_promoted_to_paid_on_completed(
         self, _mock_verify, mock_dispatch
     ):

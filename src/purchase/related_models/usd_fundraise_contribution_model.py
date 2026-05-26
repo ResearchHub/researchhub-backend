@@ -37,6 +37,7 @@ class UsdFundraiseContribution(DefaultModel):
     objects = UsdFundraiseContributionQuerySet.as_manager()
 
     class Status(models.TextChoices):
+        PENDING = "PENDING", "PENDING"
         SUBMITTED = "SUBMITTED", "SUBMITTED"
         CANCELLED = "CANCELLED", "CANCELLED"
 
