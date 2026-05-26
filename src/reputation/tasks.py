@@ -6,6 +6,7 @@ from typing import List, Optional
 import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.db.models import DurationField, F
 from django.db.models.functions import Cast
 
@@ -14,9 +15,14 @@ from hub.models import Hub
 from mailing_list.lib import base_email_context, send_email
 from notification.models import Notification
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
-from reputation.lib import check_hotwallet, check_pending_withdrawal
-from reputation.models import Bounty, BountySolution, Contribution
+from reputation.lib import (
+    broadcast_withdrawal_transfer,
+    check_hotwallet,
+    check_pending_withdrawal,
+)
+from reputation.models import Bounty, BountySolution, Contribution, Withdrawal
 from reputation.related_models.bounty import AnnotatedBounty
+from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.related_models.score import Score
 from reputation.services.staking_yield_service import StakingYieldService
 from reputation.services.wallet import WalletService
@@ -86,6 +92,53 @@ def create_author_contribution(contribution_type, user_id, unified_doc_id, objec
 
             contributions.append(Contribution(**data))
     Contribution.objects.bulk_create(contributions)
+
+
+@app.task(
+    bind=True,
+    queue=QUEUE_PURCHASES,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def broadcast_withdrawal(self, withdrawal_id):
+    """
+    Broadcast an ERC-20 transfer for a committed withdrawal row.
+    """
+    key = lock.name(f"broadcast_withdrawal_{withdrawal_id}")
+    if not lock.acquire(key):
+        logger.warning("Already locked %s, skipping task", key)
+        return False
+
+    try:
+        with transaction.atomic():
+            withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal_id)
+            broadcast_withdrawal_transfer(withdrawal)
+        return True
+    except Exception as exc:
+        withdrawal = Withdrawal.objects.filter(id=withdrawal_id).first()
+        if withdrawal and withdrawal.paid_status not in (
+            PaidStatusModelMixin.PAID,
+            PaidStatusModelMixin.FAILED,
+        ):
+            withdrawal.set_paid_failed()
+        logger.warning(
+            "broadcast_withdrawal failed for %s (attempt %d/%d): %s",
+            withdrawal_id,
+            self.request.retries + 1,
+            self.max_retries + 1,
+            exc,
+        )
+        if self.request.retries >= self.max_retries:
+            log_error(
+                exc,
+                message="broadcast_withdrawal failed after all retries",
+                json_data={"withdrawal_id": withdrawal_id},
+            )
+            return False
+        raise self.retry(exc=exc)
+    finally:
+        lock.release(key)
+        logger.info("Released lock %s", key)
 
 
 @app.task

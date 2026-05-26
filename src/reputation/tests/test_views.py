@@ -12,7 +12,6 @@ from rest_framework.test import APITestCase
 
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.lib import PendingWithdrawal
 from reputation.models import Withdrawal
 from reputation.tests.helpers import create_deposit, create_withdrawals
 from reputation.views.withdrawal_view import WithdrawalViewSet
@@ -134,9 +133,7 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
-        ):
+        with mock.patch("reputation.tasks.broadcast_withdrawal.delay", return_value=None):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
@@ -174,9 +171,7 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
-        ):
+        with mock.patch("reputation.tasks.broadcast_withdrawal.delay", return_value=None):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
@@ -215,9 +210,7 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
-        ):
+        with mock.patch("reputation.tasks.broadcast_withdrawal.delay", return_value=None):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
@@ -257,9 +250,7 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
-        ):
+        with mock.patch("reputation.tasks.broadcast_withdrawal.delay", return_value=None):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
@@ -299,9 +290,7 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
-        ):
+        with mock.patch("reputation.tasks.broadcast_withdrawal.delay", return_value=None):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
@@ -340,9 +329,7 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
-        ):
+        with mock.patch("reputation.tasks.broadcast_withdrawal.delay", return_value=None):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
@@ -381,9 +368,7 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
-        ):
+        with mock.patch("reputation.tasks.broadcast_withdrawal.delay", return_value=None):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
@@ -560,9 +545,7 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
-        ):
+        with mock.patch("reputation.tasks.broadcast_withdrawal.delay", return_value=None):
             response = self.client.post(
                 "/api/withdrawal/",
                 {

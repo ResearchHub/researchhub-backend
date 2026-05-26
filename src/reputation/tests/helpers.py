@@ -41,5 +41,9 @@ def create_withdrawal(
     to_address=ADDRESS_2,
 ):
     Withdrawal.objects.create(
-        user=user, amount=amount, from_address=from_address, to_address=to_address
+        user=user,
+        token_address="0xtoken",
+        amount=amount,
+        from_address=from_address,
+        to_address=to_address,
     )
