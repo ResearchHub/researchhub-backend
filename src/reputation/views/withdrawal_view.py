@@ -335,10 +335,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
     def _check_meets_withdrawal_minimum(self, requested_amount):
         """
         Reject withdrawals below the platform minimum (WITHDRAWAL_MINIMUM).
-
-        Validates the requested withdrawal amount from the API, not the user's
-        on-platform balance. Balance sufficiency (amount minus fee) is enforced
-        later by _check_withdrawal_amount inside select_for_update.
         """
         if requested_amount > WITHDRAWAL_MINIMUM:
             return (True, None)
