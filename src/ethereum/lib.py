@@ -125,7 +125,15 @@ def get_fee_estimate(w3, method_call):
 
 
 def execute_erc20_transfer(
-    w3, sender, sender_signing_key, contract, to, amount, network="ETHEREUM"
+    w3,
+    sender,
+    sender_signing_key,
+    contract,
+    to,
+    amount,
+    network="ETHEREUM",
+    max_fee_per_gas=None,
+    max_priority_fee_per_gas=None,
 ):
     """Sends `amount` of the token located at `contract` to `to`.
 
@@ -139,6 +147,11 @@ def execute_erc20_transfer(
         amount (int) - Amount of token to send (in smallest possible
             denomination)
         network (str) - Network to use ("ETHEREUM" or "BASE")
+        max_fee_per_gas (int) - Optional EIP-1559 fee cap in wei. If
+            omitted, the web3.py library's defaults are used. See
+            https://web3py.readthedocs.io/en/stable/web3.eth.html#web3.eth.Eth.send_transaction
+        max_priority_fee_per_gas (int) - Optional EIP-1559 tip in wei.
+            If omitted, the web3.py library's defaults are used.
     """
     decimals = contract.functions.decimals().call()
     decimal_amount = int(amount * 10 ** int(decimals))
@@ -148,11 +161,20 @@ def execute_erc20_transfer(
         sender,
         sender_signing_key,
         network=network,
+        max_fee_per_gas=max_fee_per_gas,
+        max_priority_fee_per_gas=max_priority_fee_per_gas,
     )
 
 
 def _transact(
-    w3, method_call, sender, sender_signing_key, network="ETHEREUM", gas=None
+    w3,
+    method_call,
+    sender,
+    sender_signing_key,
+    network="ETHEREUM",
+    gas=None,
+    max_fee_per_gas=None,
+    max_priority_fee_per_gas=None,
 ):
     """Executes the contract's `method_call` on chain."""
     gas_estimate = get_gas_estimate(method_call)
@@ -160,14 +182,18 @@ def _transact(
 
     chain_id = TOKENS["RSC"][network.lower()]["chain_id"]
 
-    tx = method_call.build_transaction(
-        {
-            "from": checksum_sender,
-            "nonce": get_nonce(w3, checksum_sender),
-            "gas": gas or gas_estimate,
-            "chainId": chain_id,
-        }
-    )
+    tx_params = {
+        "from": checksum_sender,
+        "nonce": get_nonce(w3, checksum_sender),
+        "gas": gas or gas_estimate,
+        "chainId": chain_id,
+    }
+    if max_fee_per_gas is not None:
+        tx_params["maxFeePerGas"] = max_fee_per_gas
+    if max_priority_fee_per_gas is not None:
+        tx_params["maxPriorityFeePerGas"] = max_priority_fee_per_gas
+
+    tx = method_call.build_transaction(tx_params)
 
     signing_key = sender_signing_key
     signed = w3.eth.account.sign_transaction(tx, signing_key)

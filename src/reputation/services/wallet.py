@@ -15,7 +15,7 @@ from ethereum.lib import (
 )
 from reputation.distributions import Distribution
 from reputation.distributor import Distributor
-from reputation.lib import contract_abi, get_gas_price_wei
+from reputation.lib import contract_abi, get_eip1559_fees
 from user.models import User
 from utils.sentry import log_error
 from utils.web3_utils import web3_provider
@@ -107,9 +107,8 @@ class WalletService:
                 contract.functions.transfer(DEAD_ADDRESS, int(amount * 10**18))
             )
 
-            # Use shared gas price calculation
-            gas_price_wei = get_gas_price_wei(network)
-            estimated_cost_wei = gas_estimate * gas_price_wei
+            max_fee_per_gas, max_priority_fee_per_gas = get_eip1559_fees(w3)
+            estimated_cost_wei = gas_estimate * max_fee_per_gas
             estimated_cost_eth = estimated_cost_wei / 10**18
 
             logger.info(
@@ -137,6 +136,8 @@ class WalletService:
                 to=DEAD_ADDRESS,
                 amount=amount,
                 network=network,
+                max_fee_per_gas=max_fee_per_gas,
+                max_priority_fee_per_gas=max_priority_fee_per_gas,
             )
 
             logger.info(f"Burning transaction submitted: {tx_hash}")

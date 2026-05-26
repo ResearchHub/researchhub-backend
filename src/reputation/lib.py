@@ -21,6 +21,7 @@ from utils.web3_utils import web3_provider
 
 WITHDRAWAL_MINIMUM = int(os.environ.get("WITHDRAWAL_MINIMUM", 500))
 WITHDRAWAL_PER_TWO_WEEKS = 100000
+MIN_PRIORITY_FEE_WEI = 10**6  # 0.001 gwei — Base nodes often report 0
 
 contract_abi = [
     {
@@ -380,6 +381,7 @@ class PendingWithdrawal:
         )
         amount = Decimal(self.amount)
         to = self.withdrawal.to_address
+        max_fee_per_gas, max_priority_fee_per_gas = get_eip1559_fees(self.w3)
         tx_hash = execute_erc20_transfer(
             self.w3,
             settings.WEB3_WALLET_ADDRESS,
@@ -388,6 +390,8 @@ class PendingWithdrawal:
             to,
             amount,
             network=self.network,
+            max_fee_per_gas=max_fee_per_gas,
+            max_priority_fee_per_gas=max_priority_fee_per_gas,
         )
         self.withdrawal.transaction_hash = tx_hash
         self.withdrawal.save()
@@ -509,6 +513,26 @@ def get_hotwallet_rsc_balance(network="ETHEREUM"):
 
 def gwei_to_eth(gwei):
     return gwei * 0.000000001
+
+
+def get_eip1559_fees(w3):
+    """Returns (max_fee_per_gas, max_priority_fee_per_gas) in wei for an
+    EIP-1559 transaction. The cap is sized as `2 * baseFee + tip` so it
+    covers ~6 blocks of basefee growth (basefee can grow at most 12.5%
+    per block) — without this headroom, txs can sit in the mempool
+    indefinitely on BASE when the fee creeps up before inclusion.
+
+    A minimum tip is enforced because Base's `eth_maxPriorityFeePerGas`
+    routinely returns 0, which can deprioritize inclusion.
+
+    Uses the web3.py library's node-backed APIs:
+    https://web3py.readthedocs.io/en/stable/web3.eth.html#web3.eth.Eth.get_block
+    https://web3py.readthedocs.io/en/stable/web3.eth.html#web3.eth.Eth.max_priority_fee
+    """
+    base_fee = w3.eth.get_block("latest")["baseFeePerGas"]
+    priority_fee = max(w3.eth.max_priority_fee, MIN_PRIORITY_FEE_WEI)
+    max_fee = (base_fee * 2) + priority_fee
+    return max_fee, priority_fee
 
 
 def get_gas_price_wei(network="ETHEREUM"):
