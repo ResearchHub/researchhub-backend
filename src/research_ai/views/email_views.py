@@ -15,6 +15,7 @@ from research_ai.serializers import (
     GeneratedEmailCreateUpdateSerializer,
     GeneratedEmailSerializer,
     GenerateEmailRequestSerializer,
+    InviteRfpApplicantsSerializer,
     PreviewEmailRequestSerializer,
     SendEmailRequestSerializer,
 )
@@ -24,6 +25,7 @@ from research_ai.services.email_template_variables import format_expert_name_fro
 from research_ai.services.expert_display import ExpertDisplay
 from research_ai.services.expert_persist import ExpertPersist
 from research_ai.services.rfp_email_context import get_expert_for_search_by_email
+from research_ai.services.rfp_invite_service import invite_applicants
 from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
 from user.permissions import IsModerator, UserIsEditor
 
@@ -449,3 +451,81 @@ class GeneratedEmailDetailView(APIView):
             return err
         email.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class InviteRfpApplicantsView(APIView):
+    """POST /api/research_ai/expert-finder/rfp/<grant_id>/invite-applicants/.
+
+    Send a fixed-template invitation to each email address inviting them to
+    apply to the RFP. Authorized for the grant creator, listed grant contacts,
+    and moderators.
+    """
+
+    permission_classes = [IsAuthenticated, ResearchAIPermission]
+
+    def _get_grant_or_404(self, grant_id):
+        from purchase.related_models.grant_model import Grant
+
+        return Grant.objects.filter(id=grant_id).first()
+
+    def _is_authorized(self, user, grant) -> bool:
+        if getattr(user, "moderator", False):
+            return True
+        if grant.created_by_id == user.id:
+            return True
+        return grant.contacts.filter(id=user.id).exists()
+
+    def post(self, request, grant_id):
+        grant = self._get_grant_or_404(grant_id)
+        if grant is None:
+            return Response(
+                {"detail": "Grant not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        if not self._is_authorized(request.user, grant):
+            return Response(
+                {"detail": "Not allowed to invite applicants to this RFP."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        ser = InviteRfpApplicantsSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        try:
+            result = invite_applicants(
+                grant=grant,
+                inviter=request.user,
+                emails=data["emails"],
+            )
+        except Exception as e:
+            logger.exception("RFP applicant invite failed for grant=%s", grant.id)
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+        reply_to = (data.get("reply_to") or request.user.email or "").strip() or None
+        cc_list = list(data.get("cc") or [])
+        get_full_name = getattr(request.user, "get_full_name", None)
+        display_name = (
+            (get_full_name() if callable(get_full_name) else "") or ""
+        ).strip() or "ResearchHub"
+        from_email = (
+            f"{display_name} via ResearchHub <{settings.EXPERT_FINDER_FROM_EMAIL}>"
+        )
+
+        if result.generated_email_ids:
+            send_queued_emails_task.delay(
+                generated_email_ids=result.generated_email_ids,
+                reply_to=reply_to,
+                cc=cc_list,
+                from_email=from_email,
+            )
+
+        return Response(
+            {
+                "queued": len(result.generated_email_ids),
+                "skipped_existing": result.skipped_existing,
+                "generated_email_ids": result.generated_email_ids,
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
