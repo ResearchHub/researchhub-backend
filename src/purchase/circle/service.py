@@ -96,6 +96,7 @@ def process_circle_deposit(
                 "circle_status": Deposit.CIRCLE_COMPLETED,
             },
         )
+        deposit = Deposit.objects.select_for_update().get(pk=deposit.pk)
 
         if created:
             # Brand-new deposit (no prior INITIATED/CONFIRMED webhook).

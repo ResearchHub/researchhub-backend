@@ -5,7 +5,7 @@ from typing import List, TypedDict
 import pytz
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Sum
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -183,34 +183,38 @@ class Bounty(DefaultModel):
     def close(self, status):
         from user.models import User
 
-        proportions = self.get_bounty_proportions()
-        escrow_remaining_amount = self.escrow.amount_holding
-        escrow_status = None
-        if status == self.EXPIRED:
-            escrow_status = Escrow.EXPIRED
+        with transaction.atomic():
+            proportions = self.get_bounty_proportions()
+            escrow_remaining_amount = self.escrow.amount_holding
+            escrow_status = None
+            if status == self.EXPIRED:
+                escrow_status = Escrow.EXPIRED
 
-        for user_id, proportion_data in proportions.items():
-            percentage = proportion_data.get("proportion")
-            bounty_amount = proportion_data.get("bounty_amount")
-            # This ensures that people can't be refunded more than they initially put in
-            # Because our distribution model only uses integers, we need to round
-            # how much a user gets refunded. The following code prevents them
-            # from receiving more than what they initially put in, but it is
-            # possible for them to receive slightly less because of rounding
-            refund_amount = min(
-                math.ceil(escrow_remaining_amount) * percentage, bounty_amount
-            )
-            user = User.objects.get(id=user_id)
-            refunded = self.escrow.refund(user, refund_amount, status=escrow_status)
-            if not refunded:
-                return False
+            for user_id, proportion_data in proportions.items():
+                percentage = proportion_data.get("proportion")
+                bounty_amount = proportion_data.get("bounty_amount")
+                # This ensures that people can't be refunded more than they initially put in
+                # Because our distribution model only uses integers, we need to round
+                # how much a user gets refunded. The following code prevents them
+                # from receiving more than what they initially put in, but it is
+                # possible for them to receive slightly less because of rounding
+                refund_amount = min(
+                    math.ceil(escrow_remaining_amount) * percentage, bounty_amount
+                )
+                user = User.objects.get(id=user_id)
+                refunded = self.escrow.refund(
+                    user, refund_amount, status=escrow_status
+                )
+                if not refunded:
+                    transaction.set_rollback(True)
+                    return False
 
-        expiration_date = datetime.now()
-        self.children.update(status=status, expiration_date=expiration_date)
-        self.expiration_date = expiration_date
-        status_func = getattr(self, f"set_{status.lower()}_status")
-        # Status func will update the status and call save on the bounty
-        status_func()
+            expiration_date = datetime.now()
+            self.children.update(status=status, expiration_date=expiration_date)
+            self.expiration_date = expiration_date
+            status_func = getattr(self, f"set_{status.lower()}_status")
+            # Status func will update the status and call save on the bounty
+            status_func()
         return True
 
     @classmethod

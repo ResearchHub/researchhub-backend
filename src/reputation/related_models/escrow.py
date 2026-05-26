@@ -105,6 +105,9 @@ class Escrow(DefaultModel):
         if not recipient:
             return False
 
+        if payout_amount <= 0:
+            return False
+
         with transaction.atomic():
             escrow = Escrow.objects.select_for_update().get(pk=self.pk)
 
@@ -135,6 +138,7 @@ class Escrow(DefaultModel):
             escrow.recipients.add(recipient, through_defaults={"amount": payout_amount})
 
             if record.distributed_status == "FAILED":
+                transaction.set_rollback(True)
                 return False
 
             escrow.amount_holding -= payout_amount
@@ -175,8 +179,8 @@ class Escrow(DefaultModel):
     def refund(self, recipient, amount, status=None, is_locked=False):
         from reputation.distributor import Distributor
 
-        if amount == 0:
-            return True
+        if amount <= 0:
+            return amount == 0
 
         with transaction.atomic():
             escrow = Escrow.objects.select_for_update().get(pk=self.pk)
@@ -196,6 +200,7 @@ class Escrow(DefaultModel):
             )
             record = distributor.distribute()
             if record.distributed_status == "FAILED":
+                transaction.set_rollback(True)
                 return False
 
             escrow.amount_holding -= amount

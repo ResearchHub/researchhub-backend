@@ -181,6 +181,25 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         )
         self.assertEqual(poster_balance_amount, float(tip_amount))
 
+    def test_support_own_post_is_rejected(self):
+        user = create_random_authenticated_user("self_supporter")
+        post = create_post(created_by=user)
+        tip_amount = 100
+
+        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount="10000", user=user, content_type=DISTRIBUTION_CONTENT_TYPE
+        )
+
+        balance_before = user.get_balance()
+        response = self._post_support_response(
+            user, post.id, "researchhubpost", tip_amount
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(user.get_balance(), balance_before)
+        self.assertEqual(Purchase.objects.filter(user=user).count(), 0)
+
     def test_support_comment_distribution(self):
         user = create_random_authenticated_user("rep_user")
         poster = create_random_authenticated_user("rep_user")

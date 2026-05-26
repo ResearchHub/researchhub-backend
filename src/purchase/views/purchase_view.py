@@ -23,7 +23,7 @@ from purchase.serializers import AggregatePurchaseSerializer, PurchaseSerializer
 from purchase.tasks import send_support_email
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
-from reputation.models import Contribution, SupportFee
+from reputation.models import Contribution, Distribution, SupportFee
 from reputation.tasks import create_contribution
 from reputation.utils import calculate_support_fees, deduct_support_fees
 from researchhub.settings import BASE_FRONTEND_URL
@@ -77,6 +77,14 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             return Response(status=400)
 
         content_type = ContentType.objects.get(model=content_type_str)
+        item = content_type.get_object_for_this_type(pk=object_id)
+        recipient = getattr(item, "created_by", None)
+        if recipient and recipient.id == user.id:
+            return Response(
+                {"detail": "Cannot support your own content."},
+                status=400,
+            )
+
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
 
@@ -180,12 +188,14 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 recipient = item.created_by
                 unified_doc = item.unified_document
 
-            if transfer_rsc and recipient and recipient != user:
+            if transfer_rsc and recipient:
                 distribution = create_purchase_distribution(user, amount)
                 distributor = Distributor(
                     distribution, recipient, purchase, time.time(), user
                 )
-                distributor.distribute()
+                record = distributor.distribute()
+                if record.distributed_status != Distribution.DISTRIBUTED:
+                    raise Exception("Purchase distribution failed")
 
         serializer = self.serializer_class(purchase, context=context)
         serializer_data = serializer.data

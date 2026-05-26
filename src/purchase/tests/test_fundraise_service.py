@@ -381,6 +381,48 @@ class CloseFundraiseTests(TestCase):
         ).exists()
         self.assertTrue(fee_refund_exists)
 
+    def test_close_fundraise_rolls_back_when_refund_fails_mid_loop(self):
+        """Partial refunds must not commit when a later refund fails."""
+        from unittest.mock import patch
+
+        contributor1 = create_random_authenticated_user("rollback_c1")
+        contributor2 = create_random_authenticated_user("rollback_c2")
+        self._give_user_rsc_balance(contributor1, 1000)
+        self._give_user_rsc_balance(contributor2, 1000)
+
+        _, err1 = self.fundraise_service.create_rsc_contribution(
+            contributor1, self.fundraise, Decimal("100"), use_credits=False
+        )
+        self.assertIsNone(err1)
+        _, err2 = self.fundraise_service.create_rsc_contribution(
+            contributor2, self.fundraise, Decimal("100"), use_credits=False
+        )
+        self.assertIsNone(err2)
+
+        balance1_before = contributor1.get_balance()
+        balance2_before = contributor2.get_balance()
+        original_calls = self.fundraise_service._refund_contribution_debit
+        call_count = {"n": 0}
+
+        def fail_on_second(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] >= 2:
+                return False
+            return original_calls(*args, **kwargs)
+
+        with patch.object(
+            self.fundraise_service,
+            "_refund_contribution_debit",
+            side_effect=fail_on_second,
+        ):
+            result = self.fundraise_service.close_fundraise(self.fundraise)
+
+        self.assertFalse(result)
+        self.fundraise.refresh_from_db()
+        self.assertEqual(self.fundraise.status, Fundraise.OPEN)
+        self.assertEqual(contributor1.get_balance(), balance1_before)
+        self.assertEqual(contributor2.get_balance(), balance2_before)
+
     def test_close_fundraise_fee_refund_scoped_to_contribution(self):
         """
         Regression: when the same user makes multiple contributions, fee

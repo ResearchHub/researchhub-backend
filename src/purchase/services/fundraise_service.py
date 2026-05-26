@@ -509,10 +509,12 @@ class FundraiseService:
 
             # Refund RSC contributions
             if not self.refund_rsc_contributions(fundraise):
+                transaction.set_rollback(True)
                 return False
 
             # Refund USD contributions
             if not self.refund_usd_contributions(fundraise):
+                transaction.set_rollback(True)
                 return False
 
             # Update fundraise status

@@ -10,7 +10,7 @@ from reputation.distributions import (
     create_support_rh_fee_distribution,
 )
 from reputation.distributor import Distributor
-from reputation.models import BountyFee, SupportFee
+from reputation.models import BountyFee, Distribution, SupportFee
 from user.models import User
 
 
@@ -113,7 +113,7 @@ def _deduct_fees(
         giver=user,
     )
     rh_inc_record = rh_inc_distributor.distribute()
-    if not rh_inc_record:
+    if rh_inc_record.distributed_status != Distribution.DISTRIBUTED:
         raise Exception("Failed to deduct rh inc fee")
 
     # if there's no dao fee, we can skip that distribution
@@ -128,7 +128,7 @@ def _deduct_fees(
         giver=user,
     )
     rh_dao_record = rh_dao_distributor.distribute()
-    if not rh_dao_record:
+    if rh_dao_record.distributed_status != Distribution.DISTRIBUTED:
         raise Exception("Failed to deduct rh dao fee")
 
     return True
