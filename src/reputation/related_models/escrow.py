@@ -3,6 +3,8 @@ import time
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
+from django.db.models import F
+from django.utils import timezone
 
 from reputation.distributions import (
     create_bounty_distriution,
@@ -98,6 +100,23 @@ class Escrow(DefaultModel):
     def set_pending_status(self, should_save=True):
         self.set_status(self.PENDING, should_save=should_save)
 
+    @classmethod
+    def increment_holding(cls, escrow_id, amount):
+        """
+        Atomically add funds to escrow without clobbering status from stale instances.
+        """
+        with transaction.atomic():
+            escrow = cls.objects.select_for_update().get(pk=escrow_id)
+            if escrow.status in (cls.PAID, cls.CANCELLED, cls.EXPIRED):
+                raise ValueError(
+                    f"Cannot add funds to escrow {escrow_id} in status {escrow.status}"
+                )
+            cls.objects.filter(pk=escrow_id).update(
+                amount_holding=F("amount_holding") + amount,
+                updated_date=timezone.now(),
+            )
+            return cls.objects.get(pk=escrow_id)
+
     def payout(self, recipient, payout_amount):
         from notification.models import Notification
         from reputation.distributor import Distributor
@@ -180,6 +199,9 @@ class Escrow(DefaultModel):
 
         with transaction.atomic():
             escrow = Escrow.objects.select_for_update().get(pk=self.pk)
+
+            if escrow.status in (escrow.PAID, escrow.CANCELLED, escrow.EXPIRED):
+                return False
 
             if amount > escrow.amount_holding:
                 return False

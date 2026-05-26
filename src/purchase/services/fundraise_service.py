@@ -312,9 +312,10 @@ class FundraiseService:
                 priority=1,
             )
 
-            # Update escrow object
-            fundraise.escrow.amount_holding += amount
-            fundraise.escrow.save()
+            # Update escrow under row lock so concurrent completion cannot be clobbered.
+            from reputation.models import Escrow
+
+            Escrow.increment_holding(fundraise.escrow_id, amount)
 
         return purchase, None
 
@@ -374,13 +375,20 @@ class FundraiseService:
                 logger.error(f"Failed to create Endaoment grant: {e}", exc_info=e)
                 return None, "Failed to submit Endaoment grant"
 
+            async_status = (transfer_result.get("asyncStatus") or "").lower()
+            contribution_status = (
+                UsdFundraiseContribution.Status.PENDING
+                if async_status == "pending"
+                else UsdFundraiseContribution.Status.SUBMITTED
+            )
+
             # Create the contribution record
             contribution = UsdFundraiseContribution.objects.create(
                 user=user,
                 fundraise=fundraise,
                 amount_cents=amount_cents,
                 fee_cents=fee_cents,
-                status=UsdFundraiseContribution.Status.SUBMITTED,
+                status=contribution_status,
                 origin_fund_id=origin_fund_id,
                 destination_org_id=destination_org_id,
                 endaoment_transfer_id=endaoment_transfer_id,

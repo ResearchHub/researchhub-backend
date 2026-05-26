@@ -1,4 +1,3 @@
-import math
 from datetime import datetime, timedelta
 from typing import List, TypedDict
 
@@ -181,36 +180,44 @@ class Bounty(DefaultModel):
         return escrow_paid
 
     def close(self, status):
+        from django.db import transaction
+
         from user.models import User
 
-        proportions = self.get_bounty_proportions()
-        escrow_remaining_amount = self.escrow.amount_holding
-        escrow_status = None
-        if status == self.EXPIRED:
-            escrow_status = Escrow.EXPIRED
+        with transaction.atomic():
+            proportions = self.get_bounty_proportions()
+            escrow_status = None
+            if status == self.EXPIRED:
+                escrow_status = Escrow.EXPIRED
 
-        for user_id, proportion_data in proportions.items():
-            percentage = proportion_data.get("proportion")
-            bounty_amount = proportion_data.get("bounty_amount")
-            # This ensures that people can't be refunded more than they initially put in
-            # Because our distribution model only uses integers, we need to round
-            # how much a user gets refunded. The following code prevents them
-            # from receiving more than what they initially put in, but it is
-            # possible for them to receive slightly less because of rounding
-            refund_amount = min(
-                math.ceil(escrow_remaining_amount) * percentage, bounty_amount
-            )
-            user = User.objects.get(id=user_id)
-            refunded = self.escrow.refund(user, refund_amount, status=escrow_status)
-            if not refunded:
-                return False
+            for user_id, proportion_data in proportions.items():
+                self.escrow.refresh_from_db()
+                escrow_remaining_amount = self.escrow.amount_holding
+                if escrow_remaining_amount <= 0:
+                    break
 
-        expiration_date = datetime.now()
-        self.children.update(status=status, expiration_date=expiration_date)
-        self.expiration_date = expiration_date
-        status_func = getattr(self, f"set_{status.lower()}_status")
-        # Status func will update the status and call save on the bounty
-        status_func()
+                percentage = proportion_data.get("proportion")
+                bounty_amount = proportion_data.get("bounty_amount")
+                refund_amount = min(
+                    escrow_remaining_amount * percentage,
+                    bounty_amount,
+                    escrow_remaining_amount,
+                )
+                if refund_amount <= 0:
+                    continue
+
+                user = User.objects.get(id=user_id)
+                refunded = self.escrow.refund(
+                    user, refund_amount, status=escrow_status
+                )
+                if not refunded:
+                    return False
+
+            expiration_date = datetime.now()
+            self.children.update(status=status, expiration_date=expiration_date)
+            self.expiration_date = expiration_date
+            status_func = getattr(self, f"set_{status.lower()}_status")
+            status_func()
         return True
 
     @classmethod

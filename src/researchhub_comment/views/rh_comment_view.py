@@ -64,6 +64,7 @@ from review.services.review_service import (
     REVIEW_WINDOW_DAYS,
     get_review_availability,
 )
+from user.models import User
 from user.permissions import IsModerator
 from utils.throttles import THROTTLE_CLASSES
 
@@ -410,13 +411,14 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         # If set, users with expertise matching these hubs will be notified of the bounty
         target_hubs = data.pop("target_hub_ids", [])
 
-        response = _create_bounty_checks(user, amount, item_content_type)
-        if not isinstance(response, tuple):
-            return response
-        else:
+        with transaction.atomic():
+            user = User.objects.select_for_update().get(id=user.id)
+
+            response = _create_bounty_checks(user, amount, item_content_type)
+            if not isinstance(response, tuple):
+                return response
             amount, fee_amount, rh_fee, dao_fee, current_bounty_fee = response
 
-        with transaction.atomic():
             comment_response = self._create_rh_comment(request, *args, **kwargs)
             item_object_id = comment_response.data["id"]
             self._create_mention_notifications_from_request(request, item_object_id)
