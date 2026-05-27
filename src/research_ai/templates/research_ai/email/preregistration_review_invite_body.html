@@ -1,0 +1,29 @@
+{% autoescape on %}<p>Hello,</p>
+
+<p>
+  {{ inviter_name }} has invited you to peer review the following preregistration
+  on ResearchHub{% if grant_title %}, submitted to <strong>{{ grant_title }}</strong>{% if grant_organization %} &mdash; {{ grant_organization }}{% endif %}{% endif %}:
+</p>
+
+<p>
+  <strong>{{ proposal_title }}</strong>{% if proposal_creator_name %} &mdash; {{ proposal_creator_name }}{% endif %}
+</p>
+
+{% if proposal_description %}<p>{{ proposal_description }}</p>{% endif %}
+
+{% if proposal_url %}
+<p>
+  <a href="{{ proposal_url }}">View the preregistration and submit your peer review</a>
+</p>
+{% endif %}
+
+<p>
+  If you don&rsquo;t already have a ResearchHub account, you can sign up with this
+  email address and your invitation will be linked automatically.
+</p>
+
+<p>
+  Thanks,<br />
+  The ResearchHub team
+</p>
+{% endautoescape %}

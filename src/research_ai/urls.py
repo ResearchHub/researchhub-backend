@@ -5,6 +5,7 @@ from research_ai.views.email_views import (
     GeneratedEmailDetailView,
     GeneratedEmailListView,
     GenerateEmailView,
+    InvitePreregistrationReviewersView,
     InviteRfpApplicantsView,
     PreviewEmailView,
     SendEmailView,
@@ -80,5 +81,12 @@ urlpatterns = [
     path(
         "expert-finder/rfp/<int:grant_id>/invite-applicants/",
         InviteRfpApplicantsView.as_view(),
+    ),
+    path(
+        (
+            "expert-finder/grant/<int:grant_id>/preregistration/"
+            "<int:post_id>/invite-reviewers/"
+        ),
+        InvitePreregistrationReviewersView.as_view(),
     ),
 ]

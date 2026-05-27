@@ -627,6 +627,23 @@ class InviteRfpApplicantsSerializer(serializers.Serializer):
     )
 
 
+class InvitePreregistrationReviewersSerializer(serializers.Serializer):
+    """Request for POST /expert-finder/grant/<grant_id>/preregistration/
+    <post_id>/invite-reviewers/."""
+
+    emails = serializers.ListField(
+        child=serializers.EmailField(),
+        min_length=1,
+        max_length=100,
+    )
+    reply_to = serializers.EmailField(required=False, allow_null=True)
+    cc = serializers.ListField(
+        child=serializers.EmailField(),
+        required=False,
+        default=list,
+    )
+
+
 class GeneratedEmailSerializer(serializers.ModelSerializer):
     created_by = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(source="created_date", read_only=True)

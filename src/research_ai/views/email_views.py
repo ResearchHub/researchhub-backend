@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from research_ai.constants import DEFAULT_EMAIL_TEMPLATE_KEY, VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail
@@ -16,6 +17,7 @@ from research_ai.serializers import (
     GeneratedEmailCreateUpdateSerializer,
     GeneratedEmailSerializer,
     GenerateEmailRequestSerializer,
+    InvitePreregistrationReviewersSerializer,
     InviteRfpApplicantsSerializer,
     PreviewEmailRequestSerializer,
     SendEmailRequestSerializer,
@@ -25,9 +27,14 @@ from research_ai.services.email_sending_service import send_plain_email
 from research_ai.services.email_template_variables import format_expert_name_from_raw
 from research_ai.services.expert_display import ExpertDisplay
 from research_ai.services.expert_persist import ExpertPersist
+from research_ai.services.preregistration_review_invite_service import (
+    invite_reviewers,
+)
 from research_ai.services.rfp_email_context import get_expert_for_search_by_email
 from research_ai.services.rfp_invite_service import invite_applicants
 from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
@@ -504,6 +511,119 @@ class InviteRfpApplicantsView(APIView):
             )
         except Exception as e:
             logger.exception("RFP applicant invite failed for grant=%s", grant.id)
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+        reply_to = (data.get("reply_to") or request.user.email or "").strip() or None
+        cc_list = list(data.get("cc") or [])
+        get_full_name = getattr(request.user, "get_full_name", None)
+        display_name = (
+            (get_full_name() if callable(get_full_name) else "") or ""
+        ).strip() or "ResearchHub"
+        from_email = (
+            f"{display_name} via ResearchHub <{settings.EXPERT_FINDER_FROM_EMAIL}>"
+        )
+
+        if result.generated_email_ids:
+            send_queued_emails_task.delay(
+                generated_email_ids=result.generated_email_ids,
+                reply_to=reply_to,
+                cc=cc_list,
+                from_email=from_email,
+            )
+
+        return Response(
+            {
+                "queued": len(result.generated_email_ids),
+                "skipped_existing": result.skipped_existing,
+                "generated_email_ids": result.generated_email_ids,
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+class InvitePreregistrationReviewersView(APIView):
+    """POST /api/research_ai/expert-finder/grant/<grant_id>/preregistration/
+    <post_id>/invite-reviewers/.
+
+    Send a fixed-template invitation to each email address inviting them to
+    peer review a preregistration that has applied to an open grant.
+    Authorized for the grant creator, listed grant contacts, moderators, and
+    hub editors.
+    """
+
+    permission_classes = [IsAuthenticated, ResearchAIPermission]
+
+    def _get_grant_or_404(self, grant_id):
+        return Grant.objects.filter(id=grant_id).first()
+
+    def _get_preregistration_or_404(self, post_id):
+        return ResearchhubPost.objects.filter(
+            id=post_id, document_type=PREREGISTRATION
+        ).first()
+
+    def _is_authorized(self, user, grant) -> bool:
+        if getattr(user, "moderator", False):
+            return True
+        if grant.created_by_id == user.id:
+            return True
+        if grant.contacts.filter(id=user.id).exists():
+            return True
+        is_editor = getattr(user, "is_hub_editor", None)
+        return bool(callable(is_editor) and is_editor())
+
+    def post(self, request, grant_id, post_id):
+        grant = self._get_grant_or_404(grant_id)
+        if grant is None:
+            return Response(
+                {"detail": "Grant not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        preregistration = self._get_preregistration_or_404(post_id)
+        if preregistration is None:
+            return Response(
+                {"detail": "Preregistration not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not GrantApplication.objects.filter(
+            grant=grant, preregistration_post=preregistration
+        ).exists():
+            return Response(
+                {"detail": "Preregistration has not applied to this grant."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not self._is_authorized(request.user, grant):
+            return Response(
+                {"detail": "Not allowed to invite reviewers for this grant."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if grant.status != Grant.OPEN:
+            return Response(
+                {"detail": "Grant must be approved and open to invite reviewers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ser = InvitePreregistrationReviewersSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        try:
+            result = invite_reviewers(
+                grant=grant,
+                preregistration_post=preregistration,
+                inviter=request.user,
+                emails=data["emails"],
+            )
+        except Exception as e:
+            logger.exception(
+                "Preregistration reviewer invite failed for grant=%s, post=%s",
+                grant.id,
+                preregistration.id,
+            )
             return Response(
                 {"detail": str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
