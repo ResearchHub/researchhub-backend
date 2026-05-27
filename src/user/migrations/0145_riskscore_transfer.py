@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
         ("contenttypes", "0002_remove_content_type_name"),
     ]
 
-    state_operations = [
+    operations = [
         migrations.CreateModel(
             name="RiskScore",
             fields=[
@@ -97,8 +97,4 @@ class Migration(migrations.Migration):
                 ],
             },
         ),
-    ]
-
-    operations = [
-        migrations.SeparateDatabaseAndState(state_operations=state_operations),
     ]
