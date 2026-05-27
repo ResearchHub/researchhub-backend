@@ -27,9 +27,6 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.related_models.researchhub_post_model import (
     ResearchhubPost,
 )
-from researchhub_document.related_models.researchhub_unified_document_model import (
-    ResearchhubUnifiedDocument,
-)
 from user.models import Action
 from user.tests.helpers import make_user_verified
 from utils.test_helpers import AWSMockTestCase
@@ -160,9 +157,10 @@ class VisibleToQuerySetTests(AWSMockTestCase):
         self.private_post.unified_document.save()
 
         # Grant owned by `grant_owner`; the private post applies to it.
-        self.grant_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type="GRANT"
+        self.grant_post = create_post(
+            created_by=self.grant_owner, document_type="GRANT", title="Grant"
         )
+        self.grant_doc = self.grant_post.unified_document
         self.grant = Grant.objects.create(
             created_by=self.grant_owner,
             unified_document=self.grant_doc,
@@ -278,9 +276,10 @@ class PostViewSetVisibilityTests(AWSMockTestCase):
         self.private_post.unified_document.is_public = False
         self.private_post.unified_document.save()
 
-        self.grant_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type="GRANT"
+        self.grant_post = create_post(
+            created_by=self.grant_owner, document_type="GRANT", title="Grant"
         )
+        self.grant_doc = self.grant_post.unified_document
         self.grant = Grant.objects.create(
             created_by=self.grant_owner,
             unified_document=self.grant_doc,
@@ -344,9 +343,10 @@ class FundingFeedPrivacyTests(AWSMockTestCase):
         self.private_post.unified_document.is_public = False
         self.private_post.unified_document.save()
 
-        self.grant_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type="GRANT"
+        self.grant_post = create_post(
+            created_by=self.grant_owner, document_type="GRANT", title="Grant"
         )
+        self.grant_doc = self.grant_post.unified_document
         self.grant = Grant.objects.create(
             created_by=self.grant_owner,
             unified_document=self.grant_doc,
@@ -525,10 +525,16 @@ class GrantEnforcedApplicationVisibilityTests(AWSMockTestCase):
         self.client.force_authenticate(self.author)
 
     def _make_grant(self, application_visibility):
-        ud = ResearchhubUnifiedDocument.objects.create(document_type="GRANT")
+        # Every grant has an associated post in production; mirror that here
+        # so visibility filters (GrantViewSet.get_queryset) behave realistically.
+        post = create_post(
+            created_by=self.grant_owner,
+            document_type="GRANT",
+            title=f"Grant {uuid.uuid4().hex[:8]}",
+        )
         return Grant.objects.create(
             created_by=self.grant_owner,
-            unified_document=ud,
+            unified_document=post.unified_document,
             amount=1000,
             currency=USD,
             organization="Org",

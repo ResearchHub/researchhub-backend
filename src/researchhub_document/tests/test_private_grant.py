@@ -16,9 +16,13 @@ from researchhub_access_group.constants import VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.tests.helpers import (
+    create_hub_editor,
     create_random_authenticated_user,
     create_random_default_user,
     make_user_verified,
@@ -181,9 +185,76 @@ class PrivateGrantVisibilityTests(APITestCase):
         resp = self.client.get(f"/api/grant/{self.private_grant.id}/")
         self.assertEqual(resp.status_code, 200)
 
+    def test_grant_viewset_shows_private_to_moderator(self):
+        self.client.force_authenticate(self.moderator)
+        resp = self.client.get(f"/api/grant/{self.private_grant.id}/")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_grant_viewset_shows_private_to_hub_editor(self):
+        editor, _ = create_hub_editor("priv_grant_editor", "priv_grant_hub")
+        self.client.force_authenticate(editor)
+        resp = self.client.get(f"/api/grant/{self.private_grant.id}/")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_post_detail_shows_private_grant_to_moderator(self):
+        self.client.force_authenticate(self.moderator)
+        resp = self.client.get(f"/api/researchhubpost/{self.private_post.id}/")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_post_detail_shows_private_grant_to_hub_editor(self):
+        editor, _ = create_hub_editor("priv_grant_editor_post", "priv_grant_hub_post")
+        self.client.force_authenticate(editor)
+        resp = self.client.get(f"/api/researchhubpost/{self.private_post.id}/")
+        self.assertEqual(resp.status_code, 200)
+
     def test_grant_viewset_shows_private_to_permitted_user(self):
         self.client.force_authenticate(self.invitee)
         resp = self.client.get(f"/api/grant/{self.private_grant.id}/")
+        self.assertEqual(resp.status_code, 200)
+
+
+class PrivatePreregistrationVisibilityTests(APITestCase):
+    """Moderators and hub editors must be able to view private preregistration
+    posts so they can moderate them; unrelated users still get a 404."""
+
+    def setUp(self):
+        cache.clear()
+        self.owner = create_random_authenticated_user("priv_prereg_owner")
+        self.other = create_random_authenticated_user("priv_prereg_other")
+        self.moderator = create_random_authenticated_user(
+            "priv_prereg_mod", moderator=True
+        )
+
+        self.private_post = create_post(
+            created_by=self.owner,
+            document_type=PREREGISTRATION,
+            title="Private Prereg",
+        )
+        self.private_post.unified_document.is_public = False
+        self.private_post.unified_document.save(update_fields=["is_public"])
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_post_detail_hides_private_prereg_from_unrelated_user(self):
+        self.client.force_authenticate(self.other)
+        resp = self.client.get(f"/api/researchhubpost/{self.private_post.id}/")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_post_detail_shows_private_prereg_to_owner(self):
+        self.client.force_authenticate(self.owner)
+        resp = self.client.get(f"/api/researchhubpost/{self.private_post.id}/")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_post_detail_shows_private_prereg_to_moderator(self):
+        self.client.force_authenticate(self.moderator)
+        resp = self.client.get(f"/api/researchhubpost/{self.private_post.id}/")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_post_detail_shows_private_prereg_to_hub_editor(self):
+        editor, _ = create_hub_editor("priv_prereg_editor", "priv_prereg_hub")
+        self.client.force_authenticate(editor)
+        resp = self.client.get(f"/api/researchhubpost/{self.private_post.id}/")
         self.assertEqual(resp.status_code, 200)
 
 
