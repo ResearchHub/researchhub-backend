@@ -153,4 +153,6 @@ class WithdrawalOnCommitTests(AWSMockTransactionTestCase):
             content_type=ContentType.objects.get_for_model(Withdrawal),
             object_id=withdrawal.id,
         )
-        self.assertEqual(balance.amount, f"-{Decimal(withdrawal.amount) + Decimal(withdrawal.fee)}")
+        self.assertEqual(
+            balance.amount, f"-{Decimal(withdrawal.amount) + Decimal(withdrawal.fee)}"
+        )
