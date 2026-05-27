@@ -21,6 +21,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.tasks import track_revenue_event
+from ethereum.lib import normalize_ethereum_address
 from purchase.models import Balance
 from reputation.lib import (
     WITHDRAWAL_MINIMUM,
@@ -99,6 +100,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             return Response(
                 "Invalid network. Please choose either 'BASE' or 'ETHEREUM'", status=400
             )
+
+        try:
+            to_address = normalize_ethereum_address(to_address)
+        except ValueError:
+            return Response("Invalid Ethereum address", status=400)
 
         if mfa_error := self._check_mfa(user, request):
             return Response(mfa_error, status=400)
@@ -321,15 +327,18 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         return (True, None)
 
-    def _check_meets_withdrawal_minimum(self, balance):
-        # Withdrawal amount is full balance for now
-        if balance > WITHDRAWAL_MINIMUM:
+    def _check_meets_withdrawal_minimum(self, requested_amount):
+        """
+        Reject withdrawals below the platform minimum (WITHDRAWAL_MINIMUM).
+        """
+        if requested_amount > WITHDRAWAL_MINIMUM:
             return (True, None)
 
-        message = f"Insufficient balance of {balance}"
-        if balance > 0:
+        if requested_amount == 0:
+            message = "Withdrawal amount must be greater than zero"
+        else:
             message = (
-                f"Balance {balance} is below the withdrawal"
+                f"Withdrawal amount {requested_amount} is below the withdrawal"
                 f" minimum of {WITHDRAWAL_MINIMUM}"
             )
         return (False, message)

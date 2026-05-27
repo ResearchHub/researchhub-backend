@@ -12,6 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from ethereum.lib import normalize_ethereum_address
 from purchase.models import Balance, RscExchangeRate
 from reputation.lib import WITHDRAWAL_MINIMUM
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
@@ -23,6 +24,9 @@ from user.tests.helpers import (
     create_random_authenticated_user,
     create_random_authenticated_user_with_reputation,
 )
+
+VALID_TEST_TO_ADDRESS = "0xabcdef1234567890abcdef1234567890abcdef12"
+VALID_TEST_TO_ADDRESS_CHECKSUM = normalize_ethereum_address(VALID_TEST_TO_ADDRESS)
 
 
 # Create a test class with proper AWS mocking
@@ -152,7 +156,7 @@ class WithdrawalViewSetTests(APITestCase):
                 self.withdrawal_url,
                 {
                     "amount": str(WITHDRAWAL_MINIMUM + 10),  # Amount above minimum
-                    "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+                    "to_address": VALID_TEST_TO_ADDRESS,
                     "network": "ETHEREUM",
                 },
             )
@@ -165,9 +169,7 @@ class WithdrawalViewSetTests(APITestCase):
             self.assertEqual(
                 float(withdrawal.amount), float(WITHDRAWAL_MINIMUM)
             )  # amount - fee
-            self.assertEqual(
-                withdrawal.to_address, "0xabcdef1234567890abcdef1234567890abcdef12"
-            )
+            self.assertEqual(withdrawal.to_address, VALID_TEST_TO_ADDRESS_CHECKSUM)
             self.assertEqual(withdrawal.network, "ETHEREUM")
             self.assertEqual(withdrawal.fee, "10.0")  # Mocked fee
             self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.INITIATED)
@@ -175,6 +177,61 @@ class WithdrawalViewSetTests(APITestCase):
             # Check balance was updated
             expected_balance = deposit_amount - (WITHDRAWAL_MINIMUM + 10)
             self.assertEqual(user.get_balance(), decimal.Decimal(expected_balance))
+
+    def test_create_withdrawal_rejects_invalid_to_address(self):
+        """Invalid to_address values are rejected before creating a withdrawal."""
+        user = self._create_withdrawer("rep_user")
+        create_deposit(user, amount=str(WITHDRAWAL_MINIMUM * 2))
+        self.client.force_authenticate(user)
+
+        base_payload = {
+            "amount": str(WITHDRAWAL_MINIMUM + 10),
+            "network": "ETHEREUM",
+        }
+        invalid_cases = [
+            ("missing", {**base_payload}),
+            ("empty", {**base_payload, "to_address": ""}),
+            ("too_short", {**base_payload, "to_address": "0x0123"}),
+            ("invalid_chars", {**base_payload, "to_address": "not-an-address"}),
+        ]
+
+        with mock.patch.object(
+            WithdrawalViewSet,
+            "_check_hotwallet_balance",
+            return_value=(True, None),
+        ):
+            for case_name, payload in invalid_cases:
+                with self.subTest(case=case_name):
+                    response = self.client.post(self.withdrawal_url, payload)
+                    self.assertEqual(response.status_code, 400)
+                    self.assertEqual(response.data, "Invalid Ethereum address")
+                    self.assertEqual(Withdrawal.objects.filter(user=user).count(), 0)
+
+    def test_create_withdrawal_normalizes_lowercase_address(self):
+        """Valid lowercase addresses are stored in EIP-55 checksum form."""
+        user = self._create_withdrawer("rep_user")
+        create_deposit(user, amount=str(WITHDRAWAL_MINIMUM * 2))
+        self.client.force_authenticate(user)
+
+        lowercase_address = VALID_TEST_TO_ADDRESS.lower()
+
+        with mock.patch.object(
+            WithdrawalViewSet,
+            "_check_hotwallet_balance",
+            return_value=(True, None),
+        ):
+            response = self.client.post(
+                self.withdrawal_url,
+                {
+                    "amount": str(WITHDRAWAL_MINIMUM + 10),
+                    "to_address": lowercase_address,
+                    "network": "ETHEREUM",
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        withdrawal = Withdrawal.objects.get(id=response.data["id"])
+        self.assertEqual(withdrawal.to_address, VALID_TEST_TO_ADDRESS_CHECKSUM)
 
     def test_withdrawal_below_minimum(self):
         """Test that withdrawals below minimum amount are rejected."""
@@ -725,7 +782,7 @@ class WithdrawalViewSetTests(APITestCase):
         valid, message = self.withdrawal_view._check_meets_withdrawal_minimum(amount)
 
         self.assertFalse(valid)
-        self.assertEqual(message, f"Insufficient balance of {amount}")
+        self.assertEqual(message, "Withdrawal amount must be greater than zero")
 
     def test_check_agreed_to_terms_from_user_model(self):
         """Test _check_agreed_to_terms with agreed_to_terms=True in user model."""
