@@ -1,5 +1,5 @@
 from decimal import Decimal
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
@@ -15,7 +15,7 @@ from purchase.serializers.fundraise_create_serializer import FundraiseCreateSeri
 from purchase.services.fundraise_service import (
     FundraiseService,
 )
-from reputation.models import BountyFee
+from reputation.models import BountyFee, Escrow
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -321,6 +321,41 @@ class CloseFundraiseTests(TestCase):
         self.assertEqual(self.fundraise.status, Fundraise.CLOSED)
 
     # --- RSC refund tests ---
+
+    def test_close_fundraise_rolls_back_when_refund_fails_midway(self):
+        """Partial refunds must not commit when a later refund fails."""
+        contributor1 = create_random_authenticated_user("contributor_rollback_1")
+        contributor2 = create_random_authenticated_user("contributor_rollback_2")
+        self._give_user_rsc_balance(contributor1, 1000)
+        self._give_user_rsc_balance(contributor2, 1000)
+
+        self._create_rsc_contribution(self.fundraise, contributor1, amount=50)
+        self._create_rsc_contribution(self.fundraise, contributor2, amount=30)
+
+        balance_after_contribution_1 = contributor1.get_balance()
+        balance_after_contribution_2 = contributor2.get_balance()
+        self.fundraise.escrow.refresh_from_db()
+        escrow_before_close = self.fundraise.escrow.amount_holding
+
+        original_refund = Escrow.refund
+        refund_calls = {"count": 0}
+
+        def refund_side_effect(escrow_self, *args, **kwargs):
+            refund_calls["count"] += 1
+            if refund_calls["count"] >= 2:
+                return False
+            return original_refund(escrow_self, *args, **kwargs)
+
+        with patch.object(Escrow, "refund", refund_side_effect):
+            result = self.fundraise_service.close_fundraise(self.fundraise)
+
+        self.assertFalse(result)
+        self.fundraise.refresh_from_db()
+        self.assertEqual(self.fundraise.status, Fundraise.OPEN)
+        self.fundraise.escrow.refresh_from_db()
+        self.assertEqual(self.fundraise.escrow.amount_holding, escrow_before_close)
+        self.assertEqual(contributor1.get_balance(), balance_after_contribution_1)
+        self.assertEqual(contributor2.get_balance(), balance_after_contribution_2)
 
     def test_close_fundraise_refunds_multiple_rsc_contributors(self):
         """Test that a fundraise with multiple RSC contributors can be closed"""

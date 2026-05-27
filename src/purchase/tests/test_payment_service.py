@@ -433,6 +433,49 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(balance_count_after_second, balance_count_after_first)
 
     @patch("stripe.PaymentIntent.retrieve")
+    @patch("purchase.services.payment_service.FundraiseService.create_contribution")
+    def test_process_payment_intent_confirmation_skips_fundraise_on_replay(
+        self, mock_create_contribution, mock_stripe_retrieve
+    ):
+        from purchase.models import Fundraise
+        from researchhub_document.related_models.constants.document_type import (
+            PREREGISTRATION,
+        )
+        from researchhub_document.related_models.researchhub_unified_document_model import (
+            ResearchhubUnifiedDocument,
+        )
+
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=unified_document,
+            goal_amount=1000,
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "succeeded"
+        mock_payment_intent.amount = 1000
+        mock_payment_intent.currency = "usd"
+        mock_payment_intent.id = "pi_idempotent_fundraise"
+        mock_payment_intent.metadata = {
+            "user_id": str(self.user.id),
+            "purpose": PaymentPurpose.RSC_PURCHASE,
+            "locked_rsc_amount": "100.0",
+            "fundraise_id": str(fundraise.id),
+        }
+        mock_stripe_retrieve.return_value = mock_payment_intent
+        mock_create_contribution.return_value = (MagicMock(), None)
+
+        self.service.process_payment_intent_confirmation("pi_idempotent_fundraise")
+        self.service.process_payment_intent_confirmation("pi_idempotent_fundraise")
+
+        self.assertEqual(mock_create_contribution.call_count, 1)
+
+    @patch("stripe.PaymentIntent.retrieve")
     def test_process_payment_intent_confirmation_success(self, mock_stripe_retrieve):
         # Arrange
         mock_payment_intent = MagicMock()

@@ -240,6 +240,17 @@ class FundraiseService:
 
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
+            fundraise = (
+                Fundraise.objects.select_for_update()
+                .select_related("escrow")
+                .get(pk=fundraise.pk)
+            )
+
+            if fundraise.status != Fundraise.OPEN:
+                return None, "Fundraise is not open"
+
+            if not fundraise.escrow:
+                return None, "Fundraise has no escrow"
 
             if use_credits:
                 if user.get_locked_balance() < total_cost:
@@ -312,9 +323,9 @@ class FundraiseService:
                 priority=1,
             )
 
-            # Update escrow object
-            fundraise.escrow.amount_holding += amount
-            fundraise.escrow.save()
+            escrow = Escrow.objects.select_for_update().get(pk=fundraise.escrow_id)
+            escrow.amount_holding += amount
+            escrow.save(update_fields=["amount_holding", "updated_date"])
 
         return purchase, None
 
@@ -477,6 +488,12 @@ class FundraiseService:
             RuntimeError: If payout fails
         """
         with transaction.atomic():
+            fundraise = (
+                Fundraise.objects.select_for_update()
+                .select_related("escrow")
+                .get(pk=fundraise.pk)
+            )
+
             if fundraise.status != Fundraise.OPEN:
                 raise ValueError("Fundraise is not open")
 
@@ -503,16 +520,25 @@ class FundraiseService:
         Returns True if successful, False otherwise.
         """
         with transaction.atomic():
+            fundraise = (
+                Fundraise.objects.select_for_update()
+                .select_related("escrow")
+                .get(pk=fundraise.pk)
+            )
+
             # Check if fundraise can be closed (must be open)
             if fundraise.status != Fundraise.OPEN:
+                transaction.set_rollback(True)
                 return False
 
             # Refund RSC contributions
             if not self.refund_rsc_contributions(fundraise):
+                transaction.set_rollback(True)
                 return False
 
             # Refund USD contributions
             if not self.refund_usd_contributions(fundraise):
+                transaction.set_rollback(True)
                 return False
 
             # Update fundraise status

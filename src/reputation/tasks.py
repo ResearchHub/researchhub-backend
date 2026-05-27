@@ -6,6 +6,7 @@ from typing import List, Optional
 import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.db.models import DurationField, F
 from django.db.models.functions import Cast
 
@@ -293,7 +294,10 @@ def check_open_bounties():
         assessment_time_left__lte=timedelta(days=0)
     )
     for bounty in expired_assessment_bounties.iterator():
-        refund_status = bounty.close(Bounty.EXPIRED)
+        with transaction.atomic():
+            refund_status = bounty.close(Bounty.EXPIRED)
+            if refund_status is False:
+                transaction.set_rollback(True)
         bounty.unified_document.update_filters(
             (FILTER_BOUNTY_EXPIRED, FILTER_BOUNTY_OPEN)
         )

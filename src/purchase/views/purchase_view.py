@@ -185,7 +185,9 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 distributor = Distributor(
                     distribution, recipient, purchase, time.time(), user
                 )
-                distributor.distribute()
+                record = distributor.distribute()
+                if record.distributed_status == "FAILED":
+                    raise RuntimeError("Failed to transfer RSC to recipient")
 
         serializer = self.serializer_class(purchase, context=context)
         serializer_data = serializer.data
