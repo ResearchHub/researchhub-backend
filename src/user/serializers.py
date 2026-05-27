@@ -113,6 +113,7 @@ class ModeratorUserSerializer(ModelSerializer):
 
 class RiskScoreEventSerializer(ModelSerializer):
     source_type = SerializerMethodField()
+    source_detail = SerializerMethodField()
 
     class Meta:
         model = RiskScoreEvent
@@ -122,6 +123,7 @@ class RiskScoreEventSerializer(ModelSerializer):
             "delta",
             "source_type",
             "source_content_id",
+            "source_detail",
             "created_date",
         ]
 
@@ -129,6 +131,9 @@ class RiskScoreEventSerializer(ModelSerializer):
         if event.source_content_type_id is None:
             return None
         return event.source_content_type.model
+
+    def get_source_detail(self, event):
+        return self.context.get("details", {}).get(event.id)
 
 
 class UniversitySerializer(ModelSerializer):

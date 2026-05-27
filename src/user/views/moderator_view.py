@@ -1,18 +1,16 @@
 from rest_framework.decorators import action
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.viewsets import ModelViewSet
 
 from user.filters import RiskScoreEventFilter
 from user.models import User
+from user.pagination import RiskScoreEventPagination
 from user.permissions import IsModerator, UserIsEditor
 from user.related_models.risk_score_model import RiskScoreEvent
 from user.serializers import ModeratorUserSerializer, RiskScoreEventSerializer
-
-
-class RiskScoreEventPagination(PageNumberPagination):
-    page_size = 20
-    page_size_query_param = "page_size"
-    max_page_size = 100
+from user.services.risk_score_insights_service import (
+    build_event_details,
+    build_insights,
+)
 
 
 class ModeratorView(ModelViewSet):
@@ -34,7 +32,15 @@ class ModeratorView(ModelViewSet):
             "source_content_type"
         )
         events = RiskScoreEventFilter(request.query_params, queryset=events).qs
+
         paginator = RiskScoreEventPagination()
         page = paginator.paginate_queryset(events, request)
-        serializer = RiskScoreEventSerializer(page, many=True)
-        return paginator.get_paginated_response(serializer.data)
+
+        details = build_event_details(page)
+        serializer = RiskScoreEventSerializer(
+            page, many=True, context={"details": details}
+        )
+
+        return paginator.get_paginated_response(
+            serializer.data, insights=build_insights(user)
+        )
