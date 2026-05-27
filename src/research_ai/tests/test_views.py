@@ -393,6 +393,92 @@ class InvitedExpertOverviewViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
+class ExpertListViewTests(APITestCase):
+    URL = "/api/research_ai/expert-finder/experts/"
+
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("mod_experts", moderator=True)
+        self.user = create_random_authenticated_user("user_experts", moderator=False)
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_experts_list_requires_moderator(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.URL)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_experts_list_returns_expert_rows_with_registered_user(self):
+        from paper.tests.helpers import create_paper
+
+        paper = create_paper(
+            title="Experts list paper",
+            paper_publish_date="2021-01-01",
+        )
+        ud_id = paper.unified_document_id
+        search = ExpertSearch.objects.create(
+            created_by=self.moderator,
+            unified_document_id=ud_id,
+            query="Experts list",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        expert = Expert.objects.create(
+            email="listed@example.com",
+            first_name="List",
+            last_name="Ed",
+            registered_user=self.moderator,
+        )
+        SearchExpert.objects.create(expert_search=search, expert=expert, position=0)
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=search,
+            expert_email="listed@example.com",
+            status=GeneratedEmail.Status.SENT,
+            opened_at=timezone.now(),
+            open_count=1,
+        )
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(self.URL, {"unified_document_id": ud_id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["total"], 1)
+        self.assertEqual(len(data["items"]), 1)
+        row = data["items"][0]
+        self.assertEqual(row["email"], "listed@example.com")
+        self.assertEqual(row["display_name"], "List Ed")
+        self.assertIsNotNone(row["registered_user"])
+        self.assertEqual(row["registered_user"]["user_id"], self.moderator.id)
+        self.assertIn("author", row["registered_user"])
+        self.assertNotIn("outreach", row)
+        self.assertNotIn("meta", data)
+
+    def test_experts_list_registered_filter(self):
+        search = ExpertSearch.objects.create(
+            created_by=self.moderator,
+            query="Registered filter",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        registered = Expert.objects.create(
+            email="reg@example.com",
+            registered_user=self.moderator,
+        )
+        unregistered = Expert.objects.create(email="unreg@example.com")
+        SearchExpert.objects.create(expert_search=search, expert=registered, position=0)
+        SearchExpert.objects.create(
+            expert_search=search, expert=unregistered, position=1
+        )
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(self.URL, {"registered": "true"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["total"], 1)
+        self.assertEqual(data["items"][0]["email"], "reg@example.com")
+        self.assertNotIn("meta", data)
+
+
 class InvitedExpertEditorsOverviewViewTests(APITestCase):
     URL = "/api/research_ai/expert-finder/editors-overview/"
 

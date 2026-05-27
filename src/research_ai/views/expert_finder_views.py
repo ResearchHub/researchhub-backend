@@ -15,6 +15,8 @@ from research_ai.constants import ExpertiseLevel, Gender, Region
 from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.permissions import ResearchAIPermission
 from research_ai.serializers import (
+    ExpertFinderExpertsListQuerySerializer,
+    ExpertFinderListItemSerializer,
     ExpertSearchCreateSerializer,
     ExpertSearchDetailSerializer,
     ExpertSearchListItemSerializer,
@@ -32,6 +34,7 @@ from research_ai.serializers import (
 from research_ai.services.expert_finder_service import get_document_content
 from research_ai.services.expert_persist import ExpertPersist
 from research_ai.services.invited_experts_service import (
+    get_expert_finder_experts_list,
     get_invited_expert_editors_overview,
     get_invited_expert_overview,
     invited_stats_cache_key,
@@ -483,6 +486,63 @@ class InvitedExpertEditorsOverviewView(InvitedExpertStatsMixin, APIView):
                         end=end,
                     ),
                 },
+            }
+
+        return self._get_cached_or_build(
+            cache_key=cache_key, build_payload=build_payload
+        )
+
+
+class ExpertListView(InvitedExpertStatsMixin, APIView):
+    """
+    GET ``/expert-finder/experts/`` — paginated experts for filtered expert searches.
+    """
+
+    cache_prefix = "experts_list"
+
+    def get(self, request):
+        qser = ExpertFinderExpertsListQuerySerializer(data=request.query_params)
+        qser.is_valid(raise_exception=True)
+        params = qser.validated_data
+        unified_document_id = params.get("unified_document_id")
+        start = params.get("start")
+        end = params.get("end")
+        editor_id = params.get("editor_id")
+        registered = params.get("registered", False)
+        limit = params.get("limit", 20)
+        offset = params.get("offset", 0)
+
+        cache_key = invited_stats_cache_key(
+            self.cache_prefix,
+            ud=(
+                str(int(unified_document_id))
+                if unified_document_id is not None
+                else "none"
+            ),
+            start=start.isoformat() if start is not None else "none",
+            end=end.isoformat() if end is not None else "none",
+            editor_id=editor_id if editor_id is not None else "none",
+            registered=str(bool(registered)),
+            limit=limit,
+            offset=offset,
+        )
+
+        def build_payload():
+            result = get_expert_finder_experts_list(
+                unified_document_id=unified_document_id,
+                start=start,
+                end=end,
+                editor_id=editor_id,
+                registered=registered,
+                limit=limit,
+                offset=offset,
+            )
+            items_data = ExpertFinderListItemSerializer(result.items, many=True).data
+            return {
+                "items": items_data,
+                "total": result.total,
+                "limit": result.limit,
+                "offset": result.offset,
             }
 
         return self._get_cached_or_build(
