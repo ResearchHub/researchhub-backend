@@ -104,7 +104,10 @@ class RelatedDataFetcher:
 
         open_grants = (
             ResearchhubUnifiedDocument.objects.filter(
-                id__in=doc_ids, document_type="GRANT", grants__status="OPEN"
+                id__in=doc_ids,
+                document_type="GRANT",
+                grants__status="OPEN",
+                is_public=True,
             )
             .filter(
                 Q(grants__end_date__isnull=True)

@@ -26,6 +26,13 @@ class GrantViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        # Restrict to grants whose unified_document has a post visible to the
+        # current user. Reuses ResearchhubPost.visible_to so the rules
+        # (creator, Permission rows, applied-to-by-creator) stay in one place.
+        visible_post_ids = ResearchhubPost.objects.visible_to(self.request.user).values(
+            "unified_document_id"
+        )
+        qs = qs.filter(unified_document_id__in=visible_post_ids)
         return qs.prefetch_related(
             Prefetch(
                 "proposal_reviews",

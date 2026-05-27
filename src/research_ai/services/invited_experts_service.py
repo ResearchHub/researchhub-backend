@@ -10,7 +10,12 @@ from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExper
 from researchhub_access_group.constants import VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
+
+INVITE_ACCESS_DOC_TYPES = (PREREGISTRATION, GRANT)
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -64,9 +69,9 @@ def link_experts_registered_user_for_signup(*, normalized_email: str, user) -> i
 
 def grant_invited_expert_access_for_signup(*, normalized_email: str, user) -> int:
     """
-    Create VIEWER ``Permission`` rows on private preregistrations the user was
-    invited to via expert finder outreach, when a ``GeneratedEmail`` with
-    ``status=SENT`` exists in the link window.
+    Create VIEWER ``Permission`` rows on private preregistrations and private
+    grants the user was invited to via expert finder / RFP outreach, when a
+    ``GeneratedEmail`` with ``status=SENT`` exists in the link window.
     """
     email = (normalized_email or "").strip().lower()
     if not email:
@@ -92,7 +97,7 @@ def grant_invited_expert_access_for_signup(*, normalized_email: str, user) -> in
         ResearchhubUnifiedDocument.objects.filter(
             id__in=invited_doc_ids,
             is_public=False,
-            posts__document_type=PREREGISTRATION,
+            posts__document_type__in=INVITE_ACCESS_DOC_TYPES,
         )
         .values_list("id", flat=True)
         .distinct()
@@ -116,8 +121,8 @@ def grant_invited_expert_access_for_signup(*, normalized_email: str, user) -> in
 
 def grant_invited_expert_access_for_send(*, generated_email) -> bool:
     """
-    Grant VIEWER access on the invite's private preregistration when the
-    expert is already a registered user.
+    Grant VIEWER access on the invite's private preregistration or private
+    grant when the expert is already a registered user.
 
     Counterpart to ``grant_invited_expert_access_for_signup``: that function
     runs on signup and only covers users who created their account *after*
@@ -149,7 +154,7 @@ def grant_invited_expert_access_for_send(*, generated_email) -> bool:
     doc_qualifies = ResearchhubUnifiedDocument.objects.filter(
         id=expert_search.unified_document_id,
         is_public=False,
-        posts__document_type=PREREGISTRATION,
+        posts__document_type__in=INVITE_ACCESS_DOC_TYPES,
     ).exists()
     if not doc_qualifies:
         return False

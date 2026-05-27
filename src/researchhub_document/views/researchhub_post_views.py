@@ -26,6 +26,7 @@ from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
+    GRANT,
     PREREGISTRATION,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
     SORT_BOUNTY_EXPIRATION_DATE,
@@ -571,15 +572,15 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             hubs = Hub.objects.filter(id__in=request_data.get("hubs", [])).all()
             document_type = request_data.get("document_type")
             is_public = True
-            # Only PREREGISTRATION posts may be created as private today.
-            if document_type == PREREGISTRATION:
+            # PREREGISTRATION and GRANT posts may be created as private.
+            if document_type in (PREREGISTRATION, GRANT):
                 explicit_is_public = "is_public" in request_data
                 if explicit_is_public:
                     is_public = serializers.BooleanField().run_validation(
                         request_data["is_public"]
                     )
 
-                if target_grant is not None:
+                if document_type == PREREGISTRATION and target_grant is not None:
                     required = target_grant.application_visibility
                     # An explicit is_public that conflicts with the grant's
                     # requirement is treated as a client error. When is_public

@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from purchase.related_models.grant_model import Grant
 from research_ai.constants import DEFAULT_EMAIL_TEMPLATE_KEY, VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail
 from research_ai.permissions import ResearchAIPermission
@@ -464,8 +465,6 @@ class InviteRfpApplicantsView(APIView):
     permission_classes = [IsAuthenticated, ResearchAIPermission]
 
     def _get_grant_or_404(self, grant_id):
-        from purchase.related_models.grant_model import Grant
-
         return Grant.objects.filter(id=grant_id).first()
 
     def _is_authorized(self, user, grant) -> bool:
