@@ -152,3 +152,20 @@ class InviteRfpApplicantsViewTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_202_ACCEPTED)
         self.assertEqual(resp.json()["queued"], 0)
         mock_delay.assert_not_called()
+
+    @patch("research_ai.views.email_views.send_queued_emails_task.delay")
+    def test_rejects_non_open_grant(self, mock_delay):
+        for blocked_status in (
+            Grant.PENDING,
+            Grant.CLOSED,
+            Grant.COMPLETED,
+            Grant.DECLINED,
+        ):
+            with self.subTest(status=blocked_status):
+                self.grant.status = blocked_status
+                self.grant.save(update_fields=["status"])
+                self.client.force_authenticate(self.creator)
+                resp = self._post()
+                self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(GeneratedEmail.objects.count(), 0)
+                mock_delay.assert_not_called()

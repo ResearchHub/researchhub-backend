@@ -486,6 +486,12 @@ class InviteRfpApplicantsView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        if grant.status != Grant.OPEN:
+            return Response(
+                {"detail": "Grant must be approved and open to invite applicants."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         ser = InviteRfpApplicantsSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
