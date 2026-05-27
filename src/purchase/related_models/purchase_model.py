@@ -47,7 +47,6 @@ class PurchaseQuerySet(models.QuerySet):
 
 class Purchase(PaidStatusModelMixin):
     OFF_CHAIN = "OFF_CHAIN"
-    ON_CHAIN = "ON_CHAIN"
 
     BOOST = "BOOST"
     DOI = "DOI"
@@ -55,7 +54,6 @@ class Purchase(PaidStatusModelMixin):
 
     PURCHASE_METHOD_CHOICES = [
         (OFF_CHAIN, OFF_CHAIN),
-        (ON_CHAIN, ON_CHAIN),
     ]
 
     PURCHASE_TYPE_CHOICES = [

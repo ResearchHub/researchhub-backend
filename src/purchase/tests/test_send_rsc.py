@@ -3,7 +3,7 @@ from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from paper.tests.helpers import create_paper
-from purchase.models import Balance, RscExchangeRate
+from purchase.models import Balance, Purchase, RscExchangeRate
 from reputation.models import BountyFee, Escrow, SupportFee
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
@@ -240,6 +240,38 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
                 "purchase_method": "OFF_CHAIN",
                 "purchase_type": "BOOST",
             },
+        )
+
+    def test_invalid_purchase_method_is_rejected(self):
+        purchaser = create_random_authenticated_user("purchaser")
+        poster = create_random_authenticated_user("poster")
+        post = create_post(created_by=poster)
+        tip_amount = 100
+
+        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount="10000", user=purchaser, content_type=DISTRIBUTION_CONTENT_TYPE
+        )
+
+        response = get_authenticated_post_response(
+            purchaser,
+            "/api/purchase/",
+            {
+                "amount": tip_amount,
+                "content_type": "researchhubpost",
+                "object_id": post.id,
+                "purchase_method": "ON_CHAIN",
+                "purchase_type": "BOOST",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Purchase.objects.filter(user=purchaser).count(), 0)
+        self.assertEqual(
+            Balance.objects.filter(
+                user=poster, content_type=DISTRIBUTION_CONTENT_TYPE
+            ).count(),
+            0,
         )
 
     def test_probable_spammer_cannot_support(self):
