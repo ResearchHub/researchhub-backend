@@ -3,6 +3,7 @@ from decimal import Decimal
 from unittest import mock
 
 import pytz
+from celery.exceptions import Retry
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.test import override_settings
@@ -16,6 +17,7 @@ from reputation.lib import (
 )
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
+from reputation.tasks import broadcast_withdrawal
 from reputation.tests.helpers import create_deposit
 from reputation.tests.test_withdrawal_view import VALID_TEST_TO_ADDRESS
 from reputation.views.withdrawal_view import WithdrawalViewSet
@@ -32,6 +34,19 @@ class EvaluateTransactionHashTests(AWSMockTransactionTestCase):
         self.assertIsNone(paid_date)
         mock_provider.ethereum.eth.wait_for_transaction_receipt.assert_not_called()
 
+    @mock.patch("reputation.lib.web3_provider")
+    def test_reverted_receipt_returns_failed(self, mock_provider):
+        mock_provider.ethereum.eth.wait_for_transaction_receipt.return_value = {
+            "status": 0
+        }
+
+        paid_status, paid_date = evaluate_transaction_hash(
+            "0xfailed", network="ETHEREUM"
+        )
+
+        self.assertEqual(paid_status, PaidStatusModelMixin.FAILED)
+        self.assertIsNone(paid_date)
+
 
 class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
     def setUp(self):
@@ -39,6 +54,34 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
             "broadcast_user", 1000
         )
         create_deposit(self.user, amount="2000.0")
+        self.initial_balance = self.user.get_balance()
+
+    def _create_withdrawal_with_balance(
+        self,
+        amount="500",
+        fee="10",
+        paid_status=PaidStatusModelMixin.INITIATED,
+        transaction_hash=None,
+    ):
+        withdrawal = Withdrawal.objects.create(
+            user=self.user,
+            token_address="0xtoken",
+            from_address="0xfrom",
+            to_address="0xto",
+            amount=amount,
+            fee=fee,
+            network="ETHEREUM",
+            paid_status=paid_status,
+            transaction_hash=transaction_hash,
+        )
+        withdrawal_content_type = ContentType.objects.get_for_model(Withdrawal)
+        Balance.objects.create(
+            user=self.user,
+            content_type=withdrawal_content_type,
+            object_id=withdrawal.id,
+            amount=f"-{Decimal(amount) + Decimal(fee)}",
+        )
+        return withdrawal
 
     @mock.patch("reputation.lib.execute_erc20_transfer", return_value="0xabc")
     @mock.patch("reputation.lib.get_nonce", return_value=7)
@@ -82,6 +125,49 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
         broadcast_withdrawal_transfer(withdrawal)
 
         mock_transfer.assert_not_called()
+
+    @mock.patch("reputation.tasks.log_error")
+    @mock.patch("reputation.tasks.broadcast_withdrawal.retry")
+    @mock.patch("reputation.tasks.broadcast_withdrawal_transfer")
+    def test_broadcast_withdrawal_failure_handling(
+        self, mock_transfer, mock_retry, mock_log_error
+    ):
+        mock_transfer.side_effect = Exception("RPC unavailable")
+
+        withdrawal = self._create_withdrawal_with_balance()
+        mock_retry.side_effect = Retry()
+        with self.assertRaises(Retry):
+            broadcast_withdrawal(withdrawal.id)
+
+        withdrawal.refresh_from_db()
+        self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.INITIATED)
+        self.assertEqual(self.user.get_balance(), self.initial_balance - Decimal("510"))
+
+        with mock.patch.object(
+            broadcast_withdrawal.request,
+            "retries",
+            broadcast_withdrawal.max_retries,
+        ):
+            self.assertFalse(broadcast_withdrawal(withdrawal.id))
+
+        withdrawal.refresh_from_db()
+        self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.FAILED)
+        self.assertEqual(self.user.get_balance(), self.initial_balance)
+
+        pending_with_hash = self._create_withdrawal_with_balance(
+            paid_status=PaidStatusModelMixin.PENDING,
+            transaction_hash="0xsubmitted",
+        )
+        with mock.patch.object(
+            broadcast_withdrawal.request,
+            "retries",
+            broadcast_withdrawal.max_retries,
+        ):
+            self.assertFalse(broadcast_withdrawal(pending_with_hash.id))
+
+        pending_with_hash.refresh_from_db()
+        self.assertEqual(pending_with_hash.paid_status, PaidStatusModelMixin.PENDING)
+        self.assertEqual(self.user.get_balance(), self.initial_balance - Decimal("510"))
 
 
 class CheckPendingWithdrawalRecoveryTests(AWSMockTransactionTestCase):

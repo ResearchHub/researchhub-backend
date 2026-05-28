@@ -116,11 +116,6 @@ def broadcast_withdrawal(self, withdrawal_id):
         return True
     except Exception as exc:
         withdrawal = Withdrawal.objects.filter(id=withdrawal_id).first()
-        if withdrawal and withdrawal.paid_status not in (
-            PaidStatusModelMixin.PAID,
-            PaidStatusModelMixin.FAILED,
-        ):
-            withdrawal.set_paid_failed()
         logger.warning(
             "broadcast_withdrawal failed for %s (attempt %d/%d): %s",
             withdrawal_id,
@@ -129,6 +124,16 @@ def broadcast_withdrawal(self, withdrawal_id):
             exc,
         )
         if self.request.retries >= self.max_retries:
+            if (
+                withdrawal
+                and not withdrawal.transaction_hash
+                and withdrawal.paid_status
+                not in (
+                    PaidStatusModelMixin.PAID,
+                    PaidStatusModelMixin.FAILED,
+                )
+            ):
+                withdrawal.set_paid_failed()
             log_error(
                 exc,
                 message="broadcast_withdrawal failed after all retries",
