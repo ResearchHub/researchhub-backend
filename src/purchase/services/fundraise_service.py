@@ -163,8 +163,8 @@ class FundraiseService:
             except Exception:
                 return None, "Invalid amount"
 
-            min_rsc = Decimal(str(MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC))
-            max_rsc = Decimal(str(MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC))
+            min_rsc = MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
+            max_rsc = MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
             if amount < min_rsc or amount > max_rsc:
                 return None, f"Invalid amount. Minimum is {min_rsc}"
 

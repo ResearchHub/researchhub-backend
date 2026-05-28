@@ -704,7 +704,7 @@ class CloseFundraiseTests(TestCase):
     def test_create_contribution_rejects_rsc_below_minimum(self):
         contributor = create_random_authenticated_user("tiny_contributor")
         self._give_user_rsc_balance(contributor, 100)
-        below_min = Decimal(str(MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC)) / 10
+        below_min = MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC / 10
 
         purchase, error = self.fundraise_service.create_contribution(
             contributor, self.fundraise, below_min, currency=RSC, use_credits=False
