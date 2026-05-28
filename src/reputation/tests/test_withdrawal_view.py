@@ -15,8 +15,8 @@ from rest_framework.test import APITestCase
 from ethereum.lib import normalize_ethereum_address
 from purchase.models import Balance, RscExchangeRate
 from reputation.lib import WITHDRAWAL_MINIMUM
-from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.models import Withdrawal
+from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.tests.helpers import create_deposit, create_withdrawal
 from reputation.views.withdrawal_view import WithdrawalViewSet
 from user.related_models.user_verification_model import UserVerification
