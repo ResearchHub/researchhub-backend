@@ -24,6 +24,9 @@ from reputation.views.withdrawal_view import WithdrawalViewSet
 from user.tests.helpers import create_random_authenticated_user_with_reputation
 from utils.test_helpers import AWSMockTransactionTestCase
 
+TEST_RSC_CONTRACT_ADDRESS = "0x1234567890123456789012345678901234567890"
+TEST_WEB3_WALLET_ADDRESS = "0x0987654321098765432109876543210987654321"
+
 
 class EvaluateTransactionHashTests(AWSMockTransactionTestCase):
     def test_none_hash_returns_pending_without_web3(self):
@@ -83,6 +86,8 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
         )
         return withdrawal
 
+    @override_settings(WEB3_WALLET_ADDRESS=TEST_WEB3_WALLET_ADDRESS)
+    @mock.patch("reputation.lib.RSC_CONTRACT_ADDRESS", TEST_RSC_CONTRACT_ADDRESS)
     @mock.patch("reputation.lib.execute_erc20_transfer", return_value="0xabc")
     @mock.patch("reputation.lib.get_nonce", return_value=7)
     @mock.patch("reputation.lib.PRIVATE_KEY", "mock-key")
