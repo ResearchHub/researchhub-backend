@@ -149,9 +149,11 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         preregistration that has applied to any grant.
         Excludes PENDING and DECLINED grants (moderation-only).
         """
-        grant_ud_ids = Grant.objects.exclude(
-            status__in=[Grant.PENDING, Grant.DECLINED]
-        ).values_list("unified_document_id", flat=True)
+        grant_ud_ids = (
+            Grant.objects.exclude(status__in=[Grant.PENDING, Grant.DECLINED])
+            .filter(unified_document__is_public=True)
+            .values_list("unified_document_id", flat=True)
+        )
         prereg_ud_ids = GrantApplication.objects.values_list(
             "preregistration_post__unified_document_id",
             flat=True,
@@ -170,6 +172,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         funder_grants = Grant.objects.filter(
             Q(created_by_id=funder_id) | Q(contacts__id=funder_id),
             status__in=[Grant.OPEN, Grant.COMPLETED],
+            unified_document__is_public=True,
         ).distinct()
 
         grant_ud_ids = funder_grants.values_list("unified_document_id", flat=True)
