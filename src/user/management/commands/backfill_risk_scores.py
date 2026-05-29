@@ -180,11 +180,9 @@ class Command(BaseCommand):
         if user.pk in lookups["google_user_ids"]:
             signals.append(EventType.GOOGLE_SIGNUP)
 
-        if user.email and user.email.lower().endswith(".edu"):
-            signals.append(EventType.EDU_EMAIL_SIGNUP)
-
-        if user.pk in lookups["orcid_accounts_with_edu"]:
-            signals.append(EventType.ORCID_VERIFIED_EDU)
+        has_edu_email = bool(user.email and user.email.lower().endswith(".edu"))
+        if has_edu_email or user.pk in lookups["orcid_accounts_with_edu"]:
+            signals.append(EventType.EDU_EMAIL)
 
         if user.pk in lookups["persona_approved_user_ids"]:
             signals.append(EventType.PERSONA_VERIFIED_WHITELISTED)

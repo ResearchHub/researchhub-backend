@@ -76,7 +76,8 @@ class GrantSignalTests(RiskScoreSignalTestCase):
 
         # Act
         grant.status = Grant.OPEN
-        grant.save(update_fields=["status"])
+        with self.captureOnCommitCallbacks(execute=True):
+            grant.save(update_fields=["status"])
 
         # Assert
         self._assert_has_event(
@@ -92,7 +93,8 @@ class GrantSignalTests(RiskScoreSignalTestCase):
 
         # Act
         grant.status = Grant.DECLINED
-        grant.save(update_fields=["status"])
+        with self.captureOnCommitCallbacks(execute=True):
+            grant.save(update_fields=["status"])
 
         # Assert
         self._assert_has_event(
@@ -111,10 +113,12 @@ class GrantSignalTests(RiskScoreSignalTestCase):
 
     def test_repeated_save_is_idempotent(self):
         # Arrange
-        grant = self._create_grant(Grant.OPEN)
+        with self.captureOnCommitCallbacks(execute=True):
+            grant = self._create_grant(Grant.OPEN)
 
         # Act
-        grant.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            grant.save()
 
         # Assert
         self._assert_event_count(self.user, EventType.WORK_APPROVED, 1)
@@ -130,7 +134,8 @@ class ContentCensoredSignalTests(RiskScoreSignalTestCase):
         comment = self._create_comment(self.post, self.user)
 
         # Act
-        comment.delete(soft=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            comment.delete(soft=True)
 
         # Assert
         self._assert_has_event(
@@ -153,7 +158,8 @@ class ContentCensoredSignalTests(RiskScoreSignalTestCase):
 
         # Act
         document.is_removed = True
-        document.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            document.save()
 
         # Assert
         self._assert_has_event(
@@ -164,10 +170,12 @@ class ContentCensoredSignalTests(RiskScoreSignalTestCase):
         # Arrange
         document = self.post.unified_document
         document.is_removed = True
-        document.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            document.save()
 
         # Act
-        document.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            document.save()
 
         # Assert
         self._assert_event_count(self.user, EventType.CONTENT_CENSORED, 1)
@@ -215,7 +223,8 @@ class BountySolutionSignalTests(RiskScoreSignalTestCase):
 
         # Act
         solution.status = BountySolution.Status.AWARDED
-        solution.save(update_fields=["status"])
+        with self.captureOnCommitCallbacks(execute=True):
+            solution.save(update_fields=["status"])
 
         # Assert
         self._assert_has_event(
@@ -232,6 +241,20 @@ class BountySolutionSignalTests(RiskScoreSignalTestCase):
         # Assert
         self._assert_no_events(self.recipient, EventType.BOUNTY_AWARDED)
 
+    def test_repeated_award_save_is_idempotent(self):
+        # Arrange
+        solution = self._create_solution(status=BountySolution.Status.SUBMITTED)
+        solution.status = BountySolution.Status.AWARDED
+        with self.captureOnCommitCallbacks(execute=True):
+            solution.save(update_fields=["status"])
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            solution.save()
+
+        # Assert
+        self._assert_event_count(self.recipient, EventType.BOUNTY_AWARDED, 1)
+
     @patch.object(User, "is_rh_community_account", return_value=True)
     def test_community_bounty_on_comment_records_review_assessment(self, mock_rh):
         # Arrange
@@ -247,11 +270,12 @@ class BountySolutionSignalTests(RiskScoreSignalTestCase):
         )
 
         # Act
-        self._create_solution(
-            status=BountySolution.Status.AWARDED,
-            content_type=comment_content_type,
-            object_id=comment.pk,
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            self._create_solution(
+                status=BountySolution.Status.AWARDED,
+                content_type=comment_content_type,
+                object_id=comment.pk,
+            )
 
         # Assert
         self._assert_has_event(reviewer, EventType.PEER_REVIEW_ASSESSED)
@@ -287,7 +311,8 @@ class CommunityTipSignalTests(RiskScoreSignalTestCase):
     @patch.object(User, "is_rh_community_account", return_value=True)
     def test_community_tip_records_tipped_and_assessed(self, mock_rh):
         # Act
-        self._create_tip()
+        with self.captureOnCommitCallbacks(execute=True):
+            self._create_tip()
 
         # Assert
         self._assert_has_event(self.author, EventType.PEER_REVIEW_TIPPED)
@@ -312,24 +337,26 @@ class SocialAccountSignalTests(RiskScoreSignalTestCase):
 
     def test_google_signup_records_event(self):
         # Act
-        SocialAccount.objects.create(
-            user=self.user, provider="google", uid="google-123"
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            SocialAccount.objects.create(
+                user=self.user, provider="google", uid="google-123"
+            )
 
         # Assert
         self._assert_has_event(self.user, EventType.GOOGLE_SIGNUP)
 
     def test_orcid_with_verified_edu_records_event(self):
         # Act
-        SocialAccount.objects.create(
-            user=self.user,
-            provider="orcid",
-            uid="0000-0001-2345-6789",
-            extra_data={"verified_edu_emails": ["user@mit.edu"]},
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            SocialAccount.objects.create(
+                user=self.user,
+                provider="orcid",
+                uid="0000-0001-2345-6789",
+                extra_data={"verified_edu_emails": ["user@mit.edu"]},
+            )
 
         # Assert
-        self._assert_has_event(self.user, EventType.ORCID_VERIFIED_EDU)
+        self._assert_has_event(self.user, EventType.EDU_EMAIL)
 
     def test_orcid_without_verified_edu_does_not_record(self):
         # Act
@@ -341,7 +368,7 @@ class SocialAccountSignalTests(RiskScoreSignalTestCase):
         )
 
         # Assert
-        self._assert_no_events(self.user, EventType.ORCID_VERIFIED_EDU)
+        self._assert_no_events(self.user, EventType.EDU_EMAIL)
 
     def test_unrelated_provider_does_not_record(self):
         # Act
@@ -367,7 +394,8 @@ class PersonaVerificationSignalTests(RiskScoreSignalTestCase):
 
     def test_approved_verification_records_event(self):
         # Act
-        self._create_verification(UserVerification.Status.APPROVED)
+        with self.captureOnCommitCallbacks(execute=True):
+            self._create_verification(UserVerification.Status.APPROVED)
 
         # Assert
         self._assert_has_event(self.user, EventType.PERSONA_VERIFIED_WHITELISTED)
@@ -403,21 +431,23 @@ class UserCreatedSignalTests(RiskScoreSignalTestCase):
 
     def test_edu_email_records_event(self):
         # Act
-        user = create_user(email="scholar@stanford.edu")
+        with self.captureOnCommitCallbacks(execute=True):
+            user = create_user(email="scholar@stanford.edu")
 
         # Assert
-        self._assert_has_event(user, EventType.EDU_EMAIL_SIGNUP)
+        self._assert_has_event(user, EventType.EDU_EMAIL)
 
     def test_non_edu_email_does_not_record(self):
         # Act
         user = create_user(email="normal@gmail.com")
 
         # Assert
-        self._assert_no_events(user, EventType.EDU_EMAIL_SIGNUP)
+        self._assert_no_events(user, EventType.EDU_EMAIL)
 
     def test_expert_finder_email_records_event(self):
         # Act
-        user = create_user(email="expert@university.org")
+        with self.captureOnCommitCallbacks(execute=True):
+            user = create_user(email="expert@university.org")
 
         # Assert
         self._assert_has_event(user, EventType.EXPERT_FINDER_SIGNUP)
@@ -444,9 +474,10 @@ class PostStatusChangedSignalTests(RiskScoreSignalTestCase):
         self.post.status = "APPROVED"
 
         # Act
-        on_post_status_changed(
-            sender=type(self.post), instance=self.post, created=False
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            on_post_status_changed(
+                sender=type(self.post), instance=self.post, created=False
+            )
 
         # Assert
         self._assert_has_event(
@@ -460,9 +491,10 @@ class PostStatusChangedSignalTests(RiskScoreSignalTestCase):
         self.post.status = "DECLINED"
 
         # Act
-        on_post_status_changed(
-            sender=type(self.post), instance=self.post, created=False
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            on_post_status_changed(
+                sender=type(self.post), instance=self.post, created=False
+            )
 
         # Assert
         self._assert_has_event(
