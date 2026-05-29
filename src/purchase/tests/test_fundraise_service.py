@@ -1,8 +1,9 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 from unittest.mock import Mock
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from rest_framework.test import APITestCase
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
@@ -1017,3 +1018,68 @@ class ExportUsdContributionsTests(TestCase):
 
         refunded_flags = {row[16] for row in rows}
         self.assertEqual(refunded_flags, {True, False})
+
+
+class TestFundraiseConcurrentEscrowUpdates(TransactionTestCase):
+    """Concurrent contribution tests require committed rows visible across threads."""
+
+    def setUp(self):
+        User.objects.get_or_create(id=1)
+        self.service = FundraiseService()
+        self.creator = create_random_authenticated_user("concurrent_fundraise_creator")
+        self.post = create_post(self.creator)
+        self.fundraise = self.service.create_fundraise_with_escrow(
+            user=self.creator,
+            unified_document=self.post.unified_document,
+            goal_amount=Decimal("10000"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        BountyFee.objects.create(rh_pct=Decimal("0.07"), dao_pct=Decimal("0.02"))
+        RscExchangeRate.objects.create(
+            rate=0.5,
+            real_rate=0.5,
+            target_currency="USD",
+        )
+
+    def _fund_contributor(self, username: str, balance: int):
+        user = create_random_authenticated_user(username)
+        dist_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount=balance,
+            user=user,
+            content_type=dist_ct,
+            is_locked=False,
+        )
+        return user
+
+    def test_concurrent_rsc_contributions_credit_full_escrow(self):
+        """
+        Two simultaneous RSC contributions must both increase escrow holdings.
+        """
+        amount = Decimal("100")
+        contributor_a = self._fund_contributor("concurrent_contributor_a", 5000)
+        contributor_b = self._fund_contributor("concurrent_contributor_b", 5000)
+
+        def contribute(user):
+            purchase, error = self.service.create_rsc_contribution(
+                user,
+                self.fundraise,
+                amount,
+                use_credits=False,
+            )
+            return purchase, error
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(contribute, contributor_a),
+                executor.submit(contribute, contributor_b),
+            ]
+            results = [future.result() for future in as_completed(futures)]
+
+        for purchase, error in results:
+            self.assertIsNone(error)
+            self.assertIsNotNone(purchase)
+
+        self.fundraise.escrow.refresh_from_db()
+        self.assertEqual(self.fundraise.escrow.amount_holding, amount * 2)
