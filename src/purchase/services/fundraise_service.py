@@ -498,9 +498,14 @@ class FundraiseService:
         Returns True if successful, False otherwise.
         """
         with transaction.atomic():
+            fundraise = Fundraise.objects.select_for_update().get(pk=fundraise.pk)
+
             # Check if fundraise can be closed (must be open)
             if fundraise.status != Fundraise.OPEN:
                 return False
+
+            if fundraise.escrow_id:
+                Escrow.objects.select_for_update().get(pk=fundraise.escrow_id)
 
             # Refund RSC contributions
             if not self.refund_rsc_contributions(fundraise):
