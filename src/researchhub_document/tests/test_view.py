@@ -1899,6 +1899,10 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         url = f"/api/researchhubpost/{self.prereg_post.id}/"
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["unified_document"]["is_public"],
+            self.prereg_post.unified_document.is_public,
+        )
         grants = response.data["grants"]
         self.assertEqual(len(grants), 2)
         by_grant_id = {g["id"]: g for g in grants}
@@ -1914,6 +1918,10 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         self.assertIsNone(entry_a["image_url"])
         self.assertEqual(entry_a["title"], grant_a_post.title)
         self.assertEqual(entry_a["applicant_count"], 1)
+        self.assertEqual(
+            entry_a["application_visibility"],
+            Grant.APPLICATION_VISIBILITY_OPTIONAL,
+        )
         proposal_a = entry_a["proposal"]
         self.assertEqual(
             proposal_a["unified_document_id"], self.prereg_post.unified_document_id

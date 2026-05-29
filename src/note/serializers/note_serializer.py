@@ -131,6 +131,7 @@ class NoteSerializer(ModelSerializer):
                     "created_by",
                     "contacts",
                     "applications",
+                    "application_visibility",
                 ]
             },
             "pch_dgs_get_created_by": {
@@ -282,6 +283,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
                     "created_by",
                     "contacts",
                     "applications",
+                    "application_visibility",
                 ]
             },
             "pch_dgs_get_created_by": {

@@ -196,6 +196,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "created_by",
                     "contacts",
                     "applications",
+                    "application_visibility",
                 ]
             },
             "pch_dfs_get_contributors": {
@@ -354,6 +355,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "created_by",
                     "contacts",
                     "applications",
+                    "application_visibility",
                 ]
             },
             "pch_dfs_get_contributors": {

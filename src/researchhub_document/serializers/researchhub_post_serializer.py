@@ -164,6 +164,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 "documents",
                 "slug",
                 "is_removed",
+                "is_public",
                 "document_type",
                 "created_by",
             ],
@@ -278,6 +279,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                     "image_url": self._get_grant_image(grant_post),
                     "title": grant_post.title if grant_post else None,
                     "applicant_count": applicant_counts.get(grant.id, 0),
+                    "application_visibility": grant.application_visibility,
                     "proposal": {
                         "unified_document_id": ud_id,
                         "ai_peer_review": ai_peer_review,
