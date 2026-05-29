@@ -7,11 +7,10 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("user", "0144_user_email_lower_idx"),
-        ("risk_score", "0001_initial"),
         ("contenttypes", "0002_remove_content_type_name"),
     ]
 
-    state_operations = [
+    operations = [
         migrations.CreateModel(
             name="RiskScore",
             fields=[
@@ -98,8 +97,4 @@ class Migration(migrations.Migration):
                 ],
             },
         ),
-    ]
-
-    operations = [
-        migrations.SeparateDatabaseAndState(state_operations=state_operations),
     ]
