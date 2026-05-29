@@ -46,7 +46,7 @@ class AccountAgeBonusTaskTests(TestCase):
             ).exists()
         )
 
-    def test_skips_inactive_users(self):
+    def test_no_age_bonus_for_inactive_users(self):
         # Arrange
         user = self._create_aged_user(email="inactive@test.com", active=False)
 
