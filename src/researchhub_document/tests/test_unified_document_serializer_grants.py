@@ -107,6 +107,29 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
         self.assertIn("amount", grant_data)
         self.assertIn("organization", grant_data)
 
+    def test_get_grant_includes_application_visibility(self):
+        """application_visibility is serialized when requested in the context"""
+        self.grant1.application_visibility = Grant.APPLICATION_VISIBILITY_PRIVATE
+        self.grant1.save()
+
+        context = {
+            "doc_duds_get_grant": {
+                "_include_fields": ["id", "application_visibility"],
+                "_filter_fields": {"id": self.grant1.id},
+            }
+        }
+
+        serializer = DynamicUnifiedDocumentSerializer(
+            self.unified_doc, _include_fields=["id", "grant"], context=context
+        )
+        grant_data = serializer.data["grant"]
+
+        self.assertIn("application_visibility", grant_data)
+        self.assertEqual(
+            grant_data["application_visibility"],
+            Grant.APPLICATION_VISIBILITY_PRIVATE,
+        )
+
     def test_get_grant_with_filter_fields(self):
         """Test that filter fields are properly applied"""
         context = {"doc_duds_get_grant": {"_filter_fields": {"status": Grant.OPEN}}}
