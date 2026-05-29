@@ -1899,6 +1899,10 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         url = f"/api/researchhubpost/{self.prereg_post.id}/"
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["unified_document"]["is_public"],
+            self.prereg_post.unified_document.is_public,
+        )
         grants = response.data["grants"]
         self.assertEqual(len(grants), 2)
         by_grant_id = {g["id"]: g for g in grants}
