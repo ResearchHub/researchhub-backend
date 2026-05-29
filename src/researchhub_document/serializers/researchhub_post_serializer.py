@@ -164,6 +164,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 "documents",
                 "slug",
                 "is_removed",
+                "is_public",
                 "document_type",
                 "created_by",
             ],
