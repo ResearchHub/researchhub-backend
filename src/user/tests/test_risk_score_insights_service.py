@@ -41,9 +41,7 @@ def _create_comment(post, author, body="hello world"):
 
 
 def _record(user, event_type, *, source=None, delta=None):
-    return RiskScoreService().record_event(
-        user, event_type, source=source, delta=delta
-    )
+    return RiskScoreService().record_event(user, event_type, source=source, delta=delta)
 
 
 def _record_many(user, event_type, count, *, delta=None):
@@ -125,9 +123,7 @@ class BuildEventDetailsTests(APITestCase):
 
     def test_comment_detail_includes_anchor_and_types(self):
         # Arrange
-        comment = _create_comment(
-            self.post, self.user, "this is the censored comment"
-        )
+        comment = _create_comment(self.post, self.user, "this is the censored comment")
         comment.comment_type = "PEER_REVIEW"
         comment.save(update_fields=["comment_type"])
         event = _record(self.user, EventType.CONTENT_CENSORED, source=comment)
@@ -434,8 +430,7 @@ class RiskScoreEventsApiTests(APITestCase):
         self.assertEqual(sentiments[EventType.CONTENT_CENSORED], NEGATIVE)
         self.assertEqual(sentiments[EventType.GOOGLE_SIGNUP], POSITIVE)
         details_by_type = {
-            row["event_type"]: row["source_detail"]
-            for row in response.data["results"]
+            row["event_type"]: row["source_detail"] for row in response.data["results"]
         }
         self.assertIsNone(details_by_type[EventType.GOOGLE_SIGNUP])
         self.assertEqual(
