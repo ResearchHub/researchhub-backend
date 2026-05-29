@@ -1914,6 +1914,10 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         self.assertIsNone(entry_a["image_url"])
         self.assertEqual(entry_a["title"], grant_a_post.title)
         self.assertEqual(entry_a["applicant_count"], 1)
+        self.assertEqual(
+            entry_a["application_visibility"],
+            Grant.APPLICATION_VISIBILITY_OPTIONAL,
+        )
         proposal_a = entry_a["proposal"]
         self.assertEqual(
             proposal_a["unified_document_id"], self.prereg_post.unified_document_id
