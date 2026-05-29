@@ -163,15 +163,10 @@ class FundraiseService:
             except Exception:
                 return None, "Invalid amount"
 
-            # Check if amount is within limits
-            if (
-                amount < MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
-                or amount > MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
-            ):
-                return None, (
-                    f"Invalid amount. Minimum is "
-                    f"{MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC}"
-                )
+            min_rsc = MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
+            max_rsc = MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
+            if amount < min_rsc or amount > max_rsc:
+                return None, f"Invalid amount. Minimum is {min_rsc}"
 
             return self.create_rsc_contribution(
                 user, fundraise, amount, use_credits=use_credits

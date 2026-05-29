@@ -1,0 +1,34 @@
+{% autoescape on %}<p>Hello,</p>
+
+<p>
+  {{ inviter_name }} has invited you to apply to the following request for
+  proposals on ResearchHub:
+</p>
+
+<p>
+  <strong>{{ rfp_title }}</strong>{% if rfp_organization %} &mdash; {{ rfp_organization }}{% endif %}
+</p>
+
+<ul>
+  {% if rfp_amount %}<li><strong>Amount:</strong> {{ rfp_amount }}</li>{% endif %}
+  {% if rfp_deadline %}<li><strong>Application deadline:</strong> {{ rfp_deadline }}</li>{% endif %}
+</ul>
+
+{% if rfp_description %}<p>{{ rfp_description }}</p>{% endif %}
+
+{% if rfp_url %}
+<p>
+  <a href="{{ rfp_url }}">View the RFP and submit your application</a>
+</p>
+{% endif %}
+
+<p>
+  If you don&rsquo;t already have a ResearchHub account, you can sign up with this
+  email address and your invitation will be linked automatically.
+</p>
+
+<p>
+  Thanks,<br />
+  The ResearchHub team
+</p>
+{% endautoescape %}
