@@ -172,13 +172,14 @@ class BuildEventDetailsTests(APITestCase):
             unified_document=self.post.unified_document,
             escrow=escrow,
         )
-        BountySolution.objects.create(
-            bounty=bounty,
-            created_by=self.user,
-            content_type=comment_ct,
-            object_id=comment.id,
-            status=BountySolution.Status.AWARDED,
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            BountySolution.objects.create(
+                bounty=bounty,
+                created_by=self.user,
+                content_type=comment_ct,
+                object_id=comment.id,
+                status=BountySolution.Status.AWARDED,
+            )
         event = RiskScoreEvent.objects.get(
             user=self.user, event_type=EventType.BOUNTY_AWARDED
         )
