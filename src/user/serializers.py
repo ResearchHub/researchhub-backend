@@ -42,11 +42,11 @@ from user.models import (
 from user.related_models.author_contribution_summary_model import (
     AuthorContributionSummary,
 )
-from user.related_models.risk_score_model import RiskScoreEvent
 from user.related_models.author_institution import AuthorInstitution
 from user.related_models.coauthor_model import CoAuthor
 from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
+from user.related_models.risk_score_model import RiskScoreEvent
 from user.services.risk_score_service import RiskScoreService
 from utils import sentry
 
