@@ -319,12 +319,14 @@ class PostViewSetVisibilityTests(AWSMockTestCase):
 
 
 class FundingFeedPrivacyTests(AWSMockTestCase):
-    """Funding feed excludes private preregistrations for every viewer.
+    """The public funding feed excludes private preregistrations for everyone.
 
     Private posts remain reachable via the direct post endpoint (see
-    PostViewSetVisibilityTests). The feed is a discovery surface and has no
-    business showing private work even to authors or grant owners — keeping
-    the feed user-agnostic also lets us cache it for everyone.
+    PostViewSetVisibilityTests) and via the grant-scoped feed for users who can
+    access them (see GrantScopedFundingFeedTests). The un-scoped feed is a
+    discovery surface and has no business showing private work even to authors
+    or grant owners — keeping it user-agnostic also lets us cache it for
+    everyone.
     """
 
     def setUp(self):
@@ -405,6 +407,115 @@ class FundingFeedPrivacyTests(AWSMockTestCase):
         anonymous_response = anonymous_client.get(reverse("funding_feed-list"))
         self.assertEqual(anonymous_response.status_code, status.HTTP_200_OK)
         self.assertNotIn(self.private_post.id, self._ids(anonymous_response))
+
+
+class GrantScopedFundingFeedTests(AWSMockTestCase):
+    """The grant-scoped funding feed (?grant_id=) returns private applications
+    to users who are allowed to see them.
+
+    Unlike the un-scoped discovery feed, this view is never cached, so it can be
+    user-specific. It reuses ResearchhubPost.visible_to, so the grant owner,
+    invited reviewers (Permission rows), and moderators see private
+    applications, while anonymous users and outsiders still only see public
+    ones.
+    """
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+        self.author = _make_user("author")
+        self.outsider = _make_user("outsider")
+        self.grant_owner = _make_user("grant_owner")
+        self.reviewer = _make_user("reviewer")
+
+        self.public_post = create_post(
+            title="Public", created_by=self.author, document_type=PREREGISTRATION
+        )
+        self.private_post = create_post(
+            title="Private", created_by=self.author, document_type=PREREGISTRATION
+        )
+        self.private_post.unified_document.is_public = False
+        self.private_post.unified_document.save()
+
+        self.grant_post = create_post(
+            created_by=self.grant_owner, document_type="GRANT", title="Grant"
+        )
+        self.grant_doc = self.grant_post.unified_document
+        self.grant = Grant.objects.create(
+            created_by=self.grant_owner,
+            unified_document=self.grant_doc,
+            amount=1000,
+            currency=USD,
+            organization="Org",
+            description="desc",
+        )
+        for post in (self.public_post, self.private_post):
+            GrantApplication.objects.create(
+                grant=self.grant,
+                preregistration_post=post,
+                applicant=self.author,
+            )
+
+    def _ids(self, response):
+        return {item["content_object"]["id"] for item in response.data["results"]}
+
+    def _feed(self, user=None):
+        client = APIClient()
+        if user is not None:
+            client.force_authenticate(user)
+        return client.get(reverse("funding_feed-list"), {"grant_id": self.grant.id})
+
+    def test_anonymous_only_sees_public_application(self):
+        response = self._feed()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = self._ids(response)
+        self.assertIn(self.public_post.id, ids)
+        self.assertNotIn(self.private_post.id, ids)
+
+    def test_outsider_only_sees_public_application(self):
+        response = self._feed(self.outsider)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = self._ids(response)
+        self.assertIn(self.public_post.id, ids)
+        self.assertNotIn(self.private_post.id, ids)
+
+    def test_grant_owner_sees_private_application(self):
+        response = self._feed(self.grant_owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = self._ids(response)
+        self.assertIn(self.public_post.id, ids)
+        self.assertIn(self.private_post.id, ids)
+
+    def test_author_sees_own_private_application(self):
+        response = self._feed(self.author)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(self.private_post.id, self._ids(response))
+
+    def test_invited_reviewer_sees_private_application(self):
+        Permission.objects.create(
+            access_type=VIEWER,
+            user=self.reviewer,
+            content_type=ContentType.objects.get_for_model(
+                self.private_post.unified_document
+            ),
+            object_id=self.private_post.unified_document.id,
+        )
+        response = self._feed(self.reviewer)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(self.private_post.id, self._ids(response))
+
+    def test_revoked_reviewer_does_not_see_private_application(self):
+        Permission.objects.create(
+            access_type=NO_ACCESS,
+            user=self.reviewer,
+            content_type=ContentType.objects.get_for_model(
+                self.private_post.unified_document
+            ),
+            object_id=self.private_post.unified_document.id,
+        )
+        response = self._feed(self.reviewer)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn(self.private_post.id, self._ids(response))
 
 
 class FeedEntrySuppressionTests(AWSMockTestCase):
