@@ -88,6 +88,47 @@ class SoftDeletableModel(models.Model):
             return super().delete(*args, **kwargs)
 
 
+class ModeratedDocumentMixin(models.Model):
+    """Moderation lifecycle shared by works that gate public visibility.
+
+    Bundles the PENDING / APPROVED / DECLINED status with the moderator
+    audit trail (`reviewed_by`, `reviewed_date`) so each work model inherits
+    one definition instead of redeclaring it.
+    """
+
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    DECLINED = "DECLINED"
+    STATUS_CHOICES = (
+        (PENDING, "Pending"),
+        (APPROVED, "Approved"),
+        (DECLINED, "Declined"),
+    )
+
+    status = models.CharField(
+        choices=STATUS_CHOICES,
+        default=APPROVED,
+        max_length=32,
+        help_text="Moderation status used to gate public visibility.",
+    )
+    reviewed_by = models.ForeignKey(
+        "user.User",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="reviewed_%(class)ss",
+        help_text="Moderator who approved or declined this work",
+    )
+    reviewed_date = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When the work was approved or declined",
+    )
+
+    class Meta:
+        abstract = True
+
+
 class PaidStatusModelMixin(models.Model):
     FAILED = "FAILED"
     INITIATED = "INITIATED"

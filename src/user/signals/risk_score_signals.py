@@ -7,12 +7,14 @@ from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+from paper.related_models.paper_model import Paper
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
 from reputation.related_models.bounty import BountySolution
 from research_ai.models import GeneratedEmail
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.risk_score_model import RiskScoreEvent
 from user.related_models.user_model import User
@@ -58,6 +60,20 @@ def _record_review_assessments_on(comment):
             )
 
 
+def _moderated_work_event_type(instance, *, created):
+    """Return the event a moderated work earned, or None when the save isn't a
+    scoring moment: creations and auto-approvals (status defaults to APPROVED
+    with no reviewer) leave `reviewed_by` empty, so only reviewed works score.
+    """
+    if created or instance.reviewed_by_id is None:
+        return None
+    if instance.status == instance.APPROVED:
+        return EventType.WORK_APPROVED
+    if instance.status == instance.DECLINED:
+        return EventType.WORK_DECLINED
+    return None
+
+
 @receiver(post_save, sender=Grant, dispatch_uid="risk_score_on_grant_status_changed")
 def on_grant_status_changed(sender, instance, **kwargs):
     if instance.status == Grant.OPEN:
@@ -78,19 +94,35 @@ def on_grant_status_changed(sender, instance, **kwargs):
     sender=ResearchhubPost,
     dispatch_uid="risk_score_on_post_status_changed",
 )
-def on_post_status_changed(sender, instance, **kwargs):
-    """Fires WORK_APPROVED / WORK_DECLINED when a post, proposal, or journal
-    entry is moderated. Requires the `status` field added in a future PR."""
-    status = getattr(instance, "status", None)
-    if status == "APPROVED":
-        event_type = EventType.WORK_APPROVED
-    elif status == "DECLINED":
-        event_type = EventType.WORK_DECLINED
-    else:
+def on_post_status_changed(sender, instance, created, **kwargs):
+    # Grants score via on_grant_status_changed; skip GRANT posts so a single
+    # review doesn't fire twice when both rows update together.
+    if instance.document_type == GRANT:
+        return
+
+    event_type = _moderated_work_event_type(instance, created=created)
+    if event_type is None or not instance.created_by_id:
         return
 
     def record():
         _service.record_event(instance.created_by, event_type, source=instance)
+
+    _run_after_commit(instance, record)
+
+
+@receiver(
+    post_save,
+    sender=Paper,
+    dispatch_uid="risk_score_on_paper_status_changed",
+)
+def on_paper_status_changed(sender, instance, created, **kwargs):
+    # OpenAlex-imported papers have no uploader, so no one earns the points.
+    event_type = _moderated_work_event_type(instance, created=created)
+    if event_type is None or not instance.uploaded_by_id:
+        return
+
+    def record():
+        _service.record_event(instance.uploaded_by, event_type, source=instance)
 
     _run_after_commit(instance, record)
 

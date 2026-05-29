@@ -21,6 +21,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import Author, User
+from utils.models import ModeratedDocumentMixin
 
 
 class ResearchhubPostQuerySet(models.QuerySet):
@@ -60,7 +61,7 @@ class ResearchhubPostQuerySet(models.QuerySet):
         ).distinct()
 
 
-class ResearchhubPost(AbstractGenericReactionModel):
+class ResearchhubPost(ModeratedDocumentMixin, AbstractGenericReactionModel):
     authors = models.ManyToManyField(
         Author,
         related_name="authored_posts",
@@ -166,6 +167,11 @@ class ResearchhubPost(AbstractGenericReactionModel):
     )
 
     objects = ResearchhubPostQuerySet.as_manager()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status"], name="researchhub_post_status_idx"),
+        ]
 
     @property
     def is_latest_version(self):

@@ -4,6 +4,8 @@ from allauth.socialaccount.models import SocialAccount
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from paper.related_models.paper_model import Paper
+from paper.tests.helpers import create_paper
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
 from reputation.related_models.bounty import Bounty, BountySolution
@@ -14,10 +16,15 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from review.models.review_model import Review
 from user.models import User, UserVerification
 from user.related_models.risk_score_model import RiskScoreEvent
-from user.signals.risk_score_signals import on_post_status_changed
+from user.signals.risk_score_signals import (
+    on_paper_status_changed,
+    on_post_status_changed,
+)
 from user.tests.helpers import create_user
 
 EventType = RiskScoreEvent.EventType
@@ -461,17 +468,15 @@ class UserCreatedSignalTests(RiskScoreSignalTestCase):
 
 
 class PostStatusChangedSignalTests(RiskScoreSignalTestCase):
-    """Tests for on_post_status_changed signal. The `status` field will be
-    added to ResearchhubPost in a future PR; we test the handler logic by
-    invoking it directly with a mock status attribute."""
-
     def setUp(self):
         self.user = create_user(email="postauthor@test.com")
+        self.moderator = create_user(email="postmod@test.com", moderator=True)
         self.post = create_post(created_by=self.user)
 
-    def test_approved_status_records_work_approved(self):
-        # Simulate the future status field
-        self.post.status = "APPROVED"
+    def test_moderator_approval_records_work_approved(self):
+        # Arrange
+        self.post.status = ResearchhubPost.APPROVED
+        self.post.reviewed_by = self.moderator
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
@@ -487,8 +492,10 @@ class PostStatusChangedSignalTests(RiskScoreSignalTestCase):
             source_id=self.post.pk,
         )
 
-    def test_declined_status_records_work_declined(self):
-        self.post.status = "DECLINED"
+    def test_moderator_decline_records_work_declined(self):
+        # Arrange
+        self.post.status = ResearchhubPost.DECLINED
+        self.post.reviewed_by = self.moderator
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
@@ -505,7 +512,9 @@ class PostStatusChangedSignalTests(RiskScoreSignalTestCase):
         )
 
     def test_pending_status_does_not_record(self):
-        self.post.status = "PENDING"
+        # Arrange
+        self.post.status = ResearchhubPost.PENDING
+        self.post.reviewed_by = self.moderator
 
         # Act
         on_post_status_changed(
@@ -515,10 +524,139 @@ class PostStatusChangedSignalTests(RiskScoreSignalTestCase):
         # Assert
         self._assert_no_events(self.user)
 
-    def test_no_status_field_does_not_record(self):
-        # Act - no status attribute set, simulating current state
+    def test_auto_approval_without_reviewer_does_not_record(self):
+        # Arrange
+        self.post.status = ResearchhubPost.APPROVED
+        self.post.reviewed_by = None
+
+        # Act
         on_post_status_changed(
             sender=type(self.post), instance=self.post, created=False
+        )
+
+        # Assert
+        self._assert_no_events(self.user)
+
+    def test_creation_does_not_record(self):
+        # Arrange
+        self.post.status = ResearchhubPost.APPROVED
+        self.post.reviewed_by = self.moderator
+
+        # Act
+        on_post_status_changed(
+            sender=type(self.post), instance=self.post, created=True
+        )
+
+        # Assert
+        self._assert_no_events(self.user)
+
+    def test_grant_post_does_not_record_via_post_signal(self):
+        # Arrange
+        self.post.document_type = GRANT
+        self.post.status = ResearchhubPost.APPROVED
+        self.post.reviewed_by = self.moderator
+
+        # Act
+        on_post_status_changed(
+            sender=type(self.post), instance=self.post, created=False
+        )
+
+        # Assert
+        self._assert_no_events(self.user)
+
+
+class PaperStatusChangedSignalTests(RiskScoreSignalTestCase):
+    def setUp(self):
+        self.user = create_user(email="paperauthor@test.com")
+        self.moderator = create_user(email="papermod@test.com", moderator=True)
+        self.paper = create_paper(uploaded_by=self.user)
+
+    def test_moderator_approval_records_work_approved(self):
+        # Arrange
+        self.paper.status = Paper.APPROVED
+        self.paper.reviewed_by = self.moderator
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            on_paper_status_changed(
+                sender=type(self.paper), instance=self.paper, created=False
+            )
+
+        # Assert
+        self._assert_has_event(
+            self.user,
+            EventType.WORK_APPROVED,
+            delta=RiskScoreEvent.DELTAS[EventType.WORK_APPROVED],
+            source_id=self.paper.pk,
+        )
+
+    def test_moderator_decline_records_work_declined(self):
+        # Arrange
+        self.paper.status = Paper.DECLINED
+        self.paper.reviewed_by = self.moderator
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            on_paper_status_changed(
+                sender=type(self.paper), instance=self.paper, created=False
+            )
+
+        # Assert
+        self._assert_has_event(
+            self.user,
+            EventType.WORK_DECLINED,
+            delta=RiskScoreEvent.DELTAS[EventType.WORK_DECLINED],
+            source_id=self.paper.pk,
+        )
+
+    def test_pending_status_does_not_record(self):
+        # Arrange
+        self.paper.status = Paper.PENDING
+        self.paper.reviewed_by = self.moderator
+
+        # Act
+        on_paper_status_changed(
+            sender=type(self.paper), instance=self.paper, created=False
+        )
+
+        # Assert
+        self._assert_no_events(self.user)
+
+    def test_auto_approval_without_reviewer_does_not_record(self):
+        # Arrange
+        self.paper.status = Paper.APPROVED
+        self.paper.reviewed_by = None
+
+        # Act
+        on_paper_status_changed(
+            sender=type(self.paper), instance=self.paper, created=False
+        )
+
+        # Assert
+        self._assert_no_events(self.user)
+
+    def test_creation_does_not_record(self):
+        # Arrange
+        self.paper.status = Paper.APPROVED
+        self.paper.reviewed_by = self.moderator
+
+        # Act
+        on_paper_status_changed(
+            sender=type(self.paper), instance=self.paper, created=True
+        )
+
+        # Assert
+        self._assert_no_events(self.user)
+
+    def test_imported_paper_without_uploader_does_not_record(self):
+        # Arrange
+        self.paper.uploaded_by = None
+        self.paper.status = Paper.APPROVED
+        self.paper.reviewed_by = self.moderator
+
+        # Act
+        on_paper_status_changed(
+            sender=type(self.paper), instance=self.paper, created=False
         )
 
         # Assert

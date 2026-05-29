@@ -10,6 +10,7 @@ from paper.tests.helpers import create_paper
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from review.models import Review
 from user.tests.helpers import create_random_default_user
 
@@ -125,3 +126,28 @@ class ModelTests(TestCase):
         # Assert
         self.assertEqual(details["count"], 0)
         self.assertEqual(details["avg"], 0)
+
+
+class ResearchhubPostStatusTests(TestCase):
+    def setUp(self):
+        self.user = create_random_default_user("post_status_user")
+
+    def test_default_status_is_approved(self):
+        # Act
+        post = create_post(created_by=self.user)
+
+        # Assert
+        self.assertEqual(post.status, ResearchhubPost.APPROVED)
+        self.assertIsNone(post.reviewed_by)
+        self.assertIsNone(post.reviewed_date)
+
+    def test_status_choices_match_constants(self):
+        # Assert
+        self.assertEqual(
+            set(dict(ResearchhubPost.STATUS_CHOICES).keys()),
+            {
+                ResearchhubPost.PENDING,
+                ResearchhubPost.APPROVED,
+                ResearchhubPost.DECLINED,
+            },
+        )
