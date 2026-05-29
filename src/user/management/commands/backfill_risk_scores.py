@@ -252,12 +252,9 @@ class Command(BaseCommand):
         if google_date is not None:
             signals.append((EventType.GOOGLE_SIGNUP, google_date))
 
-        if user.email and user.email.lower().endswith(".edu"):
-            signals.append((EventType.EDU_EMAIL_SIGNUP, user.date_joined))
-
-        orcid_date = lookups["orcid_dates"].get(user.pk)
-        if orcid_date is not None:
-            signals.append((EventType.ORCID_VERIFIED_EDU, orcid_date))
+        has_edu_email = bool(user.email and user.email.lower().endswith(".edu"))
+        if has_edu_email or user.pk in lookups["orcid_accounts_with_edu"]:
+            signals.append(EventType.EDU_EMAIL)
 
         persona_date = lookups["persona_dates"].get(user.pk)
         if persona_date is not None:

@@ -38,8 +38,7 @@ class RiskScoreEvent(models.Model):
 
         # One-time profile signals
         EXPERT_FINDER_SIGNUP = "EXPERT_FINDER_SIGNUP", "Expert Finder signup"
-        EDU_EMAIL_SIGNUP = "EDU_EMAIL_SIGNUP", "Signed up with edu email"
-        ORCID_VERIFIED_EDU = "ORCID_VERIFIED_EDU", "ORCID verified edu email"
+        EDU_EMAIL = "EDU_EMAIL", "Verified edu email"
         GOOGLE_SIGNUP = "GOOGLE_SIGNUP", "Signed up via Google"
         ACCOUNT_AGE_BONUS = "ACCOUNT_AGE_BONUS", "Account age bonus"
         PERSONA_VERIFIED_WHITELISTED = (
@@ -62,8 +61,7 @@ class RiskScoreEvent(models.Model):
         EventType.PEER_REVIEW_ASSESSED: -5,
         # One-time profile signals
         EventType.EXPERT_FINDER_SIGNUP: -51,
-        EventType.EDU_EMAIL_SIGNUP: -20,
-        EventType.ORCID_VERIFIED_EDU: -10,
+        EventType.EDU_EMAIL: -20,
         EventType.GOOGLE_SIGNUP: -10,
         EventType.ACCOUNT_AGE_BONUS: -5,
         EventType.PERSONA_VERIFIED_WHITELISTED: -51,
@@ -72,8 +70,7 @@ class RiskScoreEvent(models.Model):
 
     ONE_TIME_TYPES = {
         EventType.EXPERT_FINDER_SIGNUP,
-        EventType.EDU_EMAIL_SIGNUP,
-        EventType.ORCID_VERIFIED_EDU,
+        EventType.EDU_EMAIL,
         EventType.GOOGLE_SIGNUP,
         EventType.ACCOUNT_AGE_BONUS,
         EventType.PERSONA_VERIFIED_WHITELISTED,

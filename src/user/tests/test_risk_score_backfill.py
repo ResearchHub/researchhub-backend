@@ -93,7 +93,7 @@ class BackfillOneTimeSignalTests(BackfillCommandMixin, TestCase):
         # Assert
         self.assertTrue(
             RiskScoreEvent.objects.filter(
-                user=self.user, event_type=EventType.EDU_EMAIL_SIGNUP
+                user=self.user, event_type=EventType.EDU_EMAIL
             ).exists()
         )
 
@@ -112,7 +112,7 @@ class BackfillOneTimeSignalTests(BackfillCommandMixin, TestCase):
         # Assert
         self.assertTrue(
             RiskScoreEvent.objects.filter(
-                user=self.user, event_type=EventType.ORCID_VERIFIED_EDU
+                user=self.user, event_type=EventType.EDU_EMAIL
             ).exists()
         )
 
