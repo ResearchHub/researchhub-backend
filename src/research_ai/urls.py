@@ -11,6 +11,7 @@ from research_ai.views.email_views import (
 )
 from research_ai.views.expert_finder_views import (
     ExpertDetailView,
+    ExpertListView,
     ExpertSearchAddExpertView,
     ExpertSearchDetailView,
     ExpertSearchListCreateView,
@@ -30,6 +31,10 @@ urlpatterns = [
     path(
         "expert-finder/searches/<int:search_id>/experts/",
         ExpertSearchAddExpertView.as_view(),
+    ),
+    path(
+        "expert-finder/experts/",
+        ExpertListView.as_view(),
     ),
     path(
         "expert-finder/experts/<int:expert_id>/",

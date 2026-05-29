@@ -624,3 +624,52 @@ def load_editor_users(user_ids: list[int]) -> dict[int, User]:
         return {}
     users = User.objects.filter(id__in=user_ids).select_related("author_profile")
     return {user.id: user for user in users}
+
+
+@dataclass(frozen=True)
+class ExpertFinderExpertsListResult:
+    items: list[Expert] = field(default_factory=list)
+    total: int = 0
+    limit: int = 20
+    offset: int = 0
+
+
+def get_expert_finder_experts_list(
+    *,
+    unified_document_id: int | None,
+    start: datetime | None,
+    end: datetime | None,
+    editor_id: int | None = None,
+    registered: bool = False,
+    limit: int = 20,
+    offset: int = 0,
+) -> ExpertFinderExpertsListResult:
+    """
+    Paginated distinct experts linked to expert searches in the filter window.
+    """
+    filtered_searches = _filtered_expert_searches(
+        unified_document_id=unified_document_id,
+        start=start,
+        end=end,
+        editor_id=editor_id,
+    )
+    experts_qs = (
+        Expert.objects.filter(search_experts__expert_search__in=filtered_searches)
+        .distinct()
+        .select_related("registered_user__author_profile")
+    )
+    if registered:
+        experts_qs = experts_qs.filter(registered_user__isnull=False)
+
+    total = experts_qs.count()
+    limit = min(100, max(1, limit))
+    offset = max(0, offset)
+    items = list(
+        experts_qs.order_by("-last_email_sent_at", "-id")[offset : offset + limit]
+    )
+    return ExpertFinderExpertsListResult(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
