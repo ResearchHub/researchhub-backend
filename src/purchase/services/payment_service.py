@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import stripe
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
@@ -36,6 +37,11 @@ APC_AMOUNT_CENTS = 100  # = $1
 # Stripe fee structure (as of 2024)
 STRIPE_FEE_PERCENT = Decimal("0.029")  # 2.9%
 STRIPE_FEE_FIXED_CENTS = 30  # $0.30
+
+# Stripe may deliver payment_intent.succeeded more than once; this cache key ensures
+# auto-contribute to a fundraise runs at most once per payment intent.
+STRIPE_FUNDRAISE_CONTRIBUTION_CACHE_PREFIX = "stripe_fundraise_contribution:"
+STRIPE_FUNDRAISE_CONTRIBUTION_CACHE_TTL = 60 * 60 * 24 * 30
 
 
 class PaymentService:
@@ -392,13 +398,14 @@ class PaymentService:
                 locked_rsc_amount=locked_rsc_amount,
             )
 
-            # Handle fundraise contribution in a separate transaction
-            # This ensures payment succeeds even if contribution fails
+            # Handle fundraise contribution in a separate transaction.
+            # Idempotent across webhook retries (balance credit is already idempotent).
             fundraise_contribution = None
             fundraise_id_str = payment_intent.metadata.get("fundraise_id")
 
             if fundraise_id_str:
-                fundraise_contribution = self._process_fundraise_contribution(
+                fundraise_contribution = self._process_fundraise_contribution_idempotent(
+                    payment_intent_id=payment_intent.id,
                     fundraise_id_str=fundraise_id_str,
                     user_id=user_id,
                     rsc_amount=rsc_amount,
@@ -494,6 +501,39 @@ class PaymentService:
         )
 
         return payment, rsc_amount
+
+    def _fundraise_contribution_cache_key(self, payment_intent_id: str) -> str:
+        return f"{STRIPE_FUNDRAISE_CONTRIBUTION_CACHE_PREFIX}{payment_intent_id}"
+
+    def _process_fundraise_contribution_idempotent(
+        self,
+        payment_intent_id: str,
+        fundraise_id_str: str,
+        user_id: int,
+        rsc_amount: Decimal,
+        fundraise_service,
+    ) -> Optional[Purchase]:
+        cache_key = self._fundraise_contribution_cache_key(payment_intent_id)
+        if not cache.add(cache_key, True, timeout=STRIPE_FUNDRAISE_CONTRIBUTION_CACHE_TTL):
+            logger.info(
+                "Skipping duplicate fundraise contribution for payment intent %s",
+                payment_intent_id,
+            )
+            return None
+
+        try:
+            contribution = self._process_fundraise_contribution(
+                fundraise_id_str=fundraise_id_str,
+                user_id=user_id,
+                rsc_amount=rsc_amount,
+                fundraise_service=fundraise_service,
+            )
+            if contribution is None:
+                cache.delete(cache_key)
+            return contribution
+        except Exception:
+            cache.delete(cache_key)
+            raise
 
     def _process_fundraise_contribution(
         self,

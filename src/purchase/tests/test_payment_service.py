@@ -864,3 +864,76 @@ class PaymentServiceTest(TestCase):
         # User receives requested amount + bounty fee (for later fundraise contribution)
         expected_balance = float(requested_rsc_amount + bounty_fee_rsc)
         self.assertEqual(total_balance, expected_balance)
+
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_process_payment_intent_confirmation_fundraise_contribution_idempotent(
+        self, mock_stripe_retrieve
+    ):
+        """
+        Webhook retries must not create a second fundraise contribution when the
+        purchaser still has enough locked balance to fund another contribution.
+        """
+        from purchase.models import Fundraise
+        from purchase.related_models.purchase_model import Purchase
+        from purchase.services.fundraise_service import FundraiseService
+        from reputation.distributions import create_purchase_distribution
+        from reputation.distributor import Distributor
+        from reputation.models import Escrow
+        from researchhub_document.related_models.constants.document_type import (
+            PREREGISTRATION,
+        )
+        from researchhub_document.related_models.researchhub_unified_document_model import (
+            ResearchhubUnifiedDocument,
+        )
+
+        locked_rsc_amount = Decimal("100.0")
+        extra_locked = Decimal("500.0")
+
+        extra_distribution = create_purchase_distribution(
+            user=self.user, amount=float(extra_locked)
+        )
+        Distributor(
+            extra_distribution,
+            self.user,
+            self.user,
+            0,
+            giver=None,
+        ).distribute_locked_balance()
+
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        fundraise = FundraiseService().create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=unified_document,
+            goal_amount=Decimal("1000.00"),
+            goal_currency=USD,
+        )
+
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "succeeded"
+        mock_payment_intent.amount = 1000
+        mock_payment_intent.currency = "usd"
+        mock_payment_intent.id = "pi_fundraise_idempotent"
+        mock_payment_intent.metadata = {
+            "user_id": str(self.user.id),
+            "purpose": PaymentPurpose.RSC_PURCHASE,
+            "locked_rsc_amount": str(locked_rsc_amount),
+            "fundraise_id": str(fundraise.id),
+            "platform_fees_rsc": "2.0",
+        }
+        mock_stripe_retrieve.return_value = mock_payment_intent
+
+        self.service.process_payment_intent_confirmation("pi_fundraise_idempotent")
+        self.service.process_payment_intent_confirmation("pi_fundraise_idempotent")
+
+        contribution_count = Purchase.objects.filter(
+            user=self.user,
+            object_id=fundraise.id,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+        ).count()
+        self.assertEqual(contribution_count, 1)
+
+        fundraise.escrow.refresh_from_db()
+        self.assertEqual(fundraise.escrow.amount_holding, locked_rsc_amount)
