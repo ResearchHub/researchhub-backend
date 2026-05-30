@@ -4,10 +4,12 @@ from django.utils import timezone
 
 class PaidStatusModelMixin(models.Model):
     FAILED = "FAILED"
+    INITIATED = "INITIATED"
     PAID = "PAID"
     PENDING = "PENDING"
     PAID_STATUS_CHOICES = [
         (FAILED, FAILED),
+        (INITIATED, INITIATED),
         (PAID, PAID),
         (PENDING, PENDING),
     ]
@@ -22,6 +24,10 @@ class PaidStatusModelMixin(models.Model):
 
     def set_paid_failed(self):
         self.paid_status = self.FAILED
+        self.save()
+
+    def set_paid_initiated(self):
+        self.paid_status = self.INITIATED
         self.save()
 
     def set_paid_pending(self):
