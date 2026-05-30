@@ -36,6 +36,7 @@ from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
 )
+from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.models import User
 from user.permissions import IsVerifiedUser
 from utils.sentry import log_error
@@ -45,12 +46,15 @@ MIN_POST_TITLE_LENGTH = 20
 MIN_POST_BODY_LENGTH = 50
 
 
-class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
+class ResearchhubPostViewSet(
+    ContentModerationActionsMixin, ReactionViewActionMixin, ModelViewSet
+):
     ordering = "-created_date"
     queryset = ResearchhubUnifiedDocument.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly, HasDocumentEditingPermission]
     serializer_class = ResearchhubPostSerializer
     throttle_classes = THROTTLE_CLASSES
+    moderation_model = ResearchhubPost
 
     def get_permissions(self):
         if self.action in ("create", "update"):

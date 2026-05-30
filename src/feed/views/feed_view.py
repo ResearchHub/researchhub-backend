@@ -1,3 +1,5 @@
+from collections import namedtuple
+
 from django.conf import settings
 from django.core.cache import cache
 from rest_framework.response import Response
@@ -7,10 +9,21 @@ from feed.feed_config import FEED_CONFIG, FEED_DEFAULTS
 from feed.filtering import FeedFilteringBackend
 from feed.models import FeedEntry
 from feed.ordering import FeedOrderingBackend
-from feed.serializers import FeedEntrySerializer
+from feed.serializers import FeedEntrySerializer, serialize_feed_metrics
 from feed.views.common import FeedPagination as BaseFeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
+from paper.related_models.paper_model import Paper
+from paper.related_models.paper_version import PaperVersion
+from researchhub_document.related_models.constants.document_type import (
+    DISCUSSION,
+    PREREGISTRATION,
+)
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.permissions import IsModerator
 from utils.throttles import FeedRecommendationRefreshThrottle
+
+
+PendingSource = namedtuple("PendingSource", ["queryset", "content_type", "author_attr"])
 
 
 class FeedPagination(BaseFeedPagination):
@@ -41,12 +54,95 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         return context
 
     def list(self, request, *args, **kwargs):
+        if (request.query_params.get("status") or "").upper() == "PENDING":
+            return self._get_pending_moderation_response(request)
+
         feed_view = request.query_params.get("feed_view", "popular")
 
         if feed_view == "personalized":
             return self._get_personalized_response(request)
 
         return self._get_non_personalized_feed_response(request, feed_view)
+
+    def _get_pending_moderation_response(self, request):
+        """Serve works awaiting moderation, rendered in the standard feed shape.
+
+        Pending works have no persisted FeedEntry (publication is deferred until
+        approval), so feed entries are built on the fly from the source models --
+        the same approach the journal feed uses. Moderator-only.
+        """
+        if not IsModerator().has_permission(request, self):
+            return Response({"message": "Moderator access required."}, status=403)
+
+        content_type = (request.query_params.get("content_type") or "").upper()
+        source = self._pending_moderation_source(content_type)
+        if source is None:
+            return Response({"message": "Unsupported content_type."}, status=400)
+
+        page = self.paginate_queryset(source.queryset)
+        feed_entries = [
+            self._build_unsaved_feed_entry(
+                item, source.content_type, source.author_attr
+            )
+            for item in page
+        ]
+        serializer = self.get_serializer(feed_entries, many=True)
+        return self.get_paginated_response(serializer.data)
+
+    def _pending_moderation_source(self, content_type):
+        """Map a moderation tab's content_type to its pending queryset."""
+        if content_type == "PAPER":
+            # Journal entries are ResearchHub-journal papers, matching how the
+            # journal feed scopes papers (version__journal=RESEARCHHUB).
+            queryset = (
+                Paper.objects.filter(
+                    status=Paper.PENDING,
+                    is_removed=False,
+                    version__journal=PaperVersion.RESEARCHHUB,
+                )
+                .select_related(
+                    "uploaded_by",
+                    "uploaded_by__author_profile",
+                    "unified_document",
+                    "version",
+                )
+                .prefetch_related("unified_document__hubs")
+                .order_by("-created_date")
+            )
+            return PendingSource(queryset, self._paper_content_type, "uploaded_by")
+
+        post_document_type = {
+            "PREREGISTRATION": PREREGISTRATION,
+            "POST": DISCUSSION,
+        }.get(content_type)
+        if post_document_type is None:
+            return None
+
+        queryset = (
+            ResearchhubPost.objects.filter(
+                document_type=post_document_type, status=ResearchhubPost.PENDING
+            )
+            .select_related(
+                "created_by", "created_by__author_profile", "unified_document"
+            )
+            .prefetch_related("unified_document__hubs")
+            .order_by("-created_date")
+        )
+        return PendingSource(queryset, self._post_content_type, "created_by")
+
+    def _build_unsaved_feed_entry(self, item, content_type, author_attr):
+        feed_entry = FeedEntry(
+            id=item.id,
+            content_type=content_type,
+            object_id=item.id,
+            action=FeedEntry.PUBLISH,
+            action_date=item.created_date,
+            user=getattr(item, author_attr),
+            unified_document=item.unified_document,
+        )
+        feed_entry.item = item
+        feed_entry.metrics = serialize_feed_metrics(item, content_type)
+        return feed_entry
 
     def _get_personalized_response(self, request):
         """Handle personalized feed (Personalize recommendations)."""

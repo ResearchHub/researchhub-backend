@@ -30,8 +30,8 @@ class TestPostSignals(AWSMockTestCase):
             unified_document=self.unified_document,
         )
 
-    @patch("feed.signals.post_signals.create_feed_entry")
-    @patch("feed.signals.post_signals.transaction")
+    @patch("feed.tasks.create_feed_entry")
+    @patch("feed.tasks.transaction")
     def test_post_create_feed_entry(self, mock_transaction, mock_create_feed_entry):
         # Arrange
         mock_transaction.on_commit = lambda func: func()
@@ -59,8 +59,8 @@ class TestPostSignals(AWSMockTestCase):
             ]
         )
 
-    @patch("feed.signals.post_signals.create_feed_entry")
-    @patch("feed.signals.post_signals.transaction")
+    @patch("feed.tasks.create_feed_entry")
+    @patch("feed.tasks.transaction")
     def test_handle_post_create_feed_entry(
         self, mock_transaction, mock_create_feed_entry
     ):
@@ -87,8 +87,8 @@ class TestPostSignals(AWSMockTestCase):
             ]
         )
 
-    @patch("feed.signals.post_signals.create_feed_entry")
-    @patch("feed.signals.post_signals.transaction")
+    @patch("feed.tasks.create_feed_entry")
+    @patch("feed.tasks.transaction")
     def test_pending_post_is_deferred(self, mock_transaction, mock_create_feed_entry):
         # Arrange
         mock_transaction.on_commit = lambda func: func()
@@ -101,8 +101,8 @@ class TestPostSignals(AWSMockTestCase):
         # Assert
         mock_create_feed_entry.apply_async.assert_not_called()
 
-    @patch("feed.signals.post_signals.create_feed_entry")
-    @patch("feed.signals.post_signals.transaction")
+    @patch("feed.tasks.create_feed_entry")
+    @patch("feed.tasks.transaction")
     def test_declined_post_is_deferred(self, mock_transaction, mock_create_feed_entry):
         # Arrange
         mock_transaction.on_commit = lambda func: func()
@@ -115,8 +115,8 @@ class TestPostSignals(AWSMockTestCase):
         # Assert
         mock_create_feed_entry.apply_async.assert_not_called()
 
-    @patch("feed.signals.post_signals.create_feed_entry")
-    @patch("feed.signals.post_signals.transaction")
+    @patch("feed.tasks.create_feed_entry")
+    @patch("feed.tasks.transaction")
     def test_grant_post_is_deferred(self, mock_transaction, mock_create_feed_entry):
         # Arrange
         mock_transaction.on_commit = lambda func: func()

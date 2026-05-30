@@ -49,6 +49,10 @@ def _create_document_feed_entries(instance, pk_set):
         hub_ids = list(pk_set)
         item = instance.get_document()
 
+        # Works awaiting moderation publish on approval, not when hubs change.
+        if not getattr(item, "is_approved", True):
+            return
+
         # Get the user from the document
         user_id = None
         if hasattr(item, "created_by") and item.created_by:
@@ -71,6 +75,11 @@ def _create_document_feed_entries(instance, pk_set):
         for document_id in pk_set:
             unified_document = hub.related_documents.get(id=document_id)
             item = unified_document.get_document()
+
+            # Works awaiting moderation publish on approval, not when hubs change.
+            if not getattr(item, "is_approved", True):
+                continue
+
             hub_ids = list(item.hubs.values_list("id", flat=True))
 
             # Get the user from the document
