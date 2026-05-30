@@ -10,7 +10,12 @@ from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExper
 from researchhub_access_group.constants import VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
+
+INVITE_ACCESS_DOC_TYPES = (PREREGISTRATION, GRANT)
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -64,9 +69,9 @@ def link_experts_registered_user_for_signup(*, normalized_email: str, user) -> i
 
 def grant_invited_expert_access_for_signup(*, normalized_email: str, user) -> int:
     """
-    Create VIEWER ``Permission`` rows on private preregistrations the user was
-    invited to via expert finder outreach, when a ``GeneratedEmail`` with
-    ``status=SENT`` exists in the link window.
+    Create VIEWER ``Permission`` rows on private preregistrations and private
+    grants the user was invited to via expert finder / RFP outreach, when a
+    ``GeneratedEmail`` with ``status=SENT`` exists in the link window.
     """
     email = (normalized_email or "").strip().lower()
     if not email:
@@ -92,7 +97,7 @@ def grant_invited_expert_access_for_signup(*, normalized_email: str, user) -> in
         ResearchhubUnifiedDocument.objects.filter(
             id__in=invited_doc_ids,
             is_public=False,
-            posts__document_type=PREREGISTRATION,
+            posts__document_type__in=INVITE_ACCESS_DOC_TYPES,
         )
         .values_list("id", flat=True)
         .distinct()
@@ -116,8 +121,8 @@ def grant_invited_expert_access_for_signup(*, normalized_email: str, user) -> in
 
 def grant_invited_expert_access_for_send(*, generated_email) -> bool:
     """
-    Grant VIEWER access on the invite's private preregistration when the
-    expert is already a registered user.
+    Grant VIEWER access on the invite's private preregistration or private
+    grant when the expert is already a registered user.
 
     Counterpart to ``grant_invited_expert_access_for_signup``: that function
     runs on signup and only covers users who created their account *after*
@@ -149,7 +154,7 @@ def grant_invited_expert_access_for_send(*, generated_email) -> bool:
     doc_qualifies = ResearchhubUnifiedDocument.objects.filter(
         id=expert_search.unified_document_id,
         is_public=False,
-        posts__document_type=PREREGISTRATION,
+        posts__document_type__in=INVITE_ACCESS_DOC_TYPES,
     ).exists()
     if not doc_qualifies:
         return False
@@ -619,3 +624,52 @@ def load_editor_users(user_ids: list[int]) -> dict[int, User]:
         return {}
     users = User.objects.filter(id__in=user_ids).select_related("author_profile")
     return {user.id: user for user in users}
+
+
+@dataclass(frozen=True)
+class ExpertFinderExpertsListResult:
+    items: list[Expert] = field(default_factory=list)
+    total: int = 0
+    limit: int = 20
+    offset: int = 0
+
+
+def get_expert_finder_experts_list(
+    *,
+    unified_document_id: int | None,
+    start: datetime | None,
+    end: datetime | None,
+    editor_id: int | None = None,
+    registered: bool = False,
+    limit: int = 20,
+    offset: int = 0,
+) -> ExpertFinderExpertsListResult:
+    """
+    Paginated distinct experts linked to expert searches in the filter window.
+    """
+    filtered_searches = _filtered_expert_searches(
+        unified_document_id=unified_document_id,
+        start=start,
+        end=end,
+        editor_id=editor_id,
+    )
+    experts_qs = (
+        Expert.objects.filter(search_experts__expert_search__in=filtered_searches)
+        .distinct()
+        .select_related("registered_user__author_profile")
+    )
+    if registered:
+        experts_qs = experts_qs.filter(registered_user__isnull=False)
+
+    total = experts_qs.count()
+    limit = min(100, max(1, limit))
+    offset = max(0, offset)
+    items = list(
+        experts_qs.order_by("-last_email_sent_at", "-id")[offset : offset + limit]
+    )
+    return ExpertFinderExpertsListResult(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )

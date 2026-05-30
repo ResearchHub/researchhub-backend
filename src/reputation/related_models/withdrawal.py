@@ -26,10 +26,11 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
     transaction_hash = models.CharField(null=True, blank=True, max_length=255)
+    broadcast_nonce = models.PositiveBigIntegerField(null=True, blank=True)
     paid_status = models.CharField(
         max_length=255,
         choices=PaidStatusModelMixin.PAID_STATUS_CHOICES,
-        default=PaidStatusModelMixin.PENDING,
+        default=PaidStatusModelMixin.INITIATED,
     )
 
     class Meta:

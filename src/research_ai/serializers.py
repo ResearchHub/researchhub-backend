@@ -460,6 +460,17 @@ class InvitedExpertOverviewQuerySerializer(InvitedExpertStatsFilterSerializer):
     editor_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
 
 
+class ExpertFinderExpertsListQuerySerializer(InvitedExpertOverviewQuerySerializer):
+    """Query params for GET expert-finder experts/."""
+
+    registered = serializers.BooleanField(required=False, default=False)
+    limit = serializers.IntegerField(required=False, default=20, min_value=1)
+    offset = serializers.IntegerField(required=False, default=0, min_value=0)
+
+    def validate_limit(self, value):
+        return min(100, max(1, value if value is not None else 20))
+
+
 class InvitedExpertEditorsOverviewQuerySerializer(InvitedExpertStatsFilterSerializer):
     """Query params for GET expert-finder editors-overview."""
 
@@ -537,6 +548,15 @@ class InvitedExpertEditorsOverviewSerializer(serializers.Serializer):
     sort_order = serializers.CharField(read_only=True)
 
 
+class ExpertFinderListItemSerializer(ExpertSerializer):
+    """Expert row for GET expert-finder experts/ with registered RH user as author."""
+
+    registered_user = serializers.SerializerMethodField()
+
+    def get_registered_user(self, obj):
+        return _get_user_with_author_payload(obj.registered_user)
+
+
 class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
     search_id = serializers.IntegerField()
     status = serializers.CharField()
@@ -604,6 +624,22 @@ class SendEmailRequestSerializer(serializers.Serializer):
         max_length=100,
     )
     reply_to = serializers.EmailField(required=True)
+    cc = serializers.ListField(
+        child=serializers.EmailField(),
+        required=False,
+        default=list,
+    )
+
+
+class InviteRfpApplicantsSerializer(serializers.Serializer):
+    """Request for POST /expert-finder/rfp/<grant_id>/invite-applicants/."""
+
+    emails = serializers.ListField(
+        child=serializers.EmailField(),
+        min_length=1,
+        max_length=100,
+    )
+    reply_to = serializers.EmailField(required=False, allow_null=True)
     cc = serializers.ListField(
         child=serializers.EmailField(),
         required=False,

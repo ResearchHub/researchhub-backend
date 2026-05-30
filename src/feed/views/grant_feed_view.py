@@ -131,7 +131,7 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
             )
 
         queryset = (
-            ResearchhubPost.objects.all()
+            ResearchhubPost.objects.filter(unified_document__is_public=True)
             .select_related(
                 "created_by",
                 "created_by__author_profile",

@@ -61,6 +61,7 @@ class RelatedDataFetcher:
                 id__in=doc_ids,
                 document_type="PREREGISTRATION",
                 fundraises__status="OPEN",
+                is_public=True,
             )
             .filter(
                 Q(fundraises__end_date__isnull=True)
@@ -88,6 +89,7 @@ class RelatedDataFetcher:
                 id__in=doc_ids,
                 document_type="PREREGISTRATION",
                 fundraises__id__in=fundraise_ids_with_funders,
+                is_public=True,
             )
             .values_list("id", flat=True)
             .distinct()
@@ -104,7 +106,10 @@ class RelatedDataFetcher:
 
         open_grants = (
             ResearchhubUnifiedDocument.objects.filter(
-                id__in=doc_ids, document_type="GRANT", grants__status="OPEN"
+                id__in=doc_ids,
+                document_type="GRANT",
+                grants__status="OPEN",
+                is_public=True,
             )
             .filter(
                 Q(grants__end_date__isnull=True)

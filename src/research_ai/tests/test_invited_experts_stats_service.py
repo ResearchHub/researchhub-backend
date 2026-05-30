@@ -6,6 +6,7 @@ from django.utils import timezone
 from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
 from research_ai.services.invited_experts_service import (
     _safe_rate,
+    get_expert_finder_experts_list,
     get_invited_expert_editors_overview,
     get_invited_expert_overview,
 )
@@ -117,3 +118,59 @@ class InvitedExpertsStatsServiceTests(TestCase):
                 prereg_b.unified_document_id: 1,
             },
         )
+
+    def test_experts_list_matches_overview_totals(self):
+        from paper.tests.helpers import create_paper
+
+        user = create_random_authenticated_user("list_svc", moderator=True)
+        paper = create_paper(
+            title="List paper",
+            paper_publish_date="2021-01-01",
+        )
+        ud_id = paper.unified_document_id
+        search = ExpertSearch.objects.create(
+            created_by=user,
+            unified_document_id=ud_id,
+            query="List",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        registered_expert = Expert.objects.create(
+            email="registered@example.com",
+            registered_user=user,
+        )
+        other_expert = Expert.objects.create(email="other@example.com")
+        SearchExpert.objects.create(
+            expert_search=search, expert=registered_expert, position=0
+        )
+        SearchExpert.objects.create(
+            expert_search=search, expert=other_expert, position=1
+        )
+        GeneratedEmail.objects.create(
+            created_by=user,
+            expert_search=search,
+            expert_email="registered@example.com",
+            status=GeneratedEmail.Status.SENT,
+        )
+
+        start = timezone.now() - timedelta(days=1)
+        end = timezone.now()
+        overview = get_invited_expert_overview(
+            unified_document_id=ud_id,
+            start=start,
+            end=end,
+        )
+        all_experts = get_expert_finder_experts_list(
+            unified_document_id=ud_id,
+            start=start,
+            end=end,
+        )
+        registered_only = get_expert_finder_experts_list(
+            unified_document_id=ud_id,
+            start=start,
+            end=end,
+            registered=True,
+        )
+
+        self.assertEqual(all_experts.total, overview.counts.experts_total)
+        self.assertEqual(registered_only.total, overview.counts.experts_signed_up)
+        self.assertEqual(len(all_experts.items), 2)
