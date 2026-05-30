@@ -56,6 +56,32 @@ class UpdatePaperJournalStatusSignalTest(TransactionTestCase):
             # Verify that the publication status was not changed
             self.assertEqual(paper_version.publication_status, PaperVersion.PREPRINT)
 
+    def test_payment_preserves_pending_moderation_status(self):
+        """Paying the APC must not approve a paper; gating happens at submission
+        and a pending paper stays pending until a moderator approves."""
+        # Arrange
+        self.paper.status = Paper.PENDING
+        self.paper.save(update_fields=["status"])
+        PaperVersion.objects.create(
+            paper=self.paper, version=1, publication_status=PaperVersion.PREPRINT
+        )
+
+        # Act
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123"):
+            Payment.objects.create(
+                amount=1000,
+                currency="USD",
+                external_payment_id="test_payment_id",
+                payment_processor="STRIPE",
+                content_type=self.paper_content_type,
+                object_id=self.paper.id,
+                user=self.user,
+            )
+
+        # Assert
+        self.paper.refresh_from_db()
+        self.assertEqual(self.paper.status, Paper.PENDING)
+
     def test_payment_for_non_paper_doesnt_update_journal_status(self):
         """Test that a payment for a non-paper doesn't update any journal status."""
         # Create a PaperVersion for the test paper

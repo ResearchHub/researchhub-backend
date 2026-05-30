@@ -1,6 +1,7 @@
 from rest_framework.exceptions import PermissionDenied  # noqa: F401
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
+from user.services.risk_score_service import RiskScoreService
 from utils.http import RequestMethods
 
 
@@ -17,7 +18,11 @@ class UserNotSpammer(BasePermission):
 class CreateOrUpdateIfAllowed(BasePermission):
     def has_permission(self, request, view):
         if (request.method not in SAFE_METHODS) and request.user.is_authenticated:
-            return request.user.is_active and (not request.user.is_suspended)
+            if not request.user.is_active or request.user.is_suspended:
+                return False
+            if RiskScoreService().is_restricted(request.user):
+                return False
+            return True
         return True
 
 

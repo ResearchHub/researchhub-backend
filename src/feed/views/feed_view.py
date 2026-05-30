@@ -13,7 +13,6 @@ from feed.serializers import FeedEntrySerializer, serialize_feed_metrics
 from feed.views.common import FeedPagination as BaseFeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
 from paper.related_models.paper_model import Paper
-from paper.related_models.paper_version import PaperVersion
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     PREREGISTRATION,
@@ -92,13 +91,13 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
     def _pending_moderation_source(self, content_type):
         """Map a moderation tab's content_type to its pending queryset."""
         if content_type == "PAPER":
-            # Journal entries are ResearchHub-journal papers, matching how the
-            # journal feed scopes papers (version__journal=RESEARCHHUB).
+            # Every author-submitted paper (preprint or journal) is gated at
+            # submission, so the queue is simply the pending ones. Machine
+            # imports (e.g. OpenAlex) default to APPROVED and never appear here.
             queryset = (
                 Paper.objects.filter(
                     status=Paper.PENDING,
                     is_removed=False,
-                    version__journal=PaperVersion.RESEARCHHUB,
                 )
                 .select_related(
                     "uploaded_by",

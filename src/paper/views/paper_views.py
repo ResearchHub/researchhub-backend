@@ -46,7 +46,8 @@ from reputation.related_models.paper_reward import (
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
 from user.content_moderation_mixin import ContentModerationActionsMixin
-from user.permissions import IsModerator, IsVerifiedUser
+from user.permissions import IsModerator, IsNotRestricted, IsVerifiedUser
+from user.services.risk_score_service import RiskScoreService
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
@@ -148,7 +149,12 @@ class PaperViewSet(
     @action(
         detail=False,
         methods=["post"],
-        permission_classes=[IsAuthenticated, CreatePaper, IsVerifiedUser],
+        permission_classes=[
+            IsAuthenticated,
+            CreatePaper,
+            IsVerifiedUser,
+            IsNotRestricted,
+        ],
     )
     def create_researchhub_paper(self, request):
         """
@@ -228,7 +234,9 @@ class PaperViewSet(
                         {"error": error_msg}, status=status.HTTP_400_BAD_REQUEST
                     )
 
-                # Create paper
+                # Risk-score gating at submission: trusted authors auto-approve,
+                # everyone else enters the moderation queue as PENDING and stays
+                # there through payment until a moderator approves.
                 paper_data = {
                     "title": title,
                     "paper_title": title,
@@ -237,6 +245,7 @@ class PaperViewSet(
                     "paper_publish_date": timezone.now(),
                     "pdf_license": "cc-by",
                     "work_type": work_type,
+                    "status": RiskScoreService().initial_work_status(request.user),
                 }
 
                 if pdf_url:

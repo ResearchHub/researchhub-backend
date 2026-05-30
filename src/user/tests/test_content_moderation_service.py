@@ -14,9 +14,12 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.related_models.risk_score_model import RiskScoreEvent
 from user.related_models.verdict_model import Verdict
 from user.services.content_moderation_service import ContentModerationService
 from user.tests.helpers import create_random_authenticated_user
+
+EventType = RiskScoreEvent.EventType
 
 
 class ContentModerationServiceTests(TestCase):
@@ -68,6 +71,18 @@ class ContentModerationServiceTests(TestCase):
                 recipient=self.author,
             ).exists()
         )
+
+    def test_decline_scores_work_declined_not_censored(self):
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            self.service.decline_content(
+                self.post, self.moderator, reason="Spam", reason_choice="SPAM"
+            )
+
+        # Assert
+        events = RiskScoreEvent.objects.filter(user=self.author)
+        self.assertTrue(events.filter(event_type=EventType.WORK_DECLINED).exists())
+        self.assertFalse(events.filter(event_type=EventType.CONTENT_CENSORED).exists())
 
     def test_approve_non_pending_content_raises(self):
         # Arrange

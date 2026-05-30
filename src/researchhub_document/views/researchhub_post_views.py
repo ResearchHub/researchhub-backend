@@ -20,6 +20,7 @@ from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from purchase.services.fundraise_service import FundraiseService
+from purchase.services.grant_service import GrantModerationService
 from researchhub.settings import TESTING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
@@ -38,7 +39,8 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 )
 from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.models import User
-from user.permissions import IsVerifiedUser
+from user.permissions import IsNotRestricted, IsVerifiedUser
+from user.services.risk_score_service import RiskScoreService
 from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
 
@@ -61,6 +63,7 @@ class ResearchhubPostViewSet(
             permission_classes = [
                 IsAuthenticatedOrReadOnly,
                 IsVerifiedUser,
+                IsNotRestricted,
                 HasDocumentEditingPermission,
             ]
         else:
@@ -168,6 +171,15 @@ class ResearchhubPostViewSet(
         try:
             with transaction.atomic():
                 created_by = request.user
+                risk_score_service = RiskScoreService()
+
+                # Risk-score gating: trusted users auto-approve, everyone else
+                # enters the moderation queue as PENDING. Grants gate via their
+                # own Grant.status, so the post itself stays APPROVED.
+                if document_type == GRANT:
+                    post_status = ResearchhubPost.APPROVED
+                else:
+                    post_status = risk_score_service.initial_work_status(created_by)
 
                 # Resolve the target grant up front when applying to one so
                 # that create_unified_doc can honor the grant's privacy
@@ -206,6 +218,7 @@ class ResearchhubPostViewSet(
                     title=title,
                     bounty_type=data.get("bounty_type"),
                     unified_document=unified_document,
+                    status=post_status,
                 )
                 file_name = f"RH-POST-{document_type}-USER-{created_by.id}.txt"
                 full_src_file = ContentFile(data["full_src"].encode())
@@ -285,6 +298,10 @@ class ResearchhubPostViewSet(
                         grant.contacts.set(contacts)
                     else:
                         grant.contacts.clear()
+
+                    # Trusted users skip the grant moderation queue.
+                    if risk_score_service.is_trusted(created_by):
+                        GrantModerationService().approve_grant(grant, created_by)
 
                 if not TESTING:
                     if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:

@@ -144,6 +144,17 @@ def on_comment_censored(sender, instance, **kwargs):
     _run_after_commit(instance, record)
 
 
+def _is_declined_work(unified_document):
+    """A declined work's removal is part of moderation, not a post-approval
+    censor. The decline already scored WORK_DECLINED, so skip CONTENT_CENSORED.
+    Grants keep their post APPROVED and track the decision on Grant.status.
+    """
+    document = unified_document.get_document()
+    if getattr(document, "status", None) == ResearchhubPost.DECLINED:
+        return True
+    return unified_document.grants.filter(status=Grant.DECLINED).exists()
+
+
 @receiver(
     post_save,
     sender=ResearchhubUnifiedDocument,
@@ -154,6 +165,8 @@ def on_document_censored(sender, instance, **kwargs):
         return
 
     def record():
+        if _is_declined_work(instance):
+            return
         _service.record_event(
             instance.created_by, EventType.CONTENT_CENSORED, source=instance
         )

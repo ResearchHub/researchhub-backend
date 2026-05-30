@@ -141,6 +141,22 @@ class PendingModerationFeedTests(APITestCase):
         ids = [r["content_object"]["id"] for r in response.data["results"]]
         self.assertIn(paper.id, ids)
 
+    def test_pending_papers_feed_includes_non_journal_preprints(self):
+        # Arrange: a gated preprint never reaches the RESEARCHHUB journal, so it
+        # must still surface in the queue rather than get stuck invisible.
+        paper = create_paper(uploaded_by=self.author)
+        paper.status = Paper.PENDING
+        paper.save(update_fields=["status"])
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.get("/api/feed/?content_type=PAPER&status=PENDING")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        ids = [r["content_object"]["id"] for r in response.data["results"]]
+        self.assertIn(paper.id, ids)
+
     def test_pending_feed_requires_moderator(self):
         # Arrange
         self.client.force_authenticate(self.author)

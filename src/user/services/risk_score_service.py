@@ -8,6 +8,7 @@ from user.constants.risk_score_constants import (
     TRUSTED_THRESHOLD,
 )
 from user.related_models.risk_score_model import RiskScore, RiskScoreEvent
+from utils.models import ModeratedDocumentMixin
 
 EventType = RiskScoreEvent.EventType
 
@@ -26,6 +27,13 @@ class RiskScoreService:
 
     def is_restricted(self, user):
         return self.get_score(user) >= RESTRICTED_THRESHOLD
+
+    def initial_work_status(self, user):
+        """Status a newly submitted work should get: trusted users auto-approve,
+        everyone else enters the moderation queue as pending."""
+        if self.is_trusted(user):
+            return ModeratedDocumentMixin.APPROVED
+        return ModeratedDocumentMixin.PENDING
 
     def record_event(self, user, event_type, *, delta=None, source=None):
         delta = self._resolve_delta(event_type, delta)
