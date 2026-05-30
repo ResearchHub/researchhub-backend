@@ -9,28 +9,33 @@ This is done for three reasons:
 """
 
 from django.core.cache import cache
+from django.db.models import Count, Prefetch
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from feed.feed_list_dto import (
+    FundingFeedListEntrySerializer,
+    serialize_fund_feed_metrics,
+)
 from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
-from feed.serializers import FundingFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
 from feed.views.funding_cache_mixin import (
     FUNDING_FEED_MAX_CACHED_PAGE,
     FundingCacheMixin,
 )
+from purchase.models import Grant, GrantApplication
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from review.models import Review
 
-from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
 
 class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
-    serializer_class = PostSerializer
+    serializer_class = FundingFeedListEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
@@ -63,15 +68,13 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
                     self.add_user_votes_to_response(request.user, cached_response)
                 return Response(cached_response)
 
-        # Get paginated posts
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
 
         feed_entries = []
         for post in page:
-            # Create an unsaved FeedEntry instance
             feed_entry = FeedEntry(
-                id=post.id,  # We can use the post ID as a temporary ID
+                id=post.id,
                 content_type=self._post_content_type,
                 object_id=post.id,
                 action="PUBLISH",
@@ -80,14 +83,16 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
                 unified_document=post.unified_document,
             )
             feed_entry.item = post
-            metrics = serialize_feed_metrics(post, self._post_content_type)
-            feed_entry.metrics = metrics
+            feed_entry.metrics = serialize_fund_feed_metrics(
+                post, self._post_content_type
+            )
             feed_entries.append(feed_entry)
 
-        serializer = FundingFeedEntrySerializer(feed_entries, many=True)
+        serializer = FundingFeedListEntrySerializer(
+            feed_entries, many=True, context=self.get_serializer_context()
+        )
         response_data = self.get_paginated_response(serializer.data).data
 
-        # Cache before per-user vote enrichment so cached payload stays user-agnostic.
         if use_cache:
             cache.set(cache_key, response_data, timeout=self.DEFAULT_CACHE_TIMEOUT)
 
@@ -102,6 +107,17 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
         created_by = self.request.query_params.get("created_by")
         funded_by = self.request.query_params.get("funded_by")
 
+        annotated_grants = Grant.objects.annotate(
+            num_applicants=Count("applications", distinct=True)
+        ).prefetch_related("unified_document__posts")
+
+        grant_applications_prefetch = Prefetch(
+            "grant_applications",
+            queryset=GrantApplication.objects.prefetch_related(
+                Prefetch("grant", queryset=annotated_grants)
+            ),
+        )
+
         queryset = (
             ResearchhubPost.objects.select_related(
                 "created_by",
@@ -109,11 +125,17 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
                 "unified_document",
             )
             .prefetch_related(
+                "authors",
                 "unified_document__hubs",
                 "unified_document__fundraises",
                 "unified_document__fundraises__nonprofit_links__nonprofit",
-                "grant_applications__grant__unified_document__posts",
-                "grant_applications__grant__applications",
+                Prefetch(
+                    "unified_document__reviews",
+                    queryset=Review.objects.filter(is_removed=False).select_related(
+                        "created_by__author_profile"
+                    ),
+                ),
+                grant_applications_prefetch,
             )
             .filter(
                 document_type=PREREGISTRATION,

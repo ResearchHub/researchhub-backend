@@ -127,10 +127,12 @@ class GrantFeedViewTests(APITestCase):
         self.assertIn("id", result)
         self.assertIn("content_type", result)
         self.assertIn("content_object", result)
-        self.assertIn("created_date", result)
         self.assertIn("action_date", result)
         self.assertIn("action", result)
         self.assertIn("author", result)
+        self.assertIn("metrics", result)
+        self.assertNotIn("created_date", result)
+        self.assertNotIn("hot_score_v2", result)
 
         # Check grant-specific fields are in the content_object.grant
         content_object = result["content_object"]
@@ -287,11 +289,10 @@ class GrantFeedViewTests(APITestCase):
 
         # Check application structure
         for app in applications:
-            self.assertIn("id", app)
-            self.assertIn("created_date", app)
             self.assertIn("applicant", app)
             self.assertIn("preregistration_post_id", app)
             self.assertIn("fundraise", app)
+            self.assertNotIn("created_date", app)
 
         # Check applicant structure using SimpleAuthorSerializer
         applicant_data = applications[0]["applicant"]
@@ -317,15 +318,10 @@ class GrantFeedViewTests(APITestCase):
         fr = app_with_fundraise["fundraise"]
         self.assertEqual(fr["id"], fundraise.id)
         self.assertEqual(fr["title"], "Preregistration 1")
-        self.assertEqual(fr["status"], "OPEN")
         self.assertEqual(fr["goal_amount"]["usd"], 10000.0)
-        self.assertIn("usd", fr["amount_raised"])
-        self.assertIn("rsc", fr["amount_raised"])
-
-        # Verify contributors structure
-        self.assertIn("contributors", fr)
-        self.assertEqual(fr["contributors"]["total"], 0)
-        self.assertEqual(fr["contributors"]["top"], [])
+        self.assertNotIn("amount_raised", fr)
+        self.assertNotIn("contributors", fr)
+        self.assertNotIn("status", fr)
 
         # Find the application without a fundraise (preregistration2)
         app_without_fundraise = next(
@@ -700,10 +696,11 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(filtered_response.status_code, 200)
 
         unfiltered_key = (
-            f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::"
+            f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::v2"
         )
         filtered_key = (
-            f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::{user1.id}"
+            f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::"
+            f"{user1.id}:v2"
         )
         self.assertIsNotNone(cache.get(unfiltered_key))
         self.assertIsNotNone(cache.get(filtered_key))
@@ -815,7 +812,9 @@ class GrantFeedViewTests(APITestCase):
         )
         self.client.force_authenticate(self.user)
         self.client.get("/api/grant_feed/")
-        cache_key = f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::"
+        cache_key = (
+            f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::v2"
+        )
         self.assertIsNotNone(cache.get(cache_key))
 
         # Act + Assert — unrelated doc does not clear cache
