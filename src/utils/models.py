@@ -128,6 +128,10 @@ class ModeratedDocumentMixin(models.Model):
     class Meta:
         abstract = True
 
+    @property
+    def is_approved(self):
+        return self.status == self.APPROVED
+
 
 class PaidStatusModelMixin(models.Model):
     FAILED = "FAILED"

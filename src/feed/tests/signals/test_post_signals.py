@@ -86,3 +86,45 @@ class TestPostSignals(AWSMockTestCase):
                 ),
             ]
         )
+
+    @patch("feed.signals.post_signals.create_feed_entry")
+    @patch("feed.signals.post_signals.transaction")
+    def test_pending_post_is_deferred(self, mock_transaction, mock_create_feed_entry):
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_create_feed_entry.apply_async = MagicMock()
+        self.post.status = ResearchhubPost.PENDING
+
+        # Act
+        handle_post_create_feed_entry(sender=ResearchhubPost, instance=self.post)
+
+        # Assert
+        mock_create_feed_entry.apply_async.assert_not_called()
+
+    @patch("feed.signals.post_signals.create_feed_entry")
+    @patch("feed.signals.post_signals.transaction")
+    def test_declined_post_is_deferred(self, mock_transaction, mock_create_feed_entry):
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_create_feed_entry.apply_async = MagicMock()
+        self.post.status = ResearchhubPost.DECLINED
+
+        # Act
+        handle_post_create_feed_entry(sender=ResearchhubPost, instance=self.post)
+
+        # Assert
+        mock_create_feed_entry.apply_async.assert_not_called()
+
+    @patch("feed.signals.post_signals.create_feed_entry")
+    @patch("feed.signals.post_signals.transaction")
+    def test_grant_post_is_deferred(self, mock_transaction, mock_create_feed_entry):
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_create_feed_entry.apply_async = MagicMock()
+        self.post.document_type = document_type.GRANT
+
+        # Act
+        handle_post_create_feed_entry(sender=ResearchhubPost, instance=self.post)
+
+        # Assert
+        mock_create_feed_entry.apply_async.assert_not_called()

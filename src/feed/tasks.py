@@ -57,6 +57,15 @@ def create_feed_entry(
     if unified_document is not None and not unified_document.is_public:
         return None
 
+    # Defense-in-depth: never publish a post still awaiting moderation. The
+    # post_save signal already defers these, but the task can be called directly.
+    if (
+        action == FeedEntry.PUBLISH
+        and isinstance(item, ResearchhubPost)
+        and not item.is_approved
+    ):
+        return None
+
     content = serialize_feed_item(item, item_content_type)
     if content is None:
         logger.warning(
