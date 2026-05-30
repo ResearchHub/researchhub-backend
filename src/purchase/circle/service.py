@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Optional
 
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from purchase.circle.client import (
     CircleTransferResult,
@@ -84,28 +84,36 @@ def process_circle_deposit(
     credited = False
 
     with transaction.atomic():
-        deposit, created = Deposit.objects.get_or_create(
-            circle_transaction_id=circle_transaction_id,
-            defaults={
-                "user": user,
-                "amount": amount,
-                "network": network,
-                "from_address": from_address,
-                "transaction_hash": transaction_hash,
-                "sweep_status": Deposit.SWEEP_PENDING,
-                "circle_status": Deposit.CIRCLE_COMPLETED,
-            },
+        deposit = (
+            Deposit.objects.select_for_update()
+            .filter(circle_transaction_id=circle_transaction_id)
+            .first()
         )
 
-        if created:
-            # Brand-new deposit (no prior INITIATED/CONFIRMED webhook).
-            deposit.set_paid()
-            credited = True
-        elif deposit.paid_status != Deposit.PAID:
-            # Existing pending deposit from an earlier webhook — promote it.
+        if deposit is None:
+            try:
+                deposit = Deposit.objects.create(
+                    circle_transaction_id=circle_transaction_id,
+                    user=user,
+                    amount=amount,
+                    network=network,
+                    from_address=from_address,
+                    transaction_hash=transaction_hash,
+                    sweep_status=Deposit.SWEEP_PENDING,
+                    circle_status=Deposit.CIRCLE_COMPLETED,
+                    paid_status=Deposit.PENDING,
+                )
+            except IntegrityError:
+                deposit = Deposit.objects.select_for_update().get(
+                    circle_transaction_id=circle_transaction_id
+                )
+
+        if deposit.paid_status == Deposit.PENDING:
+            # Only promote in-flight deposits. FAILED is terminal and must not
+            # be credited even if a later COMPLETED webhook arrives.
             deposit.circle_status = Deposit.CIRCLE_COMPLETED
             deposit.sweep_status = Deposit.SWEEP_PENDING
-            deposit.set_paid()  # sets paid_status=PAID, paid_date=now(), saves
+            deposit.set_paid()
             credited = True
 
         if credited:

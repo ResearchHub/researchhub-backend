@@ -6,6 +6,7 @@ from typing import Optional, Tuple
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 
 from analytics.tasks import track_revenue_event
@@ -235,6 +236,13 @@ class FundraiseService:
 
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
+            fundraise = Fundraise.objects.select_for_update().get(pk=fundraise.pk)
+
+            is_valid, error = self.validate_fundraise_for_contribution(
+                fundraise, user
+            )
+            if not is_valid:
+                return None, error
 
             if use_credits:
                 if user.get_locked_balance() < total_cost:
@@ -307,9 +315,9 @@ class FundraiseService:
                 priority=1,
             )
 
-            # Update escrow object
-            fundraise.escrow.amount_holding += amount
-            fundraise.escrow.save()
+            Escrow.objects.filter(pk=fundraise.escrow_id).update(
+                amount_holding=F("amount_holding") + amount
+            )
 
         return purchase, None
 
@@ -472,6 +480,8 @@ class FundraiseService:
             RuntimeError: If payout fails
         """
         with transaction.atomic():
+            fundraise = Fundraise.objects.select_for_update().get(pk=fundraise.pk)
+
             if fundraise.status != Fundraise.OPEN:
                 raise ValueError("Fundraise is not open")
 

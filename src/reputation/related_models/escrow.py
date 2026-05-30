@@ -111,7 +111,7 @@ class Escrow(DefaultModel):
             if escrow.status in (escrow.PAID, escrow.CANCELLED, escrow.EXPIRED):
                 return False
 
-            if payout_amount > escrow.amount_holding:
+            if payout_amount <= 0 or payout_amount > escrow.amount_holding:
                 return False
 
             status = escrow.PARTIALLY_PAID

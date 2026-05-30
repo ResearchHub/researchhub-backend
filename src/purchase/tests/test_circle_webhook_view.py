@@ -500,6 +500,27 @@ class TestCircleWebhookView(TestCase):
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
     )
+    def test_completed_after_failed_does_not_credit(self, _mock_verify):
+        """COMPLETED must not credit a deposit already marked FAILED."""
+        self._post(_make_payload(state="INITIATED"))
+        self._post(_make_payload(state="FAILED"))
+
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.paid_status, "FAILED")
+
+        self._post(_make_payload(state="COMPLETED"))
+
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.paid_status, "FAILED")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_FAILED)
+
+        from purchase.models import Balance
+
+        self.assertFalse(Balance.objects.filter(user=self.user).exists())
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
     def test_failed_state_no_existing_deposit_returns_200(self, _mock_verify):
         """FAILED webhook with no existing deposit returns 200 gracefully."""
         response = self._post(_make_payload(state="FAILED"))

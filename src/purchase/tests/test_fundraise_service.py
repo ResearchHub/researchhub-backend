@@ -312,6 +312,28 @@ class CloseFundraiseTests(TestCase):
 
         self.assertFalse(result)
 
+    def test_create_rsc_contribution_rejected_after_fundraise_completed(self):
+        """Contributions must not debit users once the fundraise has completed."""
+        contributor = create_random_authenticated_user("late_contributor")
+        self._give_user_rsc_balance(contributor, 1000)
+        self._create_rsc_contribution(self.fundraise, contributor, amount=50)
+
+        self.fundraise_service.complete_fundraise(self.fundraise)
+        self.fundraise.refresh_from_db()
+        self.assertEqual(self.fundraise.status, Fundraise.COMPLETED)
+        escrow_holding_after_payout = self.fundraise.escrow.amount_holding
+
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal("25"), use_credits=False
+        )
+
+        self.assertIsNone(purchase)
+        self.assertEqual(error, "Fundraise is not open")
+        self.fundraise.escrow.refresh_from_db()
+        self.assertEqual(
+            self.fundraise.escrow.amount_holding, escrow_holding_after_payout
+        )
+
     def test_close_fundraise_no_contributions(self):
         """Test that a fundraise with no contributions can be closed"""
         self.fundraise.escrow.amount_holding = 0
