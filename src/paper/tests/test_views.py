@@ -271,6 +271,7 @@ class PaperApiTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["status"], Paper.PENDING)
         paper = Paper.objects.get(id=response.data["id"])
         self.assertEqual(paper.status, Paper.PENDING)
 
@@ -292,6 +293,7 @@ class PaperApiTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["status"], Paper.APPROVED)
         paper = Paper.objects.get(id=response.data["id"])
         self.assertEqual(paper.status, Paper.APPROVED)
 

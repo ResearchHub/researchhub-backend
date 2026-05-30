@@ -438,6 +438,7 @@ class PaperViewSet(
                         "abstract",
                         "authors",
                         "hubs",
+                        "status",
                         "version",
                         "version_list",
                     ],
