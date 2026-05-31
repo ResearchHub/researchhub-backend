@@ -241,11 +241,11 @@ class ContributionFilter(filters.FilterSet):
 
 class RiskScoreEventFilter(filters.FilterSet):
     event_type = filters.ChoiceFilter(choices=RiskScoreEvent.EventType.choices)
-    created_date_after = filters.DateTimeFilter(
-        field_name="created_date", lookup_expr="gte"
+    action_date_after = filters.DateTimeFilter(
+        field_name="action_date", lookup_expr="gte"
     )
-    created_date_before = filters.DateTimeFilter(
-        field_name="created_date", lookup_expr="lte"
+    action_date_before = filters.DateTimeFilter(
+        field_name="action_date", lookup_expr="lte"
     )
     delta_positive = filters.BooleanFilter(method="filter_delta_sign")
 
@@ -260,7 +260,7 @@ class RiskScoreEventFilter(filters.FilterSet):
         model = RiskScoreEvent
         fields = [
             "event_type",
-            "created_date_after",
-            "created_date_before",
+            "action_date_after",
+            "action_date_before",
             "delta_positive",
         ]

@@ -17,6 +17,7 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
 )
 from researchhub_document.helpers import create_post
 from user.constants.risk_score_constants import DEFAULT_SCORE
+from user.management.commands.backfill_risk_scores import ACCOUNT_AGE_BONUS_DAYS
 from user.models import UserVerification
 from user.related_models.risk_score_model import RiskScoreEvent
 from user.related_models.user_model import FOUNDATION_EMAIL
@@ -162,6 +163,66 @@ class BackfillOneTimeSignalTests(BackfillCommandMixin, TestCase):
             ).exists()
         )
 
+    def test_google_signup_dated_to_account_link(self):
+        # Arrange
+        linked_at = timezone.now() - timedelta(days=200)
+        account = SocialAccount.objects.create(
+            user=self.user, provider="google", uid="google-dated"
+        )
+        SocialAccount.objects.filter(pk=account.pk).update(date_joined=linked_at)
+
+        # Act
+        self._call()
+
+        # Assert
+        event = RiskScoreEvent.objects.get(
+            user=self.user, event_type=EventType.GOOGLE_SIGNUP
+        )
+        self.assertEqual(event.action_date, linked_at)
+        self.assertGreater(event.created_date, linked_at)
+
+    def test_persona_verified_dated_to_verification(self):
+        # Arrange
+        verified_at = timezone.now() - timedelta(days=45)
+        verification = UserVerification.objects.create(
+            user=self.user,
+            first_name="Test",
+            last_name="User",
+            status=UserVerification.Status.APPROVED,
+            verified_by=UserVerification.Type.PERSONA,
+            external_id="inq_dated",
+        )
+        UserVerification.objects.filter(pk=verification.pk).update(
+            created_date=verified_at
+        )
+
+        # Act
+        self._call()
+
+        # Assert
+        event = RiskScoreEvent.objects.get(
+            user=self.user, event_type=EventType.PERSONA_VERIFIED_WHITELISTED
+        )
+        self.assertEqual(event.action_date, verified_at)
+
+    def test_account_age_bonus_dated_to_threshold_crossing(self):
+        # Arrange
+        joined_at = timezone.now() - timedelta(days=200)
+        self.user.date_joined = joined_at
+        self.user.save(update_fields=["date_joined"])
+
+        # Act
+        self._call()
+
+        # Assert
+        event = RiskScoreEvent.objects.get(
+            user=self.user, event_type=EventType.ACCOUNT_AGE_BONUS
+        )
+        self.assertEqual(
+            event.action_date,
+            joined_at + timedelta(days=ACCOUNT_AGE_BONUS_DAYS),
+        )
+
     def test_idempotent_on_repeated_runs(self):
         # Arrange
         SocialAccount.objects.create(
@@ -276,6 +337,51 @@ class BackfillHistoricalActionsTests(BackfillCommandMixin, TestCase):
         )
         self.assertEqual(event.delta, DELTAS[EventType.CONTENT_CENSORED])
         self.assertEqual(event.source_content_id, comment.pk)
+
+    def test_grant_event_dated_to_decision_not_run_time(self):
+        # Arrange
+        decided_at = timezone.now() - timedelta(days=120)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=self.post.unified_document,
+            amount=1000,
+            description="Test",
+            status=Grant.OPEN,
+        )
+        Grant.objects.filter(pk=grant.pk).update(updated_date=decided_at)
+
+        # Act
+        self._call()
+
+        # Assert
+        event = RiskScoreEvent.objects.get(
+            user=self.user, event_type=EventType.WORK_APPROVED
+        )
+        self.assertEqual(event.action_date, decided_at)
+
+    def test_censored_comment_event_dated_to_removal(self):
+        # Arrange
+        removed_at = timezone.now() - timedelta(days=30)
+        thread = RhCommentThreadModel.objects.create(
+            content_type=ContentType.objects.get_for_model(self.post),
+            object_id=self.post.id,
+            created_by=self.user,
+        )
+        RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            is_removed=True,
+            is_removed_date=removed_at,
+        )
+
+        # Act
+        self._call()
+
+        # Assert
+        event = RiskScoreEvent.objects.get(
+            user=self.user, event_type=EventType.CONTENT_CENSORED
+        )
+        self.assertEqual(event.action_date, removed_at)
 
     def test_multiple_grants_create_individual_events(self):
         # Arrange
