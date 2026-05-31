@@ -303,6 +303,8 @@ class ResearchhubPostViewSet(
                     if risk_score_service.is_trusted(created_by):
                         GrantModerationService().approve_grant(grant, created_by)
 
+                    GrantCacheMixin.invalidate_grant_feed_cache()
+
                 if not TESTING:
                     if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
                         rh_post.discussion_src.save(file_name, full_src_file)
