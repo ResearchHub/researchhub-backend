@@ -384,6 +384,35 @@ class CloseFundraiseTests(TestCase):
         ).exists()
         self.assertTrue(fee_refund_exists)
 
+    def test_close_fundraise_fee_refund_reverses_revenue_and_dao_credits(self):
+        """Closing must not mint RSC: fee refunds debit RH and DAO fee recipients."""
+        from reputation.utils import calculate_bounty_fees
+
+        dao_account = create_random_authenticated_user("dao_account")
+        dao_account.email = "revenue1@researchhub.foundation"
+        dao_account.save()
+
+        contributor = create_random_authenticated_user("fee_mint_contributor")
+        self._give_user_rsc_balance(contributor, 1000)
+
+        contribution_amount = Decimal("100")
+        _, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, contribution_amount, use_credits=False
+        )
+        self.assertIsNone(error)
+
+        fee, rh_fee, dao_fee, _ = calculate_bounty_fees(contribution_amount)
+        revenue_before = self.revenue_account.get_balance()
+        dao_before = dao_account.get_balance()
+
+        result = self.fundraise_service.close_fundraise(self.fundraise)
+        self.assertTrue(result)
+
+        self.revenue_account.refresh_from_db()
+        dao_account.refresh_from_db()
+        self.assertEqual(self.revenue_account.get_balance(), revenue_before)
+        self.assertEqual(dao_account.get_balance(), dao_before)
+
     def test_close_fundraise_fee_refund_scoped_to_contribution(self):
         """
         Regression: when the same user makes multiple contributions, fee

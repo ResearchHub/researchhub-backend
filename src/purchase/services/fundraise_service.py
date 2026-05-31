@@ -6,6 +6,7 @@ from typing import Optional, Tuple
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 
 from analytics.tasks import track_revenue_event
@@ -235,6 +236,9 @@ class FundraiseService:
 
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
+            fundraise = Fundraise.objects.select_for_update().get(pk=fundraise.pk)
+            if fundraise.status != Fundraise.OPEN:
+                return None, "Fundraise is not open"
 
             if use_credits:
                 if user.get_locked_balance() < total_cost:
@@ -307,9 +311,10 @@ class FundraiseService:
                 priority=1,
             )
 
-            # Update escrow object
-            fundraise.escrow.amount_holding += amount
-            fundraise.escrow.save()
+            # Update escrow under row lock to avoid lost updates on concurrent contributions
+            Escrow.objects.filter(pk=fundraise.escrow_id).update(
+                amount_holding=F("amount_holding") + amount
+            )
 
         return purchase, None
 
@@ -413,9 +418,19 @@ class FundraiseService:
         return True
 
     def _refund_fee(self, user, debit, abs_amount):
-        """Refund a fee debit from the revenue account. Returns True on success."""
+        """Refund fee debits to the contributor and reverse RH/DAO fee credits."""
         rh_revenue_account = User.objects.get_revenue_account()
+        dao_account = User.objects.get_community_revenue_account()
         fee_object = BountyFee.objects.get(id=debit.object_id)
+
+        purchase = debit.purchase
+        if not purchase:
+            return False
+
+        _, rh_fee, dao_fee, _ = calculate_bounty_fees(purchase.amount)
+        if abs_amount != rh_fee + dao_fee:
+            return False
+
         distribution = create_bounty_refund_distribution(abs_amount)
         distributor = Distributor(
             distribution,
@@ -426,7 +441,26 @@ class FundraiseService:
             is_locked=debit.is_locked,
         )
         record = distributor.distribute()
-        return record.distributed_status != "FAILED"
+        if record.distributed_status == "FAILED":
+            return False
+
+        fee_ct = ContentType.objects.get_for_model(BountyFee)
+        Balance.objects.create(
+            user=rh_revenue_account,
+            content_type=fee_ct,
+            object_id=fee_object.id,
+            amount=f"-{rh_fee.to_eng_string()}",
+            purchase=purchase,
+        )
+        if dao_fee > 0:
+            Balance.objects.create(
+                user=dao_account,
+                content_type=fee_ct,
+                object_id=fee_object.id,
+                amount=f"-{dao_fee.to_eng_string()}",
+                purchase=purchase,
+            )
+        return True
 
     def refund_rsc_contributions(self, fundraise: Fundraise) -> bool:
         """
