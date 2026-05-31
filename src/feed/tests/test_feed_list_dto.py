@@ -316,3 +316,72 @@ class FundingFeedListDtoTests(AWSMockTestCase):
         for contributor in top:
             self.assertNotIn("contributions", contributor)
             self.assertNotIn("total_contribution", contributor)
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_funding_feed_includes_slim_bounties(self, mock_usd_to_rsc):
+        mock_usd_to_rsc.return_value = 200.0
+
+        from reputation.models import Bounty, Escrow
+
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        post = ResearchhubPost.objects.create(
+            title="Bounty Proposal",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            renderable_text="Proposal",
+            unified_document=unified_doc,
+        )
+        Fundraise.objects.create(
+            unified_document=unified_doc,
+            created_by=self.user,
+            goal_amount=Decimal("100.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            amount_holding=150,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+        )
+        bounty = Bounty.objects.create(
+            amount=150,
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.REVIEW,
+            unified_document=unified_doc,
+            item_content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            item_object_id=post.id,
+            escrow=escrow,
+            created_by=self.user,
+        )
+
+        post = ResearchhubPost.objects.prefetch_related(
+            "unified_document__related_bounties__children__created_by__author_profile"
+        ).get(id=post.id)
+
+        feed_entry = FeedEntry(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            id=post.id,
+            user=self.user,
+            action="PUBLISH",
+            action_date=post.created_date,
+            unified_document=unified_doc,
+            item=post,
+            metrics={"votes": 0, "replies": 0, "adjusted_score": 0},
+        )
+
+        bounties = FundingFeedListEntrySerializer(feed_entry).data["content_object"][
+            "bounties"
+        ]
+        self.assertEqual(len(bounties), 1)
+        self.assertEqual(bounties[0]["id"], bounty.id)
+        self.assertEqual(bounties[0]["status"], Bounty.OPEN)
+        self.assertEqual(bounties[0]["bounty_type"], Bounty.Type.REVIEW)
+        self.assertEqual(bounties[0]["amount"], 150.0)
+        self.assertIn("contributions", bounties[0])
+        self.assertNotIn("hub", bounties[0])
+        self.assertNotIn("contributors", bounties[0])

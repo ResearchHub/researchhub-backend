@@ -5,7 +5,11 @@ from rest_framework import serializers
 from ai_peer_review.serializers import ProposalKeyInsightSerializer
 from feed.hot_score_utils import calculate_adjusted_score
 from feed.models import FeedEntry
-from feed.serializers import SimpleAuthorSerializer, SimpleReviewSerializer
+from feed.serializers import (
+    BountyContributionSerializer,
+    SimpleAuthorSerializer,
+    SimpleReviewSerializer,
+)
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
@@ -34,6 +38,36 @@ def serialize_fund_feed_metrics(item, item_content_type):
     base_votes = metrics.get("votes", 0)
     metrics["adjusted_score"] = calculate_adjusted_score(base_votes, {})
     return metrics
+
+
+def _serialize_slim_bounty(bounty):
+    """Minimal bounty payload for funding feed action badges."""
+    contributions = []
+    for child in bounty.children.all():
+        contributions.append(BountyContributionSerializer(child).data)
+
+    created_by = None
+    if bounty.created_by_id:
+        created_by = {"id": bounty.created_by_id}
+
+    return {
+        "id": bounty.id,
+        "status": bounty.status,
+        "bounty_type": bounty.bounty_type,
+        "expiration_date": bounty.expiration_date,
+        "amount": float(bounty.amount),
+        "contributions": contributions,
+        "created_by": created_by,
+    }
+
+
+def _serialize_slim_bounties(post):
+    if not post.unified_document:
+        return []
+
+    bounties = post.unified_document.related_bounties.all()
+    parent_bounties = [b for b in bounties if b.parent_id is None]
+    return [_serialize_slim_bounty(bounty) for bounty in parent_bounties]
 
 
 def _serialize_review_author(review):
@@ -266,6 +300,7 @@ class FundingFeedPostSerializer(serializers.Serializer):
             "authors": [],
             "reviews": [],
             "fundraise": None,
+            "bounties": _serialize_slim_bounties(post),
         }
 
         if hasattr(post, "authors"):

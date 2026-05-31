@@ -27,6 +27,7 @@ from feed.views.funding_cache_mixin import (
 )
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.fundraise_model import Fundraise
+from reputation.related_models.bounty import Bounty
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from review.models import Review
@@ -133,6 +134,19 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
                     "unified_document__reviews",
                     queryset=Review.objects.filter(is_removed=False).select_related(
                         "created_by__author_profile"
+                    ),
+                ),
+                Prefetch(
+                    "unified_document__related_bounties",
+                    queryset=Bounty.objects.filter(parent__isnull=True)
+                    .select_related("created_by")
+                    .prefetch_related(
+                        Prefetch(
+                            "children",
+                            queryset=Bounty.objects.select_related(
+                                "created_by__author_profile"
+                            ),
+                        )
                     ),
                 ),
                 grant_applications_prefetch,
