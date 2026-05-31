@@ -6,7 +6,6 @@ from rest_framework.test import APIRequestFactory
 from feed.views.common import FeedPagination
 
 FUNDING_FEED_MAX_CACHED_PAGE = 3
-FUNDING_FEED_CACHE_VERSION = "v2"
 
 FUNDING_FEED_ORDERINGS = [
     "latest",
@@ -34,10 +33,6 @@ def _funding_invalidation_request(query_params: dict[str, str]) -> Request:
 
 class FundingCacheMixin:
     """Mixin for :class:`~feed.views.funding_feed_view.FundingFeedViewSet` cache helpers."""
-
-    def get_cache_key(self, request, feed_type=""):
-        base_key = super().get_cache_key(request, feed_type)
-        return f"{base_key}:{FUNDING_FEED_CACHE_VERSION}"
 
     @staticmethod
     def invalidate_funding_feed_cache() -> None:

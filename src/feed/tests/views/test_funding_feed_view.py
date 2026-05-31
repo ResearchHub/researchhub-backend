@@ -355,7 +355,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         request.user = anon_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:popular:all:all:none:1-20:v2")
+        self.assertEqual(cache_key, "funding_feed:popular:all:all:none:1-20")
 
         # Authenticated user
         request = request_factory.get("/api/funding_feed/")
@@ -368,7 +368,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:popular:all:all:none:1-20:v2")
+        self.assertEqual(cache_key, "funding_feed:popular:all:all:none:1-20")
 
         # Custom page and page size
         request = request_factory.get("/api/funding_feed/?page=3&page_size=10")
@@ -376,7 +376,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:popular:all:all:none:3-10:v2")
+        self.assertEqual(cache_key, "funding_feed:popular:all:all:none:3-10")
 
     def test_preregistration_post_only(self):
         """Test that funding feed only returns preregistration posts"""
@@ -814,7 +814,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
 
         # Verify that cache was not used for this request
         # The view should not cache responses when grant_id is provided
-        cache_key = "funding_feed:latest:all:all:none:1-20:v2"
+        cache_key = "funding_feed:latest:all:all:none:1-20"
         cached_response = cache.get(cache_key)
 
         # Cache should be None since grant_id disables caching
@@ -894,7 +894,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
 
         # Verify that cache was not used for this request
         # The view should not cache responses when created_by is provided
-        cache_key = "funding_feed:latest:all:all:none:1-20:v2"
+        cache_key = "funding_feed:latest:all:all:none:1-20"
         cached_response = cache.get(cache_key)
 
         # Cache should be None since created_by disables caching

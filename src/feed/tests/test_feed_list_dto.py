@@ -9,9 +9,13 @@ from feed.feed_list_dto import (
     GrantFeedPostSerializer,
 )
 from feed.models import FeedEntry
-from purchase.models import Fundraise, Grant, GrantApplication, NonprofitFundraiseLink, NonprofitOrg
+from organizations.models import NonprofitFundraiseLink, NonprofitOrg
+from purchase.models import Fundraise, Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
-from researchhub_document.related_models.constants.document_type import GRANT, PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -76,7 +80,9 @@ class GrantFeedListDtoTests(AWSMockTestCase):
         self.assertIn("usd", grant_data["amount"])
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
-    def test_grant_application_fundraise_is_slim_without_key_insight(self, mock_usd_to_rsc):
+    def test_grant_application_fundraise_is_slim_without_key_insight(
+        self, mock_usd_to_rsc
+    ):
         mock_usd_to_rsc.return_value = 200.0
 
         prereg_doc = ResearchhubUnifiedDocument.objects.create(
@@ -113,6 +119,44 @@ class GrantFeedListDtoTests(AWSMockTestCase):
         self.assertNotIn("status", fundraise)
         self.assertIn("goal_amount", fundraise)
         self.assertIn("reviews", fundraise)
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_key_insight_included_only_when_requested(self, mock_usd_to_rsc):
+        mock_usd_to_rsc.return_value = 200.0
+
+        prereg_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        prereg_post = ResearchhubPost.objects.create(
+            title="Applicant Proposal",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            renderable_text="Proposal",
+            unified_document=prereg_doc,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=prereg_doc,
+            goal_amount=Decimal("5000.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        GrantApplication.objects.create(
+            grant=self.grant, preregistration_post=prereg_post, applicant=self.user
+        )
+
+        grant_post = ResearchhubPost.objects.get(id=self.grant_post.id)
+        without = GrantFeedPostSerializer(
+            grant_post, context={"include_key_insights": False}
+        ).data
+        with_insights = GrantFeedPostSerializer(
+            grant_post, context={"include_key_insights": True}
+        ).data
+
+        self.assertNotIn(
+            "key_insight", without["grant"]["applications"][0]
+        )
+        self.assertIn("key_insight", with_insights["grant"]["applications"][0])
 
 
 class FundingFeedListDtoTests(AWSMockTestCase):
@@ -274,41 +318,3 @@ class FundingFeedListDtoTests(AWSMockTestCase):
         for contributor in top:
             self.assertNotIn("contributions", contributor)
             self.assertNotIn("total_contribution", contributor)
-
-    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
-    def test_key_insight_included_only_when_requested(self, mock_usd_to_rsc):
-        mock_usd_to_rsc.return_value = 200.0
-
-        prereg_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION
-        )
-        prereg_post = ResearchhubPost.objects.create(
-            title="Applicant Proposal",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            renderable_text="Proposal",
-            unified_document=prereg_doc,
-        )
-        Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=prereg_doc,
-            goal_amount=Decimal("5000.00"),
-            goal_currency=USD,
-            status=Fundraise.OPEN,
-        )
-        GrantApplication.objects.create(
-            grant=self.grant, preregistration_post=prereg_post, applicant=self.user
-        )
-
-        grant_post = ResearchhubPost.objects.get(id=self.grant_post.id)
-        without = GrantFeedPostSerializer(
-            grant_post, context={"include_key_insights": False}
-        ).data
-        with_insights = GrantFeedPostSerializer(
-            grant_post, context={"include_key_insights": True}
-        ).data
-
-        self.assertNotIn(
-            "key_insight", without["grant"]["applications"][0]
-        )
-        self.assertIn("key_insight", with_insights["grant"]["applications"][0])

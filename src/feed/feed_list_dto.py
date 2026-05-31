@@ -1,10 +1,3 @@
-"""
-Minimal serializers for grant_feed and funding_feed list endpoints.
-
-These DTOs omit fields the web feed UI does not consume, reducing DB work and
-payload size on uncached responses.
-"""
-
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
 from rest_framework import serializers
@@ -20,7 +13,6 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.serializers import DynamicUserSerializer
 
 
@@ -56,11 +48,7 @@ def _serialize_review_author(review):
 
 def _serialize_slim_application_fundraise(application):
     post = application.preregistration_post
-    if (
-        not post
-        or not hasattr(post, "unified_document")
-        or not post.unified_document
-    ):
+    if not post or not hasattr(post, "unified_document") or not post.unified_document:
         return None
 
     ud = post.unified_document
@@ -192,8 +180,6 @@ def _serialize_slim_grant(grant, context):
 
 
 class GrantFeedPostSerializer(serializers.Serializer):
-    """Minimal post payload for grant feed list responses."""
-
     def to_representation(self, post):
         data = {
             "id": post.id,
@@ -311,8 +297,6 @@ class FundingFeedPostSerializer(serializers.Serializer):
 
 
 class FundFeedListEntrySerializer(serializers.ModelSerializer):
-    """Slim feed entry envelope shared by grant and funding feed lists."""
-
     id = serializers.IntegerField()
     content_type = serializers.SerializerMethodField()
     content_object = serializers.SerializerMethodField()

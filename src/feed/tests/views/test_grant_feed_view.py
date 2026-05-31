@@ -3,9 +3,11 @@ from decimal import Decimal
 
 import pytz
 from django.core.cache import cache
-from rest_framework.test import APITestCase
+from rest_framework.request import Request
+from rest_framework.test import APIRequestFactory, APITestCase
 
 from feed.views.common import FeedPagination
+from feed.views.grant_feed_view import GrantFeedViewSet
 from purchase.models import Fundraise, Grant, GrantApplication
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
@@ -695,12 +697,14 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(unfiltered_response.status_code, 200)
         self.assertEqual(filtered_response.status_code, 200)
 
-        unfiltered_key = (
-            f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::v2"
+        view = GrantFeedViewSet()
+        factory = APIRequestFactory()
+        unfiltered_key = view.get_cache_key(
+            Request(factory.get("/api/grant_feed/")), "grants"
         )
-        filtered_key = (
-            f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::"
-            f"{user1.id}:v2"
+        filtered_key = view.get_cache_key(
+            Request(factory.get("/api/grant_feed/", {"created_by": str(user1.id)})),
+            "grants",
         )
         self.assertIsNotNone(cache.get(unfiltered_key))
         self.assertIsNotNone(cache.get(filtered_key))
@@ -812,8 +816,8 @@ class GrantFeedViewTests(APITestCase):
         )
         self.client.force_authenticate(self.user)
         self.client.get("/api/grant_feed/")
-        cache_key = (
-            f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::v2"
+        cache_key = GrantFeedViewSet().get_cache_key(
+            Request(APIRequestFactory().get("/api/grant_feed/")), "grants"
         )
         self.assertIsNotNone(cache.get(cache_key))
 

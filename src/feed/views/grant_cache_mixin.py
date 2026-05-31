@@ -15,7 +15,6 @@ GRANT_FEED_ORDERINGS = [
 ]
 GRANT_FEED_STATUSES = ["", "OPEN", "CLOSED", "COMPLETED", "PENDING"]
 GRANT_FEED_MAX_CACHED_PAGE = 3
-GRANT_FEED_CACHE_VERSION = "v2"
 
 
 class GrantCacheMixin:
@@ -23,7 +22,7 @@ class GrantCacheMixin:
         base_key = super().get_cache_key(request, feed_type)
         status = request.query_params.get("status", "")
         created_by = request.query_params.get("created_by", "")
-        return f"{base_key}:{status}:{created_by}:{GRANT_FEED_CACHE_VERSION}"
+        return f"{base_key}:{status}:{created_by}"
 
     @staticmethod
     def invalidate_grant_feed_cache():
@@ -42,8 +41,7 @@ class GrantCacheMixin:
                     for page in range(1, GRANT_FEED_MAX_CACHED_PAGE + 1):
                         cache_key = (
                             f"grants_feed:popular:all:all:none:"
-                            f"{page}-{page_size}{sort_part}:{status}:{created_by}:"
-                            f"{GRANT_FEED_CACHE_VERSION}"
+                            f"{page}-{page_size}{sort_part}:{status}:{created_by}"
                         )
                         cache.delete(cache_key)
 
