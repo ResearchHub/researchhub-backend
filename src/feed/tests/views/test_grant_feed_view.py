@@ -6,7 +6,6 @@ from django.core.cache import cache
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory, APITestCase
 
-from feed.views.common import FeedPagination
 from feed.views.grant_feed_view import GrantFeedViewSet
 from purchase.models import Fundraise, Grant, GrantApplication
 from researchhub_document.helpers import create_post
