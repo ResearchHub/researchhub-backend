@@ -22,10 +22,6 @@ logger = logging.getLogger(__name__)
 
 SNIPPET_LENGTH = 200
 
-POSITIVE = "POSITIVE"
-NEGATIVE = "NEGATIVE"
-MIXED = "MIXED"
-
 EventType = RiskScoreEvent.EventType
 
 # Collapses related event types into a single moderator-facing bucket.
@@ -233,16 +229,6 @@ def build_event_details(events):
     }
 
 
-def _sentiment(min_delta, max_delta):
-    has_negative = min_delta < 0
-    has_positive = max_delta > 0
-    if has_negative and not has_positive:
-        return POSITIVE
-    if has_positive and not has_negative:
-        return NEGATIVE
-    return MIXED
-
-
 def build_insights(user):
     """Aggregate per-event-type counts and sentiment for a user."""
     aggregates = (
@@ -277,7 +263,8 @@ def build_insights(user):
             "event_type": key,
             "count": bucket["count"],
             "total_delta": bucket["total_delta"],
-            "sentiment": _sentiment(bucket["min_delta"], bucket["max_delta"]),
+            "min_delta": bucket["min_delta"],
+            "max_delta": bucket["max_delta"],
         }
         for key, bucket in sorted(buckets.items())
     ]
