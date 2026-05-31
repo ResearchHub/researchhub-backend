@@ -46,6 +46,7 @@ from user.related_models.author_institution import AuthorInstitution
 from user.related_models.coauthor_model import CoAuthor
 from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
+from user.related_models.risk_score_model import RiskScoreEvent
 from user.services.risk_score_service import RiskScoreService
 from utils import sentry
 
@@ -108,6 +109,31 @@ class ModeratorUserSerializer(ModelSerializer):
 
     def get_risk_score(self, user):
         return RiskScoreService().get_score(user)
+
+
+class RiskScoreEventSerializer(ModelSerializer):
+    source_type = SerializerMethodField()
+    source_detail = SerializerMethodField()
+
+    class Meta:
+        model = RiskScoreEvent
+        fields = [
+            "id",
+            "event_type",
+            "delta",
+            "source_type",
+            "source_content_id",
+            "source_detail",
+            "created_date",
+        ]
+
+    def get_source_type(self, event):
+        if event.source_content_type_id is None:
+            return None
+        return event.source_content_type.model
+
+    def get_source_detail(self, event):
+        return self.context.get("details", {}).get(event.id)
 
 
 class UniversitySerializer(ModelSerializer):
