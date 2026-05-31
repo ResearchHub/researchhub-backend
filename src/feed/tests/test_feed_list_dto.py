@@ -153,9 +153,7 @@ class GrantFeedListDtoTests(AWSMockTestCase):
             grant_post, context={"include_key_insights": True}
         ).data
 
-        self.assertNotIn(
-            "key_insight", without["grant"]["applications"][0]
-        )
+        self.assertNotIn("key_insight", without["grant"]["applications"][0])
         self.assertIn("key_insight", with_insights["grant"]["applications"][0])
 
 
