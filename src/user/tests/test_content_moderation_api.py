@@ -79,6 +79,15 @@ class ContentModerationEndpointTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data,
+            {
+                "id": paper.id,
+                "status": Paper.APPROVED,
+                "reviewed_by": self.moderator.id,
+                "reviewed_date": response.data["reviewed_date"],
+            },
+        )
         paper.refresh_from_db()
         self.assertEqual(paper.status, Paper.APPROVED)
 

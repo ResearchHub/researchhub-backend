@@ -22,7 +22,7 @@ class ContentModerationActionsMixin:
         except ValueError as e:
             return Response({"message": str(e)}, status=400)
 
-        return Response(self.get_serializer(content).data)
+        return Response(self._moderation_result(content))
 
     @action(detail=True, methods=["post"], permission_classes=[IsModerator])
     def decline(self, request, pk=None):
@@ -37,4 +37,12 @@ class ContentModerationActionsMixin:
         except ValueError as e:
             return Response({"message": str(e)}, status=400)
 
-        return Response(self.get_serializer(content).data)
+        return Response(self._moderation_result(content))
+
+    def _moderation_result(self, content):
+        return {
+            "id": content.id,
+            "status": content.status,
+            "reviewed_by": content.reviewed_by_id,
+            "reviewed_date": content.reviewed_date,
+        }

@@ -124,7 +124,7 @@ class ContentModerationService:
                 object_id=content.id,
                 unified_document=content.unified_document,
             )
-            notification.send_notification()
+            transaction.on_commit(notification.send_notification)
         except Exception:
             logger.exception(
                 "Failed to send %s notification for %s %s",
