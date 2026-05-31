@@ -82,7 +82,7 @@ class BuildEventDetailsTests(APITestCase):
 
         # Assert
         self.assertEqual(detail["title"], "Quantum Computing")
-        self.assertIn("Funding for new research", detail["snippet"])
+        self.assertIn("Funding for new research", detail["text"])
         self.assertIsNotNone(detail["url"])
         self.assertEqual(detail["document_type"], "DISCUSSION")
         self.assertIsNone(detail["comment_type"])
@@ -114,7 +114,7 @@ class BuildEventDetailsTests(APITestCase):
 
         # Assert
         self.assertEqual(detail["title"], "Quantum Computing")
-        self.assertEqual(detail["snippet"], "some text")
+        self.assertEqual(detail["text"], "some text")
         self.assertEqual(detail["document_type"], "DISCUSSION")
         self.assertIsNone(detail["comment_type"])
 
@@ -129,7 +129,7 @@ class BuildEventDetailsTests(APITestCase):
         detail = build_event_details([event])[event.id]
 
         # Assert
-        self.assertEqual(detail["snippet"], "this is the censored comment")
+        self.assertEqual(detail["text"], "this is the censored comment")
         self.assertTrue(detail["url"].endswith(f"#comment-{comment.id}"))
         self.assertEqual(detail["comment_type"], "PEER_REVIEW")
         self.assertEqual(detail["document_type"], "DISCUSSION")
@@ -186,7 +186,7 @@ class BuildEventDetailsTests(APITestCase):
 
         # Assert
         self.assertEqual(detail["title"], "Quantum Computing")
-        self.assertEqual(detail["snippet"], "bounty answer")
+        self.assertEqual(detail["text"], "bounty answer")
         self.assertTrue(detail["url"].endswith(f"#comment-{comment.id}"))
         self.assertEqual(detail["comment_type"], "GENERIC_COMMENT")
         self.assertEqual(detail["document_type"], "DISCUSSION")
@@ -208,7 +208,7 @@ class BuildEventDetailsTests(APITestCase):
         detail = build_event_details([event])[event.id]
 
         # Assert
-        self.assertEqual(detail["snippet"], "tipped comment")
+        self.assertEqual(detail["text"], "tipped comment")
         self.assertTrue(detail["url"].endswith(f"#comment-{comment.id}"))
         self.assertEqual(detail["comment_type"], "GENERIC_COMMENT")
         self.assertEqual(detail["document_type"], "DISCUSSION")
@@ -230,7 +230,7 @@ class BuildEventDetailsTests(APITestCase):
 
         # Assert
         self.assertEqual(detail["title"], "Quantum Computing")
-        self.assertEqual(detail["snippet"], "reviewed comment")
+        self.assertEqual(detail["text"], "reviewed comment")
         self.assertTrue(detail["url"].endswith(f"#comment-{comment.id}"))
         self.assertEqual(detail["comment_type"], "GENERIC_COMMENT")
         self.assertEqual(detail["document_type"], "DISCUSSION")
@@ -258,7 +258,7 @@ class BuildEventDetailsTests(APITestCase):
         detail = build_event_details([event])[event.id]
 
         # Assert
-        self.assertEqual(detail["snippet"], "censored later")
+        self.assertEqual(detail["text"], "censored later")
 
     def test_batches_source_fetch_by_content_type(self):
         # Arrange
@@ -432,6 +432,6 @@ class RiskScoreEventsApiTests(APITestCase):
         }
         self.assertIsNone(details_by_type[EventType.GOOGLE_SIGNUP])
         self.assertEqual(
-            details_by_type[EventType.CONTENT_CENSORED]["snippet"],
+            details_by_type[EventType.CONTENT_CENSORED]["text"],
             "spammy comment",
         )

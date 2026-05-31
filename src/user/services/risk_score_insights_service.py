@@ -20,8 +20,6 @@ from user.related_models.risk_score_model import RiskScoreEvent
 
 logger = logging.getLogger(__name__)
 
-SNIPPET_LENGTH = 200
-
 EventType = RiskScoreEvent.EventType
 
 # Collapses related event types into a single moderator-facing bucket.
@@ -31,13 +29,6 @@ INSIGHT_GROUPS = {
     EventType.PERSONA_VERIFIED_WHITELISTED: "PERSONA_VERIFIED",
     EventType.PERSONA_VERIFIED_NON_WHITELISTED: "PERSONA_VERIFIED",
 }
-
-
-def _truncate(text):
-    text = (text or "").strip()
-    if len(text) <= SNIPPET_LENGTH:
-        return text
-    return text[:SNIPPET_LENGTH].rstrip() + "..."
 
 
 def _doc_title(doc):
@@ -68,7 +59,7 @@ def _doc_url(unified_document, doc):
     return f"{BASE_FRONTEND_URL}/{path_segment}/{doc.id}/{doc.slug}"
 
 
-def _doc_snippet(doc):
+def _doc_text(doc):
     if doc is None:
         return ""
     if isinstance(doc, Paper):
@@ -83,10 +74,10 @@ def _resolve_doc(unified_document):
     return unified_document.get_document(), unified_document.document_type
 
 
-def _detail(title, snippet, url, *, comment_type=None, document_type=None):
+def _detail(title, text, url, *, comment_type=None, document_type=None):
     return {
         "title": title or "",
-        "snippet": _truncate(snippet),
+        "text": text or "",
         "url": url,
         "comment_type": comment_type,
         "document_type": document_type,
@@ -132,7 +123,7 @@ def _unified_document_detail(unified_document):
     doc, document_type = _resolve_doc(unified_document)
     return _detail(
         _doc_title(doc),
-        _doc_snippet(doc),
+        _doc_text(doc),
         _doc_url(unified_document, doc),
         document_type=document_type,
     )
