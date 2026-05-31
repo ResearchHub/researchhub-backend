@@ -1,6 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from purchase.related_models.grant_model import Grant
@@ -47,6 +48,7 @@ def _record_many(user, event_type, count, *, delta=None):
             user=user,
             event_type=event_type,
             delta=delta if delta is not None else RiskScoreEvent.DELTAS[event_type],
+            action_date=timezone.now(),
         )
 
 

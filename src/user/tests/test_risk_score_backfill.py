@@ -178,7 +178,8 @@ class BackfillOneTimeSignalTests(BackfillCommandMixin, TestCase):
         event = RiskScoreEvent.objects.get(
             user=self.user, event_type=EventType.GOOGLE_SIGNUP
         )
-        self.assertEqual(event.created_date, linked_at)
+        self.assertEqual(event.action_date, linked_at)
+        self.assertGreater(event.created_date, linked_at)
 
     def test_persona_verified_dated_to_verification(self):
         # Arrange
@@ -202,7 +203,7 @@ class BackfillOneTimeSignalTests(BackfillCommandMixin, TestCase):
         event = RiskScoreEvent.objects.get(
             user=self.user, event_type=EventType.PERSONA_VERIFIED_WHITELISTED
         )
-        self.assertEqual(event.created_date, verified_at)
+        self.assertEqual(event.action_date, verified_at)
 
     def test_account_age_bonus_dated_to_threshold_crossing(self):
         # Arrange
@@ -218,7 +219,7 @@ class BackfillOneTimeSignalTests(BackfillCommandMixin, TestCase):
             user=self.user, event_type=EventType.ACCOUNT_AGE_BONUS
         )
         self.assertEqual(
-            event.created_date,
+            event.action_date,
             joined_at + timedelta(days=ACCOUNT_AGE_BONUS_DAYS),
         )
 
@@ -356,7 +357,7 @@ class BackfillHistoricalActionsTests(BackfillCommandMixin, TestCase):
         event = RiskScoreEvent.objects.get(
             user=self.user, event_type=EventType.WORK_APPROVED
         )
-        self.assertEqual(event.created_date, decided_at)
+        self.assertEqual(event.action_date, decided_at)
 
     def test_censored_comment_event_dated_to_removal(self):
         # Arrange
@@ -380,7 +381,7 @@ class BackfillHistoricalActionsTests(BackfillCommandMixin, TestCase):
         event = RiskScoreEvent.objects.get(
             user=self.user, event_type=EventType.CONTENT_CENSORED
         )
-        self.assertEqual(event.created_date, removed_at)
+        self.assertEqual(event.action_date, removed_at)
 
     def test_multiple_grants_create_individual_events(self):
         # Arrange

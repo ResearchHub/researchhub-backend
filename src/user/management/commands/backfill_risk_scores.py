@@ -185,19 +185,16 @@ class Command(BaseCommand):
             )
 
     def _record(self, user, event_type, dry_run, *, source=None, occurred_at=None):
-        """Record one event, dating it to `occurred_at` when the original
-        action's timestamp is known. Skips duplicates via the service."""
+        """Record one event at its historical date, skipping duplicates."""
         if dry_run:
             self.events_recorded += 1
             return
 
-        event = self.service.record_event(user, event_type, source=source)
+        event = self.service.record_event(
+            user, event_type, source=source, action_date=occurred_at
+        )
         if event is None:
             return
-
-        if occurred_at is not None:
-            event.created_date = occurred_at
-            event.save(update_fields=["created_date"])
 
         self.events_recorded += 1
 
