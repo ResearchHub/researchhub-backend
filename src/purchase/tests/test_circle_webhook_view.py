@@ -481,9 +481,6 @@ class TestCircleWebhookView(TestCase):
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
     )
-    @patch(
-        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
-    )
     def test_completed_after_failed_does_not_credit(self, _mock_verify):
         """COMPLETED after FAILED must not credit the user (late/out-of-order webhook)."""
         self._post(_make_payload(state="CONFIRMED"))
