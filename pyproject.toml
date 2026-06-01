@@ -99,5 +99,4 @@ extend-ignore = [
     "F601",  # multi-value-repeated-key-literal
     "F811",  # redefined-while-unused
     "F821",  # undefined-name
-    "F841",  # unused-variable
 ]
