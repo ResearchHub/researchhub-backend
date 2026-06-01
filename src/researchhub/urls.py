@@ -28,7 +28,6 @@ import paper.views as paper_views
 import purchase.views
 import reputation.views
 import researchhub.views
-import researchhub_case.views as researchhub_case_views
 import researchhub_document.views as researchhub_document_views
 import search.urls
 import user.views
@@ -137,12 +136,6 @@ router.register(
 )
 
 router.register(r"moderator", moderator_view.ModeratorView, basename="moderator")
-
-router.register(
-    r"author_claim_case",
-    researchhub_case_views.AuthorClaimCaseViewSet,
-    basename="author_claim_case",
-)
 
 router.register(
     r"researchhubpost",
