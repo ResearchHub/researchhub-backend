@@ -1,5 +1,3 @@
-from unittest.mock import Mock
-
 from django.test import TestCase
 
 from paper.related_models.paper_version import PaperVersion
