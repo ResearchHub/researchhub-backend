@@ -389,6 +389,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def get_document_metadata(self, request, pk=None):
         unified_document = get_object_or_404(ResearchhubUnifiedDocument, pk=pk)
+        if not unified_document.is_visible_to_user(request.user):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         metadata_context = self._get_document_metadata_context()
 
         serializer = self.dynamic_serializer_class(

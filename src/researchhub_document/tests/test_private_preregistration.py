@@ -614,6 +614,186 @@ class FeedEntrySuppressionTests(AWSMockTestCase):
         )
 
 
+class DocumentMetadataVisibilityTests(AWSMockTestCase):
+    """get_document_metadata (AllowAny) must not leak private preregistrations.
+
+    The endpoint is reachable by unified_document id without authentication, so
+    it has to enforce the same visibility rules as the post endpoints.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.author = _make_user("author")
+        self.outsider = _make_user("outsider")
+        self.grant_owner = _make_user("grant_owner")
+
+        self.public_post = create_post(
+            title="Public", created_by=self.author, document_type=PREREGISTRATION
+        )
+        self.private_post = create_post(
+            title="Private", created_by=self.author, document_type=PREREGISTRATION
+        )
+        self.private_post.unified_document.is_public = False
+        self.private_post.unified_document.save()
+
+        self.grant_post = create_post(
+            created_by=self.grant_owner, document_type="GRANT", title="Grant"
+        )
+        self.grant = Grant.objects.create(
+            created_by=self.grant_owner,
+            unified_document=self.grant_post.unified_document,
+            amount=1000,
+            currency=USD,
+            organization="Org",
+            description="desc",
+        )
+        GrantApplication.objects.create(
+            grant=self.grant,
+            preregistration_post=self.private_post,
+            applicant=self.author,
+        )
+
+    def _url(self, post):
+        return (
+            "/api/researchhub_unified_document/"
+            f"{post.unified_document_id}/get_document_metadata/"
+        )
+
+    def test_anonymous_cannot_read_private_metadata(self):
+        client = APIClient()
+        response = client.get(self._url(self.private_post))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_outsider_cannot_read_private_metadata(self):
+        client = APIClient()
+        client.force_authenticate(self.outsider)
+        response = client.get(self._url(self.private_post))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_anyone_can_read_public_metadata(self):
+        client = APIClient()
+        response = client.get(self._url(self.public_post))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_author_can_read_private_metadata(self):
+        client = APIClient()
+        client.force_authenticate(self.author)
+        response = client.get(self._url(self.private_post))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_grant_owner_can_read_private_metadata(self):
+        client = APIClient()
+        client.force_authenticate(self.grant_owner)
+        response = client.get(self._url(self.private_post))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class DynamicPostSerializerRedactionTests(AWSMockTestCase):
+    """DynamicPostSerializer redacts private post content for unauthorized
+    viewers. It is the shared chokepoint for post content embedded in
+    notifications, reviews, bounties, comment threads, and activity feeds.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.author = _make_user("author")
+        self.outsider = _make_user("outsider")
+
+        self.private_post = create_post(
+            title="Secret title",
+            created_by=self.author,
+            document_type=PREREGISTRATION,
+        )
+        self.private_post.unified_document.is_public = False
+        self.private_post.unified_document.save()
+
+    def _serialize(self, user):
+        from rest_framework.test import APIRequestFactory
+
+        from researchhub_document.serializers import DynamicPostSerializer
+
+        request = APIRequestFactory().get("/")
+        request.user = user
+        return DynamicPostSerializer(
+            self.private_post,
+            context={"request": request},
+            _include_fields=["id", "title", "renderable_text"],
+        ).data
+
+    def test_outsider_gets_redacted_payload(self):
+        data = self._serialize(self.outsider)
+        self.assertEqual(data, {"id": self.private_post.id, "is_public": False})
+        self.assertNotIn("title", data)
+        self.assertNotIn("renderable_text", data)
+
+    def test_author_gets_full_payload(self):
+        data = self._serialize(self.author)
+        self.assertEqual(data["title"], "Secret title")
+
+    def test_public_post_is_not_redacted_for_outsider(self):
+        public_post = create_post(
+            title="Open title", created_by=self.author, document_type=PREREGISTRATION
+        )
+        from rest_framework.test import APIRequestFactory
+
+        from researchhub_document.serializers import DynamicPostSerializer
+
+        request = APIRequestFactory().get("/")
+        request.user = self.outsider
+        data = DynamicPostSerializer(
+            public_post,
+            context={"request": request},
+            _include_fields=["id", "title"],
+        ).data
+        self.assertEqual(data["title"], "Open title")
+
+
+class AuthorContributionsPrivacyTests(AWSMockTestCase):
+    """The public author contributions feed excludes private preregistrations."""
+
+    def setUp(self):
+        super().setUp()
+        self.author = _make_user("author")
+
+        self.public_post = create_post(
+            title="Public", created_by=self.author, document_type=PREREGISTRATION
+        )
+        self.private_post = create_post(
+            title="Private", created_by=self.author, document_type=PREREGISTRATION
+        )
+        self.private_post.unified_document.is_public = False
+        self.private_post.unified_document.save()
+
+        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
+        from reputation.related_models.contribution import Contribution
+
+        for ordinal, post in enumerate((self.public_post, self.private_post)):
+            Contribution.objects.create(
+                contribution_type=Contribution.SUBMITTER,
+                user=self.author,
+                unified_document=post.unified_document,
+                content_type=post_ct,
+                object_id=post.id,
+                ordinal=ordinal,
+            )
+
+    def test_private_contribution_excluded(self):
+        client = APIClient()
+        client.force_authenticate(self.author)
+        response = client.get(
+            f"/api/author/{self.author.author_profile.id}/contributions/",
+            {"type": "overview"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        doc_ids = {
+            item["unified_document"]["id"]
+            for item in response.data["results"]
+            if item.get("unified_document")
+        }
+        self.assertIn(self.public_post.unified_document_id, doc_ids)
+        self.assertNotIn(self.private_post.unified_document_id, doc_ids)
+
+
 class GrantEnforcedApplicationVisibilityTests(AWSMockTestCase):
     """RFP creators can require applications be private, public, or optional."""
 
