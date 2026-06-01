@@ -3,6 +3,8 @@ import random
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.authtoken.models import Token
 
+from discussion.constants.flag_reasons import SPAM
+from discussion.models import Flag
 from hub.models import Hub
 from hub.tests.helpers import create_hub
 from reputation.related_models.score import Score
@@ -10,6 +12,7 @@ from researchhub_access_group.constants import ASSOCIATE_EDITOR
 from researchhub_access_group.models import Permission
 from user.models import Action, Author, University, User, UserVerification
 from user.related_models.organization_model import Organization
+from user.related_models.verdict_model import Verdict
 from utils.test_helpers import generate_password
 
 
@@ -115,6 +118,32 @@ def make_user_verified(user):
             "external_id": f"test-verified-{user.id}",
         },
     )
+
+
+def remove_content_via_verdict(content, moderator=None, removed_at=None):
+    """Flag `content` and resolve it with a content-removing verdict, mimicking a
+    moderator takedown. Returns the created Verdict."""
+    content_type = ContentType.objects.get_for_model(content)
+    if moderator is None:
+        moderator = create_user(
+            email=f"verdict-mod-{random.random()}@test.com",
+            moderator=True,
+        )
+    flag = Flag.objects.create(
+        created_by=moderator,
+        content_type=content_type,
+        object_id=content.pk,
+    )
+    verdict = Verdict.objects.create(
+        created_by=moderator,
+        flag=flag,
+        verdict_choice=SPAM,
+        is_content_removed=True,
+    )
+    if removed_at is not None:
+        Verdict.objects.filter(pk=verdict.pk).update(created_date=removed_at)
+        verdict.refresh_from_db()
+    return verdict
 
 
 def create_random_authenticated_user_with_reputation(unique_value, reputation):
