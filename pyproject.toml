@@ -97,6 +97,5 @@ extend-ignore = [
     "F403",  # undefined-local-with-import-star
     "F541",  # f-string-missing-placeholders
     "F601",  # multi-value-repeated-key-literal
-    "F811",  # redefined-while-unused
     "F821",  # undefined-name
 ]
