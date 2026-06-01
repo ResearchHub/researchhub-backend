@@ -20,13 +20,12 @@ from purchase.related_models.purchase_model import Purchase
 from reputation.related_models.bounty import BountySolution
 from research_ai.models import Expert
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-from researchhub_document.related_models.researchhub_post_model import (
-    ResearchhubPost,
-)
 from review.models.review_model import Review
 from user.models import User
 from user.related_models.risk_score_model import RiskScoreEvent
 from user.related_models.user_verification_model import UserVerification
+from user.related_models.verdict_model import Verdict
+from user.services.censorship import resolve_censorship
 from user.services.risk_score_service import RiskScoreService
 
 EventType = RiskScoreEvent.EventType
@@ -40,15 +39,6 @@ def _grant_decision_date(grant):
     return grant.updated_date
 
 
-def _comment_removal_date(comment):
-    return comment.is_removed_date or comment.created_date
-
-
-def _document_removal_date(post):
-    unified_document = post.unified_document
-    return (unified_document and unified_document.is_removed_date) or post.created_date
-
-
 def _solution_award_date(solution):
     return solution.updated_date
 
@@ -60,18 +50,6 @@ def _review_assessment_date(review):
 HISTORICAL_SOURCES = [
     (Grant, {"status": Grant.OPEN}, EventType.WORK_APPROVED, _grant_decision_date),
     (Grant, {"status": Grant.DECLINED}, EventType.WORK_DECLINED, _grant_decision_date),
-    (
-        RhCommentModel,
-        {"is_removed": True},
-        EventType.CONTENT_CENSORED,
-        _comment_removal_date,
-    ),
-    (
-        ResearchhubPost,
-        {"unified_document__is_removed": True},
-        EventType.CONTENT_CENSORED,
-        _document_removal_date,
-    ),
     (
         BountySolution,
         {"status": BountySolution.Status.AWARDED},
@@ -137,8 +115,6 @@ class Command(BaseCommand):
             qs = manager.filter(
                 created_by_id__in=active_user_ids, **filters
             ).select_related("created_by")
-            if model is ResearchhubPost:
-                qs = qs.select_related("unified_document")
             for obj in qs:
                 self._record(
                     obj.created_by,
@@ -148,7 +124,25 @@ class Command(BaseCommand):
                     occurred_at=occurred_at(obj),
                 )
 
+        self._backfill_censorship_verdicts(active_user_ids, dry_run)
         self._backfill_foundation_tips(active_user_ids, dry_run)
+
+    def _backfill_censorship_verdicts(self, active_user_ids, dry_run):
+        """Backfill CONTENT_CENSORED for content a moderator removed via verdict."""
+        verdicts = Verdict.objects.filter(is_content_removed=True).select_related(
+            "flag__content_type"
+        )
+        for verdict in verdicts.iterator():
+            author, source = resolve_censorship(verdict)
+            if source is None or author is None or author.id not in active_user_ids:
+                continue
+            self._record(
+                author,
+                EventType.CONTENT_CENSORED,
+                dry_run,
+                source=source,
+                occurred_at=verdict.created_date,
+            )
 
     def _backfill_foundation_tips(self, active_user_ids, dry_run):
         """Backfill PEER_REVIEW_TIPPED for comments tipped by the foundation."""

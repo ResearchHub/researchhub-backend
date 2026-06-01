@@ -12,11 +12,12 @@ from purchase.related_models.purchase_model import Purchase
 from reputation.related_models.bounty import BountySolution
 from research_ai.models import GeneratedEmail
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.risk_score_model import RiskScoreEvent
 from user.related_models.user_model import User
 from user.related_models.user_verification_model import UserVerification
+from user.related_models.verdict_model import Verdict
+from user.services.censorship import resolve_censorship
 from user.services.risk_score_service import RiskScoreService
 
 logger = logging.getLogger(__name__)
@@ -97,34 +98,19 @@ def on_post_status_changed(sender, instance, **kwargs):
 
 @receiver(
     post_save,
-    sender=RhCommentModel,
-    dispatch_uid="risk_score_on_comment_censored",
+    sender=Verdict,
+    dispatch_uid="risk_score_on_content_censored",
 )
-def on_comment_censored(sender, instance, **kwargs):
-    if not instance.is_removed:
+def on_content_censored(sender, instance, created, **kwargs):
+    """Penalize an author only when a moderator verdict removes their content.
+    Self-deletions never create a verdict, so they are never scored."""
+    if not created or not instance.is_content_removed:
         return
 
     def record():
-        _service.record_event(
-            instance.created_by, EventType.CONTENT_CENSORED, source=instance
-        )
-
-    _run_after_commit(instance, record)
-
-
-@receiver(
-    post_save,
-    sender=ResearchhubUnifiedDocument,
-    dispatch_uid="risk_score_on_document_censored",
-)
-def on_document_censored(sender, instance, **kwargs):
-    if not instance.is_removed:
-        return
-
-    def record():
-        _service.record_event(
-            instance.created_by, EventType.CONTENT_CENSORED, source=instance
-        )
+        author, source = resolve_censorship(instance)
+        if author and source:
+            _service.record_event(author, EventType.CONTENT_CENSORED, source=source)
 
     _run_after_commit(instance, record)
 
