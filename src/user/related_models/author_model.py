@@ -332,7 +332,7 @@ class Author(models.Model):
         for vote in user_votes:
             try:
                 related_unified_documents.append(vote.item.unified_document)
-            except Exception as e:
+            except Exception:
                 pass
 
         # Get all items the user spend RSC on
@@ -341,7 +341,7 @@ class Author(models.Model):
         for purchase in purchases:
             try:
                 related_unified_documents.append(purchase.item.unified_document)
-            except Exception as e:
+            except Exception:
                 pass
 
         # Get relevant concepts associated with unified documents
