@@ -22,7 +22,7 @@ from user.models import UserVerification
 from user.related_models.risk_score_model import RiskScoreEvent
 from user.related_models.user_model import FOUNDATION_EMAIL
 from user.services.risk_score_service import RiskScoreService
-from user.tests.helpers import create_user
+from user.tests.helpers import create_user, remove_content_via_verdict
 
 EventType = RiskScoreEvent.EventType
 DELTAS = RiskScoreEvent.DELTAS
@@ -178,7 +178,8 @@ class BackfillOneTimeSignalTests(BackfillCommandMixin, TestCase):
         event = RiskScoreEvent.objects.get(
             user=self.user, event_type=EventType.GOOGLE_SIGNUP
         )
-        self.assertEqual(event.created_date, linked_at)
+        self.assertEqual(event.action_date, linked_at)
+        self.assertGreater(event.created_date, linked_at)
 
     def test_persona_verified_dated_to_verification(self):
         # Arrange
@@ -202,7 +203,7 @@ class BackfillOneTimeSignalTests(BackfillCommandMixin, TestCase):
         event = RiskScoreEvent.objects.get(
             user=self.user, event_type=EventType.PERSONA_VERIFIED_WHITELISTED
         )
-        self.assertEqual(event.created_date, verified_at)
+        self.assertEqual(event.action_date, verified_at)
 
     def test_account_age_bonus_dated_to_threshold_crossing(self):
         # Arrange
@@ -218,7 +219,7 @@ class BackfillOneTimeSignalTests(BackfillCommandMixin, TestCase):
             user=self.user, event_type=EventType.ACCOUNT_AGE_BONUS
         )
         self.assertEqual(
-            event.created_date,
+            event.action_date,
             joined_at + timedelta(days=ACCOUNT_AGE_BONUS_DAYS),
         )
 
@@ -274,6 +275,14 @@ class BackfillHistoricalActionsTests(BackfillCommandMixin, TestCase):
         self.user = create_user(email="historical@test.com")
         self.post = create_post(created_by=self.user)
 
+    def _create_comment(self):
+        thread = RhCommentThreadModel.objects.create(
+            content_type=ContentType.objects.get_for_model(self.post),
+            object_id=self.post.id,
+            created_by=self.user,
+        )
+        return RhCommentModel.objects.create(thread=thread, created_by=self.user)
+
     def test_approved_grant_creates_work_approved_event(self):
         # Arrange
         grant = Grant.objects.create(
@@ -314,18 +323,10 @@ class BackfillHistoricalActionsTests(BackfillCommandMixin, TestCase):
         self.assertEqual(event.delta, DELTAS[EventType.WORK_DECLINED])
         self.assertEqual(event.source_content_id, grant.pk)
 
-    def test_censored_comment_creates_content_censored_event(self):
+    def test_moderator_verdict_creates_content_censored_event(self):
         # Arrange
-        thread = RhCommentThreadModel.objects.create(
-            content_type=ContentType.objects.get_for_model(self.post),
-            object_id=self.post.id,
-            created_by=self.user,
-        )
-        comment = RhCommentModel.objects.create(
-            thread=thread,
-            created_by=self.user,
-            is_removed=True,
-        )
+        comment = self._create_comment()
+        remove_content_via_verdict(comment)
 
         # Act
         self._call()
@@ -336,6 +337,47 @@ class BackfillHistoricalActionsTests(BackfillCommandMixin, TestCase):
         )
         self.assertEqual(event.delta, DELTAS[EventType.CONTENT_CENSORED])
         self.assertEqual(event.source_content_id, comment.pk)
+
+    def test_self_deleted_comment_creates_no_content_censored_event(self):
+        # Arrange
+        comment = self._create_comment()
+        comment.delete(soft=True)
+
+        # Act
+        self._call()
+
+        # Assert
+        self.assertFalse(
+            RiskScoreEvent.objects.filter(
+                user=self.user, event_type=EventType.CONTENT_CENSORED
+            ).exists()
+        )
+
+    def test_declined_grant_verdict_does_not_add_content_censored(self):
+        # Arrange - a declined grant is scored as WORK_DECLINED, not censored
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=self.post.unified_document,
+            amount=1000,
+            description="Test",
+            status=Grant.DECLINED,
+        )
+        remove_content_via_verdict(grant)
+
+        # Act
+        self._call()
+
+        # Assert
+        self.assertTrue(
+            RiskScoreEvent.objects.filter(
+                user=self.user, event_type=EventType.WORK_DECLINED
+            ).exists()
+        )
+        self.assertFalse(
+            RiskScoreEvent.objects.filter(
+                user=self.user, event_type=EventType.CONTENT_CENSORED
+            ).exists()
+        )
 
     def test_grant_event_dated_to_decision_not_run_time(self):
         # Arrange
@@ -356,22 +398,13 @@ class BackfillHistoricalActionsTests(BackfillCommandMixin, TestCase):
         event = RiskScoreEvent.objects.get(
             user=self.user, event_type=EventType.WORK_APPROVED
         )
-        self.assertEqual(event.created_date, decided_at)
+        self.assertEqual(event.action_date, decided_at)
 
-    def test_censored_comment_event_dated_to_removal(self):
+    def test_content_censored_event_dated_to_verdict(self):
         # Arrange
         removed_at = timezone.now() - timedelta(days=30)
-        thread = RhCommentThreadModel.objects.create(
-            content_type=ContentType.objects.get_for_model(self.post),
-            object_id=self.post.id,
-            created_by=self.user,
-        )
-        RhCommentModel.objects.create(
-            thread=thread,
-            created_by=self.user,
-            is_removed=True,
-            is_removed_date=removed_at,
-        )
+        comment = self._create_comment()
+        remove_content_via_verdict(comment, removed_at=removed_at)
 
         # Act
         self._call()
@@ -380,7 +413,7 @@ class BackfillHistoricalActionsTests(BackfillCommandMixin, TestCase):
         event = RiskScoreEvent.objects.get(
             user=self.user, event_type=EventType.CONTENT_CENSORED
         )
-        self.assertEqual(event.created_date, removed_at)
+        self.assertEqual(event.action_date, removed_at)
 
     def test_multiple_grants_create_individual_events(self):
         # Arrange

@@ -1,4 +1,7 @@
+from datetime import timedelta
+
 from django.test import TestCase
+from django.utils import timezone
 
 from user.constants.risk_score_constants import (
     DEFAULT_SCORE,
@@ -90,6 +93,28 @@ class RiskScoreServiceTests(TestCase):
         # Assert
         self.assertEqual(event.delta, -5)
         self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE - 5)
+
+    def test_record_event_defaults_action_date_to_now(self):
+        # Act
+        event = self.service.record_event(self.user, EventType.WORK_APPROVED)
+
+        # Assert
+        self.assertAlmostEqual(
+            event.action_date, timezone.now(), delta=timedelta(seconds=5)
+        )
+
+    def test_record_event_uses_explicit_action_date(self):
+        # Arrange
+        occurred_at = timezone.now() - timedelta(days=30)
+
+        # Act
+        event = self.service.record_event(
+            self.user, EventType.WORK_APPROVED, action_date=occurred_at
+        )
+
+        # Assert
+        self.assertEqual(event.action_date, occurred_at)
+        self.assertGreater(event.created_date, occurred_at)
 
     def test_record_event_raises_for_unknown_type(self):
         # Act & Assert
