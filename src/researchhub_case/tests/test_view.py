@@ -57,7 +57,7 @@ class ViewTests(APITestCase):
             },
         )
 
-        o = UserVerification.objects.create(
+        UserVerification.objects.create(
             user=self.verified_user,
             status=UserVerification.Status.APPROVED,
             first_name=self.verified_user.first_name,

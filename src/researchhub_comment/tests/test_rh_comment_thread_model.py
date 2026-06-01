@@ -139,7 +139,7 @@ class TestRhCommentThreadModel(TestCase):
             comment_type=GENERIC_COMMENT,
             created_by=self.user,
         )
-        comment3 = RhCommentModel.objects.create(
+        RhCommentModel.objects.create(
             thread=self.generic_thread,
             comment_content_json={"ops": [{"insert": "Comment without bounty"}]},
             comment_type=GENERIC_COMMENT,

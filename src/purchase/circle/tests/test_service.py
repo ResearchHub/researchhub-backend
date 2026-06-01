@@ -35,7 +35,7 @@ class TestCircleWalletService(TestCase):
 
     def test_returns_existing_address(self):
         """When address and circle_wallet_id are set, return without calling Circle."""
-        wallet = Wallet.objects.create(
+        Wallet.objects.create(
             user=self.user,
             address="0xExistingAddress",
             circle_wallet_id="existing-id",
@@ -260,9 +260,7 @@ class TestCircleWalletServiceSweep(TestCase):
             transfer_id="tx-3", state="INITIATED"
         )
 
-        result = self.service.sweep_wallet(
-            "circle-wallet-3", "20000.0", "BASE", "notif-3"
-        )
+        self.service.sweep_wallet("circle-wallet-3", "20000.0", "BASE", "notif-3")
 
         self.mock_client.create_transfer.assert_called_once()
         call_kwargs = self.mock_client.create_transfer.call_args[1]

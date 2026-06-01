@@ -485,9 +485,6 @@ class CloseFundraiseTests(TestCase):
         contribution.is_refunded = True
         contribution.save()
 
-        # Count updates before closing
-        initial_updated = contribution.updated_date
-
         self.fundraise_service.close_fundraise(self.fundraise)
 
         contribution.refresh_from_db()
