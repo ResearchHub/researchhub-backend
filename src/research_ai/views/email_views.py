@@ -281,7 +281,7 @@ class PreviewEmailView(APIView):
         )
 
         ids = data["generated_email_ids"]
-        reply_to = (data["reply_to"] or "").strip()
+        reply_to = list(data["reply_to"])
         qs = GeneratedEmail.objects.filter(id__in=ids).exclude(
             status=GeneratedEmail.Status.PROCESSING
         )
@@ -319,7 +319,7 @@ class SendEmailView(APIView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
-        reply_to = (data["reply_to"] or "").strip()
+        reply_to = list(data["reply_to"])
         cc_list = list(data.get("cc") or [])
         ids = data["generated_email_ids"]
 

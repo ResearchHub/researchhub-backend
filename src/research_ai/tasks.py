@@ -413,7 +413,7 @@ def process_bulk_generate_emails_task(
 def send_queued_emails_task(
     self,
     generated_email_ids: list[int],
-    reply_to: str | None = None,
+    reply_to: list[str] | None = None,
     cc: list[str] | None = None,
     from_email: str | None = None,
 ):
@@ -423,7 +423,7 @@ def send_queued_emails_task(
     """
 
     cc_list = list(cc or [])
-    reply_to_stripped = (reply_to or "").strip() or None
+    reply_to_list = list(reply_to or [])
     qs = GeneratedEmail.objects.filter(
         id__in=generated_email_ids,
         status=GeneratedEmail.Status.SENDING,
@@ -441,7 +441,7 @@ def send_queued_emails_task(
                 rec.expert_email,
                 rec.email_subject,
                 rec.email_body,
-                reply_to=reply_to_stripped,
+                reply_to=reply_to_list or None,
                 cc=cc_list if cc_list else None,
                 from_email=from_email,
             )

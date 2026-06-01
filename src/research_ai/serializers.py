@@ -592,7 +592,11 @@ class PreviewEmailRequestSerializer(serializers.Serializer):
         min_length=1,
         max_length=100,
     )
-    reply_to = serializers.EmailField(required=True)
+    reply_to = serializers.ListField(
+        child=serializers.EmailField(),
+        min_length=1,
+        max_length=10,
+    )
 
 
 class SendEmailRequestSerializer(serializers.Serializer):
@@ -603,7 +607,11 @@ class SendEmailRequestSerializer(serializers.Serializer):
         min_length=1,
         max_length=100,
     )
-    reply_to = serializers.EmailField(required=True)
+    reply_to = serializers.ListField(
+        child=serializers.EmailField(),
+        min_length=1,
+        max_length=10,
+    )
     cc = serializers.ListField(
         child=serializers.EmailField(),
         required=False,
