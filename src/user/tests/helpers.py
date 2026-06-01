@@ -1,4 +1,5 @@
 import random
+import uuid
 
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.authtoken.models import Token
@@ -126,7 +127,7 @@ def remove_content_via_verdict(content, moderator=None, removed_at=None):
     content_type = ContentType.objects.get_for_model(content)
     if moderator is None:
         moderator = create_user(
-            email=f"verdict-mod-{random.random()}@test.com",
+            email=f"verdict-mod-{uuid.uuid4().hex}@test.com",
             moderator=True,
         )
     flag = Flag.objects.create(
