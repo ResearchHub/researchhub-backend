@@ -65,6 +65,7 @@ def get_inapp_rsc_supply():
     failed_withdrawals = Withdrawal.objects.filter(
         Q(paid_status=PaidStatusModelMixin.FAILED)
         | Q(paid_status=PaidStatusModelMixin.PENDING)
+        | Q(paid_status=PaidStatusModelMixin.INITIATED)
     ).values_list("id")
 
     balance = (

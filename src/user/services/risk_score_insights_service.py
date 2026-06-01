@@ -20,12 +20,6 @@ from user.related_models.risk_score_model import RiskScoreEvent
 
 logger = logging.getLogger(__name__)
 
-SNIPPET_LENGTH = 200
-
-POSITIVE = "POSITIVE"
-NEGATIVE = "NEGATIVE"
-MIXED = "MIXED"
-
 EventType = RiskScoreEvent.EventType
 
 # Collapses related event types into a single moderator-facing bucket.
@@ -35,13 +29,6 @@ INSIGHT_GROUPS = {
     EventType.PERSONA_VERIFIED_WHITELISTED: "PERSONA_VERIFIED",
     EventType.PERSONA_VERIFIED_NON_WHITELISTED: "PERSONA_VERIFIED",
 }
-
-
-def _truncate(text):
-    text = (text or "").strip()
-    if len(text) <= SNIPPET_LENGTH:
-        return text
-    return text[:SNIPPET_LENGTH].rstrip() + "..."
 
 
 def _doc_title(doc):
@@ -72,7 +59,7 @@ def _doc_url(unified_document, doc):
     return f"{BASE_FRONTEND_URL}/{path_segment}/{doc.id}/{doc.slug}"
 
 
-def _doc_snippet(doc):
+def _doc_text(doc):
     if doc is None:
         return ""
     if isinstance(doc, Paper):
@@ -87,10 +74,10 @@ def _resolve_doc(unified_document):
     return unified_document.get_document(), unified_document.document_type
 
 
-def _detail(title, snippet, url, *, comment_type=None, document_type=None):
+def _detail(title, text, url, *, comment_type=None, document_type=None):
     return {
         "title": title or "",
-        "snippet": _truncate(snippet),
+        "text": text or "",
         "url": url,
         "comment_type": comment_type,
         "document_type": document_type,
@@ -149,7 +136,7 @@ def _unified_document_detail(unified_document):
     doc, document_type = _resolve_doc(unified_document)
     return _detail(
         _doc_title(doc),
-        _doc_snippet(doc),
+        _doc_text(doc),
         _doc_url(unified_document, doc),
         document_type=document_type,
     )
@@ -248,16 +235,6 @@ def build_event_details(events):
     }
 
 
-def _sentiment(min_delta, max_delta):
-    has_negative = min_delta < 0
-    has_positive = max_delta > 0
-    if has_negative and not has_positive:
-        return POSITIVE
-    if has_positive and not has_negative:
-        return NEGATIVE
-    return MIXED
-
-
 def build_insights(user):
     """Aggregate per-event-type counts and sentiment for a user."""
     aggregates = (
@@ -292,7 +269,8 @@ def build_insights(user):
             "event_type": key,
             "count": bucket["count"],
             "total_delta": bucket["total_delta"],
-            "sentiment": _sentiment(bucket["min_delta"], bucket["max_delta"]),
+            "min_delta": bucket["min_delta"],
+            "max_delta": bucket["max_delta"],
         }
         for key, bucket in sorted(buckets.items())
     ]

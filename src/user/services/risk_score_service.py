@@ -1,6 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Sum
+from django.utils import timezone
 
 from user.constants.risk_score_constants import (
     DEFAULT_SCORE,
@@ -27,9 +28,12 @@ class RiskScoreService:
     def is_restricted(self, user):
         return self.get_score(user) >= RESTRICTED_THRESHOLD
 
-    def record_event(self, user, event_type, *, delta=None, source=None):
+    def record_event(
+        self, user, event_type, *, delta=None, source=None, action_date=None
+    ):
         delta = self._resolve_delta(event_type, delta)
         source_ct, source_id = self._resolve_source(source)
+        action_date = action_date or timezone.now()
 
         with transaction.atomic():
             risk_score, _ = RiskScore.objects.select_for_update().get_or_create(
@@ -51,6 +55,7 @@ class RiskScoreService:
                 delta=delta,
                 source_content_type=source_ct,
                 source_content_id=source_id,
+                action_date=action_date,
             )
 
             risk_score.score = self._compute_score(user)
