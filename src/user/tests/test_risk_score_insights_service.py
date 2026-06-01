@@ -1,6 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from paper.tests.helpers import create_paper
@@ -16,9 +17,6 @@ from researchhub_document.helpers import create_post
 from review.models.review_model import Review
 from user.related_models.risk_score_model import RiskScoreEvent
 from user.services.risk_score_insights_service import (
-    MIXED,
-    NEGATIVE,
-    POSITIVE,
     build_event_details,
     build_insights,
 )
@@ -51,6 +49,7 @@ def _record_many(user, event_type, count, *, delta=None):
             user=user,
             event_type=event_type,
             delta=delta if delta is not None else RiskScoreEvent.DELTAS[event_type],
+            action_date=timezone.now(),
         )
 
 
@@ -86,7 +85,7 @@ class BuildEventDetailsTests(APITestCase):
 
         # Assert
         self.assertEqual(detail["title"], "Quantum Computing")
-        self.assertIn("Funding for new research", detail["snippet"])
+        self.assertIn("Funding for new research", detail["text"])
         self.assertIsNotNone(detail["url"])
         self.assertEqual(detail["document_type"], "DISCUSSION")
         self.assertIsNone(detail["comment_type"])
@@ -118,7 +117,7 @@ class BuildEventDetailsTests(APITestCase):
 
         # Assert
         self.assertEqual(detail["title"], "Quantum Computing")
-        self.assertEqual(detail["snippet"], "some text")
+        self.assertEqual(detail["text"], "some text")
         self.assertEqual(detail["document_type"], "DISCUSSION")
         self.assertIsNone(detail["comment_type"])
 
@@ -149,7 +148,7 @@ class BuildEventDetailsTests(APITestCase):
         detail = build_event_details([event])[event.id]
 
         # Assert
-        self.assertEqual(detail["snippet"], "this is the censored comment")
+        self.assertEqual(detail["text"], "this is the censored comment")
         self.assertTrue(detail["url"].endswith(f"#comment-{comment.id}"))
         self.assertEqual(detail["comment_type"], "PEER_REVIEW")
         self.assertEqual(detail["document_type"], "DISCUSSION")
@@ -206,7 +205,7 @@ class BuildEventDetailsTests(APITestCase):
 
         # Assert
         self.assertEqual(detail["title"], "Quantum Computing")
-        self.assertEqual(detail["snippet"], "bounty answer")
+        self.assertEqual(detail["text"], "bounty answer")
         self.assertTrue(detail["url"].endswith(f"#comment-{comment.id}"))
         self.assertEqual(detail["comment_type"], "GENERIC_COMMENT")
         self.assertEqual(detail["document_type"], "DISCUSSION")
@@ -228,7 +227,7 @@ class BuildEventDetailsTests(APITestCase):
         detail = build_event_details([event])[event.id]
 
         # Assert
-        self.assertEqual(detail["snippet"], "tipped comment")
+        self.assertEqual(detail["text"], "tipped comment")
         self.assertTrue(detail["url"].endswith(f"#comment-{comment.id}"))
         self.assertEqual(detail["comment_type"], "GENERIC_COMMENT")
         self.assertEqual(detail["document_type"], "DISCUSSION")
@@ -250,7 +249,7 @@ class BuildEventDetailsTests(APITestCase):
 
         # Assert
         self.assertEqual(detail["title"], "Quantum Computing")
-        self.assertEqual(detail["snippet"], "reviewed comment")
+        self.assertEqual(detail["text"], "reviewed comment")
         self.assertTrue(detail["url"].endswith(f"#comment-{comment.id}"))
         self.assertEqual(detail["comment_type"], "GENERIC_COMMENT")
         self.assertEqual(detail["document_type"], "DISCUSSION")
@@ -278,7 +277,7 @@ class BuildEventDetailsTests(APITestCase):
         detail = build_event_details([event])[event.id]
 
         # Assert
-        self.assertEqual(detail["snippet"], "censored later")
+        self.assertEqual(detail["text"], "censored later")
 
     def test_batches_source_fetch_by_content_type(self):
         # Arrange
@@ -311,7 +310,7 @@ class BuildInsightsTests(APITestCase):
         # Assert
         self.assertEqual(insights, [])
 
-    def test_negative_deltas_are_positive_sentiment(self):
+    def test_score_decrease_bucket_reports_negative_bounds(self):
         # Arrange
         _record_many(self.user, EventType.GOOGLE_SIGNUP, 1)
 
@@ -319,15 +318,15 @@ class BuildInsightsTests(APITestCase):
         insights = build_insights(self.user)
 
         # Assert
+        delta = RiskScoreEvent.DELTAS[EventType.GOOGLE_SIGNUP]
         self.assertEqual(len(insights), 1)
-        self.assertEqual(insights[0]["sentiment"], POSITIVE)
         self.assertEqual(insights[0]["count"], 1)
-        self.assertEqual(
-            insights[0]["total_delta"],
-            RiskScoreEvent.DELTAS[EventType.GOOGLE_SIGNUP],
-        )
+        self.assertEqual(insights[0]["total_delta"], delta)
+        self.assertEqual(insights[0]["min_delta"], delta)
+        self.assertEqual(insights[0]["max_delta"], delta)
+        self.assertLess(insights[0]["max_delta"], 0)
 
-    def test_positive_deltas_are_negative_sentiment(self):
+    def test_score_increase_bucket_reports_positive_bounds(self):
         # Arrange
         _record_many(self.user, EventType.CONTENT_CENSORED, 3)
 
@@ -335,14 +334,14 @@ class BuildInsightsTests(APITestCase):
         insights = build_insights(self.user)
 
         # Assert
-        self.assertEqual(insights[0]["sentiment"], NEGATIVE)
+        delta = RiskScoreEvent.DELTAS[EventType.CONTENT_CENSORED]
         self.assertEqual(insights[0]["count"], 3)
-        self.assertEqual(
-            insights[0]["total_delta"],
-            RiskScoreEvent.DELTAS[EventType.CONTENT_CENSORED] * 3,
-        )
+        self.assertEqual(insights[0]["total_delta"], delta * 3)
+        self.assertEqual(insights[0]["min_delta"], delta)
+        self.assertEqual(insights[0]["max_delta"], delta)
+        self.assertGreater(insights[0]["min_delta"], 0)
 
-    def test_mixed_signs_within_event_type_are_mixed(self):
+    def test_mixed_signs_within_event_type_straddle_zero(self):
         # Arrange
         _record_many(self.user, EventType.WORK_APPROVED, 1, delta=-50)
         _record_many(self.user, EventType.WORK_APPROVED, 1, delta=10)
@@ -351,7 +350,8 @@ class BuildInsightsTests(APITestCase):
         insights = build_insights(self.user)
 
         # Assert
-        self.assertEqual(insights[0]["sentiment"], MIXED)
+        self.assertEqual(insights[0]["min_delta"], -50)
+        self.assertEqual(insights[0]["max_delta"], 10)
 
     def test_unrelated_event_types_stay_separate(self):
         # Arrange
@@ -383,11 +383,12 @@ class BuildInsightsTests(APITestCase):
             RiskScoreEvent.DELTAS[EventType.WORK_APPROVED] * 18
             + RiskScoreEvent.DELTAS[EventType.WORK_DECLINED] * 13,
         )
-        self.assertEqual(works["sentiment"], MIXED)
+        self.assertLess(works["min_delta"], 0)
+        self.assertGreater(works["max_delta"], 0)
         self.assertNotIn(EventType.WORK_APPROVED, by_type)
         self.assertNotIn(EventType.WORK_DECLINED, by_type)
 
-    def test_works_moderated_is_positive_when_only_approvals(self):
+    def test_works_moderated_only_approvals_has_no_score_increase(self):
         # Arrange
         _record_many(self.user, EventType.WORK_APPROVED, 2)
 
@@ -396,7 +397,7 @@ class BuildInsightsTests(APITestCase):
 
         # Assert
         self.assertEqual(insights[0]["event_type"], "WORKS_MODERATED")
-        self.assertEqual(insights[0]["sentiment"], POSITIVE)
+        self.assertLess(insights[0]["max_delta"], 0)
 
     def test_persona_verified_consolidates_country_variants(self):
         # Arrange
@@ -442,16 +443,14 @@ class RiskScoreEventsApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("results", response.data)
         self.assertIn("insights", response.data)
-        sentiments = {
-            row["event_type"]: row["sentiment"] for row in response.data["insights"]
-        }
-        self.assertEqual(sentiments[EventType.CONTENT_CENSORED], NEGATIVE)
-        self.assertEqual(sentiments[EventType.GOOGLE_SIGNUP], POSITIVE)
+        by_type = {row["event_type"]: row for row in response.data["insights"]}
+        self.assertGreater(by_type[EventType.CONTENT_CENSORED]["min_delta"], 0)
+        self.assertLess(by_type[EventType.GOOGLE_SIGNUP]["max_delta"], 0)
         details_by_type = {
             row["event_type"]: row["source_detail"] for row in response.data["results"]
         }
         self.assertIsNone(details_by_type[EventType.GOOGLE_SIGNUP])
         self.assertEqual(
-            details_by_type[EventType.CONTENT_CENSORED]["snippet"],
+            details_by_type[EventType.CONTENT_CENSORED]["text"],
             "spammy comment",
         )

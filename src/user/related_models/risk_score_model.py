@@ -94,19 +94,21 @@ class RiskScoreEvent(models.Model):
     )
     source = GenericForeignKey("source_content_type", "source_content_id")
 
+    # When the action occurred; for backfilled events this predates created_date.
+    action_date = models.DateTimeField()
     created_date = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "risk_score_riskscoreevent"
-        ordering = ["-created_date"]
+        ordering = ["-action_date"]
         indexes = [
             models.Index(
                 fields=["user", "event_type"],
                 name="risk_event_user_type_idx",
             ),
             models.Index(
-                fields=["user", "created_date"],
-                name="risk_event_user_date_idx",
+                fields=["user", "action_date"],
+                name="risk_event_user_action_idx",
             ),
         ]
 
