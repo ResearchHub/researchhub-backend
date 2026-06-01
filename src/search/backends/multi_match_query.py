@@ -51,11 +51,7 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
 
     @classmethod
     def construct_query(cls, request, view, query_fields, search_term, query_opts):
-        score_field = None
-        try:
-            score_field = getattr(view, "score_field")
-        except:
-            pass
+        score_field = getattr(view, "score_field", None)
 
         if score_field is not None:
             return Q(
