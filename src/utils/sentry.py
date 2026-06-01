@@ -23,7 +23,7 @@ def log_error(e, base_error=None, message=None, json_data=None):
             print(e, base_error, message)
             try:
                 traceback.print_exception(e)
-            except:
+            except Exception:
                 pass
         else:
             print(e, base_error, message)

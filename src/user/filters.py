@@ -12,6 +12,7 @@ from discussion.constants.flag_reasons import (
 from discussion.models import Flag
 from reputation.related_models.distribution import Distribution
 from user.models import Action, User
+from user.related_models.risk_score_model import RiskScoreEvent
 from utils.filters import ListExcludeFilter
 
 from .models import Author
@@ -236,3 +237,30 @@ class ContributionFilter(filters.FilterSet):
             )
 
         return qs
+
+
+class RiskScoreEventFilter(filters.FilterSet):
+    event_type = filters.ChoiceFilter(choices=RiskScoreEvent.EventType.choices)
+    action_date_after = filters.DateTimeFilter(
+        field_name="action_date", lookup_expr="gte"
+    )
+    action_date_before = filters.DateTimeFilter(
+        field_name="action_date", lookup_expr="lte"
+    )
+    delta_positive = filters.BooleanFilter(method="filter_delta_sign")
+
+    def filter_delta_sign(self, queryset, name, value):
+        if value is True:
+            return queryset.filter(delta__gt=0)
+        elif value is False:
+            return queryset.filter(delta__lt=0)
+        return queryset
+
+    class Meta:
+        model = RiskScoreEvent
+        fields = [
+            "event_type",
+            "action_date_after",
+            "action_date_before",
+            "delta_positive",
+        ]
