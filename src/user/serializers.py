@@ -124,6 +124,7 @@ class RiskScoreEventSerializer(ModelSerializer):
             "source_type",
             "source_content_id",
             "source_detail",
+            "action_date",
             "created_date",
         ]
 

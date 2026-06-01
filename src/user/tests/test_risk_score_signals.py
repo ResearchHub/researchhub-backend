@@ -4,6 +4,8 @@ from allauth.socialaccount.models import SocialAccount
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from discussion.constants.flag_reasons import SPAM
+from discussion.models import Flag
 from paper.related_models.paper_model import Paper
 from paper.tests.helpers import create_paper
 from purchase.related_models.grant_model import Grant
@@ -21,11 +23,12 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from review.models.review_model import Review
 from user.models import User, UserVerification
 from user.related_models.risk_score_model import RiskScoreEvent
+from user.related_models.verdict_model import Verdict
 from user.signals.risk_score_signals import (
     on_paper_status_changed,
     on_post_status_changed,
 )
-from user.tests.helpers import create_user
+from user.tests.helpers import create_user, remove_content_via_verdict
 
 EventType = RiskScoreEvent.EventType
 
@@ -136,13 +139,13 @@ class ContentCensoredSignalTests(RiskScoreSignalTestCase):
         self.user = create_user(email="censor@test.com")
         self.post = create_post(created_by=self.user)
 
-    def test_comment_censored_records_event(self):
+    def test_moderator_verdict_on_comment_records_event(self):
         # Arrange
         comment = self._create_comment(self.post, self.user)
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
-            comment.delete(soft=True)
+            remove_content_via_verdict(comment)
 
         # Assert
         self._assert_has_event(
@@ -152,37 +155,77 @@ class ContentCensoredSignalTests(RiskScoreSignalTestCase):
             source_id=comment.pk,
         )
 
-    def test_comment_not_removed_does_not_record(self):
+    def test_moderator_verdict_on_document_records_event(self):
         # Act
-        self._create_comment(self.post, self.user)
+        with self.captureOnCommitCallbacks(execute=True):
+            remove_content_via_verdict(self.post)
+
+        # Assert
+        self._assert_has_event(
+            self.user,
+            EventType.CONTENT_CENSORED,
+            source_id=self.post.unified_document.pk,
+        )
+
+    def test_self_deleted_comment_does_not_record(self):
+        # Arrange
+        comment = self._create_comment(self.post, self.user)
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            comment.delete(soft=True)
 
         # Assert
         self._assert_no_events(self.user)
 
-    def test_document_censored_records_event(self):
-        # Arrange
-        document = self.post.unified_document
-
-        # Act
-        document.is_removed = True
-        with self.captureOnCommitCallbacks(execute=True):
-            document.save()
-
-        # Assert
-        self._assert_has_event(
-            self.user, EventType.CONTENT_CENSORED, source_id=document.pk
+    def test_declined_work_verdict_does_not_record(self):
+        # Arrange - a declined work is already scored as WORK_DECLINED
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=self.post.unified_document,
+            amount=1000,
+            description="Test",
+            status=Grant.DECLINED,
         )
 
-    def test_document_censored_is_idempotent(self):
-        # Arrange
-        document = self.post.unified_document
-        document.is_removed = True
+        # Act
         with self.captureOnCommitCallbacks(execute=True):
-            document.save()
+            remove_content_via_verdict(grant)
+
+        # Assert
+        self._assert_no_events(self.user, EventType.CONTENT_CENSORED)
+
+    def test_dismissed_verdict_does_not_record(self):
+        # Arrange
+        comment = self._create_comment(self.post, self.user)
+        moderator = create_user(email="dismiss-mod@test.com", moderator=True)
+        flag = Flag.objects.create(
+            created_by=moderator,
+            content_type=ContentType.objects.get_for_model(comment),
+            object_id=comment.pk,
+        )
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
-            document.save()
+            Verdict.objects.create(
+                created_by=moderator,
+                flag=flag,
+                verdict_choice=SPAM,
+                is_content_removed=False,
+            )
+
+        # Assert
+        self._assert_no_events(self.user)
+
+    def test_repeated_verdicts_are_idempotent(self):
+        # Arrange
+        comment = self._create_comment(self.post, self.user)
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            remove_content_via_verdict(comment)
+        with self.captureOnCommitCallbacks(execute=True):
+            remove_content_via_verdict(comment)
 
         # Assert
         self._assert_event_count(self.user, EventType.CONTENT_CENSORED, 1)
