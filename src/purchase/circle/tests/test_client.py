@@ -121,7 +121,6 @@ class TestCircleWalletClient(TestCase):
 
     def test_get_wallet_live_returns_result(self):
         mock_api = Mock()
-        live_state = Mock(value="LIVE")
         # WalletState.LIVE comparison
         from circle.web3.developer_controlled_wallets.models import WalletState
 

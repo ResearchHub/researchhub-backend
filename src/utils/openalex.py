@@ -230,7 +230,7 @@ class OpenAlex:
                 )
 
             return hydrated_concepts
-        except Exception as e:
+        except Exception:
             return []
 
     def get_institutions(self, next_cursor="*", page=1, batch_size=100):

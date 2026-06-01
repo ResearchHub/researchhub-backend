@@ -140,7 +140,7 @@ class UserApiTests(APITestCase):
 
             # Add publications to author
             url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
-            response = self.client.post(
+            self.client.post(
                 url,
                 {
                     "openalex_ids": work_ids,
@@ -240,7 +240,7 @@ class UserApiTests(APITestCase):
 
             # Add publications to author
             url = f"/api/author/{author.id}/publications/"
-            response = self.client.post(
+            self.client.post(
                 url,
                 {
                     "openalex_ids": work_ids,
