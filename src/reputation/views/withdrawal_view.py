@@ -111,21 +111,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         transaction_fee = self.calculate_transaction_fee(network)
 
-        pending_tx = Withdrawal.objects.filter(
-            user=user,
-            paid_status__in=[
-                PaidStatusModelMixin.INITIATED,
-                PaidStatusModelMixin.PENDING,
-            ],
-        )
-
-        if pending_tx.exists():
-            return Response(
-                "Please wait for your previous withdrawal to finish "
-                "before starting another one.",
-                status=400,
-            )
-
         if not self._can_withdraw(user):
             return Response(
                 "Your reputation is too low to withdraw. "
@@ -149,6 +134,20 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 with transaction.atomic():
                     # Lock the user record to prevent race conditions during withdrawal
                     user = User.objects.select_for_update().get(id=user.id)
+
+                    pending_tx = Withdrawal.objects.filter(
+                        user=user,
+                        paid_status__in=[
+                            PaidStatusModelMixin.INITIATED,
+                            PaidStatusModelMixin.PENDING,
+                        ],
+                    )
+                    if pending_tx.exists():
+                        return Response(
+                            "Please wait for your previous withdrawal to finish "
+                            "before starting another one.",
+                            status=400,
+                        )
 
                     valid, message, amount = self._check_withdrawal_amount(
                         amount, transaction_fee, user

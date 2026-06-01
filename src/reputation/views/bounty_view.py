@@ -119,9 +119,9 @@ def _create_bounty(
     if existing_bounties.exists():
         parent = existing_bounties.first()
         parent_bounty_id = parent.id
-        escrow = parent.escrow
+        escrow = Escrow.objects.select_for_update().get(pk=parent.escrow_id)
         escrow.amount_holding += amount
-        escrow.save()
+        escrow.save(update_fields=["amount_holding", "updated_date"])
         data["expiration_date"] = parent.expiration_date
     else:
         escrow_data = {

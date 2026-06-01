@@ -181,6 +181,9 @@ class Escrow(DefaultModel):
         with transaction.atomic():
             escrow = Escrow.objects.select_for_update().get(pk=self.pk)
 
+            if escrow.status in (escrow.PAID, escrow.CANCELLED, escrow.EXPIRED):
+                return False
+
             if amount > escrow.amount_holding:
                 return False
 

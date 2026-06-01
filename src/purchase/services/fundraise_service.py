@@ -308,8 +308,9 @@ class FundraiseService:
             )
 
             # Update escrow object
-            fundraise.escrow.amount_holding += amount
-            fundraise.escrow.save()
+            escrow = Escrow.objects.select_for_update().get(pk=fundraise.escrow_id)
+            escrow.amount_holding += amount
+            escrow.save(update_fields=["amount_holding", "updated_date"])
 
         return purchase, None
 
@@ -500,14 +501,17 @@ class FundraiseService:
         with transaction.atomic():
             # Check if fundraise can be closed (must be open)
             if fundraise.status != Fundraise.OPEN:
+                transaction.set_rollback(True)
                 return False
 
             # Refund RSC contributions
             if not self.refund_rsc_contributions(fundraise):
+                transaction.set_rollback(True)
                 return False
 
             # Refund USD contributions
             if not self.refund_usd_contributions(fundraise):
+                transaction.set_rollback(True)
                 return False
 
             # Update fundraise status

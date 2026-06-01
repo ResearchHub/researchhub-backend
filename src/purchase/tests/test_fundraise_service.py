@@ -1,5 +1,5 @@
 from decimal import Decimal
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
@@ -18,7 +18,7 @@ from purchase.serializers.fundraise_create_serializer import FundraiseCreateSeri
 from purchase.services.fundraise_service import (
     FundraiseService,
 )
-from reputation.models import BountyFee
+from reputation.models import BountyFee, Escrow
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -324,6 +324,31 @@ class CloseFundraiseTests(TestCase):
         self.assertEqual(self.fundraise.status, Fundraise.CLOSED)
 
     # --- RSC refund tests ---
+
+    def test_close_fundraise_rolls_back_on_partial_refund_failure(self):
+        """A failed mid-close refund must not commit earlier refunds."""
+        contributor1 = create_random_authenticated_user("rollback_c1")
+        contributor2 = create_random_authenticated_user("rollback_c2")
+        self._create_rsc_contribution(self.fundraise, contributor1, amount=50)
+        self._create_rsc_contribution(self.fundraise, contributor2, amount=50)
+
+        original_refund = Escrow.refund
+        refund_calls = []
+
+        def refund_side_effect(escrow_self, *args, **kwargs):
+            refund_calls.append(1)
+            if len(refund_calls) == 1:
+                return original_refund(escrow_self, *args, **kwargs)
+            return False
+
+        with patch.object(Escrow, "refund", refund_side_effect):
+            result = self.fundraise_service.close_fundraise(self.fundraise)
+
+        self.assertFalse(result)
+        self.fundraise.refresh_from_db()
+        self.assertEqual(self.fundraise.status, Fundraise.OPEN)
+        self.fundraise.escrow.refresh_from_db()
+        self.assertEqual(self.fundraise.escrow.amount_holding, 100)
 
     def test_close_fundraise_refunds_multiple_rsc_contributors(self):
         """Test that a fundraise with multiple RSC contributors can be closed"""

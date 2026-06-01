@@ -63,6 +63,23 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
         ).latest("id")
         self.assertEqual(distribution.distribution_type, "BOUNTY_PAYOUT")
 
+    def test_refund_rejects_terminal_escrow_status(self):
+        paper = create_paper()
+        escrow = Escrow.objects.create(
+            hold_type=Escrow.BOUNTY,
+            amount_holding=decimal.Decimal("50"),
+            amount_paid=decimal.Decimal("50"),
+            status=Escrow.PAID,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(paper),
+            object_id=paper.id,
+        )
+
+        refunded = escrow.refund(
+            recipient=self.recipient, amount=decimal.Decimal("10")
+        )
+        self.assertFalse(refunded)
+
     def test_author_rsc_escrow_payout_is_rejected(self):
         paper = create_paper()
         escrow = Escrow.objects.create(
