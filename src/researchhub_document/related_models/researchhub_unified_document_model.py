@@ -2,7 +2,16 @@ from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import Avg, Count, DecimalField, Q, QuerySet, Sum
+from django.db.models import (
+    Avg,
+    Count,
+    DecimalField,
+    Exists,
+    OuterRef,
+    Q,
+    QuerySet,
+    Sum,
+)
 from django.db.models.functions import Cast
 from django.utils.functional import cached_property
 
@@ -271,22 +280,19 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
 
         comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
 
-        active_comment_ids = RhCommentModel.objects.filter(is_removed=False).values(
-            "id"
+        # query comments that have not been removed
+        active_comment = RhCommentModel.objects.filter(
+            id=OuterRef("object_id"), is_removed=False
         )
 
         reviews = self.reviews.filter(
             is_removed=False,
             is_assessed=True,
             content_type=comment_content_type,
-            object_id__in=active_comment_ids,
-        )
+        ).filter(Exists(active_comment))
 
-        if reviews.exists():
-            details = reviews.aggregate(avg=Avg("score"), count=Count("id"))
-        else:
-            details = {"avg": 0, "count": 0}
-        return details
+        details = reviews.aggregate(avg=Avg("score"), count=Count("id"))
+        return {"avg": details["avg"] or 0, "count": details["count"]}
 
     def frontend_view_link(self):
         doc = self.get_document()
