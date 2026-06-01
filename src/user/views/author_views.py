@@ -867,6 +867,9 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
         qs = (
             Contribution.objects.filter(query)
+            # Exclude contributions tied to private documents (e.g. private
+            # preregistrations) so they don't leak via the public author feed.
+            .filter(unified_document__is_public=True)
             .select_related(
                 "content_type",
                 "user",
