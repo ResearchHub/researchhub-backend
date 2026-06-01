@@ -21,7 +21,7 @@ class Command(BaseCommand):
 
         write_df = pd.DataFrame({"user_id": [], "email": [], "payout": []})
 
-        all_editors = editor_qs = User.objects.filter(
+        all_editors = User.objects.filter(
             permissions__isnull=False,
             permissions__access_type=EDITOR,
             permissions__content_type=ContentType.objects.get_for_model(Hub),
