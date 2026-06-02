@@ -84,7 +84,7 @@ def process_circle_deposit(
     credited = False
 
     with transaction.atomic():
-        deposit, created = Deposit.objects.get_or_create(
+        deposit, created = Deposit.objects.select_for_update().get_or_create(
             circle_transaction_id=circle_transaction_id,
             defaults={
                 "user": user,
@@ -101,7 +101,12 @@ def process_circle_deposit(
             # Brand-new deposit (no prior INITIATED/CONFIRMED webhook).
             deposit.set_paid()
             credited = True
-        elif deposit.paid_status != Deposit.PAID:
+        elif deposit.paid_status == Deposit.PAID:
+            credited = False
+        elif deposit.paid_status == Deposit.FAILED:
+            # Do not credit after a terminal failure (out-of-order webhook).
+            credited = False
+        else:
             # Existing pending deposit from an earlier webhook — promote it.
             deposit.circle_status = Deposit.CIRCLE_COMPLETED
             deposit.sweep_status = Deposit.SWEEP_PENDING
