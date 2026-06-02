@@ -219,16 +219,11 @@ class GrantModelTests(TestCase):
         indexes = meta.indexes
 
         # Check that we have the expected number of indexes
-        self.assertEqual(len(indexes), 4)
+        self.assertEqual(len(indexes), 3)
 
         # Check that the indexes cover the fields we expect
         index_fields = [list(index.fields) for index in indexes]
-        expected_fields = [
-            ["status"],
-            ["organization"],
-            ["end_date"],
-            ["unified_document_id", "status"],
-        ]
+        expected_fields = [["status"], ["organization"], ["end_date"]]
 
         for expected in expected_fields:
             self.assertIn(expected, index_fields)

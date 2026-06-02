@@ -123,10 +123,6 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
                 name="idx_document_type_hot_score",
             ),
             models.Index(fields=["document_type"], name="idx_document_type"),
-            models.Index(
-                fields=["is_removed", "is_public"],
-                name="ud_removed_public_idx",
-            ),
         )
 
     def update_filter(self, filter_type):
