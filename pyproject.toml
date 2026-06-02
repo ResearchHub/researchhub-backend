@@ -92,7 +92,6 @@ extend-select = [
 ]
 extend-ignore = [
     # Temporarily ignore these violations until cleaned up:
-    "E402",  # module-import-not-at-top-of-file
     "E501",  # line-too-long
     "F403",  # undefined-local-with-import-star
     "F601",  # multi-value-repeated-key-literal
