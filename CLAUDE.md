@@ -8,6 +8,7 @@ Django REST API backend for ResearchHub. The main application lives in `src/`.
 - PostgreSQL, Redis, OpenSearch
 - Celery for async work
 - Dependencies managed with `uv`
+- Linting and formatting is done with `ruff`
 - Dev Container is the preferred local setup
 
 ## Repository Layout
@@ -38,8 +39,8 @@ cd src && uv run python manage.py opensearch index rebuild
 cd src && uv run celery -A researchhub worker -l info -B
 
 # Lint and formatting
-cd src && uv run flake8
-cd src && uv run black .
+uv run ruff check src
+uv run ruff format --check --diff src
 uv run pre-commit run --all-files
 
 # Dependencies

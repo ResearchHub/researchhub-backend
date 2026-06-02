@@ -133,6 +133,28 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         for filter_type in filter_types:
             self.update_filter(filter_type)
 
+    def is_visible_to_user(self, user):
+        """Whether this unified document may be exposed to ``user``.
+
+        Public documents are visible to everyone. Private documents (e.g.
+        private preregistrations) reuse the post-level ``visible_to`` rules so
+        the logic stays in one place: the author, grant creators the post
+        applied to, users with a non-revoked Permission, and moderators /
+        hub editors can see them.
+        """
+        if self.is_public:
+            return True
+
+        from researchhub_document.related_models.researchhub_post_model import (
+            ResearchhubPost,
+        )
+
+        return (
+            ResearchhubPost.objects.filter(unified_document=self)
+            .visible_to(user)
+            .exists()
+        )
+
     @property
     def authors(self):
         # This property needs to return a queryset

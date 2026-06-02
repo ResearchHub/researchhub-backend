@@ -169,7 +169,7 @@ class Command(BaseCommand):
 
                 migrated_count = self._migrate_invalid_reviews(invalid_review_comments)
 
-                self.stdout.write(f"\nMigration completed successfully!")
+                self.stdout.write("\nMigration completed successfully!")
                 self.stdout.write(
                     f"Migrated {migrated_count} review comments to proper structure."
                 )
