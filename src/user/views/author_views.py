@@ -17,7 +17,6 @@ from paper.models import Paper
 from paper.openalex_tasks import pull_openalex_author_works_batch
 from paper.related_models.authorship_model import Authorship
 from paper.serializers import DynamicPaperSerializer
-from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from reputation.models import Bounty, BountySolution, Contribution
 from reputation.serializers import DynamicContributionSerializer
 from researchhub.settings import TESTING
@@ -233,93 +232,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
         cache.set(cache_key, serializer.data, timeout=60 * 60 * 24)
         return Response(serializer.data, status=200)
-
-    @action(
-        detail=True,
-        methods=["get"],
-    )
-    def get_authored_papers(self, request, pk=None):
-        from paper.views import PaperViewSet
-
-        author = self.get_object()
-        prefetch_lookups = PaperViewSet.prefetch_lookups(self)
-        authored_papers = (
-            author.papers.filter(is_removed=False)
-            .prefetch_related(
-                *prefetch_lookups,
-            )
-            .annotate(paper_score=PAPER_SCORE_Q_ANNOTATION)
-            .order_by("-paper_score")
-        )
-        context = self._get_authored_papers_context()
-        page = self.paginate_queryset(authored_papers)
-        serializer = DynamicPaperSerializer(
-            page,
-            _include_fields=[
-                "id",
-                "abstract",
-                "authors",
-                "boost_amount",
-                "file",
-                "first_preview",
-                "hubs",
-                "paper_title",
-                "score",
-                "title",
-                "uploaded_by",
-                "uploaded_date",
-                "url",
-                "paper_publish_date",
-                "slug",
-                "created_date",
-            ],
-            many=True,
-            context=context,
-        )
-        response = self.get_paginated_response(serializer.data)
-        return response
-
-    def _get_authored_papers_context(self):
-        context = {
-            "pap_dps_get_authors": {
-                "_include_fields": [
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "profile_image",
-                ]
-            },
-            "pap_dps_get_uploaded_by": {
-                "_include_fields": [
-                    "id",
-                    "author_profile",
-                ]
-            },
-            "pap_dps_get_first_preview": {
-                "_include_fields": [
-                    "file",
-                ]
-            },
-            "pap_dps_get_hubs": {
-                "_include_fields": (
-                    "id",
-                    "slug",
-                    "name",
-                )
-            },
-            "usr_dus_get_author_profile": {
-                "_include_fields": ["id", "first_name", "last_name", "profile_image"]
-            },
-            "doc_duds_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                    "slug",
-                    "hub_image",
-                ]
-            },
-        }
-        return context
 
     def _get_contribution_context(self, filter_by_user_id):
         context = {
