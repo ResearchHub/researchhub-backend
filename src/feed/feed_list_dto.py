@@ -429,10 +429,11 @@ class GrantFeedListEntrySerializer(serializers.ModelSerializer):
     content_type = serializers.SerializerMethodField()
     content_object = serializers.SerializerMethodField()
     action_date = serializers.DateTimeField()
+    action = serializers.CharField()
 
     class Meta:
         model = FeedEntry
-        fields = ["id", "content_type", "content_object", "action_date"]
+        fields = ["id", "content_type", "content_object", "action_date", "action"]
 
     post_serializer_class = GrantFeedPostSerializer
 
