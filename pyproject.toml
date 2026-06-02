@@ -94,6 +94,5 @@ extend-ignore = [
     # Temporarily ignore these violations until cleaned up:
     "E501",  # line-too-long
     "F403",  # undefined-local-with-import-star
-    "F601",  # multi-value-repeated-key-literal
     "F821",  # undefined-name
 ]
