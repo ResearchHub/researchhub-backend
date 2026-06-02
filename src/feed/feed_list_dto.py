@@ -254,11 +254,7 @@ def _serialize_slim_grant(grant, context):
 
     all_applications = serialize_slim_grant_applications(grant, context)
     data["application_count"] = len(all_applications)
-
-    if context.get("include_key_insights"):
-        data["applications"] = all_applications
-    else:
-        data["applications"] = all_applications[:3]
+    data["applications"] = all_applications
 
     return data
 
