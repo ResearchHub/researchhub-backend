@@ -639,10 +639,10 @@ class GrantCacheInvalidationTests(APITestCase):
 
     def test_invalidate_clears_grant_feed_caches(self):
         cache_keys = [
-            "grants_feed:popular:all:all:none:1-20::",
-            "grants_feed:popular:all:all:none:1-20:OPEN:",
-            "grants_feed:popular:all:all:none:2-20-newest::",
-            "grants_feed:popular:all:all:none:3-20-upvotes:CLOSED:",
+            "grants_feed:popular:all:all:none:1-20:::",
+            "grants_feed:popular:all:all:none:1-20:OPEN::",
+            "grants_feed:popular:all:all:none:2-20-newest:::",
+            "grants_feed:popular:all:all:none:3-20-upvotes:CLOSED::",
         ]
 
         for key in cache_keys:
