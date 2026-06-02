@@ -16,7 +16,6 @@ from rest_framework.response import Response
 from paper.models import Paper
 from paper.openalex_tasks import pull_openalex_author_works_batch
 from paper.related_models.authorship_model import Authorship
-from paper.serializers import DynamicPaperSerializer
 from reputation.models import Bounty, BountySolution, Contribution
 from reputation.serializers import DynamicContributionSerializer
 from researchhub.settings import TESTING
@@ -792,68 +791,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         )
 
         return qs
-
-    @action(
-        detail=True,
-        methods=["get"],
-    )
-    def get_user_contributions(self, request, pk=None):
-        author = self.get_object()
-        user = author.user
-
-        if user:
-            prefetch_lookups = PaperViewSet.prefetch_lookups(self)
-            user_paper_uploads = user.papers.filter(is_removed=False).prefetch_related(
-                *prefetch_lookups
-            )
-        else:
-            user_paper_uploads = self.queryset.none()
-
-        context = self._get_user_contributions_context()
-        page = self.paginate_queryset(user_paper_uploads)
-        serializer = DynamicPaperSerializer(
-            page,
-            _include_fields=[
-                "id",
-                "abstract",
-                "boost_amount",
-                "file",
-                "hubs",
-                "paper_title",
-                "score",
-                "title",
-                "slug",
-                "uploaded_by",
-                "uploaded_date",
-            ],
-            many=True,
-            context=context,
-        )
-        response = self.get_paginated_response(serializer.data)
-
-        return response
-
-    def _get_user_contributions_context(self):
-        context = {
-            "pap_dps_get_uploaded_by": {
-                "_include_fields": [
-                    "id",
-                    "author_profile",
-                ]
-            },
-            "usr_dus_get_author_profile": {
-                "_include_fields": ["id", "first_name", "last_name", "profile_image"]
-            },
-            "doc_duds_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                    "slug",
-                    "hub_image",
-                ]
-            },
-        }
-        return context
 
     @action(
         detail=True,
