@@ -233,8 +233,8 @@ class Fundraise(DefaultModel):
         if self.escrow:
             rsc_amount = float(self.escrow.amount_holding + self.escrow.amount_paid)
 
-        # Calculate USD amount from contributions (in cents), excluding refunded ones
-        usd_cents = self.usd_contributions.filter(is_refunded=False).aggregate(
+        # Only settled USD counts toward the goal; SUBMITTED Endaoment transfers are pending.
+        usd_cents = self.usd_contributions.counts_toward_goal().aggregate(
             total=Coalesce(Sum("amount_cents"), 0)
         )["total"]
         usd_from_contributions = usd_cents / 100.0

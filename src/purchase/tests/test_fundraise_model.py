@@ -36,14 +36,33 @@ class GetAmountRaisedTests(TestCase):
             status=Fundraise.OPEN,
         )
 
-    def _create_usd_contribution(self, fundraise, user, amount_cents):
+    def _create_usd_contribution(self, fundraise, user, amount_cents, **kwargs):
         """Helper method to create a USD contribution."""
-        return UsdFundraiseContribution.objects.create(
-            user=user,
-            fundraise=fundraise,
-            amount_cents=amount_cents,
-            fee_cents=int(amount_cents * 0.09),
+        defaults = {
+            "user": user,
+            "fundraise": fundraise,
+            "amount_cents": amount_cents,
+            "fee_cents": int(amount_cents * 0.09),
+            "status": UsdFundraiseContribution.Status.CONFIRMED,
+            "origin_fund_id": "fund_test",
+            "destination_org_id": "org_test",
+        }
+        defaults.update(kwargs)
+        return UsdFundraiseContribution.objects.create(**defaults)
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
+    def test_get_amount_raised_excludes_submitted_usd(self, mock_exchange_rate):
+        """SUBMITTED Endaoment transfers must not count toward the goal."""
+        mock_exchange_rate.return_value = 0.01
+
+        self._create_usd_contribution(
+            self.fundraise,
+            self.contributor,
+            10000,
+            status=UsdFundraiseContribution.Status.SUBMITTED,
         )
+
+        self.assertEqual(self.fundraise.get_amount_raised(currency=USD), 0.0)
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
     def test_get_amount_raised_usd_only(self, mock_exchange_rate):

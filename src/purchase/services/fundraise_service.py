@@ -58,6 +58,11 @@ USD_CONTRIBUTION_CSV_HEADERS = [
 
 logger = logging.getLogger(__name__)
 
+# Endaoment async transfer statuses that mean funds have actually moved.
+_ENDAOMENT_SETTLED_ASYNC_STATUSES = frozenset(
+    {"complete", "completed", "success", "succeeded"}
+)
+
 
 class FundraiseService:
     """Service for managing fundraise-related operations."""
@@ -69,6 +74,13 @@ class FundraiseService:
     ):
         self.referral_bonus_service = referral_bonus_service or ReferralBonusService()
         self.endaoment_service = endaoment_service or EndaomentService()
+
+    @staticmethod
+    def _usd_contribution_status_from_transfer(transfer_result: dict) -> str:
+        async_status = (transfer_result.get("asyncStatus") or "").lower()
+        if async_status in _ENDAOMENT_SETTLED_ASYNC_STATUSES:
+            return UsdFundraiseContribution.Status.CONFIRMED
+        return UsdFundraiseContribution.Status.SUBMITTED
 
     def validate_fundraise_for_contribution(
         self, fundraise: Fundraise, user: User, check_self_contribution: bool = True
@@ -307,9 +319,13 @@ class FundraiseService:
                 priority=1,
             )
 
-            # Update escrow object
-            fundraise.escrow.amount_holding += amount
-            fundraise.escrow.save()
+            escrow = Escrow.objects.select_for_update().get(pk=fundraise.escrow_id)
+            if escrow.status in (Escrow.PAID, Escrow.CANCELLED, Escrow.EXPIRED):
+                return None, "Fundraise is not accepting contributions"
+
+            escrow.amount_holding += amount
+            escrow.save(update_fields=["amount_holding", "updated_date"])
+            fundraise.escrow = escrow
 
         return purchase, None
 
@@ -369,13 +385,17 @@ class FundraiseService:
                 logger.error(f"Failed to create Endaoment grant: {e}", exc_info=e)
                 return None, "Failed to submit Endaoment grant"
 
+            contribution_status = self._usd_contribution_status_from_transfer(
+                transfer_result
+            )
+
             # Create the contribution record
             contribution = UsdFundraiseContribution.objects.create(
                 user=user,
                 fundraise=fundraise,
                 amount_cents=amount_cents,
                 fee_cents=fee_cents,
-                status=UsdFundraiseContribution.Status.SUBMITTED,
+                status=contribution_status,
                 origin_fund_id=origin_fund_id,
                 destination_org_id=destination_org_id,
                 endaoment_transfer_id=endaoment_transfer_id,

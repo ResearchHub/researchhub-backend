@@ -805,6 +805,25 @@ class CreateUsdContributionTests(TestCase):
             amount_cents=10900,  # 10000 + 9% fee
         )
 
+    def test_create_usd_contribution_confirmed_when_endaoment_settled(self):
+        self.mock_endaoment_service.transfer_to_researchhub_fund.return_value = {
+            "id": "transfer_settled",
+            "asyncStatus": "complete",
+        }
+
+        contribution, error = self.service.create_usd_contribution(
+            user=self.user,
+            fundraise=self.fundraise,
+            amount_cents=10000,
+            origin_fund_id="fund_abc",
+        )
+
+        self.assertIsNone(error)
+        self.assertEqual(
+            contribution.status, UsdFundraiseContribution.Status.CONFIRMED
+        )
+        self.assertEqual(self.fundraise.get_amount_raised(currency=USD), 100.0)
+
     def test_create_usd_contribution_no_origin_fund_id(self):
         """
         Test that missing origin_fund_id returns error.

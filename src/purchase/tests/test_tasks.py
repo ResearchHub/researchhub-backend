@@ -4,12 +4,16 @@ from unittest.mock import patch
 
 import pytz
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.test import TestCase
 
 from notification.models import Notification
 from purchase.circle.client import CircleTransferError
-from purchase.models import Fundraise, Wallet
+from purchase.models import Balance, Fundraise, Wallet
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from purchase.services.fundraise_service import FundraiseService
 from purchase.tasks import (
     complete_eligible_fundraises,
@@ -136,6 +140,49 @@ class FundraiseTasksTest(TestCase):
         self.assertEqual(fundraise.status, Fundraise.OPEN)
         self.assertEqual(fundraise.escrow.amount_holding, Decimal("100.00"))
         self.assertEqual(fundraise.escrow.amount_paid, Decimal("0.00"))
+
+    def test_complete_eligible_fundraises_ignores_pending_usd(self):
+        """Pending USD must not trigger payout of victim RSC in escrow."""
+        victim = create_random_authenticated_user("fundraise_victim")
+        scammer = create_random_authenticated_user("fundraise_scammer")
+        distribution_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount="1000", user=victim, content_type=distribution_ct
+        )
+
+        fundraise = self.fundraise_service.create_fundraise_with_escrow(
+            user=scammer,
+            unified_document=self.post.unified_document,
+            goal_amount=Decimal("100.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        old_date = datetime.now(pytz.UTC) - timedelta(days=8)
+        fundraise.start_date = old_date
+        fundraise.save()
+
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            victim, fundraise, Decimal("80.00"), use_credits=False
+        )
+        self.assertIsNone(error)
+        self.assertIsNotNone(purchase)
+
+        UsdFundraiseContribution.objects.create(
+            user=scammer,
+            fundraise=fundraise,
+            amount_cents=6000,
+            fee_cents=180,
+            status=UsdFundraiseContribution.Status.SUBMITTED,
+            origin_fund_id="fund_scam",
+            destination_org_id="org_scam",
+        )
+
+        result = complete_eligible_fundraises()
+
+        self.assertEqual(result["completed_count"], 0)
+        fundraise.refresh_from_db()
+        self.assertEqual(fundraise.status, Fundraise.OPEN)
+        self.assertGreater(fundraise.escrow.amount_holding, 0)
 
     def test_complete_eligible_fundraises_too_new(self):
         """Test that fundraises less than a week old are not completed"""

@@ -20,6 +20,12 @@ class UsdFundraiseContributionQuerySet(models.QuerySet):
         """Filter for non-refunded contributions."""
         return self.filter(is_refunded=False)
 
+    def counts_toward_goal(self):
+        """USD rows that are settled and should affect goal / auto-complete logic."""
+        return self.not_refunded().filter(
+            status=UsdFundraiseContribution.Status.CONFIRMED
+        )
+
     def for_fundraises(self, fundraise_ids: list[int]):
         """Filter by fundraise IDs."""
         return self.filter(fundraise_id__in=fundraise_ids)
@@ -38,6 +44,7 @@ class UsdFundraiseContribution(DefaultModel):
 
     class Status(models.TextChoices):
         SUBMITTED = "SUBMITTED", "SUBMITTED"
+        CONFIRMED = "CONFIRMED", "CONFIRMED"
         CANCELLED = "CANCELLED", "CANCELLED"
 
     user = models.ForeignKey(
