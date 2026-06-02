@@ -1,7 +1,5 @@
 from celery import chain
-from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -13,16 +11,9 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
-from paper.models import Paper
 from paper.openalex_tasks import pull_openalex_author_works_batch
 from paper.related_models.authorship_model import Authorship
-from reputation.models import Bounty, BountySolution, Contribution
 from researchhub.settings import TESTING
-from researchhub_comment.models import RhCommentModel
-from researchhub_comment.related_models.rh_comment_thread_model import (
-    exclude_orphaned_comments,
-)
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -32,7 +23,6 @@ from researchhub_document.serializers.researchhub_unified_document_serializer im
 from researchhub_document.views.researchhub_unified_document_views import (
     ResearchhubUnifiedDocumentViewSet,
 )
-from review.models.review_model import Review
 from user.filters import AuthorFilter
 from user.models import Author
 from user.permissions import DeleteAuthorPermission, IsVerifiedUser, UpdateAuthor
@@ -302,113 +292,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         serializer_data = serializer.data
 
         return self.get_paginated_response(serializer_data)
-
-    def _get_author_comments(self, author_id):
-        author = self.get_object()
-        user = author.user
-
-        if user:
-            return exclude_orphaned_comments(
-                RhCommentModel.objects.filter(created_by=user)
-            )
-        return []
-
-    def _get_author_contribution_queryset(self, author_id, ordering, asset_type):
-        author_comments = self._get_author_comments(author_id)
-        rh_comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
-        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-        paper_content_type = ContentType.objects.get_for_model(Paper)
-        review_content_type = ContentType.objects.get_for_model(Review)
-        bounty_content_type = ContentType.objects.get_for_model(Bounty)
-        bounty_solution_content_type = ContentType.objects.get_for_model(BountySolution)
-
-        types = asset_type.split(",")
-
-        query = Q()
-        for asset_type in types:
-            if asset_type == "overview":
-                query |= Q(
-                    Q(
-                        unified_document__is_removed=False,
-                        content_type=rh_comment_content_type,
-                        # we filter by object_id instead of author_profile because
-                        # sometimes there's contributions without a matching comment.
-                        # this method ensures the comments exists.
-                        object_id__in=author_comments,
-                        contribution_type__in=[
-                            Contribution.COMMENTER,
-                        ],
-                    )
-                    | Q(
-                        unified_document__is_removed=False,
-                        user__author_profile=author_id,
-                        content_type_id__in=[
-                            paper_content_type,
-                            post_content_type,
-                            review_content_type,
-                        ],
-                        contribution_type__in=[
-                            Contribution.SUBMITTER,
-                            Contribution.SUPPORTER,
-                        ],
-                    )
-                )
-            elif asset_type == "discussion":
-                query |= Q(
-                    unified_document__is_removed=False,
-                    user__author_profile=author_id,
-                    content_type_id=post_content_type,
-                    contribution_type__in=[Contribution.SUBMITTER],
-                )
-            elif asset_type == "comment":
-                query |= Q(
-                    unified_document__is_removed=False,
-                    content_type=rh_comment_content_type,
-                    # we filter by object_id instead of author_profile because
-                    # sometimes there's contributions without a matching comment.
-                    # this method ensures the comments exists.
-                    object_id__in=author_comments,
-                    contribution_type__in=[Contribution.COMMENTER],
-                )
-            elif asset_type == "paper":
-                query |= Q(
-                    unified_document__is_removed=False,
-                    user__author_profile=author_id,
-                    content_type_id=paper_content_type,
-                    contribution_type__in=[Contribution.SUBMITTER],
-                )
-            elif asset_type == "bounty_offered":
-                query |= Q(
-                    unified_document__is_removed=False,
-                    user__author_profile=author_id,
-                    content_type_id=bounty_content_type,
-                    contribution_type__in=[Contribution.BOUNTY_CREATED],
-                )
-            elif asset_type == "bounty_earned":
-                query |= Q(
-                    unified_document__is_removed=False,
-                    user__author_profile=author_id,
-                    content_type_id=bounty_solution_content_type,
-                    contribution_type__in=[Contribution.BOUNTY_SOLUTION],
-                )
-            else:
-                raise Exception("Unrecognized asset type: {}".format(asset_type))
-
-        qs = (
-            Contribution.objects.filter(query)
-            # Exclude contributions tied to private documents (e.g. private
-            # preregistrations) so they don't leak via the public author feed.
-            .filter(unified_document__is_public=True)
-            .select_related(
-                "content_type",
-                "user",
-                "user__author_profile",
-                "unified_document",
-            )
-            .order_by(ordering)
-        )
-
-        return qs
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def minimal_overview(self, request, pk=None):
