@@ -62,6 +62,7 @@ uv add --dev <package_name>
 - For AWS-dependent code, inherit from `AWSMockTestCase` in `src/utils/test_helpers.py`.
 - Use `AWSMockTransactionTestCase` when the code under test relies on `transaction.on_commit()`.
 - Test behavior, not implementation details.
+- Add Arrange/Act/Assert (AAA) comment markers to tests.
 
 ## CI Reference
 CI runs from `src/` and performs:
