@@ -11,13 +11,73 @@ from feed.serializers import (
     SimpleReviewSerializer,
 )
 from purchase.related_models.constants.currency import RSC, USD
+from purchase.related_models.grant_model import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
+from user.models import Author
 from user.serializers import DynamicUserSerializer
+
+
+def _grant_amount(grant):
+    usd_amount = float(grant.amount)
+    try:
+        rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
+    except AttributeError:
+        rsc_amount = None
+    return {"usd": usd_amount, "rsc": rsc_amount}
+
+
+def _assessed_reviews(queryset):
+    return queryset.filter(is_assessed=True, is_removed=False)
+
+
+class SlimAuthorSerializer(serializers.ModelSerializer):
+    """Minimal author payload for grant/funding feed list responses (no nested user)."""
+
+    profile_image = serializers.SerializerMethodField()
+
+    def get_profile_image(self, obj):
+        try:
+            if (
+                hasattr(obj, "profile_image")
+                and obj.profile_image.name
+                and obj.profile_image.url
+            ):
+                return obj.profile_image.url
+        except Exception:
+            pass
+        return None
+
+    class Meta:
+        model = Author
+        fields = ["id", "first_name", "last_name", "profile_image", "headline"]
+
+
+class SlimReviewSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    score = serializers.FloatField(allow_null=True)
+    is_assessed = serializers.BooleanField()
+    author = serializers.SerializerMethodField()
+
+    def get_author(self, review):
+        user = review.created_by
+        if not user:
+            return None
+        author = getattr(user, "author_profile", None)
+        if not author:
+            return None
+        return SlimAuthorSerializer(author).data
+
+    def to_representation(self, review):
+        return {
+            "id": review.id,
+            "score": review.score,
+            "is_assessed": review.is_assessed,
+            "author": self.get_author(review),
+        }
 
 
 def serialize_fund_feed_metrics(item, item_content_type):
@@ -70,16 +130,6 @@ def _serialize_slim_bounties(post):
     return [_serialize_slim_bounty(bounty) for bounty in parent_bounties]
 
 
-def _serialize_review_author(review):
-    user = review.created_by
-    if not user:
-        return None
-    author = getattr(user, "author_profile", None)
-    if not author:
-        return None
-    return SimpleAuthorSerializer(author).data
-
-
 def _serialize_slim_application_fundraise(application):
     post = application.preregistration_post
     if not post or not hasattr(post, "unified_document") or not post.unified_document:
@@ -107,13 +157,7 @@ def _serialize_slim_application_fundraise(application):
         nonprofit_data = {"id": np.id, "name": np.name}
 
     reviews = [
-        {
-            "id": r.id,
-            "score": r.score,
-            "is_assessed": r.is_assessed,
-            "author": _serialize_review_author(r),
-        }
-        for r in ud.reviews.all()
+        SlimReviewSerializer(r).data for r in _assessed_reviews(ud.reviews.all())
     ]
 
     return {
@@ -171,7 +215,7 @@ def serialize_slim_grant_applications(grant, context):
                 continue
 
         entry = {
-            "applicant": SimpleAuthorSerializer(author_profile).data,
+            "applicant": SlimAuthorSerializer(author_profile).data,
             "preregistration_post_id": (
                 application.preregistration_post.id
                 if application.preregistration_post
@@ -189,28 +233,34 @@ def serialize_slim_grant_applications(grant, context):
 
 
 def _serialize_slim_grant(grant, context):
-    created_by = None
-    if grant.created_by and hasattr(grant.created_by, "author_profile"):
-        profile = grant.created_by.author_profile
-        if profile:
-            created_by = SimpleAuthorSerializer(profile).data
+    request = context.get("request")
+    status = ""
+    if request:
+        status = request.query_params.get("status", "").upper()
 
-    amount_serializer = DynamicGrantSerializer()
-    return {
+    data = {
         "id": grant.id,
         "status": grant.status,
-        "amount": amount_serializer.get_amount(grant),
-        "currency": grant.currency,
+        "amount": _grant_amount(grant),
         "organization": grant.organization,
         "short_title": grant.short_title,
-        "description": grant.description,
-        "start_date": grant.start_date,
-        "end_date": grant.end_date,
         "is_expired": grant.is_expired(),
         "is_active": grant.is_active(),
-        "created_by": created_by,
-        "applications": serialize_slim_grant_applications(grant, context),
     }
+
+    if status == Grant.PENDING:
+        data["end_date"] = grant.end_date
+        return data
+
+    all_applications = serialize_slim_grant_applications(grant, context)
+    data["application_count"] = len(all_applications)
+
+    if context.get("include_key_insights"):
+        data["applications"] = all_applications
+    else:
+        data["applications"] = all_applications[:3]
+
+    return data
 
 
 class GrantFeedPostSerializer(serializers.Serializer):
@@ -374,8 +424,25 @@ class FundFeedListEntrySerializer(serializers.ModelSerializer):
         return serializer_class(obj.item, context=self.context).data
 
 
-class GrantFeedListEntrySerializer(FundFeedListEntrySerializer):
+class GrantFeedListEntrySerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField()
+    content_type = serializers.SerializerMethodField()
+    content_object = serializers.SerializerMethodField()
+    action_date = serializers.DateTimeField()
+
+    class Meta:
+        model = FeedEntry
+        fields = ["id", "content_type", "content_object", "action_date"]
+
     post_serializer_class = GrantFeedPostSerializer
+
+    def get_content_type(self, obj):
+        return obj.content_type.model.upper()
+
+    def get_content_object(self, obj):
+        if not obj.item:
+            return None
+        return GrantFeedPostSerializer(obj.item, context=self.context).data
 
 
 class FundingFeedListEntrySerializer(FundFeedListEntrySerializer):

@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from ai_peer_review.models import ProposalReview
-from feed.feed_list_dto import GrantFeedListEntrySerializer, serialize_fund_feed_metrics
+from feed.feed_list_dto import GrantFeedListEntrySerializer
 from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.views.feed_view_mixin import FeedViewMixin
@@ -60,8 +60,6 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
         if use_cache:
             cached_response = cache.get(cache_key)
             if cached_response:
-                if request.user.is_authenticated:
-                    self.add_user_votes_to_response(request.user, cached_response)
                 return Response(cached_response)
 
         queryset = self.filter_queryset(self.get_queryset())
@@ -79,18 +77,12 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
                 unified_document=post.unified_document,
             )
             feed_entry.item = post
-            feed_entry.metrics = serialize_fund_feed_metrics(
-                post, self._post_content_type
-            )
             feed_entries.append(feed_entry)
 
         serializer = GrantFeedListEntrySerializer(
             feed_entries, many=True, context=self.get_serializer_context()
         )
         response_data = self.get_paginated_response(serializer.data).data
-
-        if request.user.is_authenticated:
-            self.add_user_votes_to_response(request.user, response_data)
 
         if use_cache:
             cache.set(cache_key, response_data, timeout=self.DEFAULT_CACHE_TIMEOUT)

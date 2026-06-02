@@ -129,9 +129,9 @@ class GrantFeedViewTests(APITestCase):
         self.assertIn("content_type", result)
         self.assertIn("content_object", result)
         self.assertIn("action_date", result)
-        self.assertIn("action", result)
-        self.assertIn("author", result)
-        self.assertIn("metrics", result)
+        self.assertNotIn("action", result)
+        self.assertNotIn("author", result)
+        self.assertNotIn("metrics", result)
         self.assertNotIn("created_date", result)
         self.assertNotIn("hot_score_v2", result)
 
@@ -161,7 +161,7 @@ class GrantFeedViewTests(APITestCase):
         grant_amount = result["content_object"]["grant"]["amount"]
 
         self.assertEqual(grant_amount["usd"], 50000.0)
-        self.assertEqual(grant_amount["formatted"], "50,000.00 USD")
+        self.assertNotIn("formatted", grant_amount)
 
     def test_grant_feed_is_expired_field(self):
         """Test that the is_expired field is correctly populated"""
@@ -284,6 +284,7 @@ class GrantFeedViewTests(APITestCase):
         self.assertIsNotNone(grant_entry)
         grant_data = grant_entry["content_object"]["grant"]
         self.assertIn("applications", grant_data)
+        self.assertEqual(grant_data["application_count"], 2)
 
         applications = grant_data["applications"]
         self.assertEqual(len(applications), 2)
@@ -294,15 +295,16 @@ class GrantFeedViewTests(APITestCase):
             self.assertIn("preregistration_post_id", app)
             self.assertIn("fundraise", app)
             self.assertNotIn("created_date", app)
+            self.assertNotIn("key_insight", app)
 
-        # Check applicant structure using SimpleAuthorSerializer
+        # Check applicant structure using SlimAuthorSerializer
         applicant_data = applications[0]["applicant"]
         self.assertIn("id", applicant_data)
         self.assertIn("first_name", applicant_data)
         self.assertIn("last_name", applicant_data)
         self.assertIn("profile_image", applicant_data)
         self.assertIn("headline", applicant_data)
-        self.assertIn("user", applicant_data)
+        self.assertNotIn("user", applicant_data)
 
         # Verify applicant IDs are correct
         applicant_ids = [app["applicant"]["id"] for app in applications]
@@ -351,6 +353,7 @@ class GrantFeedViewTests(APITestCase):
         self.assertIsNotNone(grant_entry)
         grant_data = grant_entry["content_object"]["grant"]
         self.assertIn("applications", grant_data)
+        self.assertEqual(grant_data["application_count"], 0)
 
         # Should be empty list when no applications
         applications = grant_data["applications"]
