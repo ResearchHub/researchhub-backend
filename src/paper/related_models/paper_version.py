@@ -47,6 +47,16 @@ class PaperVersion(models.Model):
                 Func("base_doi", function="UPPER"),
                 name="paper_version_doi_upper_idx",
             ),
+            # Index for supporting the retrieval of the latest version of a paper in
+            # the ResearchHub journal
+            Index(
+                fields=["base_doi", "-created_date"],
+                name="paper_ver_rh_doi_created_idx",
+                condition=models.Q(
+                    base_doi__isnull=False,
+                    journal="RESEARCHHUB",
+                ),
+            ),
         )
 
 
