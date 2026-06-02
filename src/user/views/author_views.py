@@ -27,7 +27,6 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
-from researchhub_document.serializers import DynamicPostSerializer
 from researchhub_document.serializers.researchhub_unified_document_serializer import (
     DynamicUnifiedDocumentSerializer,
 )
@@ -791,63 +790,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         )
 
         return qs
-
-    @action(
-        detail=True,
-        methods=["get"],
-    )
-    def get_user_posts(self, request, pk=None):
-        author = self.get_object()
-        user = author.user
-
-        if user:
-            user_posts = user.created_posts.all().prefetch_related(
-                "unified_document", "purchases"
-            )
-        else:
-            user_posts = self.queryset.none()
-
-        context = self._get_user_posts_context()
-        page = self.paginate_queryset(user_posts)
-        serializer = DynamicPostSerializer(
-            page,
-            _include_fields=[
-                "id",
-                "created_by",
-                "hubs",
-                "boost_amount",
-                "renderable_text",
-                "score",
-                "slug",
-                "title",
-            ],
-            many=True,
-            context=context,
-        )
-        response = self.get_paginated_response(serializer.data)
-        return response
-
-    def _get_user_posts_context(self):
-        context = {
-            "doc_dps_get_created_by": {
-                "_include_fields": [
-                    "id",
-                    "author_profile",
-                ]
-            },
-            "usr_dus_get_author_profile": {
-                "_include_fields": ["id", "first_name", "last_name", "profile_image"]
-            },
-            "doc_dps_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                    "slug",
-                    "hub_image",
-                ]
-            },
-        }
-        return context
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def minimal_overview(self, request, pk=None):
