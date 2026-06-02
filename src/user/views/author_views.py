@@ -1,7 +1,7 @@
 from celery import chain
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db.models import Q, Sum
+from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -129,105 +129,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
         cache.set(cache_key, serializer.data, timeout=60 * 60 * 24)
 
-        return Response(serializer.data, status=200)
-
-    @action(detail=True, methods=["get"], permission_classes=[AllowAny])
-    def profile(self, request, pk=None):
-        author = self.get_object()
-        cache_key = f"author-{author.id}-profile"
-        cache_hit = cache.get(cache_key)
-
-        if cache_hit:
-            return Response(cache_hit, 200)
-
-        serializer = DynamicAuthorProfileSerializer(
-            author,
-            context={
-                "author_institution::get_institution": {
-                    "_include_fields": [
-                        "id",
-                        "display_name",
-                        "region",
-                        "city",
-                        "latitude",
-                        "longitude",
-                        "image_url",
-                        "image_thumbnail_url",
-                    ]
-                },
-                "author_profile::get_institutions": {
-                    "_include_fields": [
-                        "id",
-                        "years",
-                        "is_primary",
-                        "institution",
-                    ]
-                },
-                "author_profile::get_reputation": {
-                    "_include_fields": [
-                        "hub_id",
-                        "hub_name",
-                        "hub_slug",
-                        "score",
-                        "bins",
-                    ]
-                },
-                "author_profile::get_reputation_list": {
-                    "_include_fields": [
-                        "hub_id",
-                        "hub_name",
-                        "hub_slug",
-                        "score",
-                        "bins",
-                    ]
-                },
-                "author_profile::activity_by_year": {
-                    "_include_fields": [
-                        "year",
-                        "works_count",
-                        "citation_count",
-                    ]
-                },
-                "author_profile::get_coauthors": {
-                    "_include_fields": [
-                        "id",
-                        "first_name",
-                        "last_name",
-                        "count",
-                        "is_verified",
-                        "profile_image",
-                        "headline",
-                        "description",
-                    ]
-                },
-            },
-            _include_fields=(
-                "id",
-                "openalex_ids",
-                "first_name",
-                "last_name",
-                "description",
-                "activity_by_year",
-                "headline",
-                "profile_image",
-                "orcid_id",
-                "h_index",
-                "i10_index",
-                "google_scholar",
-                "linkedin",
-                "twitter",
-                "created_date",
-                "country_code",
-                "coauthors",
-                "reputation",
-                "reputation_list",
-                "education",
-                "user",
-                "is_suspended",
-            ),
-        )
-
-        cache.set(cache_key, serializer.data, timeout=60 * 60 * 24)
         return Response(serializer.data, status=200)
 
     @action(
