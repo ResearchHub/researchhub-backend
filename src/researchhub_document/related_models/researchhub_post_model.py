@@ -165,6 +165,18 @@ class ResearchhubPost(AbstractGenericReactionModel):
         max_length=255, default=None, null=True, blank=True, unique=True
     )
 
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["document_type", "-created_date"],
+                name="post_doc_type_created_idx",
+            ),
+            models.Index(
+                fields=["document_type", "created_by_id"],
+                name="post_doc_type_created_by_idx",
+            ),
+        ]
+
     objects = ResearchhubPostQuerySet.as_manager()
 
     @property

@@ -115,6 +115,10 @@ class Grant(DefaultModel):
             models.Index(fields=["status"]),
             models.Index(fields=["organization"]),
             models.Index(fields=["end_date"]),
+            models.Index(
+                fields=["unified_document_id", "status"],
+                name="grant_ud_status_idx",
+            ),
         ]
 
     def __str__(self):
