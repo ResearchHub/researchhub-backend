@@ -16,7 +16,7 @@ from utils.models import ModeratedDocumentMixin
 from utils.permissions import CreateOrUpdateIfAllowed
 
 NORMAL = 100
-RESTRICTED = 200
+RESTRICTED = 10
 
 
 def _set_score(user, score):
@@ -30,7 +30,7 @@ class InitialWorkStatusTests(TestCase):
 
     def test_trusted_user_auto_approves(self):
         # Arrange
-        _set_score(self.user, 10)
+        _set_score(self.user, 200)
 
         # Act / Assert
         self.assertEqual(
@@ -150,7 +150,7 @@ class PostCreationGatingTests(APITestCase):
 
     def test_trusted_user_post_auto_approves(self):
         # Arrange
-        _set_score(self.user, 10)
+        _set_score(self.user, 200)
 
         # Act
         response = self._create_post()

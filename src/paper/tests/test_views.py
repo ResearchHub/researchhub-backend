@@ -280,7 +280,7 @@ class PaperApiTests(APITestCase):
         # Arrange
         user = create_random_authenticated_user("trusted_author")
         make_user_verified(user)
-        RiskScore.objects.update_or_create(user=user, defaults={"score": 10})
+        RiskScore.objects.update_or_create(user=user, defaults={"score": 200})
         self.client.force_authenticate(user)
         author = Author.objects.create(first_name="Test", last_name="Author")
 
