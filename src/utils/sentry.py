@@ -43,20 +43,6 @@ def log_error(e, base_error=None, message=None, json_data=None):
     capture_exception(e)
 
 
-def log_request_error(response, message, extra=None):
-    from researchhub.settings import PRODUCTION
-
-    if not PRODUCTION:
-        print(response, message, extra)
-
-    scope = get_isolation_scope()
-    if extra:
-        for k in extra:
-            scope.set_extra(k, extra[k])
-    scope.set_extra("req_error", response.reason)
-    capture_exception(message)
-
-
 def log_info(message, error=None):
     """Captures a message with the sentry sdk.
 
