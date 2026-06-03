@@ -14,7 +14,6 @@ from purchase.models import GrantApplication
 from researchhub.celery import app
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
-from utils import sentry
 
 logger = logging.getLogger(__name__)
 
