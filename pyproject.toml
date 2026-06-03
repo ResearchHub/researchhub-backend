@@ -97,7 +97,6 @@ extend-select = [
 "src/analytics/**/*.py" = ["E501"]
 "src/discussion/**/*.py" = ["E501"]
 "src/feed/**/*.py" = ["E501"]
-"src/note/**/*.py" = ["E501"]
 "src/organizations/**/*.py" = ["E501"]
 "src/paper/**/*.py" = ["E501"]
 "src/personalize/**/*.py" = ["E501"]
