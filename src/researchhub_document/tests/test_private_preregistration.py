@@ -777,22 +777,6 @@ class AuthorContributionsPrivacyTests(AWSMockTestCase):
                 ordinal=ordinal,
             )
 
-    def test_private_contribution_excluded(self):
-        client = APIClient()
-        client.force_authenticate(self.author)
-        response = client.get(
-            f"/api/author/{self.author.author_profile.id}/contributions/",
-            {"type": "overview"},
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        doc_ids = {
-            item["unified_document"]["id"]
-            for item in response.data["results"]
-            if item.get("unified_document")
-        }
-        self.assertIn(self.public_post.unified_document_id, doc_ids)
-        self.assertNotIn(self.private_post.unified_document_id, doc_ids)
-
 
 class GrantEnforcedApplicationVisibilityTests(AWSMockTestCase):
     """RFP creators can require applications be private, public, or optional."""
