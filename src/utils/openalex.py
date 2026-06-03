@@ -194,7 +194,8 @@ class OpenAlex:
         res = self._get("authors", filters=filters)
         return res
 
-    # Hydrates a list of dehydrated paper concepts with fresh and expanded data from OpenAlex
+    # Hydrates a list of dehydrated paper concepts with fresh and expanded data from
+    # OpenAlex
     # https://docs.openalex.org/about-the-data/concept#id
     def hydrate_paper_concepts(self, paper_concepts):
         concept_ids = [concept["id"].split("/")[-1] for concept in paper_concepts]
@@ -230,7 +231,7 @@ class OpenAlex:
                 )
 
             return hydrated_concepts
-        except Exception as e:
+        except Exception:
             return []
 
     def get_institutions(self, next_cursor="*", page=1, batch_size=100):

@@ -51,11 +51,7 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
 
     @classmethod
     def construct_query(cls, request, view, query_fields, search_term, query_opts):
-        score_field = None
-        try:
-            score_field = getattr(view, "score_field")
-        except:
-            pass
+        score_field = getattr(view, "score_field", None)
 
         if score_field is not None:
             return Q(
@@ -320,7 +316,8 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
             Complex fields are ones that have "options" key
             specified. One additional query will be performed for each field
             that inclues "options". The use case here is needing to override the
-            global options on a per-field basis (e.g. analyzer on one field different than globally specified analyzer)
+            global options on a per-field basis (e.g. analyzer on one field
+            different than globally specified analyzer)
             """
             for field_tuple in complex_fields:
                 field, field_opts, condition = field_tuple

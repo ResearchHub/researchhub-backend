@@ -661,10 +661,17 @@ class WithdrawalViewSetTests(APITestCase):
         create_deposit(user, amount="1000.0")
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            WithdrawalViewSet,
-            "_prepare_withdrawal",
-            side_effect=Exception("Test exception"),
+        with (
+            mock.patch.object(
+                WithdrawalViewSet,
+                "_check_hotwallet_balance",
+                return_value=(True, None),
+            ),
+            mock.patch.object(
+                WithdrawalViewSet,
+                "_prepare_withdrawal",
+                side_effect=Exception("Test exception"),
+            ),
         ):
             response = self.client.post(
                 self.withdrawal_url,
@@ -759,6 +766,15 @@ class WithdrawalViewSetTests(APITestCase):
         """Test that _check_meets_withdrawal_minimum succeeds with sufficient amount."""
         # Set an amount above the minimum
         amount = WITHDRAWAL_MINIMUM + decimal.Decimal("10")
+
+        valid, message = self.withdrawal_view._check_meets_withdrawal_minimum(amount)
+
+        self.assertTrue(valid)
+        self.assertIsNone(message)
+
+    def test_check_withdrawal_meets_minimum_exact(self):
+        """Withdrawals at exactly WITHDRAWAL_MINIMUM are allowed."""
+        amount = decimal.Decimal(WITHDRAWAL_MINIMUM)
 
         valid, message = self.withdrawal_view._check_meets_withdrawal_minimum(amount)
 

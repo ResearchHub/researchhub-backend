@@ -41,7 +41,6 @@ class Command(BaseCommand):
                 events = []
             else:
                 print(f"{i}/{count}")
-                user_email = user.email
                 user_id, user_props = amp._build_user_properties(user)
                 hit = {
                     "user_id": user_id,

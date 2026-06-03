@@ -36,7 +36,6 @@ DOC_CHOICES = (
 )
 TAG_CHOICES = (
     ("answered", "Answered"),
-    ("author_claimed", "Author Claimed"),
     ("closed", "Closed"),
     ("expired", "Expired"),
     ("open", "Open"),
@@ -46,7 +45,6 @@ TAG_CHOICES = (
 )
 TAG_CHOICES_STR = (
     "answered",
-    "author_claimed",
     "closed",
     "expired",
     "open",
