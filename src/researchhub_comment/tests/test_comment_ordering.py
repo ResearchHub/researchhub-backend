@@ -71,7 +71,7 @@ class CommentOrderingTests(APITestCase):
         comment3 = self._create_comment_at_time("Third comment", now)
 
         # Create child comments (should NOT be returned with parent__isnull=true)
-        child1 = self._create_comment_at_time(
+        self._create_comment_at_time(
             "Child of first", now - timedelta(hours=1), parent=comment1
         )
 
@@ -129,7 +129,7 @@ class CommentOrderingTests(APITestCase):
         comment3 = self._create_comment_at_time("Third comment", now)
 
         # Create child comment
-        child1 = self._create_comment_at_time(
+        self._create_comment_at_time(
             "Child of first", now - timedelta(hours=1), parent=comment1
         )
 
@@ -221,13 +221,11 @@ class CommentOrderingTests(APITestCase):
         comment1 = self._create_comment_at_time(
             "First comment", now - timedelta(days=2)
         )
-        child1 = self._create_comment_at_time(
+        self._create_comment_at_time(
             "Child of first", now - timedelta(days=1, hours=23), parent=comment1
         )
-        comment2 = self._create_comment_at_time(
-            "Second comment", now - timedelta(days=1)
-        )
-        comment3 = self._create_comment_at_time("Third comment", now)
+        self._create_comment_at_time("Second comment", now - timedelta(days=1))
+        self._create_comment_at_time("Third comment", now)
 
         # Get all comments without parent filter
         response = self.client.get(

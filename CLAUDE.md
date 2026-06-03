@@ -8,6 +8,7 @@ Django REST API backend for ResearchHub. The main application lives in `src/`.
 - PostgreSQL, Redis, OpenSearch
 - Celery for async work
 - Dependencies managed with `uv`
+- Linting and formatting is done with `ruff`
 - Dev Container is the preferred local setup
 
 ## Repository Layout
@@ -38,8 +39,8 @@ cd src && uv run python manage.py opensearch index rebuild
 cd src && uv run celery -A researchhub worker -l info -B
 
 # Lint and formatting
-cd src && uv run flake8
-cd src && uv run black .
+uv run ruff check src
+uv run ruff format --check --diff src
 uv run pre-commit run --all-files
 
 # Dependencies
@@ -56,11 +57,12 @@ uv add --dev <package_name>
 - Run the relevant tests before committing.
 
 ## Testing
-- Prefer `django.test.TestCase` or DRF `APITestCase`.
+- If possible, use `unittest.TestCase` when there is no dependency on Django, otherwise use `django.test.TestCase` or DRF `APITestCase`.
 - Mock external services instead of calling real integrations in unit tests.
 - For AWS-dependent code, inherit from `AWSMockTestCase` in `src/utils/test_helpers.py`.
 - Use `AWSMockTransactionTestCase` when the code under test relies on `transaction.on_commit()`.
 - Test behavior, not implementation details.
+- Add Arrange/Act/Assert (AAA) comment markers to tests.
 
 ## CI Reference
 CI runs from `src/` and performs:

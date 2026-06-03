@@ -67,7 +67,8 @@ class JournalDocument(BaseDocument):
     def prepare_name_suggest(self, instance) -> dict[str, Any]:
         cleaned_name = re.sub(r"[^\w\s]", "", instance.name)
         words = cleaned_name.split()
-        # Prioritize results with less words: "Computer Science" > "Computer Science and Engineering"
+        # Prioritize results with less words:
+        # "Computer Science" > "Computer Science and Engineering"
         weight = 1000 - len(words)
 
         return {

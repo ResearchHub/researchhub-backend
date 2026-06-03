@@ -11,7 +11,6 @@ import pandas as pd
 from slugify import slugify
 
 
-
 def check_has_enough_disk_space():
     """
     Check if the machine has enough disk space to continue.

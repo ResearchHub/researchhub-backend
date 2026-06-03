@@ -339,7 +339,6 @@ class ScienceDirect(Journal):
 
     @classmethod
     def journal_url_to_pdf_url(cls, journal_url):
-        parts = journal_url.split(cls.journal_url_split_on)
         without_query_params = journal_url.split("?")[0]
         try:
             pdf_url = f"{without_query_params}{cls.pdf_url_suffix}"

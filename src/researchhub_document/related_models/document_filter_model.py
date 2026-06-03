@@ -10,7 +10,6 @@ from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.constants.document_type import (
     FILTER_ALL,
     FILTER_ANSWERED,
-    FILTER_AUTHOR_CLAIMED,
     FILTER_BOUNTY_CLOSED,
     FILTER_BOUNTY_EXPIRED,
     FILTER_BOUNTY_OPEN,
@@ -35,7 +34,6 @@ from utils.sentry import log_error
 class DocumentFilter(DefaultModel):
     # Filter Fields
     answered = models.BooleanField(default=False, db_index=True)
-    author_claimed = models.BooleanField(default=False, db_index=True)
     bounty_closed = models.BooleanField(default=False, db_index=True)
     bounty_expired = models.BooleanField(default=False, db_index=True)
     bounty_open = models.BooleanField(default=False, db_index=True)
@@ -98,8 +96,6 @@ class DocumentFilter(DefaultModel):
         updates = []
         update_fields = []
         if document_type == PAPER:
-            if update_type == FILTER_AUTHOR_CLAIMED or update_type == FILTER_ALL:
-                updates.append(self.update_author_claimed)
             if update_type == FILTER_OPEN_ACCESS or update_type == FILTER_ALL:
                 updates.append(self.update_open_access)
             if update_type == FILTER_PEER_REVIEWED or update_type == FILTER_ALL:
@@ -177,12 +173,6 @@ class DocumentFilter(DefaultModel):
     def update_included_in_hubs(self, unified_document, document, update_fields):
         self.is_excluded_in_hub = False
         update_fields.append("is_excluded_in_hub")
-
-    def update_author_claimed(self, unified_document, document, update_fields):
-        self.author_claimed = document.related_claim_cases.filter(
-            status="APPROVED"
-        ).exists()
-        update_fields.append("author_claimed")
 
     def update_bounty_closed(self, unified_document, document, update_fields):
         self.bounty_closed = unified_document.related_bounties.filter(

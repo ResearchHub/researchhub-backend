@@ -45,7 +45,7 @@ class Command(BaseCommand):
         try:
             # Attempt to bulk update first
             Paper.objects.bulk_update(to_update, ["doi"])
-        except Exception as e:
+        except Exception:
             # If bulk update fails, fall back to individual updates
             for paper in to_update:
                 try:
