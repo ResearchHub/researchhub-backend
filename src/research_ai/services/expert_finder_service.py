@@ -34,7 +34,6 @@ from research_ai.services.report_generator_service import (
     upload_report_to_storage,
 )
 from researchhub_document.related_models.constants.document_type import PAPER
-from utils import sentry
 
 logger = logging.getLogger(__name__)
 
@@ -376,12 +375,15 @@ class ExpertFinderService:
             }
             if sentry_extra:
                 payload.update(sentry_extra)
-            sentry.log_error(
-                sentry_exception
-                if sentry_exception is not None
-                else RuntimeError(current_step),
-                message=f"Expert finder failed: {current_step}",
-                json_data=payload,
+            logger.error(
+                "Expert finder failed: %s payload=%s",
+                current_step,
+                payload,
+                exc_info=(
+                    sentry_exception
+                    if sentry_exception is not None
+                    else RuntimeError(current_step)
+                ),
             )
             clear_expert_search_links(expert_search_id)
             err = (store_full_response_error or msg)[:MAX_ERROR_MESSAGE_LENGTH]
