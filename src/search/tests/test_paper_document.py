@@ -280,8 +280,11 @@ class PaperDocumentTests(TestCase):
         self.assertEqual(result, 0)
 
     def test_prepare_suggestion_phrases_minimal_paper(self):
-        """Test prepare_suggestion_phrases with minimal paper (only ID, no additional data)"""
-        # Create paper with minimal data - no DOI, URL, external_source, hubs, or authors
+        """
+        Test prepare_suggestion_phrases with minimal paper (only ID, no additional data)
+        """
+        # Create paper with minimal data - no DOI, URL, external_source, hubs, or
+        # authors
         # This tests the fallback case when phrases list would be empty after filtering
         paper = create_paper(title="Test")
         # Remove all optional fields
@@ -472,7 +475,10 @@ class PaperDocumentTests(TestCase):
         self.assertEqual(primary["weight"], 1)
 
     def test_prepare_suggestion_phrases_secondary_weight(self):
-        """Test prepare_suggestion_phrases applies SECONDARY_PHRASES_WEIGHT to secondary group"""
+        """
+        Test prepare_suggestion_phrases applies SECONDARY_PHRASES_WEIGHT to secondary
+        group
+        """
         paper = create_paper(title="Test Paper")
         paper.external_source = "Test Journal"
         hub = Hub.objects.create(name="Test Hub")

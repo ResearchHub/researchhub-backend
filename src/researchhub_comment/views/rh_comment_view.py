@@ -27,7 +27,7 @@ from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.permissions import IsObjectOwner, IsObjectOwnerOrModerator
 from researchhub.settings import TESTING
-from researchhub_access_group.constants import ADMIN, EDITOR, PRIVATE, PUBLIC, WORKSPACE
+from researchhub_access_group.constants import ADMIN, EDITOR, PRIVATE, WORKSPACE
 from researchhub_access_group.models import Permission
 from researchhub_comment.constants.rh_comment_thread_types import (
     AUTHOR_UPDATE,
@@ -333,7 +333,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     def _create_rh_comment(self, request, *args, **kwargs):
         data = request.data
         user = request.user
-        model = self._get_model_name()
 
         # Enforce rate limit for community reviews
         if data.get("comment_type") == COMMUNITY_REVIEW:
@@ -761,7 +760,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     def _retrieve_or_create_thread_from_request(self, request):
         data = request.data
         user = request.user
-        organization = getattr(request, "organization", None)
 
         try:
             thread_id = data.get("thread_id", None)
@@ -777,7 +775,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     return existing_thread, parent_id
                 else:
                     thread_target_instance = self._get_model_object()
-                    privacy_type = data.get("privacy_type", PUBLIC)
                     serializer = RhCommentThreadSerializer(
                         data={
                             "thread_type": data.get("thread_type", GENERIC_COMMENT),

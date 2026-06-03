@@ -92,7 +92,9 @@ def generate_ngrams(words: list[str], n: int = 2) -> list[str]:
         List of n-gram strings
 
     Examples:
-        >>> generate_ngrams(["Data", "Science", "Methods", "Analysis", "Techniques"], n=2)
+        >>> generate_ngrams(
+        ...     ["Data", "Science", "Methods", "Analysis", "Techniques"], n=2
+        ... )
         ['Data Science', 'Science Methods', 'Methods Analysis', 'Analysis Techniques']
     """
     if not words or len(words) < n:

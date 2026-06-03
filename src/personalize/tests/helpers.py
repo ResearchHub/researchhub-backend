@@ -201,7 +201,7 @@ def create_prefetched_proposal(
     )
 
     # Create fundraise
-    fundraise = Fundraise.objects.create(
+    Fundraise.objects.create(
         created_by=user,
         unified_document=post.unified_document,
         goal_amount=Decimal("10000.00"),
@@ -401,7 +401,7 @@ def create_fundraise_contribution(fundraise, user=None, amount=Decimal("100.00")
 
     content_type = ContentType.objects.get_for_model(fundraise)
 
-    escrow = Escrow.objects.create(
+    Escrow.objects.create(
         created_by=user,
         amount_holding=amount,
         content_type=content_type,

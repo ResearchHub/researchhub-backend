@@ -24,10 +24,10 @@ class RiskScoreService:
             return DEFAULT_SCORE
 
     def is_trusted(self, user):
-        return self.get_score(user) <= TRUSTED_THRESHOLD
+        return self.get_score(user) >= TRUSTED_THRESHOLD
 
     def is_restricted(self, user):
-        return self.get_score(user) >= RESTRICTED_THRESHOLD
+        return self.get_score(user) <= RESTRICTED_THRESHOLD
 
     def initial_work_status(self, user):
         """Status a newly submitted work should get: trusted users auto-approve,

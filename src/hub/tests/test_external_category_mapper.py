@@ -57,7 +57,8 @@ class ExternalCategoryMapperTestCase(TestCase):
 
     def test_category_normalization(self):
         """
-        Test that category input is properly normalized (case-insensitive and whitespace-trimmed).
+        Test that category input is properly normalized (case-insensitive and
+        whitespace-trimmed).
 
         Users might input categories in various cases with extra whitespace.
         """
@@ -80,7 +81,10 @@ class ExternalCategoryMapperTestCase(TestCase):
             self.assertEqual(
                 base_result,
                 set(h.name for h in results[i]),
-                f"Variation '{variations[i]}' should map to same hubs as '{variations[0]}'",
+                (
+                    f"Variation '{variations[i]}' should map to same hubs as"
+                    f" '{variations[0]}'",
+                ),
             )
 
     def test_unknown_source_returns_empty_list_with_warning(self):

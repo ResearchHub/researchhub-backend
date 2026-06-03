@@ -86,7 +86,8 @@ def deliver_email(
 
     Args:
         recipients: Email address string or list of addresses.
-        template: Plain-text Django template name (e.g. ``"general_email_message.txt"``).
+        template: Plain-text Django template name
+        (e.g. ``"general_email_message.txt"``).
             Pass ``None`` to auto-generate plain text from the HTML.
         subject: Email subject line.
         email_context: Context dict passed to the template(s).

@@ -118,9 +118,22 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
             .filter(
                 document_type=PREREGISTRATION,
                 unified_document__is_removed=False,
-                unified_document__is_public=True,
             )
         )
+
+        if grant_id:
+            # The grant-scoped feed (never cached) shows the proposals the
+            # requesting user is allowed to see, so private applications are
+            # visible to the grant owner, invited reviewers, and moderators
+            # while everyone else still only sees public ones.
+            visible_ids = ResearchhubPost.objects.visible_to(self.request.user).values(
+                "id"
+            )
+            queryset = queryset.filter(id__in=visible_ids)
+        else:
+            # The public discovery feed stays user-agnostic so it can be cached
+            # for everyone; never expose private work here.
+            queryset = queryset.filter(unified_document__is_public=True)
 
         if created_by:
             queryset = queryset.filter(created_by_id=created_by)

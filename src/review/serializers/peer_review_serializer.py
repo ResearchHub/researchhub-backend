@@ -17,7 +17,7 @@ class PeerReviewSerializer(ModelSerializer):
             "paper",
             "status",
             "user",
-            "user_details",  # Detailed user response. Needed to avoid validation clash with "user" field
+            "user_details",  # Detailed user to avoid validation clash with "user" field
             # metadata
             "created_date",
             "updated_date",

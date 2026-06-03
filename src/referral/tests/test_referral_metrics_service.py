@@ -79,9 +79,7 @@ class ReferralMetricsServiceTest(TestCase):
     def test_get_user_referral_info_when_referred(self):
         """Test getting user's own referral info when they were referred."""
         # Create referral relationship
-        referral = ReferralSignup.objects.create(
-            referrer=self.referrer, referred=self.referred
-        )
+        ReferralSignup.objects.create(referrer=self.referrer, referred=self.referred)
 
         # Test with referred user
         referred_service = ReferralMetricsService(self.referred)
@@ -232,14 +230,14 @@ class ReferralMetricsServiceTest(TestCase):
         )
 
         # Create referral bonus distributions
-        distribution_referrer = Distribution.objects.create(
+        Distribution.objects.create(
             recipient=self.referrer,
             distribution_type="REFERRAL_BONUS",
             amount=Decimal("100"),
             distributed_status=Distribution.DISTRIBUTED,
         )
 
-        distribution_referred = Distribution.objects.create(
+        Distribution.objects.create(
             recipient=referred_user,
             distribution_type="REFERRAL_BONUS",
             amount=Decimal("50"),

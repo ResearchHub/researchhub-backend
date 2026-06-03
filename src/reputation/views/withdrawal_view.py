@@ -331,7 +331,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         """
         Reject withdrawals below the platform minimum (WITHDRAWAL_MINIMUM).
         """
-        if requested_amount > WITHDRAWAL_MINIMUM:
+        if requested_amount >= WITHDRAWAL_MINIMUM:
             return (True, None)
 
         if requested_amount == 0:

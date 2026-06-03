@@ -960,6 +960,79 @@ class ViewTests(APITestCase):
         self.assertEqual(response.data["grant"]["amount"]["usd"], 30000.0)
         self.assertEqual(response.data["grant"]["organization"], "Metadata Foundation")
 
+    def _grant_with_private_application(self):
+        """Build a grant whose only application is a private preregistration.
+
+        Returns (unified_document_id, private_preregistration_post_id).
+        """
+        owner = create_random_default_user("grant_owner")
+        applicant = create_random_default_user("grant_applicant")
+
+        grant_post = create_post(created_by=owner, document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=owner,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Org",
+            description="desc",
+            status=Grant.OPEN,
+        )
+
+        private_post = create_post(
+            title="Private proposal",
+            created_by=applicant,
+            document_type=PREREGISTRATION,
+        )
+        private_post.unified_document.is_public = False
+        private_post.unified_document.save()
+
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=private_post,
+            applicant=applicant,
+        )
+        return grant_post.unified_document.id, private_post.id
+
+    def test_moderator_sees_private_application_in_document_metadata(self):
+        """A moderator (not the grant owner) sees private proposals on the
+        grant's post details page — get_document_metadata reuses the same
+        moderator/editor rule as ResearchhubPost.visible_to.
+        """
+        unified_document_id, private_post_id = self._grant_with_private_application()
+        moderator = create_random_default_user("grant_moderator", moderator=True)
+
+        self.client.force_authenticate(moderator)
+        response = self.client.get(
+            f"/api/researchhub_unified_document/{unified_document_id}"
+            "/get_document_metadata/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        prereg_ids = [
+            app["preregistration_post_id"]
+            for app in response.data["grant"]["applications"]
+        ]
+        self.assertIn(private_post_id, prereg_ids)
+
+    def test_outsider_does_not_see_private_application_in_document_metadata(self):
+        """A non-owner, non-moderator viewer only sees public proposals."""
+        unified_document_id, private_post_id = self._grant_with_private_application()
+        outsider = create_random_default_user("grant_outsider")
+
+        self.client.force_authenticate(outsider)
+        response = self.client.get(
+            f"/api/researchhub_unified_document/{unified_document_id}"
+            "/get_document_metadata/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        prereg_ids = [
+            app["preregistration_post_id"]
+            for app in response.data["grant"]["applications"]
+        ]
+        self.assertNotIn(private_post_id, prereg_ids)
+
     def test_grant_update_existing_grant(self):
         """Test that an existing grant can be updated when updating a post"""
         author = create_random_default_user("author", moderator=True)
