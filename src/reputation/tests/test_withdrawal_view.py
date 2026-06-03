@@ -661,10 +661,17 @@ class WithdrawalViewSetTests(APITestCase):
         create_deposit(user, amount="1000.0")
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            WithdrawalViewSet,
-            "_prepare_withdrawal",
-            side_effect=Exception("Test exception"),
+        with (
+            mock.patch.object(
+                WithdrawalViewSet,
+                "_check_hotwallet_balance",
+                return_value=(True, None),
+            ),
+            mock.patch.object(
+                WithdrawalViewSet,
+                "_prepare_withdrawal",
+                side_effect=Exception("Test exception"),
+            ),
         ):
             response = self.client.post(
                 self.withdrawal_url,
