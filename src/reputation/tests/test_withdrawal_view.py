@@ -765,6 +765,15 @@ class WithdrawalViewSetTests(APITestCase):
         self.assertTrue(valid)
         self.assertIsNone(message)
 
+    def test_check_withdrawal_meets_minimum_exact(self):
+        """Withdrawals at exactly WITHDRAWAL_MINIMUM are allowed."""
+        amount = decimal.Decimal(WITHDRAWAL_MINIMUM)
+
+        valid, message = self.withdrawal_view._check_meets_withdrawal_minimum(amount)
+
+        self.assertTrue(valid)
+        self.assertIsNone(message)
+
     def test_check_withdrawal_meets_minimum_failure(self):
         """Test that _check_meets_withdrawal_minimum fails with insufficient amount."""
         # Set an amount below the minimum
