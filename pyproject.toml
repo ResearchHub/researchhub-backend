@@ -113,4 +113,3 @@ extend-select = [
 "src/topic/**/*.py" = ["E501"]
 "src/user/**/*.py" = ["E501"]
 "src/user_lists/**/*.py" = ["E501"]
-"src/utils/**/*.py" = ["E501"]
