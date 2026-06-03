@@ -6,7 +6,6 @@ from decimal import Decimal
 from typing import Optional
 
 import pytz
-from django.contrib.contenttypes.models import ContentType
 from django.http import HttpResponse
 from django_filters import rest_framework as filters
 from rest_framework import viewsets
@@ -58,17 +57,6 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
         amount = request.data.get("amount", 0)
         if recipient_id:
             user = request.user
-            user_id = user.id
-            content_type = ContentType.objects.get(model="distribution")
-            proof_content_type = ContentType.objects.get(model="user")
-            proof = {
-                "table": "user_user",
-                "record": {
-                    "id": user_id,
-                    "email": user.email,
-                    "name": user.first_name + " " + user.last_name,
-                },
-            }
             distribution = Distribution("MOD_PAYOUT", amount, give_rep=False)
             timestamp = time.time()
             user_proof = User.objects.get(id=recipient_id)

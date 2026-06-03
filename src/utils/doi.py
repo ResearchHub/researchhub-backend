@@ -17,7 +17,8 @@ from researchhub_document.models import ResearchhubPost
 from user.models import Author
 
 
-# Class for handling Digital Object Identifier (DOI) generation and registration with Crossref.
+# Class for handling Digital Object Identifier (DOI) generation and registration with
+# Crossref.
 class DOI:
     def __init__(
         self,
@@ -168,7 +169,10 @@ class DOI:
             if author_institution:
                 place = None
                 if author_institution.institution.city:
-                    place = f"{author_institution.institution.city}, {author_institution.institution.region}"
+                    place = (
+                        f"{author_institution.institution.city}, "
+                        f"{author_institution.institution.region}"
+                    )
                 institution = {
                     "name": author_institution.institution.display_name,
                     "place": place,

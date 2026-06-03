@@ -132,7 +132,8 @@ class TestBaseDocument(unittest.TestCase):
     @patch("search.documents.base.logger")
     def test_get_actions_with_prepare_error_continues_indexing(self, mock_logger):
         """
-        Test that _get_actions continues processing when _prepare_action raises an error.
+        Test that _get_actions continues processing when _prepare_action raises an
+        error.
         """
         # Arrange
         object_list = [Mock(id=1), Mock(id=2), Mock(id=3)]

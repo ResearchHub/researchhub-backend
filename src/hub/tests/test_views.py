@@ -22,7 +22,7 @@ class HubViewsTests(APITestCase):
         self.client.force_authenticate(basic_user)
         hub = create_hub(name="some hub")
 
-        response = self.client.put(
+        self.client.put(
             f"/api/hub/{hub.id}/",
             {
                 "name": "updated name",

@@ -14,12 +14,12 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
-
-INVITE_ACCESS_DOC_TYPES = (PREREGISTRATION, GRANT)
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from user.models import User
+
+INVITE_ACCESS_DOC_TYPES = (PREREGISTRATION, GRANT)
 
 INVITE_WINDOW_DAYS = 7
 DEFAULT_OVERVIEW_WINDOW_DAYS = 30

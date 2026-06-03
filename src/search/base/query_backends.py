@@ -6,7 +6,8 @@ Base query backend classes for custom search implementations.
 class BaseSearchQueryBackend:
     """
     Base search query backend.
-    Replaces django_elasticsearch_dsl_drf.filter_backends.search.query_backends.BaseSearchQueryBackend
+    Replaces
+    django_elasticsearch_dsl_drf.filter_backends.search.query_backends.BaseSearchQueryBackend
     """
 
     def __init__(self, params=None):

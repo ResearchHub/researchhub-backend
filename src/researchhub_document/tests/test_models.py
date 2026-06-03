@@ -127,6 +127,35 @@ class ModelTests(TestCase):
         self.assertEqual(details["count"], 0)
         self.assertEqual(details["avg"], 0)
 
+    def test_get_review_details_excludes_removed_comments(self):
+        """Reviews referencing a soft-deleted comment are not counted."""
+        # Arrange
+        post = create_post(created_by=self.user)
+        unified_doc = post.unified_document
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+
+        active_comment = create_rh_comment(post=post, created_by=self.user)
+        removed_comment = create_rh_comment(post=post, created_by=self.user)
+        removed_comment.is_removed = True
+        removed_comment.save()
+
+        for comment, score in [(active_comment, 6), (removed_comment, 2)]:
+            Review.objects.create(
+                created_by=self.user,
+                content_type=comment_ct,
+                object_id=comment.id,
+                unified_document=unified_doc,
+                score=score,
+                is_assessed=True,
+            )
+
+        # Act
+        details = unified_doc.get_review_details()
+
+        # Assert
+        # only the review on the active comment is counted
+        self.assertEqual(details["count"], 1)
+        self.assertEqual(details["avg"], 6.0)
 
 class ResearchhubPostStatusTests(TestCase):
     def setUp(self):

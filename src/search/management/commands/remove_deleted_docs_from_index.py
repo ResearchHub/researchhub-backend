@@ -58,7 +58,9 @@ class Command(BaseCommand):
             type=str,
             choices=INDEX_CONFIGS.keys(),
             default=None,
-            help="Only process a specific index. If omitted, all indices are processed.",
+            help=(
+                "Only process a specific index. If omitted, all indices are processed."
+            ),
         )
         parser.add_argument(
             "--batch-size",

@@ -1,3 +1,5 @@
+import logging
+
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.contrib.contenttypes.models import ContentType
@@ -17,6 +19,9 @@ from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
 from user.related_models.user_model import User
+
+logger = logging.getLogger(__name__)
+
 
 fs = ProfileImageStorage()
 
@@ -147,6 +152,7 @@ class Author(models.Model):
 
             return "Author with expertise in " + sorted_topics[0].display_name
         except Exception:
+            logger.exception("Failed to build headline for author id %s", self.id)
             return None
 
     @property
@@ -332,8 +338,8 @@ class Author(models.Model):
         for vote in user_votes:
             try:
                 related_unified_documents.append(vote.item.unified_document)
-            except Exception as e:
-                pass
+            except Exception:
+                logger.exception("Failed to append documents for vote id %s", vote.id)
 
         # Get all items the user spend RSC on
         purchases = Purchase.objects.filter(user_id=self.user.id)
@@ -341,8 +347,10 @@ class Author(models.Model):
         for purchase in purchases:
             try:
                 related_unified_documents.append(purchase.item.unified_document)
-            except Exception as e:
-                pass
+            except Exception:
+                logger.exception(
+                    "Failed to append documents for purchase id %s", purchase.id
+                )
 
         # Get relevant concepts associated with unified documents
         ranked_concepts = UnifiedDocumentConcepts.objects.filter(

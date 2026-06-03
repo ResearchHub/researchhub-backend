@@ -23,10 +23,10 @@ class RiskScoreService:
             return DEFAULT_SCORE
 
     def is_trusted(self, user):
-        return self.get_score(user) <= TRUSTED_THRESHOLD
+        return self.get_score(user) >= TRUSTED_THRESHOLD
 
     def is_restricted(self, user):
-        return self.get_score(user) >= RESTRICTED_THRESHOLD
+        return self.get_score(user) <= RESTRICTED_THRESHOLD
 
     def record_event(
         self, user, event_type, *, delta=None, source=None, action_date=None

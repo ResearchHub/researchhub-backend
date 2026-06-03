@@ -1,8 +1,12 @@
+import logging
+
 from opensearchpy.helpers.utils import AttrList
 from rest_framework import serializers
 
-from user.models import Author
+from user.models import Author, User
 from user.serializers import AuthorSerializer, UserSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class PersonDocumentSerializer(serializers.ModelSerializer):
@@ -37,9 +41,12 @@ class PersonDocumentSerializer(serializers.ModelSerializer):
             if "user" in document.person_types:
                 user = Author.objects.get(id=document.id).user
                 return UserSerializer(user).data
-        except:
-            # The object no longer exist in the DB
-            pass
+        except (Author.DoesNotExist, User.DoesNotExist):
+            logger.warning("Missing author or user for author id %s", document.id)
+            return None
+        except Exception:
+            logger.exception("Error retrieving user for author id %s", document.id)
+            return None
 
     def get_author_profile(self, document):
         try:
@@ -48,9 +55,14 @@ class PersonDocumentSerializer(serializers.ModelSerializer):
                 author,
                 read_only=True,
             ).data
-        except:
-            # The object no longer exist in the DB
-            pass
+        except Author.DoesNotExist:
+            logger.warning("Author with id %s does not exist.", document.id)
+            return None
+        except Exception:
+            logger.exception(
+                "Error retrieving author profile for author id %s", document.id
+            )
+            return None
 
     def get_person_types(self, document):
         return list(document.person_types)
