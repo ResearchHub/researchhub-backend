@@ -371,12 +371,14 @@ class Notification(models.Model):
         unified_document = item.unified_document
         doc_title = self._truncate_title(unified_document.get_document().title)
         base_url = unified_document.frontend_view_link()
+        model_name = item._meta.model_name
+        verdict_choice = verdict.verdict_choice.lower()
 
         return [
             {"type": "text", "value": "A ResearchHub Editor has removed your "},
             {
                 "type": "text",
-                "value": f"{item._meta.model_name} for {verdict.verdict_choice.lower()} in ",
+                "value": f"{model_name} for {verdict_choice} in ",
             },
             {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
         ], None

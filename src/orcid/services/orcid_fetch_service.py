@@ -247,7 +247,8 @@ class OrcidFetchService:
                 if not paper:
                     continue
 
-                # First, link the syncing user's authorship (we know they wrote this paper)
+                # First, link the syncing user's authorship
+                # (we know they wrote this paper)
                 syncing_linked = False
                 if syncing_author:
                     paper_author_id = self._link_work_to_author(
@@ -332,7 +333,10 @@ class OrcidFetchService:
         return None
 
     def _merge_authorships_for_paper(self, paper: Paper, work: dict) -> set[int]:
-        """Merge authorships for all authors on paper that are ORCID-connected in our system."""
+        """
+        Merge authorships for all authors on paper that are ORCID-connected in our
+        system.
+        """
         linked_author_ids: set[int] = set()
 
         for openalex_authorship in work.get("authorships", []):

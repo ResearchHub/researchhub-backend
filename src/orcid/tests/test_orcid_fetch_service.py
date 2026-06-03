@@ -165,7 +165,10 @@ class OrcidFetchServiceTests(TestCase):
         self.assertEqual(result["papers_processed"], 0)
 
     def test_sync_merges_authorship_when_orcid_matches(self):
-        """When user's ORCID matches an author on the paper, author is merged (not transferred)."""
+        """
+        When user's ORCID matches an author on the paper, author is merged
+        (not transferred).
+        """
         # Arrange
         user = OrcidTestHelper.create_author()
         openalex_author = Author.objects.create(
@@ -288,7 +291,9 @@ class OrcidFetchServiceTests(TestCase):
         self.assertEqual(result["papers_processed"], 0)
 
     def test_sync_does_not_steal_authorship_from_other_users(self):
-        """If another user owns an authorship, don't merge their author into syncing user."""
+        """
+        If another user owns an authorship, don't merge their author into syncing user.
+        """
         # Arrange
         other_orcid = "https://orcid.org/1111-1111-1111-1111"
         user = OrcidTestHelper.create_author("u1")
@@ -362,7 +367,9 @@ class OrcidFetchServiceTests(TestCase):
         )
 
     def test_sync_clears_author_caches(self):
-        """Cache should be cleared for both user's author and paper's author after sync."""
+        """
+        Cache should be cleared for both user's author and paper's author after sync.
+        """
         # Arrange
         user = OrcidTestHelper.create_author()
         openalex_author = Author.objects.create(
@@ -449,7 +456,10 @@ class OrcidFetchServiceTests(TestCase):
         self.assertEqual(openalex_author.merged_with_author, user.author_profile)
 
     def test_fix_reuses_existing_paper_author_instead_of_duplicating(self):
-        """When a paper-specific author already exists, reuse it instead of creating a duplicate."""
+        """
+        When a paper-specific author already exists, reuse it instead of creating a
+        duplicate.
+        """
         # Arrange
         user = OrcidTestHelper.create_author()
         user.author_profile.openalex_ids = [OrcidTestHelper.OPENALEX_AUTHOR_ID]
@@ -516,7 +526,8 @@ class OrcidFetchServiceTests(TestCase):
         # Set a display name that should be preserved
         openalex_work["authorships"][0]["author"]["display_name"] = "Paper Author Name"
         openalex_work["authorships"][0]["is_corresponding"] = False
-        # Add authorship with empty ID to cover the continue branch (id: None filtered by sanitize)
+        # Add authorship with empty ID to cover the continue branch
+        # (id: None filtered by sanitize)
         openalex_work["authorships"].append(
             {"author": {"id": ""}, "author_position": "last"}
         )

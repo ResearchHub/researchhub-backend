@@ -316,7 +316,8 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
             Complex fields are ones that have "options" key
             specified. One additional query will be performed for each field
             that inclues "options". The use case here is needing to override the
-            global options on a per-field basis (e.g. analyzer on one field different than globally specified analyzer)
+            global options on a per-field basis (e.g. analyzer on one field
+            different than globally specified analyzer)
             """
             for field_tuple in complex_fields:
                 field, field_opts, condition = field_tuple
