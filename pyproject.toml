@@ -26,7 +26,7 @@ dependencies = [
     "django-cors-headers==3.5.0",
     "django-dbbackup==4.0.2",
     "django-debug-toolbar==4.2",
-    "django-opensearch-dsl==0.7.0",
+    "django-opensearch-dsl==0.8.0",
     "django-extensions==3.0.9",
     "django-fernet-encrypted-fields>=0.3.1",
     "django-filter>=24.3,<25.0",
