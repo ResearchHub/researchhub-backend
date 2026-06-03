@@ -128,10 +128,6 @@ def guarded_run_proposal_review(review_id: int, force: bool = False) -> None:
             review_id,
             reason,
         )
-        sentry.log_info(
-            f"guarded_run_proposal_review skipped by guard review_id={review_id} "
-            f"reason={reason} force={force}"
-        )
         return
 
     reset_proposal_review_for_rerun(review)
@@ -160,10 +156,6 @@ def guarded_run_proposal_key_insights(review_id: int, force: bool = False) -> No
             "guarded_run_proposal_key_insights: skip review=%s reason=%s",
             review_id,
             reason,
-        )
-        sentry.log_info(
-            f"guarded_run_proposal_key_insights skipped by guard review_id={review_id} "
-            f"reason={reason} force={force}"
         )
         return
 
