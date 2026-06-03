@@ -90,7 +90,24 @@ extend-select = [
     "W",  # pycodestyle warnings
     "I",  # isort
 ]
-extend-ignore = [
-    # Temporarily ignore these violations until cleaned up:
-    "E501",  # line-too-long
-]
+
+[tool.ruff.lint.per-file-ignores]
+# Temporarily ignore E501 per app:
+"src/ai_peer_review/**/*.py" = ["E501"]
+"src/analytics/**/*.py" = ["E501"]
+"src/discussion/**/*.py" = ["E501"]
+"src/feed/**/*.py" = ["E501"]
+"src/organizations/**/*.py" = ["E501"]
+"src/paper/**/*.py" = ["E501"]
+"src/personalize/**/*.py" = ["E501"]
+"src/purchase/**/*.py" = ["E501"]
+"src/referral/**/*.py" = ["E501"]
+"src/reputation/**/*.py" = ["E501"]
+"src/research_ai/**/*.py" = ["E501"]
+"src/researchhub/**/*.py" = ["E501"]
+"src/researchhub_case/**/*.py" = ["E501"]
+"src/researchhub_comment/**/*.py" = ["E501"]
+"src/researchhub_document/**/*.py" = ["E501"]
+"src/topic/**/*.py" = ["E501"]
+"src/user/**/*.py" = ["E501"]
+"src/user_lists/**/*.py" = ["E501"]
