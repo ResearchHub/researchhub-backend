@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from ai_peer_review.models import ProposalReview
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from purchase.models import Grant, GrantApplication
+from purchase.permissions import IsModeratorOrGrantContact
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
@@ -195,16 +196,27 @@ class GrantViewSet(viewsets.ModelViewSet):
     @action(
         methods=["POST"],
         detail=True,
-        permission_classes=[IsModerator],
+        permission_classes=[IsModeratorOrGrantContact],
     )
     def close(self, request, *args, **kwargs):
         """
-        Close a grant (set status to CLOSED). Only moderators can close grants.
+        Close a grant (set status to CLOSED).
+        Moderators can close any grant; creators and contacts can close their
+        own OPEN or PENDING grants.
         """
         grant = self.get_object()
 
         if grant.status == Grant.CLOSED:
             return Response({"message": "Grant is already closed"}, status=400)
+
+        if not request.user.moderator and grant.status not in (
+            Grant.OPEN,
+            Grant.PENDING,
+        ):
+            return Response(
+                {"message": "Only open or pending grants can be closed"},
+                status=400,
+            )
 
         grant.status = Grant.CLOSED
         grant.save()
