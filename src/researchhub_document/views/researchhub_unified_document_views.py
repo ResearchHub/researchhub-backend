@@ -1,6 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import get_object_or_404
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -11,7 +10,6 @@ from discussion.models import Vote
 from discussion.serializers import VoteSerializer
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from paper.models import Paper
-from researchhub_document.filters import UnifiedDocumentFilter
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.serializers import (
@@ -27,8 +25,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     ]
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
     queryset = ResearchhubUnifiedDocument.objects.all()
-    filter_backends = (DjangoFilterBackend,)
-    filterset_class = UnifiedDocumentFilter
     serializer_class = ResearchhubUnifiedDocumentSerializer
 
     def create(self, *args, **kwargs):
