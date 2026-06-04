@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 
 from allauth.account.models import EmailAddress
-from django.contrib.contenttypes.models import ContentType
 from django.db.models import Exists, F, OuterRef, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -22,7 +21,6 @@ from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from purchase.related_models.grant_model import Grant
-from reputation.models import Distribution
 from reputation.serializers import (
     DynamicBountySerializer,
     DynamicBountySolutionSerializer,
@@ -172,28 +170,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         return Response(
             {"message": "User flagged as probable spammer"}, status=status.HTTP_200_OK
         )
-
-    @action(
-        detail=False,
-        methods=[RequestMethods.GET],
-    )
-    def referral_rsc(self, request):
-        """
-        Gets the amount of RSC earned from referrals
-        """
-
-        distributions = (
-            Distribution.objects.filter(
-                proof_item_content_type=ContentType.objects.get_for_model(User),
-                proof_item_object_id=request.user.id,
-            )
-            .exclude(recipient=request.user.id)
-            .aggregate(rsc_earned=Sum("amount"))
-        )
-
-        amount = distributions.get("rsc_earned") or 0
-
-        return Response({"amount": amount})
 
     @action(
         detail=True,

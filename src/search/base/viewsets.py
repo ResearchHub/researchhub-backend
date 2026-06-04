@@ -48,7 +48,8 @@ class ElasticsearchViewSet(GenericViewSet):
         """
         queryset = self.filter_queryset(self.get_queryset())
 
-        # Check if this is a suggestion request (django-elasticsearch-dsl-drf compatibility)
+        # Check if this is a suggestion request
+        # (for django-elasticsearch-dsl-drf compatibility)
         # Look for any parameter ending with __completion
         is_suggest_request = any(
             param.endswith("__completion") for param in request.query_params.keys()

@@ -15,7 +15,14 @@ from .clients import (
     BioRxivConfig,
     ClientConfig,
 )
-from .exceptions import *
+from .exceptions import (
+    ClientError,
+    FetchError,
+    IngestionError,
+    RetryExhaustedError,
+    TimeoutError,
+    ValidationError,
+)
 from .mappers import BaseMapper, BioRxivMapper
 
 __all__ = [
@@ -33,5 +40,11 @@ __all__ = [
     "BioRxivClient",
     "BioRxivConfig",
     "BioRxivMapper",
-    # Exceptions (from .exceptions import *)
+    # Exceptions
+    "ClientError",
+    "FetchError",
+    "IngestionError",
+    "RetryExhaustedError",
+    "TimeoutError",
+    "ValidationError",
 ]

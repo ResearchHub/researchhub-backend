@@ -305,7 +305,9 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     )
                     GrantCacheMixin.invalidate_grant_feed_cache()
 
-            response_data = ResearchhubPostSerializer(rh_post).data
+            response_data = ResearchhubPostSerializer(
+                rh_post, context={"request": request}
+            ).data
             response_data["fundraise"] = (
                 DynamicFundraiseSerializer(fundraise).data if fundraise else None
             )
@@ -413,7 +415,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 )
 
             serializer = ResearchhubPostSerializer(
-                rh_post, data=request.data, partial=True
+                rh_post, data=request.data, partial=True, context={"request": request}
             )
             serializer.is_valid(raise_exception=True)
             serializer.save()
