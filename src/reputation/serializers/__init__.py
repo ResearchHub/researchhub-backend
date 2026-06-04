@@ -10,10 +10,6 @@ from reputation.serializers.bounty_serializer import (
     DynamicBountySerializer,
     DynamicBountySolutionSerializer,
 )
-from reputation.serializers.contribution_serializer import (
-    ContributionSerializer,
-    DynamicContributionSerializer,
-)
 from reputation.serializers.deposit_serializer import DepositSerializer
 from reputation.serializers.distribution_serializer import (
     DistributionSerializer,
