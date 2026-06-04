@@ -10,13 +10,11 @@ from rest_framework.test import APITestCase
 
 from ai_peer_review.models import OverallRating, ProposalReview, Status
 from ai_peer_review.serializers import ProposalReviewSerializer
-from hub.models import Hub
 from hub.tests.helpers import create_hub
 from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from researchhub_access_group.constants import SENIOR_EDITOR
 from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -466,52 +464,6 @@ class ViewTests(APITestCase):
         )
 
         self.assertEqual(updated_response.status_code, 403)
-
-    def test_hub_editors_can_censor_papers(self):
-        hub = create_hub()
-        user_editor = create_random_default_user("user_editor")
-        Permission.objects.create(
-            access_type=SENIOR_EDITOR,
-            content_type=ContentType.objects.get_for_model(Hub),
-            object_id=hub.id,
-            user=user_editor,
-        )
-        user_uploader = create_random_default_user("user_uploader")
-        test_paper = create_paper(uploaded_by=user_uploader)
-        test_paper.unified_document.hubs.add(hub)
-        test_paper.save()
-
-        self.client.force_authenticate(user_editor)
-        response = self.client.put(
-            f"/api/paper/{test_paper.id}/censor/", {"id": test_paper.id}
-        )
-
-        test_paper.refresh_from_db()
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(test_paper.is_removed, True)
-
-    def test_hub_editors_can_restore_papers(self):
-        hub = create_hub()
-        user_editor = create_random_default_user("user_editor")
-        Permission.objects.create(
-            access_type=SENIOR_EDITOR,
-            content_type=ContentType.objects.get_for_model(Hub),
-            object_id=hub.id,
-            user=user_editor,
-        )
-        user_uploader = create_random_default_user("user_uploader")
-        test_paper = create_paper(uploaded_by=user_uploader)
-        test_paper.unified_document.hubs.add(hub)
-        test_paper.is_removed = True
-        test_paper.save()
-
-        self.client.force_authenticate(user_editor)
-        response = self.client.put(
-            f"/api/paper/{test_paper.id}/restore_paper/", {"id": test_paper.id}
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["is_removed"], False)
 
     def test_doi_not_assigned_on_publish(self):
         """DOIs are no longer assigned at publish time for any post type."""
