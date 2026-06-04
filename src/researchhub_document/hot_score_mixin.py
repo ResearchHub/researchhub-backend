@@ -61,11 +61,6 @@ class HotScoreMixin:
         half_days_since_epoch = num_seconds_since_epoch / num_seconds_in_half_day
         time_score = half_days_since_epoch
 
-        # Debug
-        if False:
-            print(f"Num seconds since epoch: {num_seconds_since_epoch}")
-            print(f"Value for {date} is: {time_score}")
-
         return time_score
 
     def _calc_boost_score(self):
