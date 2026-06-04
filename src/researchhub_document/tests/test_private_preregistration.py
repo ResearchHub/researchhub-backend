@@ -811,9 +811,7 @@ class NotePostEmbedVisibilityTests(AWSMockTestCase):
         data = self._serialize_note(self.outsider)
 
         # Assert: redacted to the stub only
-        self.assertEqual(
-            data["post"], {"id": self.private_post.id, "is_public": False}
-        )
+        self.assertEqual(data["post"], {"id": self.private_post.id, "is_public": False})
 
     def test_post_endpoint_returns_full_embedded_post_for_author(self):
         """End-to-end: GET the post keeps the viewer through post -> note -> post."""
