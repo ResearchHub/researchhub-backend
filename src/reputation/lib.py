@@ -1,4 +1,5 @@
 import decimal
+import logging
 import math
 import os
 from datetime import datetime
@@ -22,11 +23,12 @@ from mailing_list.lib import base_email_context, send_email
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
-from utils.sentry import log_error
 from utils.web3_utils import web3_provider
 
 WITHDRAWAL_MINIMUM = int(os.environ.get("WITHDRAWAL_MINIMUM", 500))
 WITHDRAWAL_PER_TWO_WEEKS = 100000
+
+logger = logging.getLogger(__name__)
 
 contract_abi = [
     {
@@ -349,8 +351,8 @@ def _get_private_key_for_transfer():
 
     try:
         return get_private_key()
-    except Exception as e:
-        log_error(e)
+    except Exception:
+        logger.exception("Error retrieving private key for transfer")
         return None
 
 
@@ -458,9 +460,8 @@ def evaluate_transaction_hash(transaction_hash, network="ETHEREUM"):
         elif transaction_receipt["status"] == 1:
             paid_status = "PAID"
             paid_date = datetime.now()
-    except Exception as e:
-        print(e)
-        log_error(e)
+    except Exception:
+        logger.exception("Error evaluating transaction hash=%s", transaction_hash)
 
     return paid_status, paid_date
 
