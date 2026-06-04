@@ -293,7 +293,7 @@ class BuildInsightsTests(APITestCase):
         # Assert
         self.assertEqual(insights, [])
 
-    def test_score_decrease_bucket_reports_negative_bounds(self):
+    def test_score_increase_bucket_reports_positive_bounds(self):
         # Arrange
         _record_many(self.user, EventType.GOOGLE_SIGNUP, 1)
 
@@ -307,9 +307,9 @@ class BuildInsightsTests(APITestCase):
         self.assertEqual(insights[0]["total_delta"], delta)
         self.assertEqual(insights[0]["min_delta"], delta)
         self.assertEqual(insights[0]["max_delta"], delta)
-        self.assertLess(insights[0]["max_delta"], 0)
+        self.assertGreater(insights[0]["min_delta"], 0)
 
-    def test_score_increase_bucket_reports_positive_bounds(self):
+    def test_score_decrease_bucket_reports_negative_bounds(self):
         # Arrange
         _record_many(self.user, EventType.CONTENT_CENSORED, 3)
 
@@ -322,19 +322,19 @@ class BuildInsightsTests(APITestCase):
         self.assertEqual(insights[0]["total_delta"], delta * 3)
         self.assertEqual(insights[0]["min_delta"], delta)
         self.assertEqual(insights[0]["max_delta"], delta)
-        self.assertGreater(insights[0]["min_delta"], 0)
+        self.assertLess(insights[0]["max_delta"], 0)
 
     def test_mixed_signs_within_event_type_straddle_zero(self):
         # Arrange
-        _record_many(self.user, EventType.WORK_APPROVED, 1, delta=-50)
-        _record_many(self.user, EventType.WORK_APPROVED, 1, delta=10)
+        _record_many(self.user, EventType.WORK_APPROVED, 1, delta=50)
+        _record_many(self.user, EventType.WORK_APPROVED, 1, delta=-20)
 
         # Act
         insights = build_insights(self.user)
 
         # Assert
-        self.assertEqual(insights[0]["min_delta"], -50)
-        self.assertEqual(insights[0]["max_delta"], 10)
+        self.assertEqual(insights[0]["min_delta"], -20)
+        self.assertEqual(insights[0]["max_delta"], 50)
 
     def test_unrelated_event_types_stay_separate(self):
         # Arrange
@@ -371,7 +371,7 @@ class BuildInsightsTests(APITestCase):
         self.assertNotIn(EventType.WORK_APPROVED, by_type)
         self.assertNotIn(EventType.WORK_DECLINED, by_type)
 
-    def test_works_moderated_only_approvals_has_no_score_increase(self):
+    def test_works_moderated_only_approvals_has_no_score_decrease(self):
         # Arrange
         _record_many(self.user, EventType.WORK_APPROVED, 2)
 
@@ -380,7 +380,7 @@ class BuildInsightsTests(APITestCase):
 
         # Assert
         self.assertEqual(insights[0]["event_type"], "WORKS_MODERATED")
-        self.assertLess(insights[0]["max_delta"], 0)
+        self.assertGreater(insights[0]["min_delta"], 0)
 
     def test_persona_verified_consolidates_country_variants(self):
         # Arrange
@@ -427,8 +427,8 @@ class RiskScoreEventsApiTests(APITestCase):
         self.assertIn("results", response.data)
         self.assertIn("insights", response.data)
         by_type = {row["event_type"]: row for row in response.data["insights"]}
-        self.assertGreater(by_type[EventType.CONTENT_CENSORED]["min_delta"], 0)
-        self.assertLess(by_type[EventType.GOOGLE_SIGNUP]["max_delta"], 0)
+        self.assertLess(by_type[EventType.CONTENT_CENSORED]["max_delta"], 0)
+        self.assertGreater(by_type[EventType.GOOGLE_SIGNUP]["min_delta"], 0)
         details_by_type = {
             row["event_type"]: row["source_detail"] for row in response.data["results"]
         }
