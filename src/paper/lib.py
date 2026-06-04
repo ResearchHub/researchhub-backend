@@ -469,19 +469,6 @@ journal_hosts = [
     AAAS.host,
 ]
 
-pdf_identifiers = [
-    Arxiv.pdf_identifier,
-    Biorxiv.pdf_identifier,
-    ScienceMag.pdf_identifier,
-    Nature.pdf_identifier,
-    JNeurosci.pdf_identifier,
-    PLOS.pdf_identifier,
-    PNAS.pdf_identifier,
-    Lancet.pdf_identifier,
-    JPET_ASPET.pdf_identifier,
-    ScienceDirect.pdf_identifier,
-]
-
 journal_hosts_and_pdf_identifiers = [
     (Arxiv.host, Arxiv.pdf_identifier),
     (Biorxiv.host, Biorxiv.pdf_identifier),

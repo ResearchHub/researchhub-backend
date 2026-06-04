@@ -9,52 +9,6 @@ automatically update when configuration changes.
 from feed.hot_score import HOT_SCORE_CONFIG
 
 
-def get_hot_score_breakdown(feed_entry):
-    """
-    Get detailed breakdown of hot score calculation with equation and steps.
-
-    Uses stored breakdown if available AND in current format (has recency),
-    otherwise calculates it using calculate_hot_score() as single source of truth.
-
-    Args:
-        feed_entry: FeedEntry instance
-
-    Returns:
-        dict with formatted breakdown
-    """
-    # Use stored breakdown if available AND in current format (has recency signal)
-    if (
-        hasattr(feed_entry, "hot_score_breakdown_v2")
-        and feed_entry.hot_score_breakdown_v2
-        and "recency"
-        in feed_entry.hot_score_breakdown_v2.breakdown_data.get("signals", {})
-    ):
-        return feed_entry.hot_score_breakdown_v2.breakdown_data
-
-    # Otherwise calculate it
-    from django.contrib.contenttypes.models import ContentType
-
-    from feed.hot_score import calculate_hot_score
-
-    # Get content type
-    item = feed_entry.item
-    if not item:
-        return _empty_breakdown()
-
-    item_content_type = ContentType.objects.get_for_model(item)
-
-    # Calculate score with components (single source of truth)
-    calc_data = calculate_hot_score(
-        feed_entry, item_content_type, return_components=True
-    )
-
-    if not calc_data:
-        return _empty_breakdown()
-
-    # Format and return breakdown
-    return format_breakdown_from_calc_data(calc_data)
-
-
 def format_breakdown_from_calc_data(calc_data):
     """
     Format calculation data into breakdown structure.
@@ -97,18 +51,6 @@ def format_breakdown_from_calc_data(calc_data):
             "gravity": config["time_decay"]["gravity"],
             "base_hours": config["time_decay"]["base_hours"],
         },
-    }
-
-
-def _empty_breakdown():
-    """Return empty breakdown structure for entries without items."""
-    return {
-        "equation": "",
-        "steps": [],
-        "signals": {},
-        "time_factors": {},
-        "calculation": {},
-        "config_snapshot": {},
     }
 
 

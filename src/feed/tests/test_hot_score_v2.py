@@ -442,7 +442,6 @@ class TestHotScoreV2(AWSMockTestCase):
     def test_hot_score_breakdown_structure(self):
         """Test that hot score breakdown has correct structure and uses config."""
         from feed.hot_score import HOT_SCORE_CONFIG
-        from feed.hot_score_breakdown import get_hot_score_breakdown
 
         post = create_post(created_by=self.user)
 
@@ -480,7 +479,7 @@ class TestHotScoreV2(AWSMockTestCase):
         # Calculate hot score to create breakdown in separate table
         feed_entry.calculate_hot_score_v2()
 
-        breakdown = get_hot_score_breakdown(feed_entry)
+        breakdown = feed_entry.hot_score_breakdown_v2.breakdown_data
 
         # Verify structure
         self.assertIn("equation", breakdown)

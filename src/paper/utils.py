@@ -22,8 +22,6 @@ DOI_REGEX = r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+?(?=[\";%<>\?#&])"
 PAPER_SCORE_Q_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
     "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
 )
-SIMILARITY_THRESHOLD = 0.9
-MAX_TITLE_PAGES = 5
 
 
 def check_file_is_url(file):
@@ -41,8 +39,6 @@ def clean_abstract(abstract):
     soup = BeautifulSoup(abstract, "html.parser")
     strings = soup.strings
     cleaned_text = " ".join(strings)
-    # cleaned_text = cleaned_text.replace('\n', ' ')
-    # cleaned_text = cleaned_text.replace('\r', ' ')
     cleaned_text = cleaned_text.lstrip()
     return cleaned_text
 

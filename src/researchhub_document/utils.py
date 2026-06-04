@@ -2,21 +2,6 @@ from datetime import datetime, timedelta
 
 from utils.sentry import log_error
 
-CACHE_DATE_RANGES = ("today", "week", "month", "year", "all")
-CACHE_DOCUMENT_TYPES = [
-    "all",
-    "paper",
-    "posts",
-]
-
-
-def get_doc_type_key(document):
-    doc_type = document.document_type.lower()
-    if doc_type == "discussion":
-        return "posts"
-
-    return doc_type
-
 
 def get_date_ranges_by_time_scope(time_scope):
     end_date = datetime.now()

@@ -1,5 +1,4 @@
 import rest_framework.serializers as serializers
-from django.db.models import Count, Q
 from rest_framework.serializers import (
     ModelSerializer,
     PrimaryKeyRelatedField,
@@ -15,10 +14,6 @@ from researchhub_document.models import ResearchhubPost
 from user.serializers import DynamicUserSerializer, DynamicVerdictSerializer
 from utils.http import get_user_from_request
 from utils.sentry import log_error
-
-ORDERING_SCORE_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
-    "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
-)
 
 
 class DynamicFlagSerializer(DynamicModelFieldSerializer):
@@ -143,38 +138,15 @@ class GenericReactionSerializerMixin:
         "user_flag",
     ]
 
-    def get_document_meta(self, obj):
-        paper = obj.paper
-        if paper:
-            data = {
-                "id": paper.id,
-                "title": paper.paper_title,
-                "slug": paper.slug,
-            }
-            return data
-
-        post = obj.post
-        if post:
-            data = {"id": post.id, "title": post.title, "slug": post.slug}
-            return data
-
-        return None
-
     def get_user_flag(self, obj):
         flag = None
         user = get_user_from_request(self.context)
         if user:
             try:
-                flag_created_by = obj.flag_created_by
-                if len(flag_created_by) == 0:
-                    return None
-                flag = FlagSerializer(flag_created_by).data
-            except AttributeError:
-                try:
-                    flag = obj.flags.get(created_by=user.id)
-                    flag = FlagSerializer(flag).data
-                except Flag.DoesNotExist:
-                    pass
+                flag = obj.flags.get(created_by=user.id)
+                flag = FlagSerializer(flag).data
+            except Flag.DoesNotExist:
+                pass
         return flag
 
     def get_promoted(self, obj):

@@ -212,8 +212,6 @@ class DynamicRhCommentSerializer(
         except Vote.DoesNotExist:
             return None
 
-        return None
-
     def get_review(self, comment):
         context = self.context
         _context_fields = context.get("rhc_dcs_get_review", {})
