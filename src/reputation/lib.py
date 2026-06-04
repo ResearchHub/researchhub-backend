@@ -342,11 +342,16 @@ contract_abi = [
     },
 ]
 
-try:
-    PRIVATE_KEY = get_private_key() if settings.WEB3_KEYSTORE_SECRET_ID else None
-except Exception as e:
-    PRIVATE_KEY = None
-    log_error(e)
+
+def _get_private_key_for_transfer():
+    if not settings.WEB3_KEYSTORE_SECRET_ID:
+        return None
+
+    try:
+        return get_private_key()
+    except Exception as e:
+        log_error(e)
+        return None
 
 
 def _get_w3_for_network(network):
@@ -402,7 +407,7 @@ def broadcast_withdrawal_transfer(withdrawal):
     tx_hash = execute_erc20_transfer(
         w3,
         settings.WEB3_WALLET_ADDRESS,
-        PRIVATE_KEY,
+        _get_private_key_for_transfer(),
         contract,
         withdrawal.to_address,
         amount,
