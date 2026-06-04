@@ -8,10 +8,8 @@ from rest_framework.viewsets import GenericViewSet
 
 from discussion.models import Vote
 from discussion.serializers import VoteSerializer
-from feed.views.grant_cache_mixin import GrantCacheMixin
 from paper.models import Paper
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
-from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
     ResearchhubUnifiedDocumentSerializer,
@@ -26,62 +24,6 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
     queryset = ResearchhubUnifiedDocument.objects.all()
     serializer_class = ResearchhubUnifiedDocumentSerializer
-
-    def get_queryset(self):
-        if self.action == "restore":
-            return ResearchhubUnifiedDocument.all_objects.all()
-        return super().get_queryset()
-
-    @action(
-        detail=True,
-        methods=["put", "patch", "delete"],
-        permission_classes=[HasDocumentCensorPermission],
-    )
-    def censor(self, request, pk=None):
-        doc = self.get_object()
-        doc.is_removed = True
-        doc.save()
-
-        inner_doc = doc.get_document()
-        if isinstance(inner_doc, Paper):
-            inner_doc.is_removed = True
-            inner_doc.save()
-
-        action = inner_doc.actions
-        if action.exists():
-            action = action.first()
-            action.is_removed = True
-            action.display = False
-            action.save()
-
-        GrantCacheMixin.invalidate_if_grant_linked(doc)
-
-        return Response(self.get_serializer(instance=doc).data, status=200)
-
-    @action(
-        detail=True,
-        methods=["put", "patch"],
-        permission_classes=[HasDocumentCensorPermission],
-    )
-    def restore(self, request, pk=None):
-        doc = self.get_object()
-        doc.is_removed = False
-        doc.save()
-
-        inner_doc = doc.get_document()
-        if isinstance(inner_doc, Paper):
-            inner_doc.is_removed = False
-            inner_doc.save()
-        action = inner_doc.actions
-        if action.exists():
-            action = action.first()
-            action.is_removed = False
-            action.display = True
-            action.save()
-
-        GrantCacheMixin.invalidate_if_grant_linked(doc)
-
-        return Response(self.get_serializer(instance=doc).data, status=200)
 
     def _get_serializer_context(self):
         context = {
