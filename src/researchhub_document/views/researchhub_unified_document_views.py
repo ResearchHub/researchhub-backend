@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import GenericViewSet
 
 from discussion.models import Vote
 from discussion.serializers import VoteSerializer
@@ -19,28 +19,13 @@ from researchhub_document.serializers import (
 from utils.permissions import ReadOnly
 
 
-class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
+class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
     permission_classes = [
         IsAuthenticated | ReadOnly,
     ]
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
     queryset = ResearchhubUnifiedDocument.objects.all()
     serializer_class = ResearchhubUnifiedDocumentSerializer
-
-    def create(self, *args, **kwargs):
-        return Response(status=403)
-
-    def list(self, *args, **kwargs):
-        return Response(status=403)
-
-    def retrieve(self, *args, **kwargs):
-        return Response(status=403)
-
-    def partial_update(self, *args, **kwargs):
-        return Response(status=403)
-
-    def destroy(self, *args, **kwargs):
-        return Response(status=403)
 
     def get_queryset(self):
         if self.action == "restore":
