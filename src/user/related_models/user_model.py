@@ -423,10 +423,16 @@ class User(AbstractUser):
     def peer_review_count(self):
         from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 
-        peer_review_count = RhCommentModel.objects.filter(
-            created_by=self,
-            comment_type="REVIEW",
-            is_removed=False,
-        ).aggregate(count=Count("id"))["count"]
+        peer_review_count = (
+            RhCommentModel.objects.filter(
+                created_by=self,
+                comment_type="REVIEW",
+                is_removed=False,
+                reviews__is_assessed=True,
+                reviews__is_removed=False,
+            )
+            .distinct()
+            .aggregate(count=Count("id"))["count"]
+        )
 
         return peer_review_count
