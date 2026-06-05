@@ -881,6 +881,99 @@ class FundingFeedViewSetTests(AWSMockTestCase):
             response.data["results"][0]["content_object"]["id"], third_post.id
         )
 
+    def _create_private_preregistration(self, created_by):
+        """Create a private (non-public) preregistration post for `created_by`."""
+        private_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION, is_public=False
+        )
+        return ResearchhubPost.objects.create(
+            title="Private Preregistration",
+            created_by=created_by,
+            document_type=PREREGISTRATION,
+            renderable_text="This is a private preregistration post",
+            slug="private-preregistration",
+            unified_document=private_doc,
+            created_date=timezone.now(),
+        )
+
+    def test_created_by_includes_private_for_author(self):
+        """The author sees their own private preregistration on their feed."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+
+        # Act
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
+        response = self.client.get(url)  # authenticated as self.user in setUp
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertIn(private_post.id, post_ids)
+
+    def test_created_by_excludes_private_for_anonymous(self):
+        """Anonymous viewers never see a private preregistration via created_by."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+        anonymous_client = APIClient()
+
+        # Act
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
+        response = anonymous_client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
+        self.assertIn(self.post.id, post_ids)  # public one still shows
+
+    def test_created_by_excludes_private_for_other_user(self):
+        """An unrelated authenticated user does not see another's private prereg."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+        other_client = APIClient()
+        other_client.force_authenticate(user=self.other_user)
+
+        # Act
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
+        response = other_client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
+
+    def test_created_by_includes_private_for_moderator(self):
+        """Moderators see private preregistrations so they can moderate them."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+        moderator = User.objects.create_user(
+            username="moderator", password=uuid.uuid4().hex, moderator=True
+        )
+        moderator_client = APIClient()
+        moderator_client.force_authenticate(user=moderator)
+
+        # Act
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
+        response = moderator_client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertIn(private_post.id, post_ids)
+
+    def test_public_discovery_feed_excludes_private(self):
+        """The cacheable discovery feed (no personalization) never leaks private work."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+
+        # Act
+        response = self.client.get(reverse("funding_feed-list"))
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
+
     def test_created_by_filter_disables_caching(self):
         """Test that created_by filter disables caching"""
         # Clear cache before test

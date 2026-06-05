@@ -151,7 +151,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
         note = instance.note
         if note:
-            return NoteSerializer(instance.note).data
+            return NoteSerializer(instance.note, context=self.context).data
         return None
 
     def get_unified_document_id(self, instance):

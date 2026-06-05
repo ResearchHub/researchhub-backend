@@ -121,11 +121,13 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
             )
         )
 
-        if grant_id:
-            # The grant-scoped feed (never cached) shows the proposals the
-            # requesting user is allowed to see, so private applications are
-            # visible to the grant owner, invited reviewers, and moderators
-            # while everyone else still only sees public ones.
+        # Personalized feeds (grant_id / created_by / funded_by) are never
+        # cached -- see `use_cache` in list() -- so they can safely respect
+        # per-viewer visibility. This lets the author, grant owners, invited
+        # reviewers, and moderators see private preregistrations and grants
+        # (e.g. on the author profile's Proposals tab) while everyone else,
+        # including anonymous viewers, still only sees public ones.
+        if grant_id or created_by or funded_by:
             visible_ids = ResearchhubPost.objects.visible_to(self.request.user).values(
                 "id"
             )
