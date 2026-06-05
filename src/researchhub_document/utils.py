@@ -1,4 +1,6 @@
-from utils.sentry import log_error
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def update_unified_document_to_paper(paper):
@@ -13,6 +15,5 @@ def update_unified_document_to_paper(paper):
             hubs = paper.hubs.all()
             rh_unified_doc.hubs.add(*hubs)
             rh_unified_doc.save()
-        except Exception as e:
-            print(e)
-            log_error(e)
+        except Exception:
+            logger.exception("Failed to update unified document to paper %s", paper.id)
