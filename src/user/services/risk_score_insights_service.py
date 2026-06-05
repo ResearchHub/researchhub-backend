@@ -1,9 +1,10 @@
 """Read-only enrichment for the risk score events API."""
 
 import logging
+from typing import Iterable
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count, Max, Min, Sum
+from django.db.models import Count, Max, Min, Model, QuerySet, Sum
 
 from paper.related_models.paper_model import Paper
 from purchase.related_models.grant_model import Grant
@@ -17,6 +18,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from review.models.review_model import Review
 from user.related_models.risk_score_model import RiskScoreEvent
+from user.related_models.user_model import User
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,7 @@ INSIGHT_GROUPS = {
 }
 
 
-def _doc_title(doc):
+def _doc_title(doc: Model | None) -> str:
     if doc is None:
         return ""
     if isinstance(doc, Paper):
@@ -49,7 +51,9 @@ _PATH_SEGMENTS = {
 }
 
 
-def _doc_url(unified_document, doc):
+def _doc_url(
+    unified_document: ResearchhubUnifiedDocument | None, doc: Model | None
+) -> str | None:
     """Build the frontend URL from cached `doc` (avoids a redundant DB query
     that `unified_document.frontend_view_link()` would otherwise trigger)."""
     if unified_document is None or doc is None:
@@ -59,7 +63,7 @@ def _doc_url(unified_document, doc):
     return f"{BASE_FRONTEND_URL}/{path_segment}/{doc.id}/{doc.slug}"
 
 
-def _doc_text(doc):
+def _doc_text(doc: Model | None) -> str:
     if doc is None:
         return ""
     if isinstance(doc, Paper):
@@ -67,14 +71,23 @@ def _doc_text(doc):
     return getattr(doc, "renderable_text", "") or ""
 
 
-def _resolve_doc(unified_document):
+def _resolve_doc(
+    unified_document: ResearchhubUnifiedDocument | None,
+) -> tuple[Model | None, str | None]:
     """Return (doc, document_type) without calling get_document twice."""
     if unified_document is None:
         return None, None
     return unified_document.get_document(), unified_document.document_type
 
 
-def _detail(title, text, url, *, comment_type=None, document_type=None):
+def _detail(
+    title: str | None,
+    text: str | None,
+    url: str | None,
+    *,
+    comment_type: str | None = None,
+    document_type: str | None = None,
+) -> dict:
     return {
         "title": title or "",
         "text": text or "",
@@ -84,7 +97,7 @@ def _detail(title, text, url, *, comment_type=None, document_type=None):
     }
 
 
-def _grant_detail(grant):
+def _grant_detail(grant: Grant) -> dict:
     unified_document = grant.unified_document
     doc, document_type = _resolve_doc(unified_document)
     return _detail(
@@ -95,7 +108,7 @@ def _grant_detail(grant):
     )
 
 
-def _post_detail(post):
+def _post_detail(post: ResearchhubPost) -> dict:
     unified_document = post.unified_document
     doc, document_type = _resolve_doc(unified_document)
     return _detail(
@@ -106,7 +119,7 @@ def _post_detail(post):
     )
 
 
-def _paper_detail(paper):
+def _paper_detail(paper: Paper) -> dict:
     # The paper is its own document, so skip the unified_document.get_document()
     # round-trip that _resolve_doc would add.
     unified_document = paper.unified_document
@@ -119,7 +132,7 @@ def _paper_detail(paper):
     )
 
 
-def _comment_detail(comment):
+def _comment_detail(comment: RhCommentModel) -> dict:
     unified_document = comment.unified_document
     doc, document_type = _resolve_doc(unified_document)
     base_url = _doc_url(unified_document, doc)
@@ -132,7 +145,7 @@ def _comment_detail(comment):
     )
 
 
-def _unified_document_detail(unified_document):
+def _unified_document_detail(unified_document: ResearchhubUnifiedDocument) -> dict:
     doc, document_type = _resolve_doc(unified_document)
     return _detail(
         _doc_title(doc),
@@ -142,32 +155,16 @@ def _unified_document_detail(unified_document):
     )
 
 
-def _bounty_solution_detail(solution):
-    if isinstance(solution.item, RhCommentModel):
-        return _comment_detail(solution.item)
+def _comment_source_detail(source: Model) -> dict | None:
+    """Detail for sources whose payload is a comment (bounty solutions, tips,
+    reviews). Anything else has no comment to surface, so there's no detail."""
+    item = source.item
+    if isinstance(item, RhCommentModel):
+        return _comment_detail(item)
     logger.warning(
-        "BountySolution %s has non-comment item; no risk score detail available",
-        solution.pk,
-    )
-    return None
-
-
-def _purchase_detail(purchase):
-    if isinstance(purchase.item, RhCommentModel):
-        return _comment_detail(purchase.item)
-    logger.warning(
-        "Purchase %s has non-comment item; no risk score detail available",
-        purchase.pk,
-    )
-    return None
-
-
-def _review_detail(review):
-    if isinstance(review.item, RhCommentModel):
-        return _comment_detail(review.item)
-    logger.warning(
-        "Review %s has non-comment item; no risk score detail available",
-        review.pk,
+        "%s %s has non-comment item; no risk score detail available",
+        type(source).__name__,
+        source.pk,
     )
     return None
 
@@ -178,9 +175,9 @@ SOURCE_DETAIL_BUILDERS = {
     Paper: _paper_detail,
     RhCommentModel: _comment_detail,
     ResearchhubUnifiedDocument: _unified_document_detail,
-    BountySolution: _bounty_solution_detail,
-    Purchase: _purchase_detail,
-    Review: _review_detail,
+    BountySolution: _comment_source_detail,
+    Purchase: _comment_source_detail,
+    Review: _comment_source_detail,
 }
 
 # Per-model FK hints applied when batch-loading sources. Keeps subsequent
@@ -195,21 +192,21 @@ SOURCE_SELECT_RELATED = {
 }
 
 
-def _fetch_sources(model, ids):
+def _fetch_sources(model: type[Model], ids: list[int]) -> QuerySet:
     manager = getattr(model, "all_objects", model.objects)
     qs = manager.filter(pk__in=ids)
     related = SOURCE_SELECT_RELATED.get(model)
     return qs.select_related(*related) if related else qs
 
 
-def _build_detail(source):
+def _build_detail(source: Model | None) -> dict | None:
     if source is None:
         return None
     builder = SOURCE_DETAIL_BUILDERS.get(type(source))
     return builder(source) if builder else None
 
 
-def build_event_details(events):
+def build_event_details(events: Iterable[RiskScoreEvent]) -> dict[int, dict | None]:
     """Map event id to a detail payload (or None for sourceless events)."""
     events = list(events)
     ids_by_ct = {}
@@ -235,7 +232,7 @@ def build_event_details(events):
     }
 
 
-def build_insights(user):
+def build_insights(user: User) -> list[dict]:
     """Aggregate per-event-type counts and sentiment for a user."""
     aggregates = (
         RiskScoreEvent.objects.filter(user=user)

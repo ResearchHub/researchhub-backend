@@ -1,19 +1,28 @@
-import logging
+from __future__ import annotations
 
-from django.contrib.contenttypes.models import ContentType
+from typing import TYPE_CHECKING
+
 from django.db import transaction
 from django.utils import timezone
 
-from discussion.views import create_flag
 from feed.tasks import publish_to_feed
 from notification.models import Notification
 from paper.related_models.paper_model import Paper
 from purchase.services.grant_service import GrantModerationService
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from user.related_models.verdict_model import Verdict
+from user.services.moderation import (
+    create_removal_verdict,
+    send_moderation_notification,
+)
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from purchase.models import Grant
+    from user.models import User
+
+# A work this service can moderate directly (grants are delegated to
+# GrantModerationService). Papers and posts share the ModeratedDocumentMixin API.
+ModerationTarget = ResearchhubPost | Paper
 
 
 class ContentModerationService:
@@ -32,10 +41,12 @@ class ContentModerationService:
     the ``handle_unified_document_removed`` signal.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._grant_service = GrantModerationService()
 
-    def approve_content(self, content, moderator):
+    def approve_content(
+        self, content: ModerationTarget, moderator: User
+    ) -> ModerationTarget:
         """Approve pending content; publication is handled per type (see class docs)."""
         if self._is_grant(content):
             self._grant_service.approve_grant(self._grant_for(content), moderator)
@@ -52,7 +63,13 @@ class ContentModerationService:
 
         return content
 
-    def decline_content(self, content, moderator, reason="", reason_choice=""):
+    def decline_content(
+        self,
+        content: ModerationTarget,
+        moderator: User,
+        reason: str = "",
+        reason_choice: str = "",
+    ) -> ModerationTarget:
         """Decline pending content, flag it, and soft-delete its unified document."""
         if self._is_grant(content):
             self._grant_service.decline_grant(
@@ -69,43 +86,37 @@ class ContentModerationService:
 
         return content
 
-    def _is_grant(self, content):
+    def _is_grant(self, content: ModerationTarget) -> bool:
         return isinstance(content, ResearchhubPost) and content.document_type == GRANT
 
-    def _require_pending(self, content, action):
+    def _require_pending(self, content: ModerationTarget, past_tense: str) -> None:
         if content.status != content.PENDING:
-            raise ValueError(f"Only pending content can be {action}")
+            raise ValueError(f"Only pending content can be {past_tense}")
 
-    def _grant_for(self, content):
+    def _grant_for(self, content: ModerationTarget) -> Grant | None:
         return content.unified_document.grants.first()
 
-    def _author(self, content):
+    def _author(self, content: ModerationTarget) -> User | None:
         return content.uploaded_by if isinstance(content, Paper) else content.created_by
 
-    def _mark_reviewed(self, content, moderator, status):
+    def _mark_reviewed(
+        self, content: ModerationTarget, moderator: User, status: str
+    ) -> None:
         content.status = status
         content.reviewed_by = moderator
         content.reviewed_date = timezone.now()
         content.save(update_fields=["status", "reviewed_by", "reviewed_date"])
 
-    def _flag_and_remove(self, content, moderator, reason, reason_choice):
-        flag, _ = create_flag(
-            user=moderator,
-            item=content,
-            reason=reason,
-            reason_choice=reason_choice,
-            reason_memo=reason,
-        )
+    def _flag_and_remove(
+        self,
+        content: ModerationTarget,
+        moderator: User,
+        reason: str,
+        reason_choice: str,
+    ) -> None:
+        create_removal_verdict(moderator, content, reason, reason_choice)
 
-        verdict = Verdict.objects.create(
-            created_by=moderator,
-            flag=flag,
-            verdict_choice=reason_choice,
-            is_content_removed=True,
-        )
-        flag.verdict_created_date = verdict.created_date
-        flag.save(update_fields=["verdict_created_date"])
-
+        # A paper is its own item, so it must be removed alongside its document.
         if isinstance(content, Paper):
             content.is_removed = True
             content.save(update_fields=["is_removed"])
@@ -114,21 +125,12 @@ class ContentModerationService:
         unified_document.is_removed = True
         unified_document.save(update_fields=["is_removed"])
 
-    def _notify(self, content, action_user, notification_type):
-        try:
-            notification = Notification.objects.create(
-                notification_type=notification_type,
-                recipient=self._author(content),
-                action_user=action_user,
-                content_type=ContentType.objects.get_for_model(content),
-                object_id=content.id,
-                unified_document=content.unified_document,
-            )
-            transaction.on_commit(notification.send_notification)
-        except Exception:
-            logger.exception(
-                "Failed to send %s notification for %s %s",
-                notification_type,
-                type(content).__name__,
-                content.id,
-            )
+    def _notify(
+        self, content: ModerationTarget, action_user: User, notification_type: str
+    ) -> None:
+        send_moderation_notification(
+            notification_type,
+            recipient=self._author(content),
+            action_user=action_user,
+            item=content,
+        )

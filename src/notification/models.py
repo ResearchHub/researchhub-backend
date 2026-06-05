@@ -622,53 +622,29 @@ class Notification(models.Model):
             },
         ], base_url
 
-    def _format_grant_approved(self):
-        unified_document = self.unified_document
-        document = unified_document.get_document()
-        doc_title = self._truncate_title(document.title)
-        base_url = self._create_frontend_doc_link()
+    def _format_grant_approved(self) -> tuple[list, str | None]:
+        return self._format_reviewed("grant", "has been approved and is now open.")
 
-        return [
-            {"type": "text", "value": "Your grant "},
-            {
-                "type": "link",
-                "value": doc_title,
-                "link": base_url,
-                "extra": '["link"]',
-            },
-            {"type": "text", "value": " has been approved and is now open."},
-        ], base_url
+    def _format_grant_declined(self) -> tuple[list, str | None]:
+        return self._format_reviewed("grant", "has been declined by a moderator.")
 
-    def _format_grant_declined(self):
-        unified_document = self.unified_document
-        document = unified_document.get_document()
-        doc_title = self._truncate_title(document.title)
-        base_url = self._create_frontend_doc_link()
+    def _format_content_approved(self) -> tuple[list, str | None]:
+        return self._format_reviewed(
+            "submission", "has been approved and is now published."
+        )
 
-        return [
-            {"type": "text", "value": "Your grant "},
-            {
-                "type": "link",
-                "value": doc_title,
-                "link": base_url,
-                "extra": '["link"]',
-            },
-            {"type": "text", "value": " has been declined by a moderator."},
-        ], base_url
+    def _format_content_declined(self) -> tuple[list, str | None]:
+        return self._format_reviewed("submission", "has been declined by a moderator.")
 
-    def _format_content_approved(self):
-        return self._format_content_reviewed("has been approved and is now published.")
-
-    def _format_content_declined(self):
-        return self._format_content_reviewed("has been declined by a moderator.")
-
-    def _format_content_reviewed(self, outcome):
+    def _format_reviewed(self, noun: str, outcome: str) -> tuple[list, str | None]:
+        """Shared body for moderator approve/decline notifications: reads as
+        'Your {noun} <title> {outcome}' with the title linking to the work."""
         document = self.unified_document.get_document()
         doc_title = self._truncate_title(document.title)
         base_url = self._create_frontend_doc_link()
 
         return [
-            {"type": "text", "value": "Your submission "},
+            {"type": "text", "value": f"Your {noun} "},
             {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
             {"type": "text", "value": f" {outcome}"},
         ], base_url

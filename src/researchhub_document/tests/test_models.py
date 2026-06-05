@@ -157,6 +157,7 @@ class ModelTests(TestCase):
         self.assertEqual(details["count"], 1)
         self.assertEqual(details["avg"], 6.0)
 
+
 class ResearchhubPostStatusTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("post_status_user")

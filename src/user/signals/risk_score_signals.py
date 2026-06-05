@@ -1,9 +1,10 @@
 import logging
 from functools import lru_cache
+from typing import Callable
 
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
+from django.db import models, transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -30,15 +31,15 @@ _service = RiskScoreService()
 
 
 @lru_cache(maxsize=1)
-def _comment_content_type_id():
+def _comment_content_type_id() -> int:
     return ContentType.objects.get_for_model(RhCommentModel).id
 
 
-def _run_after_commit(instance, record):
+def _run_after_commit(instance: models.Model, record: Callable[[], None]) -> None:
     """Defer risk-score writes until the triggering transaction commits, logging
     (never raising) failures so a scoring bug can't break the originating save."""
 
-    def deferred():
+    def deferred() -> None:
         try:
             record()
         except Exception:
@@ -51,7 +52,7 @@ def _run_after_commit(instance, record):
     transaction.on_commit(deferred)
 
 
-def _record_review_assessments_on(comment):
+def _record_review_assessments_on(comment: RhCommentModel | None) -> None:
     if comment is None:
         return
     for review in comment.reviews.select_related("created_by"):
@@ -61,7 +62,9 @@ def _record_review_assessments_on(comment):
             )
 
 
-def _moderated_work_event_type(instance, *, created):
+def _moderated_work_event_type(
+    instance: ResearchhubPost | Paper, *, created: bool
+) -> EventType | None:
     """Return the event a moderated work earned, or None when the save isn't a
     scoring moment: creations and auto-approvals (status defaults to APPROVED
     with no reviewer) leave `reviewed_by` empty, so only reviewed works score.
@@ -76,7 +79,7 @@ def _moderated_work_event_type(instance, *, created):
 
 
 @receiver(post_save, sender=Grant, dispatch_uid="risk_score_on_grant_status_changed")
-def on_grant_status_changed(sender, instance, **kwargs):
+def on_grant_status_changed(sender, instance: Grant, **kwargs) -> None:
     if instance.status == Grant.OPEN:
         event_type = EventType.WORK_APPROVED
     elif instance.status == Grant.DECLINED:
@@ -84,7 +87,7 @@ def on_grant_status_changed(sender, instance, **kwargs):
     else:
         return
 
-    def record():
+    def record() -> None:
         _service.record_event(instance.created_by, event_type, source=instance)
 
     _run_after_commit(instance, record)
@@ -95,7 +98,9 @@ def on_grant_status_changed(sender, instance, **kwargs):
     sender=ResearchhubPost,
     dispatch_uid="risk_score_on_post_status_changed",
 )
-def on_post_status_changed(sender, instance, created, **kwargs):
+def on_post_status_changed(
+    sender, instance: ResearchhubPost, created: bool, **kwargs
+) -> None:
     # Grants score via on_grant_status_changed; skip GRANT posts so a single
     # review doesn't fire twice when both rows update together.
     if instance.document_type == GRANT:
@@ -105,7 +110,7 @@ def on_post_status_changed(sender, instance, created, **kwargs):
     if event_type is None or not instance.created_by_id:
         return
 
-    def record():
+    def record() -> None:
         _service.record_event(instance.created_by, event_type, source=instance)
 
     _run_after_commit(instance, record)
@@ -116,13 +121,13 @@ def on_post_status_changed(sender, instance, created, **kwargs):
     sender=Paper,
     dispatch_uid="risk_score_on_paper_status_changed",
 )
-def on_paper_status_changed(sender, instance, created, **kwargs):
+def on_paper_status_changed(sender, instance: Paper, created: bool, **kwargs) -> None:
     # OpenAlex-imported papers have no uploader, so no one earns the points.
     event_type = _moderated_work_event_type(instance, created=created)
     if event_type is None or not instance.uploaded_by_id:
         return
 
-    def record():
+    def record() -> None:
         _service.record_event(instance.uploaded_by, event_type, source=instance)
 
     _run_after_commit(instance, record)
@@ -133,13 +138,13 @@ def on_paper_status_changed(sender, instance, created, **kwargs):
     sender=Verdict,
     dispatch_uid="risk_score_on_content_censored",
 )
-def on_content_censored(sender, instance, created, **kwargs):
+def on_content_censored(sender, instance: Verdict, created: bool, **kwargs) -> None:
     """Penalize an author only when a moderator verdict removes their content.
     Self-deletions never create a verdict, so they are never scored."""
     if not created or not instance.is_content_removed:
         return
 
-    def record():
+    def record() -> None:
         author, source = resolve_censorship(instance)
         if author and source:
             _service.record_event(author, EventType.CONTENT_CENSORED, source=source)
@@ -152,11 +157,11 @@ def on_content_censored(sender, instance, created, **kwargs):
     sender=BountySolution,
     dispatch_uid="risk_score_on_bounty_solution_awarded",
 )
-def on_bounty_solution_awarded(sender, instance, **kwargs):
+def on_bounty_solution_awarded(sender, instance: BountySolution, **kwargs) -> None:
     if instance.status != BountySolution.Status.AWARDED:
         return
 
-    def record():
+    def record() -> None:
         _service.record_event(
             instance.created_by, EventType.BOUNTY_AWARDED, source=instance
         )
@@ -171,13 +176,13 @@ def on_bounty_solution_awarded(sender, instance, **kwargs):
 
 
 @receiver(post_save, sender=Purchase, dispatch_uid="risk_score_on_community_tip")
-def on_community_tip(sender, instance, created, **kwargs):
+def on_community_tip(sender, instance: Purchase, created: bool, **kwargs) -> None:
     if not created:
         return
     if instance.content_type_id != _comment_content_type_id():
         return
 
-    def record():
+    def record() -> None:
         if not User.is_rh_community_account(instance.user):
             return
 
@@ -198,11 +203,13 @@ def on_community_tip(sender, instance, created, **kwargs):
     sender=SocialAccount,
     dispatch_uid="risk_score_on_social_account_created",
 )
-def on_social_account_created(sender, instance, created, **kwargs):
+def on_social_account_created(
+    sender, instance: SocialAccount, created: bool, **kwargs
+) -> None:
     if not created:
         return
 
-    def record():
+    def record() -> None:
         if instance.provider == "google":
             _service.record_event(instance.user, EventType.GOOGLE_SIGNUP)
         elif instance.provider == "orcid" and instance.extra_data.get(
@@ -218,11 +225,11 @@ def on_social_account_created(sender, instance, created, **kwargs):
     sender=UserVerification,
     dispatch_uid="risk_score_on_persona_verified",
 )
-def on_persona_verified(sender, instance, **kwargs):
+def on_persona_verified(sender, instance: UserVerification, **kwargs) -> None:
     if instance.status != UserVerification.Status.APPROVED:
         return
 
-    def record():
+    def record() -> None:
         # PERSONA_VERIFIED_NON_WHITELISTED is reserved for when UserVerification
         # gains a country field. Until then, all approved verifications use the
         # WHITELISTED variant.
@@ -232,11 +239,11 @@ def on_persona_verified(sender, instance, **kwargs):
 
 
 @receiver(post_save, sender=User, dispatch_uid="risk_score_on_user_created")
-def on_user_created(sender, instance, created, **kwargs):
+def on_user_created(sender, instance: User, created: bool, **kwargs) -> None:
     if not created or not instance.email:
         return
 
-    def record():
+    def record() -> None:
         email = instance.email.lower()
         if email.endswith(".edu"):
             _service.record_event(instance, EventType.EDU_EMAIL)

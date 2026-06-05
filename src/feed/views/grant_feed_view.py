@@ -13,7 +13,6 @@ from rest_framework.viewsets import ModelViewSet
 
 from ai_peer_review.models import ProposalReview
 from feed.filters import FundOrderingFilter
-from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
 from feed.views.grant_cache_mixin import GRANT_FEED_MAX_CACHED_PAGE, GrantCacheMixin
@@ -27,7 +26,7 @@ from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from review.models import Review
 
-from ..serializers import PostSerializer, serialize_feed_metrics
+from ..serializers import PostSerializer
 from .common import FeedPagination
 
 
@@ -63,22 +62,12 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
 
-        feed_entries = []
-        for post in page:
-            # Create an unsaved FeedEntry instance
-            feed_entry = FeedEntry(
-                id=post.id,  # We can use the post ID as a temporary ID
-                content_type=self._post_content_type,
-                object_id=post.id,
-                action="PUBLISH",
-                action_date=post.created_date,
-                user=post.created_by,
-                unified_document=post.unified_document,
+        feed_entries = [
+            self.build_unsaved_feed_entry(
+                post, self._post_content_type, post.created_by
             )
-            feed_entry.item = post
-            metrics = serialize_feed_metrics(post, self._post_content_type)
-            feed_entry.metrics = metrics
-            feed_entries.append(feed_entry)
+            for post in page
+        ]
 
         serializer = GrantFeedEntrySerializer(feed_entries, many=True)
         response_data = self.get_paginated_response(serializer.data).data

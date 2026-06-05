@@ -10,13 +10,11 @@ from django.db.models import OuterRef, Subquery
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from feed.models import FeedEntry
 from feed.serializers import FeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
 from paper.related_models.paper_model import Paper
 from paper.related_models.paper_version import PaperVersion
 
-from ..serializers import serialize_feed_metrics
 from .common import FeedPagination
 
 
@@ -69,22 +67,12 @@ class JournalFeedViewSet(FeedViewMixin, ModelViewSet):
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
 
-        feed_entries = []
-        for paper in page:
-            # Create an unsaved FeedEntry instance
-            feed_entry = FeedEntry(
-                id=paper.id,  # Use the paper ID as a temporary ID
-                content_type=self._paper_content_type,
-                object_id=paper.id,
-                action="PUBLISH",
-                action_date=paper.created_date,
-                user=paper.uploaded_by,
-                unified_document=paper.unified_document,
+        feed_entries = [
+            self.build_unsaved_feed_entry(
+                paper, self._paper_content_type, paper.uploaded_by
             )
-            feed_entry.item = paper
-            metrics = serialize_feed_metrics(paper, self._paper_content_type)
-            feed_entry.metrics = metrics
-            feed_entries.append(feed_entry)
+            for paper in page
+        ]
 
         serializer = self.get_serializer(feed_entries, many=True)
         response_data = self.get_paginated_response(serializer.data).data
