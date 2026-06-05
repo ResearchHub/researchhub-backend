@@ -5,6 +5,8 @@ from django.utils import timezone
 
 from utils.managers import SoftDeletableManager
 
+USER_MODEL = "user.User"
+
 
 class DefaultModel(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
@@ -21,7 +23,7 @@ class DefaultAuthenticatedModel(models.Model):
         abstract = True
 
     created_by = models.ForeignKey(
-        "user.User",
+        USER_MODEL,
         on_delete=models.CASCADE,
         related_name="created_%(app_label)s_%(class)s",
     )
@@ -29,7 +31,7 @@ class DefaultAuthenticatedModel(models.Model):
         auto_now_add=True,
     )
     updated_by = models.ForeignKey(
-        "user.User",
+        USER_MODEL,
         blank=True,
         help_text="Last user to update the instance",
         null=True,
@@ -112,7 +114,7 @@ class ModeratedDocumentMixin(models.Model):
         help_text="Moderation status used to gate public visibility.",
     )
     reviewed_by = models.ForeignKey(
-        "user.User",
+        USER_MODEL,
         blank=True,
         null=True,
         on_delete=models.SET_NULL,

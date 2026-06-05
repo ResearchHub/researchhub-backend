@@ -586,9 +586,7 @@ class PostStatusChangedSignalTests(RiskScoreSignalTestCase):
         self.post.reviewed_by = self.moderator
 
         # Act
-        on_post_status_changed(
-            sender=type(self.post), instance=self.post, created=True
-        )
+        on_post_status_changed(sender=type(self.post), instance=self.post, created=True)
 
         # Assert
         self._assert_no_events(self.user)
