@@ -267,7 +267,6 @@ INSTALLED_APPS = [
     "referral",
     "reputation",
     "researchhub",
-    "researchhub_case",
     "researchhub_comment",
     "researchhub_document",
     "researchhub_access_group",

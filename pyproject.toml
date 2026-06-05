@@ -105,7 +105,6 @@ extend-select = [
 "src/reputation/**/*.py" = ["E501"]
 "src/research_ai/**/*.py" = ["E501"]
 "src/researchhub/**/*.py" = ["E501"]
-"src/researchhub_case/**/*.py" = ["E501"]
 "src/researchhub_comment/**/*.py" = ["E501"]
 "src/researchhub_document/**/*.py" = ["E501"]
 "src/topic/**/*.py" = ["E501"]

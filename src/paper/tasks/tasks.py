@@ -20,7 +20,6 @@ from paper.ingestion.tasks import (  # noqa: F401
 )
 from paper.utils import download_pdf_from_url
 from researchhub.celery import QUEUE_PAPER_MISC, app
-from utils import sentry
 
 logger = get_task_logger(__name__)
 
@@ -61,11 +60,9 @@ def download_pdf(paper_id, retry=0):
             return True
         except ValueError as e:
             logger.warning(f"No PDF at {url} - paper {paper_id}: {e}")
-            sentry.log_info(f"No PDF at {url} - paper {paper_id}: {e}")
             return False
         except Exception as e:
             logger.warning(f"Failed to download PDF {url} - paper {paper_id}: {e}")
-            sentry.log_info(f"Failed to download PDF {url} - paper {paper_id}: {e}")
             download_pdf.apply_async(
                 (paper.id, retry + 1), priority=7, countdown=15 * (retry + 1)
             )

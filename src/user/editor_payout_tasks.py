@@ -1,5 +1,6 @@
 import datetime
 import json
+import logging
 import math
 from calendar import monthrange
 
@@ -12,7 +13,7 @@ from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution  # this is NOT the model
 from reputation.related_models.distribution import Distribution as DistributionModel
-from researchhub.settings import APP_ENV, MORALIS_API_KEY, WEB3_RSC_ADDRESS
+from researchhub.settings import MORALIS_API_KEY, WEB3_RSC_ADDRESS
 from researchhub_access_group.constants import (
     ASSOCIATE_EDITOR,
     SENIOR_EDITOR,
@@ -22,7 +23,8 @@ from user.constants.gatekeeper_constants import (
     PAYOUT_EXCLUSION_LIST,
 )
 from user.related_models.gatekeeper_model import Gatekeeper
-from utils import sentry
+
+logger = logging.getLogger(__name__)
 
 UNI_SWAP_BUNDLE_ID = 1  # their own hard-coded eth-bundle id
 UNI_SWAP_GRAPH_URI = "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2"
@@ -56,9 +58,9 @@ def editor_daily_payout_task():
             moralis_result = get_daily_rsc_payout_amount_from_deep_index(
                 num_days_this_month
             )
-        except Exception as error:
+        except Exception as e:
             # NOTE: moralis is a back up. Backup failing should not hard kill payout process.
-            sentry.log_info(f"{APP_ENV}-running payout moralis Fail: {error}")
+            logger.warning("Payout with moralis failed: %s", e)
 
         result = gecko_result or moralis_result
 
@@ -93,13 +95,13 @@ def editor_daily_payout_task():
                 )
                 distributor.distribute()
 
-            except Exception as error:
-                sentry.log_error(error)
+            except Exception:
+                logger.exception("Failed to distribute payout to editor %s", editor.id)
                 pass
 
         return result
-    except Exception as error:
-        sentry.log_error(error)
+    except Exception:
+        logger.exception("Failed to execute editor daily payout task")
 
 
 def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
