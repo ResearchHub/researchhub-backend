@@ -39,7 +39,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 )
 from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.models import User
-from user.permissions import IsNotRestricted, IsVerifiedUser
+from user.permissions import IsVerifiedUser
 from user.services.risk_score_service import RiskScoreService
 from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
@@ -63,7 +63,6 @@ class ResearchhubPostViewSet(
             permission_classes = [
                 IsAuthenticatedOrReadOnly,
                 IsVerifiedUser,
-                IsNotRestricted,
                 HasDocumentEditingPermission,
             ]
         else:

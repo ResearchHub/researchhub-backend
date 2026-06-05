@@ -46,7 +46,7 @@ from reputation.related_models.paper_reward import (
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
 from user.content_moderation_mixin import ContentModerationActionsMixin
-from user.permissions import IsModerator, IsNotRestricted, IsVerifiedUser
+from user.permissions import IsModerator, IsVerifiedUser
 from user.services.risk_score_service import RiskScoreService
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
@@ -115,6 +115,11 @@ class PaperViewSet(
         if user.is_staff:
             return queryset
 
+        # Papers that have not yet been approved (pending or declined) are not
+        # publicly viewable (including via a direct link); only the uploader and
+        # moderators / hub editors may see them until they are approved.
+        queryset = queryset.visible_to(user)
+
         if not user.is_anonymous and user.moderator and external_source:
             queryset = queryset.filter(
                 is_removed=False, retrieved_from_external_source=True
@@ -153,7 +158,6 @@ class PaperViewSet(
             IsAuthenticated,
             CreatePaper,
             IsVerifiedUser,
-            IsNotRestricted,
         ],
     )
     def create_researchhub_paper(self, request):

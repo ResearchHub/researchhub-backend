@@ -148,6 +148,36 @@ class JournalFeedViewSetTests(AWSMockTestCase):
         self.assertNotIn("Non-Journal Paper", titles)
         self.assertNotIn("Removed Journal Paper", titles)
 
+    def test_pending_paper_excluded(self):
+        """Papers awaiting moderation must not appear in the journal feed."""
+        pending_unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        pending_paper = Paper.objects.create(
+            title="Pending Journal Paper",
+            uploaded_by=self.user,
+            is_public=True,
+            is_removed=False,
+            status=Paper.PENDING,
+            unified_document=pending_unified_document,
+            created_date=timezone.now(),
+        )
+        PaperVersion.objects.create(
+            paper=pending_paper,
+            journal=PaperVersion.RESEARCHHUB,
+            publication_status=PaperVersion.PREPRINT,
+            version=1,
+            base_doi="10.1234/pending.12345",
+        )
+
+        url = reverse("journal_feed-list")
+        response = self.client.get(url, {"journal_status": "ALL"})
+
+        self.assertEqual(response.status_code, 200)
+        titles = [item["content_object"]["title"] for item in response.data["results"]]
+        self.assertNotIn("Pending Journal Paper", titles)
+        self.assertIn("Preprint Paper", titles)
+
     def test_filter_by_journal_status_in_journal(self):
         """Test filtering by journal_status=IN_JOURNAL"""
         url = reverse("journal_feed-list")

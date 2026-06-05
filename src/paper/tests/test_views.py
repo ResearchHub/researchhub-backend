@@ -1070,3 +1070,44 @@ class PaperDOITests(APITestCase):
             )
             self.assertEqual(response.data["doi"], test_doi)
             self.assertEqual(response.data["id"], paper.id)
+
+
+class PaperPendingVisibilityTests(APITestCase):
+    """Papers awaiting moderation are not publicly retrievable by direct link."""
+
+    def setUp(self):
+        self.uploader = create_random_authenticated_user("paper_uploader")
+        self.pending_paper = create_paper(
+            title="Pending paper", uploaded_by=self.uploader
+        )
+        self.pending_paper.status = Paper.PENDING
+        self.pending_paper.save(update_fields=["status"])
+        self.detail_url = reverse("paper-detail", args=[self.pending_paper.id])
+
+    def test_anonymous_cannot_retrieve_pending_paper(self):
+        self.client.force_authenticate(None)
+        self.assertEqual(
+            self.client.get(self.detail_url).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_outsider_cannot_retrieve_pending_paper(self):
+        outsider = create_random_authenticated_user("paper_outsider")
+        self.client.force_authenticate(outsider)
+        self.assertEqual(
+            self.client.get(self.detail_url).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_uploader_can_retrieve_pending_paper(self):
+        self.client.force_authenticate(self.uploader)
+        self.assertEqual(
+            self.client.get(self.detail_url).status_code, status.HTTP_200_OK
+        )
+
+    def test_moderator_can_retrieve_pending_paper(self):
+        moderator = create_random_authenticated_user("paper_mod", moderator=True)
+        self.client.force_authenticate(moderator)
+        self.assertEqual(
+            self.client.get(self.detail_url).status_code, status.HTTP_200_OK
+        )

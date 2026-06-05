@@ -37,11 +37,32 @@ HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 logger = logging.getLogger(__name__)
 
 
+class PaperQuerySet(models.QuerySet):
+    def visible_to(self, user):
+        """Restrict to papers by moderation status the given user may see.
+
+        This is a moderation-status gate, not the full privacy gate: papers
+        that have cleared moderation (``status=APPROVED``) pass for everyone,
+        while papers still awaiting moderation or declined pass only for their
+        uploader and for site moderators / hub editors. The ``is_public`` flag
+        is layered on separately by callers that need it (see
+        ``ResearchhubUnifiedDocument.is_visible_to_user``).
+        """
+        approved = Q(status=ModeratedDocumentMixin.APPROVED)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return self.filter(approved)
+        if getattr(user, "moderator", False) or user.is_hub_editor():
+            return self
+        return self.filter(approved | Q(uploaded_by=user))
+
+
 class Paper(ModeratedDocumentMixin, AbstractGenericReactionModel):
     REGULAR = "REGULAR"
     PRE_REGISTRATION = "PRE_REGISTRATION"
 
     PAPER_TYPE_CHOICES = [(REGULAR, REGULAR), (PRE_REGISTRATION, PRE_REGISTRATION)]
+
+    objects = PaperQuerySet.as_manager()
 
     rh_threads = GenericRelation(
         RhCommentThreadModel,

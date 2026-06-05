@@ -875,6 +875,34 @@ class ViewTests(APITestCase):
         ]
         self.assertNotIn(private_post_id, prereg_ids)
 
+    def test_pending_paper_metadata_hidden_from_public(self):
+        """A paper awaiting moderation is not publicly viewable via a direct
+        link; only the uploader and moderators can load its document metadata.
+        """
+        uploader = create_random_default_user("paper_uploader")
+        pending_paper = create_paper(title="Pending paper", uploaded_by=uploader)
+        pending_paper.status = pending_paper.PENDING
+        pending_paper.save(update_fields=["status"])
+
+        metadata_url = (
+            f"/api/researchhub_unified_document/{pending_paper.unified_document_id}"
+            "/get_document_metadata/"
+        )
+
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get(metadata_url).status_code, 403)
+
+        outsider = create_random_default_user("paper_outsider")
+        self.client.force_authenticate(outsider)
+        self.assertEqual(self.client.get(metadata_url).status_code, 403)
+
+        self.client.force_authenticate(uploader)
+        self.assertEqual(self.client.get(metadata_url).status_code, 200)
+
+        moderator = create_random_default_user("paper_metadata_mod", moderator=True)
+        self.client.force_authenticate(moderator)
+        self.assertEqual(self.client.get(metadata_url).status_code, 200)
+
     def test_grant_update_existing_grant(self):
         """Test that an existing grant can be updated when updating a post"""
         author = create_random_default_user("author", moderator=True)

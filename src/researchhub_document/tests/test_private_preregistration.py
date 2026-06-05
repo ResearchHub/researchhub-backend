@@ -42,11 +42,14 @@ LONG_BODY = (
 )
 
 
-def _make_user(name):
+def _make_user(name, moderator=False):
     user = User.objects.create_user(
         username=f"{name}-{uuid.uuid4().hex[:8]}",
         password=uuid.uuid4().hex,
     )
+    if moderator:
+        user.moderator = True
+        user.save(update_fields=["moderator"])
     make_user_verified(user)
     return user
 
@@ -260,6 +263,43 @@ class VisibleToQuerySetTests(AWSMockTestCase):
 
         ids = set(ResearchhubPost.objects.visible_to(user).values_list("id", flat=True))
         self.assertNotIn(self.private_post.id, ids)
+
+    def _unmoderated_post(self, status):
+        post = create_post(
+            title=f"{status} public post",
+            created_by=self.author,
+            document_type=PREREGISTRATION,
+        )
+        post.status = status
+        post.save(update_fields=["status"])
+        return post
+
+    def _visible_ids(self, user):
+        return set(
+            ResearchhubPost.objects.visible_to(user).values_list("id", flat=True)
+        )
+
+    def test_pending_public_post_hidden_from_public(self):
+        """A public post awaiting moderation is hidden from the public, but
+        stays visible to its author and to moderators."""
+        pending_post = self._unmoderated_post(ResearchhubPost.PENDING)
+        moderator = _make_user("moderator", moderator=True)
+
+        self.assertNotIn(pending_post.id, self._visible_ids(None))
+        self.assertNotIn(pending_post.id, self._visible_ids(self.outsider))
+        self.assertIn(pending_post.id, self._visible_ids(self.author))
+        self.assertIn(pending_post.id, self._visible_ids(moderator))
+
+    def test_declined_public_post_hidden_from_public(self):
+        """A declined post is likewise hidden from the public, while its author
+        and moderators retain access."""
+        declined_post = self._unmoderated_post(ResearchhubPost.DECLINED)
+        moderator = _make_user("moderator", moderator=True)
+
+        self.assertNotIn(declined_post.id, self._visible_ids(None))
+        self.assertNotIn(declined_post.id, self._visible_ids(self.outsider))
+        self.assertIn(declined_post.id, self._visible_ids(self.author))
+        self.assertIn(declined_post.id, self._visible_ids(moderator))
 
 
 class PostViewSetVisibilityTests(AWSMockTestCase):

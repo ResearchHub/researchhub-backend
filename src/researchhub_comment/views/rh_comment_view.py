@@ -64,7 +64,7 @@ from review.services.review_service import (
     REVIEW_WINDOW_DAYS,
     get_review_availability,
 )
-from user.permissions import IsModerator, IsNotRestricted
+from user.permissions import IsModerator
 from utils.throttles import THROTTLE_CLASSES
 
 
@@ -85,7 +85,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     permission_classes = [
         IsAuthenticatedOrReadOnly,
         IsObjectOwner,
-        IsNotRestricted,
         ThreadViewingPermissions,
     ]
     throttle_classes = THROTTLE_CLASSES

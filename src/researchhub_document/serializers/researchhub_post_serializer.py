@@ -385,7 +385,9 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         those paths to an unauthorized viewer.
         """
         unified_document = instance.unified_document
-        if unified_document is not None and not unified_document.is_public:
+        if unified_document is not None and not (
+            unified_document.is_public and instance.is_approved
+        ):
             user = get_user_from_request(self.context)
             if not unified_document.is_visible_to_user(user):
                 return {"id": instance.id, "is_public": False}

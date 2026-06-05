@@ -120,6 +120,7 @@ class JournalFeedViewSet(FeedViewMixin, ModelViewSet):
             .filter(
                 is_removed=False,
                 is_public=True,
+                status=Paper.APPROVED,
             )
         )
 

@@ -1,6 +1,5 @@
-from rest_framework.permissions import SAFE_METHODS, BasePermission
+from rest_framework.permissions import BasePermission
 
-from user.services.risk_score_service import RiskScoreService
 from utils.http import DELETE, RequestMethods
 from utils.permissions import AuthorizationBasedPermission
 
@@ -103,22 +102,3 @@ class IsVerifiedUser(BasePermission):
             return False
 
         return user.is_verified
-
-
-class IsNotRestricted(BasePermission):
-    """Blocks write actions for shadow-banned (risk-restricted) users.
-
-    Reads and anonymous requests always pass (other permissions handle auth).
-    """
-
-    message = "Your account is restricted from this action."
-
-    def has_permission(self, request, view):
-        if request.method in SAFE_METHODS:
-            return True
-
-        user = request.user
-        if not user.is_authenticated:
-            return True
-
-        return not RiskScoreService().is_restricted(user)
