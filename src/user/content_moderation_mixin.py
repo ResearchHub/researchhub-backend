@@ -1,5 +1,7 @@
 from django.shortcuts import get_object_or_404
+from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
 
 from user.permissions import IsModerator
@@ -15,17 +17,17 @@ class ContentModerationActionsMixin:
     moderation_model = None
 
     @action(detail=True, methods=["post"], permission_classes=[IsModerator])
-    def approve(self, request, pk=None):
+    def approve(self, request: Request, pk: str | None = None) -> Response:
         content = get_object_or_404(self.moderation_model, pk=pk)
         try:
             ContentModerationService().approve_content(content, request.user)
         except ValueError as e:
-            return Response({"message": str(e)}, status=400)
+            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(self.get_serializer(content).data)
 
     @action(detail=True, methods=["post"], permission_classes=[IsModerator])
-    def decline(self, request, pk=None):
+    def decline(self, request: Request, pk: str | None = None) -> Response:
         content = get_object_or_404(self.moderation_model, pk=pk)
         try:
             ContentModerationService().decline_content(
@@ -35,6 +37,6 @@ class ContentModerationActionsMixin:
                 request.data.get("reason_choice", ""),
             )
         except ValueError as e:
-            return Response({"message": str(e)}, status=400)
+            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(self.get_serializer(content).data)
