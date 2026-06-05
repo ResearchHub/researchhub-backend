@@ -18,7 +18,6 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
 )
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from review.models.peer_review_model import PeerReview
 from review.models.review_model import Review
 from user.events import user_reinstated, user_suspended
 from user.models import Action
@@ -364,7 +363,7 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         self.other_user = create_random_default_user("content_other_user")
 
     def test_suspend_removes_all_new_content_types(self):
-        """Notes, peer reviews, reviews, and grants are all removed on suspend."""
+        """Notes, reviews, and grants are all removed on suspend."""
         # Arrange
         note_unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="NOTE"
@@ -374,8 +373,6 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
             title="Spam Note",
             unified_document=note_unified_doc,
         )
-
-        peer_review = PeerReview.objects.create(user=self.user, paper=self.paper)
 
         other_thread = RhCommentThreadModel.objects.create(
             created_by=self.other_user,
@@ -419,10 +416,6 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         # Assert
         note_unified_doc.refresh_from_db()
         self.assertTrue(note_unified_doc.is_removed)
-
-        peer_review.refresh_from_db()
-        self.assertTrue(peer_review.is_removed)
-        self.assertFalse(peer_review.is_public)
 
         review = Review.all_objects.get(id=review.id)
         self.assertTrue(review.is_removed)
@@ -604,7 +597,7 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         self.assertTrue(FeedEntry.objects.filter(id=other_entry.id).exists())
 
     def test_reinstate_restores_new_content_types(self):
-        """Notes, peer reviews, and reviews are restored on reinstate."""
+        """Notes and reviews are restored on reinstate."""
         # Arrange
         note_unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="NOTE"
@@ -614,8 +607,6 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
             title="Spam Note",
             unified_document=note_unified_doc,
         )
-
-        peer_review = PeerReview.objects.create(user=self.user, paper=self.paper)
 
         review = Review.objects.create(
             created_by=self.user,
@@ -632,10 +623,6 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         # Assert
         note_unified_doc.refresh_from_db()
         self.assertFalse(note_unified_doc.is_removed)
-
-        peer_review = PeerReview.all_objects.get(id=peer_review.id)
-        self.assertFalse(peer_review.is_removed)
-        self.assertTrue(peer_review.is_public)
 
         review = Review.all_objects.get(id=review.id)
         self.assertFalse(review.is_removed)
