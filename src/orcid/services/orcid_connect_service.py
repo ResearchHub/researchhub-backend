@@ -25,4 +25,3 @@ class OrcidConnectService:
             "state": signing.dumps(state_data),
         }
         return f"{ORCID_BASE_URL}/oauth/authorize?{urlencode(params)}"
-

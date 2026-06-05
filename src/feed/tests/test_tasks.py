@@ -1,9 +1,13 @@
+from datetime import timedelta
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 
 from feed.models import FeedEntry
 from feed.tasks import (
+    _get_authors_for_item,
     _get_unified_document,
     create_feed_entry,
     delete_feed_entry,
@@ -12,12 +16,19 @@ from feed.tasks import (
 )
 from hub.models import Hub
 from paper.models import Paper
+from purchase.models import Fundraise
+from purchase.related_models.constants.currency import USD
+from purchase.related_models.purchase_model import Purchase
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from reputation.related_models.bounty import Bounty
 from reputation.related_models.escrow import Escrow
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
+from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -64,6 +75,70 @@ class FeedTasksTest(AWSMockTestCase):
         self.assertEqual(feed_entry.item, self.paper)
         self.assertEqual(feed_entry.hubs.first(), self.hub)
         self.assertEqual(feed_entry.unified_document, self.paper.unified_document)
+
+    def test_create_feed_entry_future_publish_date_falls_back_to_created_date(self):
+        """Paper with a future paper_publish_date should use created_date instead."""
+        now = timezone.now()
+        future_date = now + timedelta(days=180)
+
+        unified_doc = ResearchhubUnifiedDocument.objects.create()
+        paper = Paper.objects.create(
+            title="Future Publish Date Paper",
+            paper_publish_date=future_date,
+            unified_document=unified_doc,
+        )
+
+        feed_entry = create_feed_entry(
+            item_id=paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        self.assertEqual(feed_entry.action_date, paper.created_date)
+        self.assertLessEqual(feed_entry.action_date, now + timedelta(seconds=5))
+
+    def test_create_feed_entry_past_publish_date_uses_publish_date(self):
+        """Paper with a past paper_publish_date should use it as action_date."""
+        past_date = timezone.now() - timedelta(days=30)
+
+        unified_doc = ResearchhubUnifiedDocument.objects.create()
+        paper = Paper.objects.create(
+            title="Past Publish Date Paper",
+            paper_publish_date=past_date,
+            unified_document=unified_doc,
+        )
+
+        feed_entry = create_feed_entry(
+            item_id=paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        self.assertEqual(feed_entry.action_date, paper.paper_publish_date)
+
+    def test_create_feed_entry_skips_unsupported_content_type(self):
+        """Test that creating a feed entry with an unsupported content type
+        returns None and does not create a FeedEntry."""
+        hub_content_type = ContentType.objects.get_for_model(Hub)
+
+        result = create_feed_entry(
+            item_id=self.hub.id,
+            item_content_type_id=hub_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        self.assertIsNone(result)
+        self.assertFalse(
+            FeedEntry.objects.filter(
+                object_id=self.hub.id, content_type=hub_content_type
+            ).exists()
+        )
 
     def test_create_feed_entry_twice(self):
         """Test that attempting to create the same feed entry twice
@@ -293,7 +368,7 @@ class FeedTasksTest(AWSMockTestCase):
 
             # Create a paper with different creation dates to affect hot score
             paper = Paper.objects.create(
-                title=f"Test Paper {i+1}",
+                title=f"Test Paper {i + 1}",
                 paper_publish_date="2025-01-01",
                 unified_document=unified_doc,
                 score=10 * (i + 1),  # Different scores to get different hot scores
@@ -616,7 +691,7 @@ class FeedTasksTest(AWSMockTestCase):
         for i in range(2):
             unified_doc = ResearchhubUnifiedDocument.objects.create()
             paper = Paper.objects.create(
-                title=f"Test Paper {i+1}",
+                title=f"Test Paper {i + 1}",
                 paper_publish_date="2025-01-01",
                 unified_document=unified_doc,
                 score=100,  # High score to get high hot_score_v2
@@ -673,3 +748,121 @@ class FeedTasksTest(AWSMockTestCase):
 
         # Assert - should only be called once per paper
         self.assertEqual(mock_trigger.call_count, 1)
+
+    def test_get_unified_document_for_purchase(self):
+        """
+        Test getting a unified document from a fundraise contribution Purchase.
+        """
+        # Arrange
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+        fundraise = Fundraise.objects.create(
+            unified_document=unified_document,
+            created_by=self.user,
+            goal_amount=Decimal("1000.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        fundraise_ct = ContentType.objects.get_for_model(Fundraise)
+        purchase = Purchase.objects.create(
+            user=self.user,
+            content_type=fundraise_ct,
+            object_id=fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="100",
+        )
+        purchase_ct = ContentType.objects.get_for_model(Purchase)
+
+        # Act
+        actual = _get_unified_document(purchase, purchase_ct)
+
+        # Assert
+        self.assertEqual(actual, unified_document)
+
+    def test_get_unified_document_for_usd_contribution(self):
+        """
+        Test getting a unified document from a UsdFundraiseContribution.
+        """
+        # Arrange
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+        fundraise = Fundraise.objects.create(
+            unified_document=unified_document,
+            created_by=self.user,
+            goal_amount=Decimal("1000.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        contribution = UsdFundraiseContribution.objects.create(
+            user=self.user,
+            fundraise=fundraise,
+            amount_cents=5000,
+            fee_cents=450,
+            origin_fund_id="test-origin",
+            destination_org_id="test-destination",
+        )
+        usd_ct = ContentType.objects.get_for_model(UsdFundraiseContribution)
+
+        # Act
+        actual = _get_unified_document(contribution, usd_ct)
+
+        # Assert
+        self.assertEqual(actual, unified_document)
+
+    def test_get_authors_for_purchase(self):
+        """
+        Test getting authors from a fundraise contribution Purchase.
+        """
+        # Arrange
+        author = self.user.author_profile
+        fundraise_ct = ContentType.objects.get_for_model(Fundraise)
+        purchase = Purchase.objects.create(
+            user=self.user,
+            content_type=fundraise_ct,
+            object_id=1,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="100",
+        )
+        purchase_ct = ContentType.objects.get_for_model(Purchase)
+
+        # Act
+        authors = _get_authors_for_item(purchase, purchase_ct)
+
+        # Assert
+        self.assertEqual(authors, [author])
+
+    def test_get_authors_for_usd_contribution(self):
+        """
+        Test getting authors from a UsdFundraiseContribution.
+        """
+        # Arrange
+        author = self.user.author_profile
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+        fundraise = Fundraise.objects.create(
+            unified_document=unified_document,
+            created_by=self.user,
+            goal_amount=Decimal("1000.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        contribution = UsdFundraiseContribution.objects.create(
+            user=self.user,
+            fundraise=fundraise,
+            amount_cents=5000,
+            fee_cents=450,
+            origin_fund_id="test-origin",
+            destination_org_id="test-destination",
+        )
+        usd_ct = ContentType.objects.get_for_model(UsdFundraiseContribution)
+
+        # Act
+        authors = _get_authors_for_item(contribution, usd_ct)
+
+        # Assert
+        self.assertEqual(authors, [author])

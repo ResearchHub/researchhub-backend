@@ -5,7 +5,8 @@ import pytz
 from django.core.cache import cache
 from rest_framework.test import APITestCase
 
-from purchase.models import Grant, GrantApplication
+from feed.views.common import FeedPagination
+from purchase.models import Fundraise, Grant, GrantApplication
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -224,7 +225,7 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(response1.data, response2.data)
 
     def test_grant_feed_includes_applications(self):
-        """Test that grant feed includes application data"""
+        """Test that grant feed includes application data with fundraise info"""
 
         # Create applicant users
         applicant1 = create_random_authenticated_user("applicant1")
@@ -240,6 +241,15 @@ class GrantFeedViewTests(APITestCase):
             created_by=applicant2,
             document_type=PREREGISTRATION,
             title="Preregistration 2",
+        )
+
+        # Create a fundraise on preregistration1's unified document
+        fundraise = Fundraise.objects.create(
+            created_by=applicant1,
+            unified_document=preregistration1.unified_document,
+            goal_amount=Decimal("10000.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
         )
 
         # Create applications
@@ -276,14 +286,15 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(len(applications), 2)
 
         # Check application structure
-        application1 = applications[0]
-        self.assertIn("id", application1)
-        self.assertIn("created_date", application1)
-        self.assertIn("applicant", application1)
-        self.assertIn("preregistration_post_id", application1)
+        for app in applications:
+            self.assertIn("id", app)
+            self.assertIn("created_date", app)
+            self.assertIn("applicant", app)
+            self.assertIn("preregistration_post_id", app)
+            self.assertIn("fundraise", app)
 
         # Check applicant structure using SimpleAuthorSerializer
-        applicant_data = application1["applicant"]
+        applicant_data = applications[0]["applicant"]
         self.assertIn("id", applicant_data)
         self.assertIn("first_name", applicant_data)
         self.assertIn("last_name", applicant_data)
@@ -295,6 +306,34 @@ class GrantFeedViewTests(APITestCase):
         applicant_ids = [app["applicant"]["id"] for app in applications]
         self.assertIn(applicant1.author_profile.id, applicant_ids)
         self.assertIn(applicant2.author_profile.id, applicant_ids)
+
+        # Find the application with a fundraise (preregistration1)
+        app_with_fundraise = next(
+            app
+            for app in applications
+            if app["preregistration_post_id"] == preregistration1.id
+        )
+        self.assertIsNotNone(app_with_fundraise["fundraise"])
+        fr = app_with_fundraise["fundraise"]
+        self.assertEqual(fr["id"], fundraise.id)
+        self.assertEqual(fr["title"], "Preregistration 1")
+        self.assertEqual(fr["status"], "OPEN")
+        self.assertEqual(fr["goal_amount"]["usd"], 10000.0)
+        self.assertIn("usd", fr["amount_raised"])
+        self.assertIn("rsc", fr["amount_raised"])
+
+        # Verify contributors structure
+        self.assertIn("contributors", fr)
+        self.assertEqual(fr["contributors"]["total"], 0)
+        self.assertEqual(fr["contributors"]["top"], [])
+
+        # Find the application without a fundraise (preregistration2)
+        app_without_fundraise = next(
+            app
+            for app in applications
+            if app["preregistration_post_id"] == preregistration2.id
+        )
+        self.assertIsNone(app_without_fundraise["fundraise"])
 
     def test_grant_feed_empty_applications(self):
         """Test that grant feed handles grants with no applications"""
@@ -393,11 +432,15 @@ class GrantFeedViewTests(APITestCase):
         closed_response = self.client.get("/api/grant_feed/?status=CLOSED")
 
         # Assert - expired OPEN grant should NOT appear in OPEN filter
-        open_titles = [r["content_object"]["title"] for r in open_response.data["results"]]
+        open_titles = [
+            r["content_object"]["title"] for r in open_response.data["results"]
+        ]
         self.assertNotIn("Expired Open Grant", open_titles)
 
         # Assert - expired OPEN grant SHOULD appear in CLOSED filter
-        closed_titles = [r["content_object"]["title"] for r in closed_response.data["results"]]
+        closed_titles = [
+            r["content_object"]["title"] for r in closed_response.data["results"]
+        ]
         self.assertIn("Expired Open Grant", closed_titles)
 
     def test_grant_feed_filter_by_organization(self):
@@ -544,3 +587,241 @@ class GrantFeedViewTests(APITestCase):
 
         # Assert
         self.assertEqual(len(response.data["results"]), 0)
+
+    def test_pending_and_declined_excluded_from_feed(self):
+        """PENDING and DECLINED grants are excluded from the default feed."""
+        # Arrange
+        pending_post = create_post(
+            created_by=self.moderator, document_type=GRANT, title="Pending Grant"
+        )
+        Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=pending_post.unified_document,
+            amount=Decimal("10000.00"),
+            status=Grant.PENDING,
+        )
+        declined_post = create_post(
+            created_by=self.moderator, document_type=GRANT, title="Declined Grant"
+        )
+        declined_post.unified_document.is_removed = True
+        declined_post.unified_document.save()
+        Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=declined_post.unified_document,
+            amount=Decimal("10000.00"),
+            status=Grant.DECLINED,
+        )
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get("/api/grant_feed/")
+
+        # Assert
+        titles = [r["content_object"]["title"] for r in response.data["results"]]
+        self.assertNotIn("Pending Grant", titles)
+        self.assertNotIn("Declined Grant", titles)
+        self.assertEqual(len(titles), 3)
+
+    def test_created_by_cache_key_isolates_per_user(self):
+        """Cache key must differ by created_by so different users don't share results."""
+        # Arrange - two grant creators with distinct grants
+        user1 = create_random_authenticated_user("grant_creator_1")
+        user2 = create_random_authenticated_user("grant_creator_2")
+
+        user1_post = create_post(
+            created_by=user1, document_type=GRANT, title="User1 Grant"
+        )
+        Grant.objects.create(
+            created_by=user1,
+            unified_document=user1_post.unified_document,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Org1",
+            description="User1-owned grant",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+
+        user2_post = create_post(
+            created_by=user2, document_type=GRANT, title="User2 Grant"
+        )
+        Grant.objects.create(
+            created_by=user2,
+            unified_document=user2_post.unified_document,
+            amount=Decimal("2000.00"),
+            currency="USD",
+            organization="Org2",
+            description="User2-owned grant",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+
+        self.client.force_authenticate(self.user)
+
+        # Act - populate cache with user1's grants, then request user2's grants
+        user1_response = self.client.get(f"/api/grant_feed/?created_by={user1.id}")
+        user2_response = self.client.get(f"/api/grant_feed/?created_by={user2.id}")
+
+        # Assert - each creator's query returns only their own grants (no cache bleed)
+        user1_titles = [
+            r["content_object"]["title"] for r in user1_response.data["results"]
+        ]
+        user2_titles = [
+            r["content_object"]["title"] for r in user2_response.data["results"]
+        ]
+        self.assertEqual(user1_titles, ["User1 Grant"])
+        self.assertEqual(user2_titles, ["User2 Grant"])
+
+    def test_invalidate_grant_feed_cache_clears_created_by_entries(self):
+        """invalidate_grant_feed_cache must clear per-creator cache entries too."""
+        # Arrange
+        from feed.views.grant_cache_mixin import GrantCacheMixin
+
+        user1 = create_random_authenticated_user("invalidate_creator_1")
+        user1_post = create_post(
+            created_by=user1, document_type=GRANT, title="User1 Grant"
+        )
+        Grant.objects.create(
+            created_by=user1,
+            unified_document=user1_post.unified_document,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Org1",
+            description="User1-owned grant",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+        self.client.force_authenticate(self.user)
+
+        # Populate caches: unfiltered + filtered by created_by
+        unfiltered_response = self.client.get("/api/grant_feed/")
+        filtered_response = self.client.get(f"/api/grant_feed/?created_by={user1.id}")
+        self.assertEqual(unfiltered_response.status_code, 200)
+        self.assertEqual(filtered_response.status_code, 200)
+
+        unfiltered_key = (
+            f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::"
+        )
+        filtered_key = (
+            f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::{user1.id}"
+        )
+        self.assertIsNotNone(cache.get(unfiltered_key))
+        self.assertIsNotNone(cache.get(filtered_key))
+
+        # Act
+        GrantCacheMixin.invalidate_grant_feed_cache()
+
+        # Assert - both cache entries should be cleared
+        self.assertIsNone(cache.get(unfiltered_key))
+        self.assertIsNone(cache.get(filtered_key))
+
+    def test_pending_status_filter(self):
+        """?status=PENDING returns only pending grants."""
+        # Arrange
+        pending_post = create_post(
+            created_by=self.moderator, document_type=GRANT, title="Pending Grant"
+        )
+        Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=pending_post.unified_document,
+            amount=Decimal("10000.00"),
+            status=Grant.PENDING,
+        )
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get("/api/grant_feed/?status=PENDING")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        titles = [r["content_object"]["title"] for r in response.data["results"]]
+        self.assertEqual(titles, ["Pending Grant"])
+
+    def test_removed_proposals_excluded_from_applications(self):
+        """Censored proposals must not appear in a grant's applications list."""
+        # Arrange
+        applicant1 = create_random_authenticated_user("app_removed_1")
+        applicant2 = create_random_authenticated_user("app_removed_2")
+        post1 = create_post(
+            created_by=applicant1, document_type=PREREGISTRATION, title="Visible"
+        )
+        post2 = create_post(
+            created_by=applicant2, document_type=PREREGISTRATION, title="Removed"
+        )
+        GrantApplication.objects.create(
+            grant=self.open_grant, preregistration_post=post1, applicant=applicant1
+        )
+        GrantApplication.objects.create(
+            grant=self.open_grant, preregistration_post=post2, applicant=applicant2
+        )
+        post2.unified_document.is_removed = True
+        post2.unified_document.save()
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get("/api/grant_feed/")
+
+        # Assert
+        grant_entry = next(
+            e
+            for e in response.data["results"]
+            if e["content_object"]["id"] == self.open_post.id
+        )
+        applications = grant_entry["content_object"]["grant"]["applications"]
+        self.assertEqual(len(applications), 1)
+        self.assertEqual(applications[0]["preregistration_post_id"], post1.id)
+
+    def test_most_applicants_sorting_excludes_removed(self):
+        """most_applicants ordering must not count removed proposals."""
+        # Arrange
+        applicant = create_random_authenticated_user("sort_applicant")
+        visible = create_post(
+            created_by=applicant, document_type=PREREGISTRATION, title="Visible"
+        )
+        removed = create_post(
+            created_by=applicant, document_type=PREREGISTRATION, title="Removed"
+        )
+        GrantApplication.objects.create(
+            grant=self.closed_grant, preregistration_post=visible, applicant=applicant
+        )
+        GrantApplication.objects.create(
+            grant=self.open_grant, preregistration_post=removed, applicant=applicant
+        )
+        removed.unified_document.is_removed = True
+        removed.unified_document.save()
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get("/api/grant_feed/?ordering=-most_applicants")
+
+        # Assert — closed_grant (1 visible) ranks above open_grant (0 visible)
+        titles = [r["content_object"]["title"] for r in response.data["results"]]
+        self.assertLess(titles.index("Closed Grant"), titles.index("Open Grant"))
+
+    def test_invalidate_if_grant_linked(self):
+        """invalidate_if_grant_linked clears cache for grant-linked docs only."""
+        from feed.views.grant_cache_mixin import GrantCacheMixin
+
+        # Arrange
+        applicant = create_random_authenticated_user("cache_applicant")
+        proposal = create_post(
+            created_by=applicant, document_type=PREREGISTRATION, title="Proposal"
+        )
+        unrelated = create_post(
+            created_by=self.user, document_type=PREREGISTRATION, title="Unrelated"
+        )
+        GrantApplication.objects.create(
+            grant=self.open_grant, preregistration_post=proposal, applicant=applicant
+        )
+        self.client.force_authenticate(self.user)
+        self.client.get("/api/grant_feed/")
+        cache_key = f"grants_feed:popular:all:all:none:1-{FeedPagination.page_size}::"
+        self.assertIsNotNone(cache.get(cache_key))
+
+        # Act + Assert — unrelated doc does not clear cache
+        GrantCacheMixin.invalidate_if_grant_linked(unrelated.unified_document)
+        self.assertIsNotNone(cache.get(cache_key))
+
+        # Act + Assert — grant-linked doc clears cache
+        GrantCacheMixin.invalidate_if_grant_linked(proposal.unified_document)
+        self.assertIsNone(cache.get(cache_key))

@@ -1,7 +1,12 @@
+import csv
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import FloatField, OuterRef, Subquery
+from django.db.models.functions import Coalesce
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -10,14 +15,20 @@ from rest_framework.response import Response
 from analytics.amplitude import track_event
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import RSC, USD
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
-from purchase.serializers.funding_impact_serializer import FundingImpactSerializer
-from purchase.serializers.funding_overview_serializer import FundingOverviewSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
-from purchase.services.fundraise_service import FundraiseService
-from purchase.services.funding_impact_service import FundingImpactService
-from purchase.services.funding_overview_service import FundingOverviewService
+from purchase.serializers.usd_fundraise_contribution_serializer import (
+    UsdFundraiseContributionSerializer,
+)
+from purchase.services.fundraise_service import (
+    USD_CONTRIBUTION_CSV_HEADERS,
+    FundraiseService,
+)
 from referral.services.referral_bonus_service import ReferralBonusService
 from user.permissions import IsModerator
 from user.related_models.follow_model import Follow
@@ -27,11 +38,10 @@ class FundraiseViewSet(viewsets.ModelViewSet):
     queryset = Fundraise.objects.all()
     serializer_class = DynamicFundraiseSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "head", "options", "post"]
 
     def dispatch(self, request, *args, **kwargs):
         self.fundraise_service = kwargs.pop("fundraise_service", FundraiseService())
-        self.funding_impact_service = kwargs.pop("funding_impact_service", FundingImpactService())
-        self.funding_overview_service = kwargs.pop("funding_overview_service", FundingOverviewService())
         self.referral_bonus_service = kwargs.pop(
             "referral_bonus_service",
             ReferralBonusService(),
@@ -141,6 +151,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         amount = data.get("amount", None)
         amount_currency = data.get("amount_currency", RSC)
         origin_fund_id = data.get("origin_fund_id") or None
+        use_credits = bool(data.get("use_credits", True))
 
         # Validate body
         if fundraise_id is None:
@@ -189,6 +200,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             amount=amount,
             currency=amount_currency,
             origin_fund_id=origin_fund_id,
+            use_credits=use_credits,
         )
 
         if error:
@@ -205,6 +217,43 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         # return updated fundraise object
         context = self.get_serializer_context()
         serializer = self.get_serializer(fundraise, context=context)
+        return Response(serializer.data)
+
+    @action(
+        methods=["GET"],
+        detail=False,
+        permission_classes=[IsAuthenticated],
+    )
+    def usd_contributions(self, request, *args, **kwargs):
+        """
+        Return the authenticated user's USD fundraise contributions,
+        ordered by most recent first.
+        """
+        historical_rate_subquery = (
+            RscExchangeRate.objects.filter(created_date__lte=OuterRef("created_date"))
+            .annotate(effective_rate=Coalesce("real_rate", "rate"))
+            .order_by("-created_date")
+            .values("effective_rate")[:1]
+        )
+
+        contributions = (
+            UsdFundraiseContribution.objects.for_user(request.user.id)
+            .not_refunded()
+            .select_related("fundraise")
+            .annotate(
+                rsc_usd_rate_at_contribution=Subquery(
+                    historical_rate_subquery, output_field=FloatField()
+                )
+            )
+            .order_by("-created_date")
+        )
+
+        page = self.paginate_queryset(contributions)
+        if page is not None:
+            serializer = UsdFundraiseContributionSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = UsdFundraiseContributionSerializer(contributions, many=True)
         return Response(serializer.data)
 
     @action(
@@ -266,6 +315,41 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         detail=True,
         permission_classes=[IsModerator],
     )
+    def reopen(self, request, *args, **kwargs):
+        """
+        Reopen a fundraise (status OPEN) and extend its end date by
+        `duration_days` days from now. Only accessible to moderators.
+        Cannot reopen fundraises that have already paid out (COMPLETED).
+        """
+        fundraise_id = kwargs.get("pk", None)
+
+        try:
+            fundraise = Fundraise.objects.get(id=fundraise_id)
+        except Fundraise.DoesNotExist:
+            return Response({"message": "Fundraise does not exist"}, status=400)
+
+        raw_duration = request.data.get("duration_days")
+        try:
+            duration_days = int(raw_duration)
+        except (TypeError, ValueError):
+            return Response(
+                {"message": "duration_days must be a positive integer"}, status=400
+            )
+
+        try:
+            self.fundraise_service.reopen_fundraise(fundraise, duration_days)
+        except ValueError as e:
+            return Response({"message": str(e)}, status=400)
+
+        context = self.get_serializer_context()
+        serializer = self.get_serializer(fundraise, context=context)
+        return Response(serializer.data)
+
+    @action(
+        methods=["POST"],
+        detail=True,
+        permission_classes=[IsModerator],
+    )
     def close(self, request, *args, **kwargs):
         """
         Close a fundraise and refund all contributions to their contributors.
@@ -300,16 +384,31 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
-    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
-    def funding_overview(self, request, *args, **kwargs):
-        """Return funding overview metrics for the authenticated user."""
-        data = self.funding_overview_service.get_funding_overview(request.user)
-        serializer = FundingOverviewSerializer(data)
-        return Response(serializer.data)
+    @action(
+        methods=["GET"],
+        detail=True,
+        permission_classes=[IsModerator],
+        url_path="usd_contributions.csv",
+    )
+    def usd_contributions_csv(self, request, *args, **kwargs):
+        """
+        Export a CSV of USD contributions for a fundraise.
+        Used for manual USD contribution payout/refund processing.
+        """
+        fundraise = get_object_or_404(
+            Fundraise.objects.select_related("unified_document", "escrow"),
+            id=kwargs.get("pk"),
+        )
 
-    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
-    def funding_impact(self, request, *args, **kwargs):
-        """Return funding impact metrics for the authenticated user."""
-        data = self.funding_impact_service.get_funding_impact_overview(request.user)
-        serializer = FundingImpactSerializer(data)
-        return Response(serializer.data)
+        rows = self.fundraise_service.export_usd_contributions(fundraise)
+
+        filename = f"fundraise_{fundraise.id}_usd_contributions.csv"
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+        writer = csv.writer(response)
+        writer.writerow(USD_CONTRIBUTION_CSV_HEADERS)
+        for row in rows:
+            writer.writerow(row)
+
+        return response

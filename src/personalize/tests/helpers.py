@@ -15,14 +15,16 @@ from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from reputation.models import Bounty, BountySolution, Escrow
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import DISCUSSION
+from researchhub_document.related_models.constants.document_type import (
+    DISCUSSION,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.constants.document_type import (
     GRANT as GRANT_DOC_TYPE,
 )
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
 )
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.models import Author, User
 
 
@@ -199,7 +201,7 @@ def create_prefetched_proposal(
     )
 
     # Create fundraise
-    fundraise = Fundraise.objects.create(
+    Fundraise.objects.create(
         created_by=user,
         unified_document=post.unified_document,
         goal_amount=Decimal("10000.00"),
@@ -399,7 +401,7 @@ def create_fundraise_contribution(fundraise, user=None, amount=Decimal("100.00")
 
     content_type = ContentType.objects.get_for_model(fundraise)
 
-    escrow = Escrow.objects.create(
+    Escrow.objects.create(
         created_by=user,
         amount_holding=amount,
         content_type=content_type,

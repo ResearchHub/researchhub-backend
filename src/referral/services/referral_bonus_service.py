@@ -110,7 +110,7 @@ class ReferralBonusService:
             timestamp=timestamp,
             giver=None,  # Platform gives the bonus
         )
-        referred_distributor.distribute_locked_balance(lock_type="REFERRAL_BONUS")
+        referred_distributor.distribute_locked_balance()
 
         # Create bonus distribution for the referrer
         referrer_distribution = create_referral_bonus_distribution(bonus_amount)
@@ -121,4 +121,4 @@ class ReferralBonusService:
             timestamp=timestamp,
             giver=None,  # Platform gives the bonus
         )
-        referrer_distributor.distribute_locked_balance(lock_type="REFERRAL_BONUS")
+        referrer_distributor.distribute_locked_balance()

@@ -1,0 +1,15 @@
+{sender_info}
+
+Use Case: {custom_use_case}
+
+{common}
+
+For this custom request:
+- First infer the most natural 3-part structure for this outreach from the
+  stated use case
+- Make the context and purpose explicit early in the email
+- Explain why the outreach is relevant based only on the provided expertise
+  and notes
+- End with a clear, low-friction next step
+- Generate an email that authentically conveys the use case without fabricating
+  details about the expert's work

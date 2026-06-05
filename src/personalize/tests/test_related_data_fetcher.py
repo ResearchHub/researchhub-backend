@@ -2,10 +2,8 @@
 Tests for RelatedDataFetcher service.
 """
 
-from datetime import datetime, timedelta
-from decimal import Decimal
+from datetime import timedelta
 
-import pytz
 from django.test import TestCase
 
 from personalize.tests.helpers import (

@@ -5,7 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-    types: [opened, reopened, synchronize]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   build:
@@ -16,14 +19,13 @@ jobs:
       postgres:
         image: postgres:16.3-alpine
         env:
-          POSTGRES_DB: researchhub
+          POSTGRES_DB: test_researchhub
           POSTGRES_USER: rh_developer
           POSTGRES_PASSWORD: not_secure
           DB_PORT: 5432
           DB_HOST: localhost
           DB_USER: rh_developer
           DB_PASS: not_secure
-          APP_ENV: test
         ports:
           - 5432:5432
         options: >-
@@ -31,15 +33,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      redis:
-        image: redis:6.2-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
       opensearch:
         image: opensearchproject/opensearch:2.19.3
         env:
@@ -50,10 +43,10 @@ jobs:
 
     steps:
       - name: Check out sources
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       
       - name: Install uv
-        uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # v7.1.5
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
@@ -61,18 +54,33 @@ jobs:
       - name: Install Dependencies
         run: uv sync --all-extras
 
+      - name: Run Formatter
+        uses: astral-sh/ruff-action@0ce1b0bf8b818ef400413f810f8a11cdbda0034b # v4.0.0
+        with:
+          src: "./src"
+          args: "format --check --diff"
+
+      - name: Run Linter
+        uses: astral-sh/ruff-action@0ce1b0bf8b818ef400413f810f8a11cdbda0034b # v4.0.0
+        with:
+          src: "./src"
+
       - name: Run Tests
+        env:
+          APP_ENV: test
+          COVERAGE_PROCESS_START: ../pyproject.toml
         working-directory: ./src
         run: |
           cp config/ci/* config
           uv run python manage.py migrate
           uv run python manage.py collectstatic --noinput
           uv run python manage.py opensearch index rebuild --force
-          uv run coverage run manage.py test --verbosity=2
+          uv run coverage run manage.py test --keepdb --verbosity=2 --parallel auto
+          uv run coverage combine
           uv run coverage xml -o coverage.xml
 
       - name: Upload Coverage Report to Codecov
-        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./src/coverage.xml

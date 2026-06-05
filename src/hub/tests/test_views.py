@@ -1,4 +1,3 @@
-from django.core.cache import cache
 from rest_framework.test import APITestCase
 
 from hub.models import Hub
@@ -12,7 +11,6 @@ from utils.test_helpers import get_authenticated_post_response, get_get_response
 
 
 class HubViewsTests(APITestCase):
-
     def setUp(self):
         self.base_url = "/api/hub/"
         self.hub = create_hub(name="View Test Hub")
@@ -24,7 +22,7 @@ class HubViewsTests(APITestCase):
         self.client.force_authenticate(basic_user)
         hub = create_hub(name="some hub")
 
-        response = self.client.put(
+        self.client.put(
             f"/api/hub/{hub.id}/",
             {
                 "name": "updated name",
@@ -77,20 +75,6 @@ class HubViewsTests(APITestCase):
                 h2_second = True
 
         self.assertTrue(h1_first and h2_second)
-        cache.clear()
-        url = self.base_url + "?ordering=score"
-        response = get_get_response(url)
-        response_data = response.data["results"]
-
-        h2_first = False
-        h1_second = False
-        for h in response_data:
-            if h["id"] == hub2.id:
-                h2_first = True
-            elif h2_first and h["id"] == hub.id:
-                h1_second = True
-
-        self.assertTrue(h2_first and h1_second)
 
     def test_hub_order_by_name(self):
         hub = create_hub("Hub A")

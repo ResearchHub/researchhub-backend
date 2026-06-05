@@ -1,3 +1,5 @@
-from .review_permissions import (
-    AllowedToUpdateReview
-)
+from .review_permissions import AllowedToUpdateReview
+
+__all__ = [
+    "AllowedToUpdateReview",
+]

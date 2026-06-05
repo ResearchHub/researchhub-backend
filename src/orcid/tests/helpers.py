@@ -13,7 +13,9 @@ class OrcidTestHelper:
     OPENALEX_AUTHOR_ID = "https://openalex.org/A5000000001"
 
     @staticmethod
-    def create_author(name: str = "u", orcid_id: str = None, orcid_connected: bool = True):
+    def create_author(
+        name: str = "u", orcid_id: str = None, orcid_connected: bool = True
+    ):
         """Create a user with ORCID connected to their author profile."""
         orcid_url = orcid_id or OrcidTestHelper.ORCID_URL
         user = create_random_default_user(name)
@@ -21,7 +23,9 @@ class OrcidTestHelper:
         user.author_profile.save()
         if orcid_connected:
             SocialAccount.objects.create(
-                user=user, provider=OrcidProvider.id, uid=orcid_url.replace("https://orcid.org/", "")
+                user=user,
+                provider=OrcidProvider.id,
+                uid=orcid_url.replace("https://orcid.org/", ""),
             )
         return user
 
@@ -29,7 +33,10 @@ class OrcidTestHelper:
     def create_app() -> SocialApp:
         """Create ORCID social app for testing."""
         app = SocialApp.objects.create(
-            provider=OrcidProvider.id, name="ORCID", client_id="test-id", secret="test-secret"
+            provider=OrcidProvider.id,
+            name="ORCID",
+            client_id="test-id",
+            secret="test-secret",
         )
         app.sites.add(Site.objects.get_current())
         return app
@@ -39,26 +46,41 @@ class OrcidTestHelper:
         """Build an ORCID works API response with the given DOIs."""
         return {
             "group": [
-                {"work-summary": [{"external-ids": {"external-id": [
-                    {"external-id-type": "doi", "external-id-value": doi}
-                ]}}]}
+                {
+                    "work-summary": [
+                        {
+                            "external-ids": {
+                                "external-id": [
+                                    {
+                                        "external-id-type": "doi",
+                                        "external-id-value": doi,
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
                 for doi in dois
             ]
         }
 
     @staticmethod
     def make_openalex_work(
-        doi: str, orcid_url: str = None, openalex_author_id: str = None, position: str = "first"
+        doi: str,
+        orcid_url: str = None,
+        openalex_author_id: str = None,
+        position: str = "first",
     ) -> dict:
         """Build an OpenAlex work response."""
         return {
             "doi": f"https://doi.org/{doi}",
-            "authorships": [{
-                "author": {
-                    "id": openalex_author_id or OrcidTestHelper.OPENALEX_AUTHOR_ID,
-                    "orcid": orcid_url or OrcidTestHelper.ORCID_URL,
-                },
-                "author_position": position,
-            }],
+            "authorships": [
+                {
+                    "author": {
+                        "id": openalex_author_id or OrcidTestHelper.OPENALEX_AUTHOR_ID,
+                        "orcid": orcid_url or OrcidTestHelper.ORCID_URL,
+                    },
+                    "author_position": position,
+                }
+            ],
         }
-

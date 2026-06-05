@@ -2,9 +2,11 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
+from research_ai.models import Expert
 from research_ai.services.report_generator_service import (
-    generate_pdf_report,
+    expert_to_report_row,
     generate_csv_file,
+    generate_pdf_report,
     upload_report_to_storage,
 )
 
@@ -22,7 +24,7 @@ class GeneratePdfReportTests(TestCase):
             }
         ]
         query = "Machine learning"
-        config = {"expert_count": 10, "expertise_level": "All Levels"}
+        config = {"expert_count": 10, "expertise_level": "all_levels"}
         pdf_bytes = generate_pdf_report(experts, query, config)
         self.assertIsInstance(pdf_bytes, bytes)
         self.assertTrue(pdf_bytes.startswith(b"%PDF"))
@@ -57,6 +59,19 @@ class GenerateCsvFileTests(TestCase):
         self.assertIn(b"name", csv_bytes)
 
 
+class GenerateReportFromExpertModelTests(TestCase):
+    def test_generate_pdf_from_expert_rows_returns_pdf_bytes(self):
+        ex = Expert(
+            email="a@b.edu",
+            first_name="A",
+            last_name="B",
+        )
+        rows = [expert_to_report_row(ex)]
+        pdf = generate_pdf_report(rows, "Q", {})
+        self.assertIsInstance(pdf, bytes)
+        self.assertTrue(pdf.startswith(b"%PDF"))
+
+
 class UploadReportToStorageTests(TestCase):
     @patch("research_ai.services.report_generator_service.default_storage")
     def test_upload_report_returns_url(self, mock_storage):
@@ -64,9 +79,7 @@ class UploadReportToStorageTests(TestCase):
         mock_storage.url.return_value = (
             "https://bucket.s3.amazonaws.com/research_ai/expert-finder/123/report.pdf"
         )
-        url = upload_report_to_storage(
-            "123", b"pdf content", "pdf", "application/pdf"
-        )
+        url = upload_report_to_storage("123", b"pdf content", "pdf", "application/pdf")
         self.assertIn("123", url)
         self.assertIn("report.pdf", url)
         mock_storage.save.assert_called_once()

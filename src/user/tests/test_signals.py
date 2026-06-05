@@ -3,6 +3,7 @@ from django.test import TestCase
 from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
 from researchhub_comment.tests.helpers import create_rh_comment
+from user.models import User
 from user.tests.helpers import create_random_default_user
 
 
@@ -28,3 +29,12 @@ class UserSignalsTests(TestCase):
 
         action = user.actions.all()[0]
         self.assertIn(hub, action.hubs.all())
+
+    def test_new_user_is_auto_opted_into_staking(self):
+        user = User.objects.create_user(
+            username="staker@example.com",
+            email="staker@example.com",
+        )
+        user.refresh_from_db()
+        self.assertTrue(user.is_staking_opted_in)
+        self.assertIsNotNone(user.staking_opted_in_date)

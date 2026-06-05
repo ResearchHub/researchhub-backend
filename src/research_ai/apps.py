@@ -5,3 +5,6 @@ class ResearchAIConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "research_ai"
     verbose_name = "Research AI"
+
+    def ready(self):
+        import research_ai.signals  # noqa: F401

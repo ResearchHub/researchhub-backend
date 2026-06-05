@@ -13,12 +13,10 @@ from paper.ingestion.clients.preprints.arxiv_oai import (
     parse_xml_metadata,
 )
 
-
 fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class TestArXivOAIClient(TestCase):
-
     def setUp(self):
         self.config = ArXivOAIConfig()
         self.client = ArXivOAIClient(self.config)

@@ -14,7 +14,6 @@ from paper.ingestion.clients.preprints.arxiv import (
     parse_xml_entry,
 )
 
-
 fixtures_dir = Path(__file__).parent / "fixtures"
 
 
@@ -91,7 +90,8 @@ class TestArXivClient(TestCase):
 
         # Check basic fields (first entry from fixture)
         self.assertEqual(
-            parsed["id"], "http://arxiv.org/abs/2509.08827v1"  # NOSONAR - Ignore http
+            parsed["id"],
+            "http://arxiv.org/abs/2509.08827v1",  # NOSONAR - Ignore http
         )
         self.assertEqual(
             parsed["title"],
@@ -131,7 +131,8 @@ class TestArXivClient(TestCase):
 
         # Check basic fields (second entry from fixture)
         self.assertEqual(
-            parsed["id"], "http://arxiv.org/abs/2509.08817v1"  # NOSONAR - Ignore http
+            parsed["id"],
+            "http://arxiv.org/abs/2509.08817v1",  # NOSONAR - Ignore http
         )
         self.assertEqual(
             parsed["title"],

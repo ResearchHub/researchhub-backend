@@ -6,6 +6,7 @@ from rest_framework.filters import BaseFilterBackend
 
 from feed.feed_config import FEED_CONFIG
 from feed.models import FeedEntry
+from feed.views.feed_view_mixin import get_moderator_view_as_user_id
 from hub.models import Hub
 from personalize.config.settings import PERSONALIZE_CONFIG
 from personalize.services.feed_service import DEFAULT_NUM_RESULTS
@@ -170,7 +171,7 @@ class FeedFilteringBackend(BaseFilterBackend):
         if not request.user.is_authenticated:
             return queryset.none()
 
-        user_id = request.user.id
+        user_id = get_moderator_view_as_user_id(request) or request.user.id
 
         personalize_feed_service = getattr(view, "personalize_feed_service", None)
         if not personalize_feed_service:

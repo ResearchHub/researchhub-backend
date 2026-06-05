@@ -1,5 +1,3 @@
-import json
-
 import requests
 
 from purchase.related_models.constants.currency import USD

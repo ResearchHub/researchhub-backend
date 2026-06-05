@@ -12,7 +12,6 @@ from .helpers import build_hub_data, create_hub
 
 
 class HubPermissionsTests(TestCase):
-
     def setUp(self):
         SEED = "discussion"
         self.random_generator = random.Random(SEED)

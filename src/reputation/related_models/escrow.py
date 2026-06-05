@@ -2,13 +2,12 @@ import time
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.db import models
+from django.db import models, transaction
 
 from reputation.distributions import (
     create_bounty_distriution,
     create_bounty_refund_distribution,
     create_fundraise_distribution,
-    create_stored_paper_pot,
 )
 from utils.models import DefaultModel
 
@@ -106,93 +105,110 @@ class Escrow(DefaultModel):
         if not recipient:
             return False
 
-        escrow_amount = self.amount_holding
+        with transaction.atomic():
+            escrow = Escrow.objects.select_for_update().get(pk=self.pk)
 
-        status = self.PARTIALLY_PAID
-        if payout_amount == self.amount_holding:
-            status = self.PAID
+            if escrow.status in (escrow.PAID, escrow.CANCELLED, escrow.EXPIRED):
+                return False
 
-        if payout_amount > escrow_amount:
-            return False
+            if payout_amount > escrow.amount_holding:
+                return False
 
-        if self.hold_type == self.BOUNTY:
-            distribution = create_bounty_distriution(payout_amount)
-        if self.hold_type == self.FUNDRAISE:
-            distribution = create_fundraise_distribution(payout_amount)
-        else:
-            distribution = create_stored_paper_pot(payout_amount)
+            status = escrow.PARTIALLY_PAID
+            if payout_amount == escrow.amount_holding:
+                status = escrow.PAID
 
-        distributor = Distributor(
-            distribution, recipient, self, time.time(), giver=self.created_by
-        )
-        record = distributor.distribute()
-        self.recipients.add(recipient, through_defaults={"amount": payout_amount})
+            if escrow.hold_type == escrow.BOUNTY:
+                distribution = create_bounty_distriution(payout_amount)
+            elif escrow.hold_type == escrow.FUNDRAISE:
+                distribution = create_fundraise_distribution(payout_amount)
+            else:
+                raise ValueError(
+                    f"Cannot payout escrow {escrow.pk}: unsupported "
+                    f"hold_type={escrow.hold_type!r}"
+                )
 
-        if record.distributed_status == "FAILED":
-            return False
-
-        self.amount_holding -= payout_amount
-        self.amount_paid += payout_amount
-        if status == self.PARTIALLY_PAID:
-            self.set_partially_paid_status(should_save=True)
-        else:
-            self.set_paid_status(should_save=True)
-
-        if self.hold_type == self.BOUNTY:
-            unified_document = self.item.unified_document
-            notification = Notification.objects.create(
-                unified_document=unified_document,
-                recipient=recipient,
-                action_user=self.created_by,
-                item=self,
-                notification_type=Notification.BOUNTY_PAYOUT,
-                extra={"amount": str(payout_amount)},
+            distributor = Distributor(
+                distribution, recipient, escrow, time.time(), giver=escrow.created_by
             )
-            notification.send_notification()
-        elif self.hold_type == self.FUNDRAISE:
-            unified_document = self.item.unified_document
-            notification = Notification.objects.create(
-                unified_document=unified_document,
-                recipient=recipient,
-                action_user=self.created_by,
-                item=self,
-                notification_type=Notification.FUNDRAISE_PAYOUT,
-            )
-            notification.send_notification()
+            record = distributor.distribute()
+            escrow.recipients.add(recipient, through_defaults={"amount": payout_amount})
+
+            if record.distributed_status == "FAILED":
+                return False
+
+            escrow.amount_holding -= payout_amount
+            escrow.amount_paid += payout_amount
+            if status == escrow.PARTIALLY_PAID:
+                escrow.set_partially_paid_status(should_save=True)
+            else:
+                escrow.set_paid_status(should_save=True)
+
+            if escrow.hold_type == escrow.BOUNTY:
+                unified_document = escrow.item.unified_document
+                notification = Notification.objects.create(
+                    unified_document=unified_document,
+                    recipient=recipient,
+                    action_user=escrow.created_by,
+                    item=escrow,
+                    notification_type=Notification.BOUNTY_PAYOUT,
+                    extra={"amount": str(payout_amount)},
+                )
+                notification.send_notification()
+            elif escrow.hold_type == escrow.FUNDRAISE:
+                unified_document = escrow.item.unified_document
+                notification = Notification.objects.create(
+                    unified_document=unified_document,
+                    recipient=recipient,
+                    action_user=escrow.created_by,
+                    item=escrow,
+                    notification_type=Notification.FUNDRAISE_PAYOUT,
+                )
+                notification.send_notification()
+
+            self.amount_holding = escrow.amount_holding
+            self.amount_paid = escrow.amount_paid
+            self.status = escrow.status
+
         return True
 
-    def refund(self, recipient, amount, status=None):
+    def refund(self, recipient, amount, status=None, is_locked=False):
         from reputation.distributor import Distributor
 
         if amount == 0:
             return True
 
-        # Validate refund amount doesn't exceed remaining escrow
-        if amount > self.amount_holding:
-            return False
+        with transaction.atomic():
+            escrow = Escrow.objects.select_for_update().get(pk=self.pk)
 
-        distribution = create_bounty_refund_distribution(amount)
-        distributor = Distributor(
-            distribution,
-            recipient,
-            self,
-            time.time(),
-            # Giver is recipient because they originally created the bounty
-            giver=recipient,
-        )
-        record = distributor.distribute()
-        if record.distributed_status == "FAILED":
-            return False
+            if amount > escrow.amount_holding:
+                return False
 
-        # Update escrow amount_holding
-        self.amount_holding -= amount
-        self.save()
+            distribution = create_bounty_refund_distribution(amount)
+            distributor = Distributor(
+                distribution,
+                recipient,
+                escrow,
+                time.time(),
+                # Giver is recipient because they originally created the bounty
+                giver=recipient,
+                is_locked=is_locked,
+            )
+            record = distributor.distribute()
+            if record.distributed_status == "FAILED":
+                return False
 
-        if status and self.status not in (self.PAID, self.PARTIALLY_PAID):
-            self.set_cancelled_status(should_save=True)
+            escrow.amount_holding -= amount
+            escrow.save(update_fields=["amount_holding", "updated_date"])
 
-        if status == self.EXPIRED:
-            self.set_expired_status(should_save=True)
+            if status and escrow.status not in (escrow.PAID, escrow.PARTIALLY_PAID):
+                escrow.set_cancelled_status(should_save=True)
+
+            if status == escrow.EXPIRED:
+                escrow.set_expired_status(should_save=True)
+
+            self.amount_holding = escrow.amount_holding
+            self.status = escrow.status
 
         return True
 

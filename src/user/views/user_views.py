@@ -1,8 +1,7 @@
 from datetime import datetime, timedelta
 
 from allauth.account.models import EmailAddress
-from django.contrib.contenttypes.models import ContentType
-from django.db.models import F, Q, Sum
+from django.db.models import Exists, F, OuterRef, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -21,7 +20,7 @@ from rest_framework.response import Response
 from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
-from reputation.models import Distribution
+from purchase.related_models.grant_model import Grant
 from reputation.serializers import (
     DynamicBountySerializer,
     DynamicBountySolutionSerializer,
@@ -44,15 +43,24 @@ from user.serializers import (
     UserSerializer,
 )
 from user.tasks import handle_spam_user_task, reinstate_user_task
-from user.utils import calculate_show_referral
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.http import POST, RequestMethods
 
 
 class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
-    queryset = User.objects.select_related(
-        "userverification",
-    ).filter(is_suspended=False)
+    queryset = (
+        User.objects.select_related("userverification")
+        .annotate(
+            is_funder=Exists(
+                Grant.objects.filter(
+                    created_by=OuterRef("pk"),
+                    status__in=[Grant.OPEN, Grant.COMPLETED],
+                    unified_document__is_removed=False,
+                )
+            ),
+        )
+        .filter(is_suspended=False)
+    )
     serializer_class = UserEditableSerializer
     permission_classes = [IsAuthenticatedOrReadOnly, DeleteUserPermission]
     filter_backends = (DjangoFilterBackend,)
@@ -127,11 +135,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         user.save(update_fields=["clicked_on_balance_date"])
         return Response({"data": "ok"}, status=200)
 
-    @action(detail=False, methods=["GET"], permission_classes=[IsAuthenticated])
-    def get_referral_reputation(self, request):
-        show_referral = calculate_show_referral(request.user)
-        return Response({"show_referral": show_referral})
-
     @action(detail=False, methods=[POST], permission_classes=[IsAuthenticated, Censor])
     def censor(self, request, pk=None):
         author_id = request.data.get("authorId")
@@ -167,28 +170,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         return Response(
             {"message": "User flagged as probable spammer"}, status=status.HTTP_200_OK
         )
-
-    @action(
-        detail=False,
-        methods=[RequestMethods.GET],
-    )
-    def referral_rsc(self, request):
-        """
-        Gets the amount of RSC earned from referrals
-        """
-
-        distributions = (
-            Distribution.objects.filter(
-                proof_item_content_type=ContentType.objects.get_for_model(User),
-                proof_item_object_id=request.user.id,
-            )
-            .exclude(recipient=request.user.id)
-            .aggregate(rsc_earned=Sum("amount"))
-        )
-
-        amount = distributions.get("rsc_earned") or 0
-
-        return Response({"amount": amount})
 
     @action(
         detail=True,
@@ -491,6 +472,24 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         user = User.objects.get(pk=user.id)
         user.has_completed_onboarding = True
         user.save()
+        serialized = UserSerializer(user)
+        return Response(serialized.data, status=200)
+
+    @action(
+        detail=False,
+        methods=[RequestMethods.PATCH],
+    )
+    def set_staking_opted_in(self, request):
+        user = request.user
+        user = User.objects.get(pk=user.id)
+        is_opted_in = request.data.get("is_staking_opted_in", False)
+        was_opted_in = user.is_staking_opted_in
+        user.is_staking_opted_in = is_opted_in
+        if is_opted_in and not was_opted_in:
+            user.staking_opted_in_date = timezone.now()
+        elif not is_opted_in:
+            user.staking_opted_in_date = None
+        user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
 

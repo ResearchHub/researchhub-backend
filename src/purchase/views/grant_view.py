@@ -1,14 +1,19 @@
+from django.core.cache import cache
 from django.db import transaction
+from django.db.models import Prefetch, Q, Sum
+from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from ai_peer_review.models import ProposalReview
+from feed.views.grant_cache_mixin import GrantCacheMixin
 from purchase.models import Grant, GrantApplication
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
-from purchase.serializers.grant_overview_serializer import GrantOverviewSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
-from purchase.services.funding_overview_service import GrantOverviewService
+from purchase.services.grant_service import GrantModerationService
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.permissions import IsModerator
@@ -19,20 +24,35 @@ class GrantViewSet(viewsets.ModelViewSet):
     serializer_class = DynamicGrantSerializer
     permission_classes = [IsAuthenticated]
 
-    def dispatch(self, request, *args, **kwargs):
-        self.grant_overview_service = kwargs.pop(
-            "grant_overview_service", GrantOverviewService()
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # Restrict to grants whose unified_document has a post visible to the
+        # current user. Reuses ResearchhubPost.visible_to so the rules
+        # (creator, Permission rows, applied-to-by-creator, mod/editor bypass)
+        # stay in one place.
+        visible_post_ids = ResearchhubPost.objects.visible_to(self.request.user).values(
+            "unified_document_id"
         )
+        qs = qs.filter(unified_document_id__in=visible_post_ids)
+        return qs.prefetch_related(
+            Prefetch(
+                "proposal_reviews",
+                queryset=ProposalReview.objects.prefetch_related("key_insight__items"),
+            ),
+        )
+
+    def dispatch(self, request, *args, **kwargs):
+        self.grant_service = kwargs.pop("grant_service", GrantModerationService())
         return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):
-        """
-        Only moderators can create, update, or delete grants.
-        Anyone authenticated can view grants.
-        """
-        if self.action in ["create", "update", "partial_update", "destroy"]:
+        """Moderators only for update/delete; any authenticated user can create/view."""
+        if self.action in ["update", "partial_update", "destroy"]:
             return [IsModerator()]
         return super().get_permissions()
+
+    def _invalidate_grant_feed_cache(self):
+        GrantCacheMixin.invalidate_grant_feed_cache()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -66,9 +86,7 @@ class GrantViewSet(viewsets.ModelViewSet):
         return context
 
     def create(self, request, *args, **kwargs):
-        """
-        Create a new grant. Only moderators can create grants.
-        """
+        """Create a new grant in PENDING status awaiting moderator approval."""
         serializer = GrantCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -76,6 +94,8 @@ class GrantViewSet(viewsets.ModelViewSet):
             validated_data = serializer.validated_data.copy()
             validated_data["created_by"] = request.user
             grant = serializer.create(validated_data)
+
+        self._invalidate_grant_feed_cache()
 
         context = self.get_serializer_context()
         response_serializer = self.get_serializer(grant, context=context)
@@ -88,10 +108,12 @@ class GrantViewSet(viewsets.ModelViewSet):
         grant = self.get_object()
 
         # Allow grant creator to update their own grants
-        if request.user != grant.created_by and not request.user.is_moderator():
+        if request.user != grant.created_by and not request.user.moderator:
             return Response({"message": "Permission denied"}, status=403)
 
-        return super().update(request, *args, **kwargs)
+        response = super().update(request, *args, **kwargs)
+        self._invalidate_grant_feed_cache()
+        return response
 
     def partial_update(self, request, *args, **kwargs):
         """
@@ -100,10 +122,75 @@ class GrantViewSet(viewsets.ModelViewSet):
         grant = self.get_object()
 
         # Allow grant creator to update their own grants
-        if request.user != grant.created_by and not request.user.is_moderator():
+        if request.user != grant.created_by and not request.user.moderator:
             return Response({"message": "Permission denied"}, status=403)
 
-        return super().partial_update(request, *args, **kwargs)
+        response = super().partial_update(request, *args, **kwargs)
+        self._invalidate_grant_feed_cache()
+        return response
+
+    @action(
+        methods=["POST"],
+        detail=True,
+        permission_classes=[IsModerator],
+    )
+    def approve(self, request, *args, **kwargs):
+        grant = self.get_object()
+
+        try:
+            self.grant_service.approve_grant(grant, request.user)
+        except ValueError as e:
+            return Response({"message": str(e)}, status=400)
+
+        return Response(self.get_serializer(grant).data)
+
+    @action(
+        methods=["POST"],
+        detail=True,
+        permission_classes=[IsModerator],
+    )
+    def decline(self, request, *args, **kwargs):
+        grant = self.get_object()
+        reason = request.data.get("reason", "")
+        reason_choice = request.data.get("reason_choice", "")
+
+        try:
+            self.grant_service.decline_grant(grant, request.user, reason, reason_choice)
+        except ValueError as e:
+            return Response({"message": str(e)}, status=400)
+
+        return Response(self.get_serializer(grant).data)
+
+    @action(
+        methods=["GET"],
+        detail=False,
+        permission_classes=[IsModerator],
+    )
+    def pending(self, request, *args, **kwargs):
+        queryset = (
+            Grant.objects.filter(status=Grant.PENDING)
+            .select_related(
+                "created_by", "created_by__author_profile", "unified_document"
+            )
+            .prefetch_related("unified_document__posts")
+            .order_by("-created_date")
+        )
+
+        organization = request.query_params.get("organization")
+        if organization:
+            queryset = queryset.filter(organization__icontains=organization)
+
+        created_by = request.query_params.get("created_by")
+        if created_by:
+            queryset = queryset.filter(created_by_id=created_by)
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            return self.get_paginated_response(
+                self.get_serializer(page, many=True).data
+            )
+
+        return Response(self.get_serializer(queryset, many=True).data)
 
     @action(
         methods=["POST"],
@@ -121,6 +208,7 @@ class GrantViewSet(viewsets.ModelViewSet):
 
         grant.status = Grant.CLOSED
         grant.save()
+        self._invalidate_grant_feed_cache()
 
         context = self.get_serializer_context()
         serializer = self.get_serializer(grant, context=context)
@@ -142,6 +230,7 @@ class GrantViewSet(viewsets.ModelViewSet):
 
         grant.status = Grant.COMPLETED
         grant.save()
+        self._invalidate_grant_feed_cache()
 
         context = self.get_serializer_context()
         serializer = self.get_serializer(grant, context=context)
@@ -163,6 +252,7 @@ class GrantViewSet(viewsets.ModelViewSet):
 
         grant.status = Grant.OPEN
         grant.save()
+        self._invalidate_grant_feed_cache()
 
         context = self.get_serializer_context()
         serializer = self.get_serializer(grant, context=context)
@@ -190,23 +280,56 @@ class GrantViewSet(viewsets.ModelViewSet):
                 {"error": "Grant is no longer accepting applications"}, status=400
             )
 
-        # Create application
+        # Reject the application if the post's visibility doesn't match a
+        # grant that requires a specific public/private setting. The caller
+        # must update the post first, then retry.
+        if mismatch := self._visibility_mismatch(grant, post):
+            return Response({"error": mismatch}, status=400)
+
         _, created = GrantApplication.objects.get_or_create(
             grant=grant, preregistration_post=post, applicant=request.user
         )
 
         if created:
+            self._invalidate_grant_feed_cache()
             return Response({"message": "Application submitted"}, status=201)
         else:
             return Response({"message": "Already applied"}, status=200)
 
-    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
-    def overview(self, request, pk=None, *args, **kwargs):
-        """Return dashboard metrics for a grant, looked up by its post ID."""
-        grant = Grant.objects.filter(unified_document__posts__id=pk).first()
-        if not grant:
-            return Response(status=404)
-        data = self.grant_overview_service.get_grant_overview(request.user, grant)
-        serializer = GrantOverviewSerializer(data)
-        return Response(serializer.data)
+    @staticmethod
+    def _visibility_mismatch(grant: Grant, post: ResearchhubPost) -> str | None:
+        is_public = post.unified_document.is_public
+        if (
+            grant.application_visibility == Grant.APPLICATION_VISIBILITY_PRIVATE
+            and is_public
+        ):
+            return "This grant requires applications to be private."
+        if (
+            grant.application_visibility == Grant.APPLICATION_VISIBILITY_PUBLIC
+            and not is_public
+        ):
+            return "This grant requires applications to be public."
+        return None
 
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    def available_funding(self, request, *args, **kwargs):
+        cache_key = "grant_available_funding"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
+        now = timezone.now()
+        active_filter = Q(status=Grant.OPEN) & (
+            Q(end_date__isnull=True) | Q(end_date__gt=now)
+        )
+        total_usd = float(
+            Grant.objects.filter(active_filter).aggregate(total=Sum("amount"))["total"]
+            or 0
+        )
+        total_rsc = float(RscExchangeRate.usd_to_rsc(total_usd))
+        data = {
+            "available_funding_in_rsc": round(total_rsc, 2),
+            "available_funding_in_usd": round(total_usd, 2),
+        }
+        cache.set(cache_key, data, timeout=60 * 60 * 12)
+        return Response(data)

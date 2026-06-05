@@ -4,13 +4,15 @@ from django_filters import rest_framework as filters
 from django_filters import utils
 
 from discussion.constants.flag_reasons import (
-    VERDICT_FILTER_CHOICES,
-    VERDICT_REMOVED,
     VERDICT_APPROVED,
+    VERDICT_FILTER_CHOICES,
     VERDICT_OPEN,
+    VERDICT_REMOVED,
 )
 from discussion.models import Flag
+from reputation.related_models.distribution import Distribution
 from user.models import Action, User
+from user.related_models.risk_score_model import RiskScoreEvent
 from utils.filters import ListExcludeFilter
 
 from .models import Author
@@ -71,6 +73,39 @@ class ActionDashboardFilter(filters.FilterSet):
         fields = ["hubs"]
 
 
+EDITOR_PAYMENT_TYPES = ["EDITOR_PAYOUT", "EDITOR_COMPENSATION"]
+
+AUTO_PAYMENT_TYPES = EDITOR_PAYMENT_TYPES + ["PREREGISTRATION_UPDATE_REWARD"]
+
+AUTO_PAYMENT_TYPE_CHOICES = [
+    ("EDITOR_PAYOUT", "EDITOR_PAYOUT"),
+    ("PREREGISTRATION_UPDATE_REWARD", "PREREGISTRATION_UPDATE_REWARD"),
+]
+
+
+class AutoPaymentFilter(filters.FilterSet):
+    distribution_type = filters.ChoiceFilter(
+        choices=AUTO_PAYMENT_TYPE_CHOICES,
+        method="filter_by_distribution_type",
+    )
+    recipient = filters.NumberFilter(field_name="recipient_id")
+    created_after = filters.DateTimeFilter(
+        field_name="created_date__date", lookup_expr="gte"
+    )
+    created_before = filters.DateTimeFilter(
+        field_name="created_date__date", lookup_expr="lte"
+    )
+
+    class Meta:
+        model = Distribution
+        fields = ["distribution_type", "recipient", "created_after", "created_before"]
+
+    def filter_by_distribution_type(self, qs, name, value):
+        if value == "EDITOR_PAYOUT":
+            return qs.filter(distribution_type__in=EDITOR_PAYMENT_TYPES)
+        return qs.filter(distribution_type=value)
+
+
 class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
     ordering_param = "ordering"
 
@@ -84,6 +119,8 @@ class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
         # Custom logic start
         if view.action == "flagged":
             filterset_class = FlagDashboardFilter
+        elif view.action == "auto_payments":
+            filterset_class = AutoPaymentFilter
         else:
             filterset_class = ActionDashboardFilter
         # Custom logic end
@@ -107,11 +144,12 @@ class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
 
             # FilterSets do not need to specify a Meta class
             if filterset_model and queryset is not None:
-                assert issubclass(
-                    queryset.model, filterset_model
-                ), "FilterSet model %s does not match queryset model %s" % (
-                    filterset_model,
-                    queryset.model,
+                assert issubclass(queryset.model, filterset_model), (
+                    "FilterSet model %s does not match queryset model %s"
+                    % (
+                        filterset_model,
+                        queryset.model,
+                    )
                 )
 
             return filterset_class
@@ -199,3 +237,30 @@ class ContributionFilter(filters.FilterSet):
             )
 
         return qs
+
+
+class RiskScoreEventFilter(filters.FilterSet):
+    event_type = filters.ChoiceFilter(choices=RiskScoreEvent.EventType.choices)
+    action_date_after = filters.DateTimeFilter(
+        field_name="action_date", lookup_expr="gte"
+    )
+    action_date_before = filters.DateTimeFilter(
+        field_name="action_date", lookup_expr="lte"
+    )
+    delta_positive = filters.BooleanFilter(method="filter_delta_sign")
+
+    def filter_delta_sign(self, queryset, name, value):
+        if value is True:
+            return queryset.filter(delta__gt=0)
+        elif value is False:
+            return queryset.filter(delta__lt=0)
+        return queryset
+
+    class Meta:
+        model = RiskScoreEvent
+        fields = [
+            "event_type",
+            "action_date_after",
+            "action_date_before",
+            "delta_positive",
+        ]

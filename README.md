@@ -92,7 +92,27 @@ ResearchHub uses OpenSearch for search and browse. To index entities (users, pap
 ```
 python manage.py opensearch index rebuild
 ```
+  Clearing OpenSearch
+  If OpenSearch needs to be cleared, these can be run:
+    ```shell
+    ## Preview what would be cleaned up
+    python manage.py remove_deleted_docs_from_index --dry-run
 
+    ## Clean all indices
+    python manage.py remove_deleted_docs_from_index
+
+    ## Clean only the paper index (index options are journal, hub, post, paper)
+    python manage.py remove_deleted_docs_from_index --index=paper
+
+    ## Custom batch size
+    python manage.py remove_deleted_docs_from_index --batch-size=200
+   ``` 
+
+### Backfill User Risk Scores
+ 
+```shell
+python manage.py backfill_risk_scores 
+```
 
 ### Adding new packages
 

@@ -12,7 +12,31 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from research_ai.constants import (
+    EXPERT_FINDER_DEFAULT_STATE,
+    ExpertiseLevel,
+    Region,
+    get_choice_label,
+)
+from research_ai.models import Expert
+from research_ai.services.expert_display import ExpertDisplay
+
 logger = logging.getLogger(__name__)
+
+
+def expert_to_report_row(expert: Expert) -> dict[str, Any]:
+    """
+    Map an ``Expert`` row to the PDF/CSV / API list shape
+    """
+    name = (ExpertDisplay.display_name_for(expert) or expert.email or "").strip()
+    return {
+        "name": name,
+        "title": expert.academic_title or "",
+        "affiliation": expert.affiliation or "",
+        "expertise": expert.expertise or "",
+        "email": expert.email or "",
+        "notes": expert.notes or "",
+    }
 
 
 def generate_pdf_report(
@@ -130,12 +154,21 @@ def generate_pdf_report(
         elements.append(Spacer(1, 0.2 * inch))
 
         elements.append(Paragraph("<b>Search Configuration:</b>", styles["Heading3"]))
-        expert_count = config.get("expert_count", config.get("expertCount", 10))
-        expertise_level = config.get(
-            "expertise_level", config.get("expertiseLevel", "All Levels")
-        )
-        region = config.get("region", "All Regions")
-        state = config.get("state", "All States")
+        expert_count = config.get("expert_count", 10)
+        expertise_level_raw = config.get("expertise_level", [ExpertiseLevel.ALL_LEVELS])
+        if isinstance(expertise_level_raw, list):
+            labels = [get_choice_label(v, ExpertiseLevel) for v in expertise_level_raw]
+            expertise_level = (
+                ", ".join(labels) if labels else ExpertiseLevel.ALL_LEVELS.label
+            )
+        else:
+            expertise_level = get_choice_label(
+                expertise_level_raw or ExpertiseLevel.ALL_LEVELS,
+                ExpertiseLevel,
+            )
+        region_val = config.get("region", Region.ALL_REGIONS)
+        region = get_choice_label(region_val, Region)
+        state = config.get("state", EXPERT_FINDER_DEFAULT_STATE)
         config_text = (
             f"• Expert Count: {expert_count}<br/>"
             f"• Expertise Level: {expertise_level}<br/>"

@@ -3,7 +3,7 @@ from typing import Optional
 
 import requests
 
-from orcid.config import APPLICATION_JSON , ORCID_API_URL, ORCID_BASE_URL
+from orcid.config import APPLICATION_JSON, ORCID_API_URL, ORCID_BASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +40,18 @@ class OrcidClient:
         try:
             response = self.session.get(
                 f"{ORCID_API_URL}/v3.0/{orcid_id}/email",
-                headers={"Authorization": f"Bearer {access_token}", "Accept": APPLICATION_JSON},
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": APPLICATION_JSON,
+                },
                 timeout=REQUEST_TIMEOUT,
             )
             response.raise_for_status()
             return response.json()
         except requests.RequestException:
-            logger.warning("Failed to fetch email data for ORCID %s", orcid_id, exc_info=True)
+            logger.warning(
+                "Failed to fetch email data for ORCID %s", orcid_id, exc_info=True
+            )
             return {}
 
     def get_works(self, orcid_id: str) -> dict:
@@ -60,6 +65,7 @@ class OrcidClient:
             response.raise_for_status()
             return response.json()
         except requests.RequestException:
-            logger.warning("Failed to fetch works for ORCID %s", orcid_id, exc_info=True)
+            logger.warning(
+                "Failed to fetch works for ORCID %s", orcid_id, exc_info=True
+            )
             return {}
-

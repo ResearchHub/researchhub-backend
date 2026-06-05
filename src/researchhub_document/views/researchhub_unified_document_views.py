@@ -1,18 +1,15 @@
 from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import get_object_or_404
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import GenericViewSet
 
 from discussion.models import Vote
 from discussion.serializers import VoteSerializer
 from paper.models import Paper
-from researchhub_document.filters import UnifiedDocumentFilter
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
-from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
     ResearchhubUnifiedDocumentSerializer,
@@ -20,82 +17,13 @@ from researchhub_document.serializers import (
 from utils.permissions import ReadOnly
 
 
-class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
+class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
     permission_classes = [
         IsAuthenticated | ReadOnly,
     ]
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
     queryset = ResearchhubUnifiedDocument.objects.all()
-    filter_backends = (DjangoFilterBackend,)
-    filterset_class = UnifiedDocumentFilter
     serializer_class = ResearchhubUnifiedDocumentSerializer
-
-    def create(self, *args, **kwargs):
-        return Response(status=403)
-
-    def list(self, *args, **kwargs):
-        return Response(status=403)
-
-    def retrieve(self, *args, **kwargs):
-        return Response(status=403)
-
-    def partial_update(self, *args, **kwargs):
-        return Response(status=403)
-
-    def destroy(self, *args, **kwargs):
-        return Response(status=403)
-
-    def get_queryset(self):
-        if self.action == "restore":
-            return ResearchhubUnifiedDocument.all_objects.all()
-        return super().get_queryset()
-
-    @action(
-        detail=True,
-        methods=["put", "patch", "delete"],
-        permission_classes=[HasDocumentCensorPermission],
-    )
-    def censor(self, request, pk=None):
-        doc = self.get_object()
-        doc.is_removed = True
-        doc.save()
-
-        inner_doc = doc.get_document()
-        if isinstance(inner_doc, Paper):
-            inner_doc.is_removed = True
-            inner_doc.save()
-
-        action = inner_doc.actions
-        if action.exists():
-            action = action.first()
-            action.is_removed = True
-            action.display = False
-            action.save()
-
-        return Response(self.get_serializer(instance=doc).data, status=200)
-
-    @action(
-        detail=True,
-        methods=["put", "patch"],
-        permission_classes=[HasDocumentCensorPermission],
-    )
-    def restore(self, request, pk=None):
-        doc = self.get_object()
-        doc.is_removed = False
-        doc.save()
-
-        inner_doc = doc.get_document()
-        if isinstance(inner_doc, Paper):
-            inner_doc.is_removed = False
-            inner_doc.save()
-        action = inner_doc.actions
-        if action.exists():
-            action = action.first()
-            action.is_removed = False
-            action.display = True
-            action.save()
-
-        return Response(self.get_serializer(instance=doc).data, status=200)
 
     def _get_serializer_context(self):
         context = {
@@ -191,6 +119,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "created_by",
                     "contacts",
                     "applications",
+                    "application_visibility",
                 ]
             },
             "pch_dfs_get_contributors": {
@@ -231,7 +160,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         }
         return context
 
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def check_user_vote(self, request):
         paper_ids = request.query_params.get("paper_ids", "")
         post_ids = request.query_params.get("post_ids", "")
@@ -241,29 +170,32 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         if post_ids:
             post_ids = post_ids.split(",")
 
+        if len(paper_ids) > 1 or len(post_ids) > 1:
+            return Response(
+                {"detail": "Only one id is allowed per request."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         user = request.user
         response = {
             "paper": {},
             "posts": {},
         }
 
-        if user.is_authenticated:
-            # TODO: Refactor below
-            if paper_ids:
-                paper_votes = _get_user_votes(
-                    user, paper_ids, ContentType.objects.get_for_model(Paper)
-                )
-                for vote in paper_votes.iterator():
-                    paper_id = vote.object_id
-                    response["paper"][paper_id] = VoteSerializer(instance=vote).data
-            if post_ids:
-                post_votes = _get_user_votes(
-                    user, post_ids, ContentType.objects.get_for_model(ResearchhubPost)
-                )
-                for vote in post_votes.iterator():
-                    response["posts"][vote.object_id] = VoteSerializer(
-                        instance=vote
-                    ).data
+        # TODO: Refactor below
+        if paper_ids:
+            paper_votes = _get_user_votes(
+                user, paper_ids, ContentType.objects.get_for_model(Paper)
+            )
+            for vote in paper_votes.iterator():
+                paper_id = vote.object_id
+                response["paper"][paper_id] = VoteSerializer(instance=vote).data
+        if post_ids:
+            post_votes = _get_user_votes(
+                user, post_ids, ContentType.objects.get_for_model(ResearchhubPost)
+            )
+            for vote in post_votes.iterator():
+                response["posts"][vote.object_id] = VoteSerializer(instance=vote).data
         return Response(response, status=status.HTTP_200_OK)
 
     def _get_document_metadata_context(self):
@@ -346,6 +278,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "created_by",
                     "contacts",
                     "applications",
+                    "application_visibility",
                 ]
             },
             "pch_dfs_get_contributors": {
@@ -379,6 +312,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def get_document_metadata(self, request, pk=None):
         unified_document = get_object_or_404(ResearchhubUnifiedDocument, pk=pk)
+        if not unified_document.is_visible_to_user(request.user):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         metadata_context = self._get_document_metadata_context()
 
         serializer = self.dynamic_serializer_class(

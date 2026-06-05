@@ -11,7 +11,7 @@ from purchase.serializers import DynamicGrantSerializer
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import create_random_authenticated_user, make_user_verified
 
 
 class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
@@ -106,6 +106,29 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
         self.assertIn("status", grant_data)
         self.assertIn("amount", grant_data)
         self.assertIn("organization", grant_data)
+
+    def test_get_grant_includes_application_visibility(self):
+        """application_visibility is serialized when requested in the context"""
+        self.grant1.application_visibility = Grant.APPLICATION_VISIBILITY_PRIVATE
+        self.grant1.save()
+
+        context = {
+            "doc_duds_get_grant": {
+                "_include_fields": ["id", "application_visibility"],
+                "_filter_fields": {"id": self.grant1.id},
+            }
+        }
+
+        serializer = DynamicUnifiedDocumentSerializer(
+            self.unified_doc, _include_fields=["id", "grant"], context=context
+        )
+        grant_data = serializer.data["grant"]
+
+        self.assertIn("application_visibility", grant_data)
+        self.assertEqual(
+            grant_data["application_visibility"],
+            Grant.APPLICATION_VISIBILITY_PRIVATE,
+        )
 
     def test_get_grant_with_filter_fields(self):
         """Test that filter fields are properly applied"""
@@ -259,6 +282,8 @@ class ResearchhubPostGrantModeratorTests(APITestCase):
             "moderator", moderator=True
         )
         self.regular_user = create_random_authenticated_user("regular", moderator=False)
+        make_user_verified(self.moderator_user)
+        make_user_verified(self.regular_user)
 
         self.grant_post_data = {
             "title": "Test Grant Post with Grant Data",

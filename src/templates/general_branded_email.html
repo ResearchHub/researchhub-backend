@@ -1,0 +1,40 @@
+{% load inlinecss %}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title></title>
+
+    </head>
+    {% inlinecss "notification_email.css" %}
+    <body>
+      <div class="email-container">
+        <div class="email-header">
+          <img class="img-logo" src="{{ assets_base_url }}/email_assets/ResearchHubLogo.png" alt="ResearchHub" />
+          {% if subject %}
+            <div class="header">
+              {{ subject }}
+            </div>
+          {% endif %}
+        </div>
+          <div class="content">
+            <div class="body">
+              {{ body }}
+            </div>
+            {% if cta_url %}
+              <div class="cta-wrapper">
+                <a class="cta-button" href="{{ cta_url }}">
+                  {{ cta_label|default:"View" }}
+                </a>
+              </div>
+            {% endif %}
+          </div>
+      <div class="footer">
+        {% if opt_out %}
+          <a href="{{ opt_out }}">Unsubscribe or change how frequently I get updated</a>
+        {% endif %}
+      </div>
+    </body>
+</html>
+
+{% endinlinecss %}

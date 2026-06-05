@@ -1,26 +1,36 @@
 import uuid
+from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
 
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.contrib.contenttypes.models import ContentType
-from django.db import models, transaction
+from django.db import models
 from django.db.models import Count, DecimalField, Q, Sum, Value
-from django.db.models.functions import Cast, Coalesce
+from django.db.models.functions import Cast, Coalesce, Lower
 from django.utils import timezone
 
 from hub.models import Hub
+from mailing_list.lib import send_email
 from mailing_list.models import EmailRecipient
-from reputation.models import Bounty, Distribution, PaidStatusModelMixin, Withdrawal
+from reputation.models import Distribution, PaidStatusModelMixin, Withdrawal
 from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
     ASSOCIATE_EDITOR,
     SENIOR_EDITOR,
 )
-from utils.message import send_email_message
 from utils.throttles import UserSustainedRateThrottle
 
 FOUNDATION_EMAIL = "main@researchhub.foundation"
 FOUNDATION_REVENUE_EMAIL = "revenue1@researchhub.foundation"
+AI_EXPERT_EMAIL = "ai-review@researchhub.foundation"
+
+
+@dataclass(frozen=True)
+class UnlockedBalanceLot:
+    amount: Decimal
+    created_date: date
 
 
 class UserManager(UserManager):
@@ -63,6 +73,12 @@ class UserManager(UserManager):
 
         return self._get_default_account()
 
+    def get_ai_expert_account(self):
+        user = self.filter(email=AI_EXPERT_EMAIL)
+        if user.exists():
+            return user.first()
+        return None
+
 
 """
 User objects have the following fields by default:
@@ -90,6 +106,10 @@ class User(AbstractUser):
     referral_code = models.CharField(max_length=36, default=uuid.uuid4, unique=True)
     reputation = models.IntegerField(default=100)
     should_display_rsc_balance_home = models.BooleanField(default=True)
+    is_staking_opted_in = models.BooleanField(default=True, db_index=True)
+    staking_opted_in_date = models.DateTimeField(
+        null=True, blank=True, default=timezone.now
+    )
     spam_updated_date = models.DateTimeField(null=True)
     suspended_updated_date = models.DateTimeField(null=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -103,6 +123,14 @@ class User(AbstractUser):
 
     def full_name(self):
         return self.first_name + " " + self.last_name
+
+    @classmethod
+    def is_rh_community_account(cls, user) -> bool:
+        try:
+            community_account = cls.objects.get_community_account()
+        except Exception:
+            return False
+        return user.id == community_account.id
 
     @property
     def is_orcid_connected(self):
@@ -126,6 +154,10 @@ class User(AbstractUser):
                 fields=["is_active", "is_suspended", "probable_spammer"],
                 name="user_active_spam_idx",
                 condition=Q(is_active=True, is_suspended=False, probable_spammer=False),
+            ),
+            models.Index(
+                Lower("email"),
+                name="user_email_lower_idx",
             ),
         ]
 
@@ -154,6 +186,13 @@ class User(AbstractUser):
                 EmailRecipient.objects.create(user=self, email=self.email)
 
         return user_to_save
+
+    def ensure_staking_opted_in(self):
+        """Auto-opt the user into staking if not already opted in."""
+        if not self.is_staking_opted_in:
+            self.is_staking_opted_in = True
+            self.staking_opted_in_date = timezone.now()
+            self.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
 
     def set_has_seen_first_coin_modal(self, has_seen):
         self.has_seen_first_coin_modal = has_seen
@@ -221,12 +260,83 @@ class User(AbstractUser):
         available_queryset = queryset.filter(is_locked=False)
         return self.get_balance(queryset=available_queryset, include_locked=True)
 
-    def get_locked_balance(self, lock_type=None):
-        """Returns total locked balance amount, optionally filtered by lock_type"""
+    def get_locked_balance(self):
+        """Returns total locked balance amount."""
         locked_queryset = self.get_balance_qs().filter(is_locked=True)
-        if lock_type:
-            locked_queryset = locked_queryset.filter(lock_type=lock_type)
         return self.get_balance(queryset=locked_queryset, include_locked=True)
+
+    def get_unlocked_balance_lots_lifo(self):
+        """
+        Reconstruct the user's remaining unlocked balance lots using LIFO.
+
+        Negative balance rows consume the most recent positive rows first.
+        """
+        remaining_debits = Decimal("0")
+        lots = []
+        balance_rows = (
+            self.get_balance_qs()
+            .filter(is_locked=False)
+            .order_by("-created_date", "-id")
+            .only("id", "amount", "created_date")
+        )
+
+        for balance in balance_rows.iterator():
+            amount = Decimal(str(balance.amount))
+            if amount < 0:
+                remaining_debits += -amount
+                continue
+
+            if amount <= 0:
+                continue
+
+            if remaining_debits >= amount:
+                remaining_debits -= amount
+                continue
+
+            remaining_amount = amount - remaining_debits
+            remaining_debits = Decimal("0")
+
+            if remaining_amount <= 0:
+                continue
+
+            lots.append(
+                UnlockedBalanceLot(
+                    amount=remaining_amount,
+                    created_date=balance.created_date.date(),
+                )
+            )
+
+        return lots
+
+    def allocate_spend(self, amount, allow_locked=False):
+        """
+        Determine how to split ``amount`` across locked and unlocked balances.
+
+        Returns a list of dicts::
+
+            [{"amount": Decimal, "is_locked": bool}]
+
+        Raises ``ValueError`` if the user cannot cover ``amount``.
+        """
+        if amount <= 0:
+            return []
+
+        remaining = Decimal(str(amount))
+        allocations = []
+
+        if allow_locked:
+            locked_balance = self.get_locked_balance()
+            if locked_balance > 0:
+                use = min(locked_balance, remaining)
+                allocations.append({"amount": use, "is_locked": True})
+                remaining -= use
+
+        if remaining > 0:
+            if self.get_available_balance() < remaining:
+                raise ValueError("Insufficient balance")
+            allocations.append({"amount": remaining, "is_locked": False})
+
+        return allocations
 
     def notify_inactivity(self, paper_count=0, comment_count=0):
         recipient = [self.email]
@@ -237,7 +347,7 @@ class User(AbstractUser):
             "paper_count": paper_count,
             "comment_count": comment_count,
         }
-        send_email_message(
+        send_email(
             recipient,
             "editor_inactivity.txt",
             subject,
@@ -293,17 +403,9 @@ class User(AbstractUser):
 
     @property
     def amount_funded(self):
-        amount_funded = (
-            Bounty.objects.filter(
-                created_by=self,
-                status=Bounty.CLOSED,
-            ).aggregate(
-                total_amount=Sum("amount")
-            )["total_amount"]
-            or 0
-        )
+        from user.services.funding_activity_service import get_funder_total_amount
 
-        return amount_funded
+        return get_funder_total_amount(self.id)
 
     @property
     def is_verified(self):
@@ -321,10 +423,16 @@ class User(AbstractUser):
     def peer_review_count(self):
         from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 
-        peer_review_count = RhCommentModel.objects.filter(
-            created_by=self,
-            comment_type="REVIEW",
-            is_removed=False,
-        ).aggregate(count=Count("id"))["count"]
+        peer_review_count = (
+            RhCommentModel.objects.filter(
+                created_by=self,
+                comment_type="REVIEW",
+                is_removed=False,
+                reviews__is_assessed=True,
+                reviews__is_removed=False,
+            )
+            .distinct()
+            .aggregate(count=Count("id"))["count"]
+        )
 
         return peer_review_count

@@ -1,4 +1,5 @@
 import json
+import uuid
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -288,7 +289,7 @@ class TestEndaomentClient(TestCase):
         Test creating an async entity transfer (grant).
         """
         # Arrange
-        mock_uuid.return_value = Mock(hex="abc123")
+        mock_uuid.return_value = uuid.UUID("21996c9d-c8e2-4576-a2a2-f60c9a249fe1")
         with open(
             self.FIXTURES_DIR / "create_async_entity_transfer_response.json"
         ) as f:
@@ -303,8 +304,7 @@ class TestEndaomentClient(TestCase):
             access_token="valid_access_token",
             origin_fund_id="fund-123",
             destination_fund_id="fund-456",
-            amount_in_cents=50000,
-            purpose="Support for research project",
+            amount_in_cents=50_000,
         )
 
         # Assert
@@ -315,11 +315,10 @@ class TestEndaomentClient(TestCase):
             headers={"Authorization": "Bearer valid_access_token"},
             timeout=30,
             json={
-                "idempotencyKey": "abc123",
+                "idempotencyKey": "21996c9d-c8e2-4576-a2a2-f60c9a249fe1",
                 "originFundId": "fund-123",
                 "destinationFundId": "fund-456",
-                "requestedAmount": "50000",
-                "purpose": "Support for research project",
+                "requestedAmount": "500000000",
             },
         )
 
@@ -333,7 +332,6 @@ class TestEndaomentClient(TestCase):
                 origin_fund_id="fund-123",
                 destination_fund_id="fund-456",
                 amount_in_cents=50000,
-                purpose="Support for research project",
             )
 
     def test_create_async_entity_transfer_http_error(self):
@@ -352,7 +350,6 @@ class TestEndaomentClient(TestCase):
                 origin_fund_id="fund-123",
                 destination_fund_id="fund-456",
                 amount_in_cents=50000,
-                purpose="Support for research project",
             )
 
     @patch("purchase.endaoment.client.uuid.uuid4")
@@ -361,7 +358,7 @@ class TestEndaomentClient(TestCase):
         Test creating an async grant request.
         """
         # Arrange
-        uuid_mock.return_value = Mock(hex="abc123")
+        uuid_mock.return_value = uuid.UUID("21996c9d-c8e2-4576-a2a2-f60c9a249fe1")
         with open(self.FIXTURES_DIR / "create_async_grant_response.json") as f:
             mock_grant = json.load(f)
         mock_response = Mock()
@@ -373,7 +370,7 @@ class TestEndaomentClient(TestCase):
             access_token="valid_token",
             origin_fund_id="fund-1",
             destination_org_id="org-1",
-            amount_in_cents=100000,
+            amount_in_cents=100_000,
             purpose="Research funding",
         )
 
@@ -385,10 +382,10 @@ class TestEndaomentClient(TestCase):
             headers={"Authorization": "Bearer valid_token"},
             timeout=30,
             json={
-                "idempotencyKey": "abc123",
+                "idempotencyKey": "21996c9d-c8e2-4576-a2a2-f60c9a249fe1",
                 "originFundId": "fund-1",
                 "destinationOrgId": "org-1",
-                "requestedAmount": "100000",
+                "requestedAmount": "1000000000",
                 "purpose": "Research funding",
             },
         )
@@ -427,3 +424,17 @@ class TestEndaomentClient(TestCase):
                 amount_in_cents=100000,
                 purpose="Research funding",
             )
+
+    def test_cents_to_micros(self):
+        cases = [
+            # (amount_in_cents, expected_micros, description)
+            (0, 0, "0 cents"),
+            (1, 10_000, "1 cent"),
+            (100, 1_000_000, "1 dollar"),
+            (50_000, 500_000_000, "500 dollars"),
+            (100_000, 1_000_000_000, "1,000 dollars"),
+        ]
+        for amount_in_cents, expected, description in cases:
+            with self.subTest(description):
+                result = EndaomentClient.cents_to_micros(amount_in_cents)
+                self.assertEqual(result, expected)

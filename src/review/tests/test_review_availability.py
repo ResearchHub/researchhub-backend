@@ -91,9 +91,13 @@ class TestReviewAvailability(APITestCase):
         # Act
         result = get_review_availability(self.user)
 
-        # Assert: available_at should be when oldest review exits window (5 days ago + 7 = 2 days from now)
+        # Assert
+        # available_at should be when oldest review exits window
+        # (5 days ago + 7 = 2 days from now)
         self.assertFalse(result.can_review)
-        expected_available = timezone.now() - timedelta(days=5) + timedelta(days=REVIEW_WINDOW_DAYS)
+        expected_available = (
+            timezone.now() - timedelta(days=5) + timedelta(days=REVIEW_WINDOW_DAYS)
+        )
         # Allow 1 minute tolerance for test execution time
         self.assertAlmostEqual(
             result.available_at.timestamp(),
@@ -123,9 +127,11 @@ class TestReviewAvailability(APITestCase):
         # Act
         response = self.client.post(
             f"/api/paper/{self.paper.id}/comments/create_rh_comment/",
-            {"comment_content_json": {"ops": [{"insert": "test"}]}, "comment_type": "REVIEW"},
+            {
+                "comment_content_json": {"ops": [{"insert": "test"}]},
+                "comment_type": "REVIEW",
+            },
         )
 
         # Assert
         self.assertEqual(response.status_code, 403)
-

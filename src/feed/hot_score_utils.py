@@ -36,13 +36,6 @@ def has_comments(metrics: dict) -> bool:
     return replies > 0 or review_count > 0
 
 
-def get_content_type_name(feed_entry) -> str:
-    try:
-        return feed_entry.content_type.model.lower()
-    except (AttributeError, TypeError):
-        return "unknown"
-
-
 def parse_iso_datetime(date_string: str) -> Optional[datetime]:
     if not date_string or not isinstance(date_string, str):
         return None
@@ -557,4 +550,14 @@ def get_age_hours_from_content(
     # For papers: action_date = paper_publish_date
     # For posts: action_date = created_date
     age = now - feed_entry.action_date
-    return max(0, age.total_seconds() / 3600)
+    age_hours = age.total_seconds() / 3600
+
+    if age_hours < 0:
+        logger.warning(
+            f"FeedEntry {getattr(feed_entry, 'id', '?')} has future action_date "
+            f"({feed_entry.action_date}), falling back to created_date"
+        )
+        age = now - feed_entry.created_date
+        age_hours = age.total_seconds() / 3600
+
+    return max(0, age_hours)

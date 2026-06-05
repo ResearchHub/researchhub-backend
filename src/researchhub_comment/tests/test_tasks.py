@@ -52,7 +52,7 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         # Remove EmailRecipient for follower_no_email_recipient to test that case
         self.follower_no_email_recipient.emailrecipient.delete()
 
-    @patch("researchhub_comment.tasks.send_email_message")
+    @patch("researchhub_comment.tasks.send_email")
     def test_sends_emails_to_users_with_notification_preferences(self, mock_send_email):
         """
         Test that emails are sent only to users who want to receive notifications.
@@ -80,7 +80,7 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         self.assertEqual(email_context["document_title"], self.preregistration.title)
         self.assertEqual(email_context["author_name"], self.author.full_name())
 
-    @patch("researchhub_comment.tasks.send_email_message")
+    @patch("researchhub_comment.tasks.send_email")
     def test_skips_users_without_email_recipient_object(self, mock_send_email):
         """
         Test that users without EmailRecipient objects are skipped.
@@ -96,7 +96,7 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         mock_send_email.assert_not_called()
 
     @patch("researchhub_comment.tasks.logger")
-    @patch("researchhub_comment.tasks.send_email_message")
+    @patch("researchhub_comment.tasks.send_email")
     def test_handles_email_sending_failure_gracefully(
         self, mock_send_email, mock_logger
     ):
@@ -115,7 +115,7 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         error_message = mock_logger.error.call_args[0][0]
         self.assertIn(str(self.follower1.id), error_message)
 
-    @patch("researchhub_comment.tasks.send_email_message")
+    @patch("researchhub_comment.tasks.send_email")
     def test_email_context_contains_correct_information(self, mock_send_email):
         """
         Test that the email context contains all the expected information.
@@ -151,7 +151,7 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         self.assertEqual(email_context["document_title"], self.preregistration.title)
         self.assertEqual(email_context["author_name"], self.author.full_name())
 
-    @patch("researchhub_comment.tasks.send_email_message")
+    @patch("researchhub_comment.tasks.send_email")
     def test_processes_multiple_users_correctly(self, mock_send_email):
         """
         Test that the task processes multiple users correctly.

@@ -1,4 +1,5 @@
 import json
+import logging
 
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets
@@ -12,7 +13,6 @@ from rest_framework.exceptions import ParseError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import Response
 
-from mailing_list.exceptions import EmailNotificationError
 from mailing_list.models import (
     BountyDigestSubscription,
     CommentSubscription,
@@ -26,7 +26,8 @@ from mailing_list.models import (
 from mailing_list.serializers import EmailRecipientSerializer
 from utils.http import PATCH, POST, http_request
 from utils.parsers import PlainTextParser
-from utils.sentry import log_error, log_info, log_request_error
+
+logger = logging.getLogger(__name__)
 
 
 class EmailRecipientViewSet(viewsets.ModelViewSet):
@@ -172,14 +173,14 @@ def email_notifications(request):
         url = data["SubscribeURL"]
         resp = http_request("GET", url)
         if resp.status_code != 200:
-            message = "Failed to subscribe to SNS"
-            log_request_error(resp, message)
+            logger.exception("Failed to subscribe to SNS. Response: %s", resp.text)
 
     elif data_type == "Notification":
         data_message = json.loads(data["Message"])
-        if data_message["notificationType"] == "Bounce":
-            bounced_recipients = data_message["bounce"]["bouncedRecipients"]
+        notification_type = data_message["notificationType"]
 
+        if notification_type == "Bounce":
+            bounced_recipients = data_message["bounce"]["bouncedRecipients"]
             for b_r in bounced_recipients:
                 email_address = b_r["emailAddress"]
                 # TODO: Sanitize email address before putting it in the db
@@ -188,16 +189,29 @@ def email_notifications(request):
                         email=email_address
                     )
                     recipient.bounced()
-                except Exception as e:
-                    message = f"Failed handling bounced recipient: {email_address}"
-                    error = EmailNotificationError(e, message)
-                    print(error)
-                    log_error(error, base_error=e)
-    elif data_type == "Complaint":
-        message = f"`email_notifications` received {data_type}"
-        log_info(message)
+                except Exception:
+                    logger.exception(
+                        "Failed handling bounced recipient: %s", email_address
+                    )
+
+        elif notification_type == "Complaint":
+            complained_recipients = data_message.get("complaint", {}).get(
+                "complainedRecipients", []
+            )
+            for c_r in complained_recipients:
+                email_address = c_r["emailAddress"]
+                try:
+                    recipient, created = EmailRecipient.objects.get_or_create(
+                        email=email_address
+                    )
+                    recipient.do_not_email = True
+                    recipient.save(update_fields=["do_not_email"])
+                except Exception:
+                    logger.exception(
+                        "Failed handling complained recipient: %s", email_address
+                    )
+
     else:
-        message = f"`email_notifications` received unsupported type {data_type}"
-        print(message)
+        logger.warning("Received unsupported notification type: %s", data_type)
 
     return Response({})

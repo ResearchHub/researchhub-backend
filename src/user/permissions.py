@@ -1,7 +1,6 @@
 from rest_framework.permissions import BasePermission
 
-from user.models import UserVerification
-from utils.http import DELETE, GET, POST, RequestMethods
+from utils.http import DELETE, RequestMethods
 from utils.permissions import AuthorizationBasedPermission
 
 
@@ -33,30 +32,6 @@ class IsModerator(AuthorizationBasedPermission):
 
     def is_authorized(self, request, view, obj):
         return request.user.is_authenticated and request.user.moderator
-
-
-class CreateOrViewOrRevokeUserApiToken(BasePermission):
-    message = "Action not permitted"
-
-    def has_object_permission(self, request, view, obj):
-        user = request.user
-        if user.is_anonymous:
-            return False
-
-        if obj.user == user and request.method == DELETE:
-            return True
-
-        return False
-
-    def has_permission(self, request, view):
-        user = request.user
-        if user.is_anonymous:
-            return False
-
-        if request.method in (POST, GET, DELETE):
-            return True
-
-        return False
 
 
 class UserIsEditor(BasePermission):

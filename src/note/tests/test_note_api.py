@@ -9,6 +9,7 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import Organization
+from user.tests.helpers import make_user_verified
 
 unified_doc_content_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
 organization_content_type = ContentType.objects.get_for_model(Organization)
@@ -22,6 +23,7 @@ class NoteTests(APITestCase):
         self.user = get_user_model().objects.create_user(
             username=username, password=password, email=username, moderator=True
         )
+        make_user_verified(self.user)
         self.client.force_authenticate(self.user)
 
         # Create org
@@ -1078,8 +1080,7 @@ class NoteTests(APITestCase):
                 "is_public": True,
                 "note_id": note["id"],
                 "renderable_text": (
-                    "Test grant post content that is "
-                    "sufficiently long for validation"
+                    "Test grant post content that is sufficiently long for validation"
                 ),
                 "title": "Test grant post title that is sufficiently long",
                 "hubs": [],
@@ -1105,7 +1106,7 @@ class NoteTests(APITestCase):
         self.assertEqual(
             grant_data["description"], "Research grant for AI applications"
         )
-        self.assertEqual(grant_data["status"], "OPEN")
+        self.assertEqual(grant_data["status"], "PENDING")
         self.assertIn("created_by", grant_data)
 
     def test_note_with_grant_post_includes_contacts_and_applications(self):
@@ -1146,7 +1147,9 @@ class NoteTests(APITestCase):
                     "Test grant post content with contacts that is "
                     "sufficiently long for validation"
                 ),
-                "title": "Test grant post with contacts title that is sufficiently long",
+                "title": (
+                    "Test grant post with contacts title that is sufficiently long"
+                ),
                 "hubs": [],
                 "grant_amount": 75000,
                 "grant_currency": "USD",
@@ -1194,13 +1197,240 @@ class NoteTests(APITestCase):
         self.assertIn("applications", grant_data)
         self.assertEqual(grant_data["applications"], [])
 
+    def test_get_organization_notes_status_draft(self):
+        # Create two notes: one draft (no post) and one published (with post)
+        draft_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Draft note",
+            },
+        )
+        self.assertEqual(draft_response.status_code, 200)
+
+        published_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Published note",
+            },
+        )
+        self.assertEqual(published_response.status_code, 200)
+        published_note = published_response.data
+
+        # Publish the second note by creating an associated post
+        post_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": self.user.id,
+                "full_src": "Test post content",
+                "is_public": True,
+                "note_id": published_note["id"],
+                "renderable_text": (
+                    "Test post content that is sufficiently long for validation"
+                ),
+                "title": "Test post title that is sufficiently long",
+                "hubs": [],
+            },
+        )
+        self.assertEqual(post_response.status_code, 200)
+
+        # Fetch only draft notes
+        response = self.client.get(
+            f"/api/organization/{self.org['slug']}/get_organization_notes/?status=DRAFT"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["title"], "Draft note")
+
+    def test_get_organization_notes_status_published(self):
+        # Create two notes: one draft (no post) and one published (with post)
+        self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Draft note",
+            },
+        )
+
+        published_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Published note",
+            },
+        )
+        self.assertEqual(published_response.status_code, 200)
+        published_note = published_response.data
+
+        # Publish the second note by creating an associated post
+        post_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": self.user.id,
+                "full_src": "Test post content",
+                "is_public": True,
+                "note_id": published_note["id"],
+                "renderable_text": (
+                    "Test post content that is sufficiently long for validation"
+                ),
+                "title": "Test post title that is sufficiently long",
+                "hubs": [],
+            },
+        )
+        self.assertEqual(post_response.status_code, 200)
+
+        # Fetch only published notes
+        response = self.client.get(
+            f"/api/organization/{self.org['slug']}/get_organization_notes/?status=PUBLISHED"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["title"], "Published note")
+
+    def test_create_note_with_document_type_sets_field(self):
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Grant draft",
+                "document_type": "GRANT",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["document_type"], "GRANT")
+
+        note = Note.objects.get(id=response.data["id"])
+        self.assertEqual(note.document_type, "GRANT")
+
+    def test_create_note_without_document_type_leaves_field_null(self):
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Plain note",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["document_type"])
+
+        note = Note.objects.get(id=response.data["id"])
+        self.assertIsNone(note.document_type)
+
+    def test_get_organization_notes_filter_by_type(self):
+        # Create notes with different document types
+        self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Grant note",
+                "document_type": "GRANT",
+            },
+        )
+        self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Preregistration note",
+                "document_type": "PREREGISTRATION",
+            },
+        )
+        self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Untyped note",
+            },
+        )
+
+        # Filter by GRANT
+        response = self.client.get(
+            f"/api/organization/{self.org['slug']}/get_organization_notes/?type=GRANT"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["title"], "Grant note")
+        self.assertEqual(response.data["results"][0]["document_type"], "GRANT")
+
+        # Filter by PREREGISTRATION
+        response = self.client.get(
+            f"/api/organization/{self.org['slug']}/get_organization_notes/?type=PREREGISTRATION"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["title"], "Preregistration note")
+
+    def test_get_organization_notes_filter_by_type_and_status(self):
+        # Create a draft GRANT note and a published GRANT note
+        self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Draft grant",
+                "document_type": "GRANT",
+            },
+        )
+
+        published_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Published grant",
+                "document_type": "GRANT",
+            },
+        )
+        published_note = published_response.data
+
+        self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": self.user.id,
+                "full_src": "Grant post content",
+                "is_public": True,
+                "note_id": published_note["id"],
+                "renderable_text": (
+                    "Grant post content that is sufficiently long for validation"
+                ),
+                "title": "Grant post title that is sufficiently long",
+                "hubs": [],
+                "grant_amount": 50000,
+                "grant_currency": "USD",
+                "grant_organization": "Test Foundation",
+                "grant_description": "Test grant description",
+            },
+        )
+
+        # Filter for draft GRANTs only
+        response = self.client.get(
+            f"/api/organization/{self.org['slug']}/get_organization_notes/"
+            f"?status=DRAFT&type=GRANT"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["title"], "Draft grant")
+
     def test_note_with_grant_applications_serialization(self):
-        # Create applicant user
+        # Create applicant user (must be verified to create preregistration post)
         applicant = get_user_model().objects.create_user(
             username="applicant",
             password=uuid.uuid4().hex,
             email="applicant@researchhub.com",
         )
+        make_user_verified(applicant)
 
         # Create a note first
         response = self.client.post(
@@ -1250,7 +1480,9 @@ class NoteTests(APITestCase):
                     "Preregistration content for application that is "
                     "sufficiently long for validation"
                 ),
-                "title": "Preregistration for grant application that is sufficiently long",
+                "title": (
+                    "Preregistration for grant application that is sufficiently long"
+                ),
                 "hubs": [],
             },
         )

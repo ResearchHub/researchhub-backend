@@ -1,16 +1,15 @@
 """
 Removes all unpaid distributions so they will not be eligible for withdrawal.
 """
+
 from django.core.management.base import BaseCommand
 from django.db.models import Sum
 
-from purchase.models import Balance
 from user.models import User
 
 
 class Command(BaseCommand):
     def handle(self, *args, **options):
-        balances = Balance.objects.all()
         users = User.objects.all()
         for i, user in enumerate(users):
             print("{} / {}".format(i, users.count()))

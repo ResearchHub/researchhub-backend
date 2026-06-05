@@ -103,7 +103,7 @@ HOT_SCORE_CONFIG = {
             "log_base": math.e,
         },
         "upvote": {
-            "weight": 10.0,
+            "weight": 5.0,
             "log_base": math.e,
         },
         "tip": {
@@ -112,14 +112,14 @@ HOT_SCORE_CONFIG = {
         },
         # Recency ensures new papers with no engagement don't get a zero score
         "recency": {
-            "weight": 5.0,
+            "weight": 10.0,
             "log_base": math.e,
         },
     },
     # Time decay parameters control content prominence over time
     # Gentle decay ensures documents from same day compete on engagement
     "time_decay": {
-        "gravity": 0.8,  # Gentler decay (was 1.5)
+        "gravity": 0.8,
         "base_hours": 24,
     },
     # Temporal urgency configuration for content with approaching deadlines

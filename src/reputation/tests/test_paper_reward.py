@@ -106,17 +106,6 @@ class PaperRewardTestCase(TestCase):
         self.assertTrue(paper_reward.is_open_data)
         self.assertTrue(paper_reward.is_preregistered)
 
-    def test_distribute_paper_rewards(self):
-        paper_reward = PaperReward.claim_paper_rewards(
-            self.paper1,
-            self.paper1.authors.first(),
-            False,
-            False,
-        )
-
-        paper_reward = paper_reward.distribute_paper_rewards()
-        self.assertIsNotNone(paper_reward.distribution)
-
     def test_rsc_reward_algo_aerospace_top_bin(self):
         hub_citation_value = HubCitationValue(
             hub=self.paper1_hub,

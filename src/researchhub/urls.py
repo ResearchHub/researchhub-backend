@@ -5,8 +5,8 @@ The `urlpatterns` list routes URLs to views. For more information please see:
 """
 
 import debug_toolbar
+from dj_rest_auth.mfa.views import MFALoginView
 from dj_rest_auth.views import (
-    LoginView,
     LogoutView,
     PasswordChangeView,
     PasswordResetConfirmView,
@@ -14,6 +14,7 @@ from dj_rest_auth.views import (
 )
 from django.conf import settings
 from django.urls import include, path, re_path
+from django_ses.views import SESEventWebhookView
 from rest_framework import routers
 
 import hub.views
@@ -22,18 +23,17 @@ import mailing_list.views
 import new_feature_release.views
 import note.views as note_views
 import notification.views
-import oauth.urls
 import oauth.views
 import paper.views as paper_views
 import purchase.views
 import reputation.views
 import researchhub.views
-import researchhub_case.views as researchhub_case_views
 import researchhub_document.views as researchhub_document_views
 import search.urls
 import user.views
 from analytics.views import AmplitudeWebhookView
 from feed.views import (
+    ActivityFeedViewSet,
     FeedViewSet,
     FundingFeedViewSet,
     GrantFeedViewSet,
@@ -43,15 +43,17 @@ from orcid.views import OrcidCallbackView, OrcidConnectView, OrcidFetchView
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
 from paper.views import paper_upload_views
 from purchase.views import (
+    CircleWebhookView,
+    DepositAddressView,
     EndaomentCallbackView,
     EndaomentConnectView,
+    EndaomentDisconnectView,
     EndaomentStatusView,
     EndaomentViewSet,
     stripe_webhook_view,
 )
-from researchhub.views import asset_upload_view
+from researchhub.views import AssetUploadView
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
-from review.views.peer_review_view import PeerReviewViewSet
 from review.views.review_availability_view import ReviewAvailabilityView
 from review.views.review_view import ReviewViewSet
 from user.views import author_views, editor_views, moderator_view, persona_webhook_view
@@ -128,13 +130,11 @@ router.register(r"deposit", reputation.views.DepositViewSet)
 
 router.register(r"bounty", reputation.views.BountyViewSet)
 
-router.register(r"moderator", moderator_view.ModeratorView, basename="moderator")
-
 router.register(
-    r"author_claim_case",
-    researchhub_case_views.AuthorClaimCaseViewSet,
-    basename="author_claim_case",
+    r"staking_yield", reputation.views.StakingYieldViewSet, basename="staking_yield"
 )
+
+router.register(r"moderator", moderator_view.ModeratorView, basename="moderator")
 
 router.register(
     r"researchhubpost",
@@ -169,17 +169,7 @@ router.register(
 router.register(r"gatekeeper", user.views.GatekeeperViewSet, basename="gatekeeper")
 
 router.register(
-    r"user_external_token", user.views.UserApiTokenViewSet, basename="user_api_token"
-)
-
-router.register(
     r"researchhub_unified_document/([0-9]+)/review", ReviewViewSet, basename="review"
-)
-
-router.register(
-    r"paper/(?P<paper_id>\d+)/peer-review",
-    PeerReviewViewSet,
-    basename="peer_review",
 )
 
 router.register(
@@ -193,7 +183,11 @@ router.register(
 
 router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundraise")
 
+router.register(r"funder", purchase.views.FunderViewSet, basename="funder")
+
 router.register(r"grant", purchase.views.GrantViewSet, basename="grant")
+
+router.register(r"activity_feed", ActivityFeedViewSet, basename="activity_feed")
 
 router.register(r"feed", FeedViewSet, basename="feed")
 
@@ -237,6 +231,11 @@ urlpatterns = [
         name="endaoment_connect",
     ),
     path(
+        "api/endaoment/disconnect/",
+        EndaomentDisconnectView.as_view(),
+        name="endaoment_disconnect",
+    ),
+    path(
         "api/endaoment/callback/",
         EndaomentCallbackView.as_view(),
         name="endaoment_callback",
@@ -256,9 +255,9 @@ urlpatterns = [
         "api/rsc/get_rsc_circulating_supply",
         reputation.views.get_rsc_circulating_supply,
     ),
-    path("api/permissions/", researchhub.views.permissions, name="permissions"),
     path("api/search/", include(search.urls)),
     path("api/research_ai/", include("research_ai.urls")),
+    path("api/ai_peer_review/", include("ai_peer_review.urls")),
     # Referral endpoints
     path("api/referral/", include("referral.urls")),
     # Organization endpoints
@@ -292,7 +291,8 @@ urlpatterns = [
         name="rest_verify_email",
     ),
     re_path(r"api/auth/register/", include("dj_rest_auth.registration.urls")),
-    re_path(r"api/auth/login/", LoginView.as_view(), name="rest_login"),
+    re_path(r"api/auth/login/", MFALoginView.as_view(), name="rest_login"),
+    re_path(r"api/auth/", include("dj_rest_auth.mfa.urls")),
     re_path(r"api/auth/logout/", LogoutView.as_view(), name="rest_logout"),
     re_path(
         r"api/auth/password-reset/$", PasswordResetView.as_view(), name="password-reset"
@@ -312,18 +312,11 @@ urlpatterns = [
         PasswordResetConfirmView.as_view(),
         name="password_reset_confirm",
     ),
-    re_path(r"^auth/signup/", include(oauth.urls.registration_urls)),
-    re_path(r"^auth/", include(oauth.urls.default_urls)),
-    path(
-        "api/ckeditor/webhook/document_removed/",
-        note_views.note_view.ckeditor_webhook_document_removed,
-    ),
-    path("api/ckeditor/token/", note_views.note_view.ckeditor_token),
     path("email_notifications/", mailing_list.views.email_notifications),
     path("", researchhub.views.index, name="index"),
     path(
         "api/asset/upload/",
-        asset_upload_view.AssetUploadView.as_view(),
+        AssetUploadView.as_view(),
         name="asset_upload",
     ),
     path(
@@ -332,15 +325,28 @@ urlpatterns = [
         name="paper_upload",
     ),
     path("robots.txt", researchhub.views.robots_txt, name="robots_txt"),
+    #
+    # Webhooks
+    #
     path(
         "webhooks/amplitude/",
         AmplitudeWebhookView.as_view(),
         name="amplitude_webhook",
     ),
     path(
+        "webhooks/circle/",
+        CircleWebhookView.as_view(),
+        name="circle_webhook",
+    ),
+    path(
         "webhooks/persona/",
         persona_webhook_view.PersonaWebhookView.as_view(),
         name="persona_webhook",
+    ),
+    path(
+        "webhooks/ses/",
+        SESEventWebhookView.as_view(),
+        name="ses_event_webhook",
     ),
     path(
         "webhooks/stripe/",
@@ -361,6 +367,11 @@ urlpatterns = [
         "api/payment/payment-intent/<str:payment_intent_id>/status/",
         purchase.views.PaymentIntentView.as_view(),
         name="payment_intent_status_view",
+    ),
+    path(
+        "api/wallet/deposit-address/",
+        DepositAddressView.as_view(),
+        name="deposit_address",
     ),
     path("user_saved/", UserSavedView.as_view(), name="user_saved"),
     path(

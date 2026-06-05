@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import pytz
+from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import CASCADE
 
@@ -16,14 +17,29 @@ class Grant(DefaultModel):
     """
 
     # Status choices
+    PENDING = "PENDING"
     OPEN = "OPEN"
     CLOSED = "CLOSED"
     COMPLETED = "COMPLETED"
+    DECLINED = "DECLINED"
 
     STATUS_CHOICES = (
+        (PENDING, "Pending"),
         (OPEN, "Open"),
         (CLOSED, "Closed"),
         (COMPLETED, "Completed"),
+        (DECLINED, "Declined"),
+    )
+
+    # Visibility rule applied to preregistrations applying to this grant.
+    APPLICATION_VISIBILITY_OPTIONAL = "OPTIONAL"
+    APPLICATION_VISIBILITY_PRIVATE = "PRIVATE"
+    APPLICATION_VISIBILITY_PUBLIC = "PUBLIC"
+
+    APPLICATION_VISIBILITY_CHOICES = (
+        (APPLICATION_VISIBILITY_OPTIONAL, "Applicant chooses"),
+        (APPLICATION_VISIBILITY_PRIVATE, "Applications must be private"),
+        (APPLICATION_VISIBILITY_PUBLIC, "Applications must be public"),
     )
 
     # Foreign key relationships
@@ -59,15 +75,32 @@ class Grant(DefaultModel):
         null=True,
         help_text="Name of the granting organization",
     )
+    short_title = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Short display title for the grant",
+    )
     description = models.TextField(
         help_text="Grant description, requirements, and application details"
     )
     status = models.CharField(
         choices=STATUS_CHOICES,
-        default=OPEN,
+        default=PENDING,
         max_length=32,
         help_text="Current status of the grant",
     )
+    application_visibility = models.CharField(
+        choices=APPLICATION_VISIBILITY_CHOICES,
+        default=APPLICATION_VISIBILITY_OPTIONAL,
+        max_length=16,
+        help_text=(
+            "Privacy rule applied to preregistrations applying to this grant. "
+            "OPTIONAL lets the applicant choose; PRIVATE/PUBLIC require the "
+            "applicant's preregistration to match."
+        ),
+    )
+    flags = GenericRelation("discussion.Flag")
 
     # Time fields
     start_date = models.DateTimeField(

@@ -9,6 +9,9 @@ from django.conf import settings
 from django.http import JsonResponse
 from rest_framework import status
 
+from purchase.circle.service import CircleWalletService
+from user.models import User
+
 logger = logging.getLogger(__name__)
 
 
@@ -151,18 +154,31 @@ class CoinbaseService:
 
         return generate_jwt(jwt_options)
 
+    def _get_user_wallet_address(self, user: User) -> str:
+        """
+        Get the on-chain address from the user's Circle wallet.
+
+        Raises:
+            ValueError: If the user has no Circle wallet or address.
+        """
+        wallet_service = CircleWalletService()
+        result = wallet_service.get_or_create_deposit_address(user)
+        return result.address
+
     def create_session_token(
         self,
-        addresses: List[Dict[str, Any]],
+        user: User,
         assets: Optional[List[str]] = None,
         client_ip: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Create a single use token for initializing an Onramp or Offramp session.
 
+        The destination address is automatically resolved from the user's
+        Circle wallet (supports both Base and Ethereum).
+
         Args:
-            addresses: List of address entries containing address and blockchains
-                Example: [{"address": "0x123...", "blockchains": ["base", "ethereum"]}]
+            user: The authenticated user whose Circle wallet will receive funds.
             assets: Optional list of asset tickers to restrict available assets
                 Example: ["BTC", "ETH", "USDC"]
             client_ip: Client IP address for security verification
@@ -179,6 +195,9 @@ class CoinbaseService:
 
         if not client_ip:
             raise ValueError("Client IP is required.")
+
+        wallet_address = self._get_user_wallet_address(user)
+        addresses = [{"address": wallet_address, "blockchains": ["base", "ethereum"]}]
 
         # Prepare request details
         request_method = "POST"
@@ -227,7 +246,7 @@ class CoinbaseService:
 
     def generate_onramp_url(
         self,
-        addresses: List[Dict[str, Any]],
+        user: User,
         assets: Optional[List[str]] = None,
         default_network: Optional[str] = None,
         preset_fiat_amount: Optional[int] = None,
@@ -238,8 +257,11 @@ class CoinbaseService:
         """
         Generate a complete Onramp URL with session token.
 
+        The destination address is automatically resolved from the user's
+        Circle wallet.
+
         Args:
-            addresses: List of address entries containing address and blockchains
+            user: The authenticated user whose Circle wallet will receive funds.
             assets: Optional list of asset tickers to restrict available assets
             default_network: Default network to preselect (e.g., "base", "ethereum")
             preset_fiat_amount: Preset fiat amount in the currency
@@ -257,7 +279,7 @@ class CoinbaseService:
         """
         # Create session token
         token_response = self.create_session_token(
-            addresses=addresses,
+            user=user,
             assets=assets,
             client_ip=client_ip,
         )

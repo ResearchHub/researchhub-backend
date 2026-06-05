@@ -5,7 +5,6 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.tests.helpers import create_random_authenticated_user
-
 from user_lists.models import List, ListItem
 
 
@@ -20,6 +19,7 @@ class ListModelTests(APITestCase):
     def test_list_item_string_representation(self):
         list_obj = List.objects.create(name="My List", created_by=self.user)
         doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
-        item = ListItem.objects.create(parent_list=list_obj, unified_document=doc, created_by=self.user)
+        item = ListItem.objects.create(
+            parent_list=list_obj, unified_document=doc, created_by=self.user
+        )
         self.assertEqual(str(item), str(item.id))
-

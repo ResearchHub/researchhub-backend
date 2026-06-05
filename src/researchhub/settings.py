@@ -224,7 +224,6 @@ INSTALLED_APPS = [
     "django.contrib.postgres",
     # Rest framework
     "rest_framework",
-    "rest_framework_api_key",
     # Authentication
     "allauth",
     "allauth.account",
@@ -233,6 +232,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount.providers.orcid",
     "rest_framework.authtoken",
     "dj_rest_auth",
+    "dj_rest_auth.mfa",
     "dj_rest_auth.registration",
     # Storage
     "storages",
@@ -267,7 +267,6 @@ INSTALLED_APPS = [
     "referral",
     "reputation",
     "researchhub",
-    "researchhub_case",
     "researchhub_comment",
     "researchhub_document",
     "researchhub_access_group",
@@ -280,6 +279,7 @@ INSTALLED_APPS = [
     "user_saved",
     "user_lists",
     "research_ai",
+    "ai_peer_review",
     # Health checks
     "health_check",
     "health_check.db",
@@ -290,7 +290,6 @@ SITE_ID = 1
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
-    "researchhub.middleware.csrf_disable.DisableCSRF",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -345,7 +344,7 @@ if DEBUG:
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "researchhub.middleware.ApiTokenSession.UserApiTokenAuth",
+        "rest_framework.authentication.TokenAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -399,11 +398,10 @@ AUTHENTICATION_BACKENDS = (
     "allauth.account.auth_backends.AuthenticationBackend",
 )
 
-OAUTH_METHOD = "token"
-
 REST_AUTH = {
     "REGISTER_SERIALIZER": "user.serializers.RegisterSerializer",
     "PASSWORD_RESET_SERIALIZER": "user.custom_allauth.CustomPasswordResetSerializer",
+    "MFA_TOTP_ISSUER": "ResearchHub",
 }
 
 
@@ -427,23 +425,24 @@ if STAGING or PRODUCTION:
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
+# Let Google sign-ins attach to an existing account when the email matches.
+# See: https://docs.allauth.org/en/dev/socialaccount/configuration.html
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "EMAIL_AUTHENTICATION": True,
+    },
+}
 
 
 GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/google/login/callback/"
-GOOGLE_YOLO_REDIRECT_URL = "http://localhost:8000/auth/google/yolo/callback/"
 if PRODUCTION:
     GOOGLE_REDIRECT_URL = (
         "https://backend.prod.researchhub.com/auth/google/login/callback/"
     )
-    GOOGLE_YOLO_REDIRECT_URL = (
-        "https://backend.prod.researchhub.com/auth/google/yolo/callback/"
-    )
 if STAGING:
     GOOGLE_REDIRECT_URL = (
         "https://backend.staging.researchhub.com/auth/google/login/callback/"
-    )
-    GOOGLE_YOLO_REDIRECT_URL = (
-        "https://backend.staging.researchhub.com/auth/google/yolo/callback/"
     )
 
 ORCID_CLIENT_ID = os.environ.get(
@@ -498,20 +497,19 @@ if ELASTIC_BEANSTALK:
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": (
-            "django.contrib.auth.password_validation."
-            "UserAttributeSimilarityValidator"
+            "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
         ),
     },
     {
-        "NAME": ("django.contrib.auth.password_validation." "MinimumLengthValidator"),
+        "NAME": ("django.contrib.auth.password_validation.MinimumLengthValidator"),
     },
     {
-        "NAME": ("django.contrib.auth.password_validation." "CommonPasswordValidator"),
+        "NAME": ("django.contrib.auth.password_validation.CommonPasswordValidator"),
     },
     {
-        "NAME": ("django.contrib.auth.password_validation." "NumericPasswordValidator"),
+        "NAME": ("django.contrib.auth.password_validation.NumericPasswordValidator"),
     },
-    {"NAME": ("user.validators." "SymbolValidator")},
+    {"NAME": ("user.validators.SymbolValidator")},
 ]
 
 
@@ -547,6 +545,21 @@ BEDROCK_PROCESSING_ENABLED = (
     == "true"
 )
 
+OPENAI_API_KEY = os.environ.get(
+    "OPENAI_API_KEY",
+    getattr(keys, "OPENAI_API_KEY", ""),
+)
+
+AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
+    "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
+    getattr(keys, "AI_PEER_REVIEW_BEDROCK_MODEL_ID", ""),
+)
+
+AI_PEER_REVIEW_EXPERT_EMAIL = os.environ.get(
+    "AI_PEER_REVIEW_EXPERT_EMAIL",
+    getattr(keys, "AI_PEER_REVIEW_EXPERT_EMAIL", ""),
+)
+
 if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:
     # Set AWS profile for local development
     os.environ["AWS_PROFILE"] = keys.AWS_PROFILE
@@ -565,6 +578,7 @@ EMAIL_DOMAIN = (
     "researchhub.com" if APP_ENV == "production" else f"{APP_ENV}.researchhub.com"
 )
 DEFAULT_FROM_EMAIL = f"noreply@{EMAIL_DOMAIN}"
+EXPERT_FINDER_FROM_EMAIL = f"outreach@{EMAIL_DOMAIN}"
 
 # Storage
 STORAGES = {
@@ -604,6 +618,7 @@ AWS_SES_REGION_NAME = AWS_REGION_NAME
 AWS_SES_REGION_ENDPOINT = os.environ.get(
     "AWS_SES_REGION_ENDPOINT", keys.AWS_SES_REGION_ENDPOINT
 )
+AWS_SES_CONFIGURATION_SET = os.environ.get("AWS_SES_CONFIGURATION_SET", None) or None
 
 EMAIL_BACKEND = "django_ses.SESBackend"
 if TESTING:
@@ -726,7 +741,7 @@ REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
 if TESTING:
     CACHES = {
         "default": {
-            "BACKEND": "researchhub.TestCache.TestCache",
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
             "LOCATION": f"{REDIS_HOST}:{REDIS_PORT}",
             "KEY_PREFIX": APP_ENV,
         },
@@ -762,6 +777,9 @@ CELERY_WORKER_TASK_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s [%(filename)
 if ELASTIC_BEANSTALK:
     CELERY_WORKER_HIJACK_ROOT_LOGGER = False
 
+if TESTING:
+    CELERY_BROKER_URL = "memory://localhost"  # use in-memory broker for testing
+
 REDBEAT_REDIS_URL = "redis://{}:{}/2".format(REDIS_HOST, REDIS_PORT)
 REDBEAT_KEY_PREFIX = f"{APP_ENV}_redbeat_"
 
@@ -775,6 +793,14 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+if TESTING:
+    # Use in-memory channel layer for testing
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        },
+    }
 
 # APM
 
@@ -831,14 +857,6 @@ if STAGING or PRODUCTION:
 # Killswitch Variables
 SERIALIZER_SWITCH = os.environ.get("SERIALIZER_SWITCH", True)
 
-# CKEditor Cloud Services
-CKEDITOR_CLOUD_ACCESS_KEY = os.environ.get(
-    "CKEDITOR_CLOUD_ACCESS_KEY", keys.CKEDITOR_CLOUD_ACCESS_KEY
-)
-CKEDITOR_CLOUD_ENVIRONMENT_ID = os.environ.get(
-    "CKEDITOR_CLOUD_ENVIRONMENT_ID", keys.CKEDITOR_CLOUD_ENVIRONMENT_ID
-)
-
 # Crossref
 CROSSREF_DOI_RSC_FEE = 5
 CROSSREF_DOI_PREFIX = "10.55277/researchhub."
@@ -860,10 +878,6 @@ WEB3_KEYSTORE_PASSWORD_SECRET_ID = os.environ.get(
     "WEB3_KEYSTORE_PASSWORD_SECRET_ID", keys.WEB3_KEYSTORE_PASSWORD_SECRET_ID
 )
 WEB3_WALLET_ADDRESS = os.environ.get("WEB3_WALLET_ADDRESS", keys.WEB3_WALLET_ADDRESS)
-
-
-# API Key Settings
-API_KEY_CUSTOM_HEADER = "HTTP_RH_API_KEY"
 
 
 # MJML
@@ -894,10 +908,12 @@ ENDAOMENT_CLIENT_SECRET = os.environ.get(
 ENDAOMENT_REDIRECT_URL = os.environ.get(
     "ENDAOMENT_REDIRECT_URL", keys.ENDAOMENT_REDIRECT_URL
 )
+# Base chain IDs (https://chainid.network/)
+BASE_MAINNET_CHAIN_ID = 8453
+BASE_SEPOLIA_CHAIN_ID = 84532
+
 # ResearchHub's Endaoment fund IDs, indexed by chain ID.
 # Each chain requires its own fund because Endaoment does not support bridging.
-#
-# Also see: https://chainid.network/
 ENDAOMENT_RH_FUND_IDS = {
     # Ethereum
     1: os.environ.get(
@@ -920,12 +936,12 @@ ENDAOMENT_RH_FUND_IDS = {
         keys.ENDAOMENT_RH_FUND_ID_OPTIMISM,
     ),
     # Base
-    8453: os.environ.get(
+    BASE_MAINNET_CHAIN_ID: os.environ.get(
         "ENDAOMENT_RH_FUND_ID_BASE",
         keys.ENDAOMENT_RH_FUND_ID_BASE,
     ),
     # Base Sepolia Testnet
-    84532: os.environ.get(
+    BASE_SEPOLIA_CHAIN_ID: os.environ.get(
         "ENDAOMENT_RH_FUND_ID_BASE",
         keys.ENDAOMENT_RH_FUND_ID_BASE,
     ),
@@ -939,6 +955,14 @@ COIN_GECKO_API_KEY = os.environ.get("COIN_GECKO_API_KEY", keys.COIN_GECKO_API_KE
 
 # Endaoment Account ID
 ENDAOMENT_ACCOUNT_ID = os.environ.get("ENDAOMENT_ACCOUNT_ID", keys.ENDAOMENT_ACCOUNT_ID)
+
+# Circle Developer-Controlled Wallets
+CIRCLE_API_KEY = os.environ.get("CIRCLE_API_KEY", keys.CIRCLE_API_KEY)
+CIRCLE_ENTITY_SECRET = os.environ.get("CIRCLE_ENTITY_SECRET", keys.CIRCLE_ENTITY_SECRET)
+CIRCLE_WALLET_SET_ID = os.environ.get("CIRCLE_WALLET_SET_ID", keys.CIRCLE_WALLET_SET_ID)
+RH_MULTISIG_ADDRESS = os.environ.get(
+    "RH_MULTISIG_ADDRESS", getattr(keys, "RH_MULTISIG_ADDRESS", "")
+)
 
 # ResearchHub Journal ID
 RESEARCHHUB_JOURNAL_ID = os.environ.get(

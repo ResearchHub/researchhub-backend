@@ -51,7 +51,7 @@ class AbstractGenericRelationModel(DefaultAuthenticatedModel):
         help_text="""
             Forms a contenttype - generic relation between "origin" model to target model
             Target models should have its own (i.e. field_name = GenericRelation(OriginModel))
-        """,
+        """,  # noqa: E501
         on_delete=models.CASCADE,
     )
     object_id = models.PositiveIntegerField()

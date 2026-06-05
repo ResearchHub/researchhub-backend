@@ -110,7 +110,7 @@ class Command(BaseCommand):
                 parent_bounty = parent_comment.bounties.first()
 
                 self.stdout.write(
-                    f"  {i+1}. Comment ID: {comment.id}, "
+                    f"  {i + 1}. Comment ID: {comment.id}, "
                     f"Parent ID: {comment.parent_id} (bounty comment), "
                     f"Thread ID: {comment.thread_id}, "
                     f"Review ID: {review.id if review else 'None'}, "
@@ -169,7 +169,7 @@ class Command(BaseCommand):
 
                 migrated_count = self._migrate_invalid_reviews(invalid_review_comments)
 
-                self.stdout.write(f"\nMigration completed successfully!")
+                self.stdout.write("\nMigration completed successfully!")
                 self.stdout.write(
                     f"Migrated {migrated_count} review comments to proper structure."
                 )

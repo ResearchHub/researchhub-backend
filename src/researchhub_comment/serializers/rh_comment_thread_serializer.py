@@ -5,6 +5,9 @@ from paper.serializers import DynamicPaperSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import PRIVATE, PUBLIC, WORKSPACE
 from researchhub_comment.models import RhCommentThreadModel
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    exclude_orphaned_comments,
+)
 from researchhub_comment.serializers.constants import (
     rh_comment_thread_serializer_constants,
 )
@@ -43,23 +46,10 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
     content_object = SerializerMethodField()
     content_type = SerializerMethodField()
     privacy_type = SerializerMethodField()
-    peer_review = SerializerMethodField()
 
     class Meta:
         fields = "__all__"
         model = RhCommentThreadModel
-
-    def get_peer_review(self, thread):
-        peer_review = thread.peer_review
-
-        if peer_review.exists():
-            peer_review = peer_review.first()
-            return {
-                "id": peer_review.id,
-                "status": peer_review.status,
-            }
-
-        return None
 
     def get_comments(self, thread):
         from researchhub_comment.serializers import DynamicRhCommentSerializer
@@ -91,7 +81,9 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_comment_count(self, thread):
-        return thread.rh_comments.count()
+        return exclude_orphaned_comments(
+            thread.rh_comments.filter(is_removed=False)
+        ).count()
 
     def get_content_object(self, thread):
         from researchhub_comment.serializers.utils import (
@@ -102,7 +94,10 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
 
         context = self.context
         _context_fields = context.get("rhc_dts_get_content_object", {})
-        content_object = thread.content_object
+        content_object = thread._safe_content_object()
+
+        if content_object is None:
+            return None
 
         # Use depth limiting to prevent circular dependencies
         if should_use_reference_only(context):

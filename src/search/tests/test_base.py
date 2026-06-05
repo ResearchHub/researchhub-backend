@@ -1,4 +1,3 @@
-import logging
 import unittest
 from unittest.mock import Mock, call, patch
 
@@ -6,7 +5,6 @@ from search.documents.base import BaseDocument
 
 
 class TestBaseDocument(unittest.TestCase):
-
     def setUp(self):
         self.document = BaseDocument()
         self.document._prepare_action = Mock(
@@ -134,7 +132,8 @@ class TestBaseDocument(unittest.TestCase):
     @patch("search.documents.base.logger")
     def test_get_actions_with_prepare_error_continues_indexing(self, mock_logger):
         """
-        Test that _get_actions continues processing when _prepare_action raises an error.
+        Test that _get_actions continues processing when _prepare_action raises an
+        error.
         """
         # Arrange
         object_list = [Mock(id=1), Mock(id=2), Mock(id=3)]

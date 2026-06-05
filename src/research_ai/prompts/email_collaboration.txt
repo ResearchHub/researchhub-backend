@@ -1,0 +1,27 @@
+{sender_info}
+
+{common}
+
+EXAMPLE OF A GOOD COLLABORATION EMAIL:
+
+Subject: Exploring a potential collaboration on translational AI methods
+
+Hello!
+
+I'm working on a project focused on improving how AI tools are evaluated in clinical research settings, and I'm reaching out to explore whether there may be room for collaboration.
+
+Your expertise in applied machine learning for health research seems especially relevant to the methodological questions we're working through. I think there could be a strong fit between your perspective and the direction of this project.
+
+Would you be open to a brief call or email exchange to see whether there might be alignment?
+
+---
+
+For a collaboration opportunity:
+- Part 1 (Context): briefly introduce your work, project, or question and why
+  you are reaching out now
+- Part 2 (Relevance): explain the specific connection between their expertise
+  and your project or collaboration idea
+- Part 3 (Call to action): suggest a low-pressure next step such as a brief
+  call, short exchange by email, or gauging interest
+- Emphasize mutual fit and shared interests, not admiration or prestige
+- Keep the tone friendly, grounded, and specific

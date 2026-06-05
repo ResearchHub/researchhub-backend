@@ -14,6 +14,7 @@ class AddToMailchimpTests(TestCase):
         self.service = UserSignupService(
             amplitude_client=self.mock_amplitude_client,
             mailchimp_client=self.mock_mailchimp_client,
+            mailchimp_enabled=True,
         )
         self.user = create_random_default_user("mailchimp_test")
 

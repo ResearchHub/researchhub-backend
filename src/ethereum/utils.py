@@ -1,21 +1,21 @@
-from decimal import Decimal
 import json
+from decimal import Decimal
 
-from eth_keys import keys, KeyAPI
+from eth_keys import KeyAPI, keys
 
 
 def decimal_to_token_amount(value, denomination):
     if type(value) is not Decimal:
-        raise TypeError('`value` must be of type Decimal')
+        raise TypeError("`value` must be of type Decimal")
 
     value_string = str(value)
 
-    integer_string = value_string.split('.')[0]
+    integer_string = value_string.split(".")[0]
     integer_pad_width = len(integer_string) + denomination
-    integer_padded = integer_string.ljust(integer_pad_width, '0')
+    integer_padded = integer_string.ljust(integer_pad_width, "0")
     integer_part = int(integer_padded)
 
-    decimal_padded = value_string.split('.')[1].ljust(denomination, '0')
+    decimal_padded = value_string.split(".")[1].ljust(denomination, "0")
     decimal_part = int(decimal_padded)
 
     return integer_part + decimal_part
@@ -31,7 +31,7 @@ def sign_message(message, private_key: str) -> (str, bytes, str):
     sk_bytes = bytes.fromhex(private_key[2:])
     sk = keys.PrivateKey(sk_bytes)
     message = json.dumps(message)
-    message_bytes = bytes(message, 'utf-8')
+    message_bytes = bytes(message, "utf-8")
     signature = sk.sign_msg(message_bytes)
     signature_hex = signature.to_bytes().hex()
     public_key = sk.public_key
@@ -39,11 +39,7 @@ def sign_message(message, private_key: str) -> (str, bytes, str):
     return signature_hex, message_bytes, public_key_hex
 
 
-def verify_signature(
-    signature_hex: str,
-    message_bytes: bytes,
-    public_key_hex: str
-):
+def verify_signature(signature_hex: str, message_bytes: bytes, public_key_hex: str):
     """Returns True for a valid signature.
 
     Args:

@@ -297,8 +297,6 @@ health/
 ^api/ ^withdrawal/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$ [name='withdrawal-detail']
 ^api/ ^deposit/$ [name='deposit-list']
 ^api/ ^deposit\.(?P<format>[a-z0-9]+)/?$ [name='deposit-list']
-^api/ ^deposit/start_deposit_rsc/$ [name='deposit-start-deposit-rsc']
-^api/ ^deposit/start_deposit_rsc\.(?P<format>[a-z0-9]+)/?$ [name='deposit-start-deposit-rsc']
 ^api/ ^deposit/(?P<pk>[^/.]+)/$ [name='deposit-detail']
 ^api/ ^deposit/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$ [name='deposit-detail']
 ^api/ ^bounty/$ [name='bounty-list']

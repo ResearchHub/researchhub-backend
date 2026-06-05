@@ -6,8 +6,18 @@ from rest_framework.permissions import BasePermission
 
 from reputation.models import Bounty
 from researchhub_document.models import ResearchhubUnifiedDocument
+from user.models import User
 from utils.http import PATCH, POST, RequestMethods
 from utils.permissions import AuthorizationBasedPermission
+
+
+class IsFoundationUser(BasePermission):
+    message = "Only the ResearchHub Foundation account may perform this action."
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and User.is_rh_community_account(
+            request.user
+        )
 
 
 class UpdateOrDeleteWithdrawal(AuthorizationBasedPermission):
@@ -48,10 +58,13 @@ class UserCanApproveBounty(BasePermission):
     def has_object_permission(self, request, view, obj):
         self.message = "Invalid Bounty user"
 
+        if obj.parent_id:
+            obj = obj.parent
+
         if obj.status not in (Bounty.OPEN, Bounty.ASSESSMENT):
             self.message = "Bounty is closed."
             return False
-        
+
         now = datetime.now(pytz.UTC)
         if obj.status == Bounty.OPEN:
             # During OPEN phase, check expiration_date
@@ -63,7 +76,7 @@ class UserCanApproveBounty(BasePermission):
             if obj.assessment_end_date and obj.assessment_end_date <= now:
                 self.message = "Bounty assessment period has expired"
                 return False
-        
+
         if obj.item_content_type == ContentType.objects.get_for_model(
             ResearchhubUnifiedDocument
         ):  # for question bounties, the question creator can control all bounties
@@ -80,6 +93,9 @@ class UserCanCancelBounty(BasePermission):
 
     def has_object_permission(self, request, view, obj):
         self.message = "Invalid Bounty user"
+
+        if obj.parent_id:
+            obj = obj.parent
 
         if obj.status not in (Bounty.OPEN, Bounty.ASSESSMENT):
             self.message = "Bounty is closed."

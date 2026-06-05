@@ -46,12 +46,13 @@ from reputation.related_models.paper_reward import (
 )
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
+from user.permissions import IsVerifiedUser
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
 from utils.http import POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
-from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
+from utils.permissions import CreateOrUpdateIfAllowed, PostOnly
 from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
 
@@ -69,10 +70,7 @@ class PaperViewSet(
     ordering = "-created_date"
 
     permission_classes = [
-        (IsAuthenticatedOrReadOnly | HasAPIKey)
-        & CreatePaper
-        & UpdatePaper
-        & CreateOrUpdateIfAllowed
+        IsAuthenticatedOrReadOnly & CreatePaper & UpdatePaper & CreateOrUpdateIfAllowed
     ]
 
     def prefetch_lookups(self):
@@ -89,7 +87,6 @@ class PaperViewSet(
             "unified_document__hubs__subscribers",
             "votes",
             "flags",
-            "peer_reviews",
             "purchases",
             "figures",
         )
@@ -147,7 +144,7 @@ class PaperViewSet(
     @action(
         detail=False,
         methods=["post"],
-        permission_classes=[IsAuthenticated & CreatePaper],
+        permission_classes=[IsAuthenticated, CreatePaper, IsVerifiedUser],
     )
     def create_researchhub_paper(self, request):
         """
@@ -371,7 +368,6 @@ class PaperViewSet(
                 # Create paper version
                 try:
                     paper_version_number = 1
-                    base_doi = None
                     original_paper_id = paper.id
                     journal = None
                     publication_status = PaperVersion.PREPRINT
@@ -380,8 +376,6 @@ class PaperViewSet(
                             previous_paper_version = previous_paper.version
                             original_paper_id = previous_paper_version.original_paper_id
                             paper_version_number = previous_paper_version.version + 1
-                            if previous_paper_version.base_doi:
-                                base_doi = previous_paper_version.base_doi
                             journal = previous_paper_version.journal
                             if journal == "RESEARCHHUB":
                                 paper.unified_document.hubs.add(
@@ -398,38 +392,10 @@ class PaperViewSet(
                             )
                             raise
 
-                    doi = DOI(
-                        base_doi=base_doi, version=paper_version_number, journal=journal
-                    )
-
-                    crossref_response = doi.register_doi_for_paper(
-                        authors=authors,
-                        title=title,
-                        rh_paper=paper,
-                    )
-
-                    if crossref_response.status_code != 200:
-                        error_msg = "Crossref API Failure"
-                        log_error(
-                            ValueError(error_msg),
-                            message=f"Crossref API returned status {crossref_response.status_code}",
-                            json_data={"response_text": crossref_response.text},
-                        )
-                        return Response(
-                            {
-                                "error": "Unable to register DOI for this paper. Please try again later."
-                            },
-                            status=status.HTTP_400_BAD_REQUEST,
-                        )
-
-                    paper.doi = doi.doi
-                    paper.save()
-
                     PaperVersion.objects.create(
                         paper=paper,
                         version=paper_version_number,
                         message=change_description,
-                        base_doi=doi.base_doi,
                         original_paper_id=original_paper_id,
                         journal=journal,
                         publication_status=publication_status,
@@ -589,9 +555,8 @@ class PaperViewSet(
                     for hub in previous_paper.unified_document.hubs.all():
                         paper.unified_document.hubs.add(hub.id)
 
-                # Handle paper versioning and DOI
+                # Handle paper versioning
                 paper_version_number = 1
-                base_doi = None
                 original_paper_id = previous_paper.id
 
                 try:
@@ -600,8 +565,6 @@ class PaperViewSet(
                         paper_version.original_paper_id or paper_version.paper_id
                     )
                     paper_version_number = paper_version.version + 1
-                    if paper_version.base_doi:
-                        base_doi = paper_version.base_doi
                 except PaperVersion.DoesNotExist:
                     log_error(
                         ValueError("Previous paper version not found"),
@@ -609,48 +572,9 @@ class PaperViewSet(
                     )
                     raise
 
-                # Get authors for DOI registration
-                authors = Author.objects.filter(
-                    id__in=Authorship.objects.filter(paper=paper).values_list(
-                        "author_id", flat=True
-                    )
-                )
-
-                doi = DOI(
-                    base_doi=base_doi,
-                    version=paper_version_number,
-                    journal=PaperVersion.RESEARCHHUB,
-                )
-
-                # Register DOI with Crossref
-                crossref_response = doi.register_doi_for_paper(
-                    authors=authors,
-                    title=paper.title,
-                    rh_paper=paper,
-                )
-
-                if crossref_response.status_code != 200:
-                    error_msg = "Crossref API Failure"
-                    log_error(
-                        ValueError(error_msg),
-                        message=f"Crossref API returned status {crossref_response.status_code}",
-                        json_data={"response_text": crossref_response.text},
-                    )
-                    return Response(
-                        {
-                            "error": "Unable to register DOI for this paper. Please try again later."
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
-                paper.doi = doi.doi
-                paper.save()
-
-                # Create PaperVersion with ResearchHub Journal publication info
                 PaperVersion.objects.create(
                     paper=paper,
                     version=paper_version_number,
-                    base_doi=doi.base_doi,
                     original_paper_id=original_paper_id,
                     journal=PaperVersion.RESEARCHHUB,
                     publication_status=PaperVersion.PUBLISHED,
@@ -753,6 +677,24 @@ class PaperViewSet(
                     "expiration_date",
                     "id",
                     "status",
+                ]
+            },
+            "pap_dps_get_peer_reviews": {
+                "_include_fields": [
+                    "id",
+                    "score",
+                    "is_assessed",
+                    "created_by",
+                    "created_date",
+                    "updated_date",
+                ]
+            },
+            "rev_drs_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
                 ]
             },
             "pap_dps_get_purchases": {"_include_fields": ["amount", "user"]},
@@ -902,29 +844,6 @@ class PaperViewSet(
             return Response(vote_id, status=200)
         except Exception as e:
             return Response(f"Failed to delete vote: {e}", status=400)
-
-    @action(
-        detail=False,
-        methods=["get"],
-    )
-    def check_user_vote(self, request):
-        paper_ids = request.query_params["paper_ids"].split(",")
-        user = request.user
-        response = {}
-
-        if user.is_authenticated:
-            votes = Vote.objects.filter(
-                content_type=get_content_type_for_model(Paper),
-                object_id__in=paper_ids,
-                created_by=user,
-            )
-
-            for vote in votes.iterator():
-                paper_id = vote.object_id
-                data = VoteSerializer(instance=vote).data
-                response[paper_id] = data
-
-        return Response(response, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=[POST])
     def check_url(self, request):
@@ -1254,7 +1173,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
     queryset = PaperSubmission.objects.all()
     serializer_class = PaperSubmissionSerializer
     throttle_classes = THROTTLE_CLASSES
-    permission_classes = [IsAuthenticated | HasAPIKey, PostOnly]
+    permission_classes = [IsAuthenticated, PostOnly]
 
     @track_event
     def create(self, *args, **kwargs):

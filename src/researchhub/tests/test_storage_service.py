@@ -10,7 +10,6 @@ from researchhub.services.storage_service import S3StorageService
 
 @override_settings(AWS_S3_CUSTOM_DOMAIN="storage.test.researchhub.com")
 class StorageServiceTest(TestCase):
-
     @patch("researchhub.services.storage_service.aws_utils.create_client")
     @patch("researchhub.services.storage_service.uuid.uuid4")
     def test_create_presigned_url(self, mock_uuid, mock_create_client):

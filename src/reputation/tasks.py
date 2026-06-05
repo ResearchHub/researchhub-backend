@@ -1,6 +1,5 @@
 import json
 import logging
-import time
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -8,22 +7,24 @@ import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import DurationField, F, Q
+from django.db.models import DurationField, F
 from django.db.models.functions import Cast
-from web3 import Web3
 
 import utils.locking as lock
-from ethereum.lib import RSC_CONTRACT_ADDRESS
 from hub.models import Hub
-from mailing_list.lib import base_email_context
+from mailing_list.lib import base_email_context, send_email
 from notification.models import Notification
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
-from reputation.distributions import Distribution as Dist
-from reputation.distributor import Distributor
-from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_abi
-from reputation.models import Bounty, BountySolution, Contribution, Deposit
+from reputation.lib import (
+    broadcast_withdrawal_transfer,
+    check_hotwallet,
+    check_pending_withdrawal,
+)
+from reputation.models import Bounty, BountySolution, Contribution, Withdrawal
 from reputation.related_models.bounty import AnnotatedBounty
+from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.related_models.score import Score
+from reputation.services.staking_yield_service import StakingYieldService
 from reputation.services.wallet import WalletService
 from researchhub.celery import QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -33,13 +34,9 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from user.models import User
 from user.related_models.author_model import Author
-from utils.message import send_email_message
 from utils.sentry import log_error, log_info
-from utils.web3_utils import web3_provider
 
 DEFAULT_REWARD = 1000000
-
-PENDING_TRANSACTION_MAX_AGE = 60 * 60 * 1  # 1 hour
 
 logger = logging.getLogger(__name__)
 
@@ -97,205 +94,56 @@ def create_author_contribution(contribution_type, user_id, unified_doc_id, objec
     Contribution.objects.bulk_create(contributions)
 
 
-def get_transaction_receipt(transaction_hash, w3):
-    # Check if connected successfully
-    if not w3.is_connected():
-        raise Exception("Failed to connect to Ethereum node.")
-
-    # Get transaction receipt
-    return w3.eth.get_transaction_receipt(transaction_hash)
-
-
-def check_transaction_success(transaction_hash, w3):
-    return get_transaction_receipt(transaction_hash, w3)["status"] == 1
-
-
-def get_transaction(transaction_hash, w3):
-    """Get transaction details using provided Web3 instance."""
-    # Check if connected successfully
-    if not w3.is_connected():
-        raise Exception("Failed to connect to Ethereum node.")
-
-    return w3.eth.get_transaction(transaction_hash)
-
-
-def get_block(block_number, w3):
-    """Get block details using provided Web3 instance."""
-    # Check if connected successfully
-    if not w3.is_connected():
-        raise Exception("Failed to connect to Ethereum node.")
-
-    return w3.eth.get_block(block_number)
-
-
-def get_contract(w3, token_address):
-    """Get RSC contract instance using provided Web3 instance and token address."""
-    # Check if connected successfully
-    if not w3.is_connected():
-        raise Exception("Failed to connect to Ethereum node.")
-
-    return w3.eth.contract(
-        abi=contract_abi, address=Web3.to_checksum_address(token_address)
-    )
-
-
-def evaluate_transaction(transaction_hash, w3, token_address, max_age=None):
+@app.task(
+    bind=True,
+    queue=QUEUE_PURCHASES,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def broadcast_withdrawal(self, withdrawal_id):
     """
-    Evaluate transaction details using provided Web3 instance.
-
-    This function analyzes ERC20 token transactions by examining the transaction logs
-    rather than the transaction input. This approach supports both:
-    1. Direct calls to ERC20 contracts (traditional wallets)
-    2. Smart wallet transactions where the ERC20 transfer happens through
-       internal transactions logged as events
-
-    Smart wallets (like Coinbase Smart Wallet, Safe, etc.) execute transactions
-    through their own contract logic, so the actual ERC20 transfer appears in the
-    transaction logs as Transfer events, not in the main transaction input.
-
-    Args:
-        transaction_hash: The hash of the transaction to evaluate
-        w3: Web3 instance connected to the blockchain
-        token_address: Address of the ERC20 token contract
-        max_age: Optional max age in seconds. Defaults to
-            PENDING_TRANSACTION_MAX_AGE if not provided
-
-    Returns:
-        tuple: (is_valid_and_recent, deposit_amount)
-            - is_valid_and_recent: Boolean indicating if transaction is valid and recent
-            - deposit_amount: Amount transferred in human-readable format (not wei)
+    Broadcast an ERC-20 transfer for a committed withdrawal row.
     """
-    if max_age is None:
-        max_age = PENDING_TRANSACTION_MAX_AGE
-
-    tx = get_transaction(transaction_hash, w3)
-    block = get_block(tx["blockNumber"], w3)
-    receipt = get_transaction_receipt(transaction_hash, w3)
-
-    contract = get_contract(w3, token_address)
-
-    block_timestamp = datetime.fromtimestamp(block["timestamp"])
-    is_recent_transaction = block_timestamp > datetime.now() - timedelta(
-        seconds=max_age
-    )
-
-    # Look for Transfer events in the transaction logs
-    # This approach supports both direct calls and smart wallet transactions
-    transfer_events = []
-    for log_entry in receipt["logs"]:
-        try:
-            # Check if this log is from our token contract
-            if (
-                log_entry.address.lower()
-                == Web3.to_checksum_address(token_address).lower()
-            ):
-                # Try to decode the log as a Transfer event
-                decoded_log = contract.events.Transfer().process_log(log_entry)
-                transfer_events.append(decoded_log)
-        except Exception:
-            # Skip logs that can't be decoded as Transfer events
-            continue
-
-    # Find transfers to our wallet address
-    valid_transfers = []
-    for event in transfer_events:
-        if event.args.get("_to", "").lower() == settings.WEB3_WALLET_ADDRESS.lower():
-            valid_transfers.append(event)
-
-    if not valid_transfers:
-        return False, 0
-
-    # Sum up all valid transfers (in case there are multiple in one transaction)
-    total_amount = sum(event.args.get("_amount", 0) for event in valid_transfers)
-
-    # Convert from smallest denomination (wei equivalent)
-    deposit_amount = total_amount / (10**18)
-
-    return is_recent_transaction and len(valid_transfers) > 0, deposit_amount
-
-
-@app.task
-def check_deposits(max_age=None):
-    key = lock.name("check_deposits")
+    key = lock.name(f"broadcast_withdrawal_{withdrawal_id}")
     if not lock.acquire(key):
-        logger.warning(f"Already locked {key}, skipping task")
+        logger.warning("Already locked %s, skipping task", key)
         return False
 
     try:
-        _check_deposits(max_age=max_age)
+        with transaction.atomic():
+            withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal_id)
+            broadcast_withdrawal_transfer(withdrawal)
+        return True
+    except Exception as exc:
+        withdrawal = Withdrawal.objects.filter(id=withdrawal_id).first()
+        logger.warning(
+            "broadcast_withdrawal failed for %s (attempt %d/%d): %s",
+            withdrawal_id,
+            self.request.retries + 1,
+            self.max_retries + 1,
+            exc,
+        )
+        if self.request.retries >= self.max_retries:
+            if (
+                withdrawal
+                and not withdrawal.transaction_hash
+                and withdrawal.paid_status
+                not in (
+                    PaidStatusModelMixin.PAID,
+                    PaidStatusModelMixin.FAILED,
+                )
+            ):
+                withdrawal.set_paid_failed()
+            log_error(
+                exc,
+                message="broadcast_withdrawal failed after all retries",
+                json_data={"withdrawal_id": withdrawal_id},
+            )
+            return False
+        raise self.retry(exc=exc)
     finally:
         lock.release(key)
-        logger.info(f"Released lock {key}")
-
-
-def _check_deposits(max_age=None):
-    if max_age is None:
-        max_age = PENDING_TRANSACTION_MAX_AGE
-
-    logger.info("Starting check deposits task")
-    # Sort by created date to ensure a malicious user doesn't attempt to take
-    # credit for a deposit made by another user. This is a temporary solution
-    # until we add signed messages to validate users own wallets.
-    deposits = Deposit.objects.filter(
-        Q(paid_status=None) | Q(paid_status="PENDING")
-    ).order_by("created_date")
-
-    for deposit in deposits.iterator():
-        with transaction.atomic():
-            # Add a db lock on the deposit to prevent race conditions
-            deposit = Deposit.objects.select_for_update().get(id=deposit.id)
-
-            # If a deposit is not resolved after our set TTL, mark it as failed
-            if deposit.created_date < datetime.now(pytz.UTC) - timedelta(
-                seconds=max_age
-            ):
-                deposit.set_paid_failed()
-                continue
-
-            deposit_previously_paid = Deposit.objects.filter(
-                transaction_hash=deposit.transaction_hash, paid_status="PAID"
-            )
-            if deposit_previously_paid.exists():
-                deposit.set_paid_failed()
-                continue
-
-            user = deposit.user
-            try:
-                w3_instance = (
-                    web3_provider.base
-                    if deposit.network == "BASE"
-                    else web3_provider.ethereum
-                )
-                token_address = (
-                    settings.WEB3_BASE_RSC_ADDRESS
-                    if deposit.network == "BASE"
-                    else RSC_CONTRACT_ADDRESS
-                )
-
-                transaction_success = check_transaction_success(
-                    deposit.transaction_hash, w3_instance
-                )
-                if not transaction_success:
-                    deposit.set_paid_pending()
-                    continue
-
-                valid_deposit, deposit_amount = evaluate_transaction(
-                    deposit.transaction_hash, w3_instance, token_address, max_age
-                )
-                if not valid_deposit:
-                    deposit.set_paid_failed()
-                    continue
-
-                distribution = Dist("DEPOSIT", deposit_amount, give_rep=False)
-                distributor = Distributor(distribution, user, user, time.time(), user)
-                distributor.distribute()
-                deposit.amount = deposit_amount
-                deposit.set_paid()
-            except Exception as e:
-                log_error(e, "Failed to process deposit")
-                deposit.set_paid_pending()
-
-    logger.info("Finished check deposits task")
+        logger.info("Released lock %s", key)
 
 
 @app.task
@@ -362,7 +210,7 @@ def check_open_bounties():
                 "frontend_view_link": unified_doc.frontend_view_link(),
             }
             context["subject"] = "Bounty Submission Period Ending Soon"
-            send_email_message(
+            send_email(
                 [bounty_creator.email],
                 "general_email_message.txt",
                 outer_subject,
@@ -402,7 +250,7 @@ def check_open_bounties():
             "frontend_view_link": unified_doc.frontend_view_link(),
         }
         context["subject"] = "Bounty Entered Assessment Phase"
-        send_email_message(
+        send_email(
             [bounty_creator.email],
             "general_email_message.txt",
             outer_subject,
@@ -491,7 +339,7 @@ def check_open_bounties():
                 "frontend_view_link": unified_doc.frontend_view_link(),
             }
             context["subject"] = "Bounty Assessment Period Ending Soon"
-            send_email_message(
+            send_email(
                 [bounty_creator.email],
                 "general_email_message.txt",
                 outer_subject,
@@ -582,7 +430,6 @@ def find_qualified_users_and_notify(
 
     notifications_sent = []
     for author in qualified_authors:
-
         notification = Notification.objects.filter(
             object_id=bounty.id,
             content_type=ContentType.objects.get_for_model(Bounty),
@@ -590,7 +437,6 @@ def find_qualified_users_and_notify(
         )
 
         if not notification.exists():
-
             hub = Hub.objects.get(id=author.matching_hub_id)
 
             notification = Notification.objects.create(
@@ -620,7 +466,6 @@ def find_bounties_for_user_and_notify(user_id) -> Optional[Notification]:
     bounties: List[AnnotatedBounty] = Bounty.find_bounties_for_user(user)
 
     for bounty in bounties:
-
         notification = Notification.objects.filter(
             object_id=bounty.id,
             content_type=ContentType.objects.get_for_model(Bounty),
@@ -628,7 +473,6 @@ def find_bounties_for_user_and_notify(user_id) -> Optional[Notification]:
         )
 
         if not notification.exists():
-
             hub = Hub.objects.get(id=bounty.matching_hub_id)
 
             notification = Notification.objects.create(
@@ -664,3 +508,85 @@ def burn_revenue_rsc(network="BASE"):
     Weekly task to burn ResearchCoin from the revenue account.
     """
     return WalletService.burn_revenue_rsc(network)
+
+
+@app.task(
+    bind=True,
+    queue=QUEUE_PURCHASES,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def create_daily_staking_snapshots(self):
+    """Daily task to create a new StakingGlobalSnapshot with fresh circulating
+    supply and aggregate staking stats.
+
+    Runs before distribute_staking_yield so the distribution task uses
+    up-to-date supply and staking data.
+    """
+    accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
+    key = lock.name(f"create_daily_staking_snapshots_{accrual_date}")
+    if not lock.acquire(key):
+        logger.warning("Already locked %s, skipping task", key)
+        return False
+
+    try:
+        result = StakingYieldService.create_daily_snapshots(accrual_date)
+        return result is not None
+    except Exception as exc:
+        logger.warning(
+            "create_daily_staking_snapshots failed for %s (attempt %d/%d): %s",
+            accrual_date,
+            self.request.retries + 1,
+            self.max_retries + 1,
+            exc,
+        )
+        if self.request.retries >= self.max_retries:
+            log_error(
+                exc,
+                message="create_daily_staking_snapshots failed after all retries",
+                json_data={"accrual_date": str(accrual_date)},
+            )
+            return False
+        raise self.retry(exc=exc)
+    finally:
+        lock.release(key)
+        logger.info("Released lock %s", key)
+
+
+@app.task(
+    bind=True,
+    queue=QUEUE_PURCHASES,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def distribute_staking_yield(self):
+    """Daily task to distribute staking yield for the previous UTC day."""
+    accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
+
+    key = lock.name(f"distribute_staking_yield_{accrual_date}")
+    if not lock.acquire(key):
+        logger.warning("Already locked %s, skipping task", key)
+        return False
+
+    try:
+        result = StakingYieldService.distribute_yield(accrual_date)
+        return result is not None
+    except Exception as exc:
+        logger.warning(
+            "distribute_staking_yield failed for %s (attempt %d/%d): %s",
+            accrual_date,
+            self.request.retries + 1,
+            self.max_retries + 1,
+            exc,
+        )
+        if self.request.retries >= self.max_retries:
+            log_error(
+                exc,
+                message="distribute_staking_yield failed after all retries",
+                json_data={"accrual_date": str(accrual_date)},
+            )
+            return False
+        raise self.retry(exc=exc)
+    finally:
+        lock.release(key)
+        logger.info("Released lock %s", key)

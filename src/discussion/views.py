@@ -1,6 +1,7 @@
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -8,12 +9,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
-from discussion.models import Endorsement, Flag, Vote
+from discussion.models import Flag, Vote
 from discussion.permissions import CensorDiscussion as CensorDiscussionPermission
 from discussion.permissions import EditorCensorDiscussion
-from discussion.permissions import Endorse as EndorsePermission
 from discussion.permissions import Vote as VotePermission
-from discussion.serializers import EndorsementSerializer, FlagSerializer, VoteSerializer
+from discussion.serializers import FlagSerializer, VoteSerializer
+from feed.views.grant_cache_mixin import GrantCacheMixin
 from paper.models import Paper
 from purchase.models import RscExchangeRate
 from reputation.models import Contribution
@@ -41,7 +42,9 @@ def censor(item):
         item.unified_document.delete(soft=True)
 
     if reviews := getattr(item, "reviews", None):
-        reviews.all().delete()
+        reviews.all().update(
+            is_removed=True, is_public=False, is_removed_date=timezone.now()
+        )
 
     if action := getattr(item, "actions", None):
         if action.exists():
@@ -54,6 +57,8 @@ def censor(item):
         for purchase in purchases.iterator():
             purchase.actions.update(is_removed=True, display=False)
 
+    GrantCacheMixin.invalidate_if_grant_linked(getattr(item, "unified_document", None))
+
     return True
 
 
@@ -61,36 +66,6 @@ class ReactionViewActionMixin:
     """
     Note: Action decorators may be applied by classes inheriting this one.
     """
-
-    @action(
-        detail=True,
-        methods=["post"],
-        permission_classes=[EndorsePermission & CreateOrUpdateIfAllowed],
-    )
-    def endorse(self, request, *args, pk=None, **kwargs):
-        item = self.get_object()
-        user = request.user
-
-        try:
-            endorsement = create_endorsement(user, item)
-            serialized = EndorsementSerializer(endorsement)
-            return Response(serialized.data, status=201)
-        except Exception as e:
-            return Response(
-                f"Failed to create endorsement: {e}", status=status.HTTP_400_BAD_REQUEST
-            )
-
-    @endorse.mapping.delete
-    def delete_endorse(self, request, *args, pk=None, **kwargs):
-        item = self.get_object()
-        user = request.user
-        try:
-            endorsement = retrieve_endorsement(user, item)
-            endorsement_id = endorsement.id
-            endorsement.delete()
-            return Response(endorsement_id, status=200)
-        except Exception as e:
-            return Response(f"Failed to delete endorsement: {e}", status=400)
 
     @action(
         detail=True,
@@ -252,20 +227,6 @@ class ReactionViewActionMixin:
         return vote
 
 
-def retrieve_endorsement(user, item):
-    return Endorsement.objects.get(
-        object_id=item.id,
-        content_type=get_content_type_for_model(item),
-        created_by=user.id,
-    )
-
-
-def create_endorsement(user, item):
-    endorsement = Endorsement(created_by=user, item=item)
-    endorsement.save()
-    return endorsement
-
-
 def create_flag(user, item, reason, reason_choice, reason_memo=None):
     with transaction.atomic():
         data = {
@@ -382,7 +343,7 @@ def create_automated_bounty(item):
                     {
                         "attributes": {
                             "link": "https://docs.researchhub.com/researchhub-foundation/programs-and-initiatives/peer-review-program/peer-review-program-guidelines"
-                    },
+                        },
                         "insert": "Peer Review Guide",
                     },
                     {

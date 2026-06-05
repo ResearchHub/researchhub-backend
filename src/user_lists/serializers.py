@@ -20,23 +20,23 @@ class ListItemUnifiedDocumentSerializer(serializers.Serializer):
     adjusted_score = serializers.SerializerMethodField()
 
     def get_content_type(self, obj):
-            document = obj.get_document()
-            if not document:
-                return obj.document_type
-            return ContentType.objects.get_for_model(type(document)).model.upper()
-    
+        document = obj.get_document()
+        if not document:
+            return obj.document_type
+        return ContentType.objects.get_for_model(type(document)).model.upper()
+
     def get_content_object(self, obj):
-            document = obj.get_document()
-            if not document:
-                return None
-            
-            if obj.document_type == PAPER:
-                return PaperSerializer(document).data
-            elif obj.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                return PostSerializer(document).data
-            
+        document = obj.get_document()
+        if not document:
             return None
-    
+
+        if obj.document_type == PAPER:
+            return PaperSerializer(document).data
+        elif obj.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
+            return PostSerializer(document).data
+
+        return None
+
     def get_author(self, obj):
         if obj.created_by and hasattr(obj.created_by, "author_profile"):
             return SimpleAuthorSerializer(obj.created_by.author_profile).data
@@ -93,7 +93,15 @@ class ListSerializer(serializers.ModelSerializer):
             "item_count",
             "is_default",
         ]
-        read_only_fields = ["id", "created_date", "updated_date", "created_by", "updated_by", "is_default"]
+        read_only_fields = [
+            "id",
+            "created_date",
+            "updated_date",
+            "created_by",
+            "updated_by",
+            "is_default",
+        ]
+
 
 class ListOverviewSerializer(serializers.ModelSerializer):
     list_id = serializers.IntegerField(source="id", read_only=True)
@@ -108,7 +116,8 @@ class ListOverviewSerializer(serializers.ModelSerializer):
             {"list_item_id": item.id, "unified_document_id": item.unified_document_id}
             for item in obj.items.all()
         ]
-        
+
+
 class ListItemSerializer(serializers.ModelSerializer):
     document = serializers.SerializerMethodField()
 
@@ -124,19 +133,28 @@ class ListItemSerializer(serializers.ModelSerializer):
             "updated_by",
             "document",
         ]
-        read_only_fields = ["id", "created_date", "updated_date", "created_by", "updated_by", "document"]
-    
+        read_only_fields = [
+            "id",
+            "created_date",
+            "updated_date",
+            "created_by",
+            "updated_by",
+            "document",
+        ]
+
     def get_document(self, obj):
         if obj.unified_document:
-            return ListItemUnifiedDocumentSerializer(obj.unified_document, context=self.context).data
+            return ListItemUnifiedDocumentSerializer(
+                obj.unified_document, context=self.context
+            ).data
         return None
-    
+
     def validate(self, data):
         request = self.context.get("request")
         parent_list = data.get("parent_list")
-        
+
         if parent_list:
             user = getattr(request, "user", None) if request else None
             if not user or parent_list.created_by != user or parent_list.is_removed:
-                raise serializers.ValidationError("Invalid list")  
+                raise serializers.ValidationError("Invalid list")
         return data

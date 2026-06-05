@@ -86,19 +86,19 @@ def create_rsc_purchase_dao_fee_distribution(amount):
     return distribution
 
 
-def create_stored_paper_pot(amount):
-    distribution = Distribution("STORED_PAPER_POT", amount, give_rep=False)
-    return distribution
-
-
-def create_paper_reward_distribution(amount):
-    distribution = Distribution("PAPER_REWARD", amount, give_rep=False)
-    return distribution
-
-
 def create_referral_bonus_distribution(amount):
     """Create a distribution for referral bonus rewards"""
     distribution = Distribution("REFERRAL_BONUS", amount, give_rep=False)
+    return distribution
+
+
+def create_preregistration_update_reward_distribution(amount):
+    distribution = Distribution("PREREGISTRATION_UPDATE_REWARD", amount, give_rep=False)
+    return distribution
+
+
+def create_staking_yield_distribution(amount):
+    distribution = Distribution("STAKING_YIELD", amount, give_rep=False)
     return distribution
 
 
@@ -117,4 +117,6 @@ DISTRIBUTION_TYPE_CHOICES = [
         "EDITOR_PAYOUT",
         "EDITOR_PAYOUT",
     ),
+    ("PREREGISTRATION_UPDATE_REWARD", "PREREGISTRATION_UPDATE_REWARD"),
+    ("STAKING_YIELD", "STAKING_YIELD"),
 ]

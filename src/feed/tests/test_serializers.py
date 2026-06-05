@@ -1,16 +1,28 @@
+from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest.mock import PropertyMock, patch
 
+import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import FileSystemStorage, default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 
+from ai_peer_review.models import (
+    KeyInsightItemType,
+    ProposalKeyInsight,
+    ProposalKeyInsightItem,
+    ProposalReview,
+    Status,
+)
 from feed.models import FeedEntry
 from feed.serializers import (
+    CommentSerializer,
     ContentObjectSerializer,
     FeedEntrySerializer,
     FundingFeedEntrySerializer,
+    FundraiseContributionContentSerializer,
+    GrantFeedEntrySerializer,
     PaperSerializer,
     PostSerializer,
     SimpleReviewSerializer,
@@ -23,7 +35,13 @@ from hub.tests.helpers import create_hub
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from paper.models import Figure, Paper
 from paper.tests.helpers import create_paper
-from purchase.models import Fundraise, Grant, GrantApplication, Purchase
+from purchase.models import (
+    Fundraise,
+    Grant,
+    GrantApplication,
+    Purchase,
+    UsdFundraiseContribution,
+)
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Bounty, Escrow
@@ -34,6 +52,7 @@ from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
+from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -956,6 +975,8 @@ class PostSerializerTests(AWSMockTestCase):
         self.assertIn("created_date", app1_data)
         self.assertIn("applicant", app1_data)
         self.assertIn("preregistration_post_id", app1_data)
+        self.assertIn("fundraise", app1_data)
+        self.assertIn("key_insight", app1_data)
 
         # Check applicant data structure (should use SimpleAuthorSerializer)
         applicant_data = app1_data["applicant"]
@@ -972,6 +993,77 @@ class PostSerializerTests(AWSMockTestCase):
         prereg_post_ids = [app["preregistration_post_id"] for app in applications]
         self.assertIn(prereg_post1.id, prereg_post_ids)
         self.assertIn(prereg_post2.id, prereg_post_ids)
+
+        # Applications without fundraises should have fundraise=None
+        for app_data in applications:
+            self.assertIsNone(app_data["fundraise"])
+            self.assertIsNone(app_data["key_insight"])
+
+    def test_serializes_grant_post_application_includes_key_insight_when_present(self):
+        """ProposalReview + ProposalKeyInsight for the grant/proposal pair appear on application."""
+        grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.GRANT,
+        )
+        grant_post = ResearchhubPost.objects.create(
+            title="Grant with KI",
+            created_by=self.user,
+            document_type=document_type.GRANT,
+            renderable_text="Grant",
+            unified_document=grant_unified_doc,
+        )
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_unified_doc,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Org",
+            description="Desc",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+        applicant = create_random_default_user("ki_grant_applicant")
+        prereg_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+        prereg_post = ResearchhubPost.objects.create(
+            title="Proposal",
+            created_by=applicant,
+            document_type=document_type.PREREGISTRATION,
+            unified_document=prereg_doc,
+        )
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=prereg_post,
+            applicant=applicant,
+        )
+        review = ProposalReview.objects.create(
+            created_by=applicant,
+            unified_document=prereg_doc,
+            grant=grant,
+            status=Status.COMPLETED,
+            result_data={},
+        )
+        ki = ProposalKeyInsight.objects.create(
+            proposal_review=review,
+            status=Status.COMPLETED,
+            tldr="Summary line.",
+        )
+        ProposalKeyInsightItem.objects.create(
+            key_insight=ki,
+            item_type=KeyInsightItemType.STRENGTH,
+            label="Strength one",
+            description="D",
+            order=0,
+        )
+
+        context = FeedViewMixin().get_common_serializer_context()
+        data = PostSerializer(grant_post, context=context).data
+        app = data["grant"]["applications"][0]
+        self.assertEqual(app["preregistration_post_id"], prereg_post.id)
+        self.assertIsNotNone(app["key_insight"])
+        self.assertEqual(app["key_insight"]["tldr"], "Summary line.")
+        self.assertEqual(len(app["key_insight"]["items"]), 1)
+        self.assertEqual(app["key_insight"]["items"][0]["label"], "Strength one")
 
     def test_serializes_non_grant_post_returns_none_for_grant(self):
         """Test that non-grant posts return None for the grant field"""
@@ -1208,6 +1300,212 @@ class PostSerializerTests(AWSMockTestCase):
             )
 
 
+class CommentSerializerTests(AWSMockTestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = create_random_default_user("user1")
+        self.category = create_hub("Physics", namespace=Hub.Namespace.CATEGORY)
+        self.subcategory = create_hub(
+            "Quantum Mechanics", namespace=Hub.Namespace.SUBCATEGORY
+        )
+        self.unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PAPER,
+        )
+        self.paper = Paper.objects.create(
+            title="paper1", unified_document=self.unified_document
+        )
+        self.hub = create_hub("Test Hub")
+        self.unified_document.hubs.add(self.hub)
+        self.unified_document.hubs.add(self.category)
+        self.unified_document.hubs.add(self.subcategory)
+
+        self.thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            object_id=self.paper.id,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(Paper),
+        )
+
+        self.comment = RhCommentModel.objects.create(
+            thread=self.thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+        )
+
+        self.post = ResearchhubPost.objects.create(
+            title="Test Post",
+            document_type=document_type.DISCUSSION,
+            created_by=self.user,
+            unified_document=self.unified_document,
+        )
+
+    def test_serializes_comment(self):
+        serializer = CommentSerializer(self.comment)
+        data = serializer.data
+
+        self.assertEqual(data["id"], self.comment.id)
+        self.assertEqual(data["thread_id"], self.thread.id)
+        self.assertEqual(data["parent_id"], None)
+        self.assertEqual(
+            data["comment_content_type"], self.comment.comment_content_type
+        )
+        self.assertEqual(
+            data["comment_content_json"], self.comment.comment_content_json
+        )
+        self.assertIsNone(data["review"])
+
+        self.assertIn("author", data)
+        self.assertIn("hub", data)
+        self.assertIn("category", data)
+        self.assertIn("subcategory", data)
+        self.assertIsNotNone(data["category"])
+        self.assertEqual(data["category"]["id"], self.category.id)
+        self.assertIsNotNone(data["subcategory"])
+        self.assertEqual(data["subcategory"]["id"], self.subcategory.id)
+
+    def test_serializes_comment_with_review(self):
+        review = Review.objects.create(
+            score=8.5,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=self.comment.id,
+            unified_document=self.unified_document,
+        )
+
+        serializer = CommentSerializer(self.comment)
+        data = serializer.data
+
+        self.assertIsNotNone(data["review"])
+        self.assertEqual(data["review"]["id"], review.id)
+        self.assertEqual(data["review"]["score"], 8.5)
+        self.assertEqual(data["review"]["created_by"], self.user.id)
+        self.assertEqual(data["review"]["unified_document"], self.unified_document.id)
+
+    def test_serializes_comment_with_paper(self):
+        serializer = CommentSerializer(self.comment)
+        data = serializer.data
+
+        self.assertIsNotNone(data["paper"])
+        self.assertEqual(data["paper"]["title"], self.paper.title)
+
+    def test_serializes_comment_with_parent_comment(self):
+        child_comment = RhCommentModel.objects.create(
+            thread=self.thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+            comment_content_json={"ops": [{"insert": "This is a reply comment"}]},
+            parent=self.comment,
+        )
+
+        child_child_comment = RhCommentModel.objects.create(
+            thread=self.thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+            comment_content_json={
+                "ops": [{"insert": "This is a reply to the reply comment"}]
+            },
+            parent=child_comment,
+        )
+
+        serializer = CommentSerializer(child_child_comment)
+        data = serializer.data
+
+        self.assertIsNotNone(data["parent_comment"])
+        self.assertEqual(data["parent_comment"]["id"], child_comment.id)
+        self.assertEqual(data["parent_comment"]["thread_id"], self.thread.id)
+        self.assertEqual(
+            data["parent_comment"]["comment_content_type"],
+            child_comment.comment_content_type,
+        )
+
+        self.assertIsNotNone(data["parent_comment"]["parent_comment"])
+        self.assertEqual(
+            data["parent_comment"]["parent_comment"]["id"], self.comment.id
+        )
+        self.assertEqual(
+            data["parent_comment"]["parent_comment"]["thread_id"], self.thread.id
+        )
+        self.assertEqual(
+            data["parent_comment"]["parent_comment"]["comment_content_type"],
+            self.comment.comment_content_type,
+        )
+
+    def test_serializes_comment_with_post(self):
+        post_thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            object_id=self.post.id,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+        )
+
+        post_comment = RhCommentModel.objects.create(
+            thread=post_thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+        )
+
+        serializer = CommentSerializer(post_comment)
+        data = serializer.data
+
+        self.assertIsNotNone(data["post"])
+        self.assertEqual(data["post"]["title"], self.post.title)
+
+    def test_serializes_comment_with_purchases(self):
+        purchase = Purchase.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=self.comment.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.BOOST,
+            amount="2.5",
+            paid_status=Purchase.PAID,
+        )
+
+        serializer = CommentSerializer(self.comment)
+        data = serializer.data
+
+        self.assertIn("purchases", data)
+        self.assertIsInstance(data["purchases"], list)
+        self.assertEqual(len(data["purchases"]), 1)
+
+        purchase_data = data["purchases"][0]
+        self.assertEqual(purchase_data["id"], purchase.id)
+        self.assertEqual(purchase_data["amount"], purchase.amount)
+        self.assertIn("user", purchase_data)
+
+    def test_serializes_comment_with_bounties(self):
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            amount_holding=50,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=self.comment.id,
+        )
+
+        bounty = Bounty.objects.create(
+            amount=50,
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.ANSWER,
+            unified_document=self.unified_document,
+            item_content_type=ContentType.objects.get_for_model(RhCommentModel),
+            item_object_id=self.comment.id,
+            escrow=escrow,
+            created_by=self.user,
+        )
+
+        serializer = CommentSerializer(self.comment)
+        data = serializer.data
+
+        self.assertIn("bounties", data)
+        self.assertIsInstance(data["bounties"], list)
+        self.assertEqual(len(data["bounties"]), 1)
+
+        bounty_data = data["bounties"][0]
+        self.assertEqual(bounty_data["id"], bounty.id)
+        self.assertEqual(bounty_data["status"], bounty.status)
+        self.assertEqual(bounty_data["bounty_type"], bounty.bounty_type)
+
+
 class SimpleHubSerializerTests(AWSMockTestCase):
     def setUp(self):
         super().setUp()
@@ -1362,6 +1660,163 @@ class FeedEntrySerializerTests(AWSMockTestCase):
         post_data = data["content_object"]
         self.assertIn("unified_document_id", post_data)
         self.assertEqual(post_data["unified_document_id"], post.unified_document.id)
+
+    def test_serializes_comment_feed_entry_with_unified_document_id(self):
+        """Test that comment feed entries include unified_document_id in paper/post fields"""
+        paper = create_paper(uploaded_by=self.user)
+
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            object_id=paper.id,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(Paper),
+        )
+
+        comment = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+        )
+
+        comment_feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+            item=comment,
+            created_date=comment.created_date,
+            action="PUBLISH",
+            action_date=comment.created_date,
+            metrics={"votes": 15},
+            user=self.user,
+            unified_document=paper.unified_document,
+        )
+
+        serializer = FeedEntrySerializer(comment_feed_entry)
+        data = serializer.data
+
+        self.assertIn("id", data)
+        self.assertIn("content_type", data)
+        self.assertEqual(data["content_type"], "RHCOMMENTMODEL")
+        self.assertIn("content_object", data)
+
+        comment_data = data["content_object"]
+        self.assertIn("paper", comment_data)
+        paper_data = comment_data["paper"]
+        self.assertIn("unified_document_id", paper_data)
+        self.assertEqual(paper_data["unified_document_id"], paper.unified_document.id)
+
+    def test_serializes_comment_feed_entry_with_post_unified_document_id(self):
+        """Test that comment feed entries include unified_document_id in post field"""
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.DISCUSSION,
+        )
+
+        post = ResearchhubPost.objects.create(
+            title="Test Post",
+            created_by=self.user,
+            document_type=document_type.DISCUSSION,
+            renderable_text="This is a test post",
+            unified_document=unified_document,
+        )
+
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            object_id=post.id,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+        )
+
+        comment = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+        )
+
+        comment_feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+            item=comment,
+            created_date=comment.created_date,
+            action="PUBLISH",
+            action_date=comment.created_date,
+            metrics={"votes": 15},
+            user=self.user,
+            unified_document=post.unified_document,
+        )
+
+        serializer = FeedEntrySerializer(comment_feed_entry)
+        data = serializer.data
+
+        self.assertIn("id", data)
+        self.assertIn("content_type", data)
+        self.assertEqual(data["content_type"], "RHCOMMENTMODEL")
+        self.assertIn("content_object", data)
+
+        comment_data = data["content_object"]
+        self.assertIn("post", comment_data)
+        post_data = comment_data["post"]
+        self.assertIn("unified_document_id", post_data)
+        self.assertEqual(post_data["unified_document_id"], post.unified_document.id)
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model."
+        "ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_comment_feed_entry(self, mock_get_primary_hub):
+        """Test serialization of comment feed entries with metrics"""
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        paper = create_paper(uploaded_by=self.user)
+
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            created_by=self.user,
+        )
+
+        comment = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_content_json={"ops": [{"insert": "Test comment"}]},
+            score=15,
+        )
+
+        for i in range(3):
+            RhCommentModel.objects.create(
+                thread=thread,
+                created_by=self.user,
+                comment_content_json={"ops": [{"insert": f"Reply {i + 1}"}]},
+                parent=comment,
+            )
+
+        comment_feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+            item=comment,
+            created_date=comment.created_date,
+            action="PUBLISH",
+            action_date=comment.created_date,
+            metrics={"votes": 15},
+            user=self.user,
+            unified_document=paper.unified_document,
+        )
+
+        serializer = FeedEntrySerializer(comment_feed_entry)
+        data = serializer.data
+
+        self.assertIn("id", data)
+        self.assertIn("content_type", data)
+        self.assertEqual(data["content_type"], "RHCOMMENTMODEL")
+        self.assertIn("content_object", data)
+        self.assertIn("created_date", data)
+
+        self.assertIn("metrics", data)
+        self.assertIsInstance(data["metrics"], dict)
+        self.assertIn("votes", data["metrics"])
+        self.assertEqual(data["metrics"]["votes"], 15)
+
+        mock_get_primary_hub.assert_called()
 
     @patch(
         "researchhub_document.related_models.researchhub_unified_document_model"
@@ -1923,22 +2378,313 @@ class FundingFeedEntrySerializerTests(AWSMockTestCase):
         self.assertIn("content_type", data)
         self.assertEqual(data["content_type"], "RESEARCHHUBPOST")
 
-        # Verify is_nonprofit field is present and False (no nonprofit links)
+        # Verify is_nonprofit is False and nonprofit is None (no nonprofit links)
         self.assertIn("is_nonprofit", data)
         self.assertFalse(data["is_nonprofit"])
+        self.assertIn("nonprofit", data)
+        self.assertIsNone(data["nonprofit"])
 
         # Create a nonprofit organization and link it to the fundraise
-        nonprofit = NonprofitOrg.objects.create(name="Test Nonprofit")
-
-        # Create the nonprofit link - variable not directly used but needed for test
-        # Creating the link is necessary for the test though the variable isn't used
+        nonprofit = NonprofitOrg.objects.create(
+            name="Test Nonprofit",
+            ein="12-3456789",
+            endaoment_org_id="endaoment-123",
+        )
         NonprofitFundraiseLink.objects.create(fundraise=fundraise, nonprofit=nonprofit)
 
-        # Re-serialize and verify is_nonprofit is now True
+        # Re-serialize and verify is_nonprofit is True and nonprofit object is returned
         serializer = FundingFeedEntrySerializer(feed_entry)
         data = serializer.data
         self.assertTrue(data["is_nonprofit"])
+        self.assertIsNotNone(data["nonprofit"])
+        self.assertEqual(data["nonprofit"]["id"], nonprofit.id)
+        self.assertEqual(data["nonprofit"]["name"], "Test Nonprofit")
+        self.assertEqual(data["nonprofit"]["ein"], "12-3456789")
+        self.assertEqual(data["nonprofit"]["endaoment_org_id"], "endaoment-123")
+
+    def test_non_fundraise_feed_entry_has_no_associated_grants(self):
+        """A discussion post feed entry should have an empty associated_grants list."""
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.DISCUSSION,
+        )
+        post = ResearchhubPost.objects.create(
+            title="Discussion Post",
+            created_by=self.user,
+            document_type=document_type.DISCUSSION,
+            renderable_text="Not a preregistration",
+            unified_document=unified_doc,
+        )
+
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            user=self.user,
+            action="PUBLISH",
+            action_date=post.created_date,
+            unified_document=unified_doc,
+        )
+
+        serializer = FundingFeedEntrySerializer(feed_entry)
+        self.assertEqual(serializer.data["associated_grants"], [])
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_fundraise_with_application_has_associated_grants(self, mock_usd_to_rsc):
+        """Preregistration with a grant application should list the grant."""
+        mock_usd_to_rsc.return_value = 200.0
+
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        post = ResearchhubPost.objects.create(
+            title="Funded Preregistration",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            renderable_text="Has a grant application",
+            unified_document=unified_doc,
+        )
+        Fundraise.objects.create(
+            unified_document=unified_doc,
+            created_by=self.user,
+            goal_amount=Decimal("500.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_doc,
+            amount=Decimal("10000.00"),
+            currency=USD,
+            organization="Test Foundation",
+            short_title="Test Grant",
+            description="A test grant",
+            status=Grant.OPEN,
+        )
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=post, applicant=self.user
+        )
+
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            user=self.user,
+            action="PUBLISH",
+            action_date=post.created_date,
+            unified_document=unified_doc,
+        )
+
+        serializer = FundingFeedEntrySerializer(feed_entry)
+        grants = serializer.data["associated_grants"]
+
+        self.assertEqual(len(grants), 1)
+        self.assertEqual(grants[0]["id"], grant.id)
+        self.assertEqual(grants[0]["organization"], "Test Foundation")
+        self.assertEqual(grants[0]["short_title"], "Test Grant")
+        self.assertEqual(grants[0]["amount"], "10000.00")
+        self.assertEqual(grants[0]["currency"], USD)
+        self.assertEqual(grants[0]["status"], Grant.OPEN)
+        self.assertIsNone(grants[0]["image"])
+        self.assertEqual(grants[0]["num_applicants"], 1)
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_fundraise_without_application_has_no_associated_grants(
+        self, mock_usd_to_rsc
+    ):
+        """A preregistration with a fundraise but no grant application returns empty."""
+        mock_usd_to_rsc.return_value = 200.0
+
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        post = ResearchhubPost.objects.create(
+            title="Unfunded Preregistration",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            renderable_text="No grant application",
+            unified_document=unified_doc,
+        )
+        Fundraise.objects.create(
+            unified_document=unified_doc,
+            created_by=self.user,
+            goal_amount=Decimal("500.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            user=self.user,
+            action="PUBLISH",
+            action_date=post.created_date,
+            unified_document=unified_doc,
+        )
+
+        serializer = FundingFeedEntrySerializer(feed_entry)
+        self.assertEqual(serializer.data["associated_grants"], [])
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.rsc_to_usd")
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_grant_application_fundraise_includes_reviews(
+        self, mock_usd_to_rsc, mock_rsc_to_usd
+    ):
+        """Reviews on a preregistration appear in its fundraise within a grant's applications."""
+        mock_usd_to_rsc.return_value = 200.0
+        mock_rsc_to_usd.return_value = 0.005
+
+        # Arrange
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant_post = ResearchhubPost.objects.create(
+            title="Test Grant Post",
+            created_by=self.user,
+            document_type=GRANT,
+            renderable_text="Grant post",
+            unified_document=grant_doc,
+        )
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_doc,
+            amount=Decimal("10000.00"),
+            currency=USD,
+            organization="Test Foundation",
+            short_title="Test Grant",
+            description="A test grant",
+            status=Grant.OPEN,
+        )
+        prereg_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        prereg_post = ResearchhubPost.objects.create(
+            title="Preregistration With Review",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            renderable_text="Prereg post",
+            unified_document=prereg_doc,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=prereg_doc,
+            goal_amount=Decimal("5000.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=prereg_post, applicant=self.user
+        )
+        comment = create_rh_comment(post=prereg_post, created_by=self.user)
+        Review.objects.create(
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(comment),
+            object_id=comment.id,
+            unified_document=prereg_doc,
+            score=8,
+        )
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=grant_post.id,
+            user=self.user,
+            action="PUBLISH",
+            action_date=grant_post.created_date,
+            unified_document=grant_doc,
+        )
+
+        # Act
+        data = GrantFeedEntrySerializer(feed_entry).data
+
+        # Assert
+        grant_data = data["content_object"]["grant"]
+        application = next(
+            app
+            for app in grant_data["applications"]
+            if app["preregistration_post_id"] == prereg_post.id
+        )
+        reviews = application["fundraise"]["reviews"]
+        self.assertEqual(len(reviews), 1)
+        self.assertEqual(reviews[0]["score"], 8.0)
+        self.assertFalse(reviews[0]["is_assessed"])
+        self.assertIsNotNone(reviews[0]["author"])
+
+
+class FundraiseContributionContentSerializerTests(AWSMockTestCase):
+    """
+    Test cases for the FundraiseContributionContentSerializer.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.user = create_random_default_user("contribution_test_user")
+        self.unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+        self.hub = create_hub("TestHub")
+        self.unified_doc.hubs.add(self.hub)
+        self.post = ResearchhubPost.objects.create(
+            title="Test Proposal",
+            created_by=self.user,
+            document_type=document_type.PREREGISTRATION,
+            renderable_text="A test proposal",
+            unified_document=self.unified_doc,
+        )
+        self.fundraise = Fundraise.objects.create(
+            unified_document=self.unified_doc,
+            created_by=self.user,
+            goal_amount=Decimal("1000.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+
+    def test_serializes_rsc_purchase_contribution(self):
+        """
+        Purchase with FUNDRAISE_CONTRIBUTION type serializes correctly.
+        """
+        # Arrange
+        ct = ContentType.objects.get_for_model(Fundraise)
+        purchase = Purchase.objects.create(
+            user=self.user,
+            content_type=ct,
+            object_id=self.fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="100.5",
+        )
+
+        # Act
+        serializer = FundraiseContributionContentSerializer(purchase)
         data = serializer.data
-        self.assertTrue(data["is_nonprofit"])
+
+        # Assert
+        self.assertEqual(data["id"], purchase.id)
+        self.assertEqual(data["amount"], 100.5)
+        self.assertEqual(data["currency"], "RSC")
+        self.assertEqual(data["post_id"], self.post.id)
+        self.assertEqual(data["proposal_title"], "Test Proposal")
+        self.assertEqual(data["proposal_slug"], self.post.slug)
+        self.assertEqual(data["unified_document_id"], self.unified_doc.id)
+
+    def test_serializes_usd_contribution(self):
+        """
+        UsdFundraiseContribution serializes correctly.
+        """
+        # Arrange
+        contribution = UsdFundraiseContribution.objects.create(
+            user=self.user,
+            fundraise=self.fundraise,
+            amount_cents=5500,
+            fee_cents=495,
+            origin_fund_id="test-origin",
+            destination_org_id="test-destination",
+        )
+
+        # Act
+        serializer = FundraiseContributionContentSerializer(contribution)
         data = serializer.data
-        self.assertTrue(data["is_nonprofit"])
+
+        # Assert
+        self.assertEqual(data["id"], contribution.id)
+        self.assertEqual(data["amount"], 55.0)
+        self.assertEqual(data["currency"], "USD")
+        self.assertEqual(data["post_id"], self.post.id)
+        self.assertEqual(data["proposal_title"], "Test Proposal")
+        self.assertEqual(data["proposal_slug"], self.post.slug)
+        self.assertEqual(data["unified_document_id"], self.unified_doc.id)

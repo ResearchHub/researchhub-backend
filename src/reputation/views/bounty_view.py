@@ -2,7 +2,18 @@ import decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import DecimalField, F, OuterRef, Q, Subquery, Sum, Value
+from django.db.models import (
+    Case,
+    DecimalField,
+    F,
+    IntegerField,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
 from django.db.models.functions import Coalesce
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -19,7 +30,11 @@ from hub.models import Hub
 from purchase.models import Balance
 from reputation.constants import MAXIMUM_BOUNTY_AMOUNT_RSC, MINIMUM_BOUNTY_AMOUNT_RSC
 from reputation.models import Bounty, BountyFee, BountySolution, Contribution, Escrow
-from reputation.permissions import UserCanApproveBounty, UserCanCancelBounty
+from reputation.permissions import (
+    IsFoundationUser,
+    UserCanApproveBounty,
+    UserCanCancelBounty,
+)
 from reputation.serializers import (
     BountySerializer,
     DynamicBountySerializer,
@@ -31,12 +46,23 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_CLOSED,
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
+    PREREGISTRATION,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
 from user.models import User
+from user.permissions import IsModerator
 from utils.permissions import PostOnly
 from utils.sentry import log_error
+
+
+def _open_bounty_exists_on_item(item_content_type, item_object_id):
+    content_type = ContentType.objects.get(model=item_content_type)
+    return Bounty.objects.filter(
+        status__in=(Bounty.OPEN, Bounty.ASSESSMENT),
+        item_content_type=content_type,
+        item_object_id=item_object_id,
+    ).exists()
 
 
 def _create_bounty_checks(user, amount, item_content_type, bypass_user_balance=False):
@@ -163,12 +189,19 @@ class BountyViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["item_content_type__model", "item_object_id", "status"]
 
+    DEFAULT_SORT = "-created_date"
     ALLOWED_CREATE_CONTENT_TYPES = ("rhcommentmodel", "thread", "researchhubpost")
     ALLOWED_APPROVE_CONTENT_TYPES = ("rhcommentmodel", "thread", "comment", "reply")
 
     def get_permissions(self):
         if self.action == "list":
             permission_classes = [AllowAny]
+        elif self.action == "create":
+            permission_classes = [
+                IsAuthenticated,
+                PostOnly,
+                IsFoundationUser | IsModerator,
+            ]
         else:
             permission_classes = self.permission_classes
 
@@ -229,6 +262,12 @@ class BountyViewSet(viewsets.ModelViewSet):
         item_content_type = data.get("item_content_type", "")
         item_object_id = data.get("item_object_id", 0)
         amount = str(data.get("amount", "0"))
+
+        if _open_bounty_exists_on_item(item_content_type, item_object_id):
+            return Response(
+                {"detail": "Contributions to existing bounties are not allowed"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
@@ -294,20 +333,29 @@ class BountyViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[IsAuthenticated, UserCanApproveBounty],
+        permission_classes=[
+            IsAuthenticated,
+            UserCanApproveBounty,
+            IsFoundationUser | IsModerator,
+        ],
     )
     def approve_bounty(self, request, pk=None):
         data = request.data
         with transaction.atomic():
             bounty = self.get_object()
-            if bounty.parent:
-                bounty = bounty.parent
+            if bounty.parent_id is not None:
+                return Response(
+                    {"error": "Please approve parent bounty"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            escrow = Escrow.objects.select_for_update().get(pk=bounty.escrow_id)
 
             # Validate total payout amount doesn't exceed bounty amount
             total_payout = sum(
                 decimal.Decimal(str(solution.get("amount", 0))) for solution in data
             )
-            if total_payout > bounty.escrow.amount_holding:
+            if total_payout > escrow.amount_holding:
                 # Return 400 Bad Request instead of raising Exception
                 return Response(
                     {"detail": "Total payout amount exceeds bounty amount"},
@@ -375,6 +423,13 @@ class BountyViewSet(viewsets.ModelViewSet):
                     )
 
                 solution_created_by = solution_obj.created_by
+
+                if solution_created_by.id == bounty.created_by.id:
+                    return Response(
+                        {"detail": "Cannot award your own solution"},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
                 bounty_solutions_to_process.append(
                     {
                         "obj": solution_obj,
@@ -404,9 +459,11 @@ class BountyViewSet(viewsets.ModelViewSet):
                     },  # Initial status
                 )
 
-                # Optional: Add logic here to handle already awarded solutions if needed
-                # e.g., if bounty_solution.status == BountySolution.Status.AWARDED:
-                #    continue # Or raise an error, depending on desired behavior
+                if bounty_solution.status == BountySolution.Status.AWARDED:
+                    return Response(
+                        {"detail": "Solution has already been awarded"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
                 # Attempt to pay out the bounty
                 bounty_paid = bounty.approve(
@@ -524,7 +581,11 @@ class BountyViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=["post", "delete"],
-        permission_classes=[IsAuthenticated, UserCanCancelBounty],
+        permission_classes=[
+            IsAuthenticated,
+            UserCanCancelBounty,
+            IsFoundationUser | IsModerator,
+        ],
     )
     def cancel_bounty(self, request, pk=None):
         with transaction.atomic():
@@ -630,12 +691,26 @@ class BountyViewSet(viewsets.ModelViewSet):
         # Apply the combined filter
         return queryset.filter(applied_filters)
 
-    def list(self, request, *args, **kwargs):
-        sort = self.request.query_params.get("sort", "-created_date")
+    @staticmethod
+    def _prioritize_preregistration_bounties(queryset):
+        """Annotate queryset so REVIEW bounties on proposals can be sorted first."""
+        return queryset.annotate(
+            preregistration_first=Case(
+                When(
+                    bounty_type=Bounty.Type.REVIEW,
+                    unified_document__document_type=PREREGISTRATION,
+                    then=Value(0),
+                ),
+                default=Value(1),
+                output_field=IntegerField(),
+            )
+        )
 
-        # If sort is personalized but user is logged out, default to created_date
+    def list(self, request, *args, **kwargs):
+        sort = self.request.query_params.get("sort", self.DEFAULT_SORT)
+
         if sort == "personalized" and not request.user.is_authenticated:
-            sort = "-created_date"
+            sort = self.DEFAULT_SORT
 
         if sort == "personalized":
             bounties = Bounty.find_bounties_for_user(
@@ -645,12 +720,13 @@ class BountyViewSet(viewsets.ModelViewSet):
 
             queryset = Bounty.objects.filter(id__in=[b.id for b in bounties])
             queryset = self.filter_queryset(queryset)
+            queryset = self._prioritize_preregistration_bounties(queryset)
+            queryset = queryset.order_by("preregistration_first", self.DEFAULT_SORT)
         else:
             queryset = self.filter_queryset(self.get_queryset())
 
             # Sorting by amount requires calculating total including child bounties
             if sort == "-total_amount":
-                # Subquery to calculate the sum of children amounts
                 children_sum = (
                     Bounty.objects.filter(parent=OuterRef("pk"))
                     .values("parent")
@@ -668,7 +744,6 @@ class BountyViewSet(viewsets.ModelViewSet):
                     .values("sum")
                 )
 
-                # Annotate queryset with total_amount for all cases
                 queryset = queryset.annotate(
                     total_amount=F("amount")
                     + Coalesce(
@@ -680,8 +755,11 @@ class BountyViewSet(viewsets.ModelViewSet):
                     )
                 )
 
-            # Apply sorting
-            queryset = queryset.order_by(sort)
+            if sort == self.DEFAULT_SORT:
+                queryset = self._prioritize_preregistration_bounties(queryset)
+                queryset = queryset.order_by("preregistration_first", sort)
+            else:
+                queryset = queryset.order_by(sort)
 
         page = self.paginate_queryset(queryset)
         context = self._get_retrieve_context()
@@ -720,6 +798,9 @@ class BountyViewSet(viewsets.ModelViewSet):
     def get_bounties(self, request):
         qs = self.filter_queryset(self.get_queryset()).filter(
             parent__isnull=True, unified_document__is_removed=False
+        )
+        qs = self._prioritize_preregistration_bounties(qs).order_by(
+            "preregistration_first", "-created_date"
         )[:10]
 
         context = self._get_retrieve_context()
@@ -763,6 +844,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             Hub.objects.filter(
                 related_documents__related_bounties__status=Bounty.OPEN,
                 is_removed=False,
+                namespace=Hub.Namespace.SUBCATEGORY,
             )
             .values("id", "name", "slug")
             .distinct()

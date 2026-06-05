@@ -1,4 +1,5 @@
 """Service for funding impact dashboard metrics."""
+
 from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal
@@ -10,7 +11,9 @@ from django.utils import timezone
 from purchase.models import Fundraise, GrantApplication, Purchase
 from purchase.related_models.purchase_model import DECIMAL_FIELD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from purchase.utils import get_funded_fundraise_ids, rsc_and_cents_to_usd
 from user.models import User
 
@@ -28,7 +31,9 @@ class FundingImpactService:
 
     def get_funding_impact_overview(self, user: User) -> dict:
         """Return funding impact metrics for proposals the user funded through their grants."""
-        grant_fundraise_ids = GrantApplication.objects.for_user_grants(user).fundraise_ids()
+        grant_fundraise_ids = GrantApplication.objects.for_user_grants(
+            user
+        ).fundraise_ids()
         user_funded_ids = get_funded_fundraise_ids(user.id)
         funded_ids = list(grant_fundraise_ids & user_funded_ids)
 
@@ -41,12 +46,18 @@ class FundingImpactService:
             .prefetch_related("unified_document__hubs")
         )
 
-        exchange_rate = RscExchangeRate.get_latest_exchange_rate()
-        contributions = self._get_contributions_by_fundraise(user, funded_ids, exchange_rate)
+        exchange_rate = RscExchangeRate.get_latest()
+        contributions = self._get_contributions_by_fundraise(
+            user, funded_ids, exchange_rate
+        )
 
         return {
-            "milestones": self._get_milestones(user, contributions, fundraises, exchange_rate),
-            "funding_over_time": self._get_funding_over_time(user, funded_ids, exchange_rate),
+            "milestones": self._get_milestones(
+                user, contributions, fundraises, exchange_rate
+            ),
+            "funding_over_time": self._get_funding_over_time(
+                user, funded_ids, exchange_rate
+            ),
             "hub_breakdown": self._get_hub_breakdown(fundraises, contributions),
         }
 
@@ -79,22 +90,42 @@ class FundingImpactService:
         return {"current": current, "target": target}
 
     def _get_milestones(
-        self, user: User, contributions: dict[int, float], fundraises: QuerySet, exchange_rate: float
+        self,
+        user: User,
+        contributions: dict[int, float],
+        fundraises: QuerySet,
+        exchange_rate: float,
     ) -> dict:
         """Calculate all milestone metrics."""
         funded_ids = list(contributions.keys())
         user_total = sum(contributions.values())
 
-        matched_rsc = float(Purchase.objects.funding_contributions().for_fundraises(funded_ids).exclude_user(user.id).sum())
-        matched_cents = UsdFundraiseContribution.objects.not_refunded().for_fundraises(funded_ids).exclude_user(user.id).sum_cents()
+        matched_rsc = float(
+            Purchase.objects.funding_contributions()
+            .for_fundraises(funded_ids)
+            .exclude_user(user.id)
+            .sum()
+        )
+        matched_cents = (
+            UsdFundraiseContribution.objects.not_refunded()
+            .for_fundraises(funded_ids)
+            .exclude_user(user.id)
+            .sum_cents()
+        )
         matched_total = rsc_and_cents_to_usd(matched_rsc, matched_cents, exchange_rate)
 
         researcher_count = fundraises.values("created_by_id").distinct().count()
 
         return {
-            "funding_contributed": self._get_milestone(round(user_total, 2), "funding_contributed"),
-            "researchers_supported": self._get_milestone(researcher_count, "researchers_supported"),
-            "matched_funding": self._get_milestone(round(matched_total, 2), "matched_funding"),
+            "funding_contributed": self._get_milestone(
+                round(user_total, 2), "funding_contributed"
+            ),
+            "researchers_supported": self._get_milestone(
+                researcher_count, "researchers_supported"
+            ),
+            "matched_funding": self._get_milestone(
+                round(matched_total, 2), "matched_funding"
+            ),
         }
 
     def _get_contributions_by_fundraise(
@@ -102,7 +133,9 @@ class FundingImpactService:
     ) -> dict[int, float]:
         """Return user's contribution amount (USD) per fundraise ID."""
         rsc_amounts = dict(
-            Purchase.objects.for_user(user.id).funding_contributions().for_fundraises(fundraise_ids)
+            Purchase.objects.for_user(user.id)
+            .funding_contributions()
+            .for_fundraises(fundraise_ids)
             .annotate(amount_decimal=Cast("amount", DECIMAL_FIELD))
             .values("object_id")
             .annotate(total=Coalesce(Sum("amount_decimal"), Decimal("0")))
@@ -110,14 +143,20 @@ class FundingImpactService:
         )
 
         usd_amounts = dict(
-            UsdFundraiseContribution.objects.for_user(user.id).not_refunded().for_fundraises(fundraise_ids)
+            UsdFundraiseContribution.objects.for_user(user.id)
+            .not_refunded()
+            .for_fundraises(fundraise_ids)
             .values("fundraise_id")
             .annotate(total=Coalesce(Sum("amount_cents"), 0))
             .values_list("fundraise_id", "total")
         )
 
         return {
-            fid: rsc_and_cents_to_usd(float(rsc_amounts.get(fid) or 0), usd_amounts.get(fid) or 0, exchange_rate)
+            fid: rsc_and_cents_to_usd(
+                float(rsc_amounts.get(fid) or 0),
+                usd_amounts.get(fid) or 0,
+                exchange_rate,
+            )
             for fid in fundraise_ids
         }
 
@@ -129,15 +168,20 @@ class FundingImpactService:
         cutoff = timezone.now() - timedelta(days=FUNDING_HISTORY_MONTHS * 30)
 
         rsc_monthly = (
-            Purchase.objects.funding_contributions().for_fundraises(fundraise_ids)
+            Purchase.objects.funding_contributions()
+            .for_fundraises(fundraise_ids)
             .filter(created_date__gte=cutoff)
-            .annotate(month=TruncMonth("created_date"), amount_decimal=Cast("amount", DECIMAL_FIELD))
+            .annotate(
+                month=TruncMonth("created_date"),
+                amount_decimal=Cast("amount", DECIMAL_FIELD),
+            )
             .values("month", "user_id")
             .annotate(total=Coalesce(Sum("amount_decimal"), Decimal("0")))
         )
 
         usd_monthly = (
-            UsdFundraiseContribution.objects.not_refunded().for_fundraises(fundraise_ids)
+            UsdFundraiseContribution.objects.not_refunded()
+            .for_fundraises(fundraise_ids)
             .filter(created_date__gte=cutoff)
             .annotate(month=TruncMonth("created_date"))
             .values("month", "user_id")
@@ -150,7 +194,9 @@ class FundingImpactService:
             month_str = row["month"].strftime("%Y-%m")
             if month_str in monthly:
                 contributor_type = "user" if row["user_id"] == user.id else "matched"
-                monthly[month_str][contributor_type] += float(row["total"]) * exchange_rate
+                monthly[month_str][contributor_type] += (
+                    float(row["total"]) * exchange_rate
+                )
 
         for row in usd_monthly:
             month_str = row["month"].strftime("%Y-%m")
@@ -163,14 +209,18 @@ class FundingImpactService:
         for month in past_months:
             cumulative_user += monthly[month]["user"]
             cumulative_matched += monthly[month]["matched"]
-            results.append({
-                "month": month,
-                "user_contributions": round(cumulative_user, 2),
-                "matched_contributions": round(cumulative_matched, 2),
-            })
+            results.append(
+                {
+                    "month": month,
+                    "user_contributions": round(cumulative_user, 2),
+                    "matched_contributions": round(cumulative_matched, 2),
+                }
+            )
         return results
 
-    def _get_hub_breakdown(self, fundraises: QuerySet, contributions: dict[int, float]) -> list[dict]:
+    def _get_hub_breakdown(
+        self, fundraises: QuerySet, contributions: dict[int, float]
+    ) -> list[dict]:
         """Return top funded hubs by contribution amount."""
         hub_totals: dict[str, float] = defaultdict(float)
         for fundraise in fundraises:
@@ -187,5 +237,9 @@ class FundingImpactService:
             for hub in hubs:
                 hub_totals[hub.name] += share
 
-        top_hubs = sorted(hub_totals.items(), key=lambda x: x[1], reverse=True)[:MAX_HUBS]
-        return [{"name": name, "amount_usd": round(amount, 2)} for name, amount in top_hubs]
+        top_hubs = sorted(hub_totals.items(), key=lambda x: x[1], reverse=True)[
+            :MAX_HUBS
+        ]
+        return [
+            {"name": name, "amount_usd": round(amount, 2)} for name, amount in top_hubs
+        ]

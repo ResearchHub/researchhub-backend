@@ -1,19 +1,33 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytz
+from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 
-from purchase.models import Fundraise
+from notification.models import Notification
+from purchase.circle.client import CircleTransferError
+from purchase.models import Fundraise, Wallet
 from purchase.services.fundraise_service import FundraiseService
-from purchase.tasks import complete_eligible_fundraises
+from purchase.tasks import (
+    complete_eligible_fundraises,
+    send_monthly_preregistration_update_reminders,
+    sweep_deposit_to_multisig,
+)
+from reputation.related_models.deposit import Deposit
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.tests.helpers import create_random_authenticated_user, create_user
 
+User = get_user_model()
+
 
 class FundraiseTasksTest(TestCase):
     def setUp(self):
+        cache.clear()
+
         # Create a moderator user
         self.user = create_random_authenticated_user("fundraise_tasks", moderator=True)
 
@@ -32,6 +46,12 @@ class FundraiseTasksTest(TestCase):
             price_source="COIN_GECKO",
             target_currency="USD",
         )
+        self.exchange_rate_patcher = patch(
+            "purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest",
+            return_value=self.rsc_exchange_rate.rate,
+        )
+        self.exchange_rate_patcher.start()
+        self.addCleanup(self.exchange_rate_patcher.stop)
 
         # Create required bounty fee for fee calculations
         from reputation.models import BountyFee
@@ -147,3 +167,122 @@ class FundraiseTasksTest(TestCase):
         self.assertEqual(fundraise.status, Fundraise.OPEN)
         self.assertEqual(fundraise.escrow.amount_holding, Decimal("200.00"))
         self.assertEqual(fundraise.escrow.amount_paid, Decimal("0.00"))
+
+
+class SweepDepositTaskTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="sweepuser")
+        self.wallet = Wallet.objects.create(
+            user=self.user,
+            circle_wallet_id="wallet-1",
+            circle_base_wallet_id="wallet-1-base",
+            wallet_type=Wallet.WALLET_TYPE_CIRCLE,
+            address="0xSweepAddress",
+        )
+        self.deposit = Deposit.objects.create(
+            user=self.user,
+            amount="100",
+            network="BASE",
+            from_address="",
+            circle_transaction_id="notif-1",
+            sweep_status=Deposit.SWEEP_PENDING,
+        )
+
+    @patch("purchase.tasks.CircleWalletService")
+    def test_sweep_task_calls_execute_sweep(self, mock_service_class):
+        sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
+
+        mock_service_class.return_value.execute_sweep.assert_called_once_with(
+            circle_wallet_id="wallet-1",
+            amount="100",
+            network="BASE",
+            sweep_reference="notif-1",
+        )
+
+    @patch.object(sweep_deposit_to_multisig, "retry", side_effect=RuntimeError("retry"))
+    @patch("purchase.tasks.CircleWalletService")
+    def test_sweep_task_retries_on_transfer_error(self, mock_service_class, mock_retry):
+        mock_service_class.return_value.execute_sweep.side_effect = CircleTransferError(
+            "circle failed"
+        )
+
+        with self.assertRaises(RuntimeError):
+            sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
+
+        mock_retry.assert_called_once()
+
+    @patch.object(sweep_deposit_to_multisig, "retry", side_effect=RuntimeError("retry"))
+    @patch("purchase.tasks.CircleWalletService")
+    def test_sweep_task_retries_on_unexpected_error(
+        self, mock_service_class, mock_retry
+    ):
+        mock_service_class.return_value.execute_sweep.side_effect = RuntimeError(
+            "transport failed"
+        )
+
+        with self.assertRaises(RuntimeError):
+            sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
+
+        mock_retry.assert_called_once()
+
+
+class PreregistrationUpdateReminderTest(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("reminder_test", moderator=True)
+        self.post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        self.future = datetime.now(pytz.UTC) + timedelta(days=30)
+        self.notif_qs = Notification.objects.filter(
+            notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
+            recipient=self.user,
+        )
+
+    def _create_fundraise(self, status=Fundraise.OPEN, end_date=None):
+        f = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=self.post.unified_document,
+            goal_amount=Decimal("100.00"),
+            goal_currency="USD",
+            status=status,
+        )
+        if end_date is not None:
+            Fundraise.objects.filter(id=f.id).update(end_date=end_date)
+        return f
+
+    def test_sends_for_completed_preregistration(self):
+        # Arrange
+        self._create_fundraise(status=Fundraise.COMPLETED)
+        # Act
+        result = send_monthly_preregistration_update_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 1)
+        self.assertTrue(self.notif_qs.exists())
+
+    def test_skips_open_and_closed(self):
+        # Arrange
+        self._create_fundraise(status=Fundraise.OPEN)
+        self._create_fundraise(status=Fundraise.CLOSED)
+        # Act
+        result = send_monthly_preregistration_update_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 0)
+
+    def test_deduplicates_within_same_month(self):
+        # Arrange
+        self._create_fundraise(status=Fundraise.COMPLETED)
+        send_monthly_preregistration_update_reminders()
+        # Act
+        result = send_monthly_preregistration_update_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 0)
+        self.assertEqual(self.notif_qs.count(), 1)
+
+    def test_multiple_completed_fundraises_sends_one_reminder(self):
+        # Arrange
+        self._create_fundraise(status=Fundraise.COMPLETED)
+        self._create_fundraise(status=Fundraise.COMPLETED)
+        self._create_fundraise(status=Fundraise.COMPLETED)
+        # Act
+        result = send_monthly_preregistration_update_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 1)
+        self.assertEqual(self.notif_qs.count(), 1)

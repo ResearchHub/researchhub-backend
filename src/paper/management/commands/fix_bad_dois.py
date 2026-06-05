@@ -1,23 +1,27 @@
 from django.core.management.base import BaseCommand
-from django.db.models import Q
 from django.db import IntegrityError
+from django.db.models import Q
+
 from paper.models import Paper
 
+
 class Command(BaseCommand):
-    help = 'Correct DOIs for papers with specific invalid DOIs or missing prefixes.'
+    help = "Correct DOIs for papers with specific invalid DOIs or missing prefixes."
 
     def handle(self, *args, **kwargs):
         self.update_papers_with_malformed_dois_and_arxiv_urls()
         self.update_papers_with_arxiv_dois()
-        self.stdout.write(self.style.SUCCESS("Finished updating papers with corrected DOIs."))
+        self.stdout.write(
+            self.style.SUCCESS("Finished updating papers with corrected DOIs.")
+        )
 
     def update_papers_with_malformed_dois_and_arxiv_urls(self):
         """Handles papers with a malformed DOI and an ArXiv URL."""
         papers = Paper.objects.filter(
-            ~Q(doi__icontains='/'), 
-            ~Q(doi__icontains='arxiv'), 
-            doi__isnull=False, 
-            url__icontains='arxiv.org'
+            ~Q(doi__icontains="/"),
+            ~Q(doi__icontains="arxiv"),
+            doi__isnull=False,
+            url__icontains="arxiv.org",
         )
         self.process_arxiv_papers(papers)
 
@@ -30,22 +34,22 @@ class Command(BaseCommand):
         - 'arxiv:'
         """
         papers = Paper.objects.filter(
-            Q(doi__startswith='arXiv.') |
-            Q(doi__startswith='arxiv.') |
-            Q(doi__startswith='arXiv:') |
-            Q(doi__startswith='arxiv:')
+            Q(doi__startswith="arXiv.")
+            | Q(doi__startswith="arxiv.")
+            | Q(doi__startswith="arXiv:")
+            | Q(doi__startswith="arxiv:")
         )
         self.process_arxiv_papers(papers)
 
     def update_papers(self, to_update):
         try:
             # Attempt to bulk update first
-            Paper.objects.bulk_update(to_update, ['doi'])
-        except Exception as e:
+            Paper.objects.bulk_update(to_update, ["doi"])
+        except Exception:
             # If bulk update fails, fall back to individual updates
             for paper in to_update:
                 try:
-                    paper.save(update_fields=['doi'])
+                    paper.save(update_fields=["doi"])
                 except IntegrityError:
                     print(f"Skipping duplicate DOI for paper ID {paper.id}")
                 except Exception as e:
@@ -60,29 +64,29 @@ class Command(BaseCommand):
                 to_update.append(paper)
             else:
                 # see if the url is a doi.org link
-                if 'doi.org' in paper.url:
-                    doi = paper.url.split('doi.org/')[-1]
+                if "doi.org" in paper.url:
+                    doi = paper.url.split("doi.org/")[-1]
                     # make sure it's arXiv. and not arXiv:
-                    paper.doi = doi.replace('arXiv:', 'arXiv.')
+                    paper.doi = doi.replace("arXiv:", "arXiv.")
                     to_update.append(paper)
 
             if len(to_update) >= 100:
-                print(f'Updating {len(to_update)} papers...')
+                print(f"Updating {len(to_update)} papers...")
                 self.update_papers(to_update)
                 to_update.clear()
 
         if to_update:
-            print(f'Updating {len(to_update)} papers...')
+            print(f"Updating {len(to_update)} papers...")
             self.update_papers(to_update)
 
     def extract_arxiv_id(self, paper):
         """Extracts the ArXiv ID from the paper's DOI or URL."""
-        if paper.doi.startswith('arXiv.') or paper.doi.startswith('arxiv.'):
-            return paper.doi.split('.')[-1]
-        elif paper.doi.startswith('arXiv:') or paper.doi.startswith('arxiv:'):
-            return paper.doi.split(':')[-1]
-        elif 'arxiv.org' in paper.url:
-            parts = paper.url.split('/')
-            if 'abs' in parts or 'pdf' in parts:
-                return parts[-1].replace('.pdf', '')
+        if paper.doi.startswith("arXiv.") or paper.doi.startswith("arxiv."):
+            return paper.doi.split(".")[-1]
+        elif paper.doi.startswith("arXiv:") or paper.doi.startswith("arxiv:"):
+            return paper.doi.split(":")[-1]
+        elif "arxiv.org" in paper.url:
+            parts = paper.url.split("/")
+            if "abs" in parts or "pdf" in parts:
+                return parts[-1].replace(".pdf", "")
         return None

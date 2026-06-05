@@ -8,6 +8,22 @@ from utils.aws import create_client
 from utils.web3_utils import web3_provider
 
 
+def normalize_ethereum_address(address) -> str:
+    """
+    Return an EIP-55 checksummed Ethereum address.
+
+    Raises ValueError if the input is missing or not a valid address.
+    """
+    if not isinstance(address, str) or not address.strip():
+        raise ValueError("Invalid Ethereum address")
+
+    address = address.strip()
+    if not Web3.is_address(address):
+        raise ValueError("Invalid Ethereum address")
+
+    return Web3.to_checksum_address(address)
+
+
 def get_network_config(network="ethereum"):
     """Get the appropriate network configuration based on environment"""
     base_config = {
@@ -74,7 +90,7 @@ def get_token_address_choices():
         for network in TOKENS[token]:
             config = TOKENS[token][network]
             choices.append(
-                (config["contract_address"], f'{config["name"]} address ({network})')
+                (config["contract_address"], f"{config['name']} address ({network})")
             )
     return choices
 
@@ -104,7 +120,7 @@ def convert_reputation_amount_to_token_amount(
 
 
 def get_nonce(w3, account):
-    return w3.eth.get_transaction_count(account)
+    return w3.eth.get_transaction_count(account, "pending")
 
 
 def get_gas_estimate(method_call):
@@ -125,7 +141,14 @@ def get_fee_estimate(w3, method_call):
 
 
 def execute_erc20_transfer(
-    w3, sender, sender_signing_key, contract, to, amount, network="ETHEREUM"
+    w3,
+    sender,
+    sender_signing_key,
+    contract,
+    to,
+    amount,
+    network="ETHEREUM",
+    nonce=None,
 ):
     """Sends `amount` of the token located at `contract` to `to`.
 
@@ -142,17 +165,25 @@ def execute_erc20_transfer(
     """
     decimals = contract.functions.decimals().call()
     decimal_amount = int(amount * 10 ** int(decimals))
+    checksum_to = normalize_ethereum_address(to)
     return _transact(
         w3,
-        contract.functions.transfer(to, decimal_amount),
+        contract.functions.transfer(checksum_to, decimal_amount),
         sender,
         sender_signing_key,
         network=network,
+        nonce=nonce,
     )
 
 
 def _transact(
-    w3, method_call, sender, sender_signing_key, network="ETHEREUM", gas=None
+    w3,
+    method_call,
+    sender,
+    sender_signing_key,
+    network="ETHEREUM",
+    gas=None,
+    nonce=None,
 ):
     """Executes the contract's `method_call` on chain."""
     gas_estimate = get_gas_estimate(method_call)
@@ -163,7 +194,7 @@ def _transact(
     tx = method_call.build_transaction(
         {
             "from": checksum_sender,
-            "nonce": get_nonce(w3, checksum_sender),
+            "nonce": nonce if nonce is not None else get_nonce(w3, checksum_sender),
             "gas": gas or gas_estimate,
             "chainId": chain_id,
         }

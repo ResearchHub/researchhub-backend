@@ -154,6 +154,30 @@ class PaymentServiceTest(TestCase):
 
         self.assertEqual(str(context.exception), "Stripe error")
 
+    def test_insert_payment_from_checkout_session_idempotent(self):
+        checkout_session = {
+            "amount_total": APC_AMOUNT_CENTS,
+            "currency": "usd",
+            "payment_intent": "pi_idempotent_apc",
+            "metadata": {
+                "user_id": str(self.user.id),
+                "paper_id": str(self.paper.id),
+            },
+        }
+
+        first_payment = self.service.insert_payment_from_checkout_session(
+            checkout_session
+        )
+        second_payment = self.service.insert_payment_from_checkout_session(
+            checkout_session
+        )
+
+        self.assertEqual(first_payment.id, second_payment.id)
+        self.assertEqual(
+            Payment.objects.filter(external_payment_id="pi_idempotent_apc").count(),
+            1,
+        )
+
     def test_insert_payment_from_checkout_session_success(self):
         # Arrange
         checkout_session = {
@@ -177,6 +201,33 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(payment.payment_processor, PaymentProcessor.STRIPE)
         self.assertEqual(payment.object_id, str(self.paper.id))
         self.assertEqual(payment.content_type, ContentType.objects.get_for_model(Paper))
+        self.assertEqual(payment.user.id, self.user.id)
+
+    def test_insert_payment_from_checkout_session_null_payment_intent(self):
+        """
+        When amount_total is 0, Stripe doesn't create a payment_intent.
+        The service should fall back to the checkout session ID.
+        """
+        # Arrange
+        checkout_session = {
+            "id": "cs_session_id_1",
+            "amount_total": 0,
+            "currency": "usd",
+            "payment_intent": None,
+            "metadata": {
+                "user_id": str(self.user.id),
+                "paper_id": str(self.paper.id),
+            },
+        }
+
+        # Act
+        payment = self.service.insert_payment_from_checkout_session(checkout_session)
+
+        # Assert
+        self.assertIsInstance(payment, Payment)
+        self.assertEqual(payment.amount, 0)
+        self.assertEqual(payment.external_payment_id, "cs_session_id_1")
+        self.assertEqual(payment.payment_processor, PaymentProcessor.STRIPE)
         self.assertEqual(payment.user.id, self.user.id)
 
     def test_insert_payment_from_checkout_session_missing_paper_id(self):
@@ -267,7 +318,6 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(balance.amount, "50.0")
         self.assertEqual(balance.user_id, self.user.id)
         self.assertTrue(balance.is_locked)
-        self.assertEqual(balance.lock_type, Balance.LockType.RSC_PURCHASE)
 
     def test_get_name_for_purpose(self):
         # Test APC
@@ -349,6 +399,40 @@ class PaymentServiceTest(TestCase):
         )
 
     @patch("stripe.PaymentIntent.retrieve")
+    def test_process_payment_intent_confirmation_idempotent(self, mock_stripe_retrieve):
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "succeeded"
+        mock_payment_intent.amount = 1000
+        mock_payment_intent.currency = "usd"
+        mock_payment_intent.id = "pi_idempotent_intent"
+        mock_payment_intent.metadata = {
+            "user_id": str(self.user.id),
+            "purpose": PaymentPurpose.RSC_PURCHASE,
+            "locked_rsc_amount": "100.0",
+        }
+        mock_stripe_retrieve.return_value = mock_payment_intent
+
+        initial_balance_count = Balance.objects.filter(user=self.user).count()
+
+        first_payment, _ = self.service.process_payment_intent_confirmation(
+            "pi_idempotent_intent"
+        )
+        balance_count_after_first = Balance.objects.filter(user=self.user).count()
+
+        second_payment, _ = self.service.process_payment_intent_confirmation(
+            "pi_idempotent_intent"
+        )
+        balance_count_after_second = Balance.objects.filter(user=self.user).count()
+
+        self.assertEqual(first_payment.id, second_payment.id)
+        self.assertEqual(
+            Payment.objects.filter(external_payment_id="pi_idempotent_intent").count(),
+            1,
+        )
+        self.assertGreater(balance_count_after_first, initial_balance_count)
+        self.assertEqual(balance_count_after_second, balance_count_after_first)
+
+    @patch("stripe.PaymentIntent.retrieve")
     def test_process_payment_intent_confirmation_success(self, mock_stripe_retrieve):
         # Arrange
         mock_payment_intent = MagicMock()
@@ -373,7 +457,6 @@ class PaymentServiceTest(TestCase):
                 "purchase.services.payment_service.Distributor"
             ) as mock_distributor_class,
         ):
-
             mock_distribution = MagicMock()
             mock_create_dist.return_value = mock_distribution
 
@@ -440,7 +523,6 @@ class PaymentServiceTest(TestCase):
             ) as mock_distributor_class,
             patch("purchase.services.payment_service.deduct_rsc_purchase_fees"),
         ):
-
             mock_distribution = MagicMock()
             mock_create_dist.return_value = mock_distribution
 
@@ -495,7 +577,6 @@ class PaymentServiceTest(TestCase):
                 ],
             ),
         ):
-
             # Act
             result = self.service.create_payment_intent(
                 user_id=self.user.id,
@@ -553,7 +634,6 @@ class PaymentServiceTest(TestCase):
                 "purchase.services.payment_service.deduct_rsc_purchase_fees"
             ) as mock_deduct_fees,
         ):
-
             mock_distribution = MagicMock()
             mock_create_dist.return_value = mock_distribution
 
@@ -570,9 +650,7 @@ class PaymentServiceTest(TestCase):
             call_args = mock_create_dist.call_args
             # The amount should be 109.0 (100 + 2% rsc_fee + 7% bounty_fee)
             self.assertAlmostEqual(call_args[1]["amount"], 109.0, places=1)
-            mock_distributor.distribute_locked_balance.assert_called_once_with(
-                lock_type=Balance.LockType.RSC_PURCHASE
-            )
+            mock_distributor.distribute_locked_balance.assert_called_once_with()
 
             # Verify fee deduction was called
             mock_deduct_fees.assert_called_once()
@@ -616,7 +694,6 @@ class PaymentServiceTest(TestCase):
                 "purchase.services.payment_service.deduct_rsc_purchase_fees"
             ) as mock_deduct_fees,
         ):
-
             mock_distribution = MagicMock()
             mock_create_dist.return_value = mock_distribution
 
@@ -632,9 +709,7 @@ class PaymentServiceTest(TestCase):
             mock_create_dist.assert_called_once()
             call_args = mock_create_dist.call_args
             self.assertAlmostEqual(call_args[1]["amount"], 109.0, places=1)
-            mock_distributor.distribute_locked_balance.assert_called_once_with(
-                lock_type=Balance.LockType.RSC_PURCHASE
-            )
+            mock_distributor.distribute_locked_balance.assert_called_once_with()
 
             # Verify fee deduction was called with correct amounts
             mock_deduct_fees.assert_called_once()
@@ -687,9 +762,7 @@ class PaymentServiceTest(TestCase):
         # Refresh user from db and verify locked balance
         # Balance includes bounty fee for future fundraise contribution
         self.user.refresh_from_db()
-        locked_balance = self.user.get_locked_balance(
-            lock_type=Balance.LockType.RSC_PURCHASE
-        )
+        locked_balance = self.user.get_locked_balance()
         self.assertEqual(locked_balance, expected_locked_balance)
 
     @patch("stripe.PaymentIntent.create")

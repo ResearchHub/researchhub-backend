@@ -6,7 +6,7 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from discussion.models import Endorsement, Flag, Vote
+from discussion.models import Flag, Vote
 from hub.serializers import DynamicHubSerializer
 from paper.models import Paper
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -89,19 +89,6 @@ class DynamicFlagSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
 
-class EndorsementSerializer(ModelSerializer):
-    item = PrimaryKeyRelatedField(many=False, read_only=True)
-
-    class Meta:
-        fields = [
-            "content_type",
-            "created_by",
-            "created_date",
-            "item",
-        ]
-        model = Endorsement
-
-
 class FlagSerializer(ModelSerializer):
     item = PrimaryKeyRelatedField(many=False, read_only=True)
     reason_memo = serializers.CharField(
@@ -148,13 +135,11 @@ class GenericReactionSerializerMixin:
     EXPOSABLE_FIELDS = [
         "promoted",
         "score",
-        "user_endorsement",
         "user_flag",
     ]
     READ_ONLY_FIELDS = [
         "promoted",
         "score",
-        "user_endorsement",
         "user_flag",
     ]
 
@@ -174,16 +159,6 @@ class GenericReactionSerializerMixin:
             return data
 
         return None
-
-    def get_user_endorsement(self, obj):
-        user = get_user_from_request(self.context)
-        if user:
-            try:
-                return EndorsementSerializer(
-                    obj.endorsements.get(created_by=user.id)
-                ).data
-            except Endorsement.DoesNotExist:
-                return None
 
     def get_user_flag(self, obj):
         flag = None
@@ -217,6 +192,5 @@ class GenericReactionSerializer(GenericReactionSerializerMixin, ModelSerializer)
         abstract = True
 
     promoted = SerializerMethodField()
-    user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
     user_vote = SerializerMethodField()

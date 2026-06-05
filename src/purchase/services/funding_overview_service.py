@@ -1,84 +1,144 @@
 """Services for funding and grant overview dashboard metrics."""
-from django.db.models import Case, Count, IntegerField, When
-from django.utils import timezone
 
-from purchase.models import Fundraise, Grant, GrantApplication
+from organizations.models import NonprofitOrg
+from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.services.overview_mixin import OverviewMixin
 from purchase.utils import get_funded_fundraise_ids
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.models import User
 
 
 class FundingOverviewService(OverviewMixin):
-    """Service for calculating funding portfolio dashboard metrics for grant creators."""
+    """Funding portfolio dashboard metrics for grant creators."""
 
     def get_funding_overview(self, user: User) -> dict:
         """Return funding overview metrics for a given user."""
-        user_applications = GrantApplication.objects.for_user_grants(user)
-        grant_fundraise_ids = user_applications.fundraise_ids()
-        user_funded_ids = get_funded_fundraise_ids(user.id)
-        funded_grant_proposals = list(grant_fundraise_ids & user_funded_ids)
-
-        exchange_rate = RscExchangeRate.get_latest_exchange_rate()
-        total_distributed = self._user_contributions_usd(
-            user.id, list(grant_fundraise_ids), exchange_rate
-        )
-        matched_funding = self._matched_contributions_usd(
-            user.id, funded_grant_proposals, exchange_rate
-        )
+        grant_fundraise_ids = self._grant_fundraise_ids(user)
+        all_funded_ids = list(get_funded_fundraise_ids(user.id))
 
         return {
-            "total_distributed_usd": round(total_distributed, 2),
-            "active_grants": self._active_grants(user),
-            "total_applicants": self._count_applicants(user),
-            "matched_funding_usd": round(matched_funding, 2),
-            "proposals_funded": len(funded_grant_proposals),
+            "matched_funds": self._matched_contributions_breakdown(
+                user.id, grant_fundraise_ids
+            ),
+            "distributed_funds": self._user_contributions_breakdown(
+                user.id, all_funded_ids
+            ),
+            "supported_proposals": self._supported_proposals(user.id, all_funded_ids),
+            "supported_nonprofits": self._supported_nonprofits(all_funded_ids),
         }
 
-    def _count_applicants(self, user: User) -> dict:
-        """Count total proposals attached to user's grants."""
-        result = GrantApplication.objects.for_user_grants(user).aggregate(
-            total=Count("preregistration_post_id", distinct=True),
-            active=Count(
-                Case(
-                    When(
-                        preregistration_post__unified_document__fundraises__status=Fundraise.OPEN,
-                        then="preregistration_post_id",
-                    ),
-                    output_field=IntegerField(),
-                ),
-                distinct=True,
-            ),
+    def _grant_fundraise_ids(self, user: User) -> list[int]:
+        """Fundraise IDs for proposals that applied to this user's grants."""
+        return list(
+            GrantApplication.objects.for_user_grants(user)
+            .exclude(
+                preregistration_post__unified_document__fundraises__id__isnull=True
+            )
+            .values_list(
+                "preregistration_post__unified_document__fundraises__id",
+                flat=True,
+            )
+            .distinct()
         )
+
+    def _supported_proposals(
+        self, user_id: int, funded_fundraise_ids: list[int]
+    ) -> list[dict]:
+        """Proposals (preregistration posts) the funder contributed to, with amounts."""
+        if not funded_fundraise_ids:
+            return []
+
+        contributions = self._per_fundraise_user_contributions(
+            user_id, funded_fundraise_ids
+        )
+
+        posts = (
+            ResearchhubPost.objects.filter(
+                unified_document__fundraises__id__in=funded_fundraise_ids,
+            )
+            .select_related("unified_document", "created_by__author_profile")
+            .prefetch_related("unified_document__fundraises")
+            .distinct()
+        )
+
+        results = []
+        zero = {"rsc": 0.0, "rsc_usd_snapshot": 0.0, "usd": 0.0}
+        for post in posts:
+            fundraise = post.unified_document.fundraises.first()
+            entry = self._serialize_proposal(post)
+            entry["funded_amount"] = (
+                contributions.get(fundraise.id, zero) if fundraise else zero
+            )
+            results.append(entry)
+
+        return results
+
+    @staticmethod
+    def _supported_nonprofits(funded_fundraise_ids: list[int]) -> list[dict]:
+        """Distinct nonprofits linked to fundraises the funder has contributed to."""
+        if not funded_fundraise_ids:
+            return []
+
+        orgs = (
+            NonprofitOrg.objects.filter(
+                fundraise_links__fundraise_id__in=funded_fundraise_ids,
+            )
+            .distinct()
+            .order_by("name", "id")
+        )
+        return [
+            FundingOverviewService._serialize_supported_nonprofit(org) for org in orgs
+        ]
+
+    @staticmethod
+    def _serialize_supported_nonprofit(org: NonprofitOrg) -> dict:
         return {
-            "total": result["total"],
-            "active": result["active"],
-            "previous": result["total"] - result["active"],
+            "id": org.id,
+            "name": org.name,
+            "ein": org.ein or "",
+            "endaoment_org_id": org.endaoment_org_id or "",
         }
 
-    def _active_grants(self, user: User) -> dict:
-        """Count active and total grants created by the user."""
-        now = timezone.now()
-        user_grants = Grant.objects.filter(created_by=user)
-        result = user_grants.aggregate(
-            total=Count("id"),
-            active=Count(
-                Case(
-                    When(
-                        status=Grant.OPEN,
-                        end_date__isnull=True,
-                        then=1,
-                    ),
-                    When(
-                        status=Grant.OPEN,
-                        end_date__gt=now,
-                        then=1,
-                    ),
-                    output_field=IntegerField(),
-                )
+    def _serialize_proposal(self, post: ResearchhubPost) -> dict:
+        creator = post.created_by
+        author = getattr(creator, "author_profile", None) if creator else None
+
+        return {
+            "unified_document": {
+                "id": post.unified_document_id,
+                "title": post.title,
+                "slug": post.slug,
+            },
+            "id": post.id,
+            "created_by": (
+                {
+                    "id": creator.id,
+                    "author_profile": self._serialize_author_profile(author),
+                }
+                if creator
+                else None
             ),
-        )
-        return {"active": result["active"], "total": result["total"]}
+        }
+
+    @staticmethod
+    def _serialize_author_profile(author) -> dict:
+        if not author:
+            return {"id": None, "first_name": "", "last_name": "", "profile_image": ""}
+
+        profile_image = ""
+        if author.profile_image:
+            try:
+                profile_image = author.profile_image.url
+            except ValueError:
+                profile_image = str(author.profile_image)
+
+        return {
+            "id": author.id,
+            "first_name": author.first_name,
+            "last_name": author.last_name,
+            "profile_image": profile_image,
+        }
 
 
 class GrantOverviewService(OverviewMixin):
@@ -90,14 +150,16 @@ class GrantOverviewService(OverviewMixin):
         fundraise_ids = list(
             applications.exclude(
                 preregistration_post__unified_document__fundraises__id__isnull=True
-            ).values_list(
+            )
+            .values_list(
                 "preregistration_post__unified_document__fundraises__id", flat=True
-            ).distinct()
+            )
+            .distinct()
         )
         user_funded_ids = get_funded_fundraise_ids(user.id)
         funded_fundraise_ids = list(set(fundraise_ids) & user_funded_ids)
 
-        exchange_rate = RscExchangeRate.get_latest_exchange_rate()
+        exchange_rate = RscExchangeRate.get_latest()
 
         return {
             "budget_used_usd": round(
@@ -105,7 +167,10 @@ class GrantOverviewService(OverviewMixin):
             ),
             "budget_total_usd": float(grant.amount),
             "matched_funding_usd": round(
-                self._matched_contributions_usd(user.id, funded_fundraise_ids, exchange_rate), 2
+                self._matched_contributions_usd(
+                    user.id, funded_fundraise_ids, exchange_rate
+                ),
+                2,
             ),
             "total_proposals": applications.count(),
             "proposals_funded": len(funded_fundraise_ids),

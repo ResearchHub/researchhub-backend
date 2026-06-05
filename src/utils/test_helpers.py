@@ -180,7 +180,7 @@ class IntegrationTestHelper(TestData):
         return client
 
     def signup_default_user(self):
-        url = "/auth/signup/"
+        url = "/api/auth/register/"
         body = {
             "username": self.valid_email,
             "email": self.valid_email,

@@ -21,8 +21,7 @@ from django.conf import settings
 
 import note.routing
 import notification.routing
-import user.routing
-from notification.token_auth import TokenAuthMiddlewareStack
+from researchhub.token_auth import TokenAuthMiddlewareStack
 from researchhub.settings import CELERY_WORKER
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "researchhub.settings")
@@ -46,11 +45,9 @@ if not CELERY_WORKER:
                 [
                     *note.routing.websocket_urlpatterns,
                     *notification.routing.websocket_urlpatterns,
-                    *user.routing.websocket_urlpatterns,
                 ]
             )
         )
     )
 
-application = ProtocolTypeRouter(routing)
 application = ProtocolTypeRouter(routing)

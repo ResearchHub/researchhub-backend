@@ -5,7 +5,6 @@ from user.related_models.author_model import Author
 
 
 class AuthorFilterTests(TestCase):
-
     def test_filter_by_id__ne(self):
         # Arrange
         user1 = Author.objects.create()

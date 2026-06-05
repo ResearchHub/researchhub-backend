@@ -43,7 +43,7 @@ from reputation.tasks import create_contribution
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import TESTING
 from researchhub_document.utils import update_unified_document_to_paper
-from review.serializers.peer_review_serializer import PeerReviewSerializer
+from review.serializers.review_serializer import DynamicReviewSerializer
 from user.models import Author
 from user.serializers import (
     AuthorSerializer,
@@ -721,7 +721,7 @@ class DynamicPaperSerializer(
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
     pdf_copyright_allows_display = serializers.SerializerMethodField()
-    peer_reviews = PeerReviewSerializer(many=True, read_only=True)
+    peer_reviews = serializers.SerializerMethodField()
     version = serializers.SerializerMethodField()
     version_list = serializers.SerializerMethodField()
 
@@ -771,6 +771,27 @@ class DynamicPaperSerializer(
                 pass
 
         return vote
+
+    def get_peer_reviews(self, paper):
+        from review.models import Review
+
+        context = self.context
+        _context_fields = context.get("pap_dps_get_peer_reviews", {})
+        unified_document = paper.unified_document
+        if not unified_document:
+            return []
+
+        reviews = Review.objects.filter(
+            unified_document=unified_document,
+            is_removed=False,
+        )
+        serializer = DynamicReviewSerializer(
+            reviews,
+            many=True,
+            context=context,
+            **_context_fields,
+        )
+        return serializer.data
 
     def get_boost_amount(self, paper):
         if paper.purchases.exists():

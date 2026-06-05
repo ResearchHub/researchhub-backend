@@ -17,6 +17,10 @@ from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
 from feed.serializers import FundingFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
+from feed.views.funding_cache_mixin import (
+    FUNDING_FEED_MAX_CACHED_PAGE,
+    FundingCacheMixin,
+)
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -25,13 +29,13 @@ from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
 
-class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
+class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = []
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
-    ordering_fields = ['newest', 'best', 'upvotes', 'most_applicants', 'amount_raised']
-    ordering = 'best'  # Default ordering
+    ordering_fields = ["newest", "best", "upvotes", "most_applicants", "amount_raised"]
+    ordering = "best"  # Default ordering
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -45,7 +49,12 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         created_by = request.query_params.get("created_by", None)
         funded_by = request.query_params.get("funded_by", None)
         cache_key = self.get_cache_key(request, "funding")
-        use_cache = page_num < 4 and grant_id is None and created_by is None and funded_by is None
+        use_cache = (
+            page_num <= FUNDING_FEED_MAX_CACHED_PAGE
+            and grant_id is None
+            and created_by is None
+            and funded_by is None
+        )
 
         if use_cache:
             cached_response = cache.get(cache_key)
@@ -78,11 +87,12 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         serializer = FundingFeedEntrySerializer(feed_entries, many=True)
         response_data = self.get_paginated_response(serializer.data).data
 
-        if request.user.is_authenticated:
-            self.add_user_votes_to_response(request.user, response_data)
-
+        # Cache before per-user vote enrichment so cached payload stays user-agnostic.
         if use_cache:
             cache.set(cache_key, response_data, timeout=self.DEFAULT_CACHE_TIMEOUT)
+
+        if request.user.is_authenticated:
+            self.add_user_votes_to_response(request.user, response_data)
 
         return Response(response_data)
 
@@ -101,9 +111,31 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             .prefetch_related(
                 "unified_document__hubs",
                 "unified_document__fundraises",
+                "unified_document__fundraises__nonprofit_links__nonprofit",
+                "grant_applications__grant__unified_document__posts",
+                "grant_applications__grant__applications",
             )
-            .filter(document_type=PREREGISTRATION, unified_document__is_removed=False)
+            .filter(
+                document_type=PREREGISTRATION,
+                unified_document__is_removed=False,
+            )
         )
+
+        # Personalized feeds (grant_id / created_by / funded_by) are never
+        # cached -- see `use_cache` in list() -- so they can safely respect
+        # per-viewer visibility. This lets the author, grant owners, invited
+        # reviewers, and moderators see private preregistrations and grants
+        # (e.g. on the author profile's Proposals tab) while everyone else,
+        # including anonymous viewers, still only sees public ones.
+        if grant_id or created_by or funded_by:
+            visible_ids = ResearchhubPost.objects.visible_to(self.request.user).values(
+                "id"
+            )
+            queryset = queryset.filter(id__in=visible_ids)
+        else:
+            # The public discovery feed stays user-agnostic so it can be cached
+            # for everyone; never expose private work here.
+            queryset = queryset.filter(unified_document__is_public=True)
 
         if created_by:
             queryset = queryset.filter(created_by_id=created_by)

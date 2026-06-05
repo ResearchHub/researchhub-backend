@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import PropertyMock, patch
 
 from django.conf import settings
-from django.test import Client, TestCase
+from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -15,7 +15,11 @@ from paper.related_models.authorship_model import Authorship
 from paper.tests.helpers import create_paper
 from paper.views.paper_views import PaperViewSet
 from user.models import Author
-from user.tests.helpers import create_random_authenticated_user, create_user
+from user.tests.helpers import (
+    create_random_authenticated_user,
+    create_user,
+    make_user_verified,
+)
 from utils.openalex import OpenAlex
 from utils.test_helpers import (
     create_test_user,
@@ -27,10 +31,13 @@ fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class PaperApiTests(APITestCase):
-    @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123")
     def setUp(self):
-        # Create the hub with the same ID we mocked
-        Hub.objects.create(id=123)
+        self.journal = Hub.objects.create(name="ResearchHub Journal")
+        journal_id_patcher = patch.object(
+            settings, "RESEARCHHUB_JOURNAL_ID", str(self.journal.id)
+        )
+        journal_id_patcher.start()
+        self.addCleanup(journal_id_patcher.stop)
 
     @patch.object(OpenAlex, "get_data_from_doi")
     @patch.object(OpenAlex, "get_works")
@@ -166,11 +173,22 @@ class PaperApiTests(APITestCase):
         self.assertEqual(len(unclaimed_works), 3)
         self.assertEqual(unclaimed_works, openalex_works)
 
-    @patch("utils.doi.requests.post")
-    def test_create_researchhub_paper_creates_first_version(self, crossref_post_mock):
+    def test_unverified_user_cannot_create_researchhub_paper(self):
+        """Test that unverified users are blocked from creating papers"""
+        user = create_random_authenticated_user("unverified_user")
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/", {}, format="json"
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("verified", (response.data.get("detail") or "").lower())
+
+    def test_create_researchhub_paper_creates_first_version(self):
         """Test that creating a new paper sets version 1"""
-        crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
         hub = Hub.objects.create(name="Test Hub")
         author = Author.objects.create(first_name="Test", last_name="Author")
@@ -216,11 +234,10 @@ class PaperApiTests(APITestCase):
 
         self.assertEqual(paper.hubs.first().id, hub.id)
 
-    @patch("utils.doi.requests.post")
-    def test_create_researchhub_paper_with_multiple_authors(self, crossref_post_mock):
+    def test_create_researchhub_paper_with_multiple_authors(self):
         """Test creating a paper with multiple authors in different positions"""
-        crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
 
         first_author = Author.objects.create(first_name="First", last_name="Author")
@@ -283,6 +300,7 @@ class PaperApiTests(APITestCase):
     def test_create_researchhub_paper_requires_corresponding_author(self):
         """Test that at least one corresponding author is required"""
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
         author = Author.objects.create(first_name="Test", last_name="Author")
 
@@ -311,10 +329,8 @@ class PaperApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("corresponding author is required", str(response.data["error"]))
 
-    @patch("utils.doi.requests.post")
-    def test_create_researchhub_paper_increments_version(self, crossref_post_mock):
+    def test_create_researchhub_paper_increments_version(self):
         """Test that creating a new version of an existing paper increments the version number"""
-        crossref_post_mock.return_value.status_code = 200
         # Create initial paper
         original_paper = create_paper()
         PaperVersion.objects.create(
@@ -323,6 +339,7 @@ class PaperApiTests(APITestCase):
         author = Author.objects.create(first_name="Test", last_name="Author")
 
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
 
         data = {
@@ -358,6 +375,7 @@ class PaperApiTests(APITestCase):
     def test_create_researchhub_paper_with_invalid_previous_paper(self):
         """Test handling of invalid previous_paper_id"""
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
         author = Author.objects.create(first_name="Test", last_name="Author")
 
@@ -389,6 +407,7 @@ class PaperApiTests(APITestCase):
     def test_create_researchhub_paper_requires_title_and_abstract(self):
         """Test validation of required fields"""
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
 
         # Missing title
@@ -425,6 +444,7 @@ class PaperApiTests(APITestCase):
     def test_create_researchhub_paper_with_unaccepted_declarations(self):
         """Test that paper creation fails if valid declarations are not accepted"""
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
         author = Author.objects.create(first_name="Test", last_name="Author")
 
@@ -459,6 +479,7 @@ class PaperApiTests(APITestCase):
     def test_create_researchhub_paper_with_missing_declarations(self):
         """Test that paper creation fails if valid declarations are not accepted"""
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
         author = Author.objects.create(first_name="Test", last_name="Author")
 
@@ -484,13 +505,10 @@ class PaperApiTests(APITestCase):
             str(response.data["error"]),
         )
 
-    @patch("utils.doi.requests.post")
-    def test_create_researchhub_paper_update_doesnt_require_declarations(
-        self, crossref_post_mock
-    ):
+    def test_create_researchhub_paper_update_doesnt_require_declarations(self):
         """Test that updating a paper (new version) doesn't require declarations"""
-        crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
 
         # Create initial paper with version
@@ -524,11 +542,10 @@ class PaperApiTests(APITestCase):
         self.assertEqual(paper_version.message, "Updated content")
         self.assertEqual(paper_version.original_paper_id, original_paper.id)
 
-    @patch("utils.doi.requests.post")
-    def test_create_researchhub_paper_version_lineage(self, crossref_post_mock):
-        """Test that creating multiple versions maintains consistent base_doi and original_paper_id"""
-        crossref_post_mock.return_value.status_code = 200
+    def test_create_researchhub_paper_version_lineage(self):
+        """Test that creating multiple versions maintains consistent original_paper_id"""
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
 
         # Create an author
@@ -559,12 +576,10 @@ class PaperApiTests(APITestCase):
 
         self.assertEqual(response_v1.status_code, 201)
         paper_v1_id = response_v1.data["id"]
-        paper_v1 = Paper.objects.get(id=paper_v1_id)
         paper_version_v1 = PaperVersion.objects.get(paper_id=paper_v1_id)
 
         # Verify first version
         self.assertEqual(paper_version_v1.version, 1)
-        self.assertIsNotNone(paper_version_v1.base_doi)
         self.assertEqual(paper_version_v1.original_paper_id, paper_v1_id)
 
         # Create the second version
@@ -585,12 +600,10 @@ class PaperApiTests(APITestCase):
 
         self.assertEqual(response_v2.status_code, 201)
         paper_v2_id = response_v2.data["id"]
-        paper_v2 = Paper.objects.get(id=paper_v2_id)
         paper_version_v2 = PaperVersion.objects.get(paper_id=paper_v2_id)
 
         # Verify second version
         self.assertEqual(paper_version_v2.version, 2)
-        self.assertEqual(paper_version_v2.base_doi, paper_version_v1.base_doi)
         self.assertEqual(paper_version_v2.original_paper_id, paper_v1_id)
         self.assertEqual(paper_version_v2.message, "Second version")
 
@@ -612,34 +625,17 @@ class PaperApiTests(APITestCase):
 
         self.assertEqual(response_v3.status_code, 201)
         paper_v3_id = response_v3.data["id"]
-        paper_v3 = Paper.objects.get(id=paper_v3_id)
         paper_version_v3 = PaperVersion.objects.get(paper_id=paper_v3_id)
 
         # Verify third version
         self.assertEqual(paper_version_v3.version, 3)
-        self.assertEqual(paper_version_v3.base_doi, paper_version_v1.base_doi)
         self.assertEqual(paper_version_v3.original_paper_id, paper_v1_id)
         self.assertEqual(paper_version_v3.message, "Third version")
 
-        # Verify DOIs have the same base but different version numbers
-        self.assertNotEqual(paper_v1.doi, paper_v2.doi)
-        self.assertNotEqual(paper_v2.doi, paper_v3.doi)
-        self.assertNotEqual(paper_v1.doi, paper_v3.doi)
-
-        # The DOI should be structured with the same base but different version numbers
-        doi_base = paper_version_v1.base_doi
-        self.assertTrue(paper_v1.doi.startswith(doi_base))
-        self.assertTrue(paper_v2.doi.startswith(doi_base))
-        self.assertTrue(paper_v3.doi.startswith(doi_base))
-
-    @patch("utils.doi.requests.post")
-    @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123")
-    def test_create_researchhub_paper_preserves_publication_metadata(
-        self, crossref_post_mock
-    ):
+    def test_create_researchhub_paper_preserves_publication_metadata(self):
         """Test that journal and publication_status are preserved across versions"""
-        crossref_post_mock.return_value.status_code = 200
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
 
         # Create an author
@@ -731,19 +727,15 @@ class PaperApiTests(APITestCase):
         self.assertEqual(paper_version_v3.journal, PaperVersion.RESEARCHHUB)
         self.assertEqual(paper_version_v3.publication_status, PaperVersion.PUBLISHED)
 
-    @patch("utils.doi.requests.post")
-    @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123")
-    def test_researchhub_journal_hub_preserved_across_versions(
-        self, crossref_post_mock
-    ):
+    def test_researchhub_journal_hub_preserved_across_versions(self):
         """Test that ResearchHub Journal hub is preserved in new paper versions"""
-        crossref_post_mock.return_value.status_code = 200
         # Create a user and authenticate
         user = create_random_authenticated_user("test_user")
+        make_user_verified(user)
         self.client.force_authenticate(user)
 
         # Get the ResearchHub Journal hub
-        researchhub_journal_hub = Hub.objects.get(id=123)
+        researchhub_journal_hub = self.journal
 
         # Create an author
         author = Author.objects.create(first_name="Test", last_name="Author")
@@ -856,19 +848,6 @@ class PaperViewsTests(TestCase):
         data = {"url": "bitcoin"}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertContains(response, "false", status_code=200)
-
-    def test_api_token_can_upload_paper(self):
-        api_token_url = "/api/user_external_token/"
-        api_token_response = get_authenticated_post_response(
-            self.user, api_token_url, {}
-        )
-        token = api_token_response.json().get("token", "")
-        api_token_client = Client(HTTP_RH_API_KEY=token)
-        res = api_token_client.post(
-            self.base_url,
-            {"title": "Paper Uploaded via API Token", "paper_type": "REGULAR"},
-        )
-        self.assertEqual(res.status_code, 201)
 
     @patch.object(Paper, "paper_rewards", new_callable=PropertyMock)
     def test_eligible_reward_summary(self, mock_get_paper_reward):

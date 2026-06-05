@@ -1,15 +1,16 @@
 import json
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
 
 from django.core.cache import cache
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from paper.openalex_util import process_openalex_works
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
-from reputation.models import Score
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -138,7 +139,7 @@ class UserApiTests(APITestCase):
 
             # Add publications to author
             url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
-            response = self.client.post(
+            self.client.post(
                 url,
                 {
                     "openalex_ids": work_ids,
@@ -238,7 +239,7 @@ class UserApiTests(APITestCase):
 
             # Add publications to author
             url = f"/api/author/{author.id}/publications/"
-            response = self.client.post(
+            self.client.post(
                 url,
                 {
                     "openalex_ids": work_ids,
@@ -275,130 +276,26 @@ class UserViewsTests(TestCase):
         user.refresh_from_db()
         self.assertTrue(user.has_seen_first_coin_modal)
 
-    def test_get_author_profile_user(self):
-        # Arrange
-        user = create_random_default_user("user1")
-        UserVerification.objects.create(
-            user=user, status=UserVerification.Status.APPROVED
+    def test_set_staking_opted_in_preserves_existing_opt_in_date(self):
+        user = create_random_authenticated_user("staking_opt_in")
+        original_opt_in_date = timezone.now() - timedelta(days=2)
+        user.is_staking_opted_in = True
+        user.staking_opted_in_date = original_opt_in_date
+        user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
+
+        url = "/api/user/set_staking_opted_in/"
+        response = get_authenticated_patch_response(
+            user,
+            url,
+            data={"is_staking_opted_in": True},
+            content_type="application/json",
         )
 
-        # Act
-        url = f"/api/author/{user.author_profile.id}/profile/"
-        response = self.client.get(url)
-
-        # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.data["user"],
-            {
-                "id": user.id,
-                "created_date": user.created_date,
-                "is_verified": True,
-                "is_suspended": False,
-                "probable_spammer": False,
-            },
-        )
 
-    def test_get_author_profile_user_without_user(self):
-        # Arrange
-        author = Author.objects.create(first_name="firstName1", last_name="lastName1")
-
-        # Act
-        url = f"/api/author/{author.id}/profile/"
-        response = self.client.get(url)
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["user"], None)
-
-    @patch.object(OpenAlex, "get_authors")
-    def test_get_author_profile_reputation(self, mock_get_authors):
-        from paper.models import Paper
-
-        works = None
-        with open(fixtures_dir / "openalex_works.json", "r") as file:
-            response = json.load(file)
-            works = response.get("results")
-
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
-            mock_data = json.load(file)
-            mock_get_authors.return_value = (mock_data["results"], None)
-
-            process_openalex_works(works)
-
-            dois = [work.get("doi") for work in works]
-            dois = [doi.replace("https://doi.org/", "") for doi in dois]
-
-            papers = Paper.objects.filter(doi__in=dois)
-            first_author = papers.first().authors.first()
-
-            hub1 = papers.first().hubs.first()
-            hub2 = papers.last().hubs.first()
-            hub3 = papers.first().hubs.last()
-
-            Score.objects.create(
-                author=first_author,
-                hub=hub1,
-                score=1900,
-            )
-
-            Score.objects.create(
-                author=first_author,
-                hub=hub2,
-                score=1800,
-            )
-
-            Score.objects.create(
-                author=first_author,
-                hub=hub3,
-                score=0,
-            )
-
-            url = f"/api/author/{first_author.id}/profile/"
-            response = self.client.get(
-                url,
-            )
-
-            self.assertEqual(
-                len(response.data["reputation_list"]), 2
-            )  # Filter out 0 scores
-            self.assertEqual(response.data["reputation"]["score"], 1900)
-            self.assertEqual(response.data["reputation"]["percentile"], 0.275)
-            self.assertEqual(response.data["reputation_list"][0]["score"], 1900)
-            self.assertEqual(response.data["reputation_list"][0]["percentile"], 0.275)
-            self.assertEqual(response.data["reputation_list"][1]["score"], 1800)
-            self.assertEqual(
-                response.data["reputation_list"][1]["percentile"], 0.2722222222222222
-            )
-
-    @patch.object(OpenAlex, "get_authors")
-    def test_get_author_profile_no_reputation(self, mock_get_authors):
-        from paper.models import Paper
-
-        works = None
-        with open(fixtures_dir / "openalex_works.json", "r") as file:
-            response = json.load(file)
-            works = response.get("results")
-
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
-            mock_data = json.load(file)
-            mock_get_authors.return_value = (mock_data["results"], None)
-
-            process_openalex_works(works)
-
-            dois = [work.get("doi") for work in works]
-            dois = [doi.replace("https://doi.org/", "") for doi in dois]
-
-            papers = Paper.objects.filter(doi__in=dois)
-            first_author = papers.first().authors.first()
-
-            url = f"/api/author/{first_author.id}/profile/"
-            response = self.client.get(
-                url,
-            )
-
-            self.assertIsNone(response.data["reputation"])
-            self.assertEqual(len(response.data["reputation_list"]), 0)
+        user.refresh_from_db()
+        self.assertTrue(user.is_staking_opted_in)
+        self.assertEqual(user.staking_opted_in_date, original_opt_in_date)
 
     @patch.object(OpenAlex, "get_authors")
     def test_author_overview(self, mock_get_authors):

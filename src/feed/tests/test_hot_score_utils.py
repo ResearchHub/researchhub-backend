@@ -16,7 +16,6 @@ from feed.hot_score_utils import (
     get_age_hours_from_content,
     get_bounties_from_content,
     get_comment_count_from_metrics,
-    get_content_type_name,
     get_fundraise_amount_from_content,
     get_peer_review_count_from_metrics,
     get_social_media_engagement_from_metrics,
@@ -62,15 +61,6 @@ class TestHotScoreUtils(AWSMockTestCase):
         # Test with both = 0
         metrics = {"replies": 0, "review_metrics": {"count": 0}}
         self.assertFalse(has_comments(metrics))
-
-    def test_get_content_type_name(self):
-        """Test extracting content type name from feed entry."""
-        # Mock feed_entry with content_type
-        feed_entry = Mock()
-        feed_entry.content_type.model = "paper"
-
-        result = get_content_type_name(feed_entry)
-        self.assertEqual(result, "paper")
 
     def test_parse_iso_datetime(self):
         """Test parsing ISO 8601 datetime strings."""
@@ -230,6 +220,38 @@ class TestHotScoreUtils(AWSMockTestCase):
 
         # Assert: Age should be ~180 days (4320 hours), not 0
         self.assertAlmostEqual(age_hours, 180 * 24, delta=1)
+
+    def test_future_action_date_falls_back_to_created_date(self):
+        """A future action_date should fall back to created_date for age calculation."""
+        now = datetime.now(timezone.utc)
+        future_action_date = now + timedelta(days=180)
+        created_date = now - timedelta(days=7)
+
+        feed_entry = Mock()
+        feed_entry.id = 999
+        feed_entry.action_date = future_action_date
+        feed_entry.created_date = created_date
+
+        content = {}
+
+        age_hours = get_age_hours_from_content(content, feed_entry)
+
+        # Should use created_date (~7 days = 168 hours), not 0
+        self.assertAlmostEqual(age_hours, 7 * 24, delta=1)
+        self.assertGreater(age_hours, 0)
+
+    def test_future_action_date_never_returns_zero(self):
+        """Ensure a future action_date never yields an artificially low age."""
+        now = datetime.now(timezone.utc)
+        feed_entry = Mock()
+        feed_entry.id = 1000
+        feed_entry.action_date = now + timedelta(days=30)
+        feed_entry.created_date = now - timedelta(hours=12)
+
+        age_hours = get_age_hours_from_content({}, feed_entry)
+
+        # Should reflect the created_date age (~12 hours), not 0
+        self.assertAlmostEqual(age_hours, 12, delta=1)
 
     def test_calculate_x_engagement(self):
         """Test extracting X/Twitter engagement score."""

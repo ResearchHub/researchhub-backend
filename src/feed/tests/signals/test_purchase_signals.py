@@ -290,18 +290,20 @@ class TestPurchaseSignals(AWSMockTestCase):
         self.assertIn("applications", grant_data)
         self.assertEqual(len(grant_data["applications"]), 0)
 
+    @patch("feed.signals.purchase_signals.create_feed_entry")
     @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
     @patch("feed.signals.purchase_signals.transaction")
     def test_fundraise_contribution_triggers_feed_update(
-        self, mock_transaction, mock_refresh
+        self, mock_transaction, mock_refresh, mock_create
     ):
         """
         Test that creating a fundraise contribution triggers
-        feed entry refresh.
+        feed entry creation and refresh.
         """
         # Arrange
         mock_transaction.on_commit = lambda func: func()
         mock_refresh.apply_async = MagicMock()
+        mock_create.apply_async = MagicMock()
 
         # Create a preregistration post with fundraise
         post = create_post(created_by=self.user, document_type=PREREGISTRATION)
@@ -330,7 +332,7 @@ class TestPurchaseSignals(AWSMockTestCase):
         # Create a contribution
         contributor = create_random_authenticated_user("fundraise_contributor_1")
         fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
-        Purchase.objects.create(
+        purchase = Purchase.objects.create(
             user=contributor,
             content_type=fundraise_content_type,
             object_id=fundraise.id,
@@ -341,23 +343,41 @@ class TestPurchaseSignals(AWSMockTestCase):
         )
 
         # Assert
+        # new feed entry created for contribution
+        purchase_ct = ContentType.objects.get_for_model(Purchase)
+        mock_create.apply_async.assert_called_once()
+        create_args = mock_create.apply_async.call_args
+        self.assertEqual(
+            create_args.kwargs.get("args") or create_args[1].get("args"),
+            (
+                purchase.id,
+                purchase_ct.id,
+                FeedEntry.PUBLISH,
+                list(post.unified_document.hubs.values_list("id", flat=True)),
+                contributor.id,
+            ),
+        )
+
+        # existing feed entry refreshed
         mock_refresh.apply_async.assert_called_with(
             args=(feed_entry.id,),
             priority=1,
         )
 
+    @patch("feed.signals.purchase_signals.create_feed_entry")
     @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
     @patch("feed.signals.purchase_signals.transaction")
     def test_fundraise_contribution_update_triggers_feed_update(
-        self, mock_transaction, mock_refresh
+        self, mock_transaction, mock_refresh, mock_create
     ):
         """
         Test that updating a fundraise contribution triggers
-        feed entry refresh.
+        feed entry refresh but not a new feed entry creation.
         """
         # Arrange
         mock_transaction.on_commit = lambda func: func()
         mock_refresh.apply_async = MagicMock()
+        mock_create.apply_async = MagicMock()
 
         # Create a preregistration post with fundraise
         post = create_post(created_by=self.user, document_type=PREREGISTRATION)
@@ -395,14 +415,20 @@ class TestPurchaseSignals(AWSMockTestCase):
             amount="100",
         )
 
-        # Reset mock to clear the call from creation
+        # Reset mocks to clear calls from creation
         mock_refresh.reset_mock()
+        mock_create.reset_mock()
 
         # Act
         purchase.amount = "200"
         purchase.save()  # Update the purchase
 
         # Assert
+        # no new feed entry created on update
+        mock_create.apply_async.assert_not_called()
+
+        # Assert
+        # existing feed entry refreshed
         mock_refresh.apply_async.assert_called_with(
             args=(feed_entry.id,),
             priority=1,

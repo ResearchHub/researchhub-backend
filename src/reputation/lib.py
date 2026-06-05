@@ -1,4 +1,5 @@
 import decimal
+import logging
 import math
 import os
 from datetime import datetime
@@ -7,21 +8,27 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from web3 import Web3
 
 import ethereum.lib
 import ethereum.utils
-from ethereum.lib import RSC_CONTRACT_ADDRESS, execute_erc20_transfer, get_private_key
-from mailing_list.lib import base_email_context
+from ethereum.lib import (
+    RSC_CONTRACT_ADDRESS,
+    execute_erc20_transfer,
+    get_nonce,
+    get_private_key,
+)
+from mailing_list.lib import base_email_context, send_email
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
-from utils.message import send_email_message
-from utils.sentry import log_error
 from utils.web3_utils import web3_provider
 
 WITHDRAWAL_MINIMUM = int(os.environ.get("WITHDRAWAL_MINIMUM", 500))
 WITHDRAWAL_PER_TWO_WEEKS = 100000
+
+logger = logging.getLogger(__name__)
 
 contract_abi = [
     {
@@ -337,11 +344,90 @@ contract_abi = [
     },
 ]
 
-try:
-    PRIVATE_KEY = get_private_key() if settings.WEB3_KEYSTORE_SECRET_ID else None
-except Exception as e:
-    PRIVATE_KEY = None
-    log_error(e)
+
+def _get_private_key_for_transfer():
+    if not settings.WEB3_KEYSTORE_SECRET_ID:
+        return None
+
+    try:
+        return get_private_key()
+    except Exception:
+        logger.exception("Error retrieving private key for transfer")
+        return None
+
+
+def _get_w3_for_network(network):
+    return web3_provider.ethereum if network == "ETHEREUM" else web3_provider.base
+
+
+def _calculate_tokens_and_update_withdrawal_amount(withdrawal, amount):
+    ethereum.lib.convert_reputation_amount_to_token_amount("RSC", amount)
+    withdrawal.amount = str(amount)
+    withdrawal.save(update_fields=["amount"])
+
+
+def broadcast_withdrawal_transfer(withdrawal):
+    """
+    Broadcast the ERC-20 transfer for a withdrawal row that has been committed
+    to the database. Idempotent when transaction_hash is already set.
+    """
+    if withdrawal.transaction_hash:
+        return withdrawal
+
+    if withdrawal.paid_status in (
+        PaidStatusModelMixin.PAID,
+        PaidStatusModelMixin.FAILED,
+    ):
+        return withdrawal
+
+    if withdrawal.paid_status not in (
+        PaidStatusModelMixin.INITIATED,
+        PaidStatusModelMixin.PENDING,
+    ):
+        return withdrawal
+
+    network = withdrawal.network
+    w3 = _get_w3_for_network(network)
+    amount = Decimal(withdrawal.amount)
+
+    _calculate_tokens_and_update_withdrawal_amount(withdrawal, amount)
+
+    contract = w3.eth.contract(
+        abi=contract_abi,
+        address=Web3.to_checksum_address(
+            settings.WEB3_BASE_RSC_ADDRESS
+            if network == "BASE"
+            else RSC_CONTRACT_ADDRESS
+        ),
+    )
+
+    checksum_sender = Web3.to_checksum_address(settings.WEB3_WALLET_ADDRESS)
+    if withdrawal.broadcast_nonce is None:
+        withdrawal.broadcast_nonce = get_nonce(w3, checksum_sender)
+        withdrawal.save(update_fields=["broadcast_nonce"])
+
+    tx_hash = execute_erc20_transfer(
+        w3,
+        settings.WEB3_WALLET_ADDRESS,
+        _get_private_key_for_transfer(),
+        contract,
+        withdrawal.to_address,
+        amount,
+        network=network,
+        nonce=withdrawal.broadcast_nonce,
+    )
+
+    withdrawal.transaction_hash = tx_hash
+    withdrawal.paid_status = PaidStatusModelMixin.PENDING
+    withdrawal.save(update_fields=["transaction_hash", "paid_status"])
+    return withdrawal
+
+
+def dispatch_withdrawal_broadcast(withdrawal_id):
+    """Schedule on-chain broadcast after the current DB transaction commits."""
+    from reputation.tasks import broadcast_withdrawal
+
+    transaction.on_commit(lambda: broadcast_withdrawal.delay(withdrawal_id))
 
 
 class PendingWithdrawal:
@@ -350,55 +436,17 @@ class PendingWithdrawal:
         self.balance_record_id = balance_record_id
         self.amount = amount
         self.network = network
-        self.w3 = (
-            web3_provider.ethereum if network == "ETHEREUM" else web3_provider.base
-        )
 
     def complete_token_transfer(self):
-        self.withdrawal.set_paid_pending()
-        self.token_payout = (
-            self._calculate_tokens_and_update_withdrawal_amount()
-        )  # noqa
-        self._request_transfer("RSC")
-
-    def _calculate_tokens_and_update_withdrawal_amount(self):
-        (
-            token_payout,
-            blank,
-        ) = ethereum.lib.convert_reputation_amount_to_token_amount(  # noqa: E501
-            "RSC", self.amount
-        )
-        self.withdrawal.amount = self.amount
-        self.withdrawal.save()
-        return token_payout
-
-    def _request_transfer(self, token):
-        contract = self.w3.eth.contract(
-            abi=contract_abi,
-            address=Web3.to_checksum_address(
-                settings.WEB3_BASE_RSC_ADDRESS
-                if self.network == "BASE"
-                else RSC_CONTRACT_ADDRESS
-            ),
-        )
-        amount = Decimal(self.amount)
-        to = self.withdrawal.to_address
-        tx_hash = execute_erc20_transfer(
-            self.w3,
-            settings.WEB3_WALLET_ADDRESS,
-            PRIVATE_KEY,
-            contract,
-            to,
-            amount,
-            network=self.network,
-        )
-        self.withdrawal.transaction_hash = tx_hash
-        self.withdrawal.save()
+        broadcast_withdrawal_transfer(self.withdrawal)
 
 
 def evaluate_transaction_hash(transaction_hash, network="ETHEREUM"):
+    if not transaction_hash:
+        return PaidStatusModelMixin.PENDING, None
+
     paid_date = None
-    paid_status = "PENDING"
+    paid_status = PaidStatusModelMixin.PENDING
     try:
         timeout = 5 * 1  # 5 second timeout
         w3_instance = (
@@ -412,19 +460,31 @@ def evaluate_transaction_hash(transaction_hash, network="ETHEREUM"):
         elif transaction_receipt["status"] == 1:
             paid_status = "PAID"
             paid_date = datetime.now()
-    except Exception as e:
-        print(e)
-        log_error(e)
+    except Exception:
+        logger.exception("Error evaluating transaction hash=%s", transaction_hash)
 
     return paid_status, paid_date
 
 
 def check_pending_withdrawal():
     """
-    Checks pending withdrawal and sees if it's completed
+    Re-enqueue stuck broadcasts and promote PENDING withdrawals based on receipts.
     """
+    from reputation.tasks import broadcast_withdrawal
+
+    stuck_withdrawals = Withdrawal.objects.filter(
+        Q(paid_status=PaidStatusModelMixin.INITIATED)
+        | Q(
+            paid_status=PaidStatusModelMixin.PENDING,
+            transaction_hash__isnull=True,
+        )
+    )
+    for withdrawal in stuck_withdrawals.iterator():
+        broadcast_withdrawal.delay(withdrawal.id)
+
     pending_withdrawals = Withdrawal.objects.filter(
-        paid_status=PaidStatusModelMixin.PENDING
+        paid_status=PaidStatusModelMixin.PENDING,
+        transaction_hash__isnull=False,
     )
     for withdrawal in pending_withdrawals:
         with transaction.atomic():
@@ -442,7 +502,7 @@ def check_hotwallet():
     Alerts admins if the hotwallet is low on eth or RSC on either network
     """
     messages = []
-    send_email = False
+    should_send = False
 
     # Check Ethereum network
     eth_rsc_balance = get_hotwallet_rsc_balance("ETHEREUM")
@@ -455,13 +515,13 @@ def check_hotwallet():
         messages.append(
             f"RSC is running low in the Ethereum hotwallet: {eth_rsc_balance:,}"
         )
-        send_email = True
+        should_send = True
 
     if eth_balance_eth < 0.08:
         messages.append(
             f"ETH is running low in the Ethereum hotwallet: {eth_balance_eth:,}"
         )
-        send_email = True
+        should_send = True
 
     # Check Base network
     base_rsc_balance = get_hotwallet_rsc_balance("BASE")
@@ -472,19 +532,19 @@ def check_hotwallet():
         messages.append(
             f"RSC is running low in the Base hotwallet: {base_rsc_balance:,}"
         )
-        send_email = True
+        should_send = True
 
     if base_balance_eth < 0.001:
         messages.append(
             f"ETH is running low in the Base hotwallet: {base_balance_eth:,}"
         )
-        send_email = True
+        should_send = True
 
-    if send_email:
+    if should_send:
         context = {**base_email_context}
         context["action"] = {"message": "\n\n".join(messages)}
         context["subject"] = "Hotwallet Balance Alert"
-        send_email_message(
+        send_email(
             ["pat@researchhub.com", "tyler@researchhub.com", "dev@researchhub.com"],
             "general_email_message.txt",
             "Hotwallet Balance Alert",

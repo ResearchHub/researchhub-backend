@@ -1,18 +1,22 @@
 import json
 import time
+from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from django.utils import timezone
 
 from discussion.models import Vote
 from hub.models import Hub
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
+from purchase.models import Balance
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import Distribution, Score
+from reputation.models import Distribution, Score, Withdrawal
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from review.models import Review
 from user.models import UserVerification
 from user.serializers import (
     AuthorSerializer,
@@ -61,11 +65,17 @@ class UserSerializersTests(TestCase):
                 created_by=self.user,
             )
 
-            RhCommentModel.objects.create(
+            comment = RhCommentModel.objects.create(
                 created_by=self.user,
                 comment_type="REVIEW",
                 is_removed=False,
                 thread_id=thread.id,
+            )
+            Review.objects.create(
+                created_by=self.user,
+                content_type=ContentType.objects.get_for_model(RhCommentModel),
+                object_id=comment.id,
+                is_assessed=True,
             )
 
     def test_author_serializer_succeeds_without_user_or_university(self):
@@ -337,3 +347,43 @@ class UserBalancesSerializerTests(TestCase):
         self.assertEqual(balances["rsc_locked"], 0)
         self.assertEqual(balances["total_rsc"], 0)
         self.assertEqual(balances["total_usd_cents"], 0)
+
+
+class UserBalanceHistorySerializerTests(TestCase):
+    def setUp(self):
+        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5)
+
+        self.user = create_user(email="balancehistory@researchhub.com")
+        # Ensure all balance records below are newer than clicked_on_balance_date.
+        self.user.clicked_on_balance_date = timezone.now() - timedelta(days=1)
+        self.user.save(update_fields=["clicked_on_balance_date"])
+
+        # Earned: REWARD distribution contributes +1000 to balance history.
+        reward = Dist("REWARD", 1000, give_rep=False)
+        Distributor(reward, self.user, self.user, time.time(), self.user).distribute()
+
+        # Deposit: DEPOSIT distribution of +500 must be excluded.
+        deposit = Dist("DEPOSIT", 500, give_rep=False)
+        Distributor(deposit, self.user, self.user, time.time(), self.user).distribute()
+
+        # Withdrawal: -200 balance row tied to a Withdrawal must be excluded.
+        withdrawal = Withdrawal.objects.create(
+            user=self.user,
+            amount="200",
+            from_address="0x0",
+            to_address="0x1",
+        )
+        Balance.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Withdrawal),
+            object_id=withdrawal.id,
+            amount="-200",
+        )
+
+    def test_balance_history_excludes_deposits_and_withdrawals(self):
+        serializer = UserEditableSerializer(
+            self.user,
+            context={"user": self.user},
+        )
+
+        self.assertEqual(int(serializer.data["balance_history"]), 1000)

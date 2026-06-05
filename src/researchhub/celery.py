@@ -34,7 +34,6 @@ QUEUE_LOGS = "logs"
 QUEUE_PURCHASES = "purchases"
 QUEUE_REPUTATION = "reputation"
 QUEUE_CONTRIBUTIONS = "contributions"
-QUEUE_AUTHOR_CLAIM = "author_claim"
 QUEUE_PAPER_METADATA = "paper_metadata"
 QUEUE_BOUNTIES = "bounties"
 QUEUE_HUBS = "hubs"
@@ -78,15 +77,15 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
-    # Reputation
-    "reputation_check-deposits": {
-        "task": "reputation.tasks.check_deposits",
-        "schedule": crontab(minute="*/1"),
+    "purchase_send-monthly-preregistration-update-reminders": {
+        "task": "purchase.tasks.send_monthly_preregistration_update_reminders",
+        "schedule": crontab(day_of_month=1, hour=16, minute=0),
         "options": {
-            "priority": 2,
-            "queue": QUEUE_PURCHASES,
+            "priority": 3,
+            "queue": QUEUE_NOTIFICATION,
         },
     },
+    # Reputation
     "reputation_check-pending-withdrawals": {
         "task": "reputation.tasks.check_pending_withdrawals",
         "schedule": crontab(minute="*/5"),
@@ -149,6 +148,32 @@ app.conf.beat_schedule = {
         "schedule": crontab(hour="*/6", minute=0),
         "options": {"priority": 3, "queue": QUEUE_CACHES},
     },
+    "user_apply-account-age-bonus": {
+        "task": "user.tasks.risk_score_tasks.apply_account_age_bonus_task",
+        "schedule": crontab(hour=2, minute=30),  # Run daily at 2:30 AM UTC
+        "options": {
+            "priority": 4,
+            "queue": QUEUE_REPUTATION,
+        },
+    },
+    # Daily Staking Snapshot (runs before distribution)
+    "reputation_create-daily-staking-snapshots": {
+        "task": "reputation.tasks.create_daily_staking_snapshots",
+        "schedule": crontab(hour=0, minute=0),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+    # Daily Staking Yield
+    "reputation_distribute-staking-yield": {
+        "task": "reputation.tasks.distribute_staking_yield",
+        "schedule": crontab(hour=1, minute=0),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
     # Weekly RSC Burning
     "reputation_burn-revenue-rsc": {
         "task": "reputation.tasks.burn_revenue_rsc",
@@ -158,6 +183,15 @@ app.conf.beat_schedule = {
         "options": {
             "priority": 2,
             "queue": QUEUE_PURCHASES,
+        },
+    },
+    # Preregistration DOI assignment
+    "researchhub-document_assign-preregistration-dois": {
+        "task": "researchhub_document.tasks.assign_preregistration_dois",
+        "schedule": crontab(hour=6, minute=0),
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_PAPER_MISC,
         },
     },
     # Paper ingestion tasks
@@ -181,7 +215,7 @@ app.conf.beat_schedule = {
     "paper-github-metrics-update": {
         "task": "paper.ingestion.tasks.update_recent_papers_with_github_metrics",
         "kwargs": {"days": 14},
-        "schedule": crontab(hour=7, minute=0),
+        "schedule": crontab(hour=7, minute=0, day_of_week="mon"),
         "options": {
             "priority": 2,
             "queue": QUEUE_GITHUB_METRICS,
@@ -190,7 +224,7 @@ app.conf.beat_schedule = {
     "paper-bluesky-metrics-update": {
         "task": "paper.ingestion.tasks.update_recent_papers_with_bluesky_metrics",
         "kwargs": {"days": 14},
-        "schedule": crontab(hour=10, minute=0),
+        "schedule": crontab(hour=10, minute=0, day_of_week="wed"),
         "options": {
             "priority": 2,
             "queue": QUEUE_BLUESKY_METRICS,
@@ -199,7 +233,7 @@ app.conf.beat_schedule = {
     "paper-x-metrics-update": {
         "task": "paper.ingestion.tasks.update_recent_papers_with_x_metrics",
         "kwargs": {"days": 14},
-        "schedule": crontab(hour=13, minute=0),
+        "schedule": crontab(hour=13, minute=0, day_of_week="fri"),
         "options": {
             "priority": 2,
             "queue": QUEUE_X_METRICS,

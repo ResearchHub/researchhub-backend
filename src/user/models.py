@@ -9,8 +9,8 @@ from .related_models.gatekeeper_model import Gatekeeper
 from .related_models.leaderboard_model import Leaderboard
 from .related_models.organization_model import Organization
 from .related_models.profile_image_storage import ProfileImageStorage
+from .related_models.risk_score_model import RiskScore, RiskScoreEvent
 from .related_models.school_model import Major, University
-from .related_models.user_api_token_model import UserApiToken
 from .related_models.user_model import User
 from .related_models.user_verification_model import UserVerification
 from .related_models.verdict_model import Verdict
@@ -25,10 +25,11 @@ migratables = (
     Leaderboard,
     Major,
     ProfileImageStorage,
+    RiskScore,
+    RiskScoreEvent,
     University,
     User,
     Organization,
-    UserApiToken,
     UserVerification,
     Verdict,
 )

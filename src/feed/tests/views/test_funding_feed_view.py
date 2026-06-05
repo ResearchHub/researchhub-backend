@@ -25,7 +25,6 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from researchhub_document.related_models.document_filter_model import DocumentFilter
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -197,7 +196,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         mock_cache.get.return_value = None
 
         url = reverse("funding_feed-list")
-        response = self.client.get(url)
+        anonymous_client = APIClient()
+        response = anonymous_client.get(url)
 
         self.assertTrue(mock_cache.get.called)
         self.assertTrue(mock_cache.set.called)
@@ -209,7 +209,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         mock_cache.get.return_value = mock_cache.set.call_args[0][1]
         mock_cache.set.reset_mock()
 
-        response2 = self.client.get(url)
+        response2 = anonymous_client.get(url)
 
         self.assertTrue(mock_cache.get.called)
         self.assertFalse(mock_cache.set.called)
@@ -253,9 +253,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(vote_type, 1)  # 1 corresponds to UPVOTE
 
     @patch("feed.views.funding_feed_view.cache")
-    def test_add_user_votes_with_cached_response(self, mock_cache):
-        """Test that user votes are added even with cached response"""
-        # Create a vote for the post
+    def test_authenticated_request_uses_cache_with_votes_applied(self, mock_cache):
+        """Authenticated viewers reuse the cached payload, then get votes layered on."""
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         vote = Vote.objects.create(
             created_by=self.user,
@@ -264,7 +263,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
             vote_type=Vote.UPVOTE,
         )
 
-        # Create a mock cached response without votes
+        # Cached payload is built without per-viewer votes.
         cached_response = {
             "results": [
                 {
@@ -285,11 +284,50 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         url = reverse("funding_feed-list")
         response = self.client.get(url)
 
-        # Check that votes were added to the cached response
+        self.assertTrue(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertIn("user_vote", response.data["results"][0])
-        self.assertEqual(response.data["results"][0]["user_vote"]["id"], vote.id)
+        post_data = next(
+            item
+            for item in response.data["results"]
+            if item["content_object"]["id"] == self.post.id
+        )
+        self.assertIn("user_vote", post_data)
+        self.assertEqual(post_data["user_vote"]["id"], vote.id)
+
+    @patch("feed.views.funding_feed_view.cache")
+    def test_cached_payload_is_user_agnostic(self, mock_cache):
+        """The payload written to cache must not contain viewer-specific votes.
+
+        Snapshot the value at cache.set time — the real Django cache serializes
+        on write, so subsequent in-place mutation of response_data (to add
+        votes for the requester) doesn't leak into what other viewers see.
+        """
+        import copy
+
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        Vote.objects.create(
+            created_by=self.user,
+            object_id=self.post.id,
+            content_type=post_content_type,
+            vote_type=Vote.UPVOTE,
+        )
+
+        mock_cache.get.return_value = None
+        captured = {}
+
+        def capture_set(key, value, timeout=None):
+            captured["payload"] = copy.deepcopy(value)
+
+        mock_cache.set.side_effect = capture_set
+
+        url = reverse("funding_feed-list")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(mock_cache.set.called)
+        for item in captured["payload"]["results"]:
+            self.assertNotIn("user_vote", item)
 
     def test_get_cache_key(self):
         """Test cache key generation logic"""
@@ -388,36 +426,62 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         # Arrange
         today = timezone.now()
 
-        oldest_doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+        oldest_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
         oldest_post = ResearchhubPost.objects.create(
-            title="Oldest Post", created_by=self.user,
-            document_type=PREREGISTRATION, unified_document=oldest_doc,
+            title="Oldest Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=oldest_doc,
         )
-        ResearchhubPost.objects.filter(id=oldest_post.id).update(created_date=today - timezone.timedelta(days=10))
+        ResearchhubPost.objects.filter(id=oldest_post.id).update(
+            created_date=today - timezone.timedelta(days=10)
+        )
 
-        newest_doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
-        newest_post = ResearchhubPost.objects.create(
-            title="Newest Post", created_by=self.user,
-            document_type=PREREGISTRATION, unified_document=newest_doc,
+        newest_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
         )
-        ResearchhubPost.objects.filter(id=newest_post.id).update(created_date=today - timezone.timedelta(days=1))
+        newest_post = ResearchhubPost.objects.create(
+            title="Newest Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=newest_doc,
+        )
+        ResearchhubPost.objects.filter(id=newest_post.id).update(
+            created_date=today - timezone.timedelta(days=1)
+        )
 
         escrow_oldest = Escrow.objects.create(
-            amount_holding=0, hold_type=Escrow.FUNDRAISE, created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument), object_id=oldest_doc.id,
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=oldest_doc.id,
         )
         escrow_newest = Escrow.objects.create(
-            amount_holding=0, hold_type=Escrow.FUNDRAISE, created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument), object_id=newest_doc.id,
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=newest_doc.id,
         )
 
         Fundraise.objects.create(
-            created_by=self.user, unified_document=oldest_doc, escrow=escrow_oldest,
-            status=Fundraise.OPEN, goal_amount=100, end_date=today + timezone.timedelta(days=30),
+            created_by=self.user,
+            unified_document=oldest_doc,
+            escrow=escrow_oldest,
+            status=Fundraise.OPEN,
+            goal_amount=100,
+            end_date=today + timezone.timedelta(days=30),
         )
         Fundraise.objects.create(
-            created_by=self.user, unified_document=newest_doc, escrow=escrow_newest,
-            status=Fundraise.OPEN, goal_amount=100, end_date=today + timezone.timedelta(days=30),
+            created_by=self.user,
+            unified_document=newest_doc,
+            escrow=escrow_newest,
+            status=Fundraise.OPEN,
+            goal_amount=100,
+            end_date=today + timezone.timedelta(days=30),
         )
 
         # Act
@@ -434,36 +498,62 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         # Arrange
         today = timezone.now()
 
-        oldest_doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+        oldest_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
         oldest_post = ResearchhubPost.objects.create(
-            title="Oldest Closed Post", created_by=self.user,
-            document_type=PREREGISTRATION, unified_document=oldest_doc,
+            title="Oldest Closed Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=oldest_doc,
         )
-        ResearchhubPost.objects.filter(id=oldest_post.id).update(created_date=today - timezone.timedelta(days=30))
+        ResearchhubPost.objects.filter(id=oldest_post.id).update(
+            created_date=today - timezone.timedelta(days=30)
+        )
 
-        newest_doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
-        newest_post = ResearchhubPost.objects.create(
-            title="Newest Closed Post", created_by=self.user,
-            document_type=PREREGISTRATION, unified_document=newest_doc,
+        newest_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
         )
-        ResearchhubPost.objects.filter(id=newest_post.id).update(created_date=today - timezone.timedelta(days=3))
+        newest_post = ResearchhubPost.objects.create(
+            title="Newest Closed Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=newest_doc,
+        )
+        ResearchhubPost.objects.filter(id=newest_post.id).update(
+            created_date=today - timezone.timedelta(days=3)
+        )
 
         escrow_oldest = Escrow.objects.create(
-            amount_holding=0, hold_type=Escrow.FUNDRAISE, created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument), object_id=oldest_doc.id,
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=oldest_doc.id,
         )
         escrow_newest = Escrow.objects.create(
-            amount_holding=0, hold_type=Escrow.FUNDRAISE, created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument), object_id=newest_doc.id,
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=newest_doc.id,
         )
 
         Fundraise.objects.create(
-            created_by=self.user, unified_document=oldest_doc, escrow=escrow_oldest,
-            status=Fundraise.COMPLETED, goal_amount=100, end_date=today - timezone.timedelta(days=30),
+            created_by=self.user,
+            unified_document=oldest_doc,
+            escrow=escrow_oldest,
+            status=Fundraise.COMPLETED,
+            goal_amount=100,
+            end_date=today - timezone.timedelta(days=30),
         )
         Fundraise.objects.create(
-            created_by=self.user, unified_document=newest_doc, escrow=escrow_newest,
-            status=Fundraise.COMPLETED, goal_amount=100, end_date=today - timezone.timedelta(days=3),
+            created_by=self.user,
+            unified_document=newest_doc,
+            escrow=escrow_newest,
+            status=Fundraise.COMPLETED,
+            goal_amount=100,
+            end_date=today - timezone.timedelta(days=3),
         )
 
         # Act
@@ -480,66 +570,118 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         # Arrange
         today = timezone.now()
 
-        older_open_doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+        older_open_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
         older_open_post = ResearchhubPost.objects.create(
-            title="Older Open Post", created_by=self.user,
-            document_type=PREREGISTRATION, unified_document=older_open_doc,
+            title="Older Open Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=older_open_doc,
         )
-        ResearchhubPost.objects.filter(id=older_open_post.id).update(created_date=today - timezone.timedelta(days=5))
+        ResearchhubPost.objects.filter(id=older_open_post.id).update(
+            created_date=today - timezone.timedelta(days=5)
+        )
 
-        newer_open_doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+        newer_open_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
         newer_open_post = ResearchhubPost.objects.create(
-            title="Newer Open Post", created_by=self.user,
-            document_type=PREREGISTRATION, unified_document=newer_open_doc,
+            title="Newer Open Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=newer_open_doc,
         )
-        ResearchhubPost.objects.filter(id=newer_open_post.id).update(created_date=today - timezone.timedelta(days=1))
+        ResearchhubPost.objects.filter(id=newer_open_post.id).update(
+            created_date=today - timezone.timedelta(days=1)
+        )
 
-        newer_closed_doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+        newer_closed_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
         newer_closed_post = ResearchhubPost.objects.create(
-            title="Newer Closed Post", created_by=self.user,
-            document_type=PREREGISTRATION, unified_document=newer_closed_doc,
+            title="Newer Closed Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=newer_closed_doc,
         )
-        ResearchhubPost.objects.filter(id=newer_closed_post.id).update(created_date=today - timezone.timedelta(days=2))
+        ResearchhubPost.objects.filter(id=newer_closed_post.id).update(
+            created_date=today - timezone.timedelta(days=2)
+        )
 
-        older_closed_doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
-        older_closed_post = ResearchhubPost.objects.create(
-            title="Older Closed Post", created_by=self.user,
-            document_type=PREREGISTRATION, unified_document=older_closed_doc,
+        older_closed_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
         )
-        ResearchhubPost.objects.filter(id=older_closed_post.id).update(created_date=today - timezone.timedelta(days=10))
+        older_closed_post = ResearchhubPost.objects.create(
+            title="Older Closed Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=older_closed_doc,
+        )
+        ResearchhubPost.objects.filter(id=older_closed_post.id).update(
+            created_date=today - timezone.timedelta(days=10)
+        )
 
         escrow_older_open = Escrow.objects.create(
-            amount_holding=0, hold_type=Escrow.FUNDRAISE, created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument), object_id=older_open_doc.id,
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=older_open_doc.id,
         )
         escrow_newer_open = Escrow.objects.create(
-            amount_holding=0, hold_type=Escrow.FUNDRAISE, created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument), object_id=newer_open_doc.id,
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=newer_open_doc.id,
         )
         escrow_newer_closed = Escrow.objects.create(
-            amount_holding=0, hold_type=Escrow.FUNDRAISE, created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument), object_id=newer_closed_doc.id,
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=newer_closed_doc.id,
         )
         escrow_older_closed = Escrow.objects.create(
-            amount_holding=0, hold_type=Escrow.FUNDRAISE, created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument), object_id=older_closed_doc.id,
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=older_closed_doc.id,
         )
 
         Fundraise.objects.create(
-            created_by=self.user, unified_document=older_open_doc, escrow=escrow_older_open,
-            status=Fundraise.OPEN, goal_amount=100, end_date=today + timezone.timedelta(days=30),
+            created_by=self.user,
+            unified_document=older_open_doc,
+            escrow=escrow_older_open,
+            status=Fundraise.OPEN,
+            goal_amount=100,
+            end_date=today + timezone.timedelta(days=30),
         )
         Fundraise.objects.create(
-            created_by=self.user, unified_document=newer_open_doc, escrow=escrow_newer_open,
-            status=Fundraise.OPEN, goal_amount=100, end_date=today + timezone.timedelta(days=30),
+            created_by=self.user,
+            unified_document=newer_open_doc,
+            escrow=escrow_newer_open,
+            status=Fundraise.OPEN,
+            goal_amount=100,
+            end_date=today + timezone.timedelta(days=30),
         )
         Fundraise.objects.create(
-            created_by=self.user, unified_document=newer_closed_doc, escrow=escrow_newer_closed,
-            status=Fundraise.COMPLETED, goal_amount=100, end_date=today - timezone.timedelta(days=3),
+            created_by=self.user,
+            unified_document=newer_closed_doc,
+            escrow=escrow_newer_closed,
+            status=Fundraise.COMPLETED,
+            goal_amount=100,
+            end_date=today - timezone.timedelta(days=3),
         )
         Fundraise.objects.create(
-            created_by=self.user, unified_document=older_closed_doc, escrow=escrow_older_closed,
-            status=Fundraise.COMPLETED, goal_amount=100, end_date=today - timezone.timedelta(days=30),
+            created_by=self.user,
+            unified_document=older_closed_doc,
+            escrow=escrow_older_closed,
+            status=Fundraise.COMPLETED,
+            goal_amount=100,
+            end_date=today - timezone.timedelta(days=30),
         )
 
         # Act
@@ -551,14 +693,22 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
 
         all_open_ids = [older_open_post.id, newer_open_post.id, self.post.id]
-        all_closed_ids = [newer_closed_post.id, older_closed_post.id, self.other_post.id]
+        all_closed_ids = [
+            newer_closed_post.id,
+            older_closed_post.id,
+            self.other_post.id,
+        ]
 
         last_open_idx = max(post_ids.index(pid) for pid in all_open_ids)
         first_closed_idx = min(post_ids.index(pid) for pid in all_closed_ids)
         self.assertLess(last_open_idx, first_closed_idx)
 
-        self.assertLess(post_ids.index(newer_open_post.id), post_ids.index(older_open_post.id))
-        self.assertLess(post_ids.index(newer_closed_post.id), post_ids.index(older_closed_post.id))
+        self.assertLess(
+            post_ids.index(newer_open_post.id), post_ids.index(older_open_post.id)
+        )
+        self.assertLess(
+            post_ids.index(newer_closed_post.id), post_ids.index(older_closed_post.id)
+        )
 
     def test_grant_id_filter(self):
         """Test filtering funding feed by grant_id parameter"""
@@ -730,6 +880,99 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], third_post.id
         )
+
+    def _create_private_preregistration(self, created_by):
+        """Create a private (non-public) preregistration post for `created_by`."""
+        private_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION, is_public=False
+        )
+        return ResearchhubPost.objects.create(
+            title="Private Preregistration",
+            created_by=created_by,
+            document_type=PREREGISTRATION,
+            renderable_text="This is a private preregistration post",
+            slug="private-preregistration",
+            unified_document=private_doc,
+            created_date=timezone.now(),
+        )
+
+    def test_created_by_includes_private_for_author(self):
+        """The author sees their own private preregistration on their feed."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+
+        # Act
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
+        response = self.client.get(url)  # authenticated as self.user in setUp
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertIn(private_post.id, post_ids)
+
+    def test_created_by_excludes_private_for_anonymous(self):
+        """Anonymous viewers never see a private preregistration via created_by."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+        anonymous_client = APIClient()
+
+        # Act
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
+        response = anonymous_client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
+        self.assertIn(self.post.id, post_ids)  # public one still shows
+
+    def test_created_by_excludes_private_for_other_user(self):
+        """An unrelated authenticated user does not see another's private prereg."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+        other_client = APIClient()
+        other_client.force_authenticate(user=self.other_user)
+
+        # Act
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
+        response = other_client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
+
+    def test_created_by_includes_private_for_moderator(self):
+        """Moderators see private preregistrations so they can moderate them."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+        moderator = User.objects.create_user(
+            username="moderator", password=uuid.uuid4().hex, moderator=True
+        )
+        moderator_client = APIClient()
+        moderator_client.force_authenticate(user=moderator)
+
+        # Act
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
+        response = moderator_client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertIn(private_post.id, post_ids)
+
+    def test_public_discovery_feed_excludes_private(self):
+        """The cacheable discovery feed (no personalization) never leaks private work."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+
+        # Act
+        response = self.client.get(reverse("funding_feed-list"))
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
 
     def test_created_by_filter_disables_caching(self):
         """Test that created_by filter disables caching"""
@@ -1586,26 +1829,34 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         # Arrange
         grant = Grant.objects.create(
             created_by=self.user,
-            unified_document=ResearchhubUnifiedDocument.objects.create(document_type=GRANT),
+            unified_document=ResearchhubUnifiedDocument.objects.create(
+                document_type=GRANT
+            ),
             amount=10000,
             currency=USD,
         )
 
         posts_with_amounts = []
         for amount in [500, 5000, 1000]:  # Intentionally not sorted
-            doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+            doc = ResearchhubUnifiedDocument.objects.create(
+                document_type=PREREGISTRATION
+            )
             post = ResearchhubPost.objects.create(
                 title=f"Proposal {amount}",
                 created_by=self.user,
                 document_type=PREREGISTRATION,
                 unified_document=doc,
             )
-            GrantApplication.objects.create(grant=grant, preregistration_post=post, applicant=self.user)
+            GrantApplication.objects.create(
+                grant=grant, preregistration_post=post, applicant=self.user
+            )
             escrow = Escrow.objects.create(
                 created_by=self.user,
                 amount_holding=amount,
                 hold_type=Escrow.FUNDRAISE,
-                content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+                content_type=ContentType.objects.get_for_model(
+                    ResearchhubUnifiedDocument
+                ),
                 object_id=doc.id,
             )
             Fundraise.objects.create(
@@ -1641,7 +1892,9 @@ class FundingFeedViewSetTests(AWSMockTestCase):
     def test_funded_by_filter_returns_proposals_applied_to_users_grants(self):
         """Test funded_by filter returns proposals that applied to the user's grants."""
         # Arrange
-        grant_creator = User.objects.create_user(username="grant_creator", password=uuid.uuid4().hex)
+        grant_creator = User.objects.create_user(
+            username="grant_creator", password=uuid.uuid4().hex
+        )
 
         grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
         ResearchhubPost.objects.create(
@@ -1665,19 +1918,27 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         )
 
         # Act
-        response = self.client.get(reverse("funding_feed-list") + f"?funded_by={grant_creator.id}")
+        response = self.client.get(
+            reverse("funding_feed-list") + f"?funded_by={grant_creator.id}"
+        )
 
         # Assert
         self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(response.data["results"][0]["content_object"]["id"], self.post.id)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], self.post.id
+        )
 
     def test_funded_by_filter_returns_empty_for_user_with_no_grants(self):
         """Test funded_by filter returns empty when user has no grants with applications."""
         # Arrange
-        user_without_grants = User.objects.create_user(username="no_grants", password=uuid.uuid4().hex)
+        user_without_grants = User.objects.create_user(
+            username="no_grants", password=uuid.uuid4().hex
+        )
 
         # Act
-        response = self.client.get(reverse("funding_feed-list") + f"?funded_by={user_without_grants.id}")
+        response = self.client.get(
+            reverse("funding_feed-list") + f"?funded_by={user_without_grants.id}"
+        )
 
         # Assert
         self.assertEqual(len(response.data["results"]), 0)

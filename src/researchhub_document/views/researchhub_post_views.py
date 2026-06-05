@@ -1,16 +1,19 @@
 from django.core.files.base import ContentFile
 from django.db import transaction
+from django.db.models import Prefetch
 from django.utils.text import slugify
 from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from ai_peer_review.models import ProposalReview
+from ai_peer_review.signals import preregistration_substantively_updated
 from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
+from feed.views.grant_cache_mixin import GrantCacheMixin
 from hub.models import Hub
-from note.related_models.note_model import Note
-from purchase.models import Grant
+from purchase.models import Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
@@ -23,6 +26,8 @@ from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
+    GRANT,
+    PREREGISTRATION,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
@@ -32,8 +37,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
 )
 from user.models import User
-from user.related_models.author_model import Author
-from utils.doi import DOI
+from user.permissions import IsVerifiedUser
 from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
 
@@ -48,6 +52,18 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     serializer_class = ResearchhubPostSerializer
     throttle_classes = THROTTLE_CLASSES
 
+    def get_permissions(self):
+        if self.action in ("create", "update"):
+            permission_classes = [
+                IsAuthenticatedOrReadOnly,
+                IsVerifiedUser,
+                HasDocumentEditingPermission,
+            ]
+        else:
+            permission_classes = self.permission_classes
+
+        return [permission() for permission in permission_classes]
+
     @track_event
     def create(self, request, *args, **kwargs):
         return self.upsert_researchhub_posts(request)
@@ -58,7 +74,28 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     def get_queryset(self):
         request = self.request
         try:
-            query_set = ResearchhubPost.objects.all()
+            query_set = (
+                ResearchhubPost.objects.visible_to(request.user)
+                .select_related("unified_document")
+                .prefetch_related(
+                    Prefetch(
+                        "grant_applications",
+                        queryset=GrantApplication.objects.select_related("grant"),
+                    ),
+                    Prefetch(
+                        "unified_document__proposal_reviews",
+                        queryset=ProposalReview.objects.filter(
+                            grant__isnull=False,
+                        )
+                        .select_related("grant", "unified_document", "key_insight")
+                        .prefetch_related(
+                            "unified_document__"
+                            "ai_peer_review_editorial_feedback__categories",
+                            "key_insight__items",
+                        ),
+                    ),
+                )
+            )
             query_params = request.query_params
             created_by_id = query_params.get("created_by")
             post_id = query_params.get("post_id")
@@ -84,13 +121,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         except (KeyError, TypeError) as exception:
             return Response(exception, status=400)
 
-    def _check_authors_in_org(self, authors, organization):
-        for author_id in authors:
-            author = Author.objects.select_related("user").get(id=author_id)
-            if not organization.org_has_user(author.user):
-                return False
-        return True
-
     def create_researchhub_post(self, request):
         data = request.data
         authors = data.get("authors", [])
@@ -98,25 +128,21 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         document_type = data.get("document_type")
         editor_type = data.get("editor_type")
         title = data.get("title", "")
-        assign_doi = data.get("assign_doi", False)
         renderable_text = data.get("renderable_text", "")
         grant_amount = data.get("grant_amount")
+        grant_id = data.get("grant_id")
 
-        # If a note is provided, check if all given authors are in the same organization
-        if note_id is not None:
-            note = Note.objects.get(id=note_id)
-            organization = note.organization
-            if not self._check_authors_in_org(authors, organization):
-                return Response(
-                    "No permission to create note for organization", status=403
-                )
+        if authors and request.user.author_profile.id not in authors:
+            return Response(
+                {"msg": "You must include yourself in the authors list"},
+                status=400,
+            )
 
         if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
             return Response(
                 {
                     "msg": (
-                        f"Title cannot be less than "
-                        f"{MIN_POST_TITLE_LENGTH} characters"
+                        f"Title cannot be less than {MIN_POST_TITLE_LENGTH} characters"
                     )
                 },
                 400,
@@ -138,12 +164,26 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         try:
             with transaction.atomic():
                 created_by = request.user
-                created_by_author = created_by.author_profile
-                doi = DOI() if assign_doi else None
+
+                # Resolve the target grant up front when applying to one so
+                # that create_unified_doc can honor the grant's privacy
+                # requirement before the post (and its action signal) fires.
+                target_grant = None
+                if grant_id and document_type == PREREGISTRATION:
+                    try:
+                        target_grant = Grant.objects.get(id=grant_id)
+                    except (Grant.DoesNotExist, ValueError, TypeError):
+                        raise serializers.ValidationError("Grant not found")
+                    if not target_grant.is_active():
+                        raise serializers.ValidationError(
+                            "Grant is no longer accepting applications"
+                        )
 
                 # logical ordering & not using signals to avoid race-conditions
                 access_group = self.create_access_group(request)
-                unified_document = self.create_unified_doc(request)
+                unified_document = self.create_unified_doc(
+                    request, target_grant=target_grant
+                )
                 if access_group is not None:
                     unified_document.access_groups = access_group
                     unified_document.save()
@@ -152,7 +192,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 rh_post = ResearchhubPost.objects.create(
                     created_by=created_by,
                     document_type=document_type,
-                    doi=doi.doi if doi else None,
                     slug=slug,
                     editor_type=CK_EDITOR if editor_type is None else editor_type,
                     image=data.get("image"),
@@ -208,19 +247,32 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     if grant_contacts is not None:
                         grant_data["contact_ids"] = grant_contacts
 
+                    if (
+                        application_visibility := data.get(
+                            "grant_application_visibility"
+                        )
+                    ) is not None:
+                        grant_data["application_visibility"] = application_visibility
+
                     grant_serializer = GrantCreateSerializer(data=grant_data)
                     grant_serializer.is_valid(raise_exception=True)
 
+                    grant_create_kwargs = {
+                        "created_by": created_by,
+                        "unified_document": unified_document,
+                        "amount": grant_serializer.validated_data["amount"],
+                        "currency": grant_serializer.validated_data["currency"],
+                        "organization": grant_serializer.validated_data["organization"],
+                        "description": grant_serializer.validated_data["description"],
+                        "end_date": grant_serializer.validated_data.get("end_date"),
+                    }
+                    if "application_visibility" in grant_serializer.validated_data:
+                        grant_create_kwargs["application_visibility"] = (
+                            grant_serializer.validated_data["application_visibility"]
+                        )
+
                     # Create grant without contacts first
-                    grant = Grant.objects.create(
-                        created_by=created_by,
-                        unified_document=unified_document,
-                        amount=grant_serializer.validated_data["amount"],
-                        currency=grant_serializer.validated_data["currency"],
-                        organization=grant_serializer.validated_data["organization"],
-                        description=grant_serializer.validated_data["description"],
-                        end_date=grant_serializer.validated_data.get("end_date"),
-                    )
+                    grant = Grant.objects.create(**grant_create_kwargs)
 
                     # Handle contacts properly - get contact_ids and convert to User objects
                     contact_ids = grant_serializer.validated_data.get("contact_ids", [])
@@ -236,13 +288,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     else:
                         rh_post.eln_src.save(file_name, full_src_file)
 
-                if assign_doi:
-                    crossref_response = doi.register_doi_for_post(
-                        [created_by_author], title, rh_post
-                    )
-                    if crossref_response.status_code != 200:
-                        return Response("Crossref API Failure", status=400)
-
                 unified_document.update_filters(
                     (
                         FILTER_BOUNTY_OPEN,
@@ -252,7 +297,17 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     )
                 )
 
-            response_data = ResearchhubPostSerializer(rh_post).data
+                if target_grant is not None:
+                    GrantApplication.objects.create(
+                        grant=target_grant,
+                        preregistration_post=rh_post,
+                        applicant=created_by,
+                    )
+                    GrantCacheMixin.invalidate_grant_feed_cache()
+
+            response_data = ResearchhubPostSerializer(
+                rh_post, context={"request": request}
+            ).data
             response_data["fundraise"] = (
                 DynamicFundraiseSerializer(fundraise).data if fundraise else None
             )
@@ -303,6 +358,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         "is_active",
                         "created_by",
                         "contacts",
+                        "application_visibility",
                     ],
                 ).data
                 if grant
@@ -310,6 +366,8 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             )
             return Response(response_data, status=200)
 
+        except serializers.ValidationError as e:
+            return Response({"error": e.detail}, status=400)
         except (KeyError, TypeError) as exception:
             log_error(exception)
             return Response({"error": str(exception)}, status=400)
@@ -322,22 +380,15 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             rh_post_id = data.get("post_id", None)
             rh_post = ResearchhubPost.objects.get(id=rh_post_id)
 
-            # Check if all given authors are in the same organization
-            if rh_post.note_id:
-                note = Note.objects.get(id=rh_post.note_id)
-                organization = note.organization
-                if not self._check_authors_in_org(authors, organization):
-                    return Response(
-                        "No permission to update post for organization", status=403
-                    )
+            if authors and request.user.author_profile.id not in authors:
+                return Response(
+                    {"msg": "You must include yourself in the authors list"},
+                    status=400,
+                )
 
-            created_by = request.user
-            created_by_author = created_by.author_profile
             hubs = data.get("hubs", None)
             renderable_text = data.get("renderable_text", "")
             title = data.get("title", "")
-            assign_doi = data.get("assign_doi", False)
-            doi = DOI() if assign_doi else None
 
             if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
                 return Response(
@@ -363,22 +414,25 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     400,
                 )
 
-            rh_post.doi = doi.doi if doi else rh_post.doi
-            rh_post.save(update_fields=["doi"])
-
             serializer = ResearchhubPostSerializer(
-                rh_post, data=request.data, partial=True
+                rh_post, data=request.data, partial=True, context={"request": request}
             )
             serializer.is_valid(raise_exception=True)
             serializer.save()
             post = serializer.instance
 
             file_name = (
-                f'RH-POST-{request.data.get("document_type")}-'
+                f"RH-POST-{request.data.get('document_type')}-"
                 f"USER-{request.user.id}.txt"
             )
             full_src_file = ContentFile(request.data["full_src"].encode())
             post.discussion_src.save(file_name, full_src_file)
+
+            if post.document_type == PREREGISTRATION:
+                preregistration_substantively_updated.send(
+                    sender=ResearchhubPost,
+                    post_id=post.id,
+                )
 
             if type(authors) is list:
                 rh_post.authors.set(authors)
@@ -386,13 +440,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             if type(hubs) is list:
                 unified_doc = post.unified_document
                 unified_doc.hubs.set(hubs)
-
-            if assign_doi:
-                crossref_response = doi.register_doi_for_post(
-                    [created_by_author], title, rh_post
-                )
-                if crossref_response.status_code != 200:
-                    return Response("Crossref API Failure", status=400)
 
             # Handle grant updates
             grant = None
@@ -419,6 +466,11 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 if grant_contacts is not None:
                     grant_data["contact_ids"] = grant_contacts
 
+                if (
+                    application_visibility := data.get("grant_application_visibility")
+                ) is not None:
+                    grant_data["application_visibility"] = application_visibility
+
                 grant_serializer = GrantCreateSerializer(data=grant_data)
                 grant_serializer.is_valid(raise_exception=True)
 
@@ -434,6 +486,10 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 existing_grant.end_date = grant_serializer.validated_data.get(
                     "end_date"
                 )
+                if "application_visibility" in grant_serializer.validated_data:
+                    existing_grant.application_visibility = (
+                        grant_serializer.validated_data["application_visibility"]
+                    )
 
                 # Handle contacts properly - get contact_ids and convert to User objects
                 contact_ids = grant_serializer.validated_data.get("contact_ids", [])
@@ -497,6 +553,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         "is_active",
                         "created_by",
                         "contacts",
+                        "application_visibility",
                     ],
                 ).data
                 if grant
@@ -511,12 +568,40 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     def create_access_group(self, request):
         return None
 
-    def create_unified_doc(self, request):
+    def create_unified_doc(self, request, target_grant: Grant | None = None):
         try:
             request_data = request.data
             hubs = Hub.objects.filter(id__in=request_data.get("hubs", [])).all()
+            document_type = request_data.get("document_type")
+            is_public = True
+            # PREREGISTRATION and GRANT posts may be created as private.
+            if document_type in (PREREGISTRATION, GRANT):
+                explicit_is_public = "is_public" in request_data
+                if explicit_is_public:
+                    is_public = serializers.BooleanField().run_validation(
+                        request_data["is_public"]
+                    )
+
+                if document_type == PREREGISTRATION and target_grant is not None:
+                    required = target_grant.application_visibility
+                    # An explicit is_public that conflicts with the grant's
+                    # requirement is treated as a client error. When is_public
+                    # is omitted we fall back to whatever the grant requires.
+                    if required == Grant.APPLICATION_VISIBILITY_PRIVATE:
+                        if explicit_is_public and is_public:
+                            raise serializers.ValidationError(
+                                "This grant requires applications to be private."
+                            )
+                        is_public = False
+                    elif required == Grant.APPLICATION_VISIBILITY_PUBLIC:
+                        if explicit_is_public and not is_public:
+                            raise serializers.ValidationError(
+                                "This grant requires applications to be public."
+                            )
+                        is_public = True
             uni_doc = ResearchhubUnifiedDocument.objects.create(
-                document_type=request_data.get("document_type"),
+                document_type=document_type,
+                is_public=is_public,
             )
             uni_doc.hubs.add(*hubs)
             uni_doc.save()

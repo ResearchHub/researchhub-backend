@@ -3,30 +3,36 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.pagination import CursorPagination
+from rest_framework.pagination import CursorPagination, PageNumberPagination
 from rest_framework.response import Response
 
 from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
 from discussion.models import Flag
 from discussion.serializers import DynamicFlagSerializer, FlagSerializer
 from discussion.views import censor
-from mailing_list.lib import base_email_context
+from mailing_list.lib import base_email_context, send_email
 from notification.models import Notification
+from reputation.models import Distribution
+from reputation.serializers import DynamicDistributionSerializer
 from researchhub.settings import EMAIL_DOMAIN
 from researchhub_comment.models import RhCommentModel
-from researchhub_comment.views.rh_comment_view import remove_bounties
-from user.filters import AuditDashboardFilterBackend
+from user.filters import AUTO_PAYMENT_TYPES, AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 from utils import sentry
-from utils.message import send_email_message
 from utils.models import SoftDeletableModel
 
 
 class CursorSetPagination(CursorPagination):
     page_size = 10
     cursor_query_param = "page"
+
+
+class AutoPaymentPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 class AuditViewSet(viewsets.GenericViewSet):
@@ -45,8 +51,18 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     def get_queryset(self):
         if self.action == "flagged":
-            return Flag.objects.select_related("content_type").prefetch_related(
-                "verdict__created_by"
+            return (
+                Flag.objects.filter(content_type__in=self._get_allowed_models())
+                .select_related("content_type")
+                .prefetch_related("verdict__created_by")
+            )
+        if self.action == "auto_payments":
+            return (
+                Distribution.objects.filter(
+                    distribution_type__in=AUTO_PAYMENT_TYPES,
+                )
+                .select_related("recipient", "recipient__author_profile")
+                .order_by("-created_date")
             )
         return super().get_queryset()
 
@@ -187,7 +203,10 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["get"])
     def flagged_count(self, request):
-        count = Flag.objects.filter(verdict__isnull=True).count()
+        count = Flag.objects.filter(
+            verdict__isnull=True,
+            content_type__in=self._get_allowed_models(),
+        ).count()
         return Response(
             {"count": count},
             status=status.HTTP_200_OK,
@@ -210,6 +229,47 @@ class AuditViewSet(viewsets.GenericViewSet):
         )
         data = serializer.data
         return self.get_paginated_response(data)
+
+    @action(detail=False, methods=["get"])
+    def auto_payments(self, request):
+        qs = self.filter_queryset(self.get_queryset())
+
+        paginator = AutoPaymentPagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+
+        context = {
+            "rep_dds_get_recipient": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "author_profile",
+                    "email",
+                ]
+            },
+            "usr_dus_get_author_profile": {
+                "_include_fields": [
+                    "id",
+                    "profile_image",
+                ]
+            },
+        }
+
+        serializer = DynamicDistributionSerializer(
+            page,
+            many=True,
+            context=context,
+            _include_fields=[
+                "id",
+                "recipient",
+                "amount",
+                "distribution_type",
+                "distributed_status",
+                "created_date",
+            ],
+        )
+
+        return paginator.get_paginated_response(serializer.data)
 
     @action(detail=False, methods=["post"])
     def flag(self, request):
@@ -281,7 +341,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                 available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
                 verdict_choice = NOT_SPECIFIED
                 if data.get("verdict_choice") in available_reasons:
-                    verdict_choice = f'NOT_{data.get("verdict_choice")}'
+                    verdict_choice = f"NOT_{data.get('verdict_choice')}"
                 elif flag.reason_choice in available_reasons:
                     verdict_choice = f"NOT_{flag.reason_choice}"
 
@@ -395,11 +455,15 @@ class AuditViewSet(viewsets.GenericViewSet):
     def _remove_flagged_content(self, flag):
         with transaction.atomic():
             flag_item = flag.item
-            if isinstance(flag_item, RhCommentModel):
-                remove_bounties(flag_item)
+            is_comment = isinstance(flag_item, RhCommentModel)
+
+            if is_comment:
+                flag_item.cancel_bounties()
+                flag_item.soft_delete_descendants()
+
             censor_response = censor(flag_item)
 
-            if isinstance(flag_item, RhCommentModel):
+            if is_comment:
                 flag_item.refresh_related_discussion_count()
 
             return censor_response
@@ -453,7 +517,7 @@ class AuditViewSet(viewsets.GenericViewSet):
 
         recipient = [receiver.email]
         subject = "ResearchHub | Notice of Flagged and Removed Content"
-        send_email_message(
+        send_email(
             recipient,
             "flagged_and_removed_content.txt",
             subject,

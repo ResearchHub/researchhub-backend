@@ -2,7 +2,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from purchase.models import Fundraise, Purchase
-from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from purchase.utils import get_funded_fundraise_ids
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -14,7 +16,9 @@ from user.tests.helpers import create_random_authenticated_user
 class TestGetFundedFundraiseIds(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("funder")
-        self.doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+        self.doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
         self.ct = ContentType.objects.get_for_model(Fundraise)
 
     def _create_fundraise(self):
@@ -75,4 +79,3 @@ class TestGetFundedFundraiseIds(TestCase):
 
         # Assert
         self.assertEqual(result, set())
-

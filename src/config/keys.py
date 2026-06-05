@@ -35,9 +35,6 @@ APM_URL = os.environ.get("APM_URL", "")
 
 OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "")
 
-CKEDITOR_CLOUD_ACCESS_KEY = os.environ.get("CKEDITOR_CLOUD_ACCESS_KEY", "")
-CKEDITOR_CLOUD_ENVIRONMENT_ID = os.environ.get("CKEDITOR_CLOUD_ENVIRONMENT_ID", "")
-
 CROSSREF_LOGIN_ID = os.environ.get("CROSSREF_LOGIN_ID", "")
 CROSSREF_LOGIN_PASSWORD = os.environ.get("CROSSREF_LOGIN_PASSWORD", "")
 
@@ -58,6 +55,7 @@ WEB3_BASE_PROVIDER_URL = os.environ.get("WEB3_BASE_PROVIDER_URL", "")
 
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 SEGMENT_WRITE_KEY = os.environ.get("SEGMENT_WRITE_KEY", "")
 
 ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", "")
@@ -74,3 +72,7 @@ ENDAOMENT_RH_FUND_ID_BASE = os.environ.get("ENDAOMENT_RH_FUND_ID_BASE", "")
 RESEARCHHUB_JOURNAL_ID = os.environ.get("RESEARCHHUB_JOURNAL_ID", "")
 
 SCRAPER_URL = os.environ.get("SCRAPER_URL", "")
+
+CIRCLE_API_KEY = os.environ.get("CIRCLE_API_KEY", "")
+CIRCLE_ENTITY_SECRET = os.environ.get("CIRCLE_ENTITY_SECRET", "")
+CIRCLE_WALLET_SET_ID = os.environ.get("CIRCLE_WALLET_SET_ID", "")

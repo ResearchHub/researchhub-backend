@@ -1,17 +1,17 @@
 from django.test import TestCase
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.test import APIClient, APIRequestFactory, force_authenticate
+from rest_framework.views import APIView
+
+from user.models import UserVerification
+from user.permissions import IsVerifiedUser
 from user.tests.helpers import (
     create_random_authenticated_user,
 )
-from user.models import UserVerification
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from user.permissions import IsVerifiedUser
-from rest_framework.test import APIClient, APIRequestFactory, force_authenticate
-from rest_framework import status
 
 
 class PermissionsTests(TestCase):
-
     class TestView(APIView):
         permission_classes = [IsVerifiedUser]
 

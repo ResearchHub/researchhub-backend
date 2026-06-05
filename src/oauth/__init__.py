@@ -1,1 +1,1 @@
-default_app_config = 'oauth.apps.OAuthConfig'
+default_app_config = "oauth.apps.OAuthConfig"

@@ -40,16 +40,13 @@ class PurchaseQuerySet(models.QuerySet):
 
     def sum(self) -> Decimal:
         """Return sum of RSC amounts as Decimal."""
-        return self.annotate(
-            amt=Cast("amount", DECIMAL_FIELD)
-        ).aggregate(
+        return self.annotate(amt=Cast("amount", DECIMAL_FIELD)).aggregate(
             total=Coalesce(Sum("amt"), Decimal("0"))
         )["total"]
 
 
 class Purchase(PaidStatusModelMixin):
     OFF_CHAIN = "OFF_CHAIN"
-    ON_CHAIN = "ON_CHAIN"
 
     BOOST = "BOOST"
     DOI = "DOI"
@@ -57,7 +54,6 @@ class Purchase(PaidStatusModelMixin):
 
     PURCHASE_METHOD_CHOICES = [
         (OFF_CHAIN, OFF_CHAIN),
-        (ON_CHAIN, ON_CHAIN),
     ]
 
     PURCHASE_TYPE_CHOICES = [
@@ -92,6 +88,11 @@ class Purchase(PaidStatusModelMixin):
 
     purchase_hash = models.CharField(max_length=32, blank=True, null=True)
     amount = models.CharField(max_length=255)
+    rsc_usd_rate = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="RSC-to-USD exchange rate at the time of purchase.",
+    )
     boost_time = models.FloatField(null=True)
 
     created_date = models.DateTimeField(auto_now_add=True)

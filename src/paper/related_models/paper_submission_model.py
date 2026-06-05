@@ -1,5 +1,3 @@
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 from django.db import models
 
 from paper.related_models.paper_model import Paper
@@ -106,14 +104,3 @@ class PaperSubmission(DefaultModel):
 
     def set_failed_doi_status(self, save=True):
         self.set_status(self.FAILED_DOI, save)
-
-    def notify_status(self, **kwargs):
-        if not self.uploaded_by:
-            return
-        user_id = self.uploaded_by.id
-        room = f"{user_id}_paper_submissions"
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            room,
-            {"type": "notify_paper_submission_status", "id": self.id, **kwargs},
-        )

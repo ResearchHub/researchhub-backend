@@ -9,7 +9,6 @@ from django.core.management.base import BaseCommand
 from paper.openalex_util import process_openalex_works
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
-from researchhub_case.related_models.author_claim_case_model import AuthorClaimCase
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )

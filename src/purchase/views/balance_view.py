@@ -2,18 +2,17 @@ import csv
 import decimal
 import time
 from datetime import datetime
-from typing import Optional
 from decimal import Decimal
+from typing import Optional
 
 import pytz
-from django.contrib.contenttypes.models import ContentType
 from django.http import HttpResponse
+from django_filters import rest_framework as filters
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from django_filters import rest_framework as filters
 
 from purchase.models import Balance, RscExchangeRate
 from purchase.permissions import CanSendRSC
@@ -30,7 +29,7 @@ class BalanceFilter(filters.FilterSet):
 
     class Meta:
         model = Balance
-        fields = ['created_date']
+        fields = ["created_date"]
 
 
 class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
@@ -58,17 +57,6 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
         amount = request.data.get("amount", 0)
         if recipient_id:
             user = request.user
-            user_id = user.id
-            content_type = ContentType.objects.get(model="distribution")
-            proof_content_type = ContentType.objects.get(model="user")
-            proof = {
-                "table": "user_user",
-                "record": {
-                    "id": user_id,
-                    "email": user.email,
-                    "name": user.first_name + " " + user.last_name,
-                },
-            }
             distribution = Distribution("MOD_PAYOUT", amount, give_rep=False)
             timestamp = time.time()
             user_proof = User.objects.get(id=recipient_id)
@@ -138,30 +126,30 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
     )
     def turbotax_csv_export(self, request):
         """Export transactions in TurboTax-compatible CSV format."""
-        
+
         def format_decimal(value: Optional[Decimal]) -> str:
             """Format decimal to 8 decimal places."""
             if value is None:
                 return "0.00"
             return "{:.8f}".format(float(value))
-        
+
         def get_transaction_type_for_turbotax(balance) -> str:
             """
             Map balance content type to TurboTax transaction type.
-            
+
             Rules:
             - withdrawal -> Withdrawal
             - deposit -> Deposit
             - *fee* in type -> Expense
             - negative RSC amount -> Buy
             - positive RSC amount -> Income
-            
+
             Turbotax CSV format:
             https://ttlc.intuit.com/turbotax-support/en-us/help-article/
             cryptocurrency/create-csv-file-unsupported-source/L1yhp71Nt_US_en_US?
             """
             model_name = balance.content_type.model.lower()
-            
+
             if model_name == "withdrawal":
                 return "Withdrawal"
             if model_name == "deposit":
@@ -174,8 +162,8 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
             """Format a single transaction row for TurboTax CSV."""
             # Skip failed withdrawals
             is_failed_withdrawal = (
-                balance.content_type.model.lower() == "withdrawal" and 
-                getattr(balance.source, 'paid_status', '').upper() == 'FAILED'
+                balance.content_type.model.lower() == "withdrawal"
+                and getattr(balance.source, "paid_status", "").upper() == "FAILED"
             )
             if is_failed_withdrawal:
                 return []
@@ -198,7 +186,7 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
                 format_decimal(usd_value),  # Market Value
                 balance.content_type.name,  # Description
                 "",  # Transaction Hash
-                str(balance.id)  # Transaction ID
+                str(balance.id),  # Transaction ID
             ]
 
             if is_outgoing:
@@ -215,13 +203,22 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
         response["Content-Disposition"] = (
             'attachment; filename="transactions_turbotax.csv"'
         )
-        
+
         writer = csv.writer(response)
         headers = [
-            "Date", "Type", "Sent Asset", "Sent Amount", "Received Asset",
-            "Received Amount", "Fee Asset", "Fee Amount",
-            "Market Value Currency", "Market Value", "Description",
-            "Transaction Hash", "Transaction ID"
+            "Date",
+            "Type",
+            "Sent Asset",
+            "Sent Amount",
+            "Received Asset",
+            "Received Amount",
+            "Fee Asset",
+            "Fee Amount",
+            "Market Value Currency",
+            "Market Value",
+            "Description",
+            "Transaction Hash",
+            "Transaction ID",
         ]
         writer.writerow(headers)
 
@@ -229,12 +226,12 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
             exchange_rate = RscExchangeRate.objects.filter(
                 created_date__lte=balance.created_date
             ).last()
-            
+
             rate = (
                 exchange_rate.real_rate or exchange_rate.rate
                 if exchange_rate
                 else default_exchange_rate.real_rate
-            ) or Decimal('0.00')
+            ) or Decimal("0.00")
 
             row = format_transaction_row(balance, rate)
             if row:  # Only write row if it's not a failed withdrawal

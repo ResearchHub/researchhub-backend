@@ -1,5 +1,7 @@
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
+from ai_peer_review.serializers import ProposalKeyInsightSerializer
 from purchase.models import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -21,6 +23,7 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
     created_by = serializers.SerializerMethodField()
     contacts = serializers.SerializerMethodField()
     amount = serializers.SerializerMethodField()
+    post_id = serializers.SerializerMethodField()
     is_expired = serializers.SerializerMethodField()
     is_active = serializers.SerializerMethodField()
     applications = serializers.SerializerMethodField()
@@ -44,6 +47,10 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             grant.contacts.all(), context=context, many=True, **_context_fields
         )
         return serializer.data
+
+    def get_post_id(self, grant):
+        posts = grant.unified_document.posts.all()
+        return posts[0].id if posts else None
 
     def get_amount(self, grant):
         """
@@ -77,33 +84,217 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         return grant.is_active()
 
     def get_applications(self, grant):
-        """Return grant applications with applicant information"""
+        """Return grant applications with applicant and fundraise information"""
 
-        applications = grant.applications.select_related(
-            "applicant__author_profile"
-        ).all()
+        request = self.context.get("request")
+        viewer = getattr(request, "user", None) if request else None
+        viewer_authed = viewer is not None and getattr(
+            viewer, "is_authenticated", False
+        )
 
+        # Site moderators and hub editors may view private applications, just
+        # like the grant owner — mirroring ResearchhubPost.visible_to, the rule
+        # the funding feed and the post/grant detail views already use. Without
+        # this, a moderator who is not the grant owner only sees the public
+        # proposals on a grant's detail page. is_hub_editor() hits the DB and
+        # this serializer is reused for every grant in a feed, so memoize the
+        # per-request answer on the (per-request) serializer context.
+        privileged = self.context.get("_grant_private_app_viewer")
+        if privileged is None:
+            privileged = viewer_authed and (
+                getattr(viewer, "moderator", False) or viewer.is_hub_editor()
+            )
+            self.context["_grant_private_app_viewer"] = privileged
+
+        can_view_private = privileged or (
+            viewer_authed and grant.created_by_id == viewer.id
+        )
+
+        review_by_ud = {r.unified_document_id: r for r in grant.proposal_reviews.all()}
         application_data = []
-        for application in applications:
-            if (
-                application.applicant
-                and hasattr(application.applicant, "author_profile")
-                and application.applicant.author_profile
-            ):
-                applicant_data = DynamicAuthorSerializer(
-                    application.applicant.author_profile
-                ).data
-                application_data.append(
-                    {
-                        "id": application.id,
-                        "created_date": application.created_date,
-                        "applicant": applicant_data,
-                        "preregistration_post_id": (
-                            application.preregistration_post.id
-                            if application.preregistration_post
-                            else None
-                        ),
-                    }
-                )
+        for application in grant.applications.all():
+            author_profile = getattr(application.applicant, "author_profile", None)
+            if not author_profile:
+                continue
+
+            ud = getattr(application.preregistration_post, "unified_document", None)
+            if ud and ud.is_removed:
+                continue
+
+            if ud and not ud.is_public and not can_view_private:
+                if not viewer_authed:
+                    continue
+                if application.applicant_id != viewer.id:
+                    continue
+
+            application_data.append(
+                {
+                    "id": application.id,
+                    "created_date": application.created_date,
+                    "applicant": DynamicAuthorSerializer(author_profile).data,
+                    "preregistration_post_id": (
+                        application.preregistration_post.id
+                        if application.preregistration_post
+                        else None
+                    ),
+                    "fundraise": self._serialize_application_fundraise(application),
+                    "key_insight": self._serialize_application_key_insight(
+                        application, review_by_ud
+                    ),
+                }
+            )
 
         return application_data
+
+    @classmethod
+    def _serialize_application_key_insight(cls, application, review_by_ud):
+        proposal_review = None
+        if application.preregistration_post_id:
+            ud = application.preregistration_post.unified_document
+            if ud is not None:
+                proposal_review = review_by_ud.get(ud.id)
+        if proposal_review is None:
+            return None
+        try:
+            ki = proposal_review.key_insight
+        except ObjectDoesNotExist:
+            return None
+        return ProposalKeyInsightSerializer(ki).data
+
+    @classmethod
+    def _serialize_application_fundraise(cls, application):
+        post = application.preregistration_post
+        if (
+            not post
+            or not hasattr(post, "unified_document")
+            or not post.unified_document
+        ):
+            return None
+
+        ud = post.unified_document
+        if not hasattr(ud, "fundraises"):
+            return None
+
+        fundraises = ud.fundraises.all()
+        if not fundraises:
+            return None
+        fundraise = fundraises[0]
+
+        usd_goal = float(fundraise.goal_amount)
+        try:
+            rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
+        except AttributeError:
+            rsc_goal = None
+
+        aggregated = fundraise.get_contributors_summary()
+
+        rsc_raised = sum(c.total_rsc for c in aggregated.top)
+        usd_raised = sum(c.total_usd for c in aggregated.top)
+        if fundraise.escrow:
+            escrow_rsc = float(
+                fundraise.escrow.amount_holding + fundraise.escrow.amount_paid
+            )
+            rsc_raised += escrow_rsc
+
+        try:
+            total_usd = usd_raised + (
+                RscExchangeRate.rsc_to_usd(rsc_raised) if rsc_raised > 0 else 0
+            )
+            total_rsc = rsc_raised + (
+                RscExchangeRate.usd_to_rsc(usd_raised) if usd_raised > 0 else 0
+            )
+        except AttributeError:
+            total_usd = usd_raised
+            total_rsc = rsc_raised
+
+        contributors = []
+        for entry in aggregated.top:
+            profile_image = None
+            author = getattr(entry.user, "author_profile", None)
+            if author and author.profile_image:
+                try:
+                    profile_image = author.profile_image.url
+                except ValueError:
+                    profile_image = None
+
+            contributors.append(
+                {
+                    "id": entry.user.id,
+                    "first_name": entry.user.first_name,
+                    "last_name": entry.user.last_name,
+                    "profile_image": profile_image,
+                    "total_contribution": {
+                        "rsc": entry.total_rsc,
+                        "rsc_usd_snapshot": entry.total_rsc_usd_snapshot,
+                        "usd": entry.total_usd,
+                    },
+                }
+            )
+
+        nonprofit_data = None
+        links = fundraise.nonprofit_links.all()
+        if links:
+            np = links[0].nonprofit
+            nonprofit_data = {
+                "id": np.id,
+                "name": np.name,
+                "ein": np.ein,
+                "endaoment_org_id": np.endaoment_org_id,
+            }
+
+        reviews = [
+            {
+                "id": r.id,
+                "score": r.score,
+                "is_assessed": r.is_assessed,
+                "author": cls._serialize_review_author(r),
+            }
+            for r in ud.reviews.all()
+        ]
+
+        assessed_scores = [r["score"] for r in reviews if r["is_assessed"]]
+        review_metrics = {
+            "avg": (
+                sum(assessed_scores) / len(assessed_scores) if assessed_scores else 0
+            ),
+            "count": len(assessed_scores),
+        }
+
+        return {
+            "id": fundraise.id,
+            "title": post.title,
+            "status": fundraise.status,
+            "goal_amount": {"usd": usd_goal, "rsc": rsc_goal},
+            "amount_raised": {
+                "usd": total_usd,
+                "rsc": total_rsc,
+            },
+            "contributors": {
+                "total": aggregated.total,
+                "top": contributors,
+            },
+            "nonprofit": nonprofit_data,
+            "review_metrics": review_metrics,
+            "reviews": reviews,
+        }
+
+    @staticmethod
+    def _serialize_review_author(review):
+        user = review.created_by
+        if not user:
+            return None
+        author = getattr(user, "author_profile", None)
+        if not author:
+            return None
+        profile_image = None
+        if author.profile_image:
+            try:
+                profile_image = author.profile_image.url
+            except ValueError:
+                pass
+        return {
+            "id": author.id,
+            "first_name": author.first_name,
+            "last_name": author.last_name,
+            "profile_image": profile_image,
+        }

@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 
 import humanize
 import pytz
+from dj_rest_auth.mfa.totp import TOTP
+from dj_rest_auth.mfa.utils import is_mfa_enabled
 from django.conf import settings
 from django.contrib.admin.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
@@ -19,16 +21,17 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.tasks import track_revenue_event
+from ethereum.lib import normalize_ethereum_address
 from purchase.models import Balance
-from reputation.exceptions import WithdrawalError
 from reputation.lib import (
     WITHDRAWAL_MINIMUM,
-    PendingWithdrawal,
     calculate_transaction_fee,
+    dispatch_withdrawal_broadcast,
     get_hotwallet_rsc_balance,
 )
 from reputation.models import Withdrawal
 from reputation.permissions import AllowWithdrawalIfNotSuspecious
+from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.serializers import WithdrawalSerializer
 from user.related_models.user_model import User
 from user.related_models.user_verification_model import UserVerification
@@ -98,10 +101,22 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 "Invalid network. Please choose either 'BASE' or 'ETHEREUM'", status=400
             )
 
+        try:
+            to_address = normalize_ethereum_address(to_address)
+        except ValueError:
+            return Response("Invalid Ethereum address", status=400)
+
+        if mfa_error := self._check_mfa(user, request):
+            return Response(mfa_error, status=400)
+
         transaction_fee = self.calculate_transaction_fee(network)
 
         pending_tx = Withdrawal.objects.filter(
-            user=user, paid_status="PENDING", transaction_hash__isnull=False
+            user=user,
+            paid_status__in=[
+                PaidStatusModelMixin.INITIATED,
+                PaidStatusModelMixin.PENDING,
+            ],
         )
 
         if pending_tx.exists():
@@ -145,13 +160,16 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                     withdrawal = Withdrawal.objects.create(
                         user=user,
                         token_address=NETWORKS[network]["token_address"],
+                        from_address=settings.WEB3_WALLET_ADDRESS,
                         to_address=to_address,
                         amount=amount,
                         fee=transaction_fee,
                         network=network,
+                        paid_status=PaidStatusModelMixin.INITIATED,
                     )
 
-                    self._pay_withdrawal(withdrawal, amount, transaction_fee)
+                    self._prepare_withdrawal(withdrawal, amount, transaction_fee)
+                    dispatch_withdrawal_broadcast(withdrawal.id)
 
                 # Track in Amplitude
                 track_revenue_event.apply_async(
@@ -173,6 +191,23 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         else:
             logger.error(f"Invalid withdrawal: {message}")
             return Response(message, status=400)
+
+    def _check_mfa(self, user, request) -> str | None:
+        """
+        When MFA is enabled by the user, validate the given MFA code from the request.
+        Returns an error message if invalid, or None if MFA passes (or is disabled).
+        """
+        if not is_mfa_enabled(user):
+            return None
+
+        code = (request.data.get("mfa_code") or "").strip()
+        if not code:
+            return "Authenticator code is required for withdrawals"
+
+        if not TOTP.validate_code(user, code):
+            return "Invalid authenticator code"
+
+        return None
 
     def _can_withdraw(self, user: User) -> bool:
         # User can withdraw if rep score is 10 or more
@@ -237,30 +272,15 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         )
         return balance_record
 
-    def _pay_withdrawal(self, withdrawal, amount, fee):
-        try:
-            ending_balance_record = self._create_balance_record(
-                withdrawal,
-                0,
-            )
-            pending_withdrawal = PendingWithdrawal(
-                withdrawal, ending_balance_record.id, amount, network=withdrawal.network
-            )
-            pending_withdrawal.complete_token_transfer()
-            ending_balance_record.amount = f"-{amount + fee}"
-            ending_balance_record.save()
-        except Exception as e:
-            logging.error(e)
-            withdrawal.set_paid_failed()
-            error = WithdrawalError(e, f"Failed to pay withdrawal {withdrawal.id}")
-            logging.error(error)
-            sentry.log_error(error, error.message)
-            raise e
+    def _prepare_withdrawal(self, withdrawal, amount, fee):
+        self._create_balance_record(withdrawal, amount + fee)
 
     def _check_withdrawal_time_limit(self, to_address, user):
         last_withdrawal_address = (
             Withdrawal.objects.filter(
-                Q(paid_status="PAID") | Q(paid_status="PENDING"),
+                Q(paid_status="PAID")
+                | Q(paid_status="PENDING")
+                | Q(paid_status="INITIATED"),
                 to_address__iexact=to_address,
             )
             .order_by("id")
@@ -268,7 +288,10 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         )
         last_withdrawal_user = (
             Withdrawal.objects.filter(
-                Q(paid_status="PAID") | Q(paid_status="PENDING"), user=user
+                Q(paid_status="PAID")
+                | Q(paid_status="PENDING")
+                | Q(paid_status="INITIATED"),
+                user=user,
             )
             .order_by("id")
             .last()
@@ -304,15 +327,18 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         return (True, None)
 
-    def _check_meets_withdrawal_minimum(self, balance):
-        # Withdrawal amount is full balance for now
-        if balance > WITHDRAWAL_MINIMUM:
+    def _check_meets_withdrawal_minimum(self, requested_amount):
+        """
+        Reject withdrawals below the platform minimum (WITHDRAWAL_MINIMUM).
+        """
+        if requested_amount >= WITHDRAWAL_MINIMUM:
             return (True, None)
 
-        message = f"Insufficient balance of {balance}"
-        if balance > 0:
+        if requested_amount == 0:
+            message = "Withdrawal amount must be greater than zero"
+        else:
             message = (
-                f"Balance {balance} is below the withdrawal"
+                f"Withdrawal amount {requested_amount} is below the withdrawal"
                 f" minimum of {WITHDRAWAL_MINIMUM}"
             )
         return (False, message)
@@ -333,7 +359,9 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         """
         last_withdrawal_tx = (
             Withdrawal.objects.filter(
-                Q(paid_status="PAID") | Q(paid_status="PENDING"),
+                Q(paid_status="PAID")
+                | Q(paid_status="PENDING")
+                | Q(paid_status="INITIATED"),
                 to_address__iexact=to_address,
             )
             .order_by("id")
@@ -350,7 +378,9 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             if valid:
                 last_withdrawal = (
                     user.withdrawals.filter(
-                        Q(paid_status="PAID") | Q(paid_status="PENDING")
+                        Q(paid_status="PAID")
+                        | Q(paid_status="PENDING")
+                        | Q(paid_status="INITIATED")
                     )
                     .order_by("id")
                     .last()
@@ -392,7 +422,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         if net_amount < 0:
             return (False, "Invalid withdrawal", None)
 
-        if user and user.get_balance() < net_amount:
+        if user and user.get_available_balance() < net_amount:
             return (False, "You do not have enough RSC to make this withdrawal", None)
 
         return True, None, net_amount

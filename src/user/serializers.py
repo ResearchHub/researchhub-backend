@@ -18,7 +18,7 @@ from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from referral.models import ReferralSignup
-from reputation.models import Bounty, Contribution, Score, Withdrawal
+from reputation.models import Bounty, Contribution, Distribution, Score, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
@@ -36,7 +36,6 @@ from user.models import (
     Organization,
     University,
     User,
-    UserApiToken,
     UserVerification,
     Verdict,
 )
@@ -47,6 +46,8 @@ from user.related_models.author_institution import AuthorInstitution
 from user.related_models.coauthor_model import CoAuthor
 from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
+from user.related_models.risk_score_model import RiskScoreEvent
+from user.services.risk_score_service import RiskScoreService
 from utils import sentry
 
 
@@ -75,6 +76,7 @@ def compute_user_balances(user):
 
 class ModeratorUserSerializer(ModelSerializer):
     verification = SerializerMethodField()
+    risk_score = SerializerMethodField()
 
     class Meta:
         model = User
@@ -87,6 +89,7 @@ class ModeratorUserSerializer(ModelSerializer):
             "created_date",
             "is_orcid_connected",
             "orcid_verified_edu_email",
+            "risk_score",
         ]
 
     def get_verification(self, user):
@@ -103,6 +106,35 @@ class ModeratorUserSerializer(ModelSerializer):
             "external_id": user_verification.external_id,
             "status": user_verification.status,
         }
+
+    def get_risk_score(self, user):
+        return RiskScoreService().get_score(user)
+
+
+class RiskScoreEventSerializer(ModelSerializer):
+    source_type = SerializerMethodField()
+    source_detail = SerializerMethodField()
+
+    class Meta:
+        model = RiskScoreEvent
+        fields = [
+            "id",
+            "event_type",
+            "delta",
+            "source_type",
+            "source_content_id",
+            "source_detail",
+            "action_date",
+            "created_date",
+        ]
+
+    def get_source_type(self, event):
+        if event.source_content_type_id is None:
+            return None
+        return event.source_content_type.model
+
+    def get_source_detail(self, event):
+        return self.context.get("details", {}).get(event.id)
 
 
 class UniversitySerializer(ModelSerializer):
@@ -122,6 +154,7 @@ class AuthorSerializer(ModelSerializer):
     reputation_list = SerializerMethodField()
     total_score = SerializerMethodField()
     university = UniversitySerializer(required=False)
+    wallet = SerializerMethodField()
     suspended_status = SerializerMethodField()
     is_verified = SerializerMethodField()
 
@@ -129,8 +162,6 @@ class AuthorSerializer(ModelSerializer):
         model = Author
         fields = [field.name for field in Author._meta.fields] + [
             "added_as_editor_date",
-            "claimed_by_user_author_id",
-            "is_claimed",
             "is_hub_editor_of",
             "is_hub_editor",
             "num_posts",
@@ -142,12 +173,11 @@ class AuthorSerializer(ModelSerializer):
             "suspended_status",
             "total_score",
             "university",
+            "wallet",
             "is_verified",
         ]
         read_only_fields = [
             "added_as_editor_date",
-            "claimed_by_user_author_id",
-            "is_claimed",
             "is_hub_editor_of",
             "num_posts",
             "merged_with",
@@ -195,6 +225,19 @@ class AuthorSerializer(ModelSerializer):
     def get_total_score(self, author):
         if author.author_score > 0:
             return author.author_score
+
+    def get_wallet(self, obj):
+        from purchase.serializers import WalletSerializer
+
+        if not self.context.get("include_wallet", False):
+            return
+
+        try:
+            if obj.user is None:
+                return
+            return WalletSerializer(obj.user.wallet).data
+        except Exception:
+            pass
 
     def get_num_posts(self, author):
         user = author.user
@@ -266,13 +309,6 @@ class GatekeeperSerializer(ModelSerializer):
         model = Gatekeeper
         fields = "__all__"
         read_only_fields = [field.name for field in Gatekeeper._meta.fields]
-
-
-class UserApiTokenSerializer(ModelSerializer):
-    class Meta:
-        model = UserApiToken
-        fields = ["name", "prefix", "revoked"]
-        read_only_fields = [field.name for field in UserApiToken._meta.fields]
 
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
@@ -424,6 +460,7 @@ class UserSerializer(ModelSerializer):
     author_profile = AuthorSerializer(read_only=True)
     balance = SerializerMethodField(read_only=True)
     balances = SerializerMethodField(read_only=True)
+    is_funder = SerializerMethodField()
     subscribed = SerializerMethodField(read_only=True)
     hub_rep = SerializerMethodField()
     time_rep = SerializerMethodField()
@@ -439,6 +476,8 @@ class UserSerializer(ModelSerializer):
             "created_date",
             "has_seen_first_coin_modal",
             "has_seen_orcid_connect_modal",
+            "is_funder",
+            "is_staking_opted_in",
             "is_suspended",
             "probable_spammer",
             "is_verified",
@@ -456,6 +495,8 @@ class UserSerializer(ModelSerializer):
             "created_date",
             "has_seen_first_coin_modal",
             "has_seen_orcid_connect_modal",
+            "is_funder",
+            "is_staking_opted_in",
             "is_suspended",
             "probable_spammer",
             "is_verified",
@@ -467,6 +508,9 @@ class UserSerializer(ModelSerializer):
             "hub_rep",
             "time_rep",
         ]
+
+    def get_is_funder(self, obj):
+        return getattr(obj, "is_funder", False)
 
     def get_balance(self, obj):
         if (
@@ -531,6 +575,7 @@ class UserEditableSerializer(ModelSerializer):
     author_profile = AuthorSerializer()
     balance = SerializerMethodField()
     balances = SerializerMethodField()
+    is_funder = SerializerMethodField()
     locked_balance = SerializerMethodField()
     balance_history = SerializerMethodField()
     email = SerializerMethodField()
@@ -554,6 +599,9 @@ class UserEditableSerializer(ModelSerializer):
             "date_joined",
         ]
         read_only_fields = ["moderator", "referral_code"]
+
+    def get_is_funder(self, obj):
+        return getattr(obj, "is_funder", False)
 
     def get_auth_provider(self, obj):
         social_account = obj.socialaccount_set.first()
@@ -598,7 +646,17 @@ class UserEditableSerializer(ModelSerializer):
             clicked_on_balance_date = user.clicked_on_balance_date
             balances = user.get_balance_qs()
             balances = balances.filter(created_date__gt=clicked_on_balance_date)
-            balance = user.get_balance(balances)
+            deposit_distribution_ids = Distribution.objects.filter(
+                distribution_type="DEPOSIT"
+            ).values_list("id", flat=True)
+            balances = balances.exclude(
+                content_type=ContentType.objects.get_for_model(Distribution),
+                object_id__in=deposit_distribution_ids,
+            )
+            balances = balances.exclude(
+                content_type=ContentType.objects.get_for_model(Withdrawal),
+            )
+            balance = user.get_balance(balances, include_locked=True)
             return balance
         return None
 
@@ -687,6 +745,7 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
 class DynamicUserSerializer(DynamicModelFieldSerializer):
     author_profile = SerializerMethodField()
+    is_funder = SerializerMethodField()
     rsc_earned = SerializerMethodField()
     balances = SerializerMethodField()
     benefits_expire_on = SerializerMethodField()
@@ -696,6 +755,9 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = User
         exclude = ("password",)
+
+    def get_is_funder(self, obj):
+        return getattr(obj, "is_funder", False)
 
     def get_author_profile(self, user):
         context = self.context

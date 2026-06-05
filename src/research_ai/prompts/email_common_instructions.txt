@@ -1,0 +1,20 @@
+Generate a short, professional email (100-150 words max) to contact this expert.
+
+{base_rules}
+
+EMAIL STRUCTURE:
+- Part 1 - Context: briefly introduce yourself or the opportunity and why
+  you are reaching out
+- Part 2 - Relevance: explain why this is relevant to their stated expertise
+- Part 3 - Call to action: make the next step clear and easy to respond to
+
+FORMATTING RULES:
+- Write in plain text only
+- Do not use markdown, bullets, or numbered lists in the email itself
+- Keep it concise, natural, and specific
+- Do not include a closing line or signature
+
+Output format:
+Subject: [subject line]
+
+[Email body - follow the 3-part structure above]

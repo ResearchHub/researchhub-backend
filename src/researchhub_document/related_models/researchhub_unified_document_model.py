@@ -2,7 +2,16 @@ from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import Avg, Count, DecimalField, Q, QuerySet, Sum
+from django.db.models import (
+    Avg,
+    Count,
+    DecimalField,
+    Exists,
+    OuterRef,
+    Q,
+    QuerySet,
+    Sum,
+)
 from django.db.models.functions import Cast
 from django.utils.functional import cached_property
 
@@ -123,6 +132,28 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
     def update_filters(self, filter_types):
         for filter_type in filter_types:
             self.update_filter(filter_type)
+
+    def is_visible_to_user(self, user):
+        """Whether this unified document may be exposed to ``user``.
+
+        Public documents are visible to everyone. Private documents (e.g.
+        private preregistrations) reuse the post-level ``visible_to`` rules so
+        the logic stays in one place: the author, grant creators the post
+        applied to, users with a non-revoked Permission, and moderators /
+        hub editors can see them.
+        """
+        if self.is_public:
+            return True
+
+        from researchhub_document.related_models.researchhub_post_model import (
+            ResearchhubPost,
+        )
+
+        return (
+            ResearchhubPost.objects.filter(unified_document=self)
+            .visible_to(user)
+            .exists()
+        )
 
     @property
     def authors(self):
@@ -260,45 +291,48 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             return None
 
     def get_review_details(self):
-        """Return average score & count of *active* reviews.
+        """Return average score & count of assessed reviews.
 
-        A review is considered active if:
+        A review is counted if:
         1. The review itself has not been soft-deleted (`is_removed=False`).
         2. The underlying comment (`RhCommentModel`) it references has not been
            soft-deleted.
+        3. The review has been assessed by the foundation (`is_assessed=True`).
         """
 
         comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
 
-        active_comment_ids = RhCommentModel.objects.filter(is_removed=False).values(
-            "id"
+        # query comments that have not been removed
+        active_comment = RhCommentModel.objects.filter(
+            id=OuterRef("object_id"), is_removed=False
         )
 
         reviews = self.reviews.filter(
             is_removed=False,
+            is_assessed=True,
             content_type=comment_content_type,
-            object_id__in=active_comment_ids,
-        )
+        ).filter(Exists(active_comment))
 
-        if reviews.exists():
-            details = reviews.aggregate(avg=Avg("score"), count=Count("id"))
-        else:
-            details = {"avg": 0, "count": 0}
-        return details
+        details = reviews.aggregate(avg=Avg("score"), count=Count("id"))
+        return {"avg": details["avg"] or 0, "count": details["count"]}
 
     def frontend_view_link(self):
         doc = self.get_document()
         document_type = self.document_type
-        if document_type in (
+        if document_type == GRANT:
+            path_segment = "grant"
+        elif document_type == PREREGISTRATION:
+            path_segment = "proposal"
+        elif document_type in (
             QUESTION,
             DISCUSSION,
             POSTS,
             BOUNTY,
-            PREREGISTRATION,
-            GRANT,
         ):
-            document_type = "post"
-        url = f"{BASE_FRONTEND_URL}/{document_type.lower()}/{doc.id}/{doc.slug}"
+            path_segment = "post"
+        else:
+            path_segment = document_type.lower()
+        url = f"{BASE_FRONTEND_URL}/{path_segment}/{doc.id}/{doc.slug}"
         return url
 
     # ========================================================================
@@ -397,9 +431,7 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             paid_status=Purchase.PAID,
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=10)))
-        )[
-            "total"
-        ]
+        )["total"]
 
         if tips:
             try:

@@ -12,7 +12,6 @@ from rest_framework.test import APITestCase
 
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.lib import PendingWithdrawal
 from reputation.models import Withdrawal
 from reputation.tests.helpers import create_deposit, create_withdrawals
 from reputation.views.withdrawal_view import WithdrawalViewSet
@@ -26,6 +25,9 @@ from utils.test_helpers import (
     get_authenticated_get_response,
     get_authenticated_post_response,
 )
+
+VALID_TEST_TO_ADDRESS = "0xabcdef1234567890abcdef1234567890abcdef12"
+VALID_TEST_TO_ADDRESS_SHARED = "0x1111111111111111111111111111111111111111"
 
 
 def mocked_execute_erc20_transfer(w3, sender, sender_signing_key, contract, to, amount):
@@ -118,7 +120,7 @@ class ReputationViewsTests(APITestCase):
             {
                 "agreed_to_terms": True,
                 "amount": "333",
-                "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "to_address": VALID_TEST_TO_ADDRESS,
                 "transaction_fee": 15,
             },
         )
@@ -134,15 +136,15 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
+        with mock.patch(
+            "reputation.tasks.broadcast_withdrawal.delay", return_value=None
         ):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
                     "agreed_to_terms": True,
                     "amount": "550",
-                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "to_address": VALID_TEST_TO_ADDRESS,
                     "transaction_fee": 15,
                 },
             )
@@ -159,7 +161,7 @@ class ReputationViewsTests(APITestCase):
             amount="100",
             fee="10",
             from_address="0x0123",
-            to_address="0x0123",
+            to_address=VALID_TEST_TO_ADDRESS_SHARED,
             transaction_hash="0x0123",
             paid_status="PAID",
         )
@@ -174,15 +176,15 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
+        with mock.patch(
+            "reputation.tasks.broadcast_withdrawal.delay", return_value=None
         ):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
                     "agreed_to_terms": True,
                     "amount": "550",
-                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "to_address": VALID_TEST_TO_ADDRESS,
                     "transaction_fee": 15,
                 },
             )
@@ -200,7 +202,7 @@ class ReputationViewsTests(APITestCase):
             amount="100",
             fee="10",
             from_address="0x0123",
-            to_address="0x0123",
+            to_address=VALID_TEST_TO_ADDRESS_SHARED,
             transaction_hash="0x0123",
             paid_status="PAID",
         )
@@ -215,15 +217,15 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
+        with mock.patch(
+            "reputation.tasks.broadcast_withdrawal.delay", return_value=None
         ):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
                     "agreed_to_terms": True,
                     "amount": "550",
-                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "to_address": VALID_TEST_TO_ADDRESS,
                     "transaction_fee": 15,
                 },
             )
@@ -242,7 +244,7 @@ class ReputationViewsTests(APITestCase):
             amount="100",
             fee="10",
             from_address="0x0123",
-            to_address="0x0123",
+            to_address=VALID_TEST_TO_ADDRESS_SHARED,
             transaction_hash="0x0123",
             paid_status="PAID",
         )
@@ -257,15 +259,15 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
+        with mock.patch(
+            "reputation.tasks.broadcast_withdrawal.delay", return_value=None
         ):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
                     "agreed_to_terms": True,
                     "amount": "550",
-                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "to_address": VALID_TEST_TO_ADDRESS,
                     "transaction_fee": 15,
                 },
             )
@@ -284,7 +286,7 @@ class ReputationViewsTests(APITestCase):
             amount="100",
             fee="10",
             from_address="0x0123",
-            to_address="0x0123",
+            to_address=VALID_TEST_TO_ADDRESS_SHARED,
             transaction_hash="0x0123",
             paid_status="PAID",
         )
@@ -299,15 +301,15 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
+        with mock.patch(
+            "reputation.tasks.broadcast_withdrawal.delay", return_value=None
         ):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
                     "agreed_to_terms": True,
                     "amount": "550",
-                    "to_address": "0x0123",
+                    "to_address": VALID_TEST_TO_ADDRESS_SHARED,
                     "transaction_fee": 15,
                 },
             )
@@ -325,7 +327,7 @@ class ReputationViewsTests(APITestCase):
             amount="100",
             fee="10",
             from_address="0x0123",
-            to_address="0x0123",
+            to_address=VALID_TEST_TO_ADDRESS_SHARED,
             transaction_hash="0x0123",
             paid_status="PAID",
         )
@@ -340,15 +342,15 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
+        with mock.patch(
+            "reputation.tasks.broadcast_withdrawal.delay", return_value=None
         ):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
                     "agreed_to_terms": True,
                     "amount": "550",
-                    "to_address": "0x0123",
+                    "to_address": VALID_TEST_TO_ADDRESS_SHARED,
                     "transaction_fee": 15,
                 },
             )
@@ -366,7 +368,7 @@ class ReputationViewsTests(APITestCase):
             amount="100",
             fee="10",
             from_address="0x0123",
-            to_address="0x0123",
+            to_address=VALID_TEST_TO_ADDRESS_SHARED,
             transaction_hash="0x0123",
             paid_status="PAID",
         )
@@ -381,15 +383,15 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
+        with mock.patch(
+            "reputation.tasks.broadcast_withdrawal.delay", return_value=None
         ):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
                     "agreed_to_terms": True,
                     "amount": "550",
-                    "to_address": "0x0123",
+                    "to_address": VALID_TEST_TO_ADDRESS_SHARED,
                     "transaction_fee": 15,
                 },
             )
@@ -414,7 +416,7 @@ class ReputationViewsTests(APITestCase):
         user.save()
 
         response = self.get_withdrawals_post_response(
-            user, data={"amount": 505, "to_address": "0x0"}
+            user, data={"amount": 505, "to_address": VALID_TEST_TO_ADDRESS}
         )
         self.assertEqual(response.status_code, 400)
 
@@ -541,7 +543,7 @@ class ReputationViewsTests(APITestCase):
                 {
                     "agreed_to_terms": True,
                     "amount": "550",
-                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "to_address": VALID_TEST_TO_ADDRESS,
                     "transaction_fee": 15,
                 },
             )
@@ -560,15 +562,15 @@ class ReputationViewsTests(APITestCase):
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        with mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
+        with mock.patch(
+            "reputation.tasks.broadcast_withdrawal.delay", return_value=None
         ):
             response = self.client.post(
                 "/api/withdrawal/",
                 {
                     "agreed_to_terms": True,
                     "amount": "550",
-                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "to_address": VALID_TEST_TO_ADDRESS,
                     "transaction_fee": 15,
                     "network": "BASE",
                 },
@@ -591,7 +593,7 @@ class ReputationViewsTests(APITestCase):
             {
                 "agreed_to_terms": True,
                 "amount": "550",
-                "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "to_address": VALID_TEST_TO_ADDRESS,
                 "transaction_fee": 15,
                 "network": "INVALID",
             },
@@ -620,7 +622,7 @@ class ReputationViewsTests(APITestCase):
                 {
                     "agreed_to_terms": True,
                     "amount": "550",
-                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "to_address": VALID_TEST_TO_ADDRESS,
                     "transaction_fee": 15,
                     "network": "BASE",
                 },

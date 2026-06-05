@@ -6,10 +6,15 @@ from django.test import TestCase
 from hub.models import Hub
 from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from purchase.related_models.usd_fundraise_contribution_model import UsdFundraiseContribution
-from purchase.services.funding_impact_service import FundingImpactService, MILESTONES
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
+from purchase.services.funding_impact_service import MILESTONES, FundingImpactService
 from researchhub_document.helpers import create_post
-from researchhub_document.related_models.constants.document_type import GRANT as GRANT_DOC_TYPE, PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    GRANT as GRANT_DOC_TYPE,
+)
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -18,37 +23,70 @@ class TestFundingImpactService(TestCase):
         self.service = FundingImpactService()
         self.grant_creator = create_random_authenticated_user("grant_creator")
         self.researcher = create_random_authenticated_user("researcher")
-        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, price_source="COIN_GECKO", target_currency="USD")
+        RscExchangeRate.objects.create(
+            rate=0.5, real_rate=0.5, price_source="COIN_GECKO", target_currency="USD"
+        )
         self.fundraise_ct = ContentType.objects.get_for_model(Fundraise)
 
     def _create_grant(self, created_by=None):
         """Create a grant owned by the specified user."""
         creator = created_by or self.grant_creator
         post = create_post(created_by=creator, document_type=GRANT_DOC_TYPE)
-        return Grant.objects.create(created_by=creator, unified_document=post.unified_document, amount=Decimal("10000"), status=Grant.OPEN)
+        return Grant.objects.create(
+            created_by=creator,
+            unified_document=post.unified_document,
+            amount=Decimal("10000"),
+            status=Grant.OPEN,
+        )
 
     def _create_proposal_for_grant(self, grant, created_by=None):
         """Create a proposal (fundraise) that applied to the given grant."""
         creator = created_by or self.researcher
         post = create_post(created_by=creator, document_type=PREREGISTRATION)
-        fundraise = Fundraise.objects.create(created_by=creator, unified_document=post.unified_document, goal_amount=Decimal("1000"), goal_currency="USD")
-        GrantApplication.objects.create(grant=grant, preregistration_post=post, applicant=creator)
+        fundraise = Fundraise.objects.create(
+            created_by=creator,
+            unified_document=post.unified_document,
+            goal_amount=Decimal("1000"),
+            goal_currency="USD",
+        )
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=post, applicant=creator
+        )
         return fundraise
 
     def _contribute(self, user, fundraise, rsc=0, usd_cents=0):
         if rsc:
-            Purchase.objects.create(user=user, content_type=self.fundraise_ct, object_id=fundraise.id, purchase_type=Purchase.FUNDRAISE_CONTRIBUTION, purchase_method=Purchase.OFF_CHAIN, amount=str(rsc))
+            Purchase.objects.create(
+                user=user,
+                content_type=self.fundraise_ct,
+                object_id=fundraise.id,
+                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+                purchase_method=Purchase.OFF_CHAIN,
+                amount=str(rsc),
+            )
         if usd_cents:
-            UsdFundraiseContribution.objects.create(user=user, fundraise=fundraise, amount_cents=usd_cents, fee_cents=0, origin_fund_id="test-fund", destination_org_id="test-org")
+            UsdFundraiseContribution.objects.create(
+                user=user,
+                fundraise=fundraise,
+                amount_cents=usd_cents,
+                fee_cents=0,
+                origin_fund_id="test-fund",
+                destination_org_id="test-org",
+            )
 
     def test_empty_response_for_new_user(self):
         # Act
         result = self.service.get_funding_impact_overview(self.grant_creator)
 
         # Assert
-        self.assertEqual(result["milestones"], {k: {"current": 0, "target": v[0]} for k, v in MILESTONES.items()})
+        self.assertEqual(
+            result["milestones"],
+            {k: {"current": 0, "target": v[0]} for k, v in MILESTONES.items()},
+        )
         self.assertEqual(len(result["funding_over_time"]), 6)
-        self.assertTrue(all(m["user_contributions"] == 0 for m in result["funding_over_time"]))
+        self.assertTrue(
+            all(m["user_contributions"] == 0 for m in result["funding_over_time"])
+        )
         self.assertEqual(result["hub_breakdown"], [])
 
     def test_milestones_calculate_correctly(self):
@@ -58,7 +96,9 @@ class TestFundingImpactService(TestCase):
         grant = self._create_grant()
         f1 = self._create_proposal_for_grant(grant, self.researcher)
         f2 = self._create_proposal_for_grant(grant, researcher2)
-        self._contribute(self.grant_creator, f1, rsc=100, usd_cents=5000)  # $50 + $50 = $100
+        self._contribute(
+            self.grant_creator, f1, rsc=100, usd_cents=5000
+        )  # $50 + $50 = $100
         self._contribute(self.grant_creator, f2, rsc=100)  # $50
         self._contribute(other, f1, rsc=200)  # $100 matched
 
@@ -66,9 +106,16 @@ class TestFundingImpactService(TestCase):
         result = self.service.get_funding_impact_overview(self.grant_creator)
 
         # Assert
-        self.assertEqual(result["milestones"]["funding_contributed"], {"current": 150.0, "target": 500})
-        self.assertEqual(result["milestones"]["researchers_supported"], {"current": 2, "target": 3})
-        self.assertEqual(result["milestones"]["matched_funding"], {"current": 100.0, "target": 500})
+        self.assertEqual(
+            result["milestones"]["funding_contributed"],
+            {"current": 150.0, "target": 500},
+        )
+        self.assertEqual(
+            result["milestones"]["researchers_supported"], {"current": 2, "target": 3}
+        )
+        self.assertEqual(
+            result["milestones"]["matched_funding"], {"current": 100.0, "target": 500}
+        )
 
     def test_funding_over_time_returns_6_months_cumulative(self):
         # Arrange
@@ -103,5 +150,9 @@ class TestFundingImpactService(TestCase):
         result = self.service.get_funding_impact_overview(self.grant_creator)
 
         # Assert
-        self.assertEqual(result["hub_breakdown"][0], {"name": "Big", "amount_usd": 200.0})
-        self.assertEqual(result["hub_breakdown"][1], {"name": "Small", "amount_usd": 50.0})
+        self.assertEqual(
+            result["hub_breakdown"][0], {"name": "Big", "amount_usd": 200.0}
+        )
+        self.assertEqual(
+            result["hub_breakdown"][1], {"name": "Small", "amount_usd": 50.0}
+        )

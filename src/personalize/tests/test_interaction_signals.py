@@ -6,7 +6,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from django.db import transaction
-from django.test import TestCase, TransactionTestCase
+from django.test import TransactionTestCase
 
 from analytics.constants.event_types import FEED_ITEM_IMPRESSION
 from analytics.models import UserInteractions

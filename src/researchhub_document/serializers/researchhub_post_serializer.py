@@ -1,18 +1,23 @@
 from django.core.files.storage import default_storage
+from django.db.models import Count
 from rest_framework.serializers import CharField, ModelSerializer, SerializerMethodField
 
+from ai_peer_review.models import ProposalReview
+from ai_peer_review.serializers import ProposalReviewSerializer
 from discussion.models import Vote
 from discussion.serializers import (
     DynamicVoteSerializer,  # Import is needed for discussion serializer imports
+    GenericReactionSerializerMixin,
 )
-from discussion.serializers import GenericReactionSerializerMixin
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
-from purchase.models import Purchase
+from purchase.models import GrantApplication, Purchase
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
+    PREREGISTRATION,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
+from review.serializers.review_serializer import DynamicReviewSerializer
 from user.serializers import (
     AuthorSerializer,
     DynamicAuthorSerializer,
@@ -37,6 +42,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "doi",
             "editor_type",
             "full_markdown",
+            "grants",
             "hubs",
             "id",
             "image",
@@ -45,6 +51,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "is_removed",
             "is_root_version",
             "note",
+            "peer_reviews",
             "post_src",
             "preview_img",
             "renderable_text",
@@ -63,6 +70,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "created_by",
             "created_date",
             "discussion_count",
+            "grants",
             "image_url",
             "is_latest_version",
             "is_root_version",
@@ -78,13 +86,14 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     # GenericReactionSerializerMixin
     promoted = SerializerMethodField()
     boost_amount = SerializerMethodField()
-    user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
 
     # local
     authors = SerializerMethodField()
     created_by = SerializerMethodField(method_name="get_created_by")
+    peer_reviews = SerializerMethodField()
     full_markdown = SerializerMethodField(method_name="get_full_markdown")
+    grants = SerializerMethodField()
     hubs = SerializerMethodField(method_name="get_hubs")
     image = CharField(write_only=True, required=False, allow_null=True)
     image_url = SerializerMethodField()
@@ -136,7 +145,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
         note = instance.note
         if note:
-            return NoteSerializer(instance.note).data
+            return NoteSerializer(instance.note, context=self.context).data
         return None
 
     def get_unified_document_id(self, instance):
@@ -155,10 +164,15 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 "documents",
                 "slug",
                 "is_removed",
+                "is_public",
                 "document_type",
                 "created_by",
             ],
             context={
+                # Thread the request through so the nested post-visibility
+                # guard (DynamicPostSerializer.to_representation) evaluates the
+                # actual viewer instead of treating the request as anonymous.
+                "request": self.context.get("request"),
                 "doc_duds_get_created_by": {
                     "_include_fields": [
                         "id",
@@ -202,6 +216,131 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     def get_hubs(self, instance):
         return SimpleHubSerializer(instance.unified_document.hubs, many=True).data
 
+    def get_grants(self, post):
+        if post.document_type != PREREGISTRATION:
+            return []
+
+        unified_document = post.unified_document
+        if unified_document is None:
+            return []
+
+        reviews_by_grant_id = {}
+        prefetched_reviews = getattr(
+            unified_document, "_prefetched_objects_cache", {}
+        ).get("proposal_reviews")
+        if prefetched_reviews is not None:
+            for review in prefetched_reviews:
+                if review.grant_id is not None:
+                    reviews_by_grant_id[review.grant_id] = review
+        else:
+            for review in ProposalReview.objects.filter(
+                unified_document=unified_document,
+                grant__isnull=False,
+            ):
+                reviews_by_grant_id[review.grant_id] = review
+
+        ud_id = unified_document.id
+        applications = list(post.grant_applications.all())
+        grant_ids = {app.grant_id for app in applications}
+
+        grant_post_by_ud = {}
+        for p in ResearchhubPost.objects.filter(
+            unified_document_id__in={
+                app.grant.unified_document_id for app in applications
+            }
+        ).order_by("id"):
+            grant_post_by_ud.setdefault(p.unified_document_id, p)
+        applicant_counts = (
+            dict(
+                GrantApplication.objects.filter(grant_id__in=grant_ids)
+                .values_list("grant_id")
+                .annotate(count=Count("id"))
+            )
+            if grant_ids
+            else {}
+        )
+
+        out = []
+        for application in applications:
+            grant = application.grant
+            review = reviews_by_grant_id.get(grant.id)
+            ai_peer_review = (
+                ProposalReviewSerializer(review, context=self.context).data
+                if review is not None
+                else None
+            )
+
+            grant_post = grant_post_by_ud.get(grant.unified_document_id)
+            out.append(
+                {
+                    "id": grant.id,
+                    "short_title": grant.short_title,
+                    "status": grant.status,
+                    "organization": grant.organization,
+                    "amount": str(grant.amount),
+                    "currency": grant.currency,
+                    "post_id": grant_post.id if grant_post else None,
+                    "image_url": self._get_grant_image(grant_post),
+                    "title": grant_post.title if grant_post else None,
+                    "applicant_count": applicant_counts.get(grant.id, 0),
+                    "application_visibility": grant.application_visibility,
+                    "proposal": {
+                        "unified_document_id": ud_id,
+                        "ai_peer_review": ai_peer_review,
+                    },
+                }
+            )
+        return out
+
+    @staticmethod
+    def _get_grant_image(grant_post):
+        if grant_post and grant_post.image:
+            return default_storage.url(grant_post.image)
+        return None
+
+    def get_peer_reviews(self, instance):
+        from review.models import Review
+
+        unified_document = instance.unified_document
+        if not unified_document:
+            return []
+
+        reviews = Review.objects.filter(
+            unified_document=unified_document,
+            is_removed=False,
+        )
+        serializer = DynamicReviewSerializer(
+            reviews,
+            many=True,
+            _include_fields=[
+                "id",
+                "score",
+                "is_assessed",
+                "created_by",
+                "created_date",
+                "updated_date",
+            ],
+            context={
+                "rev_drs_get_created_by": {
+                    "_include_fields": [
+                        "id",
+                        "author_profile",
+                        "first_name",
+                        "last_name",
+                    ]
+                },
+                "usr_dus_get_author_profile": {
+                    "_include_fields": [
+                        "id",
+                        "first_name",
+                        "last_name",
+                        "profile_image",
+                    ]
+                },
+            },
+        )
+        return serializer.data
+
     def get_promoted_score(self, instance):
         return instance.get_promoted_score()
 
@@ -218,6 +357,7 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     discussion_aggregates = SerializerMethodField()
     hubs = SerializerMethodField()
     note = SerializerMethodField()
+    peer_reviews = SerializerMethodField()
     purchases = SerializerMethodField()
     score = SerializerMethodField()
     unified_document = SerializerMethodField()
@@ -228,6 +368,22 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = ResearchhubPost
         fields = "__all__"
+
+    def to_representation(self, instance):
+        """Redact private posts for viewers who are not allowed to see them.
+
+        ``DynamicPostSerializer`` is the shared chokepoint through which post
+        content is embedded in other resources (unified documents, comment
+        threads, notifications, reviews, bounties, activity feeds). Guarding it
+        here ensures a private preregistration's content never leaks via any of
+        those paths to an unauthorized viewer.
+        """
+        unified_document = instance.unified_document
+        if unified_document is not None and not unified_document.is_public:
+            user = get_user_from_request(self.context)
+            if not unified_document.is_visible_to_user(user):
+                return {"id": instance.id, "is_public": False}
+        return super().to_representation(instance)
 
     def get_authors(self, post):
         context = self.context
@@ -293,6 +449,27 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("doc_dps_get_note", {})
         serializer = DynamicNoteSerializer(
             post.note, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_peer_reviews(self, post):
+        from review.models import Review
+
+        context = self.context
+        _context_fields = context.get("doc_dps_get_peer_reviews", {})
+        unified_document = post.unified_document
+        if not unified_document:
+            return []
+
+        reviews = Review.objects.filter(
+            unified_document=unified_document,
+            is_removed=False,
+        )
+        serializer = DynamicReviewSerializer(
+            reviews,
+            many=True,
+            context=context,
+            **_context_fields,
         )
         return serializer.data
 
