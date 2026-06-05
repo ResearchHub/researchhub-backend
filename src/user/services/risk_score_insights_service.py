@@ -113,7 +113,7 @@ def _paper_detail(paper):
     document_type = unified_document.document_type if unified_document else None
     return _detail(
         _doc_title(paper),
-        _doc_snippet(paper),
+        _doc_text(paper),
         _doc_url(unified_document, paper),
         document_type=document_type,
     )

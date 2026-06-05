@@ -10,6 +10,8 @@ from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from purchase.related_models.balance_model import Balance
 from reputation.related_models.distribution import Distribution
+from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from review.models import Review
 from user.related_models.follow_model import Follow
 from user.related_models.user_model import User
 from user.tests.helpers import create_user
@@ -49,6 +51,50 @@ class AuthorModelsTests(TestCase):
 
     def test_achievements(self):
         self.assertIn("CITED_AUTHOR", self.user.author_profile.achievements)
+
+    def test_peer_review_count_only_includes_assessed_reviews(self):
+        paper = Paper.objects.create(title="review paper")
+        thread = RhCommentThreadModel.objects.create(
+            object_id=paper.id,
+            content_type=ContentType.objects.get_for_model(Paper),
+            created_by=self.user,
+        )
+        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+
+        assessed_comment = RhCommentModel.objects.create(
+            created_by=self.user,
+            comment_type="REVIEW",
+            is_removed=False,
+            thread=thread,
+        )
+        Review.objects.create(
+            created_by=self.user,
+            content_type=comment_content_type,
+            object_id=assessed_comment.id,
+            is_assessed=True,
+        )
+
+        unassessed_comment = RhCommentModel.objects.create(
+            created_by=self.user,
+            comment_type="REVIEW",
+            is_removed=False,
+            thread=thread,
+        )
+        Review.objects.create(
+            created_by=self.user,
+            content_type=comment_content_type,
+            object_id=unassessed_comment.id,
+            is_assessed=False,
+        )
+
+        RhCommentModel.objects.create(
+            created_by=self.user,
+            comment_type="REVIEW",
+            is_removed=False,
+            thread=thread,
+        )
+
+        self.assertEqual(self.user.peer_review_count, 1)
 
     def test_is_orcid_connected_false_when_no_account(self):
         # Act

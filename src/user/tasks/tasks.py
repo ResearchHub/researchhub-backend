@@ -18,7 +18,6 @@ from reputation.models import Bounty
 from researchhub.celery import app
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
-from review.models.peer_review_model import PeerReview
 from review.models.review_model import Review
 from user.editor_payout_tasks import editor_daily_payout_task
 from user.events import publish_user_reinstated, publish_user_suspended
@@ -72,11 +71,8 @@ def handle_spam_user_task(user_id, requestor=None):
     for bounty in user.bounties.filter(status__in=[Bounty.OPEN, Bounty.ASSESSMENT]):
         bounty.close(Bounty.CANCELLED)
 
-    # Soft-delete peer reviews and reviews
+    # Soft-delete reviews
     now = timezone.now()
-    PeerReview.objects.filter(user=user).update(
-        is_removed=True, is_public=False, is_removed_date=now
-    )
     Review.objects.filter(created_by=user).update(
         is_removed=True, is_public=False, is_removed_date=now
     )
@@ -177,10 +173,7 @@ def reinstate_user_task(user_id):
         is_removed=False
     )
 
-    # Restore peer reviews and reviews
-    PeerReview.all_objects.filter(user=user).update(
-        is_removed=False, is_public=True, is_removed_date=None
-    )
+    # Restore reviews
     Review.all_objects.filter(created_by=user).update(
         is_removed=False, is_public=True, is_removed_date=None
     )

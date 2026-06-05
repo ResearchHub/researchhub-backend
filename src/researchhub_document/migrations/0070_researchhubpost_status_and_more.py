@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("researchhub_document", "0068_alter_researchhubpost_document_type_and_more"),
+        ("researchhub_document", "0069_remove_documentfilter_author_claimed"),
         ("user", "0145_riskscore_transfer"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
