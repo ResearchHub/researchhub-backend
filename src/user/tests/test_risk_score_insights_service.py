@@ -134,7 +134,7 @@ class BuildEventDetailsTests(APITestCase):
 
         # Assert
         self.assertEqual(detail["title"], "Quantum Decoherence")
-        self.assertEqual(detail["snippet"], "An abstract about quantum systems.")
+        self.assertEqual(detail["text"], "An abstract about quantum systems.")
         self.assertIsNone(detail["comment_type"])
 
     def test_comment_detail_includes_anchor_and_types(self):

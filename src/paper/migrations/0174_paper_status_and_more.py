@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("paper", "0172_figure_thumbnail_alter_figure_file"),
+        ("paper", "0173_paperversion_paper_ver_rh_doi_created_idx"),
         ("user", "0145_riskscore_transfer"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
