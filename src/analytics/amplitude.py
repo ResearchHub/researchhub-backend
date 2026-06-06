@@ -119,7 +119,8 @@ class Amplitude:
 
         Args:
             user: User instance
-            activity_type: Type of activity (upvote, comment, peer_review, fund, tip, journal_submission)
+            activity_type: Type of activity (upvote, comment, peer_review, fund, tip,
+                journal_submission)
             additional_properties: Additional properties to include in the event
         """
         user_id, user_properties = self._build_user_properties(user)
