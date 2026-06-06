@@ -17,7 +17,6 @@ from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.funding_activity_model import FundingActivity
 from user.tasks.funding_activity_tasks import create_funding_activity_task
-from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +51,10 @@ def on_purchase_paid(sender, instance, created, **kwargs):
                 FundingActivity.TIP_DOCUMENT,
                 instance.pk,
             )
-        except Exception as e:
-            log_error(
-                e,
-                message="Failed to schedule funding activity task for Purchase %s"
-                % instance.pk,
+        except Exception:
+            logger.exception(
+                "Failed to schedule funding activity task for Purchase %s",
+                instance.pk,
             )
 
     transaction.on_commit(schedule)
@@ -81,11 +79,10 @@ def on_escrow_paid(sender, instance, created, **kwargs):
                         FundingActivity.BOUNTY_PAYOUT,
                         rec.pk,
                     )
-            except Exception as e:
-                log_error(
-                    e,
-                    message="Failed to schedule funding activity tasks for Escrow %s"
-                    % instance.pk,
+            except Exception:
+                logger.exception(
+                    "Failed to schedule funding activity tasks for Escrow %s",
+                    instance.pk,
                 )
 
         transaction.on_commit(schedule_bounty)
@@ -105,11 +102,10 @@ def on_escrow_paid(sender, instance, created, **kwargs):
                             FundingActivity.FUNDRAISE_PAYOUT,
                             purchase.pk,
                         )
-                except Exception as e:
-                    log_error(
-                        e,
-                        message="Failed to schedule funding activity tasks for "
-                        "fundraise %s" % fundraise.pk,
+                except Exception:
+                    logger.exception(
+                        "Failed to schedule funding activity tasks for fundraise %s",
+                        fundraise.pk,
                     )
 
             transaction.on_commit(schedule_fundraise_funding)
@@ -154,11 +150,10 @@ def on_distribution_created(sender, instance, created, **kwargs):
     def schedule():
         try:
             create_funding_activity_task.delay(source_type, instance.pk)
-        except Exception as e:
-            log_error(
-                e,
-                message="Failed to schedule funding activity task for Distribution %s"
-                % instance.pk,
+        except Exception:
+            logger.exception(
+                "Failed to schedule funding activity task for Distribution %s",
+                instance.pk,
             )
 
     transaction.on_commit(schedule)
