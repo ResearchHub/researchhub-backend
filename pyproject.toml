@@ -94,10 +94,8 @@ extend-select = [
 [tool.ruff.lint.per-file-ignores]
 # Temporarily ignore E501 per app:
 "src/ai_peer_review/**/*.py" = ["E501"]
-"src/analytics/**/*.py" = ["E501"]
 "src/discussion/**/*.py" = ["E501"]
 "src/feed/**/*.py" = ["E501"]
-"src/organizations/**/*.py" = ["E501"]
 "src/paper/**/*.py" = ["E501"]
 "src/personalize/**/*.py" = ["E501"]
 "src/purchase/**/*.py" = ["E501"]
