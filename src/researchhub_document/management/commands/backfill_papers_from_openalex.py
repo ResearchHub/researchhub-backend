@@ -38,7 +38,10 @@ class Command(BaseCommand):
             "--interacted_content_only",
             default=False,
             type=bool,
-            help="If used, only content that has been interacted with will be processed (e.g. papers associated with comments instaed of all papers)",
+            help=(
+                "If used, only content that has been interacted with will be processed "
+                "(e.g. papers associated with comments instaed of all papers)"
+            ),
         )
 
     def handle(self, *args, **kwargs):
@@ -71,7 +74,8 @@ class Command(BaseCommand):
 
             print(f"Total papers associated w/comments: {len(paper_ids_of_commentors)}")
             print(
-                f"Total papers associated w/verified users: {len(paper_ids_of_verified_users)}"
+                "Total papers associated w/verified users: "
+                f"{len(paper_ids_of_verified_users)}"
             )
 
             unique_paper_ids = list(
