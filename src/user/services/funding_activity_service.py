@@ -21,6 +21,7 @@ from user.related_models.funding_activity_model import (
     FundingActivityRecipient,
 )
 from user.related_models.user_model import FOUNDATION_EMAIL
+from user.services.funding_activity_amounts import FundingActivityAmountsService
 
 
 def get_leaderboard_excluded_user_ids():
@@ -247,7 +248,7 @@ class FundingActivityService:
         except Exception:
             return None
         amount = Decimal(str(purchase.amount))
-        activity = FundingActivity.objects.create(
+        activity = FundingActivity(
             funder_id=purchase.user_id,
             source_type=FundingActivity.FUNDRAISE_PAYOUT,
             total_amount=amount,
@@ -256,11 +257,17 @@ class FundingActivityService:
             source_content_type=cls._get_content_type(Purchase),
             source_object_id=purchase.pk,
         )
-        FundingActivityRecipient.objects.create(
-            activity=activity,
+        recipient = FundingActivityRecipient(
             recipient_user=recipient_user,
             amount=amount,
         )
+        rate = FundingActivityAmountsService.resolve_rate_for_purchase(purchase)
+        FundingActivityAmountsService.populate_dual_amounts_on_recipients(
+            activity, [recipient], rate
+        )
+        activity.save()
+        recipient.activity = activity
+        recipient.save()
         return activity
 
     @classmethod
@@ -278,7 +285,7 @@ class FundingActivityService:
         )
         unified_doc_id = bounty.unified_document_id if bounty else None
         amount = escrow_recipient.amount
-        activity = FundingActivity.objects.create(
+        activity = FundingActivity(
             funder_id=escrow.created_by_id,
             source_type=FundingActivity.BOUNTY_PAYOUT,
             total_amount=amount,
@@ -287,11 +294,19 @@ class FundingActivityService:
             source_content_type=cls._get_content_type(EscrowRecipients),
             source_object_id=escrow_recipient.pk,
         )
-        FundingActivityRecipient.objects.create(
-            activity=activity,
+        recipient = FundingActivityRecipient(
             recipient_user=escrow_recipient.user,
             amount=amount,
         )
+        rate = FundingActivityAmountsService.get_historical_rsc_usd_rate(
+            escrow_recipient.created_date
+        )
+        FundingActivityAmountsService.populate_dual_amounts_on_recipients(
+            activity, [recipient], rate
+        )
+        activity.save()
+        recipient.activity = activity
+        recipient.save()
         return activity
 
     @classmethod
@@ -314,7 +329,7 @@ class FundingActivityService:
         if recipient_user is None:
             return None
         amount = Decimal(str(purchase.amount))
-        activity = FundingActivity.objects.create(
+        activity = FundingActivity(
             funder_id=purchase.user_id,
             source_type=FundingActivity.TIP_DOCUMENT,
             total_amount=amount,
@@ -323,11 +338,17 @@ class FundingActivityService:
             source_content_type=cls._get_content_type(Purchase),
             source_object_id=purchase.pk,
         )
-        FundingActivityRecipient.objects.create(
-            activity=activity,
+        recipient = FundingActivityRecipient(
             recipient_user=recipient_user,
             amount=amount,
         )
+        rate = FundingActivityAmountsService.resolve_rate_for_purchase(purchase)
+        FundingActivityAmountsService.populate_dual_amounts_on_recipients(
+            activity, [recipient], rate
+        )
+        activity.save()
+        recipient.activity = activity
+        recipient.save()
         return activity
 
     @classmethod
@@ -346,7 +367,7 @@ class FundingActivityService:
                 if thread and hasattr(thread, "unified_document"):
                     ud = thread.unified_document
                     unified_doc_id = ud.pk if ud else None
-        activity = FundingActivity.objects.create(
+        activity = FundingActivity(
             funder_id=distribution.giver_id,
             source_type=FundingActivity.TIP_REVIEW,
             total_amount=distribution.amount,
@@ -355,12 +376,24 @@ class FundingActivityService:
             source_content_type=cls._get_content_type(Distribution),
             source_object_id=distribution.pk,
         )
+        recipients = []
         if distribution.recipient_id is not None:
-            FundingActivityRecipient.objects.create(
-                activity=activity,
-                recipient_user_id=distribution.recipient_id,
-                amount=distribution.amount,
+            recipients.append(
+                FundingActivityRecipient(
+                    recipient_user_id=distribution.recipient_id,
+                    amount=distribution.amount,
+                )
             )
+        rate = FundingActivityAmountsService.get_historical_rsc_usd_rate(
+            distribution.created_date
+        )
+        FundingActivityAmountsService.populate_dual_amounts_on_recipients(
+            activity, recipients, rate
+        )
+        activity.save()
+        for recipient in recipients:
+            recipient.activity = activity
+            recipient.save()
         return activity
 
     @classmethod
@@ -374,7 +407,7 @@ class FundingActivityService:
             return None
         if distribution.giver_id is None:
             return None
-        activity = FundingActivity.objects.create(
+        activity = FundingActivity(
             funder_id=distribution.giver_id,
             source_type=FundingActivity.FEE,
             total_amount=distribution.amount,
@@ -383,4 +416,11 @@ class FundingActivityService:
             source_content_type=cls._get_content_type(Distribution),
             source_object_id=distribution.pk,
         )
+        rate = FundingActivityAmountsService.get_historical_rsc_usd_rate(
+            distribution.created_date
+        )
+        FundingActivityAmountsService.populate_dual_amounts_on_recipients(
+            activity, [], rate
+        )
+        activity.save()
         return activity

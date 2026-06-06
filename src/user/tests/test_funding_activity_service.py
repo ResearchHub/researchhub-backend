@@ -9,11 +9,15 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.utils import timezone
 
+from paper.tests.helpers import create_paper
 from purchase.models import Purchase
 from purchase.related_models.balance_model import Balance
 from purchase.related_models.fundraise_model import Fundraise
-from reputation.models import Distribution
-from reputation.related_models.escrow import Escrow
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from reputation.models import Bounty, Distribution
+from reputation.related_models.escrow import Escrow, EscrowRecipients
+from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
+from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -381,3 +385,127 @@ class FundingActivityServiceTests(TestCase):
                 source_object_id=i,
             )
         self.assertEqual(get_funder_total_amount(self.user.id), Decimal("350"))
+
+
+class FundingActivityDualAmountsTests(TestCase):
+    """Tests for RSC + usd_cents population on create paths (PR2)."""
+
+    def setUp(self):
+        self.funder = create_user(email="funder-dual@test.com")
+        self.recipient = create_user(email="recipient-dual@test.com")
+
+    def _create_completed_fundraise_purchase(self, amount="100", rsc_usd_rate=None):
+        uni_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PREREGISTRATION",
+        )
+        ct_fundraise = ContentType.objects.get_for_model(Fundraise)
+        fundraise = Fundraise.objects.create(
+            created_by=self.recipient,
+            status=Fundraise.CLOSED,
+            unified_document=uni_doc,
+        )
+        escrow = Escrow.objects.create(
+            hold_type=Escrow.FUNDRAISE,
+            status=Escrow.PAID,
+            created_by=self.funder,
+            content_type=ct_fundraise,
+            object_id=fundraise.id,
+        )
+        fundraise.escrow = escrow
+        fundraise.save()
+        purchase = Purchase.objects.create(
+            user=self.funder,
+            content_type=ct_fundraise,
+            object_id=fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status=Purchase.PAID,
+            amount=amount,
+            purchase_method=Purchase.OFF_CHAIN,
+            rsc_usd_rate=rsc_usd_rate,
+        )
+        return purchase
+
+    def test_fundraise_payout_sets_usd_cents_from_purchase_rate(self):
+        """FUNDRAISE_PAYOUT: native RSC + usd_cents from purchase.rsc_usd_rate."""
+        # Arrange
+        purchase = self._create_completed_fundraise_purchase(
+            amount="100", rsc_usd_rate=0.5
+        )
+
+        # Act
+        with patch.object(Fundraise, "get_recipient", return_value=self.recipient):
+            activity = FundingActivityService.create_funding_activity(
+                FundingActivity.FUNDRAISE_PAYOUT, purchase
+            )
+
+        # Assert
+        self.assertEqual(activity.total_amount, Decimal("100"))
+        self.assertEqual(activity.usd_cents, 5000)
+        recipient = activity.recipients.get()
+        self.assertEqual(recipient.amount, Decimal("100"))
+        self.assertEqual(recipient.usd_cents, 5000)
+
+    def test_tip_review_sets_usd_cents_from_historical_rate(self):
+        """TIP_REVIEW: usd_cents from historical rate at distribution.created_date."""
+        # Arrange
+        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, target_currency="USD")
+        paper = create_paper(title="Review paper", uploaded_by=self.recipient)
+        thread = RhCommentThreadModel.objects.create(
+            content_object=paper,
+            created_by=self.recipient,
+            updated_by=self.recipient,
+        )
+        comment = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.recipient,
+            updated_by=self.recipient,
+            comment_type=PEER_REVIEW,
+            comment_content_json={"ops": [{"insert": "Review"}]},
+        )
+        ct_comment = ContentType.objects.get_for_model(RhCommentModel)
+        proof_purchase = Purchase.objects.create(
+            user=self.funder,
+            content_type=ct_comment,
+            object_id=comment.id,
+            purchase_type=Purchase.BOOST,
+            paid_status=Purchase.PAID,
+            amount=Decimal("30"),
+            purchase_method=Purchase.OFF_CHAIN,
+        )
+        ct_purchase = ContentType.objects.get_for_model(Purchase)
+        distribution = Distribution.objects.create(
+            giver=self.funder,
+            recipient=self.recipient,
+            amount=Decimal("30"),
+            distribution_type="PURCHASE",
+            proof_item_content_type=ct_purchase,
+            proof_item_object_id=proof_purchase.id,
+        )
+
+        # Act
+        activity = FundingActivityService.create_funding_activity(
+            FundingActivity.TIP_REVIEW, distribution
+        )
+
+        # Assert
+        self.assertEqual(activity.total_amount, Decimal("30"))
+        self.assertEqual(activity.usd_cents, 1500)
+        self.assertEqual(activity.recipients.get().usd_cents, 1500)
+
+    def test_create_activity_leaves_usd_cents_zero_when_no_rate(self):
+        """When no rate is available, usd_cents stays 0."""
+        # Arrange
+        purchase = self._create_completed_fundraise_purchase(
+            amount="100", rsc_usd_rate=None
+        )
+
+        # Act
+        with patch.object(Fundraise, "get_recipient", return_value=self.recipient):
+            activity = FundingActivityService.create_funding_activity(
+                FundingActivity.FUNDRAISE_PAYOUT, purchase
+            )
+
+        # Assert
+        self.assertEqual(activity.total_amount, Decimal("100"))
+        self.assertEqual(activity.usd_cents, 0)
+        self.assertEqual(activity.recipients.get().usd_cents, 0)
