@@ -17,6 +17,7 @@ class FundingActivity(DefaultModel):
 
     # Source type choices
     FUNDRAISE_PAYOUT = "FUNDRAISE_PAYOUT"
+    USD_FUNDRAISE_PAYOUT = "USD_FUNDRAISE_PAYOUT"
     BOUNTY_PAYOUT = "BOUNTY_PAYOUT"
     TIP_DOCUMENT = "TIP_DOCUMENT"
     TIP_REVIEW = "TIP_REVIEW"
@@ -24,6 +25,7 @@ class FundingActivity(DefaultModel):
 
     SOURCE_TYPE_CHOICES = [
         (FUNDRAISE_PAYOUT, "Fundraise Payout"),
+        (USD_FUNDRAISE_PAYOUT, "USD Fundraise Payout"),
         (BOUNTY_PAYOUT, "Bounty Payout"),
         (TIP_DOCUMENT, "Document Tip"),
         (TIP_REVIEW, "Review Tip"),
@@ -34,17 +36,21 @@ class FundingActivity(DefaultModel):
         "user.User",
         on_delete=models.CASCADE,
         related_name="funding_activities",
-        help_text="The user who provided the funding",
+        db_comment="The user who provided the funding",
     )
     source_type = models.CharField(
         max_length=32,
         choices=SOURCE_TYPE_CHOICES,
-        help_text="Type of funding activity",
+        db_comment="Type of funding activity",
     )
     total_amount = models.DecimalField(
         max_digits=19,
         decimal_places=8,
-        help_text="Total RSC amount for this activity",
+        db_comment="Total RSC amount for this activity",
+    )
+    usd_cents = models.IntegerField(
+        default=0,
+        db_comment="USD amount in cents for this activity",
     )
     unified_document = models.ForeignKey(
         "researchhub_document.ResearchhubUnifiedDocument",
@@ -55,7 +61,7 @@ class FundingActivity(DefaultModel):
     )
     activity_date = models.DateTimeField(
         db_index=True,
-        help_text="When the funding activity occurred",
+        db_comment="When the funding activity occurred",
     )
 
     # Generic foreign key to the source object (Purchase, Distribution, EscrowRecipients)
@@ -109,18 +115,22 @@ class FundingActivityRecipient(DefaultModel):
         FundingActivity,
         on_delete=models.CASCADE,
         related_name="recipients",
-        help_text="The funding activity this recipient belongs to",
+        db_comment="The funding activity this recipient belongs to",
     )
     recipient_user = models.ForeignKey(
         "user.User",
         on_delete=models.CASCADE,
         related_name="funding_received",
-        help_text="The user who received the funding",
+        db_comment="The user who received the funding",
     )
     amount = models.DecimalField(
         max_digits=19,
         decimal_places=8,
-        help_text="RSC amount received by this recipient",
+        db_comment="RSC amount received by this recipient",
+    )
+    usd_cents = models.IntegerField(
+        default=0,
+        db_comment="USD amount in cents received by this recipient",
     )
 
     class Meta:
