@@ -377,7 +377,8 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(result["client_secret"], "pi_secret_456")
         self.assertEqual(result["payment_intent_id"], "pi_789012")
         self.assertEqual(result["locked_rsc_amount"], 100)
-        # $5.00 + RSC purchase fee ($0.10) + bounty fee ($0.35) + Stripe fee ($0.445) = $5.895 = 589 cents
+        # $5.00 + RSC purchase fee ($0.10) + bounty fee ($0.35) + Stripe fee ($0.445)
+        # = $5.895 = 589 cents
         self.assertEqual(result["stripe_amount_cents"], 589)
 
         # Verify Stripe was called with correct parameters
@@ -537,8 +538,8 @@ class PaymentServiceTest(TestCase):
             # Assert
             self.assertIsInstance(payment, Payment)
             self.assertIsNone(fundraise_contribution)
-            # Verify the gross amount (150.0 + 2% rsc_fee + 7% bounty_fee = 163.5) was used
-            # This includes both fees for transparency before deduction
+            # Verify the gross amount (150.0 + 2% rsc_fee + 7% bounty_fee = 163.5)
+            # was used. This includes both fees for transparency before deduction
             mock_create_dist.assert_called_once()
             call_kwargs = mock_create_dist.call_args[1]
             self.assertEqual(call_kwargs["amount"], float(Decimal("163.5")))
@@ -584,7 +585,8 @@ class PaymentServiceTest(TestCase):
             )
 
         # Assert
-        # $5.00 + $0.10 RSC purchase fee + $0.35 bounty fee + $0.445 Stripe fee = $5.895 = 589 cents
+        # $5.00 + $0.10 RSC purchase fee + $0.35 bounty fee + $0.445 Stripe fee =
+        # $5.895 = 589 cents
         self.assertEqual(result["stripe_amount_cents"], 589)
 
         # Verify Stripe was called with fees in metadata

@@ -135,6 +135,8 @@ def send_monthly_preregistration_update_reminders():
     log_info(f"Sent {sent_count} preregistration update reminders")
     return {"sent_count": sent_count}
 
+    return {"sent_count": sent_count}
+
 
 @app.task(queue=QUEUE_NOTIFICATION)
 def send_support_email(
