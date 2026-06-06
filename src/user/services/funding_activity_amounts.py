@@ -57,3 +57,26 @@ class FundingActivityAmountsService:
         activity.usd_cents = cls.rsc_to_usd_cents(activity.total_amount, rate)
         for recipient in recipients_data:
             recipient.usd_cents = cls.rsc_to_usd_cents(recipient.amount, rate)
+
+    @classmethod
+    def populate_usd_native_dual_amounts_on_recipients(
+        cls, activity, recipients_data, usd_cents, rate
+    ) -> None:
+        """
+        Set native USD and calculated RSC on activity and recipients.
+        usd_cents is always set from native USD; RSC amounts use rate when available.
+        """
+        activity.usd_cents = usd_cents
+        for recipient in recipients_data:
+            recipient.usd_cents = usd_cents
+
+        if rate is None:
+            activity.total_amount = Decimal("0")
+            for recipient in recipients_data:
+                recipient.amount = Decimal("0")
+            return
+
+        calculated_rsc = cls.usd_cents_to_rsc(usd_cents, rate)
+        activity.total_amount = calculated_rsc
+        for recipient in recipients_data:
+            recipient.amount = calculated_rsc

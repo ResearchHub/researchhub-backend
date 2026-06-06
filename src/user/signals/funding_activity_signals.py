@@ -102,6 +102,13 @@ def on_escrow_paid(sender, instance, created, **kwargs):
                             FundingActivity.FUNDRAISE_PAYOUT,
                             purchase.pk,
                         )
+                    for contribution in fundraise.usd_contributions.filter(
+                        is_refunded=False,
+                    ):
+                        create_funding_activity_task.delay(
+                            FundingActivity.USD_FUNDRAISE_PAYOUT,
+                            contribution.pk,
+                        )
                 except Exception:
                     logger.exception(
                         "Failed to schedule funding activity tasks for fundraise %s",

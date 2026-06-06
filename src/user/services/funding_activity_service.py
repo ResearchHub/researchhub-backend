@@ -7,6 +7,9 @@ from django.db.models import Q, Sum
 
 from purchase.models import Purchase
 from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from reputation.models import Bounty, Distribution
 from reputation.related_models.escrow import Escrow, EscrowRecipients
 from researchhub_comment.constants.rh_comment_thread_types import (
@@ -82,6 +85,22 @@ class FundingActivityService:
             fundraise__escrow__status=Escrow.PAID,
             fundraise__escrow__isnull=False,
         ).select_related("user", "content_type")
+        if start_date:
+            qs = qs.filter(created_date__gte=start_date)
+        if end_date:
+            qs = qs.filter(created_date__lte=end_date)
+        return qs
+
+    @classmethod
+    def get_usd_fundraise_payouts(cls, start_date=None, end_date=None):
+        """
+        Non-refunded USD contributions whose fundraise escrow is PAID.
+        """
+        qs = UsdFundraiseContribution.objects.filter(
+            is_refunded=False,
+            fundraise__escrow__status=Escrow.PAID,
+            fundraise__escrow__isnull=False,
+        ).select_related("user", "fundraise", "fundraise__unified_document")
         if start_date:
             qs = qs.filter(created_date__gte=start_date)
         if end_date:
@@ -197,9 +216,10 @@ class FundingActivityService:
 
         Args:
             source_type: One of FundingActivity.FUNDRAISE_PAYOUT,
-                BOUNTY_PAYOUT, TIP_DOCUMENT, TIP_REVIEW, FEE.
-            source_object: The source instance (Purchase, EscrowRecipients,
-                or Distribution).
+                USD_FUNDRAISE_PAYOUT, BOUNTY_PAYOUT, TIP_DOCUMENT, TIP_REVIEW,
+                FEE.
+            source_object: The source instance (Purchase, UsdFundraiseContribution,
+                EscrowRecipients, or Distribution).
 
         Returns:
             The FundingActivity instance, or None if creation was skipped
@@ -216,6 +236,8 @@ class FundingActivityService:
 
             if source_type == FundingActivity.FUNDRAISE_PAYOUT:
                 return cls._create_fundraise_payout_activity(source_object)
+            if source_type == FundingActivity.USD_FUNDRAISE_PAYOUT:
+                return cls._create_usd_fundraise_payout_activity(source_object)
             if source_type == FundingActivity.BOUNTY_PAYOUT:
                 return cls._create_bounty_payout_activity(source_object)
             if source_type == FundingActivity.TIP_DOCUMENT:
@@ -264,6 +286,52 @@ class FundingActivityService:
         rate = FundingActivityAmountsService.resolve_rate_for_purchase(purchase)
         FundingActivityAmountsService.populate_dual_amounts_on_recipients(
             activity, [recipient], rate
+        )
+        activity.save()
+        recipient.activity = activity
+        recipient.save()
+        return activity
+
+    @classmethod
+    def _create_usd_fundraise_payout_activity(
+        cls, contribution: UsdFundraiseContribution
+    ) -> Optional[FundingActivity]:
+        """One FundingActivity per non-refunded UsdFundraiseContribution on PAID escrow."""
+        if contribution.is_refunded:
+            return None
+        fundraise = (
+            Fundraise.objects.filter(
+                pk=contribution.fundraise_id,
+                escrow__status=Escrow.PAID,
+            )
+            .select_related("escrow", "unified_document")
+            .first()
+        )
+        if not fundraise or not fundraise.escrow:
+            return None
+        try:
+            recipient_user = fundraise.get_recipient()
+        except Exception:
+            return None
+        native_usd_cents = contribution.amount_cents
+        activity = FundingActivity(
+            funder_id=contribution.user_id,
+            source_type=FundingActivity.USD_FUNDRAISE_PAYOUT,
+            total_amount=Decimal("0"),
+            unified_document_id=fundraise.unified_document_id,
+            activity_date=contribution.created_date,
+            source_content_type=cls._get_content_type(UsdFundraiseContribution),
+            source_object_id=contribution.pk,
+        )
+        recipient = FundingActivityRecipient(
+            recipient_user=recipient_user,
+            amount=Decimal("0"),
+        )
+        rate = FundingActivityAmountsService.get_historical_rsc_usd_rate(
+            contribution.created_date
+        )
+        FundingActivityAmountsService.populate_usd_native_dual_amounts_on_recipients(
+            activity, [recipient], native_usd_cents, rate
         )
         activity.save()
         recipient.activity = activity

@@ -14,8 +14,11 @@ from purchase.models import Purchase
 from purchase.related_models.balance_model import Balance
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from reputation.models import Bounty, Distribution
-from reputation.related_models.escrow import Escrow, EscrowRecipients
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
+from reputation.models import Distribution
+from reputation.related_models.escrow import Escrow
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -385,6 +388,116 @@ class FundingActivityServiceTests(TestCase):
                 source_object_id=i,
             )
         self.assertEqual(get_funder_total_amount(self.user.id), Decimal("350"))
+
+    def _create_completed_fundraise(self):
+        uni_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PREREGISTRATION",
+        )
+        ct_fundraise = ContentType.objects.get_for_model(Fundraise)
+        fundraise = Fundraise.objects.create(
+            created_by=self.other_user,
+            status=Fundraise.CLOSED,
+            unified_document=uni_doc,
+        )
+        escrow = Escrow.objects.create(
+            hold_type=Escrow.FUNDRAISE,
+            status=Escrow.PAID,
+            created_by=self.user,
+            content_type=ct_fundraise,
+            object_id=fundraise.id,
+        )
+        fundraise.escrow = escrow
+        fundraise.save()
+        return fundraise
+
+    def _create_usd_contribution(self, fundraise, amount_cents=10000, **kwargs):
+        defaults = {
+            "user": self.user,
+            "fundraise": fundraise,
+            "amount_cents": amount_cents,
+            "fee_cents": int(amount_cents * 0.09),
+            "origin_fund_id": "fund_test",
+            "destination_org_id": "org_test",
+            "is_refunded": False,
+        }
+        defaults.update(kwargs)
+        return UsdFundraiseContribution.objects.create(**defaults)
+
+    def test_get_usd_fundraise_payouts_returns_only_completed_non_refunded(self):
+        """get_usd_fundraise_payouts returns non-refunded contributions on PAID escrow."""
+        # Arrange
+        fundraise_paid = self._create_completed_fundraise()
+        contribution = self._create_usd_contribution(fundraise_paid)
+
+        uni_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PREREGISTRATION",
+        )
+        ct_fundraise = ContentType.objects.get_for_model(Fundraise)
+        fundraise_pending = Fundraise.objects.create(
+            created_by=self.other_user,
+            status=Fundraise.OPEN,
+            unified_document=uni_doc,
+        )
+        escrow_pending = Escrow.objects.create(
+            hold_type=Escrow.FUNDRAISE,
+            status=Escrow.PENDING,
+            created_by=self.user,
+            content_type=ct_fundraise,
+            object_id=fundraise_pending.id,
+        )
+        fundraise_pending.escrow = escrow_pending
+        fundraise_pending.save()
+        pending_contribution = self._create_usd_contribution(fundraise_pending)
+        refunded_contribution = self._create_usd_contribution(
+            fundraise_paid, is_refunded=True
+        )
+
+        # Act
+        qs = FundingActivityService.get_usd_fundraise_payouts()
+
+        # Assert
+        self.assertIn(contribution, qs)
+        self.assertNotIn(pending_contribution, qs)
+        self.assertNotIn(refunded_contribution, qs)
+        self.assertEqual(qs.count(), 1)
+
+    def test_usd_fundraise_payout_sets_native_usd_and_calculated_rsc(self):
+        """USD_FUNDRAISE_PAYOUT: native usd_cents + calculated RSC from historical rate."""
+        # Arrange
+        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, target_currency="USD")
+        fundraise = self._create_completed_fundraise()
+        contribution = self._create_usd_contribution(fundraise, amount_cents=10000)
+
+        # Act
+        with patch.object(Fundraise, "get_recipient", return_value=self.other_user):
+            activity = FundingActivityService.create_funding_activity(
+                FundingActivity.USD_FUNDRAISE_PAYOUT, contribution
+            )
+
+        # Assert — $100 at rate 0.5 → 200 RSC
+        self.assertEqual(activity.source_type, FundingActivity.USD_FUNDRAISE_PAYOUT)
+        self.assertEqual(activity.usd_cents, 10000)
+        self.assertEqual(activity.total_amount, Decimal("200"))
+        recipient = activity.recipients.get()
+        self.assertEqual(recipient.usd_cents, 10000)
+        self.assertEqual(recipient.amount, Decimal("200"))
+
+    def test_usd_fundraise_payout_skips_refunded_contribution(self):
+        """Refunded USD contributions do not create FundingActivity."""
+        # Arrange
+        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, target_currency="USD")
+        fundraise = self._create_completed_fundraise()
+        contribution = self._create_usd_contribution(fundraise, is_refunded=True)
+
+        # Act
+        with patch.object(Fundraise, "get_recipient", return_value=self.other_user):
+            activity = FundingActivityService.create_funding_activity(
+                FundingActivity.USD_FUNDRAISE_PAYOUT, contribution
+            )
+
+        # Assert
+        self.assertIsNone(activity)
+        self.assertEqual(FundingActivity.objects.count(), 0)
 
 
 class FundingActivityDualAmountsTests(TestCase):
