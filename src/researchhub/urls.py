@@ -54,7 +54,6 @@ from purchase.views import (
 )
 from researchhub.views import AssetUploadView
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
-from review.views.peer_review_view import PeerReviewViewSet
 from review.views.review_availability_view import ReviewAvailabilityView
 from review.views.review_view import ReviewViewSet
 from user.views import author_views, editor_views, moderator_view, persona_webhook_view
@@ -171,12 +170,6 @@ router.register(r"gatekeeper", user.views.GatekeeperViewSet, basename="gatekeepe
 
 router.register(
     r"researchhub_unified_document/([0-9]+)/review", ReviewViewSet, basename="review"
-)
-
-router.register(
-    r"paper/(?P<paper_id>\d+)/peer-review",
-    PeerReviewViewSet,
-    basename="peer_review",
 )
 
 router.register(
