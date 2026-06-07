@@ -92,6 +92,14 @@ class ModeratorUserSerializer(ModelSerializer):
             "risk_score",
         ]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Risk score is moderator-only: drop the field entirely for hub editors
+        # and others so it's never computed or exposed to them.
+        requester = getattr(self.context.get("request"), "user", None)
+        if not (requester and getattr(requester, "moderator", False)):
+            self.fields.pop("risk_score", None)
+
     def get_verification(self, user):
         try:
             user_verification = user.userverification
