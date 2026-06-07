@@ -21,4 +21,4 @@ class Command(BaseCommand):
                     self.style.ERROR(f"Failed to remove balance {balance.id}: {e}")
                 )
 
-        self.stdout.write(self.style.SUCCESS(f"Done wiping balances"))
+        self.stdout.write(self.style.SUCCESS("Done wiping balances"))

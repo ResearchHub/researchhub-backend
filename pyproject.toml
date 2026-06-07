@@ -26,7 +26,7 @@ dependencies = [
     "django-cors-headers==3.5.0",
     "django-dbbackup==4.0.2",
     "django-debug-toolbar==4.2",
-    "django-opensearch-dsl==0.7.0",
+    "django-opensearch-dsl==0.8.0",
     "django-extensions==3.0.9",
     "django-fernet-encrypted-fields>=0.3.1",
     "django-filter>=24.3,<25.0",
@@ -90,15 +90,23 @@ extend-select = [
     "W",  # pycodestyle warnings
     "I",  # isort
 ]
-extend-ignore = [
-    # Temporarily ignore these violations until cleaned up:
-    "E402",  # module-import-not-at-top-of-file
-    "E501",  # line-too-long
-    "E722",  # bare-except
-    "F403",  # undefined-local-with-import-star
-    "F541",  # f-string-missing-placeholders
-    "F601",  # multi-value-repeated-key-literal
-    "F811",  # redefined-while-unused
-    "F821",  # undefined-name
-    "F841",  # unused-variable
-]
+
+[tool.ruff.lint.per-file-ignores]
+# Temporarily ignore E501 per app:
+"src/ai_peer_review/**/*.py" = ["E501"]
+"src/analytics/**/*.py" = ["E501"]
+"src/discussion/**/*.py" = ["E501"]
+"src/feed/**/*.py" = ["E501"]
+"src/organizations/**/*.py" = ["E501"]
+"src/paper/**/*.py" = ["E501"]
+"src/personalize/**/*.py" = ["E501"]
+"src/purchase/**/*.py" = ["E501"]
+"src/referral/**/*.py" = ["E501"]
+"src/reputation/**/*.py" = ["E501"]
+"src/research_ai/**/*.py" = ["E501"]
+"src/researchhub/**/*.py" = ["E501"]
+"src/researchhub_comment/**/*.py" = ["E501"]
+"src/researchhub_document/**/*.py" = ["E501"]
+"src/topic/**/*.py" = ["E501"]
+"src/user/**/*.py" = ["E501"]
+"src/user_lists/**/*.py" = ["E501"]

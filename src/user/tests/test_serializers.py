@@ -16,6 +16,7 @@ from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Distribution, Score, Withdrawal
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from review.models import Review
 from user.models import UserVerification
 from user.serializers import (
     AuthorSerializer,
@@ -64,11 +65,17 @@ class UserSerializersTests(TestCase):
                 created_by=self.user,
             )
 
-            RhCommentModel.objects.create(
+            comment = RhCommentModel.objects.create(
                 created_by=self.user,
                 comment_type="REVIEW",
                 is_removed=False,
                 thread_id=thread.id,
+            )
+            Review.objects.create(
+                created_by=self.user,
+                content_type=ContentType.objects.get_for_model(RhCommentModel),
+                object_id=comment.id,
+                is_assessed=True,
             )
 
     def test_author_serializer_succeeds_without_user_or_university(self):

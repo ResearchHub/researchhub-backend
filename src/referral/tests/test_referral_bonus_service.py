@@ -354,7 +354,7 @@ class ReferralBonusServiceTest(TestCase):
 
         # 2. One after the referral bonus period expires (should NOT get bonus)
         ineligible_contribution_amount = Decimal("200.00")
-        ineligible_contribution = Purchase.objects.create(
+        Purchase.objects.create(
             user=self.referred_user,
             content_type=ContentType.objects.get_for_model(Fundraise),
             object_id=self.fundraise.id,

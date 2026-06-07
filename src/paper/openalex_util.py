@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Q, QuerySet
 
 import utils.sentry as sentry
 from institution.models import Institution
@@ -15,6 +15,7 @@ from user.related_models.author_contribution_summary_model import (
     AuthorContributionSummary,
 )
 from user.related_models.author_institution import AuthorInstitution
+from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
 
 # Only these particular fields will be updated when an OpenAlex
@@ -308,9 +309,7 @@ def build_oa_authors_by_work_id_dict(
     return oa_authors_by_work_id
 
 
-def create_authors(openalex_works) -> List["Author"]:
-    from user.related_models.author_model import Author
-
+def create_authors(openalex_works) -> QuerySet[Author]:
     # Get all authorships from the works
     openalex_authorships = [work.get("authorships", []) for work in openalex_works]
     openalex_authorships = [
@@ -352,7 +351,7 @@ def create_authors(openalex_works) -> List["Author"]:
     return Author.objects.filter(openalex_ids__overlap=all_openalex_author_ids)
 
 
-def build_authors_by_oa_id_dict(authors) -> Dict[str, List["Author"]]:
+def build_authors_by_oa_id_dict(authors: QuerySet[Author]) -> Dict[str, List[Author]]:
     authors_by_oa_id = {}
     for author in authors:
         for openalex_id in author.openalex_ids:

@@ -1,6 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Sum
+from django.utils import timezone
 
 from user.constants.risk_score_constants import (
     DEFAULT_SCORE,
@@ -22,13 +23,17 @@ class RiskScoreService:
             return DEFAULT_SCORE
 
     def is_trusted(self, user):
-        return self.get_score(user) <= TRUSTED_THRESHOLD
+        return self.get_score(user) >= TRUSTED_THRESHOLD
 
     def is_restricted(self, user):
-        return self.get_score(user) >= RESTRICTED_THRESHOLD
+        return self.get_score(user) <= RESTRICTED_THRESHOLD
 
-    def record_event(self, user, event_type, *, delta=None, source=None):
+    def record_event(
+        self, user, event_type, *, delta=None, source=None, action_date=None
+    ):
         delta = self._resolve_delta(event_type, delta)
+        source_ct, source_id = self._resolve_source(source)
+        action_date = action_date or timezone.now()
 
         with transaction.atomic():
             risk_score, _ = RiskScore.objects.select_for_update().get_or_create(
@@ -40,7 +45,7 @@ class RiskScoreService:
                     return None
 
             if source is not None and self._source_event_exists(
-                user, event_type, source
+                user, event_type, source_ct, source_id
             ):
                 return None
 
@@ -48,7 +53,9 @@ class RiskScoreService:
                 user=user,
                 event_type=event_type,
                 delta=delta,
-                **self._source_fields(source),
+                source_content_type=source_ct,
+                source_content_id=source_id,
+                action_date=action_date,
             )
 
             risk_score.score = self._compute_score(user)
@@ -79,18 +86,15 @@ class RiskScoreService:
     def _one_time_event_exists(self, user, event_type):
         return RiskScoreEvent.objects.filter(user=user, event_type=event_type).exists()
 
-    def _source_event_exists(self, user, event_type, source):
+    def _source_event_exists(self, user, event_type, source_ct, source_id):
         return RiskScoreEvent.objects.filter(
             user=user,
             event_type=event_type,
-            source_content_type=ContentType.objects.get_for_model(source),
-            source_content_id=source.pk,
+            source_content_type=source_ct,
+            source_content_id=source_id,
         ).exists()
 
-    def _source_fields(self, source):
+    def _resolve_source(self, source):
         if source is None:
-            return {}
-        return {
-            "source_content_type": ContentType.objects.get_for_model(source),
-            "source_content_id": source.pk,
-        }
+            return None, None
+        return ContentType.objects.get_for_model(source), source.pk

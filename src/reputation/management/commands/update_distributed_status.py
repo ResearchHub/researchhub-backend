@@ -38,4 +38,4 @@ class Command(BaseCommand):
                     )
                 )
 
-        self.stdout.write(self.style.SUCCESS(f"Done updating distributions"))
+        self.stdout.write(self.style.SUCCESS("Done updating distributions"))

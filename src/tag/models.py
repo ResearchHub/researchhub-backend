@@ -5,8 +5,9 @@ from django.db import models
 from utils.models import DefaultModel
 
 
-# We ask openalex to classify a paper into concepts, which we then present as tag candidates from which users can pick
-# zero or more to attach to the paper. https://docs.openalex.org/about-the-data/concept
+# We ask openalex to classify a paper into concepts, which we then present as tag
+# candidates from which users can pick zero or more to attach to the paper.
+# https://docs.openalex.org/about-the-data/concept
 class Concept(DefaultModel):
     # e.g. "https://openalex.org/C2524010"
     # https://docs.openalex.org/about-the-data/concept#id

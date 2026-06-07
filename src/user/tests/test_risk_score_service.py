@@ -1,4 +1,7 @@
+from datetime import timedelta
+
 from django.test import TestCase
+from django.utils import timezone
 
 from user.constants.risk_score_constants import (
     DEFAULT_SCORE,
@@ -47,7 +50,7 @@ class RiskScoreServiceTests(TestCase):
 
     def test_not_trusted_past_boundary(self):
         # Arrange
-        RiskScore.objects.create(user=self.user, score=TRUSTED_THRESHOLD + 1)
+        RiskScore.objects.create(user=self.user, score=TRUSTED_THRESHOLD - 1)
 
         # Act
         result = self.service.is_trusted(self.user)
@@ -67,7 +70,7 @@ class RiskScoreServiceTests(TestCase):
 
     def test_not_restricted_past_boundary(self):
         # Arrange
-        RiskScore.objects.create(user=self.user, score=RESTRICTED_THRESHOLD - 1)
+        RiskScore.objects.create(user=self.user, score=RESTRICTED_THRESHOLD + 1)
 
         # Act
         result = self.service.is_restricted(self.user)
@@ -80,8 +83,8 @@ class RiskScoreServiceTests(TestCase):
         event = self.service.record_event(self.user, EventType.WORK_APPROVED)
 
         # Assert
-        self.assertEqual(event.delta, -50)
-        self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE - 50)
+        self.assertEqual(event.delta, 50)
+        self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE + 50)
 
     def test_record_event_explicit_delta_overrides_default(self):
         # Act
@@ -90,6 +93,28 @@ class RiskScoreServiceTests(TestCase):
         # Assert
         self.assertEqual(event.delta, -5)
         self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE - 5)
+
+    def test_record_event_defaults_action_date_to_now(self):
+        # Act
+        event = self.service.record_event(self.user, EventType.WORK_APPROVED)
+
+        # Assert
+        self.assertAlmostEqual(
+            event.action_date, timezone.now(), delta=timedelta(seconds=5)
+        )
+
+    def test_record_event_uses_explicit_action_date(self):
+        # Arrange
+        occurred_at = timezone.now() - timedelta(days=30)
+
+        # Act
+        event = self.service.record_event(
+            self.user, EventType.WORK_APPROVED, action_date=occurred_at
+        )
+
+        # Assert
+        self.assertEqual(event.action_date, occurred_at)
+        self.assertGreater(event.created_date, occurred_at)
 
     def test_record_event_raises_for_unknown_type(self):
         # Act & Assert
@@ -115,7 +140,7 @@ class RiskScoreServiceTests(TestCase):
         self.service.record_event(self.user, EventType.WORK_DECLINED)
 
         # Assert
-        self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE + 40)
+        self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE - 40)
 
     def test_one_time_event_duplicate_ignored(self):
         # Arrange
@@ -150,5 +175,5 @@ class RiskScoreServiceTests(TestCase):
         # Act - next event forces recalculation from ledger
         self.service.record_event(self.user, EventType.WORK_DECLINED)
 
-        # Assert - score reflects full ledger, not 999 + 20
-        self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE - 50 + 20)
+        # Assert - score reflects full ledger, not 999 - 20
+        self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE + 50 - 20)

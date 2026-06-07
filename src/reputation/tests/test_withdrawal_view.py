@@ -14,8 +14,9 @@ from rest_framework.test import APITestCase
 
 from ethereum.lib import normalize_ethereum_address
 from purchase.models import Balance, RscExchangeRate
-from reputation.lib import WITHDRAWAL_MINIMUM, PendingWithdrawal
+from reputation.lib import WITHDRAWAL_MINIMUM
 from reputation.models import Withdrawal
+from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.tests.helpers import create_deposit, create_withdrawal
 from reputation.views.withdrawal_view import WithdrawalViewSet
 from user.related_models.user_verification_model import UserVerification
@@ -70,9 +71,9 @@ class WithdrawalViewSetTests(APITestCase):
         self.withdrawal_url = reverse("withdrawal-list")
         self.transaction_fee_url = reverse("withdrawal-transaction-fee")
 
-        # Mock PendingWithdrawal.complete_token_transfer
-        self.withdraw_patcher = mock.patch.object(
-            PendingWithdrawal, "complete_token_transfer", return_value=None
+        # Mock async on-chain broadcast
+        self.withdraw_patcher = mock.patch(
+            "reputation.tasks.broadcast_withdrawal.delay", return_value=None
         )
         self.withdraw_patcher.start()
 
@@ -171,6 +172,7 @@ class WithdrawalViewSetTests(APITestCase):
             self.assertEqual(withdrawal.to_address, VALID_TEST_TO_ADDRESS_CHECKSUM)
             self.assertEqual(withdrawal.network, "ETHEREUM")
             self.assertEqual(withdrawal.fee, "10.0")  # Mocked fee
+            self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.INITIATED)
 
             # Check balance was updated
             expected_balance = deposit_amount - (WITHDRAWAL_MINIMUM + 10)
@@ -262,10 +264,43 @@ class WithdrawalViewSetTests(APITestCase):
         # Create a pending withdrawal
         Withdrawal.objects.create(
             user=user,
+            token_address="0xtoken",
+            from_address="0xfrom",
             to_address="0xabcdef1234567890abcdef1234567890abcdef12",
             amount=decimal.Decimal("100"),
+            fee="10",
             paid_status="PENDING",
             transaction_hash="0x1234",
+        )
+
+        self.client.force_authenticate(user)
+        response = self.client.post(
+            self.withdrawal_url,
+            {
+                "amount": "200",
+                "to_address": "0xabcdef1234567890abcdef1234567890abcdef12",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(
+            "Please wait for your previous withdrawal to finish", response.data
+        )
+
+    def test_withdrawal_with_initiated_transaction(self):
+        """Users cannot start a new withdrawal while one is INITIATED."""
+        user = self._create_withdrawer("rep_user")
+        create_deposit(user, amount="1000.0")
+
+        Withdrawal.objects.create(
+            user=user,
+            token_address="0xtoken",
+            from_address="0xfrom",
+            to_address="0xabcdef1234567890abcdef1234567890abcdef12",
+            amount="100",
+            fee="10",
+            paid_status=PaidStatusModelMixin.INITIATED,
+            transaction_hash=None,
         )
 
         self.client.force_authenticate(user)
@@ -620,17 +655,23 @@ class WithdrawalViewSetTests(APITestCase):
         self.assertIsNone(message)
 
     def test_exception_in_payment_process(self):
-        """Test that exceptions in the payment process are handled properly."""
+        """Test that exceptions during DB preparation are handled properly."""
         user = self._create_withdrawer("rep_user")
 
         create_deposit(user, amount="1000.0")
         self.client.force_authenticate(user)
 
-        # Make PendingWithdrawal.complete_token_transfer raise an exception
-        with mock.patch.object(
-            PendingWithdrawal,
-            "complete_token_transfer",
-            side_effect=Exception("Test exception"),
+        with (
+            mock.patch.object(
+                WithdrawalViewSet,
+                "_check_hotwallet_balance",
+                return_value=(True, None),
+            ),
+            mock.patch.object(
+                WithdrawalViewSet,
+                "_prepare_withdrawal",
+                side_effect=Exception("Test exception"),
+            ),
         ):
             response = self.client.post(
                 self.withdrawal_url,
@@ -725,6 +766,15 @@ class WithdrawalViewSetTests(APITestCase):
         """Test that _check_meets_withdrawal_minimum succeeds with sufficient amount."""
         # Set an amount above the minimum
         amount = WITHDRAWAL_MINIMUM + decimal.Decimal("10")
+
+        valid, message = self.withdrawal_view._check_meets_withdrawal_minimum(amount)
+
+        self.assertTrue(valid)
+        self.assertIsNone(message)
+
+    def test_check_withdrawal_meets_minimum_exact(self):
+        """Withdrawals at exactly WITHDRAWAL_MINIMUM are allowed."""
+        amount = decimal.Decimal(WITHDRAWAL_MINIMUM)
 
         valid, message = self.withdrawal_view._check_meets_withdrawal_minimum(amount)
 

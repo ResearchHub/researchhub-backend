@@ -142,7 +142,7 @@ class Action(DefaultModel):
         title = ""
         try:
             title = self.item.unified_document.get_document().title
-        except Exception as e:
+        except Exception:
             title = ""
 
         return title
@@ -170,7 +170,7 @@ class Action(DefaultModel):
                 summary = item.abstract
             elif doc_type == "QUESTION":
                 summary = item.renderable_text
-        except Exception as e:
+        except Exception:
             return ""
 
         # Checks if summary exists and if it's longer than 256 chars

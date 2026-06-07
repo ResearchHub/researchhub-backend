@@ -1147,7 +1147,9 @@ class NoteTests(APITestCase):
                     "Test grant post content with contacts that is "
                     "sufficiently long for validation"
                 ),
-                "title": "Test grant post with contacts title that is sufficiently long",
+                "title": (
+                    "Test grant post with contacts title that is sufficiently long"
+                ),
                 "hubs": [],
                 "grant_amount": 75000,
                 "grant_currency": "USD",
@@ -1478,7 +1480,9 @@ class NoteTests(APITestCase):
                     "Preregistration content for application that is "
                     "sufficiently long for validation"
                 ),
-                "title": "Preregistration for grant application that is sufficiently long",
+                "title": (
+                    "Preregistration for grant application that is sufficiently long"
+                ),
                 "hubs": [],
             },
         )

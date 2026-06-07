@@ -118,9 +118,24 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
             .filter(
                 document_type=PREREGISTRATION,
                 unified_document__is_removed=False,
-                unified_document__is_public=True,
             )
         )
+
+        # Personalized feeds (grant_id / created_by / funded_by) are never
+        # cached -- see `use_cache` in list() -- so they can safely respect
+        # per-viewer visibility. This lets the author, grant owners, invited
+        # reviewers, and moderators see private preregistrations and grants
+        # (e.g. on the author profile's Proposals tab) while everyone else,
+        # including anonymous viewers, still only sees public ones.
+        if grant_id or created_by or funded_by:
+            visible_ids = ResearchhubPost.objects.visible_to(self.request.user).values(
+                "id"
+            )
+            queryset = queryset.filter(id__in=visible_ids)
+        else:
+            # The public discovery feed stays user-agnostic so it can be cached
+            # for everyone; never expose private work here.
+            queryset = queryset.filter(unified_document__is_public=True)
 
         if created_by:
             queryset = queryset.filter(created_by_id=created_by)

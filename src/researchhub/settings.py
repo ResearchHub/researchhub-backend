@@ -267,7 +267,6 @@ INSTALLED_APPS = [
     "referral",
     "reputation",
     "researchhub",
-    "researchhub_case",
     "researchhub_comment",
     "researchhub_document",
     "researchhub_access_group",
@@ -281,7 +280,6 @@ INSTALLED_APPS = [
     "user_lists",
     "research_ai",
     "ai_peer_review",
-    "risk_score",
     # Health checks
     "health_check",
     "health_check.db",

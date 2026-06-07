@@ -145,7 +145,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
         note = instance.note
         if note:
-            return NoteSerializer(instance.note).data
+            return NoteSerializer(instance.note, context=self.context).data
         return None
 
     def get_unified_document_id(self, instance):
@@ -164,10 +164,15 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 "documents",
                 "slug",
                 "is_removed",
+                "is_public",
                 "document_type",
                 "created_by",
             ],
             context={
+                # Thread the request through so the nested post-visibility
+                # guard (DynamicPostSerializer.to_representation) evaluates the
+                # actual viewer instead of treating the request as anonymous.
+                "request": self.context.get("request"),
                 "doc_duds_get_created_by": {
                     "_include_fields": [
                         "id",
@@ -278,6 +283,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                     "image_url": self._get_grant_image(grant_post),
                     "title": grant_post.title if grant_post else None,
                     "applicant_count": applicant_counts.get(grant.id, 0),
+                    "application_visibility": grant.application_visibility,
                     "proposal": {
                         "unified_document_id": ud_id,
                         "ai_peer_review": ai_peer_review,
@@ -362,6 +368,22 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = ResearchhubPost
         fields = "__all__"
+
+    def to_representation(self, instance):
+        """Redact private posts for viewers who are not allowed to see them.
+
+        ``DynamicPostSerializer`` is the shared chokepoint through which post
+        content is embedded in other resources (unified documents, comment
+        threads, notifications, reviews, bounties, activity feeds). Guarding it
+        here ensures a private preregistration's content never leaks via any of
+        those paths to an unauthorized viewer.
+        """
+        unified_document = instance.unified_document
+        if unified_document is not None and not unified_document.is_public:
+            user = get_user_from_request(self.context)
+            if not unified_document.is_visible_to_user(user):
+                return {"id": instance.id, "is_public": False}
+        return super().to_representation(instance)
 
     def get_authors(self, post):
         context = self.context

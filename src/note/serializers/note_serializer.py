@@ -91,6 +91,9 @@ class NoteSerializer(ModelSerializer):
             return None
 
         context = {
+            # Propagate the request so DynamicPostSerializer can resolve the
+            # viewer and avoid redacting private posts they are allowed to see.
+            "request": self.context.get("request"),
             "doc_dps_get_authors": {
                 "_include_fields": [
                     "id",
@@ -131,6 +134,7 @@ class NoteSerializer(ModelSerializer):
                     "created_by",
                     "contacts",
                     "applications",
+                    "application_visibility",
                 ]
             },
             "pch_dgs_get_created_by": {
@@ -242,6 +246,9 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
             return None
 
         context = {
+            # Propagate the request so DynamicPostSerializer can resolve the
+            # viewer and avoid redacting private posts they are allowed to see.
+            "request": self.context.get("request"),
             "doc_dps_get_authors": {
                 "_include_fields": [
                     "id",
@@ -282,6 +289,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
                     "created_by",
                     "contacts",
                     "applications",
+                    "application_visibility",
                 ]
             },
             "pch_dgs_get_created_by": {

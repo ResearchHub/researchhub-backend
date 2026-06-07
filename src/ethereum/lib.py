@@ -141,7 +141,14 @@ def get_fee_estimate(w3, method_call):
 
 
 def execute_erc20_transfer(
-    w3, sender, sender_signing_key, contract, to, amount, network="ETHEREUM"
+    w3,
+    sender,
+    sender_signing_key,
+    contract,
+    to,
+    amount,
+    network="ETHEREUM",
+    nonce=None,
 ):
     """Sends `amount` of the token located at `contract` to `to`.
 
@@ -165,11 +172,18 @@ def execute_erc20_transfer(
         sender,
         sender_signing_key,
         network=network,
+        nonce=nonce,
     )
 
 
 def _transact(
-    w3, method_call, sender, sender_signing_key, network="ETHEREUM", gas=None
+    w3,
+    method_call,
+    sender,
+    sender_signing_key,
+    network="ETHEREUM",
+    gas=None,
+    nonce=None,
 ):
     """Executes the contract's `method_call` on chain."""
     gas_estimate = get_gas_estimate(method_call)
@@ -180,7 +194,7 @@ def _transact(
     tx = method_call.build_transaction(
         {
             "from": checksum_sender,
-            "nonce": get_nonce(w3, checksum_sender),
+            "nonce": nonce if nonce is not None else get_nonce(w3, checksum_sender),
             "gas": gas or gas_estimate,
             "chainId": chain_id,
         }

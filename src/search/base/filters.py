@@ -317,7 +317,6 @@ class SuggesterFilterBackend(BaseSearchFilterBackend):
 
         # Check for django-elasticsearch-dsl-drf style parameters
         # Format: field_name__completion=value
-        suggestions_added = False
         for suggester_name, field_config in suggester_fields.items():
             # Check if this specific field was requested with __completion suffix
             field_param = f"{suggester_name}__completion"
@@ -350,7 +349,5 @@ class SuggesterFilterBackend(BaseSearchFilterBackend):
                 queryset = queryset.suggest(
                     suggester_name, truncated_query, completion={"field": field}
                 )
-
-            suggestions_added = True
 
         return queryset

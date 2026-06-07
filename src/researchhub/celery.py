@@ -34,7 +34,6 @@ QUEUE_LOGS = "logs"
 QUEUE_PURCHASES = "purchases"
 QUEUE_REPUTATION = "reputation"
 QUEUE_CONTRIBUTIONS = "contributions"
-QUEUE_AUTHOR_CLAIM = "author_claim"
 QUEUE_PAPER_METADATA = "paper_metadata"
 QUEUE_BOUNTIES = "bounties"
 QUEUE_HUBS = "hubs"
@@ -148,6 +147,14 @@ app.conf.beat_schedule = {
         "task": "user.tasks.leaderboard_tasks.refresh_leaderboard_task",
         "schedule": crontab(hour="*/6", minute=0),
         "options": {"priority": 3, "queue": QUEUE_CACHES},
+    },
+    "user_apply-account-age-bonus": {
+        "task": "user.tasks.risk_score_tasks.apply_account_age_bonus_task",
+        "schedule": crontab(hour=2, minute=30),  # Run daily at 2:30 AM UTC
+        "options": {
+            "priority": 4,
+            "queue": QUEUE_REPUTATION,
+        },
     },
     # Daily Staking Snapshot (runs before distribution)
     "reputation_create-daily-staking-snapshots": {
