@@ -38,6 +38,7 @@ def complete_eligible_fundraises():
     3. Have escrow funds available to payout
     """
     logger.info("Starting complete_eligible_fundraises task")
+    logger.info("Starting complete_eligible_fundraises task")
 
     # Calculate the cutoff date (7 days ago)
     cutoff_date = datetime.now(pytz.UTC) - timedelta(days=7)

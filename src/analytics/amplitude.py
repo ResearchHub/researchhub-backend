@@ -1,11 +1,13 @@
 import functools
 import json
+import logging
 
 import requests
 
 from researchhub.settings import AMPLITUDE_API_KEY, DEVELOPMENT
 from utils.parsers import json_serial
-from utils.sentry import log_error, log_info
+
+logger = logging.getLogger(__name__)
 
 
 class Amplitude:
@@ -148,7 +150,7 @@ class Amplitude:
         request = requests.post(self.api_url, data=hit, headers=headers)
         res = request.json()
         if request.status_code != 200:
-            log_info(res)
+            logger.error("Failed to send event to Amplitude: %s", res)
         return res
 
 
@@ -166,10 +168,9 @@ def track_event(func):
                 # Auto-detect and track user activities based on event type
                 _auto_track_user_activity_by_event_type(res, *args, **kwargs)
         except Exception as e:
-            log_error(
-                e,
-                message="Failed to track amplitude event",
-                json_data={"amp_hit": getattr(amp, "hit", None)},
+            logger.exception(
+                "Failed to track amplitude event",
+                extra={"amp_hit": getattr(amp, "hit", None)},
             )
         return res
 
