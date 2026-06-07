@@ -6,7 +6,6 @@ from django.dispatch import receiver
 
 from analytics.models import UserInteractions
 from personalize.tasks import sync_interaction_event_to_personalize_task
-from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
 
