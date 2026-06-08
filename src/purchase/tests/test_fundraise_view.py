@@ -156,7 +156,8 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(updated_fundraise["amount_raised"]["rsc"], 100)
         self.assertEqual(float(updated_fundraise["escrow"]["amount_holding"]), 100.0)
 
-        # there should be two balance objects for the user, one for the '100', and one for fees
+        # there should be two balance objects for the user, one for the '100',
+        # and one for fees
         amount_balance = Balance.objects.filter(
             user=user, content_type=ContentType.objects.get_for_model(Purchase)
         )
@@ -270,7 +271,8 @@ class FundraiseViewTests(APITestCase):
             updated_fundraise["status"], "OPEN"
         )  # Should remain open until manually completed
 
-        # there should be two balance objects for the user, one for the contribution and one for fees
+        # there should be two balance objects for the user, one for the contribution
+        # and one for fees
         amount_balance = Balance.objects.filter(
             user=user, content_type=ContentType.objects.get_for_model(Purchase)
         )
@@ -358,7 +360,8 @@ class FundraiseViewTests(APITestCase):
         user1_contributions = top_contributors[1]["contributions"]
         self.assertEqual(len(user1_contributions), 2)
 
-        # Verify contribution amounts (not checking order since it depends on implementation)
+        # Verify contribution amounts (not checking order since it depends on
+        # implementation)
         contribution_amounts = [c["amount"] for c in user1_contributions]
         self.assertIn(50.0, contribution_amounts)
         self.assertIn(100.0, contribution_amounts)
@@ -966,7 +969,9 @@ class FundraiseViewTests(APITestCase):
         self.assertIn("Invalid amount", response.data["message"])
 
     def test_create_usd_contribution_own_fundraise_no_nonprofit_fails(self):
-        """Test that user cannot contribute USD to their own fundraise without a nonprofit."""
+        """
+        Test that user cannot contribute USD to their own fundraise without a nonprofit.
+        """
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
         fundraise_id = fundraise.data["id"]
 
@@ -981,7 +986,10 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_create_usd_contribution_own_fundraise_with_nonprofit(self):
-        """Test that user CAN contribute USD to their own fundraise when a nonprofit is attached."""
+        """
+        Test that user CAN contribute USD to their own fundraise when a nonprofit
+        is attached.
+        """
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
         fundraise_id = fundraise.data["id"]
         self._link_nonprofit(fundraise_id)

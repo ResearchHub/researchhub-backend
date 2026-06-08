@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -8,7 +10,8 @@ from reputation.related_models.bounty import Bounty
 from reputation.related_models.contribution import Contribution
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.tasks import recalc_hot_score_task
-from utils import sentry
+
+logger = logging.getLogger(__name__)
 
 
 @receiver(post_save, sender=Vote, dispatch_uid="recalc_hot_score_on_vote")
@@ -22,9 +25,8 @@ def recalc_hot_score(instance, sender, **kwargs):
             priority=2,
             countdown=5,
         )
-    except Exception as error:
-        print("recalc_hot_score error", error)
-        sentry.log_error(error)
+    except Exception:
+        logger.exception("Failed to recalculate hot score for vote %s", instance.id)
 
 
 @receiver(post_save, sender=RhCommentModel, dispatch_uid="recalc_hot_score_on_comment")
@@ -39,8 +41,8 @@ def recalc_hot_score_on_instance(instance, **kwargs):
             priority=2,
             countdown=5,
         )
-    except Exception as error:
-        sentry.log_error(error)
+    except Exception:
+        logger.exception("Failed to recalculate hot score for instance %s", instance.id)
 
 
 @receiver(
@@ -55,7 +57,7 @@ def sync_is_removed_from_paper(instance, **kwargs):
             uni_doc.is_removed = instance.is_removed
             uni_doc.save()
     except Exception:
-        return None
+        logger.exception("Failed to sync is_removed for paper %s", instance.id)
 
 
 @receiver(

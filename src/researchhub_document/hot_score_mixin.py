@@ -127,7 +127,8 @@ class HotScoreMixin:
                 # print("id", bounty.id)
                 # print("is_near_new", is_near_new)
                 # print("is_near_expire", is_near_expire)
-                # print("percentage_within_promo_period", percentage_within_promo_period)
+                # print("percentage_within_promo_period",
+                # ... percentage_within_promo_period)
                 # print("score", this_bounty_score)
 
         except Exception as e:

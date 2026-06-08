@@ -79,7 +79,8 @@ class StripeWebhookView(APIView):
                     )
 
                     logger.info(
-                        "Payment record created successfully: ID=%s, Amount=%s, User=%s",
+                        "Payment record created successfully: "
+                        "ID=%s, Amount=%s, User=%s",
                         payment.id,
                         payment.amount,
                         payment.user_id,

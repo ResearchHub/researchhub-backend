@@ -7,10 +7,9 @@ from researchhub.celery import QUEUE_ELASTIC_SEARCH, app
 from researchhub_document.models import ResearchhubPost
 from search.documents.base import BaseDocument
 from search.documents.paper import PaperDocument
-from search.documents.person import PersonDocument
 from search.documents.post import PostDocument
 from search.documents.user import UserDocument
-from user.models import Author, User
+from user.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +47,6 @@ def update_user_related_documents(user_id: int, batch_size: int = 500) -> None:
         [user],
         batch_size=batch_size,
     )
-
-    # Update authors
-    author = Author.objects.filter(user=user).select_related("user").first()
-    if author is not None:
-        _update_document(
-            PersonDocument(),
-            [author],
-            batch_size=batch_size,
-        )
 
 
 def _iter_batches(

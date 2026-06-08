@@ -190,7 +190,8 @@ class UserInteractionsModelTests(TestCase):
             event_timestamp=today_10am,
         )
 
-        # Attempt to create another abstract expanded event same day - should raise IntegrityError
+        # Attempt to create another abstract expanded event same day
+        # should raise IntegrityError
         with self.assertRaises(IntegrityError):
             UserInteractions.objects.create(
                 user=self.user,
