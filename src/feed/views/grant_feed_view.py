@@ -49,7 +49,11 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
         page = request.query_params.get("page", "1")
         page_num = int(page)
         cache_key = self.get_cache_key(request, "grants")
-        use_cache = page_num <= GRANT_FEED_MAX_CACHED_PAGE
+        # The pending feed is a per-user moderation queue, but the cache key is
+        # not user-aware, so it must never be cached.
+        status = request.query_params.get("status", "")
+        is_pending_feed = status.upper() == Grant.PENDING
+        use_cache = page_num <= GRANT_FEED_MAX_CACHED_PAGE and not is_pending_feed
 
         if use_cache:
             cached_response = cache.get(cache_key)
@@ -140,7 +144,13 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
         )
 
         if status and status.upper() == Grant.PENDING:
+            # Pending grants: only moderators, hub editors, and the creator.
+            user = self.request.user
             queryset = queryset.filter(unified_document__grants__status=Grant.PENDING)
+            if not user.is_authenticated:
+                queryset = queryset.none()
+            elif not user.is_moderator_or_editor():
+                queryset = queryset.filter(created_by=user)
         else:
             queryset = queryset.exclude(
                 unified_document__grants__status__in=[Grant.PENDING, Grant.DECLINED]

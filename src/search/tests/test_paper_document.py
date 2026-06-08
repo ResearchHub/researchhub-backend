@@ -574,3 +574,35 @@ class PaperDocumentTests(TestCase):
             self.assertIn("input", secondary)
             self.assertIn("weight", secondary)
             self.assertLess(secondary["weight"], primary["weight"])
+
+
+class PaperDocumentShouldIndexTests(TestCase):
+    """Only approved, un-removed papers belong in the search index."""
+
+    def setUp(self):
+        self.document = PaperDocument()
+
+    def test_approved_paper_is_indexed(self):
+        paper = create_paper(title="Approved Paper")
+        paper.status = Paper.APPROVED
+
+        self.assertTrue(self.document.should_index_object(paper))
+
+    def test_pending_paper_is_not_indexed(self):
+        paper = create_paper(title="Pending Paper")
+        paper.status = Paper.PENDING
+
+        self.assertFalse(self.document.should_index_object(paper))
+
+    def test_declined_paper_is_not_indexed(self):
+        paper = create_paper(title="Declined Paper")
+        paper.status = Paper.DECLINED
+
+        self.assertFalse(self.document.should_index_object(paper))
+
+    def test_removed_paper_is_not_indexed(self):
+        paper = create_paper(title="Removed Paper")
+        paper.status = Paper.APPROVED
+        paper.is_removed = True
+
+        self.assertFalse(self.document.should_index_object(paper))

@@ -33,22 +33,21 @@ class ResearchhubPostQuerySet(models.QuerySet):
         (``status=APPROVED``). Posts awaiting moderation (PENDING) or declined
         therefore never surface publicly.
 
-        Beyond the public set, a post is visible to: the author, the creator of
-        any grant the post has applied to (via GrantApplication), users with a
-        non-revoked Permission on the post's unified document (e.g. invited
-        experts), and site moderators / hub editors who need to see private or
-        not-yet-approved grants and preregistrations to moderate them. A
-        NO_ACCESS Permission row revokes access even when other (e.g. stale
-        VIEWER) rows exist for the same user/document.
+        A post that has NOT cleared moderation is visible only to its author and
+        to site moderators / hub editors (who need to see it to moderate it).
+        The broader "elevated" viewers -- the creator of any grant the post
+        applied to (via GrantApplication) and users with a non-revoked
+        Permission on the post's unified document (e.g. invited experts) -- may
+        only see the post once it is APPROVED. A NO_ACCESS Permission row revokes
+        access even when other (e.g. stale VIEWER) rows exist for the same
+        user/document.
         """
-        public = Q(
-            unified_document__is_public=True,
-            status=ModeratedDocumentMixin.APPROVED,
-        )
+        approved = Q(status=ModeratedDocumentMixin.APPROVED)
+        public = Q(unified_document__is_public=True) & approved
         if user is None or not getattr(user, "is_authenticated", False):
             return self.filter(public)
 
-        if getattr(user, "moderator", False) or user.is_hub_editor():
+        if user.is_moderator_or_editor():
             return self
 
         ud_ct = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
@@ -60,12 +59,12 @@ class ResearchhubPostQuerySet(models.QuerySet):
         allowed = user_perms.exclude(access_type=NO_ACCESS)
         revoked = user_perms.filter(access_type=NO_ACCESS)
 
-        return self.filter(
-            public
-            | Q(created_by=user)
-            | Q(grant_applications__grant__created_by=user)
+        elevated = approved & (
+            Q(grant_applications__grant__created_by=user)
             | (Exists(allowed) & ~Exists(revoked))
-        ).distinct()
+        )
+
+        return self.filter(public | Q(created_by=user) | elevated).distinct()
 
 
 class ResearchhubPost(ModeratedDocumentMixin, AbstractGenericReactionModel):

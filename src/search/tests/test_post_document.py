@@ -1,3 +1,4 @@
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
@@ -5,7 +6,11 @@ from django.test import TestCase
 from django.utils import timezone
 
 from feed.models import FeedEntry
-from researchhub_document.related_models.constants.document_type import DISCUSSION
+from purchase.related_models.grant_model import Grant
+from researchhub_document.related_models.constants.document_type import (
+    DISCUSSION,
+    GRANT,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -77,5 +82,48 @@ class PostDocumentTests(TestCase):
 
     def test_should_index_object_includes_public_unremoved_post(self):
         post = self._create_post("Public Post")
+
+        self.assertTrue(self.document.should_index_object(post))
+
+    def test_should_index_object_excludes_pending_post(self):
+        post = self._create_post("Pending Post")
+        post.status = ResearchhubPost.PENDING
+
+        self.assertFalse(self.document.should_index_object(post))
+
+    def test_should_index_object_excludes_declined_post(self):
+        post = self._create_post("Declined Post")
+        post.status = ResearchhubPost.DECLINED
+
+        self.assertFalse(self.document.should_index_object(post))
+
+    def _create_grant_post(self, status):
+        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        post = ResearchhubPost.objects.create(
+            created_by=self.user,
+            title="Grant Post",
+            renderable_text="Grant content",
+            document_type=GRANT,
+            unified_document=unified_doc,
+        )
+        Grant.objects.create(
+            created_by=self.user,
+            unified_document=unified_doc,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Org",
+            description="desc",
+            status=status,
+        )
+        return post
+
+    def test_should_index_object_excludes_pending_grant(self):
+        """Grants gate on Grant.status, not the (always APPROVED) post status."""
+        post = self._create_grant_post(Grant.PENDING)
+
+        self.assertFalse(self.document.should_index_object(post))
+
+    def test_should_index_object_includes_open_grant(self):
+        post = self._create_grant_post(Grant.OPEN)
 
         self.assertTrue(self.document.should_index_object(post))

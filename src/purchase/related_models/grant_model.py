@@ -130,3 +130,13 @@ class Grant(DefaultModel):
     def is_active(self):
         """Check if the grant is currently accepting applications"""
         return self.status == self.OPEN and not self.is_expired()
+
+    def is_pending_moderation(self):
+        """Whether the grant has not yet cleared moderation.
+
+        Grants gate their public visibility through ``Grant.status`` rather than
+        the status of their backing post (which stays APPROVED). Pending and
+        declined grants must stay hidden from everyone except the creator,
+        moderators, and hub editors.
+        """
+        return self.status in (self.PENDING, self.DECLINED)

@@ -137,12 +137,13 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         """Whether this unified document may be exposed to ``user``.
 
         A work is publicly visible only once it is public *and* has cleared
-        moderation. Posts (preregistrations, grants, discussions) defer to
-        ``ResearchhubPost.visible_to``, which enforces the public + approved
-        rule and the elevated access for the author, grant creators the post
-        applied to, permitted reviewers, and moderators / hub editors. Papers
-        awaiting moderation (or declined) are restricted to their uploader and
-        moderators / hub editors.
+        moderation. Posts (preregistrations, discussions) defer to
+        ``ResearchhubPost.visible_to``, which keeps a work awaiting moderation
+        limited to its author and to moderators / hub editors. Papers awaiting
+        moderation (or declined) are likewise restricted to their uploader and
+        moderators / hub editors. Grants gate on ``Grant.status`` instead (their
+        backing post stays APPROVED), so a pending grant is restricted to its
+        creator and to moderators / hub editors.
         """
         if self.document_type == PAPER:
             paper = self.paper if hasattr(self, "paper") else None
@@ -151,6 +152,13 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
 
                 return Paper.objects.filter(pk=paper.pk).visible_to(user).exists()
             return self.is_public
+
+        if self.document_type == GRANT:
+            grant = self.grants.first()
+            if grant is not None and grant.is_pending_moderation():
+                if user is None or not getattr(user, "is_authenticated", False):
+                    return False
+                return user.is_moderator_or_editor() or grant.created_by_id == user.id
 
         from researchhub_document.related_models.researchhub_post_model import (
             ResearchhubPost,

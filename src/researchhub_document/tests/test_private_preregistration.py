@@ -301,6 +301,35 @@ class VisibleToQuerySetTests(AWSMockTestCase):
         self.assertIn(declined_post.id, self._visible_ids(self.author))
         self.assertIn(declined_post.id, self._visible_ids(moderator))
 
+    def test_grant_owner_cannot_see_pending_application(self):
+        """Grant owners only gain access once an application has cleared
+        moderation; a pending application stays limited to its author and
+        moderators / hub editors."""
+        self.private_post.status = ResearchhubPost.PENDING
+        self.private_post.save(update_fields=["status"])
+
+        self.assertNotIn(self.private_post.id, self._visible_ids(self.grant_owner))
+        self.assertIn(self.private_post.id, self._visible_ids(self.author))
+
+    def test_invited_expert_cannot_see_pending_post(self):
+        """A non-revoked Permission only grants access to approved posts."""
+        invited = _make_user("invited")
+        ud_ct = ContentType.objects.get_for_model(
+            self.private_post.unified_document.__class__
+        )
+        Permission.objects.create(
+            access_type=VIEWER,
+            content_type=ud_ct,
+            object_id=self.private_post.unified_document_id,
+            user=invited,
+        )
+
+        self.private_post.status = ResearchhubPost.PENDING
+        self.private_post.save(update_fields=["status"])
+
+        self.assertNotIn(self.private_post.id, self._visible_ids(invited))
+        self.assertIn(self.private_post.id, self._visible_ids(self.author))
+
 
 class PostViewSetVisibilityTests(AWSMockTestCase):
     """ResearchhubPostViewSet hides private posts from non-authorized requesters."""

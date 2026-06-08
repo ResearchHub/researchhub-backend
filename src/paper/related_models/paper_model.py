@@ -51,7 +51,7 @@ class PaperQuerySet(models.QuerySet):
         approved = Q(status=ModeratedDocumentMixin.APPROVED)
         if user is None or not getattr(user, "is_authenticated", False):
             return self.filter(approved)
-        if getattr(user, "moderator", False) or user.is_hub_editor():
+        if user.is_moderator_or_editor():
             return self
         return self.filter(approved | Q(uploaded_by=user))
 

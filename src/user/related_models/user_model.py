@@ -366,6 +366,15 @@ class User(AbstractUser):
             content_type=hub_content_type,
         ).exists()
 
+    def is_moderator_or_editor(self):
+        """Whether the user has elevated moderation reach.
+
+        Site moderators and hub editors share the same privileged visibility
+        across the app (e.g. seeing works still awaiting moderation), so the
+        check lives in one place instead of being re-spelled at every call site.
+        """
+        return self.moderator or self.is_hub_editor()
+
     def is_hub_editor_of(self, hubs):
         hub_content_type = ContentType.objects.get_for_model(Hub)
         return self.permissions.filter(
