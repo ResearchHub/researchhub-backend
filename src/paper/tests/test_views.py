@@ -174,17 +174,20 @@ class PaperApiTests(APITestCase):
         self.assertEqual(len(unclaimed_works), 3)
         self.assertEqual(unclaimed_works, openalex_works)
 
-    def test_unverified_user_cannot_create_researchhub_paper(self):
-        """Test that unverified users are blocked from creating papers"""
+    def test_unverified_user_can_create_researchhub_paper(self):
+        """Risk score gating replaces persona verification, so unverified users
+        can create papers."""
         user = create_random_authenticated_user("unverified_user")
         self.client.force_authenticate(user)
+        author = Author.objects.create(first_name="Test", last_name="Author")
 
         response = self.client.post(
-            "/api/paper/create_researchhub_paper/", {}, format="json"
+            "/api/paper/create_researchhub_paper/",
+            self._researchhub_paper_payload(author),
+            format="json",
         )
 
-        self.assertEqual(response.status_code, 403)
-        self.assertIn("verified", (response.data.get("detail") or "").lower())
+        self.assertEqual(response.status_code, 201)
 
     def test_create_researchhub_paper_creates_first_version(self):
         """Test that creating a new paper sets version 1"""

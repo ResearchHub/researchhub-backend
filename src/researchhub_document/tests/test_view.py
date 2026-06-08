@@ -66,12 +66,11 @@ class ViewTests(APITestCase):
         # Add exchange rate for fundraise tests
         RscExchangeRate.objects.create(rate=1.0)
 
-        # Require verified user for create/update; make setUp users verified so existing tests pass
         make_user_verified(self.admin_user)
         make_user_verified(self.member_user)
         make_user_verified(self.non_member)
 
-    def test_unverified_user_cannot_create_post(self):
+    def test_unverified_user_can_create_post(self):
         unverified = create_random_default_user("unverified_no_verification")
         self.client.force_authenticate(unverified)
         hub = create_hub("hub")
@@ -87,19 +86,17 @@ class ViewTests(APITestCase):
                 "hubs": [hub.id],
             },
         )
-        self.assertEqual(response.status_code, 403)
-        self.assertIn("verified", (response.data.get("detail") or "").lower())
+        self.assertEqual(response.status_code, 200)
 
-    def test_unverified_user_cannot_update_post(self):
-        author = create_random_default_user("author_verified_owner")
-        make_user_verified(author)
-        self.client.force_authenticate(author)
+    def test_unverified_user_can_update_own_post(self):
+        unverified = create_random_default_user("unverified_owner")
+        self.client.force_authenticate(unverified)
         hub = create_hub("hub")
         create_resp = self.client.post(
             "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
-                "created_by": author.id,
+                "created_by": unverified.id,
                 "full_src": "body",
                 "is_public": True,
                 "renderable_text": "x" * MIN_POST_BODY_LENGTH,
@@ -109,15 +106,12 @@ class ViewTests(APITestCase):
         )
         self.assertEqual(create_resp.status_code, 200)
         post_id = create_resp.data["id"]
-        # Unverified user cannot update another's post
-        unverified = create_random_default_user("unverified_updater")
-        self.client.force_authenticate(unverified)
         update_resp = self.client.put(
             f"/api/researchhubpost/{post_id}/",
             {
                 "post_id": post_id,
                 "document_type": "DISCUSSION",
-                "created_by": author.id,
+                "created_by": unverified.id,
                 "full_src": "updated",
                 "is_public": True,
                 "renderable_text": "x" * MIN_POST_BODY_LENGTH,
@@ -125,8 +119,7 @@ class ViewTests(APITestCase):
                 "hubs": [hub.id],
             },
         )
-        self.assertEqual(update_resp.status_code, 403)
-        self.assertIn("verified", (update_resp.data.get("detail") or "").lower())
+        self.assertEqual(update_resp.status_code, 200)
 
     def test_verified_user_can_create_and_update_post(self):
         verified = create_random_default_user("verified_creator")

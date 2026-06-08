@@ -1,4 +1,4 @@
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -24,7 +24,11 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.permissions import IsModerator
+from user.related_models.risk_score_model import RiskScore
 from utils.throttles import FeedRecommendationRefreshThrottle
+
+if TYPE_CHECKING:
+    from user.models import User
 
 
 class PendingSource(NamedTuple):
@@ -85,14 +89,31 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
             )
 
         page = self.paginate_queryset(source.queryset)
+        authors = [getattr(item, source.author_attr) for item in page]
         feed_entries = [
-            self.build_unsaved_feed_entry(
-                item, source.content_type, getattr(item, source.author_attr)
-            )
-            for item in page
+            self.build_unsaved_feed_entry(item, source.content_type, author)
+            for item, author in zip(page, authors)
         ]
-        serializer = self.get_serializer(feed_entries, many=True)
+        serializer = self.get_serializer(
+            feed_entries,
+            many=True,
+            context={
+                **self.get_serializer_context(),
+                "include_risk_score": True,
+                "risk_score_by_user_id": self._risk_score_by_user_id(authors),
+            },
+        )
         return self.get_paginated_response(serializer.data)
+
+    @staticmethod
+    def _risk_score_by_user_id(authors: "list[User | None]") -> dict[int, int]:
+        """Batch-load risk scores for the page's authors in a single query."""
+        user_ids = {author.id for author in authors if author}
+        return dict(
+            RiskScore.objects.filter(user_id__in=user_ids).values_list(
+                "user_id", "score"
+            )
+        )
 
     def _pending_moderation_source(self, content_type: str) -> PendingSource | None:
         """Map a moderation tab's content_type to its pending queryset."""

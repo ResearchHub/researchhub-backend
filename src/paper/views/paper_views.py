@@ -46,7 +46,7 @@ from reputation.related_models.paper_reward import (
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
 from user.content_moderation_mixin import ContentModerationActionsMixin
-from user.permissions import IsModerator, IsVerifiedUser
+from user.permissions import IsModerator
 from user.services.risk_score_service import RiskScoreService
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
@@ -157,7 +157,6 @@ class PaperViewSet(
         permission_classes=[
             IsAuthenticated,
             CreatePaper,
-            IsVerifiedUser,
         ],
     )
     def create_researchhub_paper(self, request):
