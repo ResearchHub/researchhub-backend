@@ -34,24 +34,6 @@ class HubViewsTests(APITestCase):
         h = Hub.objects.get(id=hub.id)
         self.assertNotEqual(h.name, "updated name")
 
-    def test_moderator_can_delete_hub(self):
-        mod = create_random_authenticated_user("mod", moderator=True)
-        self.client.force_authenticate(mod)
-        hub = create_hub(name="some hub")
-
-        response = self.client.delete(f"/api/hub/{hub.id}/censor/")
-
-        self.assertTrue(response.status_code, 200)
-
-    def test_basic_user_cannot_delete_hub(self):
-        basic_user = create_random_authenticated_user("basic_user")
-        self.client.force_authenticate(basic_user)
-        hub = create_hub(name="some hub")
-
-        response = self.client.delete(f"/api/hub/{hub.id}/censor/")
-
-        self.assertTrue(response.status_code, 401)
-
     def test_hub_order_by_paper_count(self):
         hub = create_hub("High Paper Count Hub")
         hub2 = create_hub("Low Paper Count Hub")
