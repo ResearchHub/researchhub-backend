@@ -251,10 +251,6 @@ urlpatterns = [
         "api/moderators/get_editors_by_contributions/",
         editor_views.get_editors_by_contributions,
     ),
-    path(
-        "api/rsc/get_rsc_circulating_supply",
-        reputation.views.get_rsc_circulating_supply,
-    ),
     path("api/search/", include(search.urls)),
     path("api/research_ai/", include("research_ai.urls")),
     path("api/ai_peer_review/", include("ai_peer_review.urls")),
