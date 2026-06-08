@@ -42,7 +42,6 @@ from reputation.related_models.paper_reward import (
     PREREGISTERED_MULTIPLIER,
 )
 from researchhub.permissions import IsObjectOwnerOrModerator
-from researchhub_document.permissions import HasDocumentCensorPermission
 from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.permissions import IsModerator
 from user.services.risk_score_service import RiskScoreService
