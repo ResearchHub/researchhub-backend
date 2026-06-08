@@ -30,7 +30,7 @@ def create_upvote_interaction(sender, instance, created, **kwargs):
     def trigger_task():
         try:
             create_upvote_interaction_task.delay(instance.id)
-        except Exception as e:
+        except Exception:
             logger.exception(
                 "Exception triggering UserInteraction creation task for UPVOTE: vote_id=%s",
                 instance.id,

@@ -47,7 +47,7 @@ def sync_interaction_to_personalize(sender, instance, created, **kwargs):
             f"(event={instance.event}, user_id={instance.user_id}, "
             f"external_user_id={instance.external_user_id})"
         )
-    except Exception as e:
+    except Exception:
         logger.exception(
             "Failed to schedule Personalize sync task for UserInteraction %s",
             instance.id,
