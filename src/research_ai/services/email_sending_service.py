@@ -11,7 +11,7 @@ def send_plain_email(
     to_email: str,
     subject: str,
     body: str,
-    reply_to: str | None = None,
+    reply_to: list[str] | None = None,
     cc: list[str] | None = None,
     from_email: str | None = None,
 ) -> str | None:
@@ -35,7 +35,7 @@ def send_plain_email(
         body=plain_body,
         from_email=from_email,
         to=[to_email],
-        reply_to=[reply_to] if reply_to else None,
+        reply_to=reply_to or None,
         cc=cc or None,
     )
     msg.attach_alternative(html_body, "text/html")
