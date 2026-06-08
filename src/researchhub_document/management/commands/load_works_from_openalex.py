@@ -140,7 +140,7 @@ class Command(BaseCommand):
             "--journal",
             default=None,
             type=str,
-            help="The paper respository journal ('biorxiv', 'arxiv', etc.) to pull from",
+            help="The paper respository journal ('biorxiv', 'arxiv', ...) to pull from",
         )
         parser.add_argument(
             "--openalex_id",
@@ -158,7 +158,10 @@ class Command(BaseCommand):
             "--mode",
             default="backfill",
             type=str,
-            help="Either backfill existing docs or load new ones from OpenAlex via filters",
+            help=(
+                "Either backfill existing docs or load new ones from OpenAlex via "
+                "filters"
+            ),
         )
 
     def handle(self, *args, **kwargs):

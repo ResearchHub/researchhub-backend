@@ -26,8 +26,8 @@ class Command(BaseCommand):
                 )
                 if created:
                     print(
-                        f"Created new hub {hub.name} and associated with subfield"
-                        f" {subfield.display_name}."
+                        f"Created new hub {hub.name} and associated with subfield "
+                        f"{subfield.display_name}."
                     )
                 else:
                     hub.subfield = subfield

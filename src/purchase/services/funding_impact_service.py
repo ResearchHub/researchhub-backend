@@ -30,7 +30,10 @@ class FundingImpactService:
     """Calculates funding impact metrics for grant creators who also contribute."""
 
     def get_funding_impact_overview(self, user: User) -> dict:
-        """Return funding impact metrics for proposals the user funded through their grants."""
+        """
+        Return funding impact metrics for proposals the user funded through
+        their grants.
+        """
         grant_fundraise_ids = GrantApplication.objects.for_user_grants(
             user
         ).fundraise_ids()
