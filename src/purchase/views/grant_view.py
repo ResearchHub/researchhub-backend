@@ -26,19 +26,13 @@ class GrantViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        user = self.request.user
-        # Reuse ResearchhubPost.visible_to so grant visibility rules live in one
-        # place, then additionally gate on Grant.status: grant posts stay
-        # APPROVED, so visible_to alone would not hide pending/declined grants.
-        visible_post_ids = ResearchhubPost.objects.visible_to(user).values(
+        # visible_to gates grant posts on Grant.status, so pending and declined
+        # grants stay hidden from everyone but the creator, moderators, and hub
+        # editors.
+        visible_doc_ids = ResearchhubPost.objects.visible_to(self.request.user).values(
             "unified_document_id"
         )
-        qs = qs.filter(unified_document_id__in=visible_post_ids)
-
-        if not user.is_moderator_or_editor():
-            qs = qs.exclude(
-                Q(status__in=[Grant.PENDING, Grant.DECLINED]) & ~Q(created_by=user)
-            )
+        qs = qs.filter(unified_document_id__in=visible_doc_ids)
 
         return qs.prefetch_related(
             Prefetch(

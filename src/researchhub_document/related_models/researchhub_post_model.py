@@ -5,7 +5,7 @@ from django.db.models import Exists, IntegerField, OuterRef, Q, Sum
 from django.db.models.functions import Cast
 
 from discussion.models import AbstractGenericReactionModel, Vote
-from purchase.models import Purchase
+from purchase.models import Grant, Purchase
 from researchhub_access_group.constants import NO_ACCESS
 from researchhub_access_group.models import Permission
 from researchhub_comment.models import RhCommentThreadModel
@@ -38,12 +38,20 @@ class ResearchhubPostQuerySet(models.QuerySet):
         The broader "elevated" viewers -- the creator of any grant the post
         applied to (via GrantApplication) and users with a non-revoked
         Permission on the post's unified document (e.g. invited experts) -- may
-        only see the post once it is APPROVED. A NO_ACCESS Permission row revokes
-        access even when other (e.g. stale VIEWER) rows exist for the same
-        user/document.
+        only see the post once it has cleared moderation. A NO_ACCESS Permission
+        row revokes access even when other (e.g. stale VIEWER) rows exist for the
+        same user/document.
+
+        GRANT posts stay APPROVED regardless of the grant's moderation state, so
+        they gate on ``Grant.status`` instead: a pending or declined grant is
+        treated as not yet cleared.
         """
-        approved = Q(status=ModeratedDocumentMixin.APPROVED)
-        public = Q(unified_document__is_public=True) & approved
+        pending_grant = Grant.objects.filter(
+            unified_document_id=OuterRef("unified_document_id"),
+            status__in=Grant.PENDING_MODERATION_STATUSES,
+        )
+        cleared = Q(status=ModeratedDocumentMixin.APPROVED) & ~Exists(pending_grant)
+        public = Q(unified_document__is_public=True) & cleared
         if user is None or not getattr(user, "is_authenticated", False):
             return self.filter(public)
 
@@ -59,7 +67,7 @@ class ResearchhubPostQuerySet(models.QuerySet):
         allowed = user_perms.exclude(access_type=NO_ACCESS)
         revoked = user_perms.filter(access_type=NO_ACCESS)
 
-        elevated = approved & (
+        elevated = cleared & (
             Q(grant_applications__grant__created_by=user)
             | (Exists(allowed) & ~Exists(revoked))
         )

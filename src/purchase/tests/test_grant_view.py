@@ -1154,3 +1154,15 @@ class PendingGrantVisibilityTests(APITestCase):
         self.assertTrue(
             self.post.unified_document.is_visible_to_user(self.creator)
         )
+
+    def test_outsider_gets_404_on_pending_grant_post(self):
+        """The grant's backing post stays APPROVED, but a pending grant must
+        still 404 (not 500/200) on the post endpoint for a normal user."""
+        self.client.force_authenticate(self.outsider)
+        response = self.client.get(f"/api/researchhubpost/{self.post.id}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_creator_can_retrieve_pending_grant_post(self):
+        self.client.force_authenticate(self.creator)
+        response = self.client.get(f"/api/researchhubpost/{self.post.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

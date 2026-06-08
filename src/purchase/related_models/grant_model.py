@@ -31,6 +31,10 @@ class Grant(DefaultModel):
         (DECLINED, "Declined"),
     )
 
+    # Statuses in which a grant has not cleared moderation and stays hidden from
+    # everyone except its creator, moderators, and hub editors.
+    PENDING_MODERATION_STATUSES = (PENDING, DECLINED)
+
     # Visibility rule applied to preregistrations applying to this grant.
     APPLICATION_VISIBILITY_OPTIONAL = "OPTIONAL"
     APPLICATION_VISIBILITY_PRIVATE = "PRIVATE"
@@ -135,8 +139,6 @@ class Grant(DefaultModel):
         """Whether the grant has not yet cleared moderation.
 
         Grants gate their public visibility through ``Grant.status`` rather than
-        the status of their backing post (which stays APPROVED). Pending and
-        declined grants must stay hidden from everyone except the creator,
-        moderators, and hub editors.
+        the status of their backing post (which stays APPROVED).
         """
-        return self.status in (self.PENDING, self.DECLINED)
+        return self.status in self.PENDING_MODERATION_STATUSES
