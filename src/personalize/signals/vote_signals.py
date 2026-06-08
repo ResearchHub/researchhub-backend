@@ -6,7 +6,6 @@ from django.dispatch import receiver
 
 from discussion.models import Vote
 from personalize.tasks import create_upvote_interaction_task
-from utils.sentry import log_error, log_info
 
 logger = logging.getLogger(__name__)
 
@@ -23,21 +22,18 @@ def create_upvote_interaction(sender, instance, created, **kwargs):
         return
 
     if not instance.created_by_id:
-        log_info(
-            f"Vote {instance.id} has no created_by user, skipping UserInteraction task"
+        logger.info(
+            "Vote %s has no created_by user, skipping UserInteraction task", instance.id
         )
         return
 
     def trigger_task():
         try:
             create_upvote_interaction_task.delay(instance.id)
-        except Exception as e:
-            log_error(
-                e,
-                message=(
-                    f"Exception triggering UserInteraction creation task for UPVOTE: "
-                    f"vote_id={instance.id}"
-                ),
+        except Exception:
+            logger.exception(
+                "Exception triggering UserInteraction creation task for UPVOTE: vote_id=%s",
+                instance.id,
             )
 
     transaction.on_commit(trigger_task)

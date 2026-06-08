@@ -1,11 +1,13 @@
 import functools
 import json
+import logging
 
 import requests
 
 from researchhub.settings import AMPLITUDE_API_KEY, DEVELOPMENT
 from utils.parsers import json_serial
-from utils.sentry import log_error, log_info
+
+logger = logging.getLogger(__name__)
 
 
 class Amplitude:
@@ -148,7 +150,7 @@ class Amplitude:
         request = requests.post(self.api_url, data=hit, headers=headers)
         res = request.json()
         if request.status_code != 200:
-            log_info(res)
+            logger.error("Failed to send event to Amplitude: %s", res)
         return res
 
 
@@ -165,11 +167,10 @@ def track_event(func):
 
                 # Auto-detect and track user activities based on event type
                 _auto_track_user_activity_by_event_type(res, *args, **kwargs)
-        except Exception as e:
-            log_error(
-                e,
-                message="Failed to track amplitude event",
-                json_data={"amp_hit": getattr(amp, "hit", None)},
+        except Exception:
+            logger.exception(
+                "Failed to track amplitude event",
+                extra={"amp_hit": getattr(amp, "hit", None)},
             )
         return res
 
@@ -306,8 +307,8 @@ def _track_activity(user, activity_type, properties):
     """Helper to track user activity"""
     try:
         track_user_activity(user, activity_type, properties)
-    except Exception as e:
-        log_error(e, message=f"Failed to auto-track {activity_type}")
+    except Exception:
+        logger.exception("Failed to auto-track %s", activity_type)
 
 
 def _is_public_comment(res):
@@ -368,11 +369,10 @@ def track_user_activity(user, activity_type: str, additional_properties: dict = 
         if not DEVELOPMENT:
             amp = Amplitude()
             amp._track_user_activity_event(user, activity_type, additional_properties)
-    except Exception as e:
-        log_error(
-            e,
-            message="Failed to track user activity event",
-            json_data={
+    except Exception:
+        logger.exception(
+            "Failed to track user activity event",
+            extra={
                 "user_id": user.id,
                 "activity_type": activity_type,
                 "additional_properties": additional_properties,

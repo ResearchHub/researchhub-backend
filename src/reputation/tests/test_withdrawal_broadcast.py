@@ -142,11 +142,11 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
         mock_transfer.assert_not_called()
         mock_get_private_key.assert_not_called()
 
-    @mock.patch("reputation.tasks.log_error")
+    @mock.patch("reputation.tasks.logger")
     @mock.patch("reputation.tasks.broadcast_withdrawal.retry")
     @mock.patch("reputation.tasks.broadcast_withdrawal_transfer")
     def test_broadcast_withdrawal_failure_handling(
-        self, mock_transfer, mock_retry, mock_log_error
+        self, mock_transfer, mock_retry, mock_logger
     ):
         mock_transfer.side_effect = Exception("RPC unavailable")
 
