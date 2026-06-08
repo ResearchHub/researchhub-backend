@@ -13,7 +13,10 @@ from rest_framework.views import APIView
 
 from research_ai.constants import ExpertiseLevel, Gender, Region
 from research_ai.models import Expert, ExpertSearch, SearchExpert
-from research_ai.permissions import ResearchAIPermission
+from research_ai.permissions import (
+    ResearchAIPermission,
+    can_view_invited_experts_list,
+)
 from research_ai.serializers import (
     ExpertFinderExpertsListQuerySerializer,
     ExpertFinderListItemSerializer,
@@ -498,6 +501,7 @@ class ExpertListView(InvitedExpertStatsMixin, APIView):
     GET ``/expert-finder/experts/`` — paginated experts for filtered expert searches.
     """
 
+    permission_classes = [IsAuthenticated, ResearchAIPermission]
     cache_prefix = "experts_list"
 
     def get(self, request):
@@ -505,6 +509,16 @@ class ExpertListView(InvitedExpertStatsMixin, APIView):
         qser.is_valid(raise_exception=True)
         params = qser.validated_data
         unified_document_id = params.get("unified_document_id")
+
+        if not can_view_invited_experts_list(
+            request.user,
+            unified_document_id=unified_document_id,
+        ):
+            return Response(
+                {"detail": "Not allowed to view invited experts."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         start = params.get("start")
         end = params.get("end")
         editor_id = params.get("editor_id")
