@@ -25,22 +25,6 @@ logger = get_task_logger(__name__)
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
-def censored_paper_cleanup(paper_id):
-    Paper = apps.get_model("paper.Paper")
-    paper = Paper.objects.filter(id=paper_id).first()
-
-    if not paper.is_removed:
-        paper.is_removed = True
-        paper.save()
-
-    if paper:
-        paper.votes.update(is_removed=True)
-
-        uploaded_by = paper.uploaded_by
-        uploaded_by.set_probable_spammer()
-
-
-@app.task(queue=QUEUE_PAPER_MISC)
 def download_pdf(paper_id, retry=0):
     if retry > 3:
         return
