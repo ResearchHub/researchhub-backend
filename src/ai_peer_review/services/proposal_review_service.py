@@ -9,7 +9,6 @@ from ai_peer_review.prompts.proposal_review_prompts import (
     build_proposal_review_user_prompt,
     get_proposal_review_system_prompt,
 )
-from ai_peer_review.services.author_context import build_author_context_snippet
 from ai_peer_review.services.bedrock_llm_service import BedrockLLMService
 from ai_peer_review.services.openai_web_context_service import (
     fetch_proposal_review_web_context,
@@ -22,11 +21,12 @@ from ai_peer_review.services.proposal_review_scoring import (
     parse_json_response,
     recompute_overall_fields,
 )
-from ai_peer_review.services.researcher_external_context import (
-    build_researcher_external_context,
-)
 from feed.views.funding_cache_mixin import FundingCacheMixin
 from purchase.models import Grant, GrantApplication
+from research_ai.services.author_context import build_author_context_snippet
+from research_ai.services.researcher_external_context import (
+    build_researcher_external_context,
+)
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 
