@@ -1236,52 +1236,83 @@ class SuggestViewTests(TestCase):
     @patch("opensearchpy.Search.execute")
     def test_person_entity_includes_user_id(self, mock_es_execute, mock_openalex):
         """Test that person entities from author index include user_id field"""
-        # Mock empty OpenAlex response since we're not using it for author index
         mock_openalex.return_value = {"results": []}
 
-        # Mock Elasticsearch response for author index
-        author_options = [
+        user_options = [
             {
                 "_score": 1.0,
                 "_source": {
-                    "id": 123,
+                    "id": 456,
                     "full_name": "Test Author",
-                    "profile_image": "https://example.com/image.jpg",
-                    "headline": "Test Headline",
                     "created_date": "2023-01-01",
-                    "user_id": 456,
+                    "author_profile": {
+                        "id": 123,
+                        "profile_image": "https://example.com/image.jpg",
+                        "headline": "Test Headline",
+                    },
                 },
             }
         ]
 
         class MockSuggest:
             def to_dict(self):
-                return {"suggestions": [{"options": author_options}]}
+                return {"suggestions": [{"options": user_options}]}
 
         class MockResponse:
             suggest = MockSuggest()
 
         mock_es_execute.return_value = MockResponse()
 
-        # Test searching author index
         response = self.client.get(self.url + "?q=test&index=author")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Verify we got the expected results
         self.assertEqual(len(response.data), 1)
         result = response.data[0]
 
-        # Verify it's a person entity
         self.assertEqual(result["entity_type"], "person")
-
-        # Verify the user_id field is included
         self.assertIn("user_id", result)
         self.assertEqual(result["user_id"], 456)
-
-        # Verify other expected fields are present
         self.assertEqual(result["id"], 123)
         self.assertEqual(result["display_name"], "Test Author")
         self.assertEqual(result["profile_image"], "https://example.com/image.jpg")
         self.assertEqual(result["headline"], "Test Headline")
         self.assertEqual(result["created_date"], "2023-01-01")
         self.assertEqual(result["source"], "researchhub")
+
+    @patch("utils.openalex.OpenAlex.autocomplete_works")
+    @patch("opensearchpy.Search.execute")
+    def test_user_and_author_indexes_are_deduplicated(
+        self, mock_es_execute, mock_openalex
+    ):
+        """Test that index=user,author does not duplicate user search results"""
+        mock_openalex.return_value = {"results": []}
+
+        user_options = [
+            {
+                "_score": 1.0,
+                "_source": {
+                    "id": 456,
+                    "full_name": "Test Author",
+                    "created_date": "2023-01-01",
+                    "author_profile": {
+                        "id": 123,
+                        "profile_image": "https://example.com/image.jpg",
+                        "headline": "Test Headline",
+                    },
+                },
+            }
+        ]
+
+        class MockSuggest:
+            def to_dict(self):
+                return {"suggestions": [{"options": user_options}]}
+
+        class MockResponse:
+            suggest = MockSuggest()
+
+        mock_es_execute.return_value = MockResponse()
+
+        response = self.client.get(self.url + "?q=test&index=user,author")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(mock_es_execute.call_count, 1)

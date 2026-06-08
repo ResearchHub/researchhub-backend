@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 
 import requests
@@ -8,7 +9,6 @@ from django.db import IntegrityError, transaction
 from django.db.models import Case, IntegerField, Value, When
 from django.http import QueryDict
 
-import utils.sentry as sentry
 from discussion.models import Flag, Vote
 from discussion.serializers import (
     DynamicFlagSerializer,
@@ -52,6 +52,8 @@ from user.serializers import (
     UserSerializer,
 )
 from utils.http import check_url_contains_pdf, get_user_from_request
+
+logger = logging.getLogger(__name__)
 
 
 class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
@@ -458,9 +460,7 @@ class PaperSerializer(BasePaperSerializer):
                     file = paper.file
                     self._add_file(paper, file)
                 except Exception as e:
-                    sentry.log_error(
-                        e,
-                    )
+                    logger.exception("Failed to add file to paper", exc_info=e)
 
                 paper.pdf_license = paper.get_license(save=False)
 
@@ -481,11 +481,11 @@ class PaperSerializer(BasePaperSerializer):
                 paper.save()
                 return paper
         except IntegrityError as e:
-            sentry.log_error(e)
+            logger.exception("Integrity error while creating paper")
             raise e
         except Exception as e:
             error = PaperSerializerError(e, "Failed to create paper")
-            sentry.log_error(error, base_error=error.trigger)
+            logger.exception("Failed to create paper")
             raise error
 
     def update(self, instance, validated_data):
@@ -552,7 +552,7 @@ class PaperSerializer(BasePaperSerializer):
                 return paper
         except Exception as e:
             error = PaperSerializerError(e, "Failed to update paper")
-            sentry.log_error(e, base_error=error.trigger)
+            logger.exception("Failed to update paper")
             raise error
 
     def _add_file(self, paper, file):

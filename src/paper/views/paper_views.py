@@ -35,9 +35,7 @@ from paper.serializers import (
     PaperSerializer,
     PaperSubmissionSerializer,
 )
-from paper.tasks import censored_paper_cleanup
 from paper.utils import get_cache_key
-from reputation.models import Contribution
 from reputation.related_models.paper_reward import (
     OPEN_ACCESS_MULTIPLIER,
     OPEN_DATA_MULTIPLIER,
@@ -786,61 +784,6 @@ class PaperViewSet(
     def list(self, request, *args, **kwargs):
         # Temporarily disabling endpoint
         return Response(status=200)
-
-    @action(
-        detail=True,
-        methods=["put", "patch", "delete"],
-        permission_classes=[HasDocumentCensorPermission],
-    )
-    def censor(self, request, pk=None):
-        paper = self.get_object()
-        paper_id = paper.id
-        unified_doc = paper.unified_document
-        cache_key = get_cache_key("paper", paper_id)
-        cache.delete(cache_key)
-
-        Contribution.objects.filter(unified_document=unified_doc).delete()
-        paper.is_removed = True
-        paper.save()
-        censored_paper_cleanup.apply_async((paper_id,), priority=3)
-
-        unified_document = paper.unified_document
-        unified_document.is_removed = True
-        unified_document.save()
-
-        return Response("Paper was deleted.", status=200)
-
-    @action(
-        detail=True,
-        methods=["put", "patch", "delete"],
-        permission_classes=[HasDocumentCensorPermission],
-    )
-    def restore_paper(self, request, pk=None):
-        paper = None
-        try:
-            paper = self.get_object()
-        except Exception:
-            paper = Paper.objects.get(id=request.data["id"])
-            pass
-        paper.is_removed = False
-        paper.save()
-
-        return Response(self.get_serializer(instance=paper).data, status=200)
-
-    @action(
-        detail=True,
-        methods=["put", "patch", "delete"],
-        permission_classes=[HasDocumentCensorPermission],
-    )
-    def censor_pdf(self, request, pk=None):
-        paper = self.get_object()
-        paper.file = None
-        paper.url = None
-        paper.pdf_url = None
-        paper.figures.all().delete()
-        paper.save()
-
-        return Response(self.get_serializer(instance=paper).data, status=200)
 
     @action(detail=True, methods=["get"])
     def user_vote(self, request, pk=None):

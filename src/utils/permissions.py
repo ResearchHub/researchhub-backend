@@ -1,4 +1,3 @@
-from rest_framework.exceptions import PermissionDenied  # noqa: F401
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from utils.http import RequestMethods

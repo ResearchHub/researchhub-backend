@@ -136,7 +136,8 @@ def process_circle_deposit(
 # smaller sweeps go to the hot wallet.
 SWEEP_MULTISIG_THRESHOLD_USD = 10_000
 
-# Map Deposit.network values to Circle blockchain identifiers (derived from _NETWORK_DEFS).
+# Map Deposit.network values to Circle blockchain identifiers
+# (derived from _NETWORK_DEFS).
 NETWORK_TO_BLOCKCHAIN_MAINNET = {
     d["network"]: d["mainnet_blockchain"] for d in _NETWORK_DEFS
 }
@@ -412,7 +413,8 @@ class CircleWalletService:
             sweep_reference: Unique reference (Circle transaction ID).
 
         Raises:
-            Exception: Any retryable error — sweep_status unchanged (caller should retry).
+            Exception: Any retryable error — sweep_status unchanged
+                (caller should retry).
                 Non-retryable errors (ValueError, CircleZeroBalanceError) are
                 handled internally and do not propagate.
         """
