@@ -350,7 +350,7 @@ class ReferralMetricsService:
                 "full_name": referrer.full_name(),
                 "author_id": self._get_author_id(referrer),
                 "profile_image": self._get_user_profile_image(referrer),
-                "signup_date": referral_signup.signup_date,  # When current user was referred
+                "signup_date": referral_signup.signup_date,  # when user was referred
                 "referral_bonus_expiration_date": expiration_date,
                 "is_referral_bonus_expired": is_expired,
                 "total_funded": self._get_user_total_funded(referrer),

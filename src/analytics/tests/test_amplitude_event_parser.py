@@ -592,7 +592,9 @@ class AmplitudeEventParserTests(TestCase):
         self.assertEqual(interaction.personalize_rec_id, recommendation_id)
 
     def test_extracts_impression_from_event_properties(self):
-        """Test that impression array is extracted and converted to pipe-delimited string."""
+        """
+        Test that impression array is extracted and converted to pipe-delimited string.
+        """
         impression_array = ["123", "456", "789"]
         event = {
             "event_type": "feed_item_clicked",

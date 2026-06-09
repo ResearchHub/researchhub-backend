@@ -36,7 +36,9 @@ def base_chain_id() -> int:
 
 
 def base_wallet_from_org(org: Dict[str, Any]) -> str:
-    """Extract the org's Base deployment contract address from an Endaoment org payload."""
+    """
+    Extract the org's Base deployment contract address from an Endaoment org payload.
+    """
     chain_id = base_chain_id()
     for deployment in org.get("deployments") or []:
         if deployment.get("chainId") == chain_id:

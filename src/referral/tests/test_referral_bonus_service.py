@@ -213,10 +213,13 @@ class ReferralBonusServiceTest(TestCase):
         self.assertEqual(referrer_distributions.count(), 2)  # One for each contribution
 
         # Note: Current implementation processes each contribution separately
-        # This test documents current behavior - may need adjustment based on requirements
+        # This test documents current behavior - may need adjustment based
+        # on requirements
 
     def test_multiple_referrals_same_fundraise(self):
-        """Test that multiple referrals for the same fundraise are processed correctly"""
+        """
+        Test that multiple referrals for the same fundraise are processed correctly
+        """
         # Create another referral
         other_referrer = create_random_default_user("other_referrer")
         other_referred = create_random_default_user("other_referred")
@@ -279,7 +282,10 @@ class ReferralBonusServiceTest(TestCase):
             )
 
     def test_credits_earned_shows_correct_amount_in_metrics(self):
-        """Test that credits earned calculation includes distributions with DISTRIBUTED status"""
+        """
+        Test that credits earned calculation includes distributions with
+        DISTRIBUTED status
+        """
         # Process the fundraise to create referral bonuses
         self.service.process_fundraise_completion(self.fundraise)
 
@@ -320,10 +326,12 @@ class ReferralBonusServiceTest(TestCase):
             "Network details should show correct credits earned for referred user",
         )
 
-    def test_contribution_before_referral_expired_and_fundraise_completed_after_referral_expired(
+    def test_contribution_before_referral_expired_and_fundraise_completed_after_referral_expired(  # noqa: E501
         self,
     ):
-        """Test that only contributions within referral period are eligible for bonuses"""
+        """
+        Test that only contributions within referral period are eligible for bonuses
+        """
         # Set referral signup to be ~6 months ago (just before expiration)
         six_months_ago = timezone.now() - timedelta(
             days=self.service.referral_eligibility_months * 30
@@ -363,7 +371,8 @@ class ReferralBonusServiceTest(TestCase):
             amount=ineligible_contribution_amount,
         )
         # Leave at current date - after the eligibility window
-        # Note: This contribution happens after referral expires but before fundraise completes
+        # Note: This contribution happens after referral expires but
+        # before fundraise completes
 
         # Process fundraise completion (happens after referral expiration)
         self.service.process_fundraise_completion(self.fundraise)
@@ -374,11 +383,12 @@ class ReferralBonusServiceTest(TestCase):
             distribution_type="REFERRAL_BONUS",
         )
 
-        # Should have 2 distributions: 1 for original setup contribution + 1 for eligible contribution
+        # Should have 2 distributions: 1 for original setup contribution + 1
+        # for eligible contribution
         self.assertEqual(
             distributions.count(),
             2,
-            "Should have bonuses for original contribution and eligible contribution only",
+            "Should have bonuses for original and eligible contribution only",
         )
 
         # Verify the bonus amounts
@@ -395,7 +405,8 @@ class ReferralBonusServiceTest(TestCase):
         self.assertEqual(
             total_bonus,
             expected_total,
-            f"Total bonus should be {expected_total} (original: {expected_original_bonus} + "
+            f"Total bonus should be {expected_total} "
+            f"(original: {expected_original_bonus} + "
             f"eligible: {expected_eligible_bonus})",
         )
 
@@ -466,13 +477,15 @@ class ReferralBonusServiceTest(TestCase):
 
         self.service.process_fundraise_completion(self.fundraise)
 
-        # Check distributions - should have bonuses for contributions before and at expiry
+        # Check distributions - should have bonuses for contributions before
+        # and at expiry
         distributions = Distribution.objects.filter(
             recipient=self.referrer,
             distribution_type="REFERRAL_BONUS",
         )
 
-        # Contributions before and at expiry should get bonuses (using > not >= in service)
+        # Contributions before and at expiry should get bonuses
+        # (using > not >= in service)
         self.assertEqual(
             distributions.count(),
             2,

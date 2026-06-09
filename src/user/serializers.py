@@ -1,3 +1,5 @@
+import logging
+
 import dj_rest_auth.registration.serializers as rest_auth_serializers
 from allauth.account.adapter import get_adapter
 from django.contrib.contenttypes.models import ContentType
@@ -48,7 +50,8 @@ from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.related_models.risk_score_model import RiskScoreEvent
 from user.services.risk_score_service import RiskScoreService
-from utils import sentry
+
+logger = logging.getLogger(__name__)
 
 
 def compute_user_balances(user):
@@ -91,6 +94,14 @@ class ModeratorUserSerializer(ModelSerializer):
             "orcid_verified_edu_email",
             "risk_score",
         ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Risk score is moderator-only: drop the field entirely for hub editors
+        # and others so it's never computed or exposed to them.
+        requester = getattr(self.context.get("request"), "user", None)
+        if not (requester and getattr(requester, "moderator", False)):
+            self.fields.pop("risk_score", None)
 
     def get_verification(self, user):
         try:
@@ -666,8 +677,8 @@ class UserEditableSerializer(ModelSerializer):
     def get_organization_slug(self, user):
         try:
             return user.organization.slug
-        except Exception as e:
-            sentry.log_error(e)
+        except Exception:
+            logger.exception("Error getting organization slug for user %s", user.id)
             return None
 
     def get_subscribed(self, user):
@@ -767,9 +778,8 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
                 user.author_profile, context=context, **_context_fields
             )
             return serializer.data
-        except Exception as e:
-            print(e)
-            sentry.log_error(e)
+        except Exception:
+            logger.exception("Error serializing author profile for user %s", user.id)
             return {}
 
     def get_rsc_earned(self, user):

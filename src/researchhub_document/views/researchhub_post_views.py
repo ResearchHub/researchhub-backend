@@ -274,7 +274,8 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     # Create grant without contacts first
                     grant = Grant.objects.create(**grant_create_kwargs)
 
-                    # Handle contacts properly - get contact_ids and convert to User objects
+                    # Handle contacts properly
+                    # get contact_ids and convert to User objects
                     contact_ids = grant_serializer.validated_data.get("contact_ids", [])
                     if contact_ids:
                         contacts = User.objects.filter(id__in=contact_ids)
@@ -450,7 +451,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 unified_document=unified_document
             ).first()
 
-            # Only update grants if both grant data is provided AND a grant already exists
+            # Update grants if both grant data is provided AND a grant already exists
             if (grant_amount := data.get("grant_amount")) and existing_grant:
                 grant_data = {
                     "amount": grant_amount,

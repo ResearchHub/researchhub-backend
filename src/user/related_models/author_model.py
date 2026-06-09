@@ -466,7 +466,7 @@ class Author(models.Model):
 
             hub = paper.unified_document.get_primary_hub()
             if hub is None:
-                print(f"Paper {paper.id} has no primary hub")
+                logger.warning("Paper %s has no primary hub", paper.id)
                 continue
 
             for vote in votes:
@@ -498,7 +498,7 @@ class Author(models.Model):
 
                 hub = paper.unified_document.get_primary_hub()
                 if hub is None:
-                    print(f"Paper {paper.id} has no primary hub")
+                    logger.warning("Paper %s has no primary hub", paper.id)
                     continue
 
                 for vote in votes:

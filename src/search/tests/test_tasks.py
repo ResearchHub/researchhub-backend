@@ -33,7 +33,6 @@ class UserSearchDocumentUpdateTaskTests(TestCase):
             ),
         )
 
-    @patch("search.tasks.PersonDocument.update")
     @patch("search.tasks.UserDocument.update")
     @patch("search.tasks.PostDocument.update")
     @patch("search.tasks.PaperDocument.update")
@@ -42,7 +41,6 @@ class UserSearchDocumentUpdateTaskTests(TestCase):
         paper_update_mock: Mock,
         post_update_mock: Mock,
         user_update_mock: Mock,
-        person_update_mock: Mock,
     ):
         """
         Test that update_user_related_documents updates the documents
@@ -58,11 +56,7 @@ class UserSearchDocumentUpdateTaskTests(TestCase):
         self.assertEqual(_get_updated_ids(paper_update_mock), [self.paper1.id])
         self.assertEqual(_get_updated_ids(post_update_mock), [self.post.id])
         self.assertEqual(_get_updated_ids(user_update_mock), [self.user1.id])
-        self.assertEqual(
-            _get_updated_ids(person_update_mock), [self.user1.author_profile.id]
-        )
 
-    @patch("search.tasks.PersonDocument.update")
     @patch("search.tasks.UserDocument.update")
     @patch("search.tasks.PostDocument.update")
     @patch("search.tasks.PaperDocument.update")
@@ -71,7 +65,6 @@ class UserSearchDocumentUpdateTaskTests(TestCase):
         paper_update_mock: Mock,
         post_update_mock: Mock,
         user_update_mock: Mock,
-        person_update_mock: Mock,
     ):
         """
         Test that update_user_related_documents does not attempt to update
@@ -87,7 +80,6 @@ class UserSearchDocumentUpdateTaskTests(TestCase):
         paper_update_mock.assert_not_called()
         post_update_mock.assert_not_called()
         user_update_mock.assert_not_called()
-        person_update_mock.assert_not_called()
 
 
 def _get_updated_ids(mock_update: Mock) -> list[int]:
