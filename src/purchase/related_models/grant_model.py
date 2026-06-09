@@ -142,3 +142,22 @@ class Grant(DefaultModel):
         the status of their backing post (which stays APPROVED).
         """
         return self.status in self.PENDING_MODERATION_STATUSES
+        
+    def get_llm_context_text(self):
+        """Grant terms as prompt-ready text for LLM grounding.
+
+        Combines the structured terms (``short_title`` + ``organization`` +
+        ``description``) with the associated ``GRANT`` post body, when present.
+        """
+        parts = []
+        if self.short_title:
+            parts.append(f"Title: {self.short_title}")
+        if self.organization:
+            parts.append(f"Organization: {self.organization}")
+        parts.append(self.description or "")
+        post = self.unified_document.posts.first()
+        if post:
+            body = post.get_full_markdown()
+            if body:
+                parts.append(body)
+        return "\n\n".join(p for p in parts if p).strip()
