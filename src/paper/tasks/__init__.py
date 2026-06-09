@@ -6,7 +6,6 @@ from paper.tasks.figure_tasks import (  # noqa: F401
     select_primary_image,
 )
 from paper.tasks.tasks import (  # noqa: F401
-    censored_paper_cleanup,
     create_download_url,
     download_pdf,
 )

@@ -6,11 +6,9 @@ from typing import Any, Dict, List, Optional
 
 from django.utils import timezone
 
-from paper.ingestion.clients import (
-    BlueskyMetricsClient,
-    GithubMetricsClient,
-    XMetricsClient,
-)
+from paper.ingestion.clients.enrichment.bluesky import BlueskyMetricsClient
+from paper.ingestion.clients.enrichment.github import GithubMetricsClient
+from paper.ingestion.clients.enrichment.x import XMetricsClient
 from paper.models import Paper
 
 logger = logging.getLogger(__name__)

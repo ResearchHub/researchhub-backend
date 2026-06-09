@@ -134,7 +134,9 @@ class EventProcessorTestCase(TestCase):
         self.assertEqual(interaction.event, DOCUMENT_TAB_CLICKED)
 
     def test_process_event_with_feed_item_abstract_expanded_creates_interaction(self):
-        """Test process_event creates UserInteractions for feed_item_abstract_expanded."""
+        """
+        Test process_event creates UserInteractions for feed_item_abstract_expanded.
+        """
         event = {
             "event_type": "feed_item_abstract_expanded",
             "event_properties": {
@@ -282,7 +284,10 @@ class EventProcessorTestCase(TestCase):
         self.assertEqual(final_count, initial_count)  # No new interaction created
 
     def test_process_event_stores_recommendation_id_as_personalize_rec_id(self):
-        """Test that recommendation_id from event_properties is stored as personalize_rec_id."""
+        """
+        Test that recommendation_id from event_properties is stored as
+        personalize_rec_id.
+        """
         recommendation_id = "rec_12345"
         event = {
             "event_type": "feed_item_clicked",
@@ -311,7 +316,9 @@ class EventProcessorTestCase(TestCase):
         self.assertEqual(interaction.personalize_rec_id, recommendation_id)
 
     def test_process_event_without_recommendation_id_stores_none(self):
-        """Test that events without recommendation_id store None for personalize_rec_id."""
+        """
+        Test that events without recommendation_id store None for personalize_rec_id.
+        """
         event = {
             "event_type": "feed_item_clicked",
             "event_properties": {

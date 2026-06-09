@@ -112,8 +112,6 @@ router.register(
     r"notification", notification.views.NotificationViewSet, basename="notification"
 )
 
-router.register(r"figure", paper_views.FigureViewSet, basename="figure")
-
 router.register(r"purchase", purchase.views.PurchaseViewSet, basename="purchase")
 
 router.register(r"endaoment", EndaomentViewSet, basename="endaoment")
@@ -250,10 +248,6 @@ urlpatterns = [
     path(
         "api/moderators/get_editors_by_contributions/",
         editor_views.get_editors_by_contributions,
-    ),
-    path(
-        "api/rsc/get_rsc_circulating_supply",
-        reputation.views.get_rsc_circulating_supply,
     ),
     path("api/search/", include(search.urls)),
     path("api/research_ai/", include("research_ai.urls")),
