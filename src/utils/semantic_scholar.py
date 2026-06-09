@@ -70,6 +70,5 @@ class SemanticScholar:
         response = requests.get(
             url, headers=self.base_headers, params=params, timeout=self.timeout
         )
-        print(response.url)
         response.raise_for_status()
         return response.json()

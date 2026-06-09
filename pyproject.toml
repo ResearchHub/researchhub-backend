@@ -115,4 +115,3 @@ extend-select = [
 "src/topic/**/*.py" = ["T20"]
 "src/user/**/*.py" = ["E501", "T20"]
 "src/user_saved/**/*.py" = ["T20"]
-"src/utils/**/*.py" = ["T20"]
