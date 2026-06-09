@@ -86,9 +86,7 @@ class EarnerViewTests(APITestCase):
         self.client.force_authenticate(self.user)
 
         # Act
-        response = self.client.get(
-            "/api/user/earning_overview/", {"user_id": 999999}
-        )
+        response = self.client.get("/api/user/earning_overview/", {"user_id": 999999})
 
         # Assert
         self.assertEqual(response.status_code, 404)

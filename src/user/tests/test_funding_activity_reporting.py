@@ -173,7 +173,9 @@ class FundingActivityReportingTests(TestCase):
 
     def test_earnings_for_user_excludes_fee_by_default(self):
         # Arrange
-        self._create_activity(FundingActivity.FEE, total_amount="5", total_usd_cents=250)
+        self._create_activity(
+            FundingActivity.FEE, total_amount="5", total_usd_cents=250
+        )
 
         # Act
         result = FundingActivityReportingService.earnings_for_user(self.recipient.id)
