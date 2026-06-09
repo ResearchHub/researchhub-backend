@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
+from unittest.mock import MagicMock
 
 import pytz
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from purchase.models import Grant
 from researchhub_document.helpers import create_post
@@ -286,3 +287,37 @@ class GrantPendingModelTests(TestCase):
         for val in (Grant.PENDING, Grant.DECLINED):
             self.grant.status = val
             self.grant.full_clean()
+
+
+class GrantLLMContextTextTests(SimpleTestCase):
+    """Unit-test get_llm_context_text logic without a database."""
+
+    def test_combines_metadata_and_post_markdown(self):
+        # Arrange
+        grant = MagicMock()
+        grant.short_title = "My RFP"
+        grant.organization = "NIH"
+        grant.description = "Do good science."
+        post = MagicMock()
+        post.get_full_markdown.return_value = "# Details\nMore"
+        grant.unified_document.posts.first.return_value = post
+
+        # Act
+        text = Grant.get_llm_context_text(grant)
+
+        # Assert
+        self.assertIn("My RFP", text)
+        self.assertIn("NIH", text)
+        self.assertIn("Do good science.", text)
+        self.assertIn("# Details", text)
+
+    def test_handles_missing_post(self):
+        # Arrange
+        grant = MagicMock()
+        grant.short_title = None
+        grant.organization = None
+        grant.description = "Solo body"
+        grant.unified_document.posts.first.return_value = None
+
+        # Act / Assert
+        self.assertEqual(Grant.get_llm_context_text(grant).strip(), "Solo body")
