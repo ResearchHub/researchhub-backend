@@ -9,6 +9,7 @@ from django.db.models import Q, Sum
 
 from purchase.models import Purchase
 from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
@@ -26,7 +27,6 @@ from user.related_models.funding_activity_model import (
     FundingActivityRecipient,
 )
 from user.related_models.user_model import FOUNDATION_EMAIL
-from user.services.funding_activity_amounts import FundingActivityAmountsService
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +78,81 @@ class FundingActivityService:
         if not endaoment_id:
             return True
         return recipient_user.id != int(endaoment_id)
+
+    @classmethod
+    def _get_historical_rsc_usd_rate(cls, at_datetime) -> float | None:
+        """Return Coalesce(real_rate, rate) for the latest USD rate at or before at_datetime."""
+        rate_record = (
+            RscExchangeRate.objects.filter(
+                created_date__lte=at_datetime,
+                target_currency="USD",
+            )
+            .order_by("-created_date")
+            .first()
+        )
+        if rate_record is None:
+            return None
+        return (
+            rate_record.real_rate
+            if rate_record.real_rate is not None
+            else rate_record.rate
+        )
+
+    @classmethod
+    def _resolve_rate_for_purchase(cls, purchase) -> float | None:
+        """Prefer purchase.rsc_usd_rate, else historical rate at purchase.created_date."""
+        if purchase.rsc_usd_rate is not None:
+            return purchase.rsc_usd_rate
+        return cls._get_historical_rsc_usd_rate(purchase.created_date)
+
+    @classmethod
+    def _rsc_to_usd_cents(cls, rsc_amount, rate) -> int:
+        return round(float(rsc_amount) * rate * 100)
+
+    @classmethod
+    def _usd_cents_to_rsc(cls, usd_cents, rate) -> Decimal:
+        return Decimal(str(usd_cents / 100 / rate))
+
+    @classmethod
+    def _populate_dual_amounts_on_recipients(
+        cls, activity, recipients_data, rate
+    ) -> None:
+        """
+        Set usd_cents on activity and each recipient from native RSC amounts and rate.
+        When rate is unavailable, usd_cents remains 0.
+        """
+        if rate is None:
+            activity.usd_cents = 0
+            for recipient in recipients_data:
+                recipient.usd_cents = 0
+            return
+
+        activity.usd_cents = cls._rsc_to_usd_cents(activity.total_amount, rate)
+        for recipient in recipients_data:
+            recipient.usd_cents = cls._rsc_to_usd_cents(recipient.amount, rate)
+
+    @classmethod
+    def _populate_usd_native_dual_amounts_on_recipients(
+        cls, activity, recipients_data, usd_cents, rate
+    ) -> None:
+        """
+        Set native USD and calculated RSC on activity and recipients.
+        usd_cents is always set from native USD; RSC amounts use rate when available.
+        """
+        activity.usd_cents = usd_cents
+        for recipient in recipients_data:
+            recipient.usd_cents = usd_cents
+
+        if rate is None:
+            activity.total_amount = Decimal("0")
+            for recipient in recipients_data:
+                recipient.amount = Decimal("0")
+            return
+
+        calculated_rsc = cls._usd_cents_to_rsc(usd_cents, rate)
+        activity.total_amount = calculated_rsc
+        for recipient in recipients_data:
+            recipient.amount = calculated_rsc
 
     # -------------------------------------------------------------------------
     # Query methods
@@ -313,10 +388,8 @@ class FundingActivityService:
                     amount=amount,
                 )
             )
-        rate = FundingActivityAmountsService.resolve_rate_for_purchase(purchase)
-        FundingActivityAmountsService.populate_dual_amounts_on_recipients(
-            activity, recipients, rate
-        )
+        rate = cls._resolve_rate_for_purchase(purchase)
+        cls._populate_dual_amounts_on_recipients(activity, recipients, rate)
         activity.save()
         for recipient in recipients:
             recipient.activity = activity
@@ -373,10 +446,8 @@ class FundingActivityService:
                     amount=Decimal("0"),
                 )
             )
-        rate = FundingActivityAmountsService.get_historical_rsc_usd_rate(
-            contribution.created_date
-        )
-        FundingActivityAmountsService.populate_usd_native_dual_amounts_on_recipients(
+        rate = cls._get_historical_rsc_usd_rate(contribution.created_date)
+        cls._populate_usd_native_dual_amounts_on_recipients(
             activity, recipients, native_usd_cents, rate
         )
         activity.save()
@@ -413,12 +484,8 @@ class FundingActivityService:
             recipient_user=escrow_recipient.user,
             amount=amount,
         )
-        rate = FundingActivityAmountsService.get_historical_rsc_usd_rate(
-            escrow_recipient.created_date
-        )
-        FundingActivityAmountsService.populate_dual_amounts_on_recipients(
-            activity, [recipient], rate
-        )
+        rate = cls._get_historical_rsc_usd_rate(escrow_recipient.created_date)
+        cls._populate_dual_amounts_on_recipients(activity, [recipient], rate)
         activity.save()
         recipient.activity = activity
         recipient.save()
@@ -457,10 +524,8 @@ class FundingActivityService:
             recipient_user=recipient_user,
             amount=amount,
         )
-        rate = FundingActivityAmountsService.resolve_rate_for_purchase(purchase)
-        FundingActivityAmountsService.populate_dual_amounts_on_recipients(
-            activity, [recipient], rate
-        )
+        rate = cls._resolve_rate_for_purchase(purchase)
+        cls._populate_dual_amounts_on_recipients(activity, [recipient], rate)
         activity.save()
         recipient.activity = activity
         recipient.save()
@@ -499,12 +564,8 @@ class FundingActivityService:
                     amount=distribution.amount,
                 )
             )
-        rate = FundingActivityAmountsService.get_historical_rsc_usd_rate(
-            distribution.created_date
-        )
-        FundingActivityAmountsService.populate_dual_amounts_on_recipients(
-            activity, recipients, rate
-        )
+        rate = cls._get_historical_rsc_usd_rate(distribution.created_date)
+        cls._populate_dual_amounts_on_recipients(activity, recipients, rate)
         activity.save()
         for recipient in recipients:
             recipient.activity = activity
@@ -531,11 +592,7 @@ class FundingActivityService:
             source_content_type=cls._get_content_type(Distribution),
             source_object_id=distribution.pk,
         )
-        rate = FundingActivityAmountsService.get_historical_rsc_usd_rate(
-            distribution.created_date
-        )
-        FundingActivityAmountsService.populate_dual_amounts_on_recipients(
-            activity, [], rate
-        )
+        rate = cls._get_historical_rsc_usd_rate(distribution.created_date)
+        cls._populate_dual_amounts_on_recipients(activity, [], rate)
         activity.save()
         return activity

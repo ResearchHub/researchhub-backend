@@ -9,7 +9,6 @@ from user.related_models.funding_activity_model import (
     FundingActivity,
     FundingActivityRecipient,
 )
-from user.services.funding_activity_amounts import FundingActivityAmountsService
 from user.services.funding_activity_service import FundingActivityService
 
 BATCH_SIZE = 500
@@ -146,10 +145,10 @@ class Command(BaseCommand):
             source = activity.source
             if source is None:
                 return False
-            rate = FundingActivityAmountsService.get_historical_rsc_usd_rate(
+            rate = FundingActivityService._get_historical_rsc_usd_rate(
                 activity.activity_date
             )
-            FundingActivityAmountsService.populate_usd_native_dual_amounts_on_recipients(
+            FundingActivityService._populate_usd_native_dual_amounts_on_recipients(
                 activity,
                 recipients,
                 source.amount_cents,
@@ -160,12 +159,12 @@ class Command(BaseCommand):
 
         rate = self._resolve_rate_for_activity(activity)
         if rate is None:
-            FundingActivityAmountsService.populate_dual_amounts_on_recipients(
+            FundingActivityService._populate_dual_amounts_on_recipients(
                 activity, recipients, None
             )
             return False
 
-        FundingActivityAmountsService.populate_dual_amounts_on_recipients(
+        FundingActivityService._populate_dual_amounts_on_recipients(
             activity, recipients, rate
         )
         return True
@@ -178,10 +177,10 @@ class Command(BaseCommand):
         if activity.source_type in PURCHASE_SOURCE_TYPES:
             if not isinstance(source, Purchase):
                 return None
-            return FundingActivityAmountsService.resolve_rate_for_purchase(source)
+            return FundingActivityService._resolve_rate_for_purchase(source)
 
         if activity.source_type in HISTORICAL_RATE_SOURCE_TYPES:
-            return FundingActivityAmountsService.get_historical_rsc_usd_rate(
+            return FundingActivityService._get_historical_rsc_usd_rate(
                 activity.activity_date
             )
 
