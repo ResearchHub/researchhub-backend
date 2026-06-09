@@ -295,7 +295,8 @@ class PaymentService:
             # Calculate RSC purchase fees in USD (for Stripe charge calculation)
             usd_fees, _, _, _ = calculate_rsc_purchase_fees(Decimal(str(usd_amount)))
 
-            # Calculate bounty fees (platform fee) in USD (for Stripe charge calculation)
+            # Calculate bounty fees (platform fee) in USD
+            # (for Stripe charge calculation)
             bounty_fee_usd, _, _, _ = calculate_bounty_fees(Decimal(str(usd_amount)))
 
             # Calculate Stripe fees (2.9% + $0.30)

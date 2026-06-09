@@ -268,18 +268,17 @@ class EndaomentService:
             if e.error == "invalid_grant":
                 # If the token is invalid, revoked or expired, delete the account.
                 # See: https://datatracker.ietf.org/doc/html/rfc6749#section-5.2
-                logger.warning(
-                    f"Failed to refresh token for user {account.user.id}: {e}"
-                )
+                logger.warning("Failed to refresh token for user %s", account.user.id)
                 account.delete()
             else:
-                logger.error(
-                    f"Unexpected OAuth error refreshing token for user {account.user.id}: {e}"
+                logger.exception(
+                    "Unexpected OAuth error refreshing token for user %s",
+                    account.user.id,
                 )
             raise
-        except requests.RequestException as e:
-            logger.error(
-                f"Failed to refresh Endaoment token for user {account.user.id}: {e}"
+        except requests.RequestException:
+            logger.exception(
+                "Failed to refresh Endaoment token for user %s", account.user.id
             )
             raise
 

@@ -317,7 +317,9 @@ class TestCircleWalletServiceSweep(TestCase):
         return_value=500.0,
     )
     def test_sweep_uses_wallet_balance_not_deposit_amount(self, mock_rsc_to_usd):
-        """Transfer amount should be the actual wallet balance, not the deposit amount."""
+        """
+        Transfer amount should be the actual wallet balance, not the deposit amount.
+        """
         self.mock_client.get_wallet_balance.return_value = Decimal("150.5")
         self.mock_client.create_transfer.return_value = CircleTransferResult(
             transfer_id="tx-5", state="INITIATED"

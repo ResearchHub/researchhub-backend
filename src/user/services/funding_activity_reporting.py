@@ -31,11 +31,11 @@ EARNER_SOURCE_TYPES = frozenset(
 )
 
 
-def zero_breakdown() -> dict:
+def _zero_breakdown() -> dict:
     return dict(_ZERO_BREAKDOWN)
 
 
-def breakdown_from_sums(
+def _breakdown_from_sums(
     rsc_total: float,
     rsc_native_usd_cents: int,
     usd_native_cents: int,
@@ -48,16 +48,16 @@ def breakdown_from_sums(
     }
 
 
-def breakdown_for_source_type(
+def _breakdown_for_source_type(
     source_type: str, rsc_total: float, usd_cents_total: int
 ) -> dict:
     """Build a single-source breakdown using native-leg semantics for that type."""
     if source_type in USD_NATIVE_SOURCE_TYPES:
-        return breakdown_from_sums(rsc_total, 0, usd_cents_total)
-    return breakdown_from_sums(rsc_total, usd_cents_total, 0)
+        return _breakdown_from_sums(rsc_total, 0, usd_cents_total)
+    return _breakdown_from_sums(rsc_total, usd_cents_total, 0)
 
 
-def merge_breakdowns(*breakdowns: dict) -> dict:
+def _merge_breakdowns(*breakdowns: dict) -> dict:
     """Sum multiple {rsc, rsc_usd_snapshot, usd} dicts."""
     rsc = 0.0
     rsc_usd_snapshot = 0.0
@@ -73,11 +73,48 @@ def merge_breakdowns(*breakdowns: dict) -> dict:
     }
 
 
-class FundingActivityAggregationService:
-    """Aggregate precomputed amount and usd_cents fields."""
+class FundingActivityReportingService:
+    """Read-side breakdowns of precomputed FundingActivity amounts for UI/API."""
 
     @classmethod
-    def aggregate_recipient_queryset(
+    def earnings_for_user(
+        cls,
+        user_id: int,
+        source_types: frozenset[str] | None = None,
+        start_date=None,
+        end_date=None,
+    ) -> dict:
+        """Return {total_earned, by_source} breakdowns for a recipient user."""
+        if source_types is None:
+            source_types = EARNER_SOURCE_TYPES
+        qs = cls._recipient_queryset_for_user(
+            user_id, source_types=source_types, start_date=start_date, end_date=end_date
+        )
+        by_source = cls._aggregate_recipients_by_source(qs)
+        return {
+            "total_earned": _merge_breakdowns(*by_source.values())
+            if by_source
+            else _zero_breakdown(),
+            "by_source": by_source,
+        }
+
+    @classmethod
+    def funding_for_user(
+        cls,
+        user_id: int,
+        start_date=None,
+        end_date=None,
+    ) -> dict:
+        """Return total funding breakdown for a funder user."""
+        qs = FundingActivity.objects.filter(funder_id=user_id)
+        if start_date is not None:
+            qs = qs.filter(activity_date__gte=start_date)
+        if end_date is not None:
+            qs = qs.filter(activity_date__lte=end_date)
+        return cls._aggregate_activity_queryset(qs)
+
+    @classmethod
+    def _aggregate_recipient_queryset(
         cls, queryset: QuerySet[FundingActivityRecipient]
     ) -> dict:
         """Sum amount and usd_cents from a FundingActivityRecipient queryset."""
@@ -100,14 +137,14 @@ class FundingActivityAggregationService:
                 0,
             ),
         )
-        return breakdown_from_sums(
+        return _breakdown_from_sums(
             aggregates["rsc_total"],
             aggregates["rsc_native_usd_cents"],
             aggregates["usd_native_cents"],
         )
 
     @classmethod
-    def aggregate_activity_queryset(cls, queryset: QuerySet[FundingActivity]) -> dict:
+    def _aggregate_activity_queryset(cls, queryset: QuerySet[FundingActivity]) -> dict:
         """Sum total_amount and usd_cents from a FundingActivity queryset."""
         aggregates = queryset.annotate(
             total_amount_float=Cast("total_amount", FloatField()),
@@ -128,14 +165,14 @@ class FundingActivityAggregationService:
                 0,
             ),
         )
-        return breakdown_from_sums(
+        return _breakdown_from_sums(
             aggregates["rsc_total"],
             aggregates["rsc_native_usd_cents"],
             aggregates["usd_native_cents"],
         )
 
     @classmethod
-    def aggregate_recipients_by_source(
+    def _aggregate_recipients_by_source(
         cls, queryset: QuerySet[FundingActivityRecipient]
     ) -> dict[str, dict]:
         """Return per-source_type {rsc, rsc_usd_snapshot, usd} from recipients."""
@@ -149,7 +186,7 @@ class FundingActivityAggregationService:
             .order_by("activity__source_type")
         )
         return {
-            row["activity__source_type"]: breakdown_for_source_type(
+            row["activity__source_type"]: _breakdown_for_source_type(
                 row["activity__source_type"],
                 row["rsc_total"],
                 row["usd_cents_total"],
@@ -158,14 +195,13 @@ class FundingActivityAggregationService:
         }
 
     @classmethod
-    def recipient_queryset_for_user(
+    def _recipient_queryset_for_user(
         cls,
         user_id: int,
         source_types: frozenset[str] | None = None,
         start_date=None,
         end_date=None,
     ) -> QuerySet[FundingActivityRecipient]:
-        """Base recipient queryset for earn-style aggregation."""
         qs = FundingActivityRecipient.objects.filter(recipient_user_id=user_id)
         if source_types is not None:
             qs = qs.filter(activity__source_type__in=source_types)
@@ -174,25 +210,3 @@ class FundingActivityAggregationService:
         if end_date is not None:
             qs = qs.filter(activity__activity_date__lte=end_date)
         return qs
-
-    @classmethod
-    def aggregate_earnings_for_user(
-        cls,
-        user_id: int,
-        source_types: frozenset[str] | None = None,
-        start_date=None,
-        end_date=None,
-    ) -> dict:
-        """Return total_earned and by_source for a recipient user."""
-        if source_types is None:
-            source_types = EARNER_SOURCE_TYPES
-        qs = cls.recipient_queryset_for_user(
-            user_id, source_types=source_types, start_date=start_date, end_date=end_date
-        )
-        by_source = cls.aggregate_recipients_by_source(qs)
-        return {
-            "total_earned": merge_breakdowns(*by_source.values())
-            if by_source
-            else zero_breakdown(),
-            "by_source": by_source,
-        }

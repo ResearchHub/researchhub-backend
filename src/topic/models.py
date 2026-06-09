@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
@@ -7,6 +9,8 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from utils.models import DefaultModel
 from utils.openalex import OpenAlex
+
+logger = logging.getLogger(__name__)
 
 
 class Domain(DefaultModel):
@@ -221,8 +225,10 @@ class Topic(DefaultModel):
                 )
 
             if created:
-                print(
-                    f"Created new hub {hub.name} and associated with subfield {subfield.display_name}."
+                logger.info(
+                    "Created new hub %s associated with subfield %s",
+                    hub.name,
+                    subfield.display_name,
                 )
             else:
                 hub.subfield = subfield

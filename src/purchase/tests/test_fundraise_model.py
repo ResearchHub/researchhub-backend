@@ -47,7 +47,9 @@ class GetAmountRaisedTests(TestCase):
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
     def test_get_amount_raised_usd_only(self, mock_exchange_rate):
-        """Test get_amount_raised returns correct USD amount from USD contributions only."""
+        """
+        Test get_amount_raised returns correct USD amount from USD contributions only.
+        """
         mock_exchange_rate.return_value = 0.01  # 1 RSC = $0.01
 
         # Create USD contributions totaling $150 (15000 cents)
@@ -169,7 +171,10 @@ class GetAmountRaisedTests(TestCase):
     def test_get_amount_raised_excludes_refunded_contributions(
         self, mock_exchange_rate
     ):
-        """Test get_amount_raised excludes refunded USD contributions after fundraise is closed."""
+        """
+        Test get_amount_raised excludes refunded USD contributions after fundraise
+        is closed.
+        """
         mock_exchange_rate.return_value = 0.01
 
         # Create USD contribution

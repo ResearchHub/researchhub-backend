@@ -5,16 +5,10 @@ This module provides a unified interface for ingesting papers from multiple
 preprint servers and academic repositories.
 """
 
-from .clients import (
-    ArXivClient,
-    ArXivConfig,
-    ArXivOAIClient,
-    ArXivOAIConfig,
-    BaseClient,
-    BioRxivClient,
-    BioRxivConfig,
-    ClientConfig,
-)
+from .clients.base import BaseClient, ClientConfig
+from .clients.preprints.arxiv import ArXivClient, ArXivConfig
+from .clients.preprints.arxiv_oai import ArXivOAIClient, ArXivOAIConfig
+from .clients.preprints.biorxiv import BioRxivClient, BioRxivConfig
 from .exceptions import (
     ClientError,
     FetchError,

@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 from typing import Optional
 
@@ -25,6 +26,8 @@ from user.related_models.funding_activity_model import (
 )
 from user.related_models.user_model import FOUNDATION_EMAIL
 from user.services.funding_activity_amounts import FundingActivityAmountsService
+
+logger = logging.getLogger(__name__)
 
 
 def get_leaderboard_excluded_user_ids():
@@ -223,7 +226,9 @@ class FundingActivityService:
 
         Returns:
             The FundingActivity instance, or None if creation was skipped
-            (e.g. missing funder/recipient).
+            (e.g. missing funder/recipient, or fundraise.get_recipient() could
+            not resolve a recipient). Skips are intentional for backfill tasks;
+            fundraise recipient failures are logged at warning level.
         """
         content_type = cls._get_content_type(source_object)
         with transaction.atomic():
@@ -250,7 +255,13 @@ class FundingActivityService:
 
     @classmethod
     def _create_fundraise_payout_activity(cls, purchase) -> Optional[FundingActivity]:
-        """One FundingActivity per Purchase (FUNDRAISE_CONTRIBUTION, paid)."""
+        """
+        One FundingActivity per Purchase (FUNDRAISE_CONTRIBUTION, paid).
+
+        Returns None when fundraise.get_recipient() fails (e.g. nonprofit-linked
+        fundraise without ENDAOMENT_ACCOUNT_ID, or Endaoment user missing).
+        Logs a warning and skips rather than raising.
+        """
         if purchase.purchase_type != Purchase.FUNDRAISE_CONTRIBUTION:
             return None
         if purchase.paid_status != Purchase.PAID:
@@ -267,7 +278,13 @@ class FundingActivityService:
             return None
         try:
             recipient_user = fundraise.get_recipient()
-        except Exception:
+        except (ValueError, User.DoesNotExist):
+            logger.warning(
+                "Skipping fundraise payout FundingActivity for purchase_id=%s: "
+                "get_recipient failed",
+                purchase.pk,
+                exc_info=True,
+            )
             return None
         amount = Decimal(str(purchase.amount))
         activity = FundingActivity(
@@ -296,7 +313,12 @@ class FundingActivityService:
     def _create_usd_fundraise_payout_activity(
         cls, contribution: UsdFundraiseContribution
     ) -> Optional[FundingActivity]:
-        """One FundingActivity per non-refunded UsdFundraiseContribution on PAID escrow."""
+        """
+        One FundingActivity per non-refunded UsdFundraiseContribution on PAID escrow.
+
+        Returns None when fundraise.get_recipient() fails; logs a warning and
+        skips, same as _create_fundraise_payout_activity.
+        """
         if contribution.is_refunded:
             return None
         fundraise = (
@@ -311,7 +333,13 @@ class FundingActivityService:
             return None
         try:
             recipient_user = fundraise.get_recipient()
-        except Exception:
+        except (ValueError, User.DoesNotExist):
+            logger.warning(
+                "Skipping USD fundraise payout FundingActivity for "
+                "contribution_id=%s: get_recipient failed",
+                contribution.pk,
+                exc_info=True,
+            )
             return None
         native_usd_cents = contribution.amount_cents
         activity = FundingActivity(
