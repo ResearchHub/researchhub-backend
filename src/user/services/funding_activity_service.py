@@ -2,6 +2,7 @@ import logging
 from decimal import Decimal
 from typing import Optional
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Q, Sum
@@ -69,6 +70,14 @@ class FundingActivityService:
     @classmethod
     def _get_content_type(cls, model):
         return ContentType.objects.get_for_model(model)
+
+    @classmethod
+    def _should_record_funding_recipient(cls, recipient_user) -> bool:
+        """Skip recipient rows for the Endaoment holding account (not a real earner)."""
+        endaoment_id = settings.ENDAOMENT_ACCOUNT_ID
+        if not endaoment_id:
+            return True
+        return recipient_user.id != int(endaoment_id)
 
     # -------------------------------------------------------------------------
     # Query methods
@@ -296,17 +305,22 @@ class FundingActivityService:
             source_content_type=cls._get_content_type(Purchase),
             source_object_id=purchase.pk,
         )
-        recipient = FundingActivityRecipient(
-            recipient_user=recipient_user,
-            amount=amount,
-        )
+        recipients = []
+        if cls._should_record_funding_recipient(recipient_user):
+            recipients.append(
+                FundingActivityRecipient(
+                    recipient_user=recipient_user,
+                    amount=amount,
+                )
+            )
         rate = FundingActivityAmountsService.resolve_rate_for_purchase(purchase)
         FundingActivityAmountsService.populate_dual_amounts_on_recipients(
-            activity, [recipient], rate
+            activity, recipients, rate
         )
         activity.save()
-        recipient.activity = activity
-        recipient.save()
+        for recipient in recipients:
+            recipient.activity = activity
+            recipient.save()
         return activity
 
     @classmethod
@@ -351,19 +365,24 @@ class FundingActivityService:
             source_content_type=cls._get_content_type(UsdFundraiseContribution),
             source_object_id=contribution.pk,
         )
-        recipient = FundingActivityRecipient(
-            recipient_user=recipient_user,
-            amount=Decimal("0"),
-        )
+        recipients = []
+        if cls._should_record_funding_recipient(recipient_user):
+            recipients.append(
+                FundingActivityRecipient(
+                    recipient_user=recipient_user,
+                    amount=Decimal("0"),
+                )
+            )
         rate = FundingActivityAmountsService.get_historical_rsc_usd_rate(
             contribution.created_date
         )
         FundingActivityAmountsService.populate_usd_native_dual_amounts_on_recipients(
-            activity, [recipient], native_usd_cents, rate
+            activity, recipients, native_usd_cents, rate
         )
         activity.save()
-        recipient.activity = activity
-        recipient.save()
+        for recipient in recipients:
+            recipient.activity = activity
+            recipient.save()
         return activity
 
     @classmethod

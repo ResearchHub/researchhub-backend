@@ -98,7 +98,7 @@ class Command(BaseCommand):
         activity_batch = []
         recipient_batch = []
 
-        for i, activity in enumerate(qs.iterator(), start=1):
+        for i, activity in enumerate(qs.iterator(chunk_size=BATCH_SIZE), start=1):
             try:
                 recipients = list(activity.recipients.all())
                 populated = self._populate_amounts_for_activity(activity, recipients)
