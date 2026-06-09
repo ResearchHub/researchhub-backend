@@ -230,69 +230,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         invalidate_author_profile_caches(None, request.user.author_profile.id)
         return Response({"count": count}, status=status.HTTP_200_OK)
 
-    @action(
-        detail=True,
-        methods=["get"],
-    )
-    def overview(self, request, pk=None):
-        author = self.get_object()
-
-        # Get documents from cache if available
-        cache_key = f"author-{author.id}-overview"
-        documents = cache.get(cache_key)
-
-        if not documents:
-            # We want to only return a few documents for the overview section
-            NUM_DOCUMENTS_TO_FETCH = 4
-
-            # Use UNION for better query performance (avoids sequential scan)
-            direct = Authorship.objects.filter(author=author)
-            merged = Authorship.objects.filter(author__merged_with_author=author)
-            all_authorships = direct.union(merged)
-
-            # Get doc IDs and sort by citations (UNION doesn't support order_by)
-            authorship_ids = list(all_authorships.values_list("id", flat=True))
-            authored_doc_ids = list(
-                Authorship.objects.filter(id__in=authorship_ids)
-                .order_by("-paper__citations")
-                .values_list("paper__unified_document_id", flat=True)[
-                    :NUM_DOCUMENTS_TO_FETCH
-                ]
-            )
-
-            docs = ResearchhubUnifiedDocument.objects.filter(id__in=authored_doc_ids)
-
-            # Maintain the ordering authored papers
-            documents = sorted(docs, key=lambda x: authored_doc_ids.index(x.id))
-
-            cache.set(cache_key, documents, timeout=60 * 60 * 24)
-
-        context = ResearchhubUnifiedDocumentViewSet._get_serializer_context(self)
-        page = self.paginate_queryset(documents)
-
-        serializer = DynamicUnifiedDocumentSerializer(
-            page,
-            _include_fields=[
-                "id",
-                "created_date",
-                "documents",
-                "document_filter",
-                "document_type",
-                "hot_score",
-                "hubs",
-                "reviews",
-                "score",
-                "fundraise",
-                "grant",
-            ],
-            many=True,
-            context=context,
-        )
-
-        serializer_data = serializer.data
-
-        return self.get_paginated_response(serializer_data)
-
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def minimal_overview(self, request, pk=None):
         author = self.get_object()
