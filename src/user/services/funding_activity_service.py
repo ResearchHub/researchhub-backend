@@ -1,12 +1,17 @@
+import logging
 from decimal import Decimal
 from typing import Optional
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Q, Sum
 
 from purchase.models import Purchase
 from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from reputation.models import Bounty, Distribution
 from reputation.related_models.escrow import Escrow, EscrowRecipients
 from researchhub_comment.constants.rh_comment_thread_types import (
@@ -22,6 +27,8 @@ from user.related_models.funding_activity_model import (
 )
 from user.related_models.user_model import FOUNDATION_EMAIL
 from user.services.funding_activity_amounts import FundingActivityAmountsService
+
+logger = logging.getLogger(__name__)
 
 
 def get_leaderboard_excluded_user_ids():
@@ -64,6 +71,14 @@ class FundingActivityService:
     def _get_content_type(cls, model):
         return ContentType.objects.get_for_model(model)
 
+    @classmethod
+    def _should_record_funding_recipient(cls, recipient_user) -> bool:
+        """Skip recipient rows for the Endaoment holding account (not a real earner)."""
+        endaoment_id = settings.ENDAOMENT_ACCOUNT_ID
+        if not endaoment_id:
+            return True
+        return recipient_user.id != int(endaoment_id)
+
     # -------------------------------------------------------------------------
     # Query methods
     # -------------------------------------------------------------------------
@@ -82,6 +97,22 @@ class FundingActivityService:
             fundraise__escrow__status=Escrow.PAID,
             fundraise__escrow__isnull=False,
         ).select_related("user", "content_type")
+        if start_date:
+            qs = qs.filter(created_date__gte=start_date)
+        if end_date:
+            qs = qs.filter(created_date__lte=end_date)
+        return qs
+
+    @classmethod
+    def get_usd_fundraise_payouts(cls, start_date=None, end_date=None):
+        """
+        Non-refunded USD contributions whose fundraise escrow is PAID.
+        """
+        qs = UsdFundraiseContribution.objects.filter(
+            is_refunded=False,
+            fundraise__escrow__status=Escrow.PAID,
+            fundraise__escrow__isnull=False,
+        ).select_related("user", "fundraise", "fundraise__unified_document")
         if start_date:
             qs = qs.filter(created_date__gte=start_date)
         if end_date:
@@ -197,13 +228,16 @@ class FundingActivityService:
 
         Args:
             source_type: One of FundingActivity.FUNDRAISE_PAYOUT,
-                BOUNTY_PAYOUT, TIP_DOCUMENT, TIP_REVIEW, FEE.
-            source_object: The source instance (Purchase, EscrowRecipients,
-                or Distribution).
+                USD_FUNDRAISE_PAYOUT, BOUNTY_PAYOUT, TIP_DOCUMENT, TIP_REVIEW,
+                FEE.
+            source_object: The source instance (Purchase, UsdFundraiseContribution,
+                EscrowRecipients, or Distribution).
 
         Returns:
             The FundingActivity instance, or None if creation was skipped
-            (e.g. missing funder/recipient).
+            (e.g. missing funder/recipient, or fundraise.get_recipient() could
+            not resolve a recipient). Skips are intentional for backfill tasks;
+            fundraise recipient failures are logged at warning level.
         """
         content_type = cls._get_content_type(source_object)
         with transaction.atomic():
@@ -216,6 +250,8 @@ class FundingActivityService:
 
             if source_type == FundingActivity.FUNDRAISE_PAYOUT:
                 return cls._create_fundraise_payout_activity(source_object)
+            if source_type == FundingActivity.USD_FUNDRAISE_PAYOUT:
+                return cls._create_usd_fundraise_payout_activity(source_object)
             if source_type == FundingActivity.BOUNTY_PAYOUT:
                 return cls._create_bounty_payout_activity(source_object)
             if source_type == FundingActivity.TIP_DOCUMENT:
@@ -228,7 +264,13 @@ class FundingActivityService:
 
     @classmethod
     def _create_fundraise_payout_activity(cls, purchase) -> Optional[FundingActivity]:
-        """One FundingActivity per Purchase (FUNDRAISE_CONTRIBUTION, paid)."""
+        """
+        One FundingActivity per Purchase (FUNDRAISE_CONTRIBUTION, paid).
+
+        Returns None when fundraise.get_recipient() fails (e.g. nonprofit-linked
+        fundraise without ENDAOMENT_ACCOUNT_ID, or Endaoment user missing).
+        Logs a warning and skips rather than raising.
+        """
         if purchase.purchase_type != Purchase.FUNDRAISE_CONTRIBUTION:
             return None
         if purchase.paid_status != Purchase.PAID:
@@ -245,7 +287,13 @@ class FundingActivityService:
             return None
         try:
             recipient_user = fundraise.get_recipient()
-        except Exception:
+        except (ValueError, User.DoesNotExist):
+            logger.warning(
+                "Skipping fundraise payout FundingActivity for purchase_id=%s: "
+                "get_recipient failed",
+                purchase.pk,
+                exc_info=True,
+            )
             return None
         amount = Decimal(str(purchase.amount))
         activity = FundingActivity(
@@ -257,17 +305,84 @@ class FundingActivityService:
             source_content_type=cls._get_content_type(Purchase),
             source_object_id=purchase.pk,
         )
-        recipient = FundingActivityRecipient(
-            recipient_user=recipient_user,
-            amount=amount,
-        )
+        recipients = []
+        if cls._should_record_funding_recipient(recipient_user):
+            recipients.append(
+                FundingActivityRecipient(
+                    recipient_user=recipient_user,
+                    amount=amount,
+                )
+            )
         rate = FundingActivityAmountsService.resolve_rate_for_purchase(purchase)
         FundingActivityAmountsService.populate_dual_amounts_on_recipients(
-            activity, [recipient], rate
+            activity, recipients, rate
         )
         activity.save()
-        recipient.activity = activity
-        recipient.save()
+        for recipient in recipients:
+            recipient.activity = activity
+            recipient.save()
+        return activity
+
+    @classmethod
+    def _create_usd_fundraise_payout_activity(
+        cls, contribution: UsdFundraiseContribution
+    ) -> Optional[FundingActivity]:
+        """
+        One FundingActivity per non-refunded UsdFundraiseContribution on PAID escrow.
+
+        Returns None when fundraise.get_recipient() fails; logs a warning and
+        skips, same as _create_fundraise_payout_activity.
+        """
+        if contribution.is_refunded:
+            return None
+        fundraise = (
+            Fundraise.objects.filter(
+                pk=contribution.fundraise_id,
+                escrow__status=Escrow.PAID,
+            )
+            .select_related("escrow", "unified_document")
+            .first()
+        )
+        if not fundraise or not fundraise.escrow:
+            return None
+        try:
+            recipient_user = fundraise.get_recipient()
+        except (ValueError, User.DoesNotExist):
+            logger.warning(
+                "Skipping USD fundraise payout FundingActivity for "
+                "contribution_id=%s: get_recipient failed",
+                contribution.pk,
+                exc_info=True,
+            )
+            return None
+        native_usd_cents = contribution.amount_cents
+        activity = FundingActivity(
+            funder_id=contribution.user_id,
+            source_type=FundingActivity.USD_FUNDRAISE_PAYOUT,
+            total_amount=Decimal("0"),
+            unified_document_id=fundraise.unified_document_id,
+            activity_date=contribution.created_date,
+            source_content_type=cls._get_content_type(UsdFundraiseContribution),
+            source_object_id=contribution.pk,
+        )
+        recipients = []
+        if cls._should_record_funding_recipient(recipient_user):
+            recipients.append(
+                FundingActivityRecipient(
+                    recipient_user=recipient_user,
+                    amount=Decimal("0"),
+                )
+            )
+        rate = FundingActivityAmountsService.get_historical_rsc_usd_rate(
+            contribution.created_date
+        )
+        FundingActivityAmountsService.populate_usd_native_dual_amounts_on_recipients(
+            activity, recipients, native_usd_cents, rate
+        )
+        activity.save()
+        for recipient in recipients:
+            recipient.activity = activity
+            recipient.save()
         return activity
 
     @classmethod
