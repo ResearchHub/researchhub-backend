@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -22,6 +24,8 @@ from user.permissions import IsModerator, UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 from utils import sentry
 from utils.models import SoftDeletableModel
+
+logger = logging.getLogger(__name__)
 
 
 class CursorSetPagination(CursorPagination):
@@ -350,9 +354,8 @@ class AuditViewSet(viewsets.GenericViewSet):
                 verdict_serializer = VerdictSerializer(data=verdict_data)
                 verdict_serializer.is_valid(raise_exception=True)
                 verdict_serializer.save()
-        except Exception as e:
-            print("e", e)
-            sentry.log_error(e)
+        except Exception:
+            logger.exception("Error dismissing flagged content")
 
             return Response(
                 {},

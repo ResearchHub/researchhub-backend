@@ -11,7 +11,6 @@ from rest_framework.views import APIView
 from search.backends.match_bool_prefix import MatchBoolPrefixBackend
 from search.documents.hub import HubDocument
 from search.documents.paper import PaperDocument
-from search.documents.person import PersonDocument
 from search.documents.post import PostDocument
 from search.documents.user import UserDocument
 from utils.doi import DOI
@@ -42,9 +41,9 @@ class SuggestView(APIView):
         "paper": 2.0,  # Papers (lower than posts)
     }
 
-    # Map of index names to their document classes and transform functions
-    # Note: The "author" index is used for searching people profiles, even though
-    # the actual Elasticsearch index is named "person"
+    # Map of index names to their document classes and transform functions.
+    # "author" is a backward-compatible alias over the "user" index for notebook
+    # autocomplete; it returns person-shaped results with author profile IDs.
     INDEX_MAP = {
         "paper": {
             "document": PaperDocument,
@@ -53,18 +52,9 @@ class SuggestView(APIView):
             "partial_match_field": "paper_title",
         },
         "author": {
-            "document": PersonDocument,
-            "transform": lambda self, result: {
-                "entity_type": "person",
-                "id": result.get("_source", {}).get("id"),
-                "display_name": result.get("_source", {}).get("full_name", ""),
-                "profile_image": result.get("_source", {}).get("profile_image"),
-                "headline": result.get("_source", {}).get("headline"),
-                "created_date": result.get("_source", {}).get("created_date"),
-                "user_id": result.get("_source", {}).get("user_id"),
-                "source": "researchhub",
-                "_score": result.get("_score", 1.0),
-            },
+            "document": UserDocument,
+            "transform": lambda self, result: self.transform_user_as_person(result),
+            "partial_match_field": "full_name",
         },
         "user": {
             "document": UserDocument,
@@ -150,6 +140,22 @@ class SuggestView(APIView):
             "openalex_id": result.get("id"),
         }
 
+    def transform_user_as_person(self, result):
+        """Map a user index hit to the legacy person/author suggest shape."""
+        source = result.get("_source", {})
+        author_profile = source.get("author_profile") or {}
+        return {
+            "entity_type": "person",
+            "id": author_profile.get("id"),
+            "display_name": source.get("full_name", ""),
+            "profile_image": author_profile.get("profile_image"),
+            "headline": author_profile.get("headline"),
+            "created_date": source.get("created_date"),
+            "user_id": source.get("id"),
+            "source": "researchhub",
+            "_score": result.get("_score", 1.0),
+        }
+
     def transform_es_result(self, result):
         source = result.get("_source", {})
         normalized_doi = DOI.normalize_doi(source.get("doi"))
@@ -178,7 +184,7 @@ class SuggestView(APIView):
         Query params:
         - q: search query (required)
         - index: index(es) to search in (optional, defaults to 'paper')
-               Can be a single index or comma-separated list (e.g. 'user,person')
+               Can be a single index or comma-separated list (e.g. 'user,author')
         - limit: maximum number of results to return (optional, defaults to 10)
         - enable_openalex: enable OpenAlex external search (optional, defaults to False)
                Set to 'true' to include external results from OpenAlex
@@ -198,7 +204,7 @@ class SuggestView(APIView):
 
         # Parse indexes from the query parameter
         index_param = request.query_params.get("index", "paper")
-        indexes = [idx.strip() for idx in index_param.split(",")]
+        indexes = self._normalize_indexes(index_param)
 
         # Get limit parameter
         try:
@@ -353,7 +359,7 @@ class SuggestView(APIView):
                 logger.info(msg)
                 # Parse indexes for fallback
                 index_param = request.query_params.get("index", "paper")
-                indexes = [idx.strip() for idx in index_param.split(",")]
+                indexes = self._normalize_indexes(index_param)
 
                 # Validate indexes
                 invalid_indexes = [idx for idx in indexes if idx not in self.INDEX_MAP]
@@ -467,6 +473,24 @@ class SuggestView(APIView):
         except Exception as e:
             logger.warning(f"Partial match fallback error for {index}: {str(e)}")
 
+    def _normalize_indexes(self, index_param: str) -> list[str]:
+        """Parse and deduplicate index params; author is an alias over user."""
+        indexes = []
+        seen = set()
+        for idx in index_param.split(","):
+            idx = idx.strip()
+            if not idx:
+                continue
+            if idx == "author" and "user" in seen:
+                continue
+            if idx == "user" and "author" in seen:
+                indexes = [i for i in indexes if i != "author"]
+                seen.discard("author")
+            if idx not in seen:
+                indexes.append(idx)
+                seen.add(idx)
+        return indexes
+
     def perform_regular_search(
         self, query, indexes, limit, enable_openalex: bool = False
     ):
@@ -512,7 +536,7 @@ class SuggestView(APIView):
             search = Search(index=document._index._name)
             if hasattr(document, "_doc_type"):
                 suggest_field = "suggestion_phrases"
-                if index == "user":
+                if index in ("user", "author"):
                     suggest_field = "full_name_suggest"
                     # Filter out suspended users for defense-in-depth
                     search = search.filter("term", is_suspended=False)

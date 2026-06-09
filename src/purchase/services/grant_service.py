@@ -38,7 +38,9 @@ class GrantModerationService:
         return grant
 
     def decline_grant(self, grant, reviewer, reason="", reason_choice=""):
-        """Decline a pending grant, create a flag, and soft-delete its unified document."""
+        """
+        Decline a pending grant, create a flag, and soft-delete its unified document.
+        """
         if grant.status != Grant.PENDING:
             raise ValueError("Only pending grants can be declined")
 

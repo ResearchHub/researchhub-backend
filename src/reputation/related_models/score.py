@@ -411,9 +411,11 @@ class ScoreChange(DefaultModel):
         for key, val in bins.items():
             key_tuple = json.loads(key)
 
+            # Take min of the citation count and the upper bound of the bin range then
+            # subtract the lower bound of the bin range and avoid going negative.
             citation_count_curr_bin = max(
                 min(citation_count, key_tuple[1]) - key_tuple[0], 0
-            )  # Take min of the citation count and the upper bound of the bin range then subtract the lower bound of the bin range and avoid going negative.
+            )
             rep += citation_count_curr_bin * val
 
         return rep
@@ -423,9 +425,11 @@ class ScoreChange(DefaultModel):
         for key, val in bins.items():
             key_tuple = json.loads(key)
 
+            # Take min of the citation count and the upper bound of the bin range then
+            # subtract the lower bound of the bin range and avoid going negative.
             citation_count_curr_bin = max(
                 min(citation_count, key_tuple[1]) - key_tuple[0], 0
-            )  # Take min of the citation count and the upper bound of the bin range then subtract the lower bound of the bin range and avoid going negative.
+            )
             rep_change = citation_count_curr_bin * val
             if paper_work_type == "review":
                 rep_change = math.ceil(rep_change / 5)

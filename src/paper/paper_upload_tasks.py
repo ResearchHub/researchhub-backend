@@ -42,7 +42,6 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from tag.models import Concept
 from topic.models import Topic, UnifiedDocumentTopics
-from utils import sentry
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.semantic_scholar import SemanticScholar
@@ -193,7 +192,7 @@ def celery_combine_doi(self, celery_data):
             paper_submission.save()
         else:
             for error in errors:
-                sentry.log_info(error)
+                logger.warning("DOI lookup error: %s", error)
             self.request.args = (celery_data, submission_id)
             raise DOINotFoundError()
 
@@ -206,7 +205,7 @@ def celery_combine_doi(self, celery_data):
             raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
 
         if errors:
-            sentry.log_info(errors)
+            logger.warning("DOI lookup errors: %s", errors)
 
     except DOINotFoundError as e:
         raise e
@@ -531,7 +530,7 @@ def celery_combine_paper_data(self, celery_data):
         paper_submission.set_processing_doi_status()
 
     if errors:
-        sentry.log_info(errors)
+        logger.warning("Errors while combining paper data: %s", errors)
 
     if not data:
         self.request.args = (celery_data, submission_id)
@@ -623,8 +622,8 @@ def celery_create_paper(self, celery_data):
         concepts = openalex_data.get("concepts", [])
         create_paper_related_tags(paper, concepts, topics)
 
-    except Exception as e:
-        sentry.log_error(e, message=f"Failed to create paper tags for paper {paper.id}")
+    except Exception:
+        logger.exception("Failed to create paper tags for paper %s", paper.id)
 
     return paper.id
 
@@ -660,8 +659,8 @@ def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
             # Add subfield hub
             subfield_hub = Hub.get_from_subfield(topic.subfield)
             paper.unified_document.hubs.add(subfield_hub)
-        except Exception as e:
-            sentry.log_error(e, message=f"Failed to process topic for paper {paper.id}")
+        except Exception:
+            logger.exception("Failed to process topic for paper %s", paper.id)
 
     # Bulk create/update UnifiedDocumentTopics
     UnifiedDocumentTopics.objects.bulk_create(
@@ -690,10 +689,8 @@ def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
             )
         except IntegrityError:
             pass
-        except Exception as e:
-            sentry.log_error(
-                e, message=f"Failed to process concept for paper {paper.id}"
-            )
+        except Exception:
+            logger.exception("Failed to process concept for paper %s", paper.id)
 
     # Bulk add concept hubs
     concept_ids = paper.unified_document.concepts.values_list("id", flat=True)
@@ -769,7 +766,7 @@ def _add_preprint_hub_if_applicable(paper) -> None:
 @app.task(queue=QUEUE_PAPER_METADATA)
 def celery_handle_paper_processing_errors(request, exc, traceback):
     try:
-        sentry.log_error(exc)
+        logger.error("Paper processing failed", exc_info=exc)
 
         extra_metadata = {}
         PaperSubmission = apps.get_model("paper.PaperSubmission")
@@ -787,7 +784,9 @@ def celery_handle_paper_processing_errors(request, exc, traceback):
             paper_submission.set_failed_doi_status()
         else:
             paper_submission.set_failed_status()
-    except Exception as e:
-        sentry.log_error(e, exc)
+    except Exception:
+        logger.exception(
+            "Error while handling paper processing failure (original error: %s)", exc
+        )
 
     return

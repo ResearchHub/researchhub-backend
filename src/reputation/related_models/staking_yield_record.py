@@ -26,4 +26,7 @@ class StakingYieldRecord(DefaultModel):
         app_label = "reputation"
 
     def __str__(self):
-        return f"StakingYieldRecord(user_snapshot={self.user_snapshot_id}, yield={self.yield_amount})"
+        return (
+            f"StakingYieldRecord(user_snapshot={self.user_snapshot_id}, "
+            f"yield={self.yield_amount})"
+        )

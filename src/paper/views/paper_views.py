@@ -3,7 +3,6 @@ from urllib.parse import urlparse
 import requests
 from django.conf import settings
 from django.contrib.admin.options import get_content_type_for_model
-from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -25,32 +24,20 @@ from discussion.views import ReactionViewActionMixin
 from hub.permissions import IsModerator
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
-from paper.models import Figure, Paper, PaperSubmission, PaperVersion
+from paper.models import Paper, PaperSubmission, PaperVersion
 from paper.paper_upload_tasks import celery_process_paper
-from paper.permissions import CreatePaper, IsAuthor, UpdatePaper
+from paper.permissions import CreatePaper, UpdatePaper
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_version import PaperSeries, PaperSeriesDeclaration
 from paper.serializers import (
     DynamicPaperSerializer,
-    FigureSerializer,
     PaperSerializer,
     PaperSubmissionSerializer,
 )
-from paper.tasks import censored_paper_cleanup
-from paper.utils import get_cache_key
-from reputation.models import Contribution
-from reputation.related_models.paper_reward import (
-    OPEN_ACCESS_MULTIPLIER,
-    OPEN_DATA_MULTIPLIER,
-    PREREGISTERED_MULTIPLIER,
-)
-from researchhub.permissions import IsObjectOwnerOrModerator
-from researchhub_document.permissions import HasDocumentCensorPermission
 from user.permissions import IsVerifiedUser
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
-from utils.http import POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, PostOnly
 from utils.sentry import log_error
@@ -770,61 +757,6 @@ class PaperViewSet(
         # Temporarily disabling endpoint
         return Response(status=200)
 
-    @action(
-        detail=True,
-        methods=["put", "patch", "delete"],
-        permission_classes=[HasDocumentCensorPermission],
-    )
-    def censor(self, request, pk=None):
-        paper = self.get_object()
-        paper_id = paper.id
-        unified_doc = paper.unified_document
-        cache_key = get_cache_key("paper", paper_id)
-        cache.delete(cache_key)
-
-        Contribution.objects.filter(unified_document=unified_doc).delete()
-        paper.is_removed = True
-        paper.save()
-        censored_paper_cleanup.apply_async((paper_id,), priority=3)
-
-        unified_document = paper.unified_document
-        unified_document.is_removed = True
-        unified_document.save()
-
-        return Response("Paper was deleted.", status=200)
-
-    @action(
-        detail=True,
-        methods=["put", "patch", "delete"],
-        permission_classes=[HasDocumentCensorPermission],
-    )
-    def restore_paper(self, request, pk=None):
-        paper = None
-        try:
-            paper = self.get_object()
-        except Exception:
-            paper = Paper.objects.get(id=request.data["id"])
-            pass
-        paper.is_removed = False
-        paper.save()
-
-        return Response(self.get_serializer(instance=paper).data, status=200)
-
-    @action(
-        detail=True,
-        methods=["put", "patch", "delete"],
-        permission_classes=[HasDocumentCensorPermission],
-    )
-    def censor_pdf(self, request, pk=None):
-        paper = self.get_object()
-        paper.file = None
-        paper.url = None
-        paper.pdf_url = None
-        paper.figures.all().delete()
-        paper.save()
-
-        return Response(self.get_serializer(instance=paper).data, status=200)
-
     @action(detail=True, methods=["get"])
     def user_vote(self, request, pk=None):
         paper = self.get_object()
@@ -844,55 +776,6 @@ class PaperViewSet(
             return Response(vote_id, status=200)
         except Exception as e:
             return Response(f"Failed to delete vote: {e}", status=400)
-
-    @action(detail=False, methods=[POST])
-    def check_url(self, request):
-        url = request.data.get("url", None)
-        url_is_pdf = check_url_contains_pdf(url)
-        data = {"found_file": url_is_pdf}
-        return Response(data, status=status.HTTP_200_OK)
-
-    @action(
-        detail=True,
-        methods=["get"],
-    )
-    def eligible_reward_summary(self, request, pk=None):
-        """
-        Provides information about rewards for which this paper is eligible for
-        """
-        paper_id = pk
-        if not paper_id:
-            return Response("paper_id is required", status=400)
-
-        paper = Paper.objects.get(id=paper_id)
-        if not paper:
-            return Response("Paper not found", status=404)
-
-        try:
-            paper_rewards = paper.paper_rewards
-        except Exception:
-            return Response("Failed to get paper reward", status=500)
-
-        summary = {
-            "base_rewards": paper_rewards,
-            "open_access_multiplier": OPEN_ACCESS_MULTIPLIER,
-            "open_data_multiplier": OPEN_DATA_MULTIPLIER,
-            "preregistration_multiplier": PREREGISTERED_MULTIPLIER,
-        }
-        return Response(summary, status=200)
-
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
-    def doi_search_via_openalex(self, request):
-        doi_string = request.query_params.get("doi", None)
-        if doi_string is None:
-            return Response(status=400)
-        try:
-            open_alex = OpenAlex()
-            open_alex_json = open_alex.get_data_from_doi(doi_string)
-        except Exception:
-            return Response(status=404)
-
-        return Response(open_alex_json, status=200)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def fetch_publications_by_doi(self, request):
@@ -1066,96 +949,6 @@ class PaperViewSet(
                 {"error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-
-class FigureViewSet(viewsets.ModelViewSet):
-    queryset = Figure.objects.all()
-    serializer_class = FigureSerializer
-    throttle_classes = THROTTLE_CLASSES
-
-    permission_classes = [IsObjectOwnerOrModerator]
-
-    def get_queryset(self):
-        return self.queryset
-
-    def get_figures(self, paper_id, figure_type=None):
-        # Returns all figures
-        paper = Paper.objects.get(id=paper_id)
-        figures = self.get_queryset().filter(paper=paper)
-
-        if figure_type:
-            figures = figures.filter(figure_type=figure_type)
-
-        figures = figures.order_by("-figure_type", "created_date")
-        figure_serializer = self.serializer_class(figures, many=True)
-        return figure_serializer.data
-
-    @action(
-        detail=True,
-        methods=["post"],
-        permission_classes=[IsAuthor & CreateOrUpdateIfAllowed],
-    )
-    def add_figure(self, request, pk=None):
-        user = request.user
-        if user.is_anonymous:
-            user = None
-
-        paper = self.get_object()
-        figures = request.FILES.values()
-        figure_type = request.data.get("figure_type")
-        urls = []
-        try:
-            for figure in figures:
-                fig = Figure.objects.create(
-                    paper=paper,
-                    file=figure,
-                    figure_type=figure_type,
-                    created_by=user,
-                )
-                urls.append({"id": fig.id, "file": fig.file.url})
-            return Response({"files": urls}, status=200)
-        except Exception as e:
-            log_error(e)
-            return Response(status=500)
-
-    @action(
-        detail=True,
-        methods=["delete"],
-        permission_classes=[IsAuthor & CreateOrUpdateIfAllowed],
-    )
-    def delete_figure(self, request, pk=None):
-        figure = self.get_queryset().get(id=pk)
-        figure.delete()
-        return Response(status=200)
-
-    @action(
-        detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
-    )
-    def get_all_figures(self, request, pk=None):
-        cache_key = get_cache_key("figure", pk)
-        cache_hit = cache.get(cache_key)
-        if cache_hit is not None:
-            return Response({"data": cache_hit}, status=status.HTTP_200_OK)
-
-        serializer_data = self.get_figures(pk)
-        cache.set(cache_key, serializer_data, timeout=60 * 60 * 24 * 7)
-        return Response({"data": serializer_data}, status=status.HTTP_200_OK)
-
-    @action(
-        detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
-    )
-    def get_preview_figures(self, request, pk=None):
-        # Returns pdf preview figures
-        serializer_data = self.get_figures(pk, figure_type=Figure.PREVIEW)
-        return Response({"data": serializer_data}, status=status.HTTP_200_OK)
-
-    @action(
-        detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
-    )
-    def get_regular_figures(self, request, pk=None):
-        # Returns regular figures
-        serializer_data = self.get_figures(pk, figure_type=Figure.FIGURE)
-        return Response({"data": serializer_data}, status=status.HTTP_200_OK)
 
 
 def retrieve_vote(user, paper):
