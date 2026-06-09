@@ -525,10 +525,10 @@ class FundingActivityServiceTests(TestCase):
 
         # Assert — $100 at rate 0.5 → 200 RSC
         self.assertEqual(activity.source_type, FundingActivity.USD_FUNDRAISE_PAYOUT)
-        self.assertEqual(activity.usd_cents, 10000)
+        self.assertEqual(activity.total_usd_cents, 10000)
         self.assertEqual(activity.total_amount, Decimal("200"))
         recipient = activity.recipients.get()
-        self.assertEqual(recipient.usd_cents, 10000)
+        self.assertEqual(recipient.amount_usd_cents, 10000)
         self.assertEqual(recipient.amount, Decimal("200"))
 
     def test_usd_fundraise_payout_skips_refunded_contribution(self):
@@ -602,10 +602,10 @@ class FundingActivityDualAmountsTests(TestCase):
 
         # Assert
         self.assertEqual(activity.total_amount, Decimal("100"))
-        self.assertEqual(activity.usd_cents, 5000)
+        self.assertEqual(activity.total_usd_cents, 5000)
         recipient = activity.recipients.get()
         self.assertEqual(recipient.amount, Decimal("100"))
-        self.assertEqual(recipient.usd_cents, 5000)
+        self.assertEqual(recipient.amount_usd_cents, 5000)
 
     def test_tip_review_sets_usd_cents_from_historical_rate(self):
         """TIP_REVIEW: usd_cents from historical rate at distribution.created_date."""
@@ -651,8 +651,8 @@ class FundingActivityDualAmountsTests(TestCase):
 
         # Assert
         self.assertEqual(activity.total_amount, Decimal("30"))
-        self.assertEqual(activity.usd_cents, 1500)
-        self.assertEqual(activity.recipients.get().usd_cents, 1500)
+        self.assertEqual(activity.total_usd_cents, 1500)
+        self.assertEqual(activity.recipients.get().amount_usd_cents, 1500)
 
     def test_create_activity_leaves_usd_cents_zero_when_no_rate(self):
         """When no rate is available, usd_cents stays 0."""
@@ -669,5 +669,5 @@ class FundingActivityDualAmountsTests(TestCase):
 
         # Assert
         self.assertEqual(activity.total_amount, Decimal("100"))
-        self.assertEqual(activity.usd_cents, 0)
-        self.assertEqual(activity.recipients.get().usd_cents, 0)
+        self.assertEqual(activity.total_usd_cents, 0)
+        self.assertEqual(activity.recipients.get().amount_usd_cents, 0)

@@ -118,18 +118,18 @@ class FundingActivityService:
         cls, activity, recipients_data, rate
     ) -> None:
         """
-        Set usd_cents on activity and each recipient from native RSC amounts and rate.
-        When rate is unavailable, usd_cents remains 0.
+        Set total_usd_cents / amount_usd_cents from native RSC amounts and rate.
+        When rate is unavailable, USD cents remain 0.
         """
         if rate is None:
-            activity.usd_cents = 0
+            activity.total_usd_cents = 0
             for recipient in recipients_data:
-                recipient.usd_cents = 0
+                recipient.amount_usd_cents = 0
             return
 
-        activity.usd_cents = cls._rsc_to_usd_cents(activity.total_amount, rate)
+        activity.total_usd_cents = cls._rsc_to_usd_cents(activity.total_amount, rate)
         for recipient in recipients_data:
-            recipient.usd_cents = cls._rsc_to_usd_cents(recipient.amount, rate)
+            recipient.amount_usd_cents = cls._rsc_to_usd_cents(recipient.amount, rate)
 
     @classmethod
     def _populate_usd_native_dual_amounts_on_recipients(
@@ -137,11 +137,11 @@ class FundingActivityService:
     ) -> None:
         """
         Set native USD and calculated RSC on activity and recipients.
-        usd_cents is always set from native USD; RSC amounts use rate when available.
+        Native USD cents are always set; RSC amounts use rate when available.
         """
-        activity.usd_cents = usd_cents
+        activity.total_usd_cents = usd_cents
         for recipient in recipients_data:
-            recipient.usd_cents = usd_cents
+            recipient.amount_usd_cents = usd_cents
 
         if rate is None:
             activity.total_amount = Decimal("0")

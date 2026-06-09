@@ -117,21 +117,21 @@ class FundingActivityReportingService:
     def _aggregate_recipient_queryset(
         cls, queryset: QuerySet[FundingActivityRecipient]
     ) -> dict:
-        """Sum amount and usd_cents from a FundingActivityRecipient queryset."""
+        """Sum amount and amount_usd_cents from a FundingActivityRecipient queryset."""
         aggregates = queryset.annotate(
             amount_float=Cast("amount", FloatField()),
         ).aggregate(
             rsc_total=Coalesce(Sum("amount_float"), 0.0),
             rsc_native_usd_cents=Coalesce(
                 Sum(
-                    "usd_cents",
+                    "amount_usd_cents",
                     filter=Q(activity__source_type__in=RSC_NATIVE_SOURCE_TYPES),
                 ),
                 0,
             ),
             usd_native_cents=Coalesce(
                 Sum(
-                    "usd_cents",
+                    "amount_usd_cents",
                     filter=Q(activity__source_type__in=USD_NATIVE_SOURCE_TYPES),
                 ),
                 0,
@@ -145,21 +145,21 @@ class FundingActivityReportingService:
 
     @classmethod
     def _aggregate_activity_queryset(cls, queryset: QuerySet[FundingActivity]) -> dict:
-        """Sum total_amount and usd_cents from a FundingActivity queryset."""
+        """Sum total_amount and total_usd_cents from a FundingActivity queryset."""
         aggregates = queryset.annotate(
             total_amount_float=Cast("total_amount", FloatField()),
         ).aggregate(
             rsc_total=Coalesce(Sum("total_amount_float"), 0.0),
             rsc_native_usd_cents=Coalesce(
                 Sum(
-                    "usd_cents",
+                    "total_usd_cents",
                     filter=Q(source_type__in=RSC_NATIVE_SOURCE_TYPES),
                 ),
                 0,
             ),
             usd_native_cents=Coalesce(
                 Sum(
-                    "usd_cents",
+                    "total_usd_cents",
                     filter=Q(source_type__in=USD_NATIVE_SOURCE_TYPES),
                 ),
                 0,
@@ -181,7 +181,7 @@ class FundingActivityReportingService:
             .values("activity__source_type")
             .annotate(
                 rsc_total=Coalesce(Sum("amount_float"), 0.0),
-                usd_cents_total=Coalesce(Sum("usd_cents"), 0),
+                usd_cents_total=Coalesce(Sum("amount_usd_cents"), 0),
             )
             .order_by("activity__source_type")
         )

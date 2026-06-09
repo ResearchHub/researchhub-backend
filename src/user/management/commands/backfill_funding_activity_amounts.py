@@ -27,7 +27,8 @@ HISTORICAL_RATE_SOURCE_TYPES = {
 
 class Command(BaseCommand):
     help = (
-        "Populate usd_cents (and calculated RSC for USD sources) on existing "
+        "Populate total_usd_cents / amount_usd_cents (and calculated RSC for USD "
+        "sources) on existing "
         "FundingActivity rows, and create missing USD_FUNDRAISE_PAYOUT activities."
     )
 
@@ -82,14 +83,14 @@ class Command(BaseCommand):
             )
 
     def _populate_existing_amounts(self, dry_run, log_freq):
-        """Phase 1: set dual amounts on activities where usd_cents is still 0."""
+        """Phase 1: set dual amounts on activities where total_usd_cents is still 0."""
         qs = (
-            FundingActivity.objects.filter(usd_cents=0)
+            FundingActivity.objects.filter(total_usd_cents=0)
             .prefetch_related("recipients")
             .order_by("pk")
         )
         total = qs.count()
-        self.stdout.write(f"Phase 1: {total} activity row(s) with usd_cents=0.")
+        self.stdout.write(f"Phase 1: {total} activity row(s) with total_usd_cents=0.")
 
         updated = 0
         skipped = 0
@@ -154,7 +155,7 @@ class Command(BaseCommand):
                 source.amount_cents,
                 rate,
             )
-            # Native usd_cents is always set; RSC leg requires a rate.
+            # Native USD cents are always set; RSC leg requires a rate.
             return True
 
         rate = self._resolve_rate_for_activity(activity)
@@ -187,10 +188,12 @@ class Command(BaseCommand):
         return None
 
     def _flush_amount_batches(self, activities, recipients):
-        FundingActivity.objects.bulk_update(activities, ["usd_cents", "total_amount"])
+        FundingActivity.objects.bulk_update(
+            activities, ["total_usd_cents", "total_amount"]
+        )
         if recipients:
             FundingActivityRecipient.objects.bulk_update(
-                recipients, ["usd_cents", "amount"]
+                recipients, ["amount_usd_cents", "amount"]
             )
 
     def _create_usd_fundraise_rows(self, dry_run, log_freq):

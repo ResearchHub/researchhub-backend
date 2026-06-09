@@ -48,7 +48,7 @@ class FundingActivity(DefaultModel):
         decimal_places=8,
         db_comment="Total RSC amount for this activity",
     )
-    usd_cents = models.IntegerField(
+    total_usd_cents = models.IntegerField(
         default=0,
         db_comment="USD amount in cents for this activity",
     )
@@ -128,7 +128,7 @@ class FundingActivityRecipient(DefaultModel):
         decimal_places=8,
         db_comment="RSC amount received by this recipient",
     )
-    usd_cents = models.IntegerField(
+    amount_usd_cents = models.IntegerField(
         default=0,
         db_comment="USD amount in cents received by this recipient",
     )

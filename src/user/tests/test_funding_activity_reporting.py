@@ -27,15 +27,15 @@ class FundingActivityReportingTests(TestCase):
         self,
         source_type,
         total_amount,
-        usd_cents,
+        total_usd_cents,
         recipient_amount=None,
-        recipient_usd_cents=None,
+        recipient_amount_usd_cents=None,
     ):
         activity = FundingActivity.objects.create(
             funder=self.funder,
             source_type=source_type,
             total_amount=Decimal(str(total_amount)),
-            usd_cents=usd_cents,
+            total_usd_cents=total_usd_cents,
             activity_date=timezone.now(),
             source_content_type=self.ct,
             source_object_id=FundingActivity.objects.count() + 1,
@@ -46,8 +46,10 @@ class FundingActivityReportingTests(TestCase):
             amount=Decimal(
                 str(recipient_amount if recipient_amount is not None else total_amount)
             ),
-            usd_cents=(
-                recipient_usd_cents if recipient_usd_cents is not None else usd_cents
+            amount_usd_cents=(
+                recipient_amount_usd_cents
+                if recipient_amount_usd_cents is not None
+                else total_usd_cents
             ),
         )
         return activity
@@ -56,7 +58,7 @@ class FundingActivityReportingTests(TestCase):
         """RSC-origin row: rsc from amount, rsc_usd_snapshot from usd_cents."""
         # Arrange
         self._create_activity(
-            FundingActivity.BOUNTY_PAYOUT, total_amount="50", usd_cents=2500
+            FundingActivity.BOUNTY_PAYOUT, total_amount="50", total_usd_cents=2500
         )
 
         # Act
@@ -78,7 +80,7 @@ class FundingActivityReportingTests(TestCase):
         self._create_activity(
             FundingActivity.USD_FUNDRAISE_PAYOUT,
             total_amount="200",
-            usd_cents=10000,
+            total_usd_cents=10000,
         )
 
         # Act
@@ -94,12 +96,12 @@ class FundingActivityReportingTests(TestCase):
         """Mixed sources sum each leg without rate math."""
         # Arrange
         self._create_activity(
-            FundingActivity.TIP_REVIEW, total_amount="10", usd_cents=500
+            FundingActivity.TIP_REVIEW, total_amount="10", total_usd_cents=500
         )
         self._create_activity(
             FundingActivity.USD_FUNDRAISE_PAYOUT,
             total_amount="40",
-            usd_cents=2000,
+            total_usd_cents=2000,
         )
 
         # Act
@@ -115,12 +117,12 @@ class FundingActivityReportingTests(TestCase):
     def test_earnings_for_user_by_source_breakdown(self):
         # Arrange
         self._create_activity(
-            FundingActivity.BOUNTY_PAYOUT, total_amount="30", usd_cents=1500
+            FundingActivity.BOUNTY_PAYOUT, total_amount="30", total_usd_cents=1500
         )
         self._create_activity(
             FundingActivity.USD_FUNDRAISE_PAYOUT,
             total_amount="60",
-            usd_cents=3000,
+            total_usd_cents=3000,
         )
 
         # Act
@@ -139,7 +141,7 @@ class FundingActivityReportingTests(TestCase):
     def test_funding_for_user(self):
         # Arrange
         self._create_activity(
-            FundingActivity.TIP_DOCUMENT, total_amount="25", usd_cents=1250
+            FundingActivity.TIP_DOCUMENT, total_amount="25", total_usd_cents=1250
         )
 
         # Act
@@ -151,12 +153,12 @@ class FundingActivityReportingTests(TestCase):
     def test_earnings_for_user_totals(self):
         # Arrange
         self._create_activity(
-            FundingActivity.FUNDRAISE_PAYOUT, total_amount="100", usd_cents=5000
+            FundingActivity.FUNDRAISE_PAYOUT, total_amount="100", total_usd_cents=5000
         )
         self._create_activity(
             FundingActivity.USD_FUNDRAISE_PAYOUT,
             total_amount="20",
-            usd_cents=1000,
+            total_usd_cents=1000,
         )
 
         # Act
@@ -171,7 +173,7 @@ class FundingActivityReportingTests(TestCase):
 
     def test_earnings_for_user_excludes_fee_by_default(self):
         # Arrange
-        self._create_activity(FundingActivity.FEE, total_amount="5", usd_cents=250)
+        self._create_activity(FundingActivity.FEE, total_amount="5", total_usd_cents=250)
 
         # Act
         result = FundingActivityReportingService.earnings_for_user(self.recipient.id)

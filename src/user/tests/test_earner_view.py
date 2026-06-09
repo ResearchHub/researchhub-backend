@@ -18,12 +18,12 @@ class EarnerViewTests(APITestCase):
         self.funder = create_user(email="earner-funder@test.com")
         self.ct = ContentType.objects.get_for_model(FundingActivity)
 
-    def _create_recipient_activity(self, source_type, total_amount, usd_cents):
+    def _create_recipient_activity(self, source_type, total_amount, total_usd_cents):
         activity = FundingActivity.objects.create(
             funder=self.funder,
             source_type=source_type,
             total_amount=Decimal(str(total_amount)),
-            usd_cents=usd_cents,
+            total_usd_cents=total_usd_cents,
             activity_date=timezone.now(),
             source_content_type=self.ct,
             source_object_id=FundingActivity.objects.count() + 1,
@@ -32,7 +32,7 @@ class EarnerViewTests(APITestCase):
             activity=activity,
             recipient_user=self.recipient,
             amount=Decimal(str(total_amount)),
-            usd_cents=usd_cents,
+            amount_usd_cents=total_usd_cents,
         )
         return activity
 
@@ -49,7 +49,7 @@ class EarnerViewTests(APITestCase):
     def test_earning_overview_ignores_user_id_for_non_moderator(self):
         # Arrange
         self._create_recipient_activity(
-            FundingActivity.BOUNTY_PAYOUT, total_amount="30", usd_cents=1500
+            FundingActivity.BOUNTY_PAYOUT, total_amount="30", total_usd_cents=1500
         )
         other_user = create_random_authenticated_user("other_earner")
         regular_user = create_random_authenticated_user("regular_earner")
@@ -67,7 +67,7 @@ class EarnerViewTests(APITestCase):
     def test_earning_overview_moderator_can_use_user_id(self):
         # Arrange
         self._create_recipient_activity(
-            FundingActivity.TIP_REVIEW, total_amount="20", usd_cents=1000
+            FundingActivity.TIP_REVIEW, total_amount="20", total_usd_cents=1000
         )
         self.client.force_authenticate(self.user)
 
@@ -96,12 +96,12 @@ class EarnerViewTests(APITestCase):
     def test_earning_overview_returns_total_and_by_source(self):
         # Arrange
         self._create_recipient_activity(
-            FundingActivity.FUNDRAISE_PAYOUT, total_amount="100", usd_cents=5000
+            FundingActivity.FUNDRAISE_PAYOUT, total_amount="100", total_usd_cents=5000
         )
         self._create_recipient_activity(
             FundingActivity.USD_FUNDRAISE_PAYOUT,
             total_amount="20",
-            usd_cents=1000,
+            total_usd_cents=1000,
         )
         self.client.force_authenticate(self.user)
 
