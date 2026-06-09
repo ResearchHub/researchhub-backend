@@ -79,7 +79,8 @@ class FundraiseService:
         Args:
             fundraise: The fundraise to validate
             user: The user attempting to contribute
-            check_self_contribution: Whether to check if user is contributing to own fundraise
+            check_self_contribution: Whether to check if user is contributing to
+                own fundraise
 
         Returns:
             Tuple of (is_valid, error_message). If valid, error_message is None.
@@ -116,7 +117,8 @@ class FundraiseService:
             fundraise: The fundraise to contribute to
             amount: The contribution amount (RSC as Decimal, USD in cents as int)
             currency: The currency type (RSC or USD)
-            check_self_contribution: Whether to check if user is contributing to own fundraise
+            check_self_contribution: Whether to check if user is contributing to own
+                fundraise
             origin_fund_id: The Endaoment fund (DAF) ID of the doner for USD grants
             use_credits: For RSC contributions, which balance pool pays for
                 ``amount + fee``. When True, pay entirely from funding credits
@@ -124,7 +126,8 @@ class FundraiseService:
                 Pools are never mixed. Ignored for USD contributions.
 
         Returns:
-            Tuple of (contribution, error_message). If successful, error_message is None.
+            Tuple of (contribution, error_message). If successful, error_message
+                is None.
             If failed, contribution is None and error_message contains the reason.
         """
         # Validate fundraise
@@ -330,7 +333,8 @@ class FundraiseService:
             origin_fund_id: The Endaoment fund (DAF) ID for the grant transfer.
 
         Returns:
-            Tuple of (contribution, error_message). If successful, error_message is None.
+            Tuple of (contribution, error_message). If successful, error_message
+                is None.
             If failed, contribution is None and error_message contains the reason.
         """
         # Calculate 9% fee

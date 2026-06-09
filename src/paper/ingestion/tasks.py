@@ -4,13 +4,10 @@ from celery.exceptions import MaxRetriesExceededError
 from django.conf import settings
 from django.core.cache import cache
 
-from paper.ingestion.clients import (
-    BlueskyMetricsClient,
-    GithubClient,
-    GithubMetricsClient,
-    XMetricsClient,
-)
+from paper.ingestion.clients.enrichment.bluesky import BlueskyMetricsClient
+from paper.ingestion.clients.enrichment.github import GithubClient, GithubMetricsClient
 from paper.ingestion.clients.enrichment.openalex import OpenAlexClient
+from paper.ingestion.clients.enrichment.x import XMetricsClient
 from paper.ingestion.mappers import OpenAlexMapper
 from paper.ingestion.services.metrics_enrichment import PaperMetricsEnrichmentService
 from paper.ingestion.services.openalex_enrichment import PaperOpenAlexEnrichmentService

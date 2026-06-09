@@ -31,12 +31,13 @@ class AssetUploadViewTest(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
+        presigned = self.mock_storage_service.create_presigned_url.return_value
         self.assertEqual(
             response.data,
             {
-                "presigned_url": self.mock_storage_service.create_presigned_url.return_value.url,
-                "object_key": self.mock_storage_service.create_presigned_url.return_value.object_key,
-                "object_url": self.mock_storage_service.create_presigned_url.return_value.object_url,
+                "presigned_url": presigned.url,
+                "object_key": presigned.object_key,
+                "object_url": presigned.object_url,
             },
         )
         self.mock_storage_service.create_presigned_url.assert_called_once_with(
@@ -64,12 +65,13 @@ class AssetUploadViewTest(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
+        presigned = self.mock_storage_service.create_presigned_url.return_value
         self.assertEqual(
             response.data,
             {
-                "presigned_url": self.mock_storage_service.create_presigned_url.return_value.url,
-                "object_key": self.mock_storage_service.create_presigned_url.return_value.object_key,
-                "object_url": self.mock_storage_service.create_presigned_url.return_value.object_url,
+                "presigned_url": presigned.url,
+                "object_key": presigned.object_key,
+                "object_url": presigned.object_url,
             },
         )
         self.mock_storage_service.create_presigned_url.assert_called_once_with(
