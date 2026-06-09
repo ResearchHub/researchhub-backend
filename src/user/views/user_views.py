@@ -26,6 +26,7 @@ from reputation.serializers import (
     DynamicBountySolutionSerializer,
 )
 from reputation.views import BountyViewSet
+from user.earning_overview_serializer import EarningOverviewSerializer
 from user.filters import UserFilter
 from user.models import Author, Major, University, User
 from user.permissions import (
@@ -42,6 +43,7 @@ from user.serializers import (
     UserEditableSerializer,
     UserSerializer,
 )
+from user.services.earning_overview_service import EarningOverviewService
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.http import POST, RequestMethods
@@ -508,6 +510,21 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         reinstate_user_task(user.id)
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
+
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    def earning_overview(self, request, *args, **kwargs):
+        """Return earning overview metrics for the authenticated user."""
+        user_id = request.query_params.get("user_id")
+        if user_id and request.user.moderator:
+            try:
+                user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                return Response({"error": "User not found"}, status=404)
+        else:
+            user = request.user
+        data = EarningOverviewService().get_earning_overview(user)
+        serializer = EarningOverviewSerializer(data)
+        return Response(serializer.data)
 
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
