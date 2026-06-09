@@ -19,13 +19,13 @@ def log_error(e, base_error=None, message=None, json_data=None):
 
     if not PRODUCTION:
         if isinstance(e, Exception):
-            print(e, base_error, message)
+            print(e, base_error, message)  # noqa
             try:
                 traceback.print_exception(e)
             except Exception:
                 pass
         else:
-            print(e, base_error, message)
+            print(e, base_error, message)  # noqa
 
     scope = get_isolation_scope()
     if base_error is not None:
