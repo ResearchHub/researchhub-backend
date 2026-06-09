@@ -138,10 +138,10 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         "reputation.services.rsc_supply_service."
         "RscSupplyService.fetch_circulating_supply"
     )
-    @patch("reputation.tasks.log_error")
+    @patch("reputation.tasks.logger")
     @patch("reputation.tasks.create_daily_staking_snapshots.retry")
     def test_returns_false_and_logs_error_on_final_attempt(
-        self, mock_retry, mock_log_error, mock_supply
+        self, mock_retry, mock_logger, mock_supply
     ):
         mock_supply.side_effect = Exception("CoinGecko unavailable")
 
@@ -155,7 +155,7 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         self.assertFalse(result)
         self.assertEqual(StakingGlobalSnapshot.objects.count(), 0)
         mock_retry.assert_not_called()
-        mock_log_error.assert_called_once()
+        mock_logger.exception.assert_called_once()
 
 
 @override_settings(STAGING=True)

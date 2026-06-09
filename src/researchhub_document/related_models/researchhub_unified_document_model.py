@@ -222,7 +222,9 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         return None
 
     def get_primary_hubs(self) -> QuerySet:
-        """Return all hubs with namespace='subcategory' associated with this document."""
+        """
+        Return all hubs with namespace='subcategory' associated with this document.
+        """
         return self.hubs.filter(namespace=Hub.Namespace.SUBCATEGORY)
 
     def get_journal(self):
