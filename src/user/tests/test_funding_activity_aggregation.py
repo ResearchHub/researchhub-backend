@@ -11,11 +11,10 @@ from user.related_models.funding_activity_model import (
 from user.services.funding_activity_aggregation import (
     EARNER_SOURCE_TYPES,
     FundingActivityAggregationService,
-    breakdown_for_source_type,
-    merge_breakdowns,
-    zero_breakdown,
 )
 from user.tests.helpers import create_user
+
+_ZERO_BREAKDOWN = {"rsc": 0.0, "rsc_usd_snapshot": 0.0, "usd": 0.0}
 
 
 class FundingActivityAggregationTests(TestCase):
@@ -52,13 +51,6 @@ class FundingActivityAggregationTests(TestCase):
             ),
         )
         return activity
-
-    def test_zero_breakdown(self):
-        # Arrange / Act / Assert
-        self.assertEqual(
-            zero_breakdown(),
-            {"rsc": 0.0, "rsc_usd_snapshot": 0.0, "usd": 0.0},
-        )
 
     def test_aggregate_rsc_native_recipient_row(self):
         """RSC-origin row: rsc from amount, rsc_usd_snapshot from usd_cents."""
@@ -189,7 +181,7 @@ class FundingActivityAggregationTests(TestCase):
         )
 
         # Assert
-        self.assertEqual(result["total_earned"], zero_breakdown())
+        self.assertEqual(result["total_earned"], _ZERO_BREAKDOWN)
         self.assertEqual(result["by_source"], {})
 
     def test_empty_queryset_returns_zeros(self):
@@ -200,25 +192,7 @@ class FundingActivityAggregationTests(TestCase):
         result = FundingActivityAggregationService.aggregate_recipient_queryset(qs)
 
         # Assert
-        self.assertEqual(result, zero_breakdown())
-
-    def test_merge_breakdowns(self):
-        # Arrange
-        a = {"rsc": 10.0, "rsc_usd_snapshot": 5.0, "usd": 0.0}
-        b = {"rsc": 20.0, "rsc_usd_snapshot": 0.0, "usd": 15.0}
-
-        # Act
-        merged = merge_breakdowns(a, b)
-
-        # Assert
-        self.assertEqual(merged, {"rsc": 30.0, "rsc_usd_snapshot": 5.0, "usd": 15.0})
-
-    def test_breakdown_for_source_type_rsc_native(self):
-        # Arrange / Act
-        result = breakdown_for_source_type(FundingActivity.TIP_DOCUMENT, 12.5, 625)
-
-        # Assert
-        self.assertEqual(result, {"rsc": 12.5, "rsc_usd_snapshot": 6.25, "usd": 0.0})
+        self.assertEqual(result, _ZERO_BREAKDOWN)
 
     def test_earner_source_types_constant(self):
         # Arrange / Act / Assert

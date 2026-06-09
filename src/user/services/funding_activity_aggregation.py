@@ -31,11 +31,11 @@ EARNER_SOURCE_TYPES = frozenset(
 )
 
 
-def zero_breakdown() -> dict:
+def _zero_breakdown() -> dict:
     return dict(_ZERO_BREAKDOWN)
 
 
-def breakdown_from_sums(
+def _breakdown_from_sums(
     rsc_total: float,
     rsc_native_usd_cents: int,
     usd_native_cents: int,
@@ -48,16 +48,16 @@ def breakdown_from_sums(
     }
 
 
-def breakdown_for_source_type(
+def _breakdown_for_source_type(
     source_type: str, rsc_total: float, usd_cents_total: int
 ) -> dict:
     """Build a single-source breakdown using native-leg semantics for that type."""
     if source_type in USD_NATIVE_SOURCE_TYPES:
-        return breakdown_from_sums(rsc_total, 0, usd_cents_total)
-    return breakdown_from_sums(rsc_total, usd_cents_total, 0)
+        return _breakdown_from_sums(rsc_total, 0, usd_cents_total)
+    return _breakdown_from_sums(rsc_total, usd_cents_total, 0)
 
 
-def merge_breakdowns(*breakdowns: dict) -> dict:
+def _merge_breakdowns(*breakdowns: dict) -> dict:
     """Sum multiple {rsc, rsc_usd_snapshot, usd} dicts."""
     rsc = 0.0
     rsc_usd_snapshot = 0.0
@@ -100,7 +100,7 @@ class FundingActivityAggregationService:
                 0,
             ),
         )
-        return breakdown_from_sums(
+        return _breakdown_from_sums(
             aggregates["rsc_total"],
             aggregates["rsc_native_usd_cents"],
             aggregates["usd_native_cents"],
@@ -128,7 +128,7 @@ class FundingActivityAggregationService:
                 0,
             ),
         )
-        return breakdown_from_sums(
+        return _breakdown_from_sums(
             aggregates["rsc_total"],
             aggregates["rsc_native_usd_cents"],
             aggregates["usd_native_cents"],
@@ -149,7 +149,7 @@ class FundingActivityAggregationService:
             .order_by("activity__source_type")
         )
         return {
-            row["activity__source_type"]: breakdown_for_source_type(
+            row["activity__source_type"]: _breakdown_for_source_type(
                 row["activity__source_type"],
                 row["rsc_total"],
                 row["usd_cents_total"],
@@ -191,8 +191,8 @@ class FundingActivityAggregationService:
         )
         by_source = cls.aggregate_recipients_by_source(qs)
         return {
-            "total_earned": merge_breakdowns(*by_source.values())
+            "total_earned": _merge_breakdowns(*by_source.values())
             if by_source
-            else zero_breakdown(),
+            else _zero_breakdown(),
             "by_source": by_source,
         }
