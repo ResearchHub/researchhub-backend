@@ -6,7 +6,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from paper.tests.helpers import create_paper
@@ -235,6 +235,55 @@ class FundingActivityServiceTests(TestCase):
         self.assertEqual(len(recipients), 1)
         self.assertEqual(recipients[0].recipient_user_id, self.other_user.id)
         self.assertEqual(recipients[0].amount, Decimal("100"))
+
+    @override_settings(ENDAOMENT_ACCOUNT_ID=888888)
+    def test_create_fundraise_payout_skips_recipient_for_endaoment(self):
+        """Nonprofit Endaoment recipient: activity for funder, no recipient row."""
+        # Arrange
+        endaoment_user = User.objects.create(
+            id=888888,
+            username="endaoment_test",
+            email="endaoment@test.com",
+        )
+        uni_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PREREGISTRATION",
+        )
+        ct_fundraise = ContentType.objects.get_for_model(Fundraise)
+        fundraise = Fundraise.objects.create(
+            created_by=self.other_user,
+            status=Fundraise.CLOSED,
+            unified_document=uni_doc,
+        )
+        escrow = Escrow.objects.create(
+            hold_type=Escrow.FUNDRAISE,
+            status=Escrow.PAID,
+            created_by=self.user,
+            content_type=ct_fundraise,
+            object_id=fundraise.id,
+        )
+        fundraise.escrow = escrow
+        fundraise.save()
+        purchase = Purchase.objects.create(
+            user=self.user,
+            content_type=ct_fundraise,
+            object_id=fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status=Purchase.PAID,
+            amount="100",
+            purchase_method=Purchase.OFF_CHAIN,
+        )
+
+        # Act
+        with patch.object(Fundraise, "get_recipient", return_value=endaoment_user):
+            activity = FundingActivityService.create_funding_activity(
+                FundingActivity.FUNDRAISE_PAYOUT, purchase
+            )
+
+        # Assert
+        self.assertIsNotNone(activity)
+        self.assertEqual(activity.funder_id, self.user.id)
+        self.assertEqual(activity.total_amount, Decimal("100"))
+        self.assertEqual(activity.recipients.count(), 0)
 
     def test_fundraise_payout_total_amount_full_when_user_used_locked_and_regular(
         self,
