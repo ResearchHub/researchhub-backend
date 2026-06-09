@@ -37,17 +37,11 @@ from paper.serializers import (
     PaperSubmissionSerializer,
 )
 from paper.utils import get_cache_key
-from reputation.related_models.paper_reward import (
-    OPEN_ACCESS_MULTIPLIER,
-    OPEN_DATA_MULTIPLIER,
-    PREREGISTERED_MULTIPLIER,
-)
 from researchhub.permissions import IsObjectOwnerOrModerator
 from user.permissions import IsVerifiedUser
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
-from utils.http import POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, PostOnly
 from utils.sentry import log_error
@@ -786,55 +780,6 @@ class PaperViewSet(
             return Response(vote_id, status=200)
         except Exception as e:
             return Response(f"Failed to delete vote: {e}", status=400)
-
-    @action(detail=False, methods=[POST])
-    def check_url(self, request):
-        url = request.data.get("url", None)
-        url_is_pdf = check_url_contains_pdf(url)
-        data = {"found_file": url_is_pdf}
-        return Response(data, status=status.HTTP_200_OK)
-
-    @action(
-        detail=True,
-        methods=["get"],
-    )
-    def eligible_reward_summary(self, request, pk=None):
-        """
-        Provides information about rewards for which this paper is eligible for
-        """
-        paper_id = pk
-        if not paper_id:
-            return Response("paper_id is required", status=400)
-
-        paper = Paper.objects.get(id=paper_id)
-        if not paper:
-            return Response("Paper not found", status=404)
-
-        try:
-            paper_rewards = paper.paper_rewards
-        except Exception:
-            return Response("Failed to get paper reward", status=500)
-
-        summary = {
-            "base_rewards": paper_rewards,
-            "open_access_multiplier": OPEN_ACCESS_MULTIPLIER,
-            "open_data_multiplier": OPEN_DATA_MULTIPLIER,
-            "preregistration_multiplier": PREREGISTERED_MULTIPLIER,
-        }
-        return Response(summary, status=200)
-
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
-    def doi_search_via_openalex(self, request):
-        doi_string = request.query_params.get("doi", None)
-        if doi_string is None:
-            return Response(status=400)
-        try:
-            open_alex = OpenAlex()
-            open_alex_json = open_alex.get_data_from_doi(doi_string)
-        except Exception:
-            return Response(status=404)
-
-        return Response(open_alex_json, status=200)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def fetch_publications_by_doi(self, request):
