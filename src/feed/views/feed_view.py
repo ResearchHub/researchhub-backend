@@ -18,6 +18,7 @@ from feed.serializers import FeedEntrySerializer
 from feed.views.common import FeedPagination as BaseFeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
 from paper.related_models.paper_model import Paper
+from purchase.models import Grant
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     PREREGISTRATION,
@@ -104,6 +105,35 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
             },
         )
         return self.get_paginated_response(serializer.data)
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="pending_moderation/counts",
+        permission_classes=[IsModerator],
+    )
+    def pending_moderation_counts(self, request: Request) -> Response:
+        """Return counts of works awaiting moderation, grouped by tab.
+
+        Mirrors the ``pending_moderation`` queue: only PENDING works are
+        counted (grants gate on ``Grant.status``, everything else on its own
+        status). Moderator-only.
+        """
+        pending_posts = ResearchhubPost.objects.filter(status=ResearchhubPost.PENDING)
+        return Response(
+            {
+                "funding_opportunities": Grant.objects.filter(
+                    status=Grant.PENDING
+                ).count(),
+                "proposals": pending_posts.filter(
+                    document_type=PREREGISTRATION
+                ).count(),
+                "posts": pending_posts.filter(document_type=DISCUSSION).count(),
+                "journal_entries": Paper.objects.filter(
+                    status=Paper.PENDING, is_removed=False
+                ).count(),
+            }
+        )
 
     @staticmethod
     def _risk_score_by_user_id(authors: "list[User | None]") -> dict[int, int]:

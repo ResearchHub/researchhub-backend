@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.request import Request
@@ -5,8 +7,14 @@ from rest_framework.test import APIClient, APIRequestFactory
 
 from feed.serializers import FeedEntrySerializer
 from feed.views.feed_view import FeedViewSet
+from paper.tests.helpers import create_paper
+from purchase.models import Grant
 from researchhub_document.helpers import create_post
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    DISCUSSION,
+    GRANT,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.related_models.risk_score_model import RiskScore
@@ -73,6 +81,47 @@ class PendingModerationRiskScoreTests(AWSMockTestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class PendingModerationCountsTests(AWSMockTestCase):
+    def test_counts_grouped_by_type(self):
+        # Arrange
+        author = create_random_default_user("counts_author")
+        grant_post = create_post(created_by=author, document_type=GRANT)
+        Grant.objects.create(
+            created_by=author,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Org",
+            description="desc",
+            status=Grant.PENDING,
+        )
+        # Two proposals distinguish the two post-backed tabs from each other.
+        for document_type in (PREREGISTRATION, PREREGISTRATION, DISCUSSION):
+            post = create_post(created_by=author, document_type=document_type)
+            post.status = ResearchhubPost.PENDING
+            post.save(update_fields=["status"])
+        paper = create_paper(uploaded_by=author)
+        paper.status = paper.PENDING
+        paper.save(update_fields=["status"])
+        client = APIClient()
+        client.force_authenticate(create_random_default_user("mod", moderator=True))
+
+        # Act
+        response = client.get(reverse("feed-pending-moderation-counts"))
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data,
+            {
+                "funding_opportunities": 1,
+                "proposals": 2,
+                "posts": 1,
+                "journal_entries": 1,
+            },
+        )
 
 
 class FeedEntryRiskScoreFieldTests(AWSMockTestCase):
