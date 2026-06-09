@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 from purchase.related_models.grant_model import Grant
 from research_ai.constants import DEFAULT_EMAIL_TEMPLATE_KEY, VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail
-from research_ai.permissions import ResearchAIPermission
+from research_ai.permissions import ResearchAIPermission, can_manage_grant
 from research_ai.serializers import (
     BulkGenerateEmailRequestSerializer,
     GeneratedEmailCreateUpdateSerializer,
@@ -468,11 +468,7 @@ class InviteRfpApplicantsView(APIView):
         return Grant.objects.filter(id=grant_id).first()
 
     def _is_authorized(self, user, grant) -> bool:
-        if getattr(user, "moderator", False):
-            return True
-        if grant.created_by_id == user.id:
-            return True
-        return grant.contacts.filter(id=user.id).exists()
+        return can_manage_grant(user, grant)
 
     def post(self, request, grant_id):
         grant = self._get_grant_or_404(grant_id)
