@@ -22,7 +22,7 @@ from ai_peer_review.services.proposal_review_scoring import (
     recompute_overall_fields,
 )
 from feed.views.funding_cache_mixin import FundingCacheMixin
-from purchase.models import Grant, GrantApplication
+from purchase.models import GrantApplication
 from research_ai.services.author_context import build_author_context_snippet
 from research_ai.services.researcher_external_context import (
     build_researcher_external_context,
@@ -43,21 +43,6 @@ def get_proposal_markdown(unified_document: ResearchhubUnifiedDocument) -> str:
     if md:
         return md
     return (post.renderable_text or post.title or "").strip()
-
-
-def get_grant_context_text(grant: Grant) -> str:
-    parts = []
-    if grant.short_title:
-        parts.append(f"Title: {grant.short_title}")
-    if grant.organization:
-        parts.append(f"Organization: {grant.organization}")
-    parts.append(grant.description or "")
-    post = grant.unified_document.posts.first()
-    if post:
-        body = post.get_full_markdown()
-        if body:
-            parts.append(body)
-    return "\n\n".join(p for p in parts if p).strip()
 
 
 def reset_proposal_review_for_rerun(review: ProposalReview) -> None:
@@ -117,7 +102,7 @@ def run_proposal_review(review_id: int) -> None:
             raise ValueError("Proposal has no readable content.")
         rfp_context = None
         if review.grant_id:
-            rfp_context = get_grant_context_text(review.grant)
+            rfp_context = review.grant.get_llm_context_text()
         review.progress = 25
         review.current_step = "Loading researcher profile"
         review.save(update_fields=["progress", "current_step", "updated_date"])

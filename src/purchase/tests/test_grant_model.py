@@ -211,6 +211,34 @@ class GrantModelTests(TestCase):
         self.assertIn(self.grant, user_grants)
         self.assertIn(grant2, user_grants)
 
+    def test_get_llm_context_text_combines_terms_and_post_body(self):
+        """LLM context text combines structured terms with the post body."""
+        # Act
+        text = self.grant.get_llm_context_text()
+
+        # Assert
+        self.assertIn("Organization: National Science Foundation", text)
+        self.assertIn(
+            "Research grant for innovative AI applications in healthcare", text
+        )
+
+    def test_get_llm_context_text_omits_blank_fields(self):
+        """Blank short_title / organization are skipped, not rendered empty."""
+        # Arrange
+        self.grant.short_title = None
+        self.grant.organization = None
+        self.grant.save()
+
+        # Act
+        text = self.grant.get_llm_context_text()
+
+        # Assert
+        self.assertNotIn("Title:", text)
+        self.assertNotIn("Organization:", text)
+        self.assertIn(
+            "Research grant for innovative AI applications in healthcare", text
+        )
+
     def test_grant_meta_indexes(self):
         """Test that the model's indexes are properly configured"""
         # This test ensures that our model's Meta.indexes are defined
