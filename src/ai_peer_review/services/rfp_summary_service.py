@@ -18,21 +18,6 @@ from purchase.models import Grant
 logger = logging.getLogger(__name__)
 
 
-def get_grant_source_text(grant: Grant) -> str:
-    parts = []
-    if grant.short_title:
-        parts.append(f"Title: {grant.short_title}")
-    if grant.organization:
-        parts.append(f"Organization: {grant.organization}")
-    parts.append(grant.description or "")
-    post = grant.unified_document.posts.first()
-    if post:
-        body = post.get_full_markdown()
-        if body:
-            parts.append(body)
-    return "\n\n".join(p for p in parts if p).strip()
-
-
 def run_rfp_summary(rfp_summary_id: int) -> None:
     obj = RFPSummary.objects.select_related("grant").get(pk=rfp_summary_id)
     if obj.status == Status.COMPLETED and obj.summary_content.strip():
@@ -42,7 +27,7 @@ def run_rfp_summary(rfp_summary_id: int) -> None:
     obj.error_message = ""
     obj.save(update_fields=["status", "error_message", "updated_date"])
     try:
-        text = get_grant_source_text(obj.grant)
+        text = obj.grant.get_llm_context_text()
         if not text.strip():
             raise ValueError("Grant has no readable description or post body.")
         llm = BedrockLLMService()
@@ -98,7 +83,7 @@ def run_executive_comparison(
         )
     user_prompt = (
         "Funding opportunity (context):\n"
-        + get_grant_source_text(grant)[:6000]
+        + grant.get_llm_context_text()[:6000]
         + "\n\n---\nProposals and scores:\n"
         + "\n".join(lines)
     )
