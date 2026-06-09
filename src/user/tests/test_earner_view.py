@@ -51,7 +51,6 @@ class EarnerViewTests(APITestCase):
         self._create_recipient_activity(
             FundingActivity.BOUNTY_PAYOUT, total_amount="30", total_usd_cents=1500
         )
-        other_user = create_random_authenticated_user("other_earner")
         regular_user = create_random_authenticated_user("regular_earner")
         self.client.force_authenticate(regular_user)
 
