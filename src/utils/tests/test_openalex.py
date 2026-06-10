@@ -1,12 +1,13 @@
 import json
 import re
+import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 import responses
 from django.test import TestCase
 
-from utils.openalex import OpenAlex
+from utils.openalex import OpenAlex, normalize_openalex_id
 
 fixtures_dir = Path(__file__).parent
 
@@ -94,3 +95,35 @@ class OpenAlexTests(TestCase):
         # Verify other parameters
         self.assertEqual(kwargs["filters"]["per-page"], 10)
         self.assertEqual(kwargs["filters"]["cursor"], "*")
+
+    @patch.object(OpenAlex, "_get")
+    def test_get_author_fetches_author_by_id(self, mock_get):
+        # Arrange
+        mock_get.return_value = {"id": "https://openalex.org/A123"}
+
+        # Act
+        result = OpenAlex().get_author("A123")
+
+        # Assert
+        mock_get.assert_called_once_with("authors/A123")
+        self.assertEqual(result["id"], "https://openalex.org/A123")
+
+
+class NormalizeOpenalexIdTests(unittest.TestCase):
+    def test_normalize_openalex_id(self):
+        # Arrange
+        cases = [
+            ("https://openalex.org/A123", "A123"),
+            ("https://api.openalex.org/authors/A123/", "A123"),
+            (" A123 ", "A123"),
+            (None, ""),
+            ("", ""),
+        ]
+
+        for value, expected in cases:
+            with self.subTest(value=value):
+                # Act
+                result = normalize_openalex_id(value)
+
+                # Assert
+                self.assertEqual(result, expected)

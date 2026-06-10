@@ -10,7 +10,7 @@ import logging
 
 from research_ai.services.researcher_profile.common import is_http_url
 from research_ai.services.researcher_profile.resolver import AuthorResolution
-from utils.openalex import OpenAlex
+from utils.openalex import OpenAlex, normalize_openalex_id
 
 logger = logging.getLogger(__name__)
 
@@ -43,21 +43,14 @@ def _select_works(works: list[dict]) -> list[dict]:
     return sorted(works, key=rank, reverse=True)[:_MAX_WORKS]
 
 
-def _norm_openalex_id(value: str | None) -> str:
-    s = str(value or "").strip().lower()
-    if "openalex.org/" in s:
-        s = s.split("openalex.org/", 1)[-1]
-    return s.strip("/")
-
-
 def _author_position(work: dict, author_id: str | None) -> str | None:
     """This author's position ("first" | "middle" | "last") on an OpenAlex work."""
-    target = _norm_openalex_id(author_id)
+    target = normalize_openalex_id(author_id).lower()
     if not target:
         return None
     for authorship in work.get("authorships") or []:
         author = (authorship or {}).get("author") or {}
-        if _norm_openalex_id(author.get("id")) == target:
+        if normalize_openalex_id(author.get("id")).lower() == target:
             return authorship.get("author_position") or None
     return None
 

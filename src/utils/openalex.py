@@ -23,6 +23,18 @@ SOURCE_TO_OPENALEX_ID = {
 }
 
 
+def normalize_openalex_id(value: str | None) -> str:
+    """Bare OpenAlex id (e.g. ``A5023888391``) from a full URL or an already-bare id.
+
+    Returns ``""`` when there is nothing to normalize. Case is preserved, so
+    lowercase both sides when comparing ids.
+    """
+    s = str(value or "").strip()
+    if "openalex.org/" in s:
+        s = s.rstrip("/").rsplit("/", 1)[-1]
+    return s.strip("/")
+
+
 class OpenAlex:
     def __init__(self, timeout=10):
         self.base_url = "https://api.openalex.org"
@@ -188,6 +200,10 @@ class OpenAlex:
         orcid_lookup = f"https://orcid.org/{orcid_id}"
         res = self._get(f"authors/{orcid_lookup}")
         return res
+
+    def get_author(self, openalex_id):
+        """Fetch a single author entity by its OpenAlex id (e.g. ``A5023888391``)."""
+        return self._get(f"authors/{openalex_id}")
 
     def search_authors_via_name(self, name, page=1, institution_id=None):
         filters = {"search": name, "page": page, "per_page": 10}
