@@ -144,12 +144,13 @@ class FeedTasksTest(AWSMockTestCase):
         """A post awaiting moderation must not be published to the feed, even
         when the task is invoked directly (defense-in-depth)."""
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-        unified_doc = ResearchhubUnifiedDocument.objects.create()
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            status=ResearchhubUnifiedDocument.PENDING,
+        )
         unified_doc.hubs.add(self.hub)
         post = ResearchhubPost.objects.create(
             created_by=self.user,
             unified_document=unified_doc,
-            status=ResearchhubPost.PENDING,
         )
 
         result = create_feed_entry(

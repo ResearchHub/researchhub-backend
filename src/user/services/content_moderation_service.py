@@ -11,6 +11,9 @@ from paper.related_models.paper_model import Paper
 from purchase.services.grant_service import GrantModerationService
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.services.moderation import (
     create_removal_verdict,
     send_moderation_notification,
@@ -21,21 +24,18 @@ if TYPE_CHECKING:
     from user.models import User
 
 # A work this service can moderate directly (grants are delegated to
-# GrantModerationService). Papers and posts share the ModeratedDocumentMixin API.
+# GrantModerationService). Papers and posts gate visibility through their
+# unified document's moderation status.
 ModerationTarget = ResearchhubPost | Paper
 
 
 class ContentModerationService:
     """Approve or decline works awaiting moderation: posts, proposals, papers.
 
-    Publishing reuses each content type's existing path so there's a single
-    source of truth per type:
-
-    * Posts/proposals publish via the ResearchhubPost ``post_save`` signal the
-      moment their status flips to APPROVED -- nothing to do here.
-    * Papers have no status-driven publish signal, so they're published here
-      explicitly, the same way grants publish in ``GrantModerationService``.
-    * Grants are delegated entirely to ``GrantModerationService``.
+    Moderation status lives on the unified document, so approving a work no
+    longer fires the ResearchhubPost create signal. Both papers and posts are
+    therefore published here explicitly on approval, the same way grants publish
+    in ``GrantModerationService`` (grants stay delegated to that service).
 
     Declining soft-deletes the unified document, which unpublishes the work via
     the ``handle_unified_document_removed`` signal.
@@ -47,7 +47,7 @@ class ContentModerationService:
     def approve_content(
         self, content: ModerationTarget, moderator: User
     ) -> ModerationTarget:
-        """Approve pending content; publication is handled per type (see class docs)."""
+        """Approve pending content and publish the approved work to the feed."""
         if self._is_grant(content):
             self._grant_service.approve_grant(self._grant_for(content), moderator)
             return content
@@ -55,10 +55,8 @@ class ContentModerationService:
         self._require_pending(content, "approved")
 
         with transaction.atomic():
-            self._mark_reviewed(content, moderator, content.APPROVED)
-            # Papers have no publish-on-approval signal, so publish them here.
-            if isinstance(content, Paper):
-                publish_to_feed(content, content.uploaded_by_id)
+            self._mark_reviewed(content, moderator, ResearchhubUnifiedDocument.APPROVED)
+            self._publish(content)
             self._notify(content, moderator, Notification.CONTENT_APPROVED)
 
         return content
@@ -80,7 +78,7 @@ class ContentModerationService:
         self._require_pending(content, "declined")
 
         with transaction.atomic():
-            self._mark_reviewed(content, moderator, content.DECLINED)
+            self._mark_reviewed(content, moderator, ResearchhubUnifiedDocument.DECLINED)
             self._flag_and_remove(content, moderator, reason, reason_choice)
             self._notify(content, moderator, Notification.CONTENT_DECLINED)
 
@@ -90,7 +88,7 @@ class ContentModerationService:
         return isinstance(content, ResearchhubPost) and content.document_type == GRANT
 
     def _require_pending(self, content: ModerationTarget, past_tense: str) -> None:
-        if content.status != content.PENDING:
+        if content.unified_document.status != ResearchhubUnifiedDocument.PENDING:
             raise ValueError(f"Only pending content can be {past_tense}")
 
     def _grant_for(self, content: ModerationTarget) -> Grant | None:
@@ -102,10 +100,15 @@ class ContentModerationService:
     def _mark_reviewed(
         self, content: ModerationTarget, moderator: User, status: str
     ) -> None:
-        content.status = status
-        content.reviewed_by = moderator
-        content.reviewed_date = timezone.now()
-        content.save(update_fields=["status", "reviewed_by", "reviewed_date"])
+        unified_document = content.unified_document
+        unified_document.status = status
+        unified_document.reviewed_by = moderator
+        unified_document.reviewed_date = timezone.now()
+        unified_document.save(update_fields=["status", "reviewed_by", "reviewed_date"])
+
+    def _publish(self, content: ModerationTarget) -> None:
+        author = self._author(content)
+        publish_to_feed(content, author.id if author else None)
 
     def _flag_and_remove(
         self,

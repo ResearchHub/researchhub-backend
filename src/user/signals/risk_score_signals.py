@@ -81,18 +81,18 @@ def _moderated_work_event_type(
 
 def _work_owner_and_source(
     unified_document: ResearchhubUnifiedDocument,
-) -> tuple[int | None, User | None, models.Model | None]:
+) -> tuple[User | None, models.Model | None]:
     """Resolve the author who earns the score and the work used as the event
     source. The score belongs to the paper's uploader or the post's creator;
     OpenAlex-imported papers have no uploader, so no one earns the points.
     """
     paper = getattr(unified_document, "paper", None)
     if paper is not None:
-        return paper.uploaded_by_id, paper.uploaded_by, paper
+        return paper.uploaded_by, paper
     post = unified_document.posts.first()
     if post is not None:
-        return post.created_by_id, post.created_by, post
-    return None, None, None
+        return post.created_by, post
+    return None, None
 
 
 @receiver(post_save, sender=Grant, dispatch_uid="risk_score_on_grant_status_changed")
@@ -127,8 +127,8 @@ def on_unified_document_status_changed(
     if event_type is None:
         return
 
-    owner_id, owner, source = _work_owner_and_source(instance)
-    if not owner_id:
+    owner, source = _work_owner_and_source(instance)
+    if owner is None:
         return
 
     def record() -> None:

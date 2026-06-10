@@ -1,6 +1,5 @@
 from rest_framework.test import APITestCase
 
-from paper.related_models.paper_model import Paper
 from paper.related_models.paper_version import PaperVersion
 from paper.tests.helpers import create_paper
 from researchhub_document.helpers import create_post
@@ -8,7 +7,9 @@ from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     PREREGISTRATION,
 )
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -19,14 +20,16 @@ class ContentModerationEndpointTests(APITestCase):
 
     def _pending_post(self, document_type=DISCUSSION):
         post = create_post(created_by=self.author, document_type=document_type)
-        post.status = ResearchhubPost.PENDING
-        post.save(update_fields=["status"])
+        unified_document = post.unified_document
+        unified_document.status = ResearchhubUnifiedDocument.PENDING
+        unified_document.save(update_fields=["status"])
         return post
 
     def _pending_paper(self):
         paper = create_paper(uploaded_by=self.author)
-        paper.status = Paper.PENDING
-        paper.save(update_fields=["status"])
+        unified_document = paper.unified_document
+        unified_document.status = ResearchhubUnifiedDocument.PENDING
+        unified_document.save(update_fields=["status"])
         return paper
 
     def test_moderator_can_approve_post(self):
@@ -39,8 +42,10 @@ class ContentModerationEndpointTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        post.refresh_from_db()
-        self.assertEqual(post.status, ResearchhubPost.APPROVED)
+        post.unified_document.refresh_from_db()
+        self.assertEqual(
+            post.unified_document.status, ResearchhubUnifiedDocument.APPROVED
+        )
 
     def test_moderator_can_decline_post(self):
         # Arrange
@@ -55,8 +60,10 @@ class ContentModerationEndpointTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        post.refresh_from_db()
-        self.assertEqual(post.status, ResearchhubPost.DECLINED)
+        post.unified_document.refresh_from_db()
+        self.assertEqual(
+            post.unified_document.status, ResearchhubUnifiedDocument.DECLINED
+        )
 
     def test_non_moderator_cannot_approve_post(self):
         # Arrange
@@ -79,8 +86,10 @@ class ContentModerationEndpointTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        paper.refresh_from_db()
-        self.assertEqual(paper.status, Paper.APPROVED)
+        paper.unified_document.refresh_from_db()
+        self.assertEqual(
+            paper.unified_document.status, ResearchhubUnifiedDocument.APPROVED
+        )
 
     def test_non_moderator_cannot_decline_paper(self):
         # Arrange
@@ -101,8 +110,9 @@ class PendingModerationFeedTests(APITestCase):
 
     def _pending_post(self, document_type):
         post = create_post(created_by=self.author, document_type=document_type)
-        post.status = ResearchhubPost.PENDING
-        post.save(update_fields=["status"])
+        unified_document = post.unified_document
+        unified_document.status = ResearchhubUnifiedDocument.PENDING
+        unified_document.save(update_fields=["status"])
         return post
 
     def test_pending_proposals_feed_returns_pending(self):
@@ -112,7 +122,7 @@ class PendingModerationFeedTests(APITestCase):
 
         # Act
         response = self.client.get(
-            "/api/feed/?content_type=PREREGISTRATION&status=PENDING"
+            "/api/feed/pending_moderation/?content_type=PREREGISTRATION"
         )
 
         # Assert
@@ -123,8 +133,9 @@ class PendingModerationFeedTests(APITestCase):
     def test_pending_journal_entries_feed_returns_pending_papers(self):
         # Arrange
         paper = create_paper(uploaded_by=self.author)
-        paper.status = Paper.PENDING
-        paper.save(update_fields=["status"])
+        unified_document = paper.unified_document
+        unified_document.status = ResearchhubUnifiedDocument.PENDING
+        unified_document.save(update_fields=["status"])
         PaperVersion.objects.create(
             paper=paper,
             version=1,
@@ -134,7 +145,9 @@ class PendingModerationFeedTests(APITestCase):
         self.client.force_authenticate(self.moderator)
 
         # Act
-        response = self.client.get("/api/feed/?content_type=PAPER&status=PENDING")
+        response = self.client.get(
+            "/api/feed/pending_moderation/?content_type=PAPER"
+        )
 
         # Assert
         self.assertEqual(response.status_code, 200)
@@ -147,7 +160,7 @@ class PendingModerationFeedTests(APITestCase):
 
         # Act
         response = self.client.get(
-            "/api/feed/?content_type=PREREGISTRATION&status=PENDING"
+            "/api/feed/pending_moderation/?content_type=PREREGISTRATION"
         )
 
         # Assert

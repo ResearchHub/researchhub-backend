@@ -24,6 +24,9 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.permissions import IsModerator
 from utils.throttles import FeedRecommendationRefreshThrottle
 
@@ -104,7 +107,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
             # are never pending and therefore never need to surface here.
             queryset = (
                 Paper.objects.filter(
-                    status=Paper.PENDING,
+                    unified_document__status=ResearchhubUnifiedDocument.PENDING,
                     is_removed=False,
                     version__journal=PaperVersion.RESEARCHHUB,
                 )
@@ -128,7 +131,8 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
 
         queryset = (
             ResearchhubPost.objects.filter(
-                document_type=post_document_type, status=ResearchhubPost.PENDING
+                document_type=post_document_type,
+                unified_document__status=ResearchhubUnifiedDocument.PENDING,
             )
             .select_related(
                 "created_by", "created_by__author_profile", "unified_document"

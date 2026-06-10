@@ -31,7 +31,7 @@ def handle_post_create_feed_entry(sender, instance, **kwargs):
     Grants are deferred to grant approval, and any post that isn't APPROVED is
     deferred to content moderation; both get their feed entries on approval.
     """
-    if instance.document_type == GRANT or not instance.is_approved:
+    if instance.document_type == GRANT or not instance.unified_document.is_approved:
         return
 
     try:
