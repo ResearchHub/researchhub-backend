@@ -39,6 +39,24 @@ def _oa_author_record(**overrides):
     return record
 
 
+def _orcid_work(title, year=None):
+    ws = {"title": {"title": {"value": title}}}
+    if year:
+        ws["publication-date"] = {"year": {"value": year}}
+    return ws
+
+
+def _oa_work(title, year, position, author_id="https://openalex.org/A123"):
+    slug = title.lower().replace(" ", "-")
+    return {
+        "display_name": title,
+        "publication_year": year,
+        "doi": f"https://doi.org/10.1/{slug}",
+        "id": f"https://openalex.org/W-{slug}",
+        "authorships": [{"author": {"id": author_id}, "author_position": position}],
+    }
+
+
 class ResolverHelpersTests(SimpleTestCase):
     def test_extract_ids_from_sources(self):
         # Arrange
@@ -235,6 +253,85 @@ class StructuredExtractorTests(SimpleTestCase):
         # Assert
         self.assertEqual(works, [])
 
+    def test_extract_orcid_works_keeps_most_recent_five(self):
+        # Arrange: seven works in ORCID payload order, years shuffled, one undated.
+        years = ["2018", "2024", None, "2020", "2025", "2019", "2022"]
+        works_json = {
+            "group": [
+                {"work-summary": [_orcid_work(f"Paper {i}", year=year)]}
+                for i, year in enumerate(years)
+            ]
+        }
+        # Act
+        works = svc._extract_orcid_works(works_json, "https://orcid.org/0000")
+        # Assert: the five newest, most recent first; undated and oldest dropped.
+        self.assertEqual(
+            [w["year"] for w in works], ["2025", "2024", "2022", "2020", "2019"]
+        )
+
+    def test_extract_orcid_works_dedupes_same_work_across_sources(self):
+        # Arrange: one group claiming the same work from two sources.
+        works_json = {
+            "group": [
+                {
+                    "work-summary": [
+                        _orcid_work("Same Paper", year="2023"),
+                        _orcid_work("Same Paper", year="2023"),
+                    ]
+                }
+            ]
+        }
+        # Act
+        works = svc._extract_orcid_works(works_json, "https://orcid.org/0000")
+        # Assert
+        self.assertEqual(len(works), 1)
+
+    def test_extract_openalex_works_maps_fields_and_author_position(self):
+        # Arrange: second work has no DOI and lists this author mid-list by bare id.
+        results = [
+            _oa_work("Lead Paper", 2024, "first"),
+            {
+                "display_name": "Middle Paper",
+                "publication_year": 2023,
+                "doi": None,
+                "id": "https://openalex.org/W2",
+                "authorships": [
+                    {
+                        "author": {"id": "https://openalex.org/A999"},
+                        "author_position": "first",
+                    },
+                    {"author": {"id": "A123"}, "author_position": "middle"},
+                ],
+            },
+        ]
+        # Act
+        works = svc._extract_openalex_works(results, "https://openalex.org/A123")
+        # Assert
+        self.assertEqual(works[0]["author_position"], "first")
+        self.assertEqual(works[0]["source_url"], "https://doi.org/10.1/lead-paper")
+        # Falls back to the OpenAlex work URL when there is no DOI.
+        self.assertEqual(works[1]["source_url"], "https://openalex.org/W2")
+        self.assertEqual(works[1]["author_position"], "middle")
+
+    def test_select_works_prioritizes_first_and_last_author(self):
+        # Arrange: seven works; the lead/senior-author papers are the older ones.
+        results = [
+            _oa_work("Middle A", 2025, "middle"),
+            _oa_work("Middle B", 2024, "middle"),
+            _oa_work("First Old", 2019, "first"),
+            _oa_work("Last Older", 2018, "last"),
+            _oa_work("Middle C", 2022, "middle"),
+            _oa_work("First New", 2023, "first"),
+            _oa_work("Middle D", 2021, "middle"),
+        ]
+        # Act
+        works = svc._select_works(svc._extract_openalex_works(results, "A123"))
+        # Assert: every first/last paper kept (newest first), middles fill the rest.
+        self.assertEqual(
+            [w["title"] for w in works],
+            ["First New", "First Old", "Last Older", "Middle A", "Middle B"],
+        )
+
 
 class WebFindingsParseTests(SimpleTestCase):
     def test_parses_valid_findings_and_drops_unsourced(self):
@@ -328,8 +425,9 @@ class BuildProfileTests(SimpleTestCase):
         # Arrange
         client = MagicMock()
         client.search_authors_via_name.return_value = {
-            "results": [_oa_author_record(orcid=None)]  # no ORCID -> no works fetch
+            "results": [_oa_author_record(orcid=None)]
         }
+        client.get_works.return_value = ([_oa_work("Lead Paper", 2024, "first")], None)
         openai_service = MagicMock()
         openai_service.invoke.return_value = (
             '{"findings": [{"text": "Runs the Doe Lab", "url": "https://doe-lab.edu"}]}'
@@ -344,9 +442,15 @@ class BuildProfileTests(SimpleTestCase):
         self.assertEqual(profile["resolution"]["match_method"], "name+affiliation")
         self.assertEqual(profile["metrics"]["h_index"], 12)
         self.assertEqual(profile["affiliations"], ["Stanford University"])
+        self.assertEqual(profile["works"][0]["author_position"], "first")
         self.assertIn(
             {"text": "Runs the Doe Lab", "url": "https://doe-lab.edu"},
             profile["web_findings"],
+        )
+        # Authorship position is surfaced on the work's claim text.
+        self.assertIn(
+            "(2024) Lead Paper [first author]",
+            [c["text"] for c in profile["claims"]],
         )
         self.assertTrue(all(svc._is_http_url(c["url"]) for c in profile["claims"]))
         self.assertIn("Additional background (web search", profile["context_text"])
@@ -376,6 +480,7 @@ class BuildProfileTests(SimpleTestCase):
         client.search_authors_via_name.return_value = {
             "results": [_oa_author_record(orcid=None)]
         }
+        client.get_works.return_value = ([], None)
         openai_service = MagicMock()
         openai_service.invoke.side_effect = RuntimeError("openai down")
         # Act
@@ -388,6 +493,27 @@ class BuildProfileTests(SimpleTestCase):
         self.assertEqual(profile["resolution"]["match_method"], "name+affiliation")
         self.assertEqual(profile["web_findings"], [])
         self.assertTrue(any("web_search" in e for e in profile["errors"]))
+
+    @patch("research_ai.services.researcher_profile_service.fetch_orcid_works")
+    def test_falls_back_to_orcid_works_when_openalex_works_fail(self, mock_orcid):
+        # Arrange: author resolves (with an ORCID) but the works listing errors.
+        client = MagicMock()
+        client.search_authors_via_name.return_value = {"results": [_oa_author_record()]}
+        client.get_works.side_effect = RuntimeError("works api down")
+        mock_orcid.return_value = {
+            "group": [{"work-summary": [_orcid_work("Fallback Paper", year="2020")]}]
+        }
+        # Act
+        profile = svc.build_expert_profile(
+            _expert(affiliation="Stanford University"),
+            oa_client=client,
+            openai_service=MagicMock(),
+            use_web_search=False,
+        )
+        # Assert: ORCID works fill in and the OpenAlex failure is recorded.
+        self.assertEqual(profile["works"][0]["title"], "Fallback Paper")
+        self.assertIsNone(profile["works"][0]["author_position"])
+        self.assertTrue(any(e.startswith("openalex-works") for e in profile["errors"]))
 
 
 class StoreProfileTests(TestCase):

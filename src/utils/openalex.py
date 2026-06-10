@@ -304,6 +304,7 @@ class OpenAlex:
         from_updated_date=None,
         core_sources_only: bool = False,
         require_abstracts_and_authors: bool = False,
+        sort=None,
     ):
         """
         Fetches works from OpenAlex based on the given criteria.
@@ -314,6 +315,7 @@ class OpenAlex:
             core_sources_only (bool): If True, only fetch works from "core sources".
             require_abstracts_and_authors (bool): If True, only fetch works that have
                 abstracts and authors.
+            sort (str): OpenAlex sort expression, e.g. "publication_date:desc".
         """
         # Build the filter
         oa_filters = []
@@ -360,6 +362,8 @@ class OpenAlex:
             "per-page": batch_size,
             "cursor": next_cursor,
         }
+        if sort:
+            filters["sort"] = sort
 
         response = self._get("works", filters=filters)
         works = response.get("results", [])

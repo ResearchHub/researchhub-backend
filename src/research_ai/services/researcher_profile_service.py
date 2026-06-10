@@ -38,7 +38,11 @@ verifier (Part 3) later checks against -- entries without a real URL are dropped
       },
       "affiliations": [str, ...],            # OpenAlex institutions
       "topics": [str, ...],                  # OpenAlex topics / concepts
-      "works": [{"title", "year", "source_url"}, ...],   # ORCID record
+      "works": [                             # first/last-author papers outrank
+        {"title", "year", "source_url",      # middle ones, then most recent first;
+         "author_position"},                 # "first" | "middle" | "last" | None
+        ...,                                 # (None when ORCID is the source)
+      ],
       "web_findings": [{"text", "url"}, ...],            # OpenAI web_search
       "claims": [{"text", "url"}, ...],      # flat, every entry has a URL
       "context_text": str,                   # prompt-ready block for the generator
@@ -59,7 +63,6 @@ from research_ai.services.researcher_external_context import (
     fetch_openalex_author_record,
     fetch_orcid_works,
     format_openalex_author_record,
-    format_orcid_works_payload,
 )
 from research_ai.utils import trimmed_str
 from utils.openalex import OpenAlex
@@ -67,7 +70,8 @@ from utils.openalex import OpenAlex
 logger = logging.getLogger(__name__)
 
 _SCHEMA_VERSION = 1
-_MAX_WORKS = 30
+_MAX_WORKS = 5  # papers kept on the profile (first/last author, then recency)
+_WORKS_PAGE_SIZE = 50  # recent-works window fetched from OpenAlex before selection
 _MAX_WEB_FINDINGS = 12
 _MAX_AFFILIATIONS = 8
 _MAX_TOPICS = 10
@@ -406,8 +410,81 @@ def _orcid_work_url(work_summary: dict) -> str | None:
     return url if _is_http_url(url) else None
 
 
-def _extract_orcid_works(works_json: dict | None, orcid_url: str | None) -> list[dict]:
+def _work_year(work: dict) -> int:
+    try:
+        return int(work.get("year") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _work_label(work: dict) -> str:
+    label = f"({work['year']}) {work['title']}" if work.get("year") else work["title"]
+    position = work.get("author_position")
+    if position in ("first", "last"):
+        label += f" [{position} author]"
+    return label
+
+
+def _select_works(works: list[dict]) -> list[dict]:
+    """Keep ``_MAX_WORKS``: first/last-author papers outrank middle, then recency."""
+
+    def rank(work: dict) -> tuple[int, int]:
+        lead = 1 if work.get("author_position") in ("first", "last") else 0
+        return (lead, _work_year(work))
+
+    return sorted(works, key=rank, reverse=True)[:_MAX_WORKS]
+
+
+def _norm_openalex_id(value: str | None) -> str:
+    s = str(value or "").strip().lower()
+    if "openalex.org/" in s:
+        s = s.split("openalex.org/", 1)[-1]
+    return s.strip("/")
+
+
+def _author_position(work: dict, author_id: str | None) -> str | None:
+    """This author's position ("first" | "middle" | "last") on an OpenAlex work."""
+    target = _norm_openalex_id(author_id)
+    if not target:
+        return None
+    for authorship in work.get("authorships") or []:
+        author = (authorship or {}).get("author") or {}
+        if _norm_openalex_id(author.get("id")) == target:
+            return authorship.get("author_position") or None
+    return None
+
+
+def _extract_openalex_works(results: list[dict], author_id: str | None) -> list[dict]:
+    """Map OpenAlex work entities to profile works, with this author's position."""
     out: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for work in results or []:
+        title = str(work.get("display_name") or "").strip()
+        if not title:
+            continue
+        year = str(work.get("publication_year") or "").strip()
+        url = str(work.get("doi") or "").strip() or str(work.get("id") or "").strip()
+        if not _is_http_url(url):
+            continue
+        key = (title.lower(), year)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(
+            {
+                "title": title,
+                "year": year,
+                "source_url": url,
+                "author_position": _author_position(work, author_id),
+            }
+        )
+    return out
+
+
+def _extract_orcid_works(works_json: dict | None, orcid_url: str | None) -> list[dict]:
+    """Fallback works source when OpenAlex has none (no authorship positions)."""
+    collected: list[dict] = []
+    seen: set[tuple[str, str]] = set()
     for group in (works_json or {}).get("group") or []:
         for ws in group.get("work-summary") or []:
             tb = ws.get("title") or {}
@@ -422,10 +499,20 @@ def _extract_orcid_works(works_json: dict | None, orcid_url: str | None) -> list
             url = _orcid_work_url(ws) or orcid_url
             if not url:
                 continue
-            out.append({"title": title, "year": year, "source_url": url})
-            if len(out) >= _MAX_WORKS:
-                return out
-    return out
+            # A group lists the same work once per claiming source.
+            key = (title.lower(), year)
+            if key in seen:
+                continue
+            seen.add(key)
+            collected.append(
+                {
+                    "title": title,
+                    "year": year,
+                    "source_url": url,
+                    "author_position": None,  # not in ORCID work summaries
+                }
+            )
+    return _select_works(collected)
 
 
 # ---------------------------------------------------------------------------
@@ -547,10 +634,7 @@ def _build_claims(
     if topics:
         add("Research topics (OpenAlex): " + ", ".join(topics[:8]), author_url)
     for work in works:
-        label = (
-            f"({work['year']}) {work['title']}" if work.get("year") else work["title"]
-        )
-        add(label, work.get("source_url"))
+        add(_work_label(work), work.get("source_url"))
     for finding in web_findings:
         add(finding.get("text", ""), finding.get("url"))
 
@@ -568,7 +652,7 @@ def _build_context_text(
     expert,
     resolution: AuthorResolution,
     record: dict | None,
-    orcid_works_text: str,
+    works_text: str,
     web_findings: list[dict],
     *,
     max_chars: int = _CONTEXT_MAX_CHARS,
@@ -586,10 +670,10 @@ def _build_context_text(
     if oa_text.strip():
         chunks.append("--- OpenAlex (public author record) ---\n" + oa_text.strip())
 
-    if orcid_works_text.strip():
+    if works_text.strip():
         chunks.append(
-            "--- Listed works (ORCID public record, truncated) ---\n"
-            + orcid_works_text.strip()
+            "--- Selected works (first/last-author papers prioritized) ---\n"
+            + works_text.strip()
         )
 
     if web_findings:
@@ -623,8 +707,9 @@ def build_expert_profile(
     profile is still returned with whatever was found.
     """
     errors: list[str] = []
+    oa = oa_client or OpenAlex()
     try:
-        resolution = resolve_openalex_author(expert, client=oa_client)
+        resolution = resolve_openalex_author(expert, client=oa)
     except Exception as exc:  # noqa: BLE001 - resolver is best-effort
         logger.exception("resolve_openalex_author failed")
         resolution = AuthorResolution(match_method="unresolved")
@@ -637,26 +722,36 @@ def build_expert_profile(
     affiliations = _extract_affiliations(record)
     topics = _extract_topics(record)
 
-    orcid_works_json: dict = {}
-    if resolution.orcid:
+    # Works come from OpenAlex (it knows this author's position on each paper);
+    # ORCID is the fallback when no OpenAlex works are found.
+    works: list[dict] = []
+    if resolution.openalex_author_id:
+        try:
+            results, _ = oa.get_works(
+                openalex_author_id=resolution.openalex_author_id,
+                batch_size=_WORKS_PAGE_SIZE,
+                sort="publication_date:desc",
+            )
+            works = _select_works(
+                _extract_openalex_works(results, resolution.openalex_author_id)
+            )
+        except Exception as exc:  # noqa: BLE001 - works listing is best-effort
+            logger.info("OpenAlex works fetch failed: %s", exc)
+            errors.append(f"openalex-works: {exc}")
+    if not works and resolution.orcid:
+        orcid_works_json: dict = {}
         try:
             orcid_works_json = fetch_orcid_works(orcid_bare=resolution.orcid)
         except Exception as exc:  # noqa: BLE001 - ORCID is best-effort
             logger.info("ORCID works fetch failed: %s", exc)
             errors.append(f"orcid: {exc}")
-    orcid_url = f"https://orcid.org/{resolution.orcid}" if resolution.orcid else None
-    works = _extract_orcid_works(orcid_works_json, orcid_url)
-    try:
-        orcid_works_text = format_orcid_works_payload(orcid_works_json)
-    except Exception as exc:  # noqa: BLE001 - formatting is best-effort
-        logger.info("ORCID works format failed: %s", exc)
-        errors.append(f"orcid-format: {exc}")
-        orcid_works_text = ""
+        works = _extract_orcid_works(
+            orcid_works_json, f"https://orcid.org/{resolution.orcid}"
+        )
+    works_text = "\n".join(f"- {_work_label(w)}" for w in works)
 
     # Build the "known" block first so web search complements rather than repeats.
-    known_context = _build_context_text(
-        expert, resolution, record, orcid_works_text, []
-    )
+    known_context = _build_context_text(expert, resolution, record, works_text, [])
 
     web_findings: list[dict] = []
     if use_web_search:
@@ -669,7 +764,7 @@ def build_expert_profile(
             errors.append(f"web_search: {exc}")
 
     context_text = _build_context_text(
-        expert, resolution, record, orcid_works_text, web_findings
+        expert, resolution, record, works_text, web_findings
     )
     claims = _build_claims(
         author_url=resolution.openalex_author_id,
