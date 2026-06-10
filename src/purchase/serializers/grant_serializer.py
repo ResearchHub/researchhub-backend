@@ -88,10 +88,26 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
 
         request = self.context.get("request")
         viewer = getattr(request, "user", None) if request else None
-        is_grant_reviewer = (
-            viewer is not None
-            and getattr(viewer, "is_authenticated", False)
-            and grant.created_by_id == viewer.id
+        viewer_authed = viewer is not None and getattr(
+            viewer, "is_authenticated", False
+        )
+
+        # Site moderators and hub editors may view private applications, just
+        # like the grant owner — mirroring ResearchhubPost.visible_to, the rule
+        # the funding feed and the post/grant detail views already use. Without
+        # this, a moderator who is not the grant owner only sees the public
+        # proposals on a grant's detail page. is_hub_editor() hits the DB and
+        # this serializer is reused for every grant in a feed, so memoize the
+        # per-request answer on the (per-request) serializer context.
+        privileged = self.context.get("_grant_private_app_viewer")
+        if privileged is None:
+            privileged = viewer_authed and (
+                getattr(viewer, "moderator", False) or viewer.is_hub_editor()
+            )
+            self.context["_grant_private_app_viewer"] = privileged
+
+        can_view_private = privileged or (
+            viewer_authed and grant.created_by_id == viewer.id
         )
 
         review_by_ud = {r.unified_document_id: r for r in grant.proposal_reviews.all()}
@@ -105,8 +121,8 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             if ud and ud.is_removed:
                 continue
 
-            if ud and not ud.is_public and not is_grant_reviewer:
-                if not viewer or not getattr(viewer, "is_authenticated", False):
+            if ud and not ud.is_public and not can_view_private:
+                if not viewer_authed:
                     continue
                 if application.applicant_id != viewer.id:
                     continue

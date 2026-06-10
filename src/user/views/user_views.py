@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 
 from allauth.account.models import EmailAddress
-from django.contrib.contenttypes.models import ContentType
 from django.db.models import Exists, F, OuterRef, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -22,12 +21,12 @@ from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from purchase.related_models.grant_model import Grant
-from reputation.models import Distribution
 from reputation.serializers import (
     DynamicBountySerializer,
     DynamicBountySolutionSerializer,
 )
 from reputation.views import BountyViewSet
+from user.earning_overview_serializer import EarningOverviewSerializer
 from user.filters import UserFilter
 from user.models import Author, Major, University, User
 from user.permissions import (
@@ -44,6 +43,7 @@ from user.serializers import (
     UserEditableSerializer,
     UserSerializer,
 )
+from user.services.earning_overview_service import EarningOverviewService
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.http import POST, RequestMethods
@@ -172,28 +172,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         return Response(
             {"message": "User flagged as probable spammer"}, status=status.HTTP_200_OK
         )
-
-    @action(
-        detail=False,
-        methods=[RequestMethods.GET],
-    )
-    def referral_rsc(self, request):
-        """
-        Gets the amount of RSC earned from referrals
-        """
-
-        distributions = (
-            Distribution.objects.filter(
-                proof_item_content_type=ContentType.objects.get_for_model(User),
-                proof_item_object_id=request.user.id,
-            )
-            .exclude(recipient=request.user.id)
-            .aggregate(rsc_earned=Sum("amount"))
-        )
-
-        amount = distributions.get("rsc_earned") or 0
-
-        return Response({"amount": amount})
 
     @action(
         detail=True,
@@ -532,6 +510,21 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         reinstate_user_task(user.id)
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
+
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    def earning_overview(self, request, *args, **kwargs):
+        """Return earning overview metrics for the authenticated user."""
+        user_id = request.query_params.get("user_id")
+        if user_id and request.user.moderator:
+            try:
+                user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                return Response({"error": "User not found"}, status=404)
+        else:
+            user = request.user
+        data = EarningOverviewService().get_earning_overview(user)
+        serializer = EarningOverviewSerializer(data)
+        return Response(serializer.data)
 
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):

@@ -25,7 +25,7 @@ class ModeratorView(ModelViewSet):
     def user_details(self, request, pk=None, **kwargs):
         return super().retrieve(request, pk, **kwargs)
 
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get"], permission_classes=[IsModerator])
     def risk_score_events(self, request, pk=None, **kwargs):
         user = self.get_object()
         events = RiskScoreEvent.objects.filter(user=user).select_related(

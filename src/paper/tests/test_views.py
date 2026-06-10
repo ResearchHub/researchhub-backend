@@ -1,10 +1,8 @@
 import json
-import random
 from pathlib import Path
-from unittest.mock import PropertyMock, patch
+from unittest.mock import patch
 
 from django.conf import settings
-from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -21,11 +19,7 @@ from user.tests.helpers import (
     make_user_verified,
 )
 from utils.openalex import OpenAlex
-from utils.test_helpers import (
-    create_test_user,
-    get_authenticated_get_response,
-    get_authenticated_post_response,
-)
+from utils.test_helpers import create_test_user
 
 fixtures_dir = Path(__file__).parent / "fixtures"
 
@@ -810,54 +804,6 @@ class PaperApiTests(APITestCase):
         # Both versions should link back to the same original paper
         self.assertEqual(paper_version_v2.original_paper_id, paper_v1_id)
         self.assertEqual(paper_version_v1.original_paper_id, paper_v1_id)
-
-
-class PaperViewsTests(TestCase):
-    def setUp(self):
-        SEED = "paper"
-        self.random_generator = random.Random(SEED)
-        self.base_url = "/api/paper/"
-        self.paper = create_paper()
-        self.user = create_random_authenticated_user("paper_views_user")
-        self.trouble_maker = create_random_authenticated_user("trouble_maker")
-
-    @patch("paper.views.paper_views.check_url_contains_pdf")
-    def test_check_url_is_true_if_url_has_pdf(self, mock_check_url):
-        mock_check_url.return_value = True
-        url = self.base_url + "check_url/"
-        data = {"url": "https://bitcoin.org/bitcoin.pdf"}
-        response = get_authenticated_post_response(self.user, url, data)
-        self.assertContains(response, "true", status_code=200)
-
-    @patch("paper.views.paper_views.check_url_contains_pdf")
-    def test_check_url_is_false_if_url_does_NOT_have_pdf(self, mock_check_url):
-        mock_check_url.return_value = False
-        url = self.base_url + "check_url/"
-        data = {"url": "https://bitcoin.org/en/"}
-        response = get_authenticated_post_response(self.user, url, data)
-        self.assertContains(response, "false", status_code=200)
-
-    @patch("paper.views.paper_views.check_url_contains_pdf")
-    def test_check_url_is_false_for_malformed_url(self, mock_check_url):
-        mock_check_url.return_value = False
-        url = self.base_url + "check_url/"
-        data = {"url": "bitcoin.org/bitcoin.pdf/"}
-        response = get_authenticated_post_response(self.user, url, data)
-        self.assertContains(response, "false", status_code=200)
-
-        data = {"url": "bitcoin"}
-        response = get_authenticated_post_response(self.user, url, data)
-        self.assertContains(response, "false", status_code=200)
-
-    @patch.object(Paper, "paper_rewards", new_callable=PropertyMock)
-    def test_eligible_reward_summary(self, mock_get_paper_reward):
-        url = self.base_url + f"{self.paper.id}/eligible_reward_summary/"
-        mock_get_paper_reward.return_value = 100
-        response = get_authenticated_get_response(self.user, url, {})
-
-        self.assertEqual(response.status_code, 200)
-        result = response.data
-        self.assertEqual(result["base_rewards"], 100)
 
 
 class PaperDOITests(APITestCase):

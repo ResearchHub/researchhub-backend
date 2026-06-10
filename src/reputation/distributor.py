@@ -1,13 +1,15 @@
+import logging
+
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
 
-import utils.sentry as sentry
 from purchase.models import Balance
-from reputation.exceptions import ReputationDistributorError
 from reputation.models import Distribution
 from user.models import User
 from utils.serializers import get_model_serializer
+
+logger = logging.getLogger(__name__)
 
 
 class Distributor:
@@ -77,13 +79,9 @@ class Distributor:
             record.set_distributed_pending()
             self._update_reputation_and_balance(record)
             record.set_distributed()
-        except Exception as e:
+        except Exception:
             record.set_distributed_failed()
-
-            error_message = f"Distribution {record.id} failed"
-            error = ReputationDistributorError(e, error_message)
-            sentry.log_error(error)
-            print(error_message, e)
+            logger.exception("Distribution %s failed", record.id)
         return record
 
     def _record_distribution(self):

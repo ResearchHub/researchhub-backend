@@ -120,7 +120,13 @@ def _finalize_expert_search_in_db(
             error_message=error_message,
         )
         snippet = error_message[:200] if len(error_message) > 200 else error_message
-        logger.warning("Expert finder failed for search_id=%s: %s", search_id, snippet)
+        current_step = (result.get("current_step") or "Expert search failed")[:512]
+        logger.warning(
+            "Expert finder failed for search_id=%s step=%s: %s",
+            search_id,
+            current_step,
+            snippet,
+        )
         return True
 
     ExpertSearch.objects.filter(id=sid).update(
@@ -225,6 +231,11 @@ def run_expert_finder_search(
         return result
     except Exception as e:
         logger.exception("Expert finder failed for search_id=%s: %s", search_id, e)
+        sentry.log_error(
+            e,
+            message="Expert finder task raised unexpectedly",
+            json_data={"search_id": search_id},
+        )
         err = str(e)[:10000]
         _update_search_progress(
             search_id,
@@ -413,7 +424,7 @@ def process_bulk_generate_emails_task(
 def send_queued_emails_task(
     self,
     generated_email_ids: list[int],
-    reply_to: str | None = None,
+    reply_to: list[str] | None = None,
     cc: list[str] | None = None,
     from_email: str | None = None,
 ):
@@ -423,7 +434,7 @@ def send_queued_emails_task(
     """
 
     cc_list = list(cc or [])
-    reply_to_stripped = (reply_to or "").strip() or None
+    reply_to_list = list(reply_to or [])
     qs = GeneratedEmail.objects.filter(
         id__in=generated_email_ids,
         status=GeneratedEmail.Status.SENDING,
@@ -441,7 +452,7 @@ def send_queued_emails_task(
                 rec.expert_email,
                 rec.email_subject,
                 rec.email_body,
-                reply_to=reply_to_stripped,
+                reply_to=reply_to_list or None,
                 cc=cc_list if cc_list else None,
                 from_email=from_email,
             )

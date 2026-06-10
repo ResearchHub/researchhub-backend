@@ -34,7 +34,6 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from user.models import User
 from user.related_models.author_model import Author
-from utils.sentry import log_error, log_info
 
 DEFAULT_REWARD = 1000000
 
@@ -134,10 +133,9 @@ def broadcast_withdrawal(self, withdrawal_id):
                 )
             ):
                 withdrawal.set_paid_failed()
-            log_error(
-                exc,
-                message="broadcast_withdrawal failed after all retries",
-                json_data={"withdrawal_id": withdrawal_id},
+            logger.exception(
+                "Failed to broadcast for withdrawal %s after all retries",
+                withdrawal_id,
             )
             return False
         raise self.retry(exc=exc)
@@ -357,7 +355,7 @@ def check_open_bounties():
         )
         if refund_status is False:
             ids = expired_assessment_bounties.values_list("id", flat=True)
-            log_info(f"Failed to refund bounties: {ids}")
+            logger.error("Failed to refund bounties: %s", ids)
 
 
 @app.task
@@ -365,8 +363,8 @@ def recalculate_rep_all_users():
     for user in User.objects.iterator():
         try:
             user.calculate_hub_scores()
-        except Exception as e:
-            print(f"Error calculating rep for user {user.id}: {e}")
+        except Exception:
+            logger.exception("Error calculating rep for user %s", user.id)
             continue
 
 
@@ -541,10 +539,9 @@ def create_daily_staking_snapshots(self):
             exc,
         )
         if self.request.retries >= self.max_retries:
-            log_error(
-                exc,
-                message="create_daily_staking_snapshots failed after all retries",
-                json_data={"accrual_date": str(accrual_date)},
+            logger.exception(
+                "create_daily_staking_snapshots failed for %s after all retries",
+                accrual_date,
             )
             return False
         raise self.retry(exc=exc)
@@ -580,10 +577,9 @@ def distribute_staking_yield(self):
             exc,
         )
         if self.request.retries >= self.max_retries:
-            log_error(
-                exc,
-                message="distribute_staking_yield failed after all retries",
-                json_data={"accrual_date": str(accrual_date)},
+            logger.exception(
+                "distribute_staking_yield failed for %s after all retries",
+                accrual_date,
             )
             return False
         raise self.retry(exc=exc)

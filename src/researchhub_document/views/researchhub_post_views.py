@@ -1,3 +1,5 @@
+import logging
+
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Prefetch
@@ -40,6 +42,8 @@ from user.models import User
 from user.permissions import IsVerifiedUser
 from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
+
+logger = logging.getLogger(__name__)
 
 MIN_POST_TITLE_LENGTH = 20
 MIN_POST_BODY_LENGTH = 50
@@ -274,7 +278,8 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     # Create grant without contacts first
                     grant = Grant.objects.create(**grant_create_kwargs)
 
-                    # Handle contacts properly - get contact_ids and convert to User objects
+                    # Handle contacts properly
+                    # get contact_ids and convert to User objects
                     contact_ids = grant_serializer.validated_data.get("contact_ids", [])
                     if contact_ids:
                         contacts = User.objects.filter(id__in=contact_ids)
@@ -305,7 +310,9 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     )
                     GrantCacheMixin.invalidate_grant_feed_cache()
 
-            response_data = ResearchhubPostSerializer(rh_post).data
+            response_data = ResearchhubPostSerializer(
+                rh_post, context={"request": request}
+            ).data
             response_data["fundraise"] = (
                 DynamicFundraiseSerializer(fundraise).data if fundraise else None
             )
@@ -413,7 +420,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 )
 
             serializer = ResearchhubPostSerializer(
-                rh_post, data=request.data, partial=True
+                rh_post, data=request.data, partial=True, context={"request": request}
             )
             serializer.is_valid(raise_exception=True)
             serializer.save()
@@ -448,7 +455,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 unified_document=unified_document
             ).first()
 
-            # Only update grants if both grant data is provided AND a grant already exists
+            # Update grants if both grant data is provided AND a grant already exists
             if (grant_amount := data.get("grant_amount")) and existing_grant:
                 grant_data = {
                     "amount": grant_amount,
@@ -604,5 +611,5 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             uni_doc.hubs.add(*hubs)
             uni_doc.save()
             return uni_doc
-        except (KeyError, TypeError) as exception:
-            print("create_unified_doc: ", exception)
+        except (KeyError, TypeError):
+            logger.exception("Error creating unified document")

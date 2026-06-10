@@ -10,13 +10,11 @@ from rest_framework.test import APITestCase
 
 from ai_peer_review.models import OverallRating, ProposalReview, Status
 from ai_peer_review.serializers import ProposalReviewSerializer
-from hub.models import Hub
 from hub.tests.helpers import create_hub
 from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from researchhub_access_group.constants import SENIOR_EDITOR
 from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -66,7 +64,8 @@ class ViewTests(APITestCase):
         # Add exchange rate for fundraise tests
         RscExchangeRate.objects.create(rate=1.0)
 
-        # Require verified user for create/update; make setUp users verified so existing tests pass
+        # Require verified user for create/update
+        # make setUp users verified so existing tests pass
         make_user_verified(self.admin_user)
         make_user_verified(self.member_user)
         make_user_verified(self.non_member)
@@ -171,164 +170,6 @@ class ViewTests(APITestCase):
         retrieve_resp = self.client.get(f"/api/researchhubpost/{post.id}/")
         self.assertEqual(retrieve_resp.status_code, 200)
 
-    def test_author_can_delete_doc(self):
-        author = create_random_default_user("author")
-        make_user_verified(author)
-        hub = create_hub()
-
-        self.client.force_authenticate(author)
-
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "document_type": "DISCUSSION",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
-            },
-        )
-
-        response = self.client.delete(
-            f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
-        )
-        self.assertEqual(response.status_code, 200)
-
-        doc = ResearchhubUnifiedDocument.all_objects.get(
-            id=doc_response.data["unified_document_id"]
-        )
-        self.assertEqual(doc.is_removed, True)
-
-    def test_author_can_restore_doc(self):
-        author = create_random_default_user("author")
-        make_user_verified(author)
-        hub = create_hub()
-
-        self.client.force_authenticate(author)
-
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "document_type": "DISCUSSION",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
-            },
-        )
-
-        delete_response = self.client.delete(
-            f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
-        )
-        self.assertEqual(delete_response.status_code, 200)
-
-        restore_response = self.client.patch(
-            f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/restore/"
-        )
-        self.assertEqual(restore_response.data["is_removed"], False)
-
-    def test_moderator_can_restore_doc(self):
-        author = create_random_default_user("author")
-        make_user_verified(author)
-        mod = create_random_default_user("mod", moderator=True)
-        hub = create_hub()
-
-        self.client.force_authenticate(author)
-
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "document_type": "DISCUSSION",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
-            },
-        )
-
-        delete_response = self.client.delete(
-            f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
-        )
-        self.assertEqual(delete_response.status_code, 200)
-
-        self.client.force_authenticate(mod)
-        restore_response = self.client.patch(
-            f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/restore/"
-        )
-        self.assertEqual(restore_response.data["is_removed"], False)
-
-    def test_non_author_cannot_delete_doc(self):
-        author = create_random_default_user("author")
-        make_user_verified(author)
-        non_author = create_random_default_user("non_author")
-        hub = create_hub()
-
-        self.client.force_authenticate(author)
-
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "document_type": "DISCUSSION",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
-            },
-        )
-
-        self.client.force_authenticate(non_author)
-
-        response = self.client.delete(
-            f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
-        )
-        self.assertEqual(response.status_code, 403)
-
-        doc = ResearchhubUnifiedDocument.objects.get(
-            id=doc_response.data["unified_document_id"]
-        )
-        self.assertEqual(doc.is_removed, False)
-
-    def test_moderator_can_delete_doc(self):
-        author = create_random_default_user("author")
-        make_user_verified(author)
-        moderator = create_random_default_user("moderator", moderator=True)
-        hub = create_hub()
-
-        self.client.force_authenticate(author)
-
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "document_type": "DISCUSSION",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
-            },
-        )
-
-        self.client.force_authenticate(moderator)
-
-        response = self.client.delete(
-            f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
-        )
-        self.assertEqual(response.status_code, 200)
-
-        doc = ResearchhubUnifiedDocument.all_objects.get(
-            id=doc_response.data["unified_document_id"]
-        )
-        self.assertEqual(doc.is_removed, True)
-
     def test_author_can_create_post(self):
         author = create_random_default_user("author")
         make_user_verified(author)
@@ -343,8 +184,12 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": ("sufficiently long title. sufficiently long title."),
                 "hubs": [hub.id],
             },
         )
@@ -410,8 +255,12 @@ class ViewTests(APITestCase):
                 "hubs": [self.hub.id],
                 "is_public": True,
                 "note_id": note[0].id,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": ("sufficiently long title. sufficiently long title."),
             },
         )
 
@@ -432,8 +281,12 @@ class ViewTests(APITestCase):
                 "hubs": [self.hub.id],
                 "is_public": True,
                 "note_id": note[0].id,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": ("sufficiently long title. sufficiently long title."),
             },
         )
 
@@ -455,8 +308,12 @@ class ViewTests(APITestCase):
                 "hubs": [self.hub.id],
                 "is_public": True,
                 "note_id": note[0].id,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": ("sufficiently long title. sufficiently long title."),
             },
         )
 
@@ -477,8 +334,12 @@ class ViewTests(APITestCase):
                 "image": "/imagePath1",
                 "is_public": True,
                 "note_id": note[0].id,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": ("sufficiently long title. sufficiently long title."),
                 "hubs": [self.hub.id],
             },
         )
@@ -495,7 +356,11 @@ class ViewTests(APITestCase):
                 "image": "/updatedImagePath1",
                 "is_public": True,
                 "title": "updated title. updated title. updated title.",
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
                 "hubs": [self.hub.id],
             },
         )
@@ -519,8 +384,12 @@ class ViewTests(APITestCase):
                 "full_src": "body",
                 "is_public": True,
                 "note_id": note[0].id,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": ("sufficiently long title. sufficiently long title."),
                 "hubs": [self.hub.id],
             },
         )
@@ -536,8 +405,12 @@ class ViewTests(APITestCase):
                 "created_by": self.admin_user.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": ("sufficiently long title. sufficiently long title."),
                 "hubs": [self.hub.id],
             },
         )
@@ -556,8 +429,12 @@ class ViewTests(APITestCase):
                 "full_src": "body",
                 "is_public": True,
                 "note_id": note[0].id,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": ("sufficiently long title. sufficiently long title."),
                 "hubs": [self.hub.id],
             },
         )
@@ -573,8 +450,12 @@ class ViewTests(APITestCase):
                 "created_by": self.admin_user.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": ("sufficiently long title. sufficiently long title."),
                 "hubs": [self.hub.id],
             },
         )
@@ -599,8 +480,12 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": ("sufficiently long title. sufficiently long title."),
                 "hubs": [hub.id],
                 "note_id": note[0].id,
             },
@@ -617,59 +502,17 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": ("sufficiently long title. sufficiently long title."),
                 "hubs": [hub.id],
             },
         )
 
         self.assertEqual(updated_response.status_code, 403)
-
-    def test_hub_editors_can_censor_papers(self):
-        hub = create_hub()
-        user_editor = create_random_default_user("user_editor")
-        Permission.objects.create(
-            access_type=SENIOR_EDITOR,
-            content_type=ContentType.objects.get_for_model(Hub),
-            object_id=hub.id,
-            user=user_editor,
-        )
-        user_uploader = create_random_default_user("user_uploader")
-        test_paper = create_paper(uploaded_by=user_uploader)
-        test_paper.unified_document.hubs.add(hub)
-        test_paper.save()
-
-        self.client.force_authenticate(user_editor)
-        response = self.client.put(
-            f"/api/paper/{test_paper.id}/censor/", {"id": test_paper.id}
-        )
-
-        test_paper.refresh_from_db()
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(test_paper.is_removed, True)
-
-    def test_hub_editors_can_restore_papers(self):
-        hub = create_hub()
-        user_editor = create_random_default_user("user_editor")
-        Permission.objects.create(
-            access_type=SENIOR_EDITOR,
-            content_type=ContentType.objects.get_for_model(Hub),
-            object_id=hub.id,
-            user=user_editor,
-        )
-        user_uploader = create_random_default_user("user_uploader")
-        test_paper = create_paper(uploaded_by=user_uploader)
-        test_paper.unified_document.hubs.add(hub)
-        test_paper.is_removed = True
-        test_paper.save()
-
-        self.client.force_authenticate(user_editor)
-        response = self.client.put(
-            f"/api/paper/{test_paper.id}/restore_paper/", {"id": test_paper.id}
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["is_removed"], False)
 
     def test_doi_not_assigned_on_publish(self):
         """DOIs are no longer assigned at publish time for any post type."""
@@ -688,8 +531,12 @@ class ViewTests(APITestCase):
                     "created_by": author.id,
                     "full_src": "body",
                     "is_public": True,
-                    "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                    "title": "sufficiently long title. sufficiently long title.",
+                    "renderable_text": (
+                        "sufficiently long body. sufficiently long body. "
+                        "sufficiently long body. sufficiently long body. "
+                        "sufficiently long body"
+                    ),
+                    "title": ("sufficiently long title. sufficiently long title."),
                     "hubs": [hub.id],
                 },
             )
@@ -726,8 +573,12 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": ("sufficiently long title. sufficiently long title."),
                 "hubs": [hub.id],
                 "fundraise_goal_amount": 1000,
             },
@@ -750,8 +601,12 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": ("sufficiently long title. sufficiently long title."),
                 "hubs": [hub.id],
             },
         )
@@ -960,6 +815,79 @@ class ViewTests(APITestCase):
         self.assertEqual(response.data["grant"]["amount"]["usd"], 30000.0)
         self.assertEqual(response.data["grant"]["organization"], "Metadata Foundation")
 
+    def _grant_with_private_application(self):
+        """Build a grant whose only application is a private preregistration.
+
+        Returns (unified_document_id, private_preregistration_post_id).
+        """
+        owner = create_random_default_user("grant_owner")
+        applicant = create_random_default_user("grant_applicant")
+
+        grant_post = create_post(created_by=owner, document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=owner,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Org",
+            description="desc",
+            status=Grant.OPEN,
+        )
+
+        private_post = create_post(
+            title="Private proposal",
+            created_by=applicant,
+            document_type=PREREGISTRATION,
+        )
+        private_post.unified_document.is_public = False
+        private_post.unified_document.save()
+
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=private_post,
+            applicant=applicant,
+        )
+        return grant_post.unified_document.id, private_post.id
+
+    def test_moderator_sees_private_application_in_document_metadata(self):
+        """A moderator (not the grant owner) sees private proposals on the
+        grant's post details page — get_document_metadata reuses the same
+        moderator/editor rule as ResearchhubPost.visible_to.
+        """
+        unified_document_id, private_post_id = self._grant_with_private_application()
+        moderator = create_random_default_user("grant_moderator", moderator=True)
+
+        self.client.force_authenticate(moderator)
+        response = self.client.get(
+            f"/api/researchhub_unified_document/{unified_document_id}"
+            "/get_document_metadata/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        prereg_ids = [
+            app["preregistration_post_id"]
+            for app in response.data["grant"]["applications"]
+        ]
+        self.assertIn(private_post_id, prereg_ids)
+
+    def test_outsider_does_not_see_private_application_in_document_metadata(self):
+        """A non-owner, non-moderator viewer only sees public proposals."""
+        unified_document_id, private_post_id = self._grant_with_private_application()
+        outsider = create_random_default_user("grant_outsider")
+
+        self.client.force_authenticate(outsider)
+        response = self.client.get(
+            f"/api/researchhub_unified_document/{unified_document_id}"
+            "/get_document_metadata/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        prereg_ids = [
+            app["preregistration_post_id"]
+            for app in response.data["grant"]["applications"]
+        ]
+        self.assertNotIn(private_post_id, prereg_ids)
+
     def test_grant_update_existing_grant(self):
         """Test that an existing grant can be updated when updating a post"""
         author = create_random_default_user("author", moderator=True)
@@ -1008,7 +936,9 @@ class ViewTests(APITestCase):
                     "updated sufficiently long body. updated sufficiently long body. "
                     "updated sufficiently long body"
                 ),
-                "title": "updated sufficiently long title. updated sufficiently long title.",
+                "title": (
+                    "updated sufficiently long title. updated sufficiently long title."
+                ),
                 "hubs": [hub.id],
                 "grant_amount": 75000,
                 "grant_currency": "USD",
@@ -1079,7 +1009,9 @@ class ViewTests(APITestCase):
                     "updated sufficiently long body. updated sufficiently long body. "
                     "updated sufficiently long body"
                 ),
-                "title": "updated sufficiently long title. updated sufficiently long title.",
+                "title": (
+                    "updated sufficiently long title. updated sufficiently long title."
+                ),
                 "hubs": [hub.id],
                 "grant_amount": 60000,
                 "grant_currency": "USD",
@@ -1099,7 +1031,9 @@ class ViewTests(APITestCase):
         self.assertEqual(grants_count, 0)
 
     def test_grant_preserve_existing_grant_when_no_grant_data(self):
-        """Test that existing grant is preserved when no grant data is provided in update"""
+        """
+        Test that existing grant is preserved when no grant data is provided in update
+        """
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
         hub = create_hub()
@@ -1146,7 +1080,9 @@ class ViewTests(APITestCase):
                     "updated sufficiently long body. updated sufficiently long body. "
                     "updated sufficiently long body"
                 ),
-                "title": "updated sufficiently long title. updated sufficiently long title.",
+                "title": (
+                    "updated sufficiently long title. updated sufficiently long title."
+                ),
                 "hubs": [hub.id],
                 # No grant_amount or other grant fields
             },
@@ -1216,7 +1152,9 @@ class ViewTests(APITestCase):
                     "updated sufficiently long body. updated sufficiently long body. "
                     "updated sufficiently long body"
                 ),
-                "title": "updated sufficiently long title. updated sufficiently long title.",
+                "title": (
+                    "updated sufficiently long title. updated sufficiently long title."
+                ),
                 "hubs": [hub.id],
                 "grant_amount": 45000,
                 "grant_organization": "Date Foundation",
@@ -1280,7 +1218,9 @@ class ViewTests(APITestCase):
                     "updated sufficiently long body. updated sufficiently long body. "
                     "updated sufficiently long body"
                 ),
-                "title": "updated sufficiently long title. updated sufficiently long title.",
+                "title": (
+                    "updated sufficiently long title. updated sufficiently long title."
+                ),
                 "hubs": [hub.id],
                 "grant_amount": 60000,
                 "grant_description": "Updated grant description",
@@ -1291,7 +1231,9 @@ class ViewTests(APITestCase):
         self.assertEqual(updated_response.status_code, 400)
 
     def test_grant_update_with_null_fields(self):
-        """Test that grant fields can be updated to null/empty values where appropriate"""
+        """
+        Test that grant fields can be updated to null/empty values where appropriate
+        """
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
         hub = create_hub()
@@ -1339,7 +1281,9 @@ class ViewTests(APITestCase):
                     "updated sufficiently long body. updated sufficiently long body. "
                     "updated sufficiently long body"
                 ),
-                "title": "updated sufficiently long title. updated sufficiently long title.",
+                "title": (
+                    "updated sufficiently long title. updated sufficiently long title."
+                ),
                 "hubs": [hub.id],
                 "grant_amount": 50000,
                 "grant_organization": "Test Foundation",
@@ -1638,7 +1582,10 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "discussion body",
                 "is_public": True,
-                "renderable_text": "sufficiently long discussion body. sufficiently long discussion body. sufficiently long discussion body.",
+                "renderable_text": (
+                    "sufficiently long discussion body. sufficiently long "
+                    "discussion body. sufficiently long discussion body."
+                ),
                 "title": "Discussion Post Title - Long Enough",
                 "hubs": [hub.id],
             },
@@ -1651,7 +1598,10 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "question body",
                 "is_public": True,
-                "renderable_text": "sufficiently long question body. sufficiently long question body. sufficiently long question body.",
+                "renderable_text": (
+                    "sufficiently long question body. sufficiently long "
+                    "question body. sufficiently long question body."
+                ),
                 "title": "Question Post Title - Long Enough",
                 "hubs": [hub.id],
             },
@@ -1664,7 +1614,10 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "preregistration body",
                 "is_public": True,
-                "renderable_text": "sufficiently long preregistration body. sufficiently long preregistration body. sufficiently long preregistration body.",
+                "renderable_text": (
+                    "sufficiently long preregistration body. sufficiently long "
+                    "preregistration body. sufficiently long preregistration body."
+                ),
                 "title": "Preregistration Post Title - Long Enough",
                 "hubs": [hub.id],
             },
@@ -1846,7 +1799,10 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
 
 
 class PreregistrationGrantsPayloadTests(APITestCase):
-    """GET researchhubpost returns grants[] with proposal.ai_peer_review for preregistrations."""
+    """
+    GET researchhubpost returns grants[] with proposal.ai_peer_review
+    for preregistrations.
+    """
 
     def setUp(self):
         self.user = create_random_default_user("prereg_grants_user")

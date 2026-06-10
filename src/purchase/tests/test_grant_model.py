@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
+from unittest.mock import MagicMock
 
 import pytz
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from purchase.models import Grant
 from researchhub_document.helpers import create_post
@@ -211,6 +212,34 @@ class GrantModelTests(TestCase):
         self.assertIn(self.grant, user_grants)
         self.assertIn(grant2, user_grants)
 
+    def test_get_llm_context_text_combines_terms_and_post_body(self):
+        """LLM context text combines structured terms with the post body."""
+        # Act
+        text = self.grant.get_llm_context_text()
+
+        # Assert
+        self.assertIn("Organization: National Science Foundation", text)
+        self.assertIn(
+            "Research grant for innovative AI applications in healthcare", text
+        )
+
+    def test_get_llm_context_text_omits_blank_fields(self):
+        """Blank short_title / organization are skipped, not rendered empty."""
+        # Arrange
+        self.grant.short_title = None
+        self.grant.organization = None
+        self.grant.save()
+
+        # Act
+        text = self.grant.get_llm_context_text()
+
+        # Assert
+        self.assertNotIn("Title:", text)
+        self.assertNotIn("Organization:", text)
+        self.assertIn(
+            "Research grant for innovative AI applications in healthcare", text
+        )
+
     def test_grant_meta_indexes(self):
         """Test that the model's indexes are properly configured"""
         # This test ensures that our model's Meta.indexes are defined
@@ -258,3 +287,37 @@ class GrantPendingModelTests(TestCase):
         for val in (Grant.PENDING, Grant.DECLINED):
             self.grant.status = val
             self.grant.full_clean()
+
+
+class GrantLLMContextTextTests(SimpleTestCase):
+    """Unit-test get_llm_context_text logic without a database."""
+
+    def test_combines_metadata_and_post_markdown(self):
+        # Arrange
+        grant = MagicMock()
+        grant.short_title = "My RFP"
+        grant.organization = "NIH"
+        grant.description = "Do good science."
+        post = MagicMock()
+        post.get_full_markdown.return_value = "# Details\nMore"
+        grant.unified_document.posts.first.return_value = post
+
+        # Act
+        text = Grant.get_llm_context_text(grant)
+
+        # Assert
+        self.assertIn("My RFP", text)
+        self.assertIn("NIH", text)
+        self.assertIn("Do good science.", text)
+        self.assertIn("# Details", text)
+
+    def test_handles_missing_post(self):
+        # Arrange
+        grant = MagicMock()
+        grant.short_title = None
+        grant.organization = None
+        grant.description = "Solo body"
+        grant.unified_document.posts.first.return_value = None
+
+        # Act / Assert
+        self.assertEqual(Grant.get_llm_context_text(grant).strip(), "Solo body")

@@ -1,3 +1,5 @@
+import logging
+
 from django.db import IntegrityError
 from django.db.models import Count
 from rest_framework import status
@@ -24,6 +26,8 @@ from .serializers import (
 )
 
 LIST_NOT_FOUND = "List not found"
+
+logger = logging.getLogger(__name__)
 
 
 class UserSavedView(APIView):
@@ -101,9 +105,10 @@ class UserSavedView(APIView):
                     {"success": True, "list_name": list_name},
                     status=status.HTTP_200_OK,
                 )
-            except IntegrityError as e:
-                # Log the error for debugging
-                print(f"IntegrityError during create: {e}")
+            except IntegrityError:
+                logger.exception(
+                    "IntegrityError during list creation for user %s", request.user.id
+                )
                 return Response(
                     {"error": "List name already exists"},
                     status=status.HTTP_400_BAD_REQUEST,

@@ -52,7 +52,10 @@ class Bounty(DefaultModel):
     assessment_end_date = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="End date for the assessment phase when managers can review and award solutions",
+        help_text=_(
+            "End date for the assessment phase when managers can review and award"
+            " solutions"
+        ),
     )
     item_content_type = models.ForeignKey(
         ContentType, on_delete=models.CASCADE, related_name="item_bounty"

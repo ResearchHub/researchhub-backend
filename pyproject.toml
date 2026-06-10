@@ -26,7 +26,7 @@ dependencies = [
     "django-cors-headers==3.5.0",
     "django-dbbackup==4.0.2",
     "django-debug-toolbar==4.2",
-    "django-opensearch-dsl==0.7.0",
+    "django-opensearch-dsl==0.8.0",
     "django-extensions==3.0.9",
     "django-fernet-encrypted-fields>=0.3.1",
     "django-filter>=24.3,<25.0",
@@ -86,12 +86,27 @@ extend-exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
 extend-select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "I",  # isort
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "T20",  # flake8-print: forbid print statements
 ]
-extend-ignore = [
-    # Temporarily ignore these violations until cleaned up:
-    "E501",  # line-too-long
-    "F403",  # undefined-local-with-import-star
-]
+
+[tool.ruff.lint.per-file-ignores]
+# Allow `print`s in management commands:
+"**/management/commands/*.py" = ["T20"]
+
+# Temporarily ignore lint rules per app.
+# E501: line too long
+# T20:  print statements
+"src/ai_peer_review/**/*.py" = ["E501"]
+"src/discussion/**/*.py" = ["E501"]
+"src/feed/**/*.py" = ["E501"]
+"src/paper/**/*.py" = ["E501"]
+"src/personalize/**/*.py" = ["E501"]
+"src/purchase/**/*.py" = ["E501"]
+"src/referral/**/*.py" = ["E501"]
+"src/research_ai/**/*.py" = ["E501"]
+"src/researchhub_comment/**/*.py" = ["E501"]
+"src/researchhub_document/**/*.py" = ["E501"]
+"src/user/**/*.py" = ["E501"]

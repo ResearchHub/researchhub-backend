@@ -2,7 +2,6 @@ import traceback
 
 from sentry_sdk import (
     capture_exception,
-    capture_message,
     get_isolation_scope,
 )
 
@@ -20,13 +19,13 @@ def log_error(e, base_error=None, message=None, json_data=None):
 
     if not PRODUCTION:
         if isinstance(e, Exception):
-            print(e, base_error, message)
+            print(e, base_error, message)  # noqa
             try:
                 traceback.print_exception(e)
             except Exception:
                 pass
         else:
-            print(e, base_error, message)
+            print(e, base_error, message)  # noqa
 
     scope = get_isolation_scope()
     if base_error is not None:
@@ -41,35 +40,3 @@ def log_error(e, base_error=None, message=None, json_data=None):
             elif v is not None:
                 scope.set_extra(k, v)
     capture_exception(e)
-
-
-def log_request_error(response, message, extra=None):
-    from researchhub.settings import PRODUCTION
-
-    if not PRODUCTION:
-        print(response, message, extra)
-
-    scope = get_isolation_scope()
-    if extra:
-        for k in extra:
-            scope.set_extra(k, extra[k])
-    scope.set_extra("req_error", response.reason)
-    capture_exception(message)
-
-
-def log_info(message, error=None):
-    """Captures a message with the sentry sdk.
-
-    Arguments:
-        message (str)
-        error (obj) -- Optional error to send with the message
-    """
-    from researchhub.settings import PRODUCTION
-
-    if not PRODUCTION:
-        print(message, error)
-
-    scope = get_isolation_scope()
-    if error is not None:
-        scope.set_extra("error", error)
-    capture_message(message)

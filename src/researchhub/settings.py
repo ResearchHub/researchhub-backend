@@ -64,12 +64,12 @@ LOGGING = {
             "style": "{",
         },
         "verbose": {
-            "format": "{asctime} {levelname} {name} [{filename}:{lineno}] [{threadName}] {message}",
+            "format": "{asctime} {levelname} {name} [{filename}:{lineno}] [{threadName}] {message}",  # noqa: E501
             "style": "{",
         },
         "json": {
             "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
-            "fmt": "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(threadName)s] %(message)s",
+            "fmt": "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(threadName)s] %(message)s",  # noqa: E501
             "exc_info_as_array": True,
             "stack_info_as_array": True,
         },
@@ -267,7 +267,6 @@ INSTALLED_APPS = [
     "referral",
     "reputation",
     "researchhub",
-    "researchhub_case",
     "researchhub_comment",
     "researchhub_document",
     "researchhub_access_group",
@@ -300,7 +299,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 if USE_DEBUG_TOOLBAR:
-    print("Using Debug Toolbar")
+    print("Using Debug Toolbar")  # noqa: T201
     DEBUG_TOOLBAR_CONFIG = {
         "SHOW_TOOLBAR_CALLBACK": lambda request: True,
     }
@@ -771,8 +770,8 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_TASK_DEFAULT_QUEUE = "default"
 CELERY_TASK_IGNORE_RESULT = True
 
-CELERY_WORKER_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(processName)s] %(message)s"
-CELERY_WORKER_TASK_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(processName)s] %(message)s"
+CELERY_WORKER_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(processName)s] %(message)s"  # noqa: E501
+CELERY_WORKER_TASK_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(processName)s] %(message)s"  # noqa: E501
 
 # Use Django's root logger (JSON) if running in Beanstalk
 if ELASTIC_BEANSTALK:

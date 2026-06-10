@@ -21,7 +21,9 @@ logger = logging.getLogger(__name__)
 
 
 class OrcidCallbackService:
-    """Handles ORCID OAuth callback: validates state, exchanges tokens, stores connection."""
+    """
+    Handles ORCID OAuth callback: validates state, exchanges tokens, stores connection.
+    """
 
     def __init__(
         self,

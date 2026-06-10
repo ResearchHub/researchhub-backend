@@ -996,7 +996,10 @@ class GrantModerationTests(APITestCase):
 
 
 class GrantModerationServiceTests(APITestCase):
-    """Tests for GrantModerationService branches not reached by API tests (DOI assignment, decline internals)."""
+    """
+    Tests for GrantModerationService branches not reached by API tests
+    (DOI assignment, decline internals).
+    """
 
     def setUp(self):
         self.moderator = create_random_authenticated_user("svc_mod", moderator=True)

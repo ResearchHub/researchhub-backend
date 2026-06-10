@@ -129,7 +129,9 @@ class ReferralMetricsServiceTest(TestCase):
         self.assertTrue(timezone.now() > expiration_date)
 
     def test_comprehensive_metrics_includes_referral_info(self):
-        """Test that comprehensive metrics include user's referral info when applicable."""
+        """
+        Test that comprehensive metrics include user's referral info when applicable.
+        """
         # Create referral for the user
         referring_user = User.objects.create_user(
             username="referring", email="referring@test.com", password=uuid.uuid4().hex
@@ -148,7 +150,9 @@ class ReferralMetricsServiceTest(TestCase):
         )
 
     def test_comprehensive_metrics_no_referral_info(self):
-        """Test that comprehensive metrics don't include referral info when not referred."""
+        """
+        Test that comprehensive metrics don't include referral info when not referred.
+        """
         # User not referred by anyone
         metrics = self.service.get_comprehensive_metrics()
 

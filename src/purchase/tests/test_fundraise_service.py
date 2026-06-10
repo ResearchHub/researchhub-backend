@@ -453,7 +453,9 @@ class CloseFundraiseTests(TestCase):
         self.assertEqual(contribution.status, UsdFundraiseContribution.Status.CANCELLED)
 
     def test_close_fundraise_marks_multiple_usd_contributions_as_refunded(self):
-        """Test that closing a fundraise marks multiple USD contributions as refunded."""
+        """
+        Test that closing a fundraise marks multiple USD contributions as refunded.
+        """
         contributor1 = create_random_authenticated_user("usd_contributor1")
         contributor2 = create_random_authenticated_user("usd_contributor2")
 

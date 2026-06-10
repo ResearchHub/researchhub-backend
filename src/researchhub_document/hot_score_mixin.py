@@ -1,4 +1,5 @@
 import datetime
+import logging
 import math
 
 from django.db.models import Q
@@ -6,6 +7,8 @@ from django.db.models import Q
 from purchase.related_models.constants.currency import RSC
 from purchase.related_models.fundraise_model import Fundraise
 from reputation.related_models.bounty import Bounty
+
+logger = logging.getLogger(__name__)
 
 
 class HotScoreMixin:
@@ -61,11 +64,6 @@ class HotScoreMixin:
         half_days_since_epoch = num_seconds_since_epoch / num_seconds_in_half_day
         time_score = half_days_since_epoch
 
-        # Debug
-        if False:
-            print(f"Num seconds since epoch: {num_seconds_since_epoch}")
-            print(f"Value for {date} is: {time_score}")
-
         return time_score
 
     def _calc_boost_score(self):
@@ -74,8 +72,8 @@ class HotScoreMixin:
             doc = self.get_document()
             boost = doc.get_boost_amount()
             boost_score = math.log(boost + 1, 10)
-        except Exception as e:
-            print(e)
+        except Exception:
+            logger.exception("Error calculating boost score")
 
         return boost_score
 
@@ -118,20 +116,8 @@ class HotScoreMixin:
                         percentage_within_promo_period + 1, 7
                     )
                     total_bounty_score += this_bounty_score
-
-                # Useful for debugging, do not delete
-                # print("bounty.created_date", bounty.created_date)
-                # print("bounty.expiration_date", bounty.expiration_date)
-                # print("seconds_since_create", seconds_since_create)
-                # print("seconds_to_expiration", seconds_to_expiration)
-                # print("id", bounty.id)
-                # print("is_near_new", is_near_new)
-                # print("is_near_expire", is_near_expire)
-                # print("percentage_within_promo_period", percentage_within_promo_period)
-                # print("score", this_bounty_score)
-
-        except Exception as e:
-            print(e)
+        except Exception:
+            logger.exception("Error calculating bounty score")
 
         return total_bounty_score
 
@@ -191,8 +177,8 @@ class HotScoreMixin:
                     this_fundraise_score = amount_factor + percent_factor
                     total_fundraise_score += this_fundraise_score
 
-        except Exception as e:
-            print(e)
+        except Exception:
+            logger.exception("Error calculating fundraise score")
 
         return total_fundraise_score
 
