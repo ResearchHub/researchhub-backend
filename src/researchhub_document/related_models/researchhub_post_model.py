@@ -53,7 +53,9 @@ class ResearchhubPostQuerySet(models.QuerySet):
             unified_document_id=OuterRef("unified_document_id"),
             status__in=Grant.PENDING_MODERATION_STATUSES,
         )
-        cleared = Q(status=ModeratedDocumentMixin.APPROVED) & ~Exists(pending_grant)
+        cleared = Q(
+            unified_document__status=ResearchhubUnifiedDocument.APPROVED
+        ) & ~Exists(pending_grant)
         public = Q(unified_document__is_public=True) & cleared
         if user is None or not getattr(user, "is_authenticated", False):
             return self.filter(public)

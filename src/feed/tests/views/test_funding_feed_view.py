@@ -192,7 +192,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
     def test_pending_preregistration_excluded(self):
         """Preregistrations awaiting moderation must not appear in the feed."""
         pending_document = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION
+            document_type=PREREGISTRATION,
+            status=ResearchhubUnifiedDocument.PENDING,
         )
         pending_post = ResearchhubPost.objects.create(
             title="Pending Preregistration",
@@ -202,7 +203,6 @@ class FundingFeedViewSetTests(AWSMockTestCase):
             slug="pending-preregistration",
             unified_document=pending_document,
             created_date=timezone.now(),
-            status=ResearchhubPost.PENDING,
         )
 
         url = reverse("funding_feed-list")

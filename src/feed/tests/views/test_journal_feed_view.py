@@ -151,14 +151,14 @@ class JournalFeedViewSetTests(AWSMockTestCase):
     def test_pending_paper_excluded(self):
         """Papers awaiting moderation must not appear in the journal feed."""
         pending_unified_document = ResearchhubUnifiedDocument.objects.create(
-            document_type="PAPER"
+            document_type="PAPER",
+            status=ResearchhubUnifiedDocument.PENDING,
         )
         pending_paper = Paper.objects.create(
             title="Pending Journal Paper",
             uploaded_by=self.user,
             is_public=True,
             is_removed=False,
-            status=Paper.PENDING,
             unified_document=pending_unified_document,
             created_date=timezone.now(),
         )

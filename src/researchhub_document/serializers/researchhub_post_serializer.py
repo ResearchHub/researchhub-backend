@@ -13,7 +13,10 @@ from discussion.serializers import (
 )
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from purchase.models import GrantApplication, Purchase
-from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub.serializers import (
+    DynamicModelFieldSerializer,
+    ModeratedDocumentStatusSerializerMixin,
+)
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
@@ -31,7 +34,11 @@ from utils.http import get_user_from_request
 logger = logging.getLogger(__name__)
 
 
-class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin):
+class ResearchhubPostSerializer(
+    ModelSerializer,
+    GenericReactionSerializerMixin,
+    ModeratedDocumentStatusSerializerMixin,
+):
     class Meta(object):
         model = ResearchhubPost
         fields = [
@@ -83,9 +90,6 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "is_root_version",
             "note",
             "post_src",
-            "reviewed_by",
-            "reviewed_date",
-            "status",
             "unified_document_id",
             "version_number",
             "boost_amount",
@@ -358,7 +362,9 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
         return instance.get_boost_amount()
 
 
-class DynamicPostSerializer(DynamicModelFieldSerializer):
+class DynamicPostSerializer(
+    DynamicModelFieldSerializer, ModeratedDocumentStatusSerializerMixin
+):
     authors = SerializerMethodField()
     boost_amount = SerializerMethodField()
     bounties = SerializerMethodField()
@@ -390,7 +396,7 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         """
         unified_document = instance.unified_document
         if unified_document is not None and not (
-            unified_document.is_public and instance.is_approved
+            unified_document.is_public and unified_document.is_approved
         ):
             user = get_user_from_request(self.context)
             if not unified_document.is_visible_to_user(user):

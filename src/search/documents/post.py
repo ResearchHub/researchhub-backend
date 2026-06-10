@@ -169,4 +169,4 @@ class PostDocument(BaseDocument):
         if obj.document_type == GRANT:
             grant = obj.unified_document.grants.first()
             return grant is not None and not grant.is_pending_moderation()
-        return obj.is_approved
+        return obj.unified_document.is_approved

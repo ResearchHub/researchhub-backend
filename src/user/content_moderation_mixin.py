@@ -42,9 +42,10 @@ class ContentModerationActionsMixin:
         return Response(self._moderation_result(content))
 
     def _moderation_result(self, content):
+        unified_document = content.unified_document
         return {
             "id": content.id,
-            "status": content.status,
-            "reviewed_by": content.reviewed_by_id,
-            "reviewed_date": content.reviewed_date,
+            "status": unified_document.status,
+            "reviewed_by": unified_document.reviewed_by_id,
+            "reviewed_date": unified_document.reviewed_date,
         }

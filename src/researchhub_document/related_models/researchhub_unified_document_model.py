@@ -161,7 +161,7 @@ class ResearchhubUnifiedDocument(
         """
         if self.document_type == PAPER:
             paper = self.paper if hasattr(self, "paper") else None
-            if paper is not None and not paper.is_approved:
+            if paper is not None and not self.is_approved:
                 from paper.related_models.paper_model import Paper
 
                 return Paper.objects.filter(pk=paper.pk).visible_to(user).exists()

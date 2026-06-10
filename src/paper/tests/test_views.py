@@ -12,6 +12,9 @@ from paper.models import Paper, PaperVersion
 from paper.related_models.authorship_model import Authorship
 from paper.tests.helpers import create_paper
 from paper.views.paper_views import PaperViewSet
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.models import Author
 from user.related_models.risk_score_model import RiskScore
 from user.tests.helpers import (
@@ -268,9 +271,11 @@ class PaperApiTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["status"], Paper.PENDING)
+        self.assertEqual(response.data["status"], ResearchhubUnifiedDocument.PENDING)
         paper = Paper.objects.get(id=response.data["id"])
-        self.assertEqual(paper.status, Paper.PENDING)
+        self.assertEqual(
+            paper.unified_document.status, ResearchhubUnifiedDocument.PENDING
+        )
 
     def test_create_researchhub_paper_trusted_author_auto_approves(self):
         """A trusted author's submission auto-approves at creation."""
@@ -290,9 +295,11 @@ class PaperApiTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["status"], Paper.APPROVED)
+        self.assertEqual(response.data["status"], ResearchhubUnifiedDocument.APPROVED)
         paper = Paper.objects.get(id=response.data["id"])
-        self.assertEqual(paper.status, Paper.APPROVED)
+        self.assertEqual(
+            paper.unified_document.status, ResearchhubUnifiedDocument.APPROVED
+        )
 
     def test_create_researchhub_paper_with_multiple_authors(self):
         """Test creating a paper with multiple authors in different positions"""
@@ -1029,8 +1036,8 @@ class PaperPendingVisibilityTests(APITestCase):
         self.pending_paper = create_paper(
             title="Pending paper", uploaded_by=self.uploader
         )
-        self.pending_paper.status = Paper.PENDING
-        self.pending_paper.save(update_fields=["status"])
+        self.pending_paper.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        self.pending_paper.unified_document.save(update_fields=["status"])
         self.detail_url = reverse("paper-detail", args=[self.pending_paper.id])
 
     def test_anonymous_cannot_retrieve_pending_paper(self):

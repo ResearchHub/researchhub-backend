@@ -178,9 +178,9 @@ class ResearchhubPostViewSet(
                 # enters the moderation queue as PENDING. Grants gate via their
                 # own Grant.status, so the post itself stays APPROVED.
                 if document_type == GRANT:
-                    post_status = ResearchhubPost.APPROVED
+                    work_status = ResearchhubUnifiedDocument.APPROVED
                 else:
-                    post_status = risk_score_service.initial_work_status(created_by)
+                    work_status = risk_score_service.initial_work_status(created_by)
 
                 # Resolve the target grant up front when applying to one so
                 # that create_unified_doc can honor the grant's privacy
@@ -201,9 +201,12 @@ class ResearchhubPostViewSet(
                 unified_document = self.create_unified_doc(
                     request, target_grant=target_grant
                 )
+                # The unified document owns moderation status; record the
+                # risk-score gating decision before the post is created.
+                unified_document.status = work_status
                 if access_group is not None:
                     unified_document.access_groups = access_group
-                    unified_document.save()
+                unified_document.save()
 
                 slug = slugify(title)
                 rh_post = ResearchhubPost.objects.create(
@@ -219,7 +222,6 @@ class ResearchhubPostViewSet(
                     title=title,
                     bounty_type=data.get("bounty_type"),
                     unified_document=unified_document,
-                    status=post_status,
                 )
                 file_name = f"RH-POST-{document_type}-USER-{created_by.id}.txt"
                 full_src_file = ContentFile(data["full_src"].encode())

@@ -28,6 +28,9 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.related_models.researchhub_post_model import (
     ResearchhubPost,
 )
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.models import Action, Organization
 from user.tests.helpers import make_user_verified
 from utils.test_helpers import AWSMockTestCase
@@ -270,8 +273,8 @@ class VisibleToQuerySetTests(AWSMockTestCase):
             created_by=self.author,
             document_type=PREREGISTRATION,
         )
-        post.status = status
-        post.save(update_fields=["status"])
+        post.unified_document.status = status
+        post.unified_document.save(update_fields=["status"])
         return post
 
     def _visible_ids(self, user):
@@ -282,7 +285,7 @@ class VisibleToQuerySetTests(AWSMockTestCase):
     def test_pending_public_post_hidden_from_public(self):
         """A public post awaiting moderation is hidden from the public, but
         stays visible to its author and to moderators."""
-        pending_post = self._unmoderated_post(ResearchhubPost.PENDING)
+        pending_post = self._unmoderated_post(ResearchhubUnifiedDocument.PENDING)
         moderator = _make_user("moderator", moderator=True)
 
         self.assertNotIn(pending_post.id, self._visible_ids(None))
@@ -293,7 +296,7 @@ class VisibleToQuerySetTests(AWSMockTestCase):
     def test_declined_public_post_hidden_from_public(self):
         """A declined post is likewise hidden from the public, while its author
         and moderators retain access."""
-        declined_post = self._unmoderated_post(ResearchhubPost.DECLINED)
+        declined_post = self._unmoderated_post(ResearchhubUnifiedDocument.DECLINED)
         moderator = _make_user("moderator", moderator=True)
 
         self.assertNotIn(declined_post.id, self._visible_ids(None))
@@ -305,8 +308,8 @@ class VisibleToQuerySetTests(AWSMockTestCase):
         """Grant owners only gain access once an application has cleared
         moderation; a pending application stays limited to its author and
         moderators / hub editors."""
-        self.private_post.status = ResearchhubPost.PENDING
-        self.private_post.save(update_fields=["status"])
+        self.private_post.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        self.private_post.unified_document.save(update_fields=["status"])
 
         self.assertNotIn(self.private_post.id, self._visible_ids(self.grant_owner))
         self.assertIn(self.private_post.id, self._visible_ids(self.author))
@@ -324,8 +327,8 @@ class VisibleToQuerySetTests(AWSMockTestCase):
             user=invited,
         )
 
-        self.private_post.status = ResearchhubPost.PENDING
-        self.private_post.save(update_fields=["status"])
+        self.private_post.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        self.private_post.unified_document.save(update_fields=["status"])
 
         self.assertNotIn(self.private_post.id, self._visible_ids(invited))
         self.assertIn(self.private_post.id, self._visible_ids(self.author))

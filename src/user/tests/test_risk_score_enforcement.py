@@ -2,7 +2,6 @@ from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from hub.tests.helpers import create_hub
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.views.researchhub_post_views import (
     MIN_POST_BODY_LENGTH,
     MIN_POST_TITLE_LENGTH,
@@ -76,7 +75,7 @@ class PostCreationGatingTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["status"], ResearchhubPost.PENDING)
+        self.assertEqual(response.data["status"], ModeratedDocumentMixin.PENDING)
 
     def test_trusted_user_post_auto_approves(self):
         # Arrange
@@ -87,7 +86,7 @@ class PostCreationGatingTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["status"], ResearchhubPost.APPROVED)
+        self.assertEqual(response.data["status"], ModeratedDocumentMixin.APPROVED)
 
     def test_restricted_user_post_enters_queue(self):
         # Arrange
@@ -98,4 +97,4 @@ class PostCreationGatingTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["status"], ResearchhubPost.PENDING)
+        self.assertEqual(response.data["status"], ModeratedDocumentMixin.PENDING)

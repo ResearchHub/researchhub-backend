@@ -15,7 +15,9 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.related_models.risk_score_model import RiskScore
 from user.tests.helpers import create_random_default_user
@@ -32,8 +34,8 @@ class PendingModerationRiskScoreTests(AWSMockTestCase):
 
     def _pending_preregistration(self, author):
         post = create_post(created_by=author, document_type=PREREGISTRATION)
-        post.status = ResearchhubPost.PENDING
-        post.save(update_fields=["status"])
+        post.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        post.unified_document.save(update_fields=["status"])
         return post
 
     def test_pending_items_include_risk_score_for_moderator(self):
@@ -100,11 +102,11 @@ class PendingModerationCountsTests(AWSMockTestCase):
         # Two proposals distinguish the two post-backed tabs from each other.
         for document_type in (PREREGISTRATION, PREREGISTRATION, DISCUSSION):
             post = create_post(created_by=author, document_type=document_type)
-            post.status = ResearchhubPost.PENDING
-            post.save(update_fields=["status"])
+            post.unified_document.status = ResearchhubUnifiedDocument.PENDING
+            post.unified_document.save(update_fields=["status"])
         paper = create_paper(uploaded_by=author)
-        paper.status = paper.PENDING
-        paper.save(update_fields=["status"])
+        paper.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        paper.unified_document.save(update_fields=["status"])
         client = APIClient()
         client.force_authenticate(create_random_default_user("mod", moderator=True))
 

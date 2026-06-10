@@ -122,7 +122,9 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         counted (grants gate on ``Grant.status``, everything else on its own
         status). Moderator-only.
         """
-        pending_posts = ResearchhubPost.objects.filter(status=ResearchhubPost.PENDING)
+        pending_posts = ResearchhubPost.objects.filter(
+            unified_document__status=ResearchhubUnifiedDocument.PENDING
+        )
         return Response(
             {
                 "funding_opportunities": Grant.objects.filter(
@@ -133,7 +135,8 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
                 ).count(),
                 "posts": pending_posts.filter(document_type=DISCUSSION).count(),
                 "journal_entries": Paper.objects.filter(
-                    status=Paper.PENDING, is_removed=False
+                    unified_document__status=ResearchhubUnifiedDocument.PENDING,
+                    is_removed=False,
                 ).count(),
             }
         )

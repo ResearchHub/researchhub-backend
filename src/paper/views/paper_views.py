@@ -239,6 +239,7 @@ class PaperViewSet(
                 # Risk-score gating at submission: trusted authors auto-approve,
                 # everyone else enters the moderation queue as PENDING and stays
                 # there through payment until a moderator approves.
+                work_status = RiskScoreService().initial_work_status(request.user)
                 paper_data = {
                     "title": title,
                     "paper_title": title,
@@ -247,7 +248,6 @@ class PaperViewSet(
                     "paper_publish_date": timezone.now(),
                     "pdf_license": "cc-by",
                     "work_type": work_type,
-                    "status": RiskScoreService().initial_work_status(request.user),
                 }
 
                 if pdf_url:
@@ -262,6 +262,11 @@ class PaperViewSet(
                         json_data={"paper_data": paper_data},
                     )
                     raise
+
+                # The Paper post_save signal creates the unified document, which
+                # owns moderation status; carry the gating decision onto it.
+                paper.unified_document.status = work_status
+                paper.unified_document.save(update_fields=["status"])
 
                 # Create paper series
                 try:

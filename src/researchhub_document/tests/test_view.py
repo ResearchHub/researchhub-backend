@@ -886,8 +886,8 @@ class ViewTests(APITestCase):
         """
         uploader = create_random_default_user("paper_uploader")
         pending_paper = create_paper(title="Pending paper", uploaded_by=uploader)
-        pending_paper.status = pending_paper.PENDING
-        pending_paper.save(update_fields=["status"])
+        pending_paper.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        pending_paper.unified_document.save(update_fields=["status"])
 
         metadata_url = (
             f"/api/researchhub_unified_document/{pending_paper.unified_document_id}"
