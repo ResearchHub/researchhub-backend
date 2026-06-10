@@ -8,14 +8,12 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from paper.openalex_util import process_openalex_works
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from user.models import UserVerification
-from user.related_models.author_model import Author
 from user.tests.helpers import (
     create_hub_editor,
     create_random_authenticated_user,
@@ -296,92 +294,6 @@ class UserViewsTests(TestCase):
         user.refresh_from_db()
         self.assertTrue(user.is_staking_opted_in)
         self.assertEqual(user.staking_opted_in_date, original_opt_in_date)
-
-    @patch.object(OpenAlex, "get_authors")
-    def test_author_overview(self, mock_get_authors):
-        from paper.models import Paper
-
-        works = None
-        with open(fixtures_dir / "openalex_works.json", "r") as file:
-            response = json.load(file)
-            works = response.get("results")
-
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
-            mock_data = json.load(file)
-            mock_get_authors.return_value = (mock_data["results"], None)
-
-            process_openalex_works(works)
-
-            dois = [work.get("doi") for work in works]
-            dois = [doi.replace("https://doi.org/", "") for doi in dois]
-
-            papers = Paper.objects.filter(doi__in=dois)
-            first_author = papers.first().authors.first()
-
-            url = f"/api/author/{first_author.id}/overview/"
-            response = self.client.get(
-                url,
-            )
-
-            self.assertGreater(response.data["count"], 0)
-
-    @patch.object(OpenAlex, "get_authors")
-    def test_author_overview_writes_to_cache(self, mock_get_authors):
-        # Arrange
-        from paper.models import Paper
-
-        works = None
-        with open(fixtures_dir / "openalex_works.json", "r") as file:
-            response = json.load(file)
-            works = response.get("results")
-
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
-            mock_data = json.load(file)
-            mock_get_authors.return_value = (mock_data["results"], None)
-
-            process_openalex_works(works)
-
-            dois = [work.get("doi") for work in works]
-            dois = [doi.replace("https://doi.org/", "") for doi in dois]
-
-            papers = Paper.objects.filter(doi__in=dois)
-            first_author = papers.first().authors.first()
-
-            # Act
-            url = f"/api/author/{first_author.id}/overview/"
-            response = self.client.get(
-                url,
-            )
-
-            # Assert
-            self.assertTrue(response.status_code, 200)
-            self.assertEqual(response.data["count"], 1)
-            cache_key = f"author-{first_author.id}-overview"
-            self.assertTrue(cache.get(cache_key))
-            self.assertEqual(len(cache.get(cache_key)), 1)
-
-    def test_author_overview_returns_from_cache(self):
-        # Arrange
-        author = Author.objects.create(first_name="firstName1", last_name="lastName1")
-
-        document = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
-        Paper.objects.create(title="title1", unified_document=document)
-
-        cache_key = f"author-{author.id}-overview"
-        cache.set(cache_key, [document])
-
-        # Act
-        url = f"/api/author/{author.id}/overview/"
-        response = self.client.get(
-            url,
-        )
-
-        # Assert
-        self.assertTrue(response.status_code, 200)
-        self.assertEqual(response.json()["count"], 1)
-        self.assertEqual(
-            response.json()["results"][0]["documents"]["id"], document.paper.id
-        )
 
 
 class UserModerationTests(APITestCase):

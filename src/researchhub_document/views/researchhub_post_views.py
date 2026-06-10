@@ -1,3 +1,5 @@
+import logging
+
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Prefetch
@@ -40,6 +42,8 @@ from user.models import User
 from user.permissions import IsVerifiedUser
 from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
+
+logger = logging.getLogger(__name__)
 
 MIN_POST_TITLE_LENGTH = 20
 MIN_POST_BODY_LENGTH = 50
@@ -607,5 +611,5 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             uni_doc.hubs.add(*hubs)
             uni_doc.save()
             return uni_doc
-        except (KeyError, TypeError) as exception:
-            print("create_unified_doc: ", exception)
+        except (KeyError, TypeError):
+            logger.exception("Error creating unified document")

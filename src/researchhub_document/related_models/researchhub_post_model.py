@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -21,6 +23,8 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import Author, User
+
+logger = logging.getLogger(__name__)
 
 
 class ResearchhubPostQuerySet(models.QuerySet):
@@ -242,8 +246,8 @@ class ResearchhubPost(AbstractGenericReactionModel):
                 byte_string = self.eln_src.read()
             full_markdown = byte_string.decode("utf-8")
             return full_markdown
-        except Exception as e:
-            print(e)
+        except Exception:
+            logger.exception("Error getting full markdown for document %s", self.id)
             return None
 
     def get_discussion_count(self):
