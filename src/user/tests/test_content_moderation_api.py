@@ -124,6 +124,13 @@ class PendingModerationFeedTests(APITestCase):
         unified_document.save(update_fields=["status"])
         return post
 
+    def _pending_paper(self):
+        paper = create_paper(uploaded_by=self.author)
+        unified_document = paper.unified_document
+        unified_document.status = ResearchhubUnifiedDocument.PENDING
+        unified_document.save(update_fields=["status"])
+        return paper
+
     def test_pending_proposals_feed_returns_pending(self):
         # Arrange
         post = self._pending_post(PREREGISTRATION)
@@ -141,10 +148,7 @@ class PendingModerationFeedTests(APITestCase):
 
     def test_pending_journal_entries_feed_returns_pending_papers(self):
         # Arrange
-        paper = create_paper(uploaded_by=self.author)
-        unified_document = paper.unified_document
-        unified_document.status = ResearchhubUnifiedDocument.PENDING
-        unified_document.save(update_fields=["status"])
+        paper = self._pending_paper()
         PaperVersion.objects.create(
             paper=paper,
             version=1,

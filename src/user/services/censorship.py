@@ -28,14 +28,22 @@ def resolve_censorship(verdict):
     themselves, documents against their unified_document.
     """
     content = _flagged_content(verdict)
-    if content is None or getattr(content, "status", None) == DECLINED_STATUS:
+    if content is None:
         return None, None
 
     if isinstance(content, RhCommentModel):
         return content.created_by, content
 
+    unified_document = getattr(content, "unified_document", None)
+    declined = DECLINED_STATUS in (
+        getattr(content, "status", None),
+        getattr(unified_document, "status", None),
+    )
+    if declined:
+        return None, None
+
     if isinstance(content, Paper):
         author = content.uploaded_by
     else:
         author = getattr(content, "created_by", None)
-    return author, getattr(content, "unified_document", None)
+    return author, unified_document
