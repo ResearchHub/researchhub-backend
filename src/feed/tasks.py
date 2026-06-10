@@ -62,7 +62,8 @@ def create_feed_entry(
     if (
         action == FeedEntry.PUBLISH
         and isinstance(item, (ResearchhubPost, Paper))
-        and not item.is_approved
+        and unified_document is not None
+        and not unified_document.is_approved
     ):
         return None
 

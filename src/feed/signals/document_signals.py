@@ -50,7 +50,7 @@ def _create_document_feed_entries(instance, pk_set):
         item = instance.get_document()
 
         # Works awaiting moderation publish on approval, not when hubs change.
-        if not getattr(item, "is_approved", True):
+        if not instance.is_approved:
             return
 
         # Get the user from the document
@@ -77,7 +77,7 @@ def _create_document_feed_entries(instance, pk_set):
             item = unified_document.get_document()
 
             # Works awaiting moderation publish on approval, not when hubs change.
-            if not getattr(item, "is_approved", True):
+            if not unified_document.is_approved:
                 continue
 
             hub_ids = list(item.hubs.values_list("id", flat=True))

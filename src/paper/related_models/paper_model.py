@@ -42,13 +42,17 @@ class PaperQuerySet(models.QuerySet):
         """Restrict to papers by moderation status the given user may see.
 
         This is a moderation-status gate, not the full privacy gate: papers
-        that have cleared moderation (``status=APPROVED``) pass for everyone,
-        while papers still awaiting moderation or declined pass only for their
-        uploader and for site moderators / hub editors. The ``is_public`` flag
-        is layered on separately by callers that need it (see
-        ``ResearchhubUnifiedDocument.is_visible_to_user``).
+        whose unified document has cleared moderation (``status=APPROVED``)
+        pass for everyone, while papers still awaiting moderation or declined
+        pass only for their uploader and for site moderators / hub editors.
+        The ``is_public`` flag is layered on separately by callers that need it
+        (see ``ResearchhubUnifiedDocument.is_visible_to_user``).
         """
-        approved = Q(status=ModeratedDocumentMixin.APPROVED)
+        # A paper without a unified document is not under moderation, so treat
+        # it as cleared.
+        approved = Q(unified_document__status=ModeratedDocumentMixin.APPROVED) | Q(
+            unified_document__isnull=True
+        )
         if user is None or not getattr(user, "is_authenticated", False):
             return self.filter(approved)
         if user.is_moderator_or_editor():
@@ -56,7 +60,7 @@ class PaperQuerySet(models.QuerySet):
         return self.filter(approved | Q(uploaded_by=user))
 
 
-class Paper(ModeratedDocumentMixin, AbstractGenericReactionModel):
+class Paper(AbstractGenericReactionModel):
     REGULAR = "REGULAR"
     PRE_REGISTRATION = "PRE_REGISTRATION"
 
@@ -224,7 +228,6 @@ class Paper(ModeratedDocumentMixin, AbstractGenericReactionModel):
             HashIndex(fields=("pdf_url",), name="paper_paper_pdf_url_hix"),
             Index(Func("doi", function="UPPER"), name="paper_paper_doi_upper_idx"),
             Index(fields=["paper_publish_date"], name="paper_paper_publish_date_idx"),
-            Index(fields=["status"], name="paper_paper_status_idx"),
         )
 
     def __str__(self):
@@ -449,7 +452,7 @@ class Paper(ModeratedDocumentMixin, AbstractGenericReactionModel):
     def update_scores_citations(self, author):
         hub = self.unified_document.get_primary_hub()
         if hub is None:
-            print(f"Paper {self.id} has no primary hub")
+            logger.warning("Paper %s has no primary hub", self.id)
             return
 
         citation_entries = Citation.objects.filter(paper=self).order_by("created_date")

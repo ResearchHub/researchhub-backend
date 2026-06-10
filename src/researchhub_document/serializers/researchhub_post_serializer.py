@@ -1,3 +1,5 @@
+import logging
+
 from django.core.files.storage import default_storage
 from django.db.models import Count
 from rest_framework.serializers import CharField, ModelSerializer, SerializerMethodField
@@ -25,6 +27,8 @@ from user.serializers import (
     UserSerializer,
 )
 from utils.http import get_user_from_request
+
+logger = logging.getLogger(__name__)
 
 
 class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin):
@@ -215,8 +219,8 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 byte_string = instance.eln_src.read()
             full_markdown = byte_string.decode("utf-8")
             return full_markdown
-        except Exception as e:
-            print(e)
+        except Exception:
+            logger.exception("Error getting full markdown for document")
             return None
 
     def get_hubs(self, instance):

@@ -33,10 +33,12 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.related_models.document_filter_model import DocumentFilter
 from user.models import Author
-from utils.models import DefaultModel, SoftDeletableModel
+from utils.models import DefaultModel, ModeratedDocumentMixin, SoftDeletableModel
 
 
-class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel):
+class ResearchhubUnifiedDocument(
+    ModeratedDocumentMixin, SoftDeletableModel, HotScoreMixin, DefaultModel
+):
     document_type = models.CharField(
         choices=DOCUMENT_TYPES,
         default=PAPER,
@@ -93,6 +95,19 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
                 fields=("document_type",),
                 name="uni_doc_not_note_doc_type_idx",
                 condition=~Q(document_type=NOTE),
+            ),
+            # Partial index: only the moderation queue (pending/declined) is ever
+            # filtered by status, so indexing those rows keeps it small on a
+            # large table where the vast majority of works are approved.
+            models.Index(
+                fields=["status"],
+                name="uni_doc_status_pending_idx",
+                condition=Q(
+                    status__in=[
+                        ModeratedDocumentMixin.PENDING,
+                        ModeratedDocumentMixin.DECLINED,
+                    ]
+                ),
             ),
             models.Index(
                 fields=["document_type", "-hot_score"], name="doc_type_hot_score_idx"

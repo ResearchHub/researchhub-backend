@@ -363,8 +363,8 @@ def recalculate_rep_all_users():
     for user in User.objects.iterator():
         try:
             user.calculate_hub_scores()
-        except Exception as e:
-            print(f"Error calculating rep for user {user.id}: {e}")
+        except Exception:
+            logger.exception("Error calculating rep for user %s", user.id)
             continue
 
 

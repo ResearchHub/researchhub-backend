@@ -108,7 +108,7 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
                 author = Author.objects.get(pk=author_id)
                 valid_authors.append(author)
             except Author.DoesNotExist:
-                print(f"Author with id {author_id} was not found.")
+                logger.warning("Author with ID %s not found", author_id)
         data["authors"] = valid_authors
 
         return data

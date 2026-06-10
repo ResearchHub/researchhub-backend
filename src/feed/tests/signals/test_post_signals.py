@@ -93,7 +93,7 @@ class TestPostSignals(AWSMockTestCase):
         # Arrange
         mock_transaction.on_commit = lambda func: func()
         mock_create_feed_entry.apply_async = MagicMock()
-        self.post.status = ResearchhubPost.PENDING
+        self.post.unified_document.status = ResearchhubUnifiedDocument.PENDING
 
         # Act
         handle_post_create_feed_entry(sender=ResearchhubPost, instance=self.post)
@@ -107,7 +107,7 @@ class TestPostSignals(AWSMockTestCase):
         # Arrange
         mock_transaction.on_commit = lambda func: func()
         mock_create_feed_entry.apply_async = MagicMock()
-        self.post.status = ResearchhubPost.DECLINED
+        self.post.unified_document.status = ResearchhubUnifiedDocument.DECLINED
 
         # Act
         handle_post_create_feed_entry(sender=ResearchhubPost, instance=self.post)
