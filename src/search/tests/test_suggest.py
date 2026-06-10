@@ -14,13 +14,6 @@ class SuggestViewTests(TestCase):
         self.client = APIClient()
         self.url = reverse("suggest")
 
-        # Add debug method
-        self.debug_log = []
-
-    def log_debug(self, message):
-        print(message)  # Print immediately for test output
-        self.debug_log.append(message)
-
     def test_missing_query_param(self):
         """Test that missing query parameter returns 400"""
         response = self.client.get(self.url)
@@ -301,19 +294,13 @@ class SuggestViewTests(TestCase):
                     return MockResponseUser()
                 # Default response for unknown indexes
                 return MockResponsePaper()
-            except Exception as e:
-                print(f"ERROR IN MOCK: {str(e)}")
+            except Exception:
                 # Return paper response as fallback
                 return MockResponsePaper()
 
         mock_es_execute.side_effect = mock_execute_side_effect
 
         response = self.client.get(self.url + "?q=test&index=paper,user")
-        print("\nDEBUG RESPONSE:", response.status_code)
-        if response.status_code != status.HTTP_200_OK:
-            print(
-                "ERROR DATA:", response.data
-            )  # Print error data if response is not 200
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Should have results from both indexes
@@ -797,39 +784,26 @@ class SuggestViewTests(TestCase):
         def mock_execute_side_effect(search):
             try:
                 current_index = search.index._name
-                self.log_debug(f"MOCK EXECUTE: Called with index: {current_index}")
-
                 if "paper" in current_index:
-                    self.log_debug("MOCK EXECUTE: Returning paper options")
                     return MockResponsePaper()
                 elif "hub" in current_index:
-                    self.log_debug("MOCK EXECUTE: Returning hub options")
                     return MockResponseHub()
                 elif "user" in current_index:
-                    self.log_debug("MOCK EXECUTE: Returning user options")
                     return MockResponseUser()
                 else:
-                    self.log_debug("MOCK EXECUTE: Returning default paper options")
                     return MockResponsePaper()
-            except Exception as e:
-                self.log_debug(f"MOCK EXECUTE ERROR: {str(e)}")
+            except Exception:
                 return MockResponsePaper()
 
         mock_es_execute.side_effect = mock_execute_side_effect
 
         # Test with default scoring (no balanced parameter)
-        self.log_debug(
-            "SENDING REQUEST: " + self.url + "?q=test&index=paper,hub,user&limit=5"
-        )
         response = self.client.get(self.url + "?q=test&index=paper,hub,user&limit=5")
-        self.log_debug("RESPONSE STATUS: " + str(response.status_code))
-        self.log_debug("RESPONSE DATA: " + str(response.data))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Results should be ordered by score: user (highest) -> paper -> hub (lowest)
         entity_types = [result["entity_type"] for result in response.data[:3]]
-        self.log_debug("ENTITY TYPES: " + str(entity_types))
 
         if len(entity_types) > 0:
             # User should be first (highest score)
