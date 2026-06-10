@@ -426,7 +426,7 @@ class Paper(AbstractGenericReactionModel):
     def update_scores_citations(self, author):
         hub = self.unified_document.get_primary_hub()
         if hub is None:
-            print(f"Paper {self.id} has no primary hub")
+            logger.warning("Paper %s has no primary hub", self.id)
             return
 
         citation_entries = Citation.objects.filter(paper=self).order_by("created_date")

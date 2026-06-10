@@ -77,10 +77,10 @@ def generate_thumbnail_for_figure(figure) -> bool:
 @app.task(queue=QUEUE_PAPER_MISC)
 def celery_extract_pdf_preview(paper_id, retry=0):
     if paper_id is None or retry > 2:
-        print("No paper id for pdf preview")
+        logger.warning("No paper ID for PDF preview")
         return False
 
-    print(f"Extracting pdf figures for paper: {paper_id}")
+    logger.info("Extracting PDF figures for paper %s", paper_id)
 
     Paper = apps.get_model("paper.Paper")
     Figure = apps.get_model("paper.Figure")
@@ -88,7 +88,7 @@ def celery_extract_pdf_preview(paper_id, retry=0):
 
     file = paper.file
     if not file:
-        print(f"No file exists for paper: {paper_id}")
+        logger.info("No file exists for paper %s", paper_id)
         celery_extract_pdf_preview.apply_async(
             (paper.id, retry + 1),
             priority=6,
