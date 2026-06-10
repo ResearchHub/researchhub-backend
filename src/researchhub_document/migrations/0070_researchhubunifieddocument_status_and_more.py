@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AddField(
-            model_name="researchhubpost",
+            model_name="researchhubunifieddocument",
             name="status",
             field=models.CharField(
                 choices=[
@@ -28,30 +28,24 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AddField(
-            model_name="researchhubpost",
+            model_name="researchhubunifieddocument",
             name="reviewed_by",
             field=models.ForeignKey(
                 blank=True,
                 help_text="Moderator who approved or declined this work",
                 null=True,
                 on_delete=models.deletion.SET_NULL,
-                related_name="reviewed_researchhubposts",
+                related_name="reviewed_researchhubunifieddocuments",
                 to=settings.AUTH_USER_MODEL,
             ),
         ),
         migrations.AddField(
-            model_name="researchhubpost",
+            model_name="researchhubunifieddocument",
             name="reviewed_date",
             field=models.DateTimeField(
                 blank=True,
                 help_text="When the work was approved or declined",
                 null=True,
-            ),
-        ),
-        migrations.AddIndex(
-            model_name="researchhubpost",
-            index=models.Index(
-                fields=["status"], name="researchhub_post_status_idx"
             ),
         ),
     ]

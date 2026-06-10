@@ -1,3 +1,4 @@
+import logging
 from urllib.parse import urlparse
 
 import requests
@@ -49,6 +50,8 @@ from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, PostOnly
 from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
+
+logger = logging.getLogger(__name__)
 
 
 class PaperViewSet(
@@ -134,9 +137,11 @@ class PaperViewSet(
             return response
         except IntegrityError as e:
             return self._get_integrity_error_response(e)
-        except PaperSerializerError as e:
-            print("EXCEPTION: ", e)
-            return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+        except PaperSerializerError:
+            logger.exception("Failed to serialize paper")
+            return Response(
+                "Failed to serialize paper", status=status.HTTP_400_BAD_REQUEST
+            )
 
     @track_event
     @action(

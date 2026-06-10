@@ -8,14 +8,15 @@ from django.db import models, transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from paper.related_models.paper_model import Paper
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
 from reputation.related_models.bounty import BountySolution
 from research_ai.models import GeneratedEmail
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.constants.document_type import GRANT
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.related_models.risk_score_model import RiskScoreEvent
 from user.related_models.user_model import User
 from user.related_models.user_verification_model import UserVerification
@@ -63,19 +64,35 @@ def _record_review_assessments_on(comment: RhCommentModel | None) -> None:
 
 
 def _moderated_work_event_type(
-    instance: ResearchhubPost | Paper, *, created: bool
+    unified_document: ResearchhubUnifiedDocument, *, created: bool
 ) -> EventType | None:
     """Return the event a moderated work earned, or None when the save isn't a
     scoring moment: creations and auto-approvals (status defaults to APPROVED
     with no reviewer) leave `reviewed_by` empty, so only reviewed works score.
     """
-    if created or instance.reviewed_by_id is None:
+    if created or unified_document.reviewed_by_id is None:
         return None
-    if instance.status == instance.APPROVED:
+    if unified_document.status == unified_document.APPROVED:
         return EventType.WORK_APPROVED
-    if instance.status == instance.DECLINED:
+    if unified_document.status == unified_document.DECLINED:
         return EventType.WORK_DECLINED
     return None
+
+
+def _work_owner_and_source(
+    unified_document: ResearchhubUnifiedDocument,
+) -> tuple[int | None, User | None, models.Model | None]:
+    """Resolve the author who earns the score and the work used as the event
+    source. The score belongs to the paper's uploader or the post's creator;
+    OpenAlex-imported papers have no uploader, so no one earns the points.
+    """
+    paper = getattr(unified_document, "paper", None)
+    if paper is not None:
+        return paper.uploaded_by_id, paper.uploaded_by, paper
+    post = unified_document.posts.first()
+    if post is not None:
+        return post.created_by_id, post.created_by, post
+    return None, None, None
 
 
 @receiver(post_save, sender=Grant, dispatch_uid="risk_score_on_grant_status_changed")
@@ -95,40 +112,27 @@ def on_grant_status_changed(sender, instance: Grant, **kwargs) -> None:
 
 @receiver(
     post_save,
-    sender=ResearchhubPost,
-    dispatch_uid="risk_score_on_post_status_changed",
+    sender=ResearchhubUnifiedDocument,
+    dispatch_uid="risk_score_on_unified_document_status_changed",
 )
-def on_post_status_changed(
-    sender, instance: ResearchhubPost, created: bool, **kwargs
+def on_unified_document_status_changed(
+    sender, instance: ResearchhubUnifiedDocument, created: bool, **kwargs
 ) -> None:
-    # Grants score via on_grant_status_changed; skip GRANT posts so a single
+    # Grants score via on_grant_status_changed; skip GRANT documents so a single
     # review doesn't fire twice when both rows update together.
     if instance.document_type == GRANT:
         return
 
     event_type = _moderated_work_event_type(instance, created=created)
-    if event_type is None or not instance.created_by_id:
+    if event_type is None:
+        return
+
+    owner_id, owner, source = _work_owner_and_source(instance)
+    if not owner_id:
         return
 
     def record() -> None:
-        _service.record_event(instance.created_by, event_type, source=instance)
-
-    _run_after_commit(instance, record)
-
-
-@receiver(
-    post_save,
-    sender=Paper,
-    dispatch_uid="risk_score_on_paper_status_changed",
-)
-def on_paper_status_changed(sender, instance: Paper, created: bool, **kwargs) -> None:
-    # OpenAlex-imported papers have no uploader, so no one earns the points.
-    event_type = _moderated_work_event_type(instance, created=created)
-    if event_type is None or not instance.uploaded_by_id:
-        return
-
-    def record() -> None:
-        _service.record_event(instance.uploaded_by, event_type, source=instance)
+        _service.record_event(owner, event_type, source=source)
 
     _run_after_commit(instance, record)
 

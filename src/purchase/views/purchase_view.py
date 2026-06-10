@@ -1,5 +1,6 @@
 import datetime
 import decimal
+import logging
 import time
 
 from django.contrib.contenttypes.models import ContentType
@@ -31,6 +32,8 @@ from researchhub_document.models import ResearchhubPost
 from user.models import Action, User
 from utils.permissions import CreateOrReadOnly
 from utils.throttles import THROTTLE_CLASSES
+
+logger = logging.getLogger(__name__)
 
 
 class PurchaseViewSet(viewsets.ModelViewSet):
@@ -283,8 +286,10 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 return
             else:
                 paper_id = paper.id
-        except Exception as e:
-            print(e)
+        except Exception:
+            logger.exception(
+                "Failed to get paper for unified document %s", unified_doc.id
+            )
 
         sender_balance_date = datetime.datetime.now().strftime("%m/%d/%Y")
         amount = purchase.amount

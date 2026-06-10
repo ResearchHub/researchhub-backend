@@ -1,7 +1,9 @@
 from django.test import TestCase
 
-from paper.related_models.paper_model import Paper
 from paper.tests.helpers import create_paper
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.tests.helpers import create_random_default_user
 
 
@@ -14,13 +16,18 @@ class PaperStatusTests(TestCase):
         paper = create_paper(uploaded_by=self.user)
 
         # Assert
-        self.assertEqual(paper.status, Paper.APPROVED)
-        self.assertIsNone(paper.reviewed_by)
-        self.assertIsNone(paper.reviewed_date)
+        unified_document = paper.unified_document
+        self.assertEqual(unified_document.status, ResearchhubUnifiedDocument.APPROVED)
+        self.assertIsNone(unified_document.reviewed_by)
+        self.assertIsNone(unified_document.reviewed_date)
 
     def test_status_choices_match_constants(self):
         # Assert
         self.assertEqual(
-            set(dict(Paper.STATUS_CHOICES).keys()),
-            {Paper.PENDING, Paper.APPROVED, Paper.DECLINED},
+            set(dict(ResearchhubUnifiedDocument.STATUS_CHOICES).keys()),
+            {
+                ResearchhubUnifiedDocument.PENDING,
+                ResearchhubUnifiedDocument.APPROVED,
+                ResearchhubUnifiedDocument.DECLINED,
+            },
         )

@@ -234,9 +234,10 @@ class Topic(DefaultModel):
                 hub.subfield = subfield
                 hub.is_used_for_rep = True
                 hub.save()
-        except Exception as e:
-            pass
-            print(f"Error creating hub {subfield.display_name}: {e}")
+        except Exception:
+            logger.exception(
+                "Error creating hub for subfield %s", subfield.display_name
+            )
 
         # Upsert topic
         mapped = {

@@ -24,7 +24,6 @@ from reputation.related_models.paper_reward import HubCitationValue
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
 from utils.aws import lambda_compress_and_linearize_pdf
-from utils.models import ModeratedDocumentMixin
 
 DOI_IDENTIFIER = "10."
 ARXIV_IDENTIFIER = "arXiv:"
@@ -37,7 +36,7 @@ HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 logger = logging.getLogger(__name__)
 
 
-class Paper(ModeratedDocumentMixin, AbstractGenericReactionModel):
+class Paper(AbstractGenericReactionModel):
     REGULAR = "REGULAR"
     PRE_REGISTRATION = "PRE_REGISTRATION"
 
@@ -203,7 +202,6 @@ class Paper(ModeratedDocumentMixin, AbstractGenericReactionModel):
             HashIndex(fields=("pdf_url",), name="paper_paper_pdf_url_hix"),
             Index(Func("doi", function="UPPER"), name="paper_paper_doi_upper_idx"),
             Index(fields=["paper_publish_date"], name="paper_paper_publish_date_idx"),
-            Index(fields=["status"], name="paper_paper_status_idx"),
         )
 
     def __str__(self):
@@ -428,7 +426,7 @@ class Paper(ModeratedDocumentMixin, AbstractGenericReactionModel):
     def update_scores_citations(self, author):
         hub = self.unified_document.get_primary_hub()
         if hub is None:
-            print(f"Paper {self.id} has no primary hub")
+            logger.warning("Paper %s has no primary hub", self.id)
             return
 
         citation_entries = Citation.objects.filter(paper=self).order_by("created_date")

@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -21,7 +23,8 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import Author, User
-from utils.models import ModeratedDocumentMixin
+
+logger = logging.getLogger(__name__)
 
 
 class ResearchhubPostQuerySet(models.QuerySet):
@@ -61,7 +64,7 @@ class ResearchhubPostQuerySet(models.QuerySet):
         ).distinct()
 
 
-class ResearchhubPost(ModeratedDocumentMixin, AbstractGenericReactionModel):
+class ResearchhubPost(AbstractGenericReactionModel):
     authors = models.ManyToManyField(
         Author,
         related_name="authored_posts",
@@ -168,11 +171,6 @@ class ResearchhubPost(ModeratedDocumentMixin, AbstractGenericReactionModel):
 
     objects = ResearchhubPostQuerySet.as_manager()
 
-    class Meta:
-        indexes = [
-            models.Index(fields=["status"], name="researchhub_post_status_idx"),
-        ]
-
     @property
     def is_latest_version(self):
         return self.next_version is None
@@ -248,8 +246,8 @@ class ResearchhubPost(ModeratedDocumentMixin, AbstractGenericReactionModel):
                 byte_string = self.eln_src.read()
             full_markdown = byte_string.decode("utf-8")
             return full_markdown
-        except Exception as e:
-            print(e)
+        except Exception:
+            logger.exception("Error getting full markdown for document %s", self.id)
             return None
 
     def get_discussion_count(self):
