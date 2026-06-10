@@ -189,10 +189,16 @@ class OpenAlex:
         res = self._get(f"authors/{orcid_lookup}")
         return res
 
-    def search_authors_via_name(self, name, page=1):
+    def search_authors_via_name(self, name, page=1, institution_id=None):
         filters = {"search": name, "page": page, "per_page": 10}
+        if institution_id:
+            filters["filter"] = f"affiliations.institution.id:{institution_id}"
         res = self._get("authors", filters=filters)
         return res
+
+    def search_institutions(self, query, page=1):
+        filters = {"search": query, "page": page, "per_page": 5}
+        return self._get("institutions", filters=filters)
 
     # Hydrates a list of dehydrated paper concepts with fresh and expanded data from
     # OpenAlex
