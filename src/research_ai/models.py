@@ -132,6 +132,15 @@ class Expert(DefaultModel):
     expertise = models.TextField(blank=True)
     notes = models.TextField(blank=True)
     sources = models.JSONField(default=list, blank=True)
+    profile = models.JSONField(
+        default=dict,
+        blank=True,
+        db_comment=(
+            "Persisted, source-attributed researcher profile built once by "
+            "researcher_profile_service (OpenAlex/ORCID resolver + web search) and "
+            "reused by the proposal draft engine and source verifier."
+        ),
+    )
     is_manually_added = models.BooleanField(
         default=False,
         db_comment=(
