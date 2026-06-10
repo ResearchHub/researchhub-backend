@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from ai_peer_review.models import ProposalReview
+from feed.cache_segment import get_feed_cache_segment
 from feed.feed_list_dto import GrantFeedListEntrySerializer
 from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
@@ -54,10 +55,13 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
         page_num = int(page)
-        cache_key = self.get_cache_key(request, "grants")
-        use_cache = page_num <= GRANT_FEED_MAX_CACHED_PAGE
+        suffix, should_cache = get_feed_cache_segment(request)
+        use_cache = should_cache and page_num <= GRANT_FEED_MAX_CACHED_PAGE
+        cache_key = (
+            (self.get_cache_key(request, "grants") + suffix) if use_cache else None
+        )
 
-        if use_cache:
+        if cache_key:
             cached_response = cache.get(cache_key)
             if cached_response:
                 return Response(cached_response)
@@ -84,7 +88,7 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
         )
         response_data = self.get_paginated_response(serializer.data).data
 
-        if use_cache:
+        if cache_key:
             cache.set(cache_key, response_data, timeout=self.DEFAULT_CACHE_TIMEOUT)
 
         return Response(response_data)
