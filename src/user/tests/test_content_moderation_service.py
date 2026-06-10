@@ -1,8 +1,6 @@
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
-from django.test import TestCase
-
 from discussion.models import Flag
 from notification.models import Notification
 from paper.tests.helpers import create_paper
@@ -19,11 +17,12 @@ from user.related_models.risk_score_model import RiskScoreEvent
 from user.related_models.verdict_model import Verdict
 from user.services.content_moderation_service import ContentModerationService
 from user.tests.helpers import create_random_authenticated_user
+from utils.test_helpers import AWSMockTransactionTestCase
 
 EventType = RiskScoreEvent.EventType
 
 
-class ContentModerationServiceTests(TestCase):
+class ContentModerationServiceTests(AWSMockTransactionTestCase):
     def setUp(self):
         self.service = ContentModerationService()
         self.moderator = create_random_authenticated_user("cms_mod", moderator=True)
@@ -38,6 +37,8 @@ class ContentModerationServiceTests(TestCase):
         return post
 
     def test_approve_marks_reviewed_and_notifies(self):
+        # Arrange - self.post is a pending post created in setUp
+
         # Act
         self.service.approve_content(self.post, self.moderator)
 
@@ -53,6 +54,8 @@ class ContentModerationServiceTests(TestCase):
         self.assertTrue(notification.body)
 
     def test_decline_flags_removes_doc_and_notifies(self):
+        # Arrange - self.post is a pending post created in setUp
+
         # Act
         self.service.decline_content(
             self.post, self.moderator, reason="Spam", reason_choice="SPAM"

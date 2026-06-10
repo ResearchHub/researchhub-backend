@@ -91,8 +91,11 @@ class ContentModerationService:
         if content.unified_document.status != ResearchhubUnifiedDocument.PENDING:
             raise ValueError(f"Only pending content can be {past_tense}")
 
-    def _grant_for(self, content: ModerationTarget) -> Grant | None:
-        return content.unified_document.grants.first()
+    def _grant_for(self, content: ModerationTarget) -> Grant:
+        grant = content.unified_document.grants.first()
+        if grant is None:
+            raise ValueError("Grant content has no associated grant to moderate")
+        return grant
 
     def _author(self, content: ModerationTarget) -> User | None:
         return content.uploaded_by if isinstance(content, Paper) else content.created_by
