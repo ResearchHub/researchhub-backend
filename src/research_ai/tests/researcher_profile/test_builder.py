@@ -11,7 +11,6 @@ from research_ai.tests.researcher_profile.helpers import (
     make_expert,
     oa_author_record,
     oa_work,
-    orcid_work,
 )
 
 
@@ -135,25 +134,20 @@ class BuildProfileTests(SimpleTestCase):
         self.assertEqual(profile["works"], [])
         self.assertEqual(profile["claims"], [])
 
-    @patch("research_ai.services.researcher_profile.works.fetch_orcid_works")
-    def test_falls_back_to_orcid_works_when_openalex_works_fail(self, mock_orcid):
-        # Arrange: author resolves (with an ORCID) but the works listing errors.
+    def test_openalex_works_failure_is_recorded(self):
+        # Arrange: author resolves but the works listing errors.
         client = MagicMock()
         client.search_institutions.return_value = {
             "results": [{"id": "https://openalex.org/I1"}]
         }
         client.search_authors_via_name.return_value = {"results": [oa_author_record()]}
         client.get_works.side_effect = RuntimeError("works api down")
-        mock_orcid.return_value = {
-            "group": [{"work-summary": [orcid_work("Fallback Paper", year="2020")]}]
-        }
         # Act
         profile = builder.build_expert_profile(
             make_expert(affiliation="Stanford University"), oa_client=client
         )
-        # Assert: ORCID works fill in and the OpenAlex failure is recorded.
-        self.assertEqual(profile["works"][0]["title"], "Fallback Paper")
-        self.assertIsNone(profile["works"][0]["author_position"])
+        # Assert: the profile still builds; the failure is recorded, not raised.
+        self.assertEqual(profile["works"], [])
         self.assertTrue(any(e.startswith("openalex-works") for e in profile["errors"]))
 
 

@@ -1,10 +1,11 @@
-"""Resolver: map an ``Expert`` to an OpenAlex author id (and ORCID when findable).
+"""Resolver: map an ``Expert`` to an OpenAlex author id.
 
 Resolution ladder, most to least certain -- it stops at the first rung that
 produces a match and returns "unresolved" rather than guess:
 
-1. **source-link** -- an ORCID / OpenAlex URL the expert finder already cited
-   in ``expert.sources``.
+1. **source-link** -- an OpenAlex author URL or ORCID iD the expert finder
+   already cited in ``expert.sources``. An ORCID here is only a lookup key
+   into OpenAlex's ``/authors`` endpoint; there is no ORCID API integration.
 2. **name+affiliation** -- the affiliation string is resolved to an OpenAlex
    *institution* (OpenAlex's own entity resolution handles abbreviations,
    aliases, and other languages), then the author search is scoped to that
@@ -50,19 +51,9 @@ def _norm(value: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def _bare_orcid(value: str | None) -> str | None:
-    if not value:
-        return None
-    s = str(value).strip()
-    if "orcid.org/" in s:
-        s = s.split("orcid.org/", 1)[-1]
-    return s.strip().strip("/").upper() or None
-
-
 @dataclass
 class AuthorResolution:
     openalex_author_id: str | None = None
-    orcid: str | None = None
     display_name: str | None = None
     match_score: float = 0.0
     match_method: str = "unresolved"
@@ -73,7 +64,6 @@ class AuthorResolution:
     def as_dict(self) -> dict:
         return {
             "openalex_author_id": self.openalex_author_id,
-            "orcid": self.orcid,
             "display_name": self.display_name,
             "match_score": round(self.match_score, 3),
             "match_method": self.match_method,
@@ -157,7 +147,7 @@ def resolve_openalex_author(
     expert, *, client: OpenAlex | None = None, adjudication_service=None
 ) -> AuthorResolution:
     """
-    Resolve an ``Expert`` to an OpenAlex author record (and ORCID when present).
+    Resolve an ``Expert`` to an OpenAlex author record.
 
     Walks the resolution ladder in the module docstring; every rung prefers
     returning an unresolved result over guessing.
@@ -174,17 +164,12 @@ def resolve_openalex_author(
             return AuthorResolution(
                 openalex_author_id=record.get("id")
                 or (f"https://openalex.org/{src_oa}" if src_oa else None),
-                orcid=_bare_orcid(record.get("orcid")) or src_orcid,
                 display_name=record.get("display_name"),
                 match_score=1.0,
                 match_method="source-link",
                 record=record,
             )
-        if src_orcid:
-            # We trust the explicit ORCID link even if the OpenAlex join missed.
-            return AuthorResolution(
-                orcid=src_orcid, match_score=1.0, match_method="source-link"
-            )
+        # No OpenAlex record behind the cited id -> fall through to name search.
 
     name = search_name(expert)
     if not name:
@@ -205,7 +190,6 @@ def resolve_openalex_author(
             name_s, record = scored[0]
             return AuthorResolution(
                 openalex_author_id=record.get("id"),
-                orcid=_bare_orcid(record.get("orcid")),
                 display_name=record.get("display_name"),
                 match_score=0.6 * name_s + 0.4,
                 match_method="name+affiliation",
@@ -230,7 +214,6 @@ def resolve_openalex_author(
         name_s, record = scored[0]
         return AuthorResolution(
             openalex_author_id=record.get("id"),
-            orcid=_bare_orcid(record.get("orcid")),
             display_name=record.get("display_name"),
             match_score=name_s,
             match_method="name",
@@ -256,7 +239,6 @@ def resolve_openalex_author(
         )
     return AuthorResolution(
         openalex_author_id=record.get("id"),
-        orcid=_bare_orcid(record.get("orcid")),
         display_name=record.get("display_name"),
         match_score=confidence,
         match_method="llm-adjudicated",

@@ -33,13 +33,6 @@ def oa_author_record(**overrides):
     return record
 
 
-def orcid_work(title, year=None):
-    ws = {"title": {"title": {"value": title}}}
-    if year:
-        ws["publication-date"] = {"year": {"value": year}}
-    return ws
-
-
 def oa_work(title, year, position, author_id="https://openalex.org/A123"):
     slug = title.lower().replace(" ", "-")
     return {

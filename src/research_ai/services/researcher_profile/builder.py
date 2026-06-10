@@ -131,8 +131,6 @@ def _build_context_text(
     head = [f"Researcher profile: {search_name(expert)}".rstrip(": ")]
     if resolution.openalex_author_id:
         head.append(f"OpenAlex author: {resolution.openalex_author_id}")
-    if resolution.orcid:
-        head.append(f"ORCID: {resolution.orcid}")
     chunks.append("\n".join(head))
 
     oa_text = format_openalex_author_record(record) if record else ""
@@ -160,8 +158,8 @@ def build_expert_profile(
     """
     Build the source-attributed researcher profile for an ``Expert`` (no write).
 
-    Resolver -> OpenAlex author record -> works (ORCID fallback). Every stage
-    is best-effort: failures are captured in ``errors`` and the profile is
+    Resolver -> OpenAlex author record -> OpenAlex works. Every stage is
+    best-effort: failures are captured in ``errors`` and the profile is
     still returned with whatever was found.
     """
     errors: list[str] = []

@@ -9,9 +9,8 @@ cannot be called directly.
 
 This package adds the net-new piece, one module per concern:
 
-- ``resolver``       maps the ``Expert`` (known id links, else name +
-                     affiliation) to an OpenAlex author id (and ORCID when
-                     findable)
+- ``resolver``       maps the ``Expert`` (cited id links, else name +
+                     affiliation) to an OpenAlex author id
 - ``adjudication``   conservative LLM verdict for ambiguous resolver candidates
 - ``works``          fetches and selects the expert's papers (first/last
                      authorship outranks middle, then recency)
@@ -30,7 +29,6 @@ verifier (Part 3) later checks against -- entries without a real URL are dropped
       "built_at": "<ISO 8601>",
       "resolution": {
         "openalex_author_id": str | None,
-        "orcid": str | None,
         "display_name": str | None,
         "match_score": float,                # 0..1
         "match_method": "source-link" | "name+affiliation" | "name"
@@ -46,7 +44,7 @@ verifier (Part 3) later checks against -- entries without a real URL are dropped
       "works": [                             # first/last-author papers outrank
         {"title", "year", "source_url",      # middle ones, then most recent first;
          "author_position"},                 # "first" | "middle" | "last" | None
-        ...,                                 # (None when ORCID is the source)
+        ...,                                 # (None when not matched on the work)
       ],
       "claims": [{"text", "url"}, ...],      # flat, every entry has a URL
       "context_text": str,                   # prompt-ready block for the generator

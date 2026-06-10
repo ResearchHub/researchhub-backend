@@ -83,8 +83,26 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
         # Assert
         self.assertEqual(res.match_method, "source-link")
         self.assertEqual(res.openalex_author_id, "https://openalex.org/A123")
-        self.assertEqual(res.orcid, "0000-0002-1825-0097")
         self.assertEqual(res.match_score, 1.0)
+        # The cited ORCID is only a lookup key into OpenAlex.
+        mock_fetch.assert_called_once()
+        self.assertEqual(
+            mock_fetch.call_args.kwargs["orcid_bare"], "0000-0002-1825-0097"
+        )
+
+    @patch(
+        "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
+    )
+    def test_source_link_miss_falls_through_to_name_search(self, mock_fetch):
+        # Arrange: OpenAlex has no author behind the cited ORCID.
+        mock_fetch.return_value = None
+        client = MagicMock()
+        client.search_authors_via_name.return_value = {"results": [oa_author_record()]}
+        expert = make_expert(sources=[{"url": "https://orcid.org/0000-0002-1825-0097"}])
+        # Act
+        res = resolver.resolve_openalex_author(expert, client=client)
+        # Assert: resolved by the unscoped single-exact-name rung instead.
+        self.assertEqual(res.match_method, "name")
 
     def test_resolves_by_name_scoped_to_institution(self):
         # Arrange: OpenAlex resolves the affiliation string to an institution id,
