@@ -17,12 +17,14 @@ from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
 from feed.views.grant_cache_mixin import GRANT_FEED_MAX_CACHED_PAGE, GrantCacheMixin
+from purchase.models import GrantApplication
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
+from purchase.serializers import DynamicGrantSerializer
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from review.models import Review
@@ -57,6 +59,9 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
             if cached_response:
                 if request.user.is_authenticated:
                     self.add_user_votes_to_response(request.user, cached_response)
+                    self.add_private_applications_to_response(
+                        request.user, cached_response
+                    )
                 return Response(cached_response)
 
         # Get paginated posts
@@ -89,7 +94,118 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
         if use_cache:
             cache.set(cache_key, response_data, timeout=self.DEFAULT_CACHE_TIMEOUT)
 
+        # Merge private applications in AFTER caching: the cached payload is
+        # shared across all viewers, so it must stay public-only. Private
+        # proposals are added per-request for the viewers allowed to see them.
+        if request.user.is_authenticated:
+            self.add_private_applications_to_response(request.user, response_data)
+
         return Response(response_data)
+
+    def add_private_applications_to_response(self, user, response_data):
+        """Inject the private grant applications this viewer is allowed to see.
+
+        The cached grant feed payload is shared across every user, so it only
+        ever carries public applications (it is serialized without a request
+        context). After reading the payload — fresh or from cache — we merge in
+        the private preregistration applications visible to this specific user,
+        using ResearchhubPost.visible_to() as the single source of truth for
+        visibility (grant owner, applicant, invited experts with a Permission,
+        moderators and hub editors). This mirrors add_user_votes_to_response,
+        which likewise personalizes the shared cache per request.
+        """
+        post_type_str = self._post_content_type.model.upper()
+
+        # Map each grant id to its applications list in the response, and track
+        # which application ids are already present so we never duplicate one.
+        grant_apps = {}
+        seen_app_ids = set()
+        for item in response_data.get("results", []):
+            if item.get("content_type") != post_type_str:
+                continue
+            grant = (item.get("content_object") or {}).get("grant")
+            if not grant or "id" not in grant:
+                continue
+            applications = grant.setdefault("applications", [])
+            grant_apps.setdefault(grant["id"], applications)
+            for app in applications:
+                seen_app_ids.add(app["id"])
+
+        if not grant_apps:
+            return
+
+        visible_private_posts = ResearchhubPost.objects.visible_to(user).filter(
+            unified_document__is_public=False,
+            unified_document__is_removed=False,
+        )
+        applications = (
+            GrantApplication.objects.filter(
+                grant_id__in=grant_apps.keys(),
+                preregistration_post__in=visible_private_posts,
+            )
+            .select_related(
+                # The applicant serializer's is_verified field reads
+                # author_profile.user.userverification. select_related on the
+                # reverse one-to-one back-populates author_profile.user with the
+                # applicant instance itself, so userverification must hang off
+                # applicant (not applicant__author_profile__user) to be cached.
+                # grant is joined because review_by_ud reads
+                # grant.proposal_reviews.
+                "grant",
+                "applicant__author_profile",
+                "applicant__userverification",
+                "preregistration_post__unified_document",
+            )
+            .prefetch_related(
+                "grant__proposal_reviews__key_insight__items",
+                Prefetch(
+                    "preregistration_post__unified_document__reviews",
+                    queryset=Review.objects.filter(is_removed=False).select_related(
+                        "created_by__author_profile"
+                    ),
+                ),
+                Prefetch(
+                    "preregistration_post__unified_document__fundraises",
+                    queryset=Fundraise.objects.select_related(
+                        "escrow"
+                    ).prefetch_related(
+                        Prefetch(
+                            "purchases",
+                            queryset=Purchase.objects.select_related(
+                                "user__author_profile"
+                            ),
+                            to_attr="prefetched_purchases",
+                        ),
+                        Prefetch(
+                            "usd_contributions",
+                            queryset=UsdFundraiseContribution.objects.select_related(
+                                "user__author_profile"
+                            ),
+                            to_attr="prefetched_usd_contributions",
+                        ),
+                        "nonprofit_links__nonprofit",
+                    ),
+                ),
+            )
+        )
+
+        for application in applications:
+            if application.id in seen_app_ids:
+                continue
+            target = grant_apps.get(application.grant_id)
+            if target is None:
+                continue
+            review_by_ud = {
+                r.unified_document_id: r
+                for r in application.grant.proposal_reviews.all()
+            }
+            serialized = DynamicGrantSerializer._serialize_application(
+                application, review_by_ud
+            )
+            if serialized is None:
+                continue
+            target.append(serialized)
+            seen_app_ids.add(application.id)
 
     def get_queryset(self):
         status = self.request.query_params.get("status")

@@ -2,18 +2,26 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytz
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APITestCase
 
 from feed.views.common import FeedPagination
 from purchase.models import Fundraise, Grant, GrantApplication
+from researchhub_access_group.constants import VIEWER
+from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from user.tests.helpers import create_random_authenticated_user
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
+from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 
 class GrantFeedViewTests(APITestCase):
@@ -825,3 +833,197 @@ class GrantFeedViewTests(APITestCase):
         # Act + Assert — grant-linked doc clears cache
         GrantCacheMixin.invalidate_if_grant_linked(proposal.unified_document)
         self.assertIsNone(cache.get(cache_key))
+
+
+class GrantFeedPrivateApplicationTests(APITestCase):
+    """A private preregistration application shows up in the grant feed only for
+    viewers allowed to see it via ResearchhubPost.visible_to (the applicant, the
+    grant owner, permissioned invited experts, moderators and hub editors),
+    even though the feed payload is served from a globally shared cache."""
+
+    def setUp(self):
+        cache.clear()
+        GrantApplication.objects.all().delete()
+        Grant.objects.all().delete()
+        ResearchhubPost.objects.filter(document_type=GRANT).delete()
+
+        # Owner is deliberately a plain user (not a moderator) so the
+        # owner-visibility path is exercised independently of moderator access.
+        self.owner = create_random_authenticated_user("pa_owner")
+        self.applicant = create_random_authenticated_user("pa_applicant")
+        self.outsider = create_random_authenticated_user("pa_outsider")
+        self.moderator = create_random_authenticated_user("pa_mod", moderator=True)
+        self.editor, _ = create_hub_editor("pa_editor", "pa-hub")
+        self.expert = create_random_authenticated_user("pa_expert")
+
+        self.grant_post = create_post(
+            created_by=self.owner, document_type=GRANT, title="Grant"
+        )
+        self.grant = Grant.objects.create(
+            created_by=self.owner,
+            unified_document=self.grant_post.unified_document,
+            amount=Decimal("50000.00"),
+            currency="USD",
+            organization="NSF",
+            description="desc",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+
+        self.public_post = create_post(
+            created_by=self.applicant, document_type=PREREGISTRATION, title="Public"
+        )
+        self.private_post = create_post(
+            created_by=self.applicant, document_type=PREREGISTRATION, title="Private"
+        )
+        self.private_post.unified_document.is_public = False
+        self.private_post.unified_document.save()
+
+        for post in (self.public_post, self.private_post):
+            GrantApplication.objects.create(
+                grant=self.grant, preregistration_post=post, applicant=self.applicant
+            )
+
+    def tearDown(self):
+        GrantApplication.objects.all().delete()
+        Grant.objects.all().delete()
+        ResearchhubPost.objects.filter(document_type=GRANT).delete()
+        cache.clear()
+
+    def _application_post_ids(self, viewer):
+        self.client.force_authenticate(viewer)
+        response = self.client.get("/api/grant_feed/")
+        self.assertEqual(response.status_code, 200)
+        entry = next(
+            e
+            for e in response.data["results"]
+            if e["content_object"]["id"] == self.grant_post.id
+        )
+        return {
+            app["preregistration_post_id"]
+            for app in entry["content_object"]["grant"]["applications"]
+        }
+
+    def test_applicant_sees_own_private_application(self):
+        # Act
+        ids = self._application_post_ids(self.applicant)
+
+        # Assert
+        self.assertIn(self.public_post.id, ids)
+        self.assertIn(self.private_post.id, ids)
+
+    def test_owner_sees_private_application(self):
+        # Act
+        ids = self._application_post_ids(self.owner)
+
+        # Assert
+        self.assertIn(self.public_post.id, ids)
+        self.assertIn(self.private_post.id, ids)
+
+    def test_moderator_sees_private_application(self):
+        # Act
+        ids = self._application_post_ids(self.moderator)
+
+        # Assert
+        self.assertIn(self.public_post.id, ids)
+        self.assertIn(self.private_post.id, ids)
+
+    def test_hub_editor_sees_private_application(self):
+        # Act
+        ids = self._application_post_ids(self.editor)
+
+        # Assert
+        self.assertIn(self.public_post.id, ids)
+        self.assertIn(self.private_post.id, ids)
+
+    def test_permissioned_expert_sees_private_application(self):
+        # Arrange — grant the expert a VIEWER permission on the private doc,
+        # which only visible_to() honors (the previous inline check did not).
+        Permission.objects.create(
+            user=self.expert,
+            access_type=VIEWER,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=self.private_post.unified_document.id,
+        )
+
+        # Act
+        ids = self._application_post_ids(self.expert)
+
+        # Assert
+        self.assertIn(self.public_post.id, ids)
+        self.assertIn(self.private_post.id, ids)
+
+    def test_outsider_only_sees_public_application(self):
+        # Act
+        ids = self._application_post_ids(self.outsider)
+
+        # Assert
+        self.assertIn(self.public_post.id, ids)
+        self.assertNotIn(self.private_post.id, ids)
+
+    def test_anonymous_only_sees_public_application(self):
+        # Act
+        ids = self._application_post_ids(None)
+
+        # Assert
+        self.assertIn(self.public_post.id, ids)
+        self.assertNotIn(self.private_post.id, ids)
+
+    def test_shared_cache_not_poisoned_across_viewers(self):
+        # Arrange — outsider warms the shared cache (public applications only).
+        outsider_ids = self._application_post_ids(self.outsider)
+        self.assertNotIn(self.private_post.id, outsider_ids)
+
+        # Act — applicant reads from the warmed cache and is augmented with
+        # their own private application.
+        applicant_ids = self._application_post_ids(self.applicant)
+
+        # Assert — applicant sees the private app, and a subsequent outsider
+        # read (also a cache hit) still never exposes it.
+        self.assertIn(self.private_post.id, applicant_ids)
+        self.assertNotIn(
+            self.private_post.id, self._application_post_ids(self.outsider)
+        )
+
+    def test_injection_query_count_does_not_scale_with_applications(self):
+        """The per-request private-application merge must not be an N+1: a
+        moderator (who sees every private proposal) issues the same number of
+        queries on a cached read whether there is one private application or
+        many."""
+
+        def moderator_cached_request_query_count():
+            cache.clear()
+            # Warm the shared cache (public-only) with an anonymous request.
+            self.client.force_authenticate(None)
+            self.assertEqual(self.client.get("/api/grant_feed/").status_code, 200)
+            # Measure only the cache-hit + injection request for the moderator.
+            self.client.force_authenticate(self.moderator)
+            with CaptureQueriesContext(connection) as ctx:
+                response = self.client.get("/api/grant_feed/")
+            self.assertEqual(response.status_code, 200)
+            return len(ctx.captured_queries)
+
+        # Arrange — baseline with the single private application from setUp.
+        baseline = moderator_cached_request_query_count()
+
+        # Arrange — add three more private applications from distinct users.
+        for i in range(3):
+            applicant = create_random_authenticated_user(f"pa_extra_{i}")
+            post = create_post(
+                created_by=applicant,
+                document_type=PREREGISTRATION,
+                title=f"Extra Private {i}",
+            )
+            post.unified_document.is_public = False
+            post.unified_document.save()
+            GrantApplication.objects.create(
+                grant=self.grant, preregistration_post=post, applicant=applicant
+            )
+
+        # Act
+        scaled = moderator_cached_request_query_count()
+
+        # Assert — query count is unchanged, and all five proposals surface
+        # (one public + four private).
+        self.assertEqual(baseline, scaled)
+        self.assertEqual(len(self._application_post_ids(self.moderator)), 5)

@@ -113,10 +113,6 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         review_by_ud = {r.unified_document_id: r for r in grant.proposal_reviews.all()}
         application_data = []
         for application in grant.applications.all():
-            author_profile = getattr(application.applicant, "author_profile", None)
-            if not author_profile:
-                continue
-
             ud = getattr(application.preregistration_post, "unified_document", None)
             if ud and ud.is_removed:
                 continue
@@ -127,24 +123,40 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                 if application.applicant_id != viewer.id:
                     continue
 
-            application_data.append(
-                {
-                    "id": application.id,
-                    "created_date": application.created_date,
-                    "applicant": DynamicAuthorSerializer(author_profile).data,
-                    "preregistration_post_id": (
-                        application.preregistration_post.id
-                        if application.preregistration_post
-                        else None
-                    ),
-                    "fundraise": self._serialize_application_fundraise(application),
-                    "key_insight": self._serialize_application_key_insight(
-                        application, review_by_ud
-                    ),
-                }
-            )
+            serialized = self._serialize_application(application, review_by_ud)
+            if serialized is not None:
+                application_data.append(serialized)
 
         return application_data
+
+    @classmethod
+    def _serialize_application(cls, application, review_by_ud):
+        """Serialize a single grant application.
+
+        Visibility is the caller's responsibility — this only shapes the
+        payload. Returns None when the applicant has no author profile, which
+        the existing feed output also skips. review_by_ud maps a
+        unified_document id to its ProposalReview (built from the grant's
+        proposal_reviews) so key insights can be attached without extra queries.
+        """
+        author_profile = getattr(application.applicant, "author_profile", None)
+        if not author_profile:
+            return None
+
+        return {
+            "id": application.id,
+            "created_date": application.created_date,
+            "applicant": DynamicAuthorSerializer(author_profile).data,
+            "preregistration_post_id": (
+                application.preregistration_post.id
+                if application.preregistration_post
+                else None
+            ),
+            "fundraise": cls._serialize_application_fundraise(application),
+            "key_insight": cls._serialize_application_key_insight(
+                application, review_by_ud
+            ),
+        }
 
     @classmethod
     def _serialize_application_key_insight(cls, application, review_by_ud):
