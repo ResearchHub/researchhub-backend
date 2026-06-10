@@ -479,6 +479,54 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.assertEqual(author.last_name, "Smith")
         self.assertEqual(author.openalex_ids, ["A123456"])
 
+    def test_process_authors_handles_duplicate_openalex_ids(self):
+        """Test that process_authors handles duplicate Author records with same openalex_ids."""
+        from user.related_models.author_model import Author
+
+        # Create two authors with the same openalex_ids (simulating existing duplicates)
+        Author.objects.create(
+            first_name="John",
+            last_name="Doe",
+            openalex_ids=["A999999"],
+            created_source=Author.SOURCE_OPENALEX,
+        )
+        Author.objects.create(
+            first_name="John",
+            last_name="Doe",
+            openalex_ids=["A999999"],
+            created_source=Author.SOURCE_OPENALEX,
+        )
+
+        openalex_data = {
+            "raw_data": {
+                "authorships": [
+                    {
+                        "author": {
+                            "id": "https://openalex.org/A999999",
+                            "display_name": "John Doe Updated",
+                        }
+                    }
+                ]
+            }
+        }
+
+        mock_author = Mock(spec=Author)
+        mock_author.openalex_ids = ["A999999"]
+        mock_author.first_name = "John"
+        mock_author.last_name = "Doe Updated"
+        mock_author.orcid_id = None
+        mock_author.created_source = Author.SOURCE_OPENALEX
+
+        self.mock_openalex_mapper.map_to_authors.return_value = [mock_author]
+
+        # Should not raise MultipleObjectsReturned
+        authors_created, authors_updated = self.service.process_authors(
+            self.paper, openalex_data
+        )
+
+        self.assertEqual(authors_created, 0)
+        self.assertEqual(authors_updated, 1)
+
     def test_batch_enrichment_with_authors(self):
         """Test batch enrichment always includes authors and institutions."""
         paper = create_paper(title="Paper")
