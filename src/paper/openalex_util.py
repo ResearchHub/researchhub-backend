@@ -18,6 +18,8 @@ from user.related_models.author_institution import AuthorInstitution
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
 
+logger = logging.getLogger(__name__)
+
 # Only these particular fields will be updated when an OpenAlex
 # paper which matches an existing paper is found
 PAPER_FIELDS_ALLOWED_TO_UPDATE = [
@@ -129,7 +131,7 @@ def create_and_update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
 
         doi = work.get("doi")
         if doi is None:
-            print(f"No Doi for result: {work.get('id')}")
+            logger.warning("No DOI for work %s", work.get("id"))
             continue
 
         existing_paper = existing_paper_map.get(doi)
@@ -385,7 +387,7 @@ def create_openalex_authorships_and_institutions(
             )
             continue
 
-        print(f"Processing authorships for paper: {related_paper.title}")
+        logger.info("Processing authorships for paper: %s", related_paper.title)
         authors = []
         for oa_author in oa_authors:
             authors.extend(authors_by_oa_id.get(oa_author.get("id"), []))

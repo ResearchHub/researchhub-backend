@@ -1,4 +1,5 @@
 import datetime
+import logging
 
 import rest_framework.serializers as serializers
 from django.db.models import IntegerField, Sum
@@ -12,7 +13,8 @@ from researchhub_document.serializers.researchhub_post_serializer import (
     DynamicPostSerializer,
 )
 from user.serializers import DynamicUserSerializer
-from utils import sentry
+
+logger = logging.getLogger(__name__)
 
 
 class PurchaseSerializer(serializers.ModelSerializer):
@@ -90,9 +92,8 @@ class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
             if serializer is not None:
                 data = serializer(item, context=context, **_context_fields).data
                 return data
-        except Exception as e:
-            print(e)
-            sentry.log_error(e)
+        except Exception:
+            logger.exception("Failed to get source for purchase")
 
         return None
 

@@ -1,3 +1,5 @@
+import logging
+
 from django.db.models import DecimalField, Sum
 from django.db.models.functions import Coalesce
 from rest_framework import serializers
@@ -9,8 +11,9 @@ from reputation.serializers.escrow_serializer import DynamicEscrowSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicUserSerializer
-from utils import sentry
 from utils.http import get_user_from_request
+
+logger = logging.getLogger(__name__)
 
 
 class SimpleHubSerializer(serializers.ModelSerializer):
@@ -145,9 +148,8 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
 
             if serializer is not None:
                 return serializer.data
-        except Exception as e:
-            print(e)
-            sentry.log_error(e)
+        except Exception:
+            logger.exception("Error getting item for bounty %s", bounty.id)
             return None
         return None
 
