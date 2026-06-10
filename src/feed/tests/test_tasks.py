@@ -143,6 +143,7 @@ class FeedTasksTest(AWSMockTestCase):
     def test_create_feed_entry_skips_pending_post(self):
         """A post awaiting moderation must not be published to the feed, even
         when the task is invoked directly (defense-in-depth)."""
+        # Arrange
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         unified_doc = ResearchhubUnifiedDocument.objects.create(
             status=ResearchhubUnifiedDocument.PENDING,
@@ -153,6 +154,7 @@ class FeedTasksTest(AWSMockTestCase):
             unified_document=unified_doc,
         )
 
+        # Act
         result = create_feed_entry(
             item_id=post.id,
             item_content_type_id=post_content_type.id,
@@ -161,6 +163,7 @@ class FeedTasksTest(AWSMockTestCase):
             user_id=self.user.id,
         )
 
+        # Assert
         self.assertIsNone(result)
         self.assertFalse(
             FeedEntry.objects.filter(
