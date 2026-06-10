@@ -20,7 +20,6 @@ from research_ai.services.researcher_profile.resolver import (
     AuthorResolution,
     resolve_openalex_author,
 )
-from research_ai.services.researcher_profile.web_enrichment import web_search_enrich
 from research_ai.services.researcher_profile.works import collect_works, work_label
 from utils.openalex import OpenAlex
 
@@ -85,7 +84,6 @@ def _build_claims(
     affiliations: list[str],
     topics: list[str],
     works: list[dict],
-    web_findings: list[dict],
 ) -> list[dict]:
     """Flatten every fact into ``{text, url}``; drop anything without a real URL."""
     claims: list[dict] = []
@@ -109,8 +107,6 @@ def _build_claims(
         add("Research topics (OpenAlex): " + ", ".join(topics[:8]), author_url)
     for work in works:
         add(work_label(work), work.get("source_url"))
-    for finding in web_findings:
-        add(finding.get("text", ""), finding.get("url"))
 
     out: list[dict] = []
     seen: set[tuple[str, str]] = set()
@@ -127,7 +123,6 @@ def _build_context_text(
     resolution: AuthorResolution,
     record: dict | None,
     works_text: str,
-    web_findings: list[dict],
     *,
     max_chars: int = _CONTEXT_MAX_CHARS,
 ) -> str:
@@ -150,13 +145,6 @@ def _build_context_text(
             + works_text.strip()
         )
 
-    if web_findings:
-        lines = [f"- {f['text']} ({f['url']})" for f in web_findings]
-        chunks.append(
-            "--- Additional background (web search, source-cited) ---\n"
-            + "\n".join(lines)
-        )
-
     text = "\n\n".join(c for c in chunks if c.strip()).strip()
     if len(text) > max_chars:
         return text[:max_chars] + "\n[TRUNCATED]"
@@ -167,16 +155,14 @@ def build_expert_profile(
     expert,
     *,
     oa_client: OpenAlex | None = None,
-    openai_service=None,
     adjudication_service=None,
-    use_web_search: bool = True,
 ) -> dict:
     """
     Build the source-attributed researcher profile for an ``Expert`` (no write).
 
-    Resolver -> OpenAlex works (ORCID fallback) -> OpenAI ``web_search``.
-    Every stage is best-effort: failures are captured in ``errors`` and the
-    profile is still returned with whatever was found.
+    Resolver -> OpenAlex author record -> works (ORCID fallback). Every stage
+    is best-effort: failures are captured in ``errors`` and the profile is
+    still returned with whatever was found.
     """
     errors: list[str] = []
     oa = oa_client or OpenAlex()
@@ -200,29 +186,13 @@ def build_expert_profile(
     errors.extend(works_errors)
     works_text = "\n".join(f"- {work_label(w)}" for w in works)
 
-    # Build the "known" block first so web search complements rather than repeats.
-    known_context = _build_context_text(expert, resolution, record, works_text, [])
-
-    web_findings: list[dict] = []
-    if use_web_search:
-        try:
-            web_findings = web_search_enrich(
-                expert, known_context, service=openai_service
-            )
-        except Exception as exc:  # noqa: BLE001 - web search is best-effort
-            logger.info("web_search enrichment failed: %s", exc)
-            errors.append(f"web_search: {exc}")
-
-    context_text = _build_context_text(
-        expert, resolution, record, works_text, web_findings
-    )
+    context_text = _build_context_text(expert, resolution, record, works_text)
     claims = _build_claims(
         author_url=resolution.openalex_author_id,
         metrics=metrics,
         affiliations=affiliations,
         topics=topics,
         works=works,
-        web_findings=web_findings,
     )
 
     return {
@@ -233,7 +203,6 @@ def build_expert_profile(
         "affiliations": affiliations,
         "topics": topics,
         "works": works,
-        "web_findings": web_findings,
         "claims": claims,
         "context_text": context_text,
         "errors": errors,

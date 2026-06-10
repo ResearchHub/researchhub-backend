@@ -61,11 +61,12 @@ class ClaimsTests(SimpleTestCase):
                     "title": "A Paper",
                     "year": "2021",
                     "source_url": "https://doi.org/10.1/abc",
-                }
-            ],
-            web_findings=[
-                {"text": "Runs the Doe Lab", "url": "https://doe-lab.edu"},
-                {"text": "Runs the Doe Lab", "url": "https://doe-lab.edu"},  # dup
+                },
+                {
+                    "title": "A Paper",  # dup
+                    "year": "2021",
+                    "source_url": "https://doi.org/10.1/abc",
+                },
             ],
         )
         # Assert
@@ -73,8 +74,7 @@ class ClaimsTests(SimpleTestCase):
         texts = [c["text"] for c in claims]
         self.assertIn("Affiliation (OpenAlex): Stanford University", texts)
         self.assertIn("Research topics (OpenAlex): Genomics", texts)
-        self.assertIn("(2021) A Paper", texts)
-        self.assertEqual(texts.count("Runs the Doe Lab"), 1)
+        self.assertEqual(texts.count("(2021) A Paper"), 1)
 
     def test_openalex_claims_dropped_without_author_url(self):
         # Act: no author_url -> OpenAlex-derived claims have no URL and are dropped.
@@ -90,14 +90,13 @@ class ClaimsTests(SimpleTestCase):
             affiliations=["Stanford University"],
             topics=["Genomics"],
             works=[],
-            web_findings=[],
         )
         # Assert
         self.assertEqual(claims, [])
 
 
 class BuildProfileTests(SimpleTestCase):
-    def test_builds_full_profile_from_name_match_with_web_search(self):
+    def test_builds_full_profile_from_name_match(self):
         # Arrange
         client = MagicMock()
         client.search_institutions.return_value = {
@@ -107,74 +106,34 @@ class BuildProfileTests(SimpleTestCase):
             "results": [oa_author_record(orcid=None)]
         }
         client.get_works.return_value = ([oa_work("Lead Paper", 2024, "first")], None)
-        openai_service = MagicMock()
-        openai_service.invoke.return_value = (
-            '{"findings": [{"text": "Runs the Doe Lab", "url": "https://doe-lab.edu"}]}'
-        )
         expert = make_expert(affiliation="Stanford University", expertise="genomics")
         # Act
-        profile = builder.build_expert_profile(
-            expert, oa_client=client, openai_service=openai_service
-        )
+        profile = builder.build_expert_profile(expert, oa_client=client)
         # Assert
         self.assertEqual(profile["schema_version"], 1)
         self.assertEqual(profile["resolution"]["match_method"], "name+affiliation")
         self.assertEqual(profile["metrics"]["h_index"], 12)
         self.assertEqual(profile["affiliations"], ["Stanford University"])
         self.assertEqual(profile["works"][0]["author_position"], "first")
-        self.assertIn(
-            {"text": "Runs the Doe Lab", "url": "https://doe-lab.edu"},
-            profile["web_findings"],
-        )
         # Authorship position is surfaced on the work's claim text.
         self.assertIn(
             "(2024) Lead Paper [first author]",
             [c["text"] for c in profile["claims"]],
         )
         self.assertTrue(all(is_http_url(c["url"]) for c in profile["claims"]))
-        self.assertIn("Additional background (web search", profile["context_text"])
+        self.assertIn("Selected works", profile["context_text"])
         self.assertEqual(profile["errors"], [])
 
-    def test_web_search_disabled_skips_openai(self):
+    def test_unresolved_expert_builds_empty_profile(self):
         # Arrange
         client = MagicMock()
         client.search_authors_via_name.return_value = {"results": []}
-        openai_service = MagicMock()
         # Act
-        profile = builder.build_expert_profile(
-            make_expert(),
-            oa_client=client,
-            openai_service=openai_service,
-            use_web_search=False,
-        )
+        profile = builder.build_expert_profile(make_expert(), oa_client=client)
         # Assert
-        openai_service.invoke.assert_not_called()
         self.assertEqual(profile["resolution"]["match_method"], "unresolved")
-        self.assertEqual(profile["web_findings"], [])
+        self.assertEqual(profile["works"], [])
         self.assertEqual(profile["claims"], [])
-
-    def test_web_search_failure_is_non_fatal(self):
-        # Arrange
-        client = MagicMock()
-        client.search_institutions.return_value = {
-            "results": [{"id": "https://openalex.org/I1"}]
-        }
-        client.search_authors_via_name.return_value = {
-            "results": [oa_author_record(orcid=None)]
-        }
-        client.get_works.return_value = ([], None)
-        openai_service = MagicMock()
-        openai_service.invoke.side_effect = RuntimeError("openai down")
-        # Act
-        profile = builder.build_expert_profile(
-            make_expert(affiliation="Stanford University"),
-            oa_client=client,
-            openai_service=openai_service,
-        )
-        # Assert: resolution still succeeded; the failure is recorded, not raised.
-        self.assertEqual(profile["resolution"]["match_method"], "name+affiliation")
-        self.assertEqual(profile["web_findings"], [])
-        self.assertTrue(any("web_search" in e for e in profile["errors"]))
 
     @patch("research_ai.services.researcher_profile.works.fetch_orcid_works")
     def test_falls_back_to_orcid_works_when_openalex_works_fail(self, mock_orcid):
@@ -190,10 +149,7 @@ class BuildProfileTests(SimpleTestCase):
         }
         # Act
         profile = builder.build_expert_profile(
-            make_expert(affiliation="Stanford University"),
-            oa_client=client,
-            openai_service=MagicMock(),
-            use_web_search=False,
+            make_expert(affiliation="Stanford University"), oa_client=client
         )
         # Assert: ORCID works fill in and the OpenAlex failure is recorded.
         self.assertEqual(profile["works"][0]["title"], "Fallback Paper")
@@ -208,9 +164,9 @@ class StoreProfileTests(TestCase):
         mock_build.return_value = {"schema_version": 1, "claims": []}
         expert = Expert.objects.create(email="jane@example.com", first_name="Jane")
         # Act
-        returned = builder.build_and_store_expert_profile(expert, use_web_search=False)
+        returned = builder.build_and_store_expert_profile(expert)
         # Assert
         expert.refresh_from_db()
         self.assertEqual(expert.profile, {"schema_version": 1, "claims": []})
         self.assertEqual(returned, expert.profile)
-        mock_build.assert_called_once_with(expert, use_web_search=False)
+        mock_build.assert_called_once_with(expert)

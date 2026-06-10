@@ -12,10 +12,9 @@ This package adds the net-new piece, one module per concern:
 - ``resolver``       maps the ``Expert`` (known id links, else name +
                      affiliation) to an OpenAlex author id (and ORCID when
                      findable)
+- ``adjudication``   conservative LLM verdict for ambiguous resolver candidates
 - ``works``          fetches and selects the expert's papers (first/last
                      authorship outranks middle, then recency)
-- ``web_enrichment`` falls back to OpenAI ``web_search`` for what
-                     OpenAlex/ORCID can't supply (lab site, theses, talks)
 - ``builder``        assembles the profile dict and persists it **once** on
                      ``Expert.profile`` so the generate, verify, and
                      notebook-iteration stages reuse it instead of re-fetching
@@ -49,7 +48,6 @@ verifier (Part 3) later checks against -- entries without a real URL are dropped
          "author_position"},                 # "first" | "middle" | "last" | None
         ...,                                 # (None when ORCID is the source)
       ],
-      "web_findings": [{"text", "url"}, ...],            # OpenAI web_search
       "claims": [{"text", "url"}, ...],      # flat, every entry has a URL
       "context_text": str,                   # prompt-ready block for the generator
       "errors": [str, ...],                  # non-fatal failures, for auditability
