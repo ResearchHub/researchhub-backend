@@ -183,7 +183,9 @@ class VisibleToQuerySetTests(AWSMockTestCase):
         )
 
     def test_anonymous_only_sees_public(self):
-        ids = set(ResearchhubPost.objects.visible_to(None).values_list("id", flat=True))
+        ids = set(
+            ResearchhubPost.objects.publicly_visible().values_list("id", flat=True)
+        )
         self.assertIn(self.public_post.id, ids)
         self.assertNotIn(self.private_post.id, ids)
 

@@ -124,9 +124,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
         else:
             # The public discovery feed stays user-agnostic so it can be cached
             # for everyone; never expose private or unmoderated work here.
-            # visible_to(None) is the canonical public predicate (is_public +
-            # approved), shared with the per-viewer branch above.
-            queryset = queryset.visible_to(None)
+            queryset = queryset.publicly_visible()
 
         if created_by:
             queryset = queryset.filter(created_by_id=created_by)

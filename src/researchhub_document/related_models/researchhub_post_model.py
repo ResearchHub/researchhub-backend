@@ -28,6 +28,10 @@ logger = logging.getLogger(__name__)
 
 
 class ResearchhubPostQuerySet(models.QuerySet):
+    def publicly_visible(self) -> "ResearchhubPostQuerySet":
+        """Restrict to posts safe for anonymous/public discovery surfaces."""
+        return self.filter(self._public_visibility_filter())
+
     def visible_to(self, user: User | None) -> "ResearchhubPostQuerySet":
         """Restrict to posts the given user is allowed to see.
 
@@ -46,20 +50,13 @@ class ResearchhubPostQuerySet(models.QuerySet):
         they gate on ``Grant.status`` instead: a pending or declined grant is
         treated as not yet cleared.
         """
-        pending_grant = Grant.objects.filter(
-            unified_document_id=OuterRef("unified_document_id"),
-            status__in=Grant.PENDING_MODERATION_STATUSES,
-        )
-        moderation_approved = Q(
-            unified_document__status=ResearchhubUnifiedDocument.APPROVED
-        ) & ~Exists(pending_grant)
-        is_public = Q(unified_document__is_public=True) & moderation_approved
         if user is None or not getattr(user, "is_authenticated", False):
-            return self.filter(is_public)
+            return self.publicly_visible()
 
         if user.is_moderator_or_editor():
             return self
 
+        moderation_approved = self._moderation_approved_filter()
         ud_ct = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
         user_perms = Permission.objects.filter(
             content_type=ud_ct,
@@ -77,8 +74,23 @@ class ResearchhubPostQuerySet(models.QuerySet):
         )
 
         return self.filter(
-            is_public | created_by_user | visible_to_grant_or_permitted
+            self._public_visibility_filter()
+            | created_by_user
+            | visible_to_grant_or_permitted
         ).distinct()
+
+    def _public_visibility_filter(self) -> Q:
+        return Q(unified_document__is_public=True) & self._moderation_approved_filter()
+
+    @staticmethod
+    def _moderation_approved_filter() -> Q:
+        pending_grant = Grant.objects.filter(
+            unified_document_id=OuterRef("unified_document_id"),
+            status__in=Grant.PENDING_MODERATION_STATUSES,
+        )
+        return Q(
+            unified_document__status=ResearchhubUnifiedDocument.APPROVED
+        ) & ~Exists(pending_grant)
 
 
 class ResearchhubPost(AbstractGenericReactionModel):
