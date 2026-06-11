@@ -27,6 +27,21 @@ class NoteInvitationService:
     Service for handling note invitations.
     """
 
+    def get_active_invite(self, key: str) -> NoteInvitation:
+        """
+        Get an active note invitation.
+
+        Raises:
+            NoteInvitationExpiredError: If the invitation has expired
+                or has already been accepted.
+        """
+        invite = NoteInvitation.objects.get(key=key)
+
+        if invite.is_expired() or invite.accepted:
+            raise NoteInvitationExpiredError()
+
+        return invite
+
     def accept_invite(self, key: str, user) -> NoteInvitation:
         """
         Accept a note invitation.
