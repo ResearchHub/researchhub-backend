@@ -17,7 +17,6 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.tests.helpers import (
-    create_hub_editor,
     create_random_authenticated_user,
 )
 from utils.test_helpers import AWSMockTestCase
