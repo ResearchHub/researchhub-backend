@@ -585,7 +585,7 @@ class OpenAlex:
         cursor = next_cursor if next_cursor != "*" else None
         return filtered_works, cursor
 
-    def get_works_typed(self, **kwargs) -> list["Work"]:
+    def get_works_typed(self, **kwargs) -> list[Work]:
         """Typed variant of :meth:`get_works`: parsed ``Work`` objects for one page.
 
         Forwards every keyword argument to ``get_works`` and maps each raw entity
