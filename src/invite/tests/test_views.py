@@ -11,14 +11,14 @@ class OrganizationInvitationViewsTest(APITestCase):
     def setUp(self):
         # Create + auth user
         self.sender = get_user_model().objects.create_user(
-            username="user1@researchhub_test.com",
+            username="user1@researchhub.com",
             password=uuid.uuid4().hex,
-            email="user1@researchhub_test.com",
+            email="user1@researchhub.com",
         )
         self.recipient = get_user_model().objects.create_user(
-            username="user2@researchhub_test.com",
+            username="user2@researchhub.com",
             password=uuid.uuid4().hex,
-            email="user2@researchhub_test.com",
+            email="user2@researchhub.com",
         )
 
         # Create org
