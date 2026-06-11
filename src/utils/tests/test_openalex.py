@@ -160,9 +160,7 @@ class GetWorksTypedTests(unittest.TestCase):
         ) as mock_get_works:
             works = oa.get_works_typed(openalex_author_id="A123", batch_size=50)
         # Assert
-        mock_get_works.assert_called_once_with(
-            openalex_author_id="A123", batch_size=50
-        )
+        mock_get_works.assert_called_once_with(openalex_author_id="A123", batch_size=50)
         self.assertEqual([w.title for w in works], ["Valid Paper"])
         self.assertEqual(works[0].author_position, "first")
 
