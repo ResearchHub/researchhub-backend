@@ -102,7 +102,6 @@ def build_expert_profile(
     expert,
     *,
     oa_client: OpenAlex | None = None,
-    adjudication_service=None,
 ) -> dict:
     """
     Build the source-attributed researcher profile for an ``Expert`` (no write).
@@ -114,9 +113,7 @@ def build_expert_profile(
     errors: list[str] = []
     oa = oa_client or OpenAlex()
     try:
-        resolution = resolve_openalex_author(
-            expert, client=oa, adjudication_service=adjudication_service
-        )
+        resolution = resolve_openalex_author(expert, client=oa)
     except Exception as exc:  # noqa: BLE001 - resolver is best-effort
         logger.exception("resolve_openalex_author failed")
         resolution = AuthorResolution(match_method="unresolved")

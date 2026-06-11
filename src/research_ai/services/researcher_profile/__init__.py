@@ -11,7 +11,6 @@ This package adds the net-new piece, one module per concern:
 
 - ``resolver``       maps the ``Expert`` (cited id links, else name +
                      affiliation) to an OpenAlex author id
-- ``adjudication``   conservative LLM verdict for ambiguous resolver candidates
 - ``works``          fetches and selects the expert's papers (first/last
                      authorship outranks middle, then recency)
 - ``builder``        assembles the profile dict and persists it **once** on
@@ -32,7 +31,7 @@ verifier (Part 3) later checks against -- entries without a URL are dropped.
         "display_name": str | None,
         "match_score": float,                # 0..1
         "match_method": "source-link" | "name+affiliation" | "name"
-                        | "llm-adjudicated" | "unresolved",
+                        | "unresolved",
         "candidates_considered": int,
       },
       "metrics": {                           # {} when unresolved / no stats

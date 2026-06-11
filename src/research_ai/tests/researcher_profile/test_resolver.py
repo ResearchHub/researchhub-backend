@@ -132,67 +132,23 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
         self.assertEqual(res.match_method, "name")
         self.assertEqual(res.openalex_author_id, "https://openalex.org/A123")
 
-    def test_ambiguous_candidates_unresolved_when_adjudicator_declines(self):
-        # Arrange: two exact-name candidates, no affiliation to scope by.
+    def test_ambiguous_candidates_take_top_by_ordering(self):
+        # Arrange: two exact-name candidates, no affiliation to scope by. v1 takes
+        # the strongest match (name score tied -> most-cited wins) instead of
+        # adjudicating.
         client = MagicMock()
         client.search_authors_via_name.return_value = {
             "results": [
-                oa_author_record(id="https://openalex.org/A1"),
-                oa_author_record(id="https://openalex.org/A2"),
+                oa_author_record(id="https://openalex.org/A1", cited_by_count=10),
+                oa_author_record(id="https://openalex.org/A2", cited_by_count=900),
             ]
         }
-        llm = MagicMock()
-        llm.invoke.return_value = (
-            '{"candidate_index": null, "confidence": 0.2, "reason": "ambiguous"}'
-        )
         # Act
-        res = resolver.resolve_openalex_author(
-            make_expert(), client=client, adjudication_service=llm
-        )
+        res = resolver.resolve_openalex_author(make_expert(), client=client)
         # Assert
-        self.assertEqual(res.match_method, "unresolved")
-        self.assertEqual(res.candidates_considered, 2)
-
-    def test_ambiguous_candidates_resolved_by_adjudication(self):
-        # Arrange
-        client = MagicMock()
-        client.search_authors_via_name.return_value = {
-            "results": [
-                oa_author_record(id="https://openalex.org/A1"),
-                oa_author_record(id="https://openalex.org/A2"),
-            ]
-        }
-        llm = MagicMock()
-        llm.invoke.return_value = (
-            '{"candidate_index": 1, "confidence": 0.9, "reason": "topics match"}'
-        )
-        # Act
-        res = resolver.resolve_openalex_author(
-            make_expert(), client=client, adjudication_service=llm
-        )
-        # Assert
-        self.assertEqual(res.match_method, "llm-adjudicated")
+        self.assertEqual(res.match_method, "name")
         self.assertEqual(res.openalex_author_id, "https://openalex.org/A2")
-        self.assertEqual(res.match_score, 0.9)
-
-    def test_adjudication_failure_is_unresolved(self):
-        # Arrange
-        client = MagicMock()
-        client.search_authors_via_name.return_value = {
-            "results": [
-                oa_author_record(id="https://openalex.org/A1"),
-                oa_author_record(id="https://openalex.org/A2"),
-            ]
-        }
-        llm = MagicMock()
-        llm.invoke.side_effect = RuntimeError("bedrock down")
-        # Act
-        res = resolver.resolve_openalex_author(
-            make_expert(), client=client, adjudication_service=llm
-        )
-        # Assert: failure is recorded, never guessed around.
-        self.assertEqual(res.match_method, "unresolved")
-        self.assertIn("bedrock down", res.error or "")
+        self.assertEqual(res.candidates_considered, 2)
 
     def test_unresolved_search_error_is_captured(self):
         # Arrange
