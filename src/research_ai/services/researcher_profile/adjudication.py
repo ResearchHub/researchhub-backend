@@ -11,7 +11,6 @@ import logging
 
 from research_ai.services.bedrock_llm_service import BedrockLLMService
 from research_ai.services.expert_finder_json import ExpertFinderJson
-from research_ai.services.researcher_profile.common import source_urls
 from utils.openalex import author_institution_names
 
 logger = logging.getLogger(__name__)
@@ -68,7 +67,7 @@ def _build_user_prompt(expert, records: list[dict]) -> str:
     expertise = (getattr(expert, "expertise", "") or "").strip()
     if expertise:
         lines.append(f"Expertise (from our records): {expertise}")
-    urls = source_urls(expert)
+    urls = expert.source_urls
     if urls:
         lines.append("Known links:")
         lines.extend(f"- {u}" for u in urls[:5])

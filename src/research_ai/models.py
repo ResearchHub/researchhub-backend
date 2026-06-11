@@ -186,6 +186,20 @@ class Expert(DefaultModel):
         parts = [self.first_name, self.middle_name, self.last_name]
         return " ".join(str(p).strip() for p in parts if p and str(p).strip()).strip()
 
+    @property
+    def source_urls(self) -> list[str]:
+        urls: list[str] = []
+        for item in self.sources or []:
+            if isinstance(item, dict):
+                url = str(item.get("url") or "").strip()
+            elif isinstance(item, str):
+                url = item.strip()
+            else:
+                url = ""
+            if url:
+                urls.append(url)
+        return urls
+
     def save(self, *args, **kwargs):
         if self.email:
             self.email = self.email.strip().lower()

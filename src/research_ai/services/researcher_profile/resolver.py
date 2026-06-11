@@ -29,7 +29,6 @@ from research_ai.services.researcher_external_context import (
     fetch_openalex_author_record,
 )
 from research_ai.services.researcher_profile.adjudication import pick_candidate
-from research_ai.services.researcher_profile.common import source_urls
 from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
@@ -75,7 +74,7 @@ def _extract_ids_from_sources(expert) -> tuple[str | None, str | None]:
     """Mine an ORCID and/or OpenAlex author id from the expert's ``sources`` URLs."""
     orcid: str | None = None
     oa_id: str | None = None
-    for url in source_urls(expert):
+    for url in expert.source_urls:
         low = url.lower()
         if orcid is None and "orcid.org" in low:
             m = _ORCID_RE.search(url)
