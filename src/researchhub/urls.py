@@ -59,7 +59,6 @@ from review.views.review_view import ReviewViewSet
 from user.views import author_views, editor_views, moderator_view, persona_webhook_view
 from user.views.custom_verify_email_view import CustomVerifyEmailView
 from user_lists.views import ListItemViewSet, ListViewSet
-from user_saved.views import UserSavedView
 
 router = routers.DefaultRouter()
 
@@ -367,7 +366,6 @@ urlpatterns = [
         DepositAddressView.as_view(),
         name="deposit_address",
     ),
-    path("user_saved/", UserSavedView.as_view(), name="user_saved"),
     path(
         "api/review/availability/",
         ReviewAvailabilityView.as_view(),
