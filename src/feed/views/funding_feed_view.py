@@ -14,6 +14,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from feed.cache_segment import get_feed_cache_segment
 from feed.feed_list_dto import (
     FundingFeedListEntrySerializer,
     serialize_fund_feed_metrics,
@@ -54,15 +55,19 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
         grant_id = request.query_params.get("grant_id", None)
         created_by = request.query_params.get("created_by", None)
         funded_by = request.query_params.get("funded_by", None)
-        cache_key = self.get_cache_key(request, "funding")
+        suffix, should_cache = get_feed_cache_segment(request)
         use_cache = (
-            page_num <= FUNDING_FEED_MAX_CACHED_PAGE
+            should_cache
+            and page_num <= FUNDING_FEED_MAX_CACHED_PAGE
             and grant_id is None
             and created_by is None
             and funded_by is None
         )
+        cache_key = (
+            (self.get_cache_key(request, "funding") + suffix) if use_cache else None
+        )
 
-        if use_cache:
+        if cache_key:
             cached_response = cache.get(cache_key)
             if cached_response:
                 if request.user.is_authenticated:
@@ -94,7 +99,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
         )
         response_data = self.get_paginated_response(serializer.data).data
 
-        if use_cache:
+        if cache_key:
             cache.set(cache_key, response_data, timeout=self.DEFAULT_CACHE_TIMEOUT)
 
         if request.user.is_authenticated:

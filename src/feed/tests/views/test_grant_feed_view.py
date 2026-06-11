@@ -702,12 +702,16 @@ class GrantFeedViewTests(APITestCase):
 
         view = GrantFeedViewSet()
         factory = APIRequestFactory()
-        unfiltered_key = view.get_cache_key(
-            Request(factory.get("/api/grant_feed/")), "grants"
+        unfiltered_key = (
+            view.get_cache_key(Request(factory.get("/api/grant_feed/")), "grants")
+            + ":public"
         )
-        filtered_key = view.get_cache_key(
-            Request(factory.get("/api/grant_feed/", {"created_by": str(user1.id)})),
-            "grants",
+        filtered_key = (
+            view.get_cache_key(
+                Request(factory.get("/api/grant_feed/", {"created_by": str(user1.id)})),
+                "grants",
+            )
+            + ":public"
         )
         self.assertIsNotNone(cache.get(unfiltered_key))
         self.assertIsNotNone(cache.get(filtered_key))
@@ -819,8 +823,11 @@ class GrantFeedViewTests(APITestCase):
         )
         self.client.force_authenticate(self.user)
         self.client.get("/api/grant_feed/")
-        cache_key = GrantFeedViewSet().get_cache_key(
-            Request(APIRequestFactory().get("/api/grant_feed/")), "grants"
+        cache_key = (
+            GrantFeedViewSet().get_cache_key(
+                Request(APIRequestFactory().get("/api/grant_feed/")), "grants"
+            )
+            + ":public"
         )
         self.assertIsNotNone(cache.get(cache_key))
 
@@ -831,3 +838,91 @@ class GrantFeedViewTests(APITestCase):
         # Act + Assert — grant-linked doc clears cache
         GrantCacheMixin.invalidate_if_grant_linked(proposal.unified_document)
         self.assertIsNone(cache.get(cache_key))
+
+    def test_viewer_segment_cache_isolates_private_applications(self):
+        """Grant owner populates :viewer-{id} cache; anonymous :public has no leak."""
+        from django.contrib.auth.models import AnonymousUser
+
+        from feed.cache_segment import get_feed_cache_segment
+
+        # Arrange
+        grant_owner = create_random_authenticated_user("cache_iso_owner")
+        applicant = create_random_authenticated_user("cache_iso_applicant")
+        grant_post = create_post(
+            created_by=grant_owner, document_type=GRANT, title="Cache Iso Grant"
+        )
+        grant = Grant.objects.create(
+            created_by=grant_owner,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("5000.00"),
+            currency="USD",
+            organization="NSF",
+            description="Grant for cache test",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+        )
+        public_post = create_post(
+            created_by=applicant, document_type=PREREGISTRATION, title="Public App"
+        )
+        private_post = create_post(
+            created_by=applicant, document_type=PREREGISTRATION, title="Private App"
+        )
+        private_post.unified_document.is_public = False
+        private_post.unified_document.save()
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=public_post, applicant=applicant
+        )
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=private_post, applicant=applicant
+        )
+        cache.clear()
+
+        # Act — grant owner hits feed first (viewer segment)
+        self.client.force_authenticate(grant_owner)
+        owner_response = self.client.get("/api/grant_feed/")
+
+        # Assert — owner sees both applications
+        self.assertEqual(owner_response.status_code, 200)
+        grant_entry = next(
+            e
+            for e in owner_response.data["results"]
+            if e["content_object"]["id"] == grant_post.id
+        )
+        owner_app_ids = {
+            app["preregistration_post_id"]
+            for app in grant_entry["content_object"]["grant"]["applications"]
+        }
+        self.assertIn(public_post.id, owner_app_ids)
+        self.assertIn(private_post.id, owner_app_ids)
+
+        view = GrantFeedViewSet()
+        factory = APIRequestFactory()
+        owner_request = Request(factory.get("/api/grant_feed/"))
+        owner_request.user = grant_owner
+        owner_suffix, _ = get_feed_cache_segment(owner_request)
+        viewer_key = view.get_cache_key(owner_request, "grants") + owner_suffix
+        self.assertIsNotNone(cache.get(viewer_key))
+
+        anon_request = Request(factory.get("/api/grant_feed/"))
+        anon_request.user = AnonymousUser()
+        public_suffix, _ = get_feed_cache_segment(anon_request)
+        public_key = view.get_cache_key(anon_request, "grants") + public_suffix
+        self.assertNotEqual(viewer_key, public_key)
+
+        # Act — anonymous uses separate public cache entry
+        self.client.logout()
+        anon_response = self.client.get("/api/grant_feed/")
+
+        # Assert — anonymous does not see private application
+        self.assertEqual(anon_response.status_code, 200)
+        anon_grant_entry = next(
+            e
+            for e in anon_response.data["results"]
+            if e["content_object"]["id"] == grant_post.id
+        )
+        anon_app_ids = {
+            app["preregistration_post_id"]
+            for app in anon_grant_entry["content_object"]["grant"]["applications"]
+        }
+        self.assertIn(public_post.id, anon_app_ids)
+        self.assertNotIn(private_post.id, anon_app_ids)

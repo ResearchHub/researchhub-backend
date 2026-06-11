@@ -330,7 +330,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
             self.assertNotIn("user_vote", item)
 
     def test_get_cache_key(self):
-        """Test cache key generation logic"""
+        """Base cache key from get_cache_key(); list() appends viewer segment suffix."""
+        from feed.cache_segment import get_feed_cache_segment
         from feed.views.funding_feed_view import FundingFeedViewSet
 
         # Create viewset instance and configure it
@@ -356,6 +357,14 @@ class FundingFeedViewSetTests(AWSMockTestCase):
 
         cache_key = viewset.get_cache_key(request, "funding")
         self.assertEqual(cache_key, "funding_feed:popular:all:all:none:1-20")
+
+        suffix, should_cache = get_feed_cache_segment(request)
+        self.assertEqual(suffix, ":public")
+        self.assertTrue(should_cache)
+        self.assertEqual(
+            cache_key + suffix,
+            "funding_feed:popular:all:all:none:1-20:public",
+        )
 
         # Authenticated user
         request = request_factory.get("/api/funding_feed/")
