@@ -1,12 +1,20 @@
 import json
 import re
+import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 import responses
 from django.test import TestCase
 
-from utils.openalex import OpenAlex
+from utils.openalex import (
+    Author,
+    OpenAlex,
+    Work,
+    author_institution_names,
+    normalize_openalex_id,
+    scholarly_ids_from_urls,
+)
 
 fixtures_dir = Path(__file__).parent
 
@@ -94,3 +102,257 @@ class OpenAlexTests(TestCase):
         # Verify other parameters
         self.assertEqual(kwargs["filters"]["per-page"], 10)
         self.assertEqual(kwargs["filters"]["cursor"], "*")
+
+    @patch.object(OpenAlex, "_get")
+    def test_get_author_fetches_author_by_id(self, mock_get):
+        # Arrange
+        mock_get.return_value = {"id": "https://openalex.org/A123"}
+
+        # Act
+        result = OpenAlex().get_author("A123")
+
+        # Assert
+        mock_get.assert_called_once_with("authors/A123")
+        self.assertEqual(result["id"], "https://openalex.org/A123")
+
+
+class NormalizeOpenalexIdTests(unittest.TestCase):
+    def test_normalize_openalex_id(self):
+        # Arrange
+        cases = [
+            ("https://openalex.org/A123", "A123"),
+            ("https://api.openalex.org/authors/A123/", "A123"),
+            (" A123 ", "A123"),
+            (None, ""),
+            ("", ""),
+        ]
+
+        for value, expected in cases:
+            with self.subTest(value=value):
+                # Act
+                result = normalize_openalex_id(value)
+
+                # Assert
+                self.assertEqual(result, expected)
+
+
+class GetWorksTypedTests(unittest.TestCase):
+    def test_maps_to_work_objects_and_skips_unusable(self):
+        # Arrange: one usable entity and one without a title (unparseable).
+        results = [
+            {
+                "display_name": "Valid Paper",
+                "publication_year": 2023,
+                "doi": "https://doi.org/10.1/valid",
+                "authorships": [
+                    {
+                        "author": {"id": "https://openalex.org/A123"},
+                        "author_position": "first",
+                    }
+                ],
+            },
+            {"display_name": "", "publication_year": 2023},
+        ]
+        oa = OpenAlex()
+        # Act
+        with patch.object(
+            OpenAlex, "get_works", return_value=(results, None)
+        ) as mock_get_works:
+            works = oa.get_works_typed(openalex_author_id="A123", batch_size=50)
+        # Assert
+        mock_get_works.assert_called_once_with(
+            openalex_author_id="A123", batch_size=50
+        )
+        self.assertEqual([w.title for w in works], ["Valid Paper"])
+        self.assertEqual(works[0].author_position, "first")
+
+
+class ScholarlyIdsFromUrlsTests(unittest.TestCase):
+    def test_extracts_orcid_and_openalex_author_id(self):
+        # Arrange
+        urls = [
+            "https://orcid.org/0000-0002-1825-0097",
+            "https://openalex.org/A5023888391",
+        ]
+        # Act
+        orcid, oa_id = scholarly_ids_from_urls(urls)
+        # Assert
+        self.assertEqual(orcid, "0000-0002-1825-0097")
+        self.assertEqual(oa_id, "A5023888391")
+
+    def test_returns_none_for_unrelated_or_empty_urls(self):
+        # Arrange / Act / Assert
+        self.assertEqual(
+            scholarly_ids_from_urls(["https://example.edu/jane", "not a url"]),
+            (None, None),
+        )
+        self.assertEqual(scholarly_ids_from_urls([]), (None, None))
+        self.assertEqual(scholarly_ids_from_urls(None), (None, None))
+
+
+class WorkTests(unittest.TestCase):
+    def test_from_openalex_maps_fields_and_author_position(self):
+        # Arrange
+        entity = {
+            "display_name": "Lead Paper",
+            "publication_year": 2024,
+            "doi": "https://doi.org/10.1/lead-paper",
+            "id": "https://openalex.org/W1",
+            "authorships": [
+                {"author": {"id": "A123"}, "author_position": "first"},
+            ],
+        }
+
+        # Act
+        work = Work.from_openalex(entity, author_id="https://openalex.org/A123")
+
+        # Assert
+        self.assertEqual(work.title, "Lead Paper")
+        self.assertEqual(work.year, "2024")
+        self.assertEqual(work.source_url, "https://doi.org/10.1/lead-paper")
+        self.assertEqual(work.author_position, "first")
+
+    def test_from_openalex_falls_back_to_openalex_url_without_doi(self):
+        # Arrange: no DOI, and the target author is mid-list under a bare id.
+        entity = {
+            "display_name": "Paper",
+            "publication_year": 2023,
+            "doi": None,
+            "id": "https://openalex.org/W2",
+            "authorships": [
+                {
+                    "author": {"id": "https://openalex.org/A999"},
+                    "author_position": "first",
+                },
+                {"author": {"id": "A123"}, "author_position": "middle"},
+            ],
+        }
+
+        # Act
+        work = Work.from_openalex(entity, author_id="https://openalex.org/A123")
+
+        # Assert
+        self.assertEqual(work.source_url, "https://openalex.org/W2")
+        self.assertEqual(work.author_position, "middle")
+        # Without an author to match against, the position is unknown.
+        self.assertIsNone(Work.from_openalex(entity).author_position)
+
+    def test_from_openalex_returns_none_for_unusable_entities(self):
+        # Arrange: untitled, and titled but without any URL.
+        cases = [
+            {"display_name": "", "publication_year": 2023, "doi": None},
+            {"display_name": "No URL Paper", "publication_year": 2023, "doi": None},
+        ]
+
+        for entity in cases:
+            with self.subTest(entity=entity):
+                # Act
+                work = Work.from_openalex(entity, author_id="A123")
+
+                # Assert
+                self.assertIsNone(work)
+
+    def test_label_marks_lead_authorship_and_year(self):
+        # Arrange
+        cases = [
+            (Work("Paper", "2024", "u", "first"), "(2024) Paper [first author]"),
+            (Work("Paper", "2024", "u", "last"), "(2024) Paper [last author]"),
+            (Work("Paper", "2024", "u", "middle"), "(2024) Paper"),
+            (Work("Paper", "", "u", None), "Paper"),
+        ]
+
+        for work, expected in cases:
+            with self.subTest(expected=expected):
+                # Act / Assert
+                self.assertEqual(work.label, expected)
+
+    def test_year_int_defaults_to_zero_when_undated(self):
+        # Arrange / Act / Assert
+        self.assertEqual(Work("Paper", "2024", "u").year_int, 2024)
+        self.assertEqual(Work("Paper", "", "u").year_int, 0)
+
+    def test_as_dict_round_trips_profile_fields(self):
+        # Arrange
+        work = Work("Paper", "2024", "https://doi.org/10.1/p", "first")
+
+        # Act / Assert
+        self.assertEqual(
+            work.as_dict(),
+            {
+                "title": "Paper",
+                "year": "2024",
+                "source_url": "https://doi.org/10.1/p",
+                "author_position": "first",
+            },
+        )
+
+
+class AuthorTests(unittest.TestCase):
+    def _entity(self, **overrides):
+        entity = {
+            "id": "https://openalex.org/A123",
+            "display_name": "Jane Doe",
+            "summary_stats": {
+                "h_index": 12,
+                "i10_index": 5,
+                "2yr_mean_citedness": 2.1,
+            },
+            "works_count": 40,
+            "cited_by_count": 900,
+            "affiliations": [
+                {"institution": {"display_name": "Stanford University"}},
+                {"institution": {"display_name": "Stanford University"}},  # dup
+            ],
+            "topics": [
+                {"display_name": "Genomics"},
+                {"display_name": "Bioinformatics"},
+            ],
+        }
+        entity.update(overrides)
+        return entity
+
+    def test_from_openalex_maps_metrics_affiliations_and_topics(self):
+        # Act
+        author = Author.from_openalex(self._entity())
+
+        # Assert
+        self.assertEqual(author.id, "https://openalex.org/A123")
+        self.assertEqual(author.display_name, "Jane Doe")
+        self.assertEqual(author.metrics["h_index"], 12)
+        self.assertEqual(author.metrics["i10_index"], 5)
+        self.assertEqual(author.metrics["two_year_mean_citedness"], 2.1)
+        self.assertEqual(author.metrics["works_count"], 40)
+        self.assertEqual(author.metrics["cited_by_count"], 900)
+        self.assertEqual(author.metrics["source_url"], "https://openalex.org/A123")
+        self.assertEqual(author.affiliations, ["Stanford University"])
+        self.assertEqual(author.topics, ["Genomics", "Bioinformatics"])
+
+    def test_metrics_empty_when_entity_has_no_stats(self):
+        # Arrange
+        entity = {"id": "https://openalex.org/A1", "summary_stats": {}}
+
+        # Act / Assert
+        self.assertEqual(Author.from_openalex(entity).metrics, {})
+
+    def test_topics_fall_back_to_x_concepts(self):
+        # Arrange
+        entity = self._entity(topics=[], x_concepts=[{"display_name": "Chemistry"}])
+
+        # Act / Assert
+        self.assertEqual(Author.from_openalex(entity).topics, ["Chemistry"])
+
+
+class AuthorInstitutionNamesTests(unittest.TestCase):
+    def test_collects_names_from_all_institution_fields(self):
+        # Arrange
+        entity = {
+            "last_known_institutions": [{"display_name": "MIT"}],
+            "last_known_institution": {"display_name": "Harvard University"},
+            "affiliations": [{"institution": {"display_name": "Stanford University"}}],
+        }
+
+        # Act / Assert
+        self.assertEqual(
+            author_institution_names(entity),
+            ["MIT", "Harvard University", "Stanford University"],
+        )
