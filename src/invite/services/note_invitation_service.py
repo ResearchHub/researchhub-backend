@@ -57,10 +57,7 @@ class NoteInvitationService:
             NoteInvitationRecipientMismatchError: If the invitation recipient doesn't
                 match the user.
         """
-        invite = NoteInvitation.objects.get(key=key)
-
-        if invite.is_expired() or invite.accepted:
-            raise NoteInvitationExpiredError()
+        invite = self.get_active_invite(key)
 
         if invite.recipient and user != invite.recipient:
             raise NoteInvitationRecipientMismatchError()
