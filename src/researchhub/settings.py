@@ -276,7 +276,6 @@ INSTALLED_APPS = [
     "new_feature_release",
     "review",
     "organizations",
-    "user_saved",
     "user_lists",
     "research_ai",
     "ai_peer_review",
