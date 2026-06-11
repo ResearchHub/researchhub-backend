@@ -7,40 +7,12 @@ from research_ai.tests.researcher_profile.helpers import oa_work
 
 
 class OpenAlexWorksExtractionTests(SimpleTestCase):
-    def test_extract_openalex_works_maps_fields_and_author_position(self):
-        # Arrange: second work has no DOI and lists this author mid-list by bare id.
-        results = [
-            oa_work("Lead Paper", 2024, "first"),
-            {
-                "display_name": "Middle Paper",
-                "publication_year": 2023,
-                "doi": None,
-                "id": "https://openalex.org/W2",
-                "authorships": [
-                    {
-                        "author": {"id": "https://openalex.org/A999"},
-                        "author_position": "first",
-                    },
-                    {"author": {"id": "A123"}, "author_position": "middle"},
-                ],
-            },
-        ]
-        # Act
-        works = works_mod._extract_openalex_works(results, "https://openalex.org/A123")
-        # Assert
-        self.assertEqual(works[0].author_position, "first")
-        self.assertEqual(works[0].source_url, "https://doi.org/10.1/lead-paper")
-        # Falls back to the OpenAlex work URL when there is no DOI.
-        self.assertEqual(works[1].source_url, "https://openalex.org/W2")
-        self.assertEqual(works[1].author_position, "middle")
-
-    def test_extract_openalex_works_dedupes_and_drops_unusable(self):
-        # Arrange: a repeated work, an untitled one, and one without any URL.
+    def test_extract_openalex_works_dedupes_and_skips_unusable(self):
+        # Arrange: a repeated work and an untitled (unparseable) one.
         results = [
             oa_work("Same Paper", 2023, "first"),
             oa_work("Same Paper", 2023, "first"),
             {"display_name": "", "publication_year": 2023},
-            {"display_name": "No URL Paper", "publication_year": 2023, "doi": None},
         ]
         # Act
         works = works_mod._extract_openalex_works(results, "A123")

@@ -158,20 +158,29 @@ class WorkTests(unittest.TestCase):
         self.assertEqual(work.author_position, "first")
 
     def test_from_openalex_falls_back_to_openalex_url_without_doi(self):
-        # Arrange
+        # Arrange: no DOI, and the target author is mid-list under a bare id.
         entity = {
             "display_name": "Paper",
             "publication_year": 2023,
             "doi": None,
             "id": "https://openalex.org/W2",
+            "authorships": [
+                {
+                    "author": {"id": "https://openalex.org/A999"},
+                    "author_position": "first",
+                },
+                {"author": {"id": "A123"}, "author_position": "middle"},
+            ],
         }
 
         # Act
-        work = Work.from_openalex(entity)
+        work = Work.from_openalex(entity, author_id="https://openalex.org/A123")
 
         # Assert
         self.assertEqual(work.source_url, "https://openalex.org/W2")
-        self.assertIsNone(work.author_position)
+        self.assertEqual(work.author_position, "middle")
+        # Without an author to match against, the position is unknown.
+        self.assertIsNone(Work.from_openalex(entity).author_position)
 
     def test_from_openalex_returns_none_for_unusable_entities(self):
         # Arrange: untitled, and titled but without any URL.
