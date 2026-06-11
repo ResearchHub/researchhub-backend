@@ -46,7 +46,7 @@ class GrantCacheMixin:
                                 f"{page}-{page_size}{sort_part}:{status}:"
                                 f"{created_by}:{include_key_insights}"
                             )
-                            cache.delete(cache_key)
+                            cache.delete(cache_key + ":public")
 
     @staticmethod
     def invalidate_if_grant_linked(unified_document):
