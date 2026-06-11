@@ -32,8 +32,8 @@ class NoteInvitationService:
         Accept a note invitation.
 
         Args:
-            key (str): The unique key of the invitation.
-            user (User): The user accepting the invitation.
+            key: The unique key of the invitation.
+            user: The user accepting the invitation.
         Returns:
             NoteInvitation: The accepted invitation.
         Raises:
