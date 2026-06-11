@@ -13,15 +13,14 @@ from research_ai.services.researcher_external_context import (
 )
 from research_ai.services.researcher_profile.common import (
     candidate_institution_names,
-    is_http_url,
     search_name,
 )
 from research_ai.services.researcher_profile.resolver import (
     AuthorResolution,
     resolve_openalex_author,
 )
-from research_ai.services.researcher_profile.works import collect_works, work_label
-from utils.openalex import OpenAlex
+from research_ai.services.researcher_profile.works import collect_works
+from utils.openalex import OpenAlex, Work
 
 logger = logging.getLogger(__name__)
 
@@ -83,15 +82,15 @@ def _build_claims(
     metrics: dict,
     affiliations: list[str],
     topics: list[str],
-    works: list[dict],
+    works: list[Work],
 ) -> list[dict]:
-    """Flatten every fact into ``{text, url}``; drop anything without a real URL."""
+    """Flatten every fact into ``{text, url}``; drop anything without a URL."""
     claims: list[dict] = []
 
     def add(text: str, url: str | None) -> None:
         text = (text or "").strip()
         url = (url or "").strip()
-        if text and is_http_url(url):
+        if text and url:
             claims.append({"text": text, "url": url})
 
     if metrics:
@@ -106,7 +105,7 @@ def _build_claims(
     if topics:
         add("Research topics (OpenAlex): " + ", ".join(topics[:8]), author_url)
     for work in works:
-        add(work_label(work), work.get("source_url"))
+        add(work.label, work.source_url)
 
     out: list[dict] = []
     seen: set[tuple[str, str]] = set()
@@ -182,7 +181,7 @@ def build_expert_profile(
 
     works, works_errors = collect_works(resolution, oa_client=oa)
     errors.extend(works_errors)
-    works_text = "\n".join(f"- {work_label(w)}" for w in works)
+    works_text = "\n".join(f"- {w.label}" for w in works)
 
     context_text = _build_context_text(expert, resolution, record, works_text)
     claims = _build_claims(
@@ -200,7 +199,7 @@ def build_expert_profile(
         "metrics": metrics,
         "affiliations": affiliations,
         "topics": topics,
-        "works": works,
+        "works": [w.as_dict() for w in works],
         "claims": claims,
         "context_text": context_text,
         "errors": errors,

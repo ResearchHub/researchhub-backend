@@ -1,10 +1,6 @@
 """Small helpers shared across the researcher_profile modules."""
 
 
-def is_http_url(value: str) -> bool:
-    return value.startswith("http://") or value.startswith("https://")
-
-
 def search_name(expert) -> str:
     parts = [
         getattr(expert, "first_name", ""),

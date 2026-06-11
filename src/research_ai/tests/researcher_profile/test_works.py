@@ -28,11 +28,11 @@ class OpenAlexWorksExtractionTests(SimpleTestCase):
         # Act
         works = works_mod._extract_openalex_works(results, "https://openalex.org/A123")
         # Assert
-        self.assertEqual(works[0]["author_position"], "first")
-        self.assertEqual(works[0]["source_url"], "https://doi.org/10.1/lead-paper")
+        self.assertEqual(works[0].author_position, "first")
+        self.assertEqual(works[0].source_url, "https://doi.org/10.1/lead-paper")
         # Falls back to the OpenAlex work URL when there is no DOI.
-        self.assertEqual(works[1]["source_url"], "https://openalex.org/W2")
-        self.assertEqual(works[1]["author_position"], "middle")
+        self.assertEqual(works[1].source_url, "https://openalex.org/W2")
+        self.assertEqual(works[1].author_position, "middle")
 
     def test_extract_openalex_works_dedupes_and_drops_unusable(self):
         # Arrange: a repeated work, an untitled one, and one without any URL.
@@ -45,7 +45,7 @@ class OpenAlexWorksExtractionTests(SimpleTestCase):
         # Act
         works = works_mod._extract_openalex_works(results, "A123")
         # Assert
-        self.assertEqual([w["title"] for w in works], ["Same Paper"])
+        self.assertEqual([w.title for w in works], ["Same Paper"])
 
     def test_select_works_prioritizes_first_and_last_author(self):
         # Arrange: eight works; the lead/senior-author papers are the older ones,
@@ -66,6 +66,6 @@ class OpenAlexWorksExtractionTests(SimpleTestCase):
         )
         # Assert: every first/last paper kept (newest first), middles fill the rest.
         self.assertEqual(
-            [w["title"] for w in works],
+            [w.title for w in works],
             ["First New", "First Old", "Last Older", "Middle A", "Middle B"],
         )

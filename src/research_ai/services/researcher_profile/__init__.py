@@ -20,7 +20,7 @@ This package adds the net-new piece, one module per concern:
 
 **Every claim carries a source URL.** The ``claims`` list is the source-attributed
 ground truth the draft's credibility (rubric #4) is built on and what the source
-verifier (Part 3) later checks against -- entries without a real URL are dropped.
+verifier (Part 3) later checks against -- entries without a URL are dropped.
 
 ``Expert.profile`` schema (JSON, ``schema_version`` 1)::
 

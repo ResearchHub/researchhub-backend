@@ -1,4 +1,5 @@
 import math
+from dataclasses import dataclass
 from unicodedata import normalize
 
 from dateutil import parser
@@ -33,6 +34,80 @@ def normalize_openalex_id(value: str | None) -> str:
     if "openalex.org/" in s:
         s = s.rstrip("/").rsplit("/", 1)[-1]
     return s.strip("/")
+
+
+@dataclass
+class Work:
+    """An OpenAlex work entity, reduced to the fields profile-building uses.
+
+    ``author_position`` is one author's position ("first" | "middle" | "last")
+    on the work, resolved against the ``author_id`` given at construction
+    (``None`` when that author is not matched on the work).
+    """
+
+    title: str
+    year: str
+    source_url: str
+    author_position: str | None = None
+
+    @classmethod
+    def from_openalex(cls, entity: dict, *, author_id: str | None = None):
+        """Build a ``Work`` from an OpenAlex work entity.
+
+        Returns ``None`` for unusable entities: no title, or neither a DOI nor
+        an OpenAlex URL to cite as the source.
+        """
+        title = str(entity.get("display_name") or "").strip()
+        if not title:
+            return None
+        url = (
+            str(entity.get("doi") or "").strip() or str(entity.get("id") or "").strip()
+        )
+        if not url:
+            return None
+        return cls(
+            title=title,
+            year=str(entity.get("publication_year") or "").strip(),
+            source_url=url,
+            author_position=cls._author_position(entity, author_id),
+        )
+
+    @staticmethod
+    def _author_position(entity: dict, author_id: str | None) -> str | None:
+        target = normalize_openalex_id(author_id).lower()
+        if not target:
+            return None
+        for authorship in entity.get("authorships") or []:
+            author = (authorship or {}).get("author") or {}
+            if normalize_openalex_id(author.get("id")).lower() == target:
+                return authorship.get("author_position") or None
+        return None
+
+    @property
+    def is_lead_author(self) -> bool:
+        return self.author_position in ("first", "last")
+
+    @property
+    def year_int(self) -> int:
+        try:
+            return int(self.year)
+        except ValueError:
+            return 0
+
+    @property
+    def label(self) -> str:
+        label = f"({self.year}) {self.title}" if self.year else self.title
+        if self.is_lead_author:
+            label += f" [{self.author_position} author]"
+        return label
+
+    def as_dict(self) -> dict:
+        return {
+            "title": self.title,
+            "year": self.year,
+            "source_url": self.source_url,
+            "author_position": self.author_position,
+        }
 
 
 class OpenAlex:

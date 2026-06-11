@@ -6,12 +6,12 @@ from django.test import SimpleTestCase, TestCase
 
 from research_ai.models import Expert
 from research_ai.services.researcher_profile import builder
-from research_ai.services.researcher_profile.common import is_http_url
 from research_ai.tests.researcher_profile.helpers import (
     make_expert,
     oa_author_record,
     oa_work,
 )
+from utils.openalex import Work
 
 
 class RecordExtractorTests(SimpleTestCase):
@@ -56,20 +56,12 @@ class ClaimsTests(SimpleTestCase):
             affiliations=["Stanford University"],
             topics=["Genomics"],
             works=[
-                {
-                    "title": "A Paper",
-                    "year": "2021",
-                    "source_url": "https://doi.org/10.1/abc",
-                },
-                {
-                    "title": "A Paper",  # dup
-                    "year": "2021",
-                    "source_url": "https://doi.org/10.1/abc",
-                },
+                Work("A Paper", "2021", "https://doi.org/10.1/abc"),
+                Work("A Paper", "2021", "https://doi.org/10.1/abc"),  # dup
             ],
         )
         # Assert
-        self.assertTrue(all(is_http_url(c["url"]) for c in claims))
+        self.assertTrue(all(c["url"] for c in claims))
         texts = [c["text"] for c in claims]
         self.assertIn("Affiliation (OpenAlex): Stanford University", texts)
         self.assertIn("Research topics (OpenAlex): Genomics", texts)
@@ -119,7 +111,7 @@ class BuildProfileTests(SimpleTestCase):
             "(2024) Lead Paper [first author]",
             [c["text"] for c in profile["claims"]],
         )
-        self.assertTrue(all(is_http_url(c["url"]) for c in profile["claims"]))
+        self.assertTrue(all(c["url"] for c in profile["claims"]))
         self.assertIn("Selected works", profile["context_text"])
         self.assertEqual(profile["errors"], [])
 
