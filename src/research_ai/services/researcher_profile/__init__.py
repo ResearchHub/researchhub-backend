@@ -34,12 +34,6 @@ verifier (Part 3) later checks against -- entries without a URL are dropped.
                         | "unresolved",
         "candidates_considered": int,
       },
-      "metrics": {                           # {} when unresolved / no stats
-        "h_index", "i10_index", "two_year_mean_citedness",
-        "works_count", "cited_by_count", "source_url",
-      },
-      "affiliations": [str, ...],            # OpenAlex institutions
-      "topics": [str, ...],                  # OpenAlex topics / concepts
       "works": [                             # first/last-author papers outrank
         {"title", "year", "source_url",      # middle ones, then most recent first;
          "author_position"},                 # "first" | "middle" | "last" | None

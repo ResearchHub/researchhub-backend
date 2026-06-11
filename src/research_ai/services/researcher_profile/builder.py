@@ -1,4 +1,4 @@
-"""Assemble and persist the profile: record fields, claims, context text.
+"""Assemble and persist the profile: selected works, claims, context text.
 
 The entry points live here: ``build_expert_profile`` (no write) and
 ``build_and_store_expert_profile`` (persists on ``Expert.profile``).
@@ -8,69 +8,39 @@ import logging
 
 from django.utils import timezone
 
-from research_ai.services.researcher_external_context import (
-    format_openalex_author_record,
-)
 from research_ai.services.researcher_profile.resolver import (
     AuthorResolution,
     resolve_openalex_author,
 )
 from research_ai.services.researcher_profile.works import collect_works
-from utils.openalex import Author, OpenAlex, Work
+from utils.openalex import OpenAlex, Work
 
 logger = logging.getLogger(__name__)
 
 _SCHEMA_VERSION = 1
-_MAX_AFFILIATIONS = 8
-_MAX_TOPICS = 10
 _CONTEXT_MAX_CHARS = 8000
 
 
-def _build_claims(
-    *,
-    author_url: str | None,
-    metrics: dict,
-    affiliations: list[str],
-    topics: list[str],
-    works: list[Work],
-) -> list[dict]:
-    """Flatten every fact into ``{text, url}``; drop anything without a URL."""
-    claims: list[dict] = []
-
-    def add(text: str, url: str | None) -> None:
-        text = (text or "").strip()
-        url = (url or "").strip()
-        if text and url:
-            claims.append({"text": text, "url": url})
-
-    if metrics:
-        h, i10 = metrics.get("h_index"), metrics.get("i10_index")
-        if h is not None or i10 is not None:
-            add(f"OpenAlex h-index {h}, i10-index {i10}", author_url)
-        wc, cbc = metrics.get("works_count"), metrics.get("cited_by_count")
-        if wc is not None or cbc is not None:
-            add(f"OpenAlex works_count {wc}, cited_by_count {cbc}", author_url)
-    for name in affiliations:
-        add(f"Affiliation (OpenAlex): {name}", author_url)
-    if topics:
-        add("Research topics (OpenAlex): " + ", ".join(topics[:8]), author_url)
-    for work in works:
-        add(work.label, work.source_url)
-
+def _build_claims(works: list[Work]) -> list[dict]:
+    """Flatten each work into ``{text, url}``; drop any without a URL, deduped."""
     out: list[dict] = []
     seen: set[tuple[str, str]] = set()
-    for claim in claims:
-        key = (claim["text"].lower(), claim["url"].lower())
-        if key not in seen:
-            seen.add(key)
-            out.append(claim)
+    for work in works:
+        text = (work.label or "").strip()
+        url = (work.source_url or "").strip()
+        if not (text and url):
+            continue
+        key = (text.lower(), url.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"text": text, "url": url})
     return out
 
 
 def _build_context_text(
     expert,
     resolution: AuthorResolution,
-    record: dict | None,
     works_text: str,
     *,
     max_chars: int = _CONTEXT_MAX_CHARS,
@@ -81,10 +51,6 @@ def _build_context_text(
     if resolution.openalex_author_id:
         head.append(f"OpenAlex author: {resolution.openalex_author_id}")
     chunks.append("\n".join(head))
-
-    oa_text = format_openalex_author_record(record) if record else ""
-    if oa_text.strip():
-        chunks.append("--- OpenAlex (public author record) ---\n" + oa_text.strip())
 
     if works_text.strip():
         chunks.append(
@@ -121,32 +87,17 @@ def build_expert_profile(
     if resolution.error:
         errors.append(f"resolve: {resolution.error}")
 
-    record = resolution.record
-    author = Author.from_openalex(record) if record else None
-    metrics = author.metrics if author else {}
-    affiliations = author.affiliations[:_MAX_AFFILIATIONS] if author else []
-    topics = author.topics[:_MAX_TOPICS] if author else []
-
     works, works_errors = collect_works(resolution, oa_client=oa)
     errors.extend(works_errors)
     works_text = "\n".join(f"- {w.label}" for w in works)
 
-    context_text = _build_context_text(expert, resolution, record, works_text)
-    claims = _build_claims(
-        author_url=resolution.openalex_author_id,
-        metrics=metrics,
-        affiliations=affiliations,
-        topics=topics,
-        works=works,
-    )
+    context_text = _build_context_text(expert, resolution, works_text)
+    claims = _build_claims(works)
 
     return {
         "schema_version": _SCHEMA_VERSION,
         "built_at": timezone.now().isoformat(),
         "resolution": resolution.as_dict(),
-        "metrics": metrics,
-        "affiliations": affiliations,
-        "topics": topics,
         "works": [w.as_dict() for w in works],
         "claims": claims,
         "context_text": context_text,

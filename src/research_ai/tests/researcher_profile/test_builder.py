@@ -18,43 +18,19 @@ class ClaimsTests(SimpleTestCase):
     def test_every_claim_has_url_and_dedupes(self):
         # Act
         claims = builder._build_claims(
-            author_url="https://openalex.org/A123",
-            metrics={
-                "h_index": 12,
-                "i10_index": 5,
-                "works_count": 40,
-                "cited_by_count": 900,
-                "source_url": "https://openalex.org/A123",
-            },
-            affiliations=["Stanford University"],
-            topics=["Genomics"],
-            works=[
+            [
                 Work("A Paper", "2021", "https://doi.org/10.1/abc"),
                 Work("A Paper", "2021", "https://doi.org/10.1/abc"),  # dup
-            ],
+            ]
         )
-        # Assert
+        # Assert: every claim has a URL; the duplicate work collapses to one.
         self.assertTrue(all(c["url"] for c in claims))
         texts = [c["text"] for c in claims]
-        self.assertIn("Affiliation (OpenAlex): Stanford University", texts)
-        self.assertIn("Research topics (OpenAlex): Genomics", texts)
         self.assertEqual(texts.count("(2021) A Paper"), 1)
 
-    def test_openalex_claims_dropped_without_author_url(self):
-        # Act: no author_url -> OpenAlex-derived claims have no URL and are dropped.
-        claims = builder._build_claims(
-            author_url=None,
-            metrics={
-                "h_index": 12,
-                "i10_index": 5,
-                "works_count": 1,
-                "cited_by_count": 2,
-                "source_url": None,
-            },
-            affiliations=["Stanford University"],
-            topics=["Genomics"],
-            works=[],
-        )
+    def test_work_without_source_url_is_dropped(self):
+        # Act: a work with no source URL can't be cited -> dropped.
+        claims = builder._build_claims([Work("A Paper", "2021", "")])
         # Assert
         self.assertEqual(claims, [])
 
@@ -78,8 +54,6 @@ class BuildProfileTests(SimpleTestCase):
         # Assert
         self.assertEqual(profile["schema_version"], 1)
         self.assertEqual(profile["resolution"]["match_method"], "name+affiliation")
-        self.assertEqual(profile["metrics"]["h_index"], 12)
-        self.assertEqual(profile["affiliations"], ["Stanford University"])
         self.assertEqual(profile["works"][0]["author_position"], "first")
         # Authorship position is surfaced on the work's claim text.
         self.assertIn(
