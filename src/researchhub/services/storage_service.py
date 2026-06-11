@@ -111,10 +111,16 @@ class S3StorageService(StorageService):
         Move an object within the storage bucket.
 
         Returns:
-            The destination key on success, or None on failure.
+            The destination key on success, or None on failure (including when
+            the source object does not exist).
         """
         bucket = settings.AWS_STORAGE_BUCKET_NAME
         s3_client = aws_utils.create_client("s3")
+
+        if not self._object_exists(s3_client, bucket, source_key):
+            logger.info("Source object %s does not exist", source_key)
+            return None
+
         try:
             s3_client.copy_object(
                 Bucket=bucket,
@@ -128,6 +134,18 @@ class S3StorageService(StorageService):
             )
             return None
         return dest_key
+
+    def _object_exists(self, s3_client, bucket: str, key: str) -> bool:
+        """
+        Check whether an object exists in the storage bucket.
+        """
+        try:
+            s3_client.head_object(Bucket=bucket, Key=key)
+            return True
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") == "404":
+                return False
+            raise
 
     def _sanitize_filename(self, filename: str) -> str:
         """
