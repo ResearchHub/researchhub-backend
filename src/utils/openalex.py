@@ -1,4 +1,5 @@
 import math
+import re
 from dataclasses import dataclass
 from unicodedata import normalize
 
@@ -34,6 +35,30 @@ def normalize_openalex_id(value: str | None) -> str:
     if "openalex.org/" in s:
         s = s.rstrip("/").rsplit("/", 1)[-1]
     return s.strip("/")
+
+
+_ORCID_RE = re.compile(r"(\d{4}-\d{4}-\d{4}-\d{3}[\dxX])")
+_OPENALEX_AUTHOR_RE = re.compile(r"openalex\.org/(A\d+)", re.IGNORECASE)
+
+
+def scholarly_ids_from_urls(urls) -> tuple[str | None, str | None]:
+    """Mine an ORCID and/or OpenAlex author id from a list of URLs.
+
+    Returns ``(orcid, openalex_author_id)``, each ``None`` when absent. ORCID is
+    only ever a lookup key into OpenAlex's ``/authors`` endpoint here.
+    """
+    orcid: str | None = None
+    oa_id: str | None = None
+    for url in urls or []:
+        if orcid is None and "orcid.org" in url.lower():
+            m = _ORCID_RE.search(url)
+            if m:
+                orcid = m.group(1).upper()
+        if oa_id is None:
+            m = _OPENALEX_AUTHOR_RE.search(url)
+            if m:
+                oa_id = m.group(1)
+    return orcid, oa_id
 
 
 def author_institution_names(entity: dict) -> list[str]:

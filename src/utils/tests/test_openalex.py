@@ -13,6 +13,7 @@ from utils.openalex import (
     Work,
     author_institution_names,
     normalize_openalex_id,
+    scholarly_ids_from_urls,
 )
 
 fixtures_dir = Path(__file__).parent
@@ -133,6 +134,29 @@ class NormalizeOpenalexIdTests(unittest.TestCase):
 
                 # Assert
                 self.assertEqual(result, expected)
+
+
+class ScholarlyIdsFromUrlsTests(unittest.TestCase):
+    def test_extracts_orcid_and_openalex_author_id(self):
+        # Arrange
+        urls = [
+            "https://orcid.org/0000-0002-1825-0097",
+            "https://openalex.org/A5023888391",
+        ]
+        # Act
+        orcid, oa_id = scholarly_ids_from_urls(urls)
+        # Assert
+        self.assertEqual(orcid, "0000-0002-1825-0097")
+        self.assertEqual(oa_id, "A5023888391")
+
+    def test_returns_none_for_unrelated_or_empty_urls(self):
+        # Arrange / Act / Assert
+        self.assertEqual(
+            scholarly_ids_from_urls(["https://example.edu/jane", "not a url"]),
+            (None, None),
+        )
+        self.assertEqual(scholarly_ids_from_urls([]), (None, None))
+        self.assertEqual(scholarly_ids_from_urls(None), (None, None))
 
 
 class WorkTests(unittest.TestCase):
