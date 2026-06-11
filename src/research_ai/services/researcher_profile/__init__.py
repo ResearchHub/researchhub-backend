@@ -17,9 +17,9 @@ This package adds the net-new piece, one module per concern:
                      ``Expert.profile`` so the generate, verify, and
                      notebook-iteration stages reuse it instead of re-fetching
 
-**Every claim carries a source URL.** The ``claims`` list is the source-attributed
+**Every work carries a source URL.** The ``works`` list is the source-attributed
 ground truth the draft's credibility (rubric #4) is built on and what the source
-verifier (Part 3) later checks against -- entries without a URL are dropped.
+verifier (Part 3) later checks against -- each entry has a ``source_url``.
 
 ``Expert.profile`` schema (JSON, ``schema_version`` 1)::
 
@@ -39,7 +39,6 @@ verifier (Part 3) later checks against -- entries without a URL are dropped.
          "author_position"},                 # "first" | "middle" | "last" | None
         ...,                                 # (None when not matched on the work)
       ],
-      "claims": [{"text", "url"}, ...],      # flat, every entry has a URL
       "context_text": str,                   # prompt-ready block for the generator
       "errors": [str, ...],                  # non-fatal failures, for auditability
     }

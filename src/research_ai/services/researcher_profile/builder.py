@@ -1,4 +1,4 @@
-"""Assemble and persist the profile: selected works, claims, context text.
+"""Assemble and persist the profile: selected works and context text.
 
 The entry points live here: ``build_expert_profile`` (no write) and
 ``build_and_store_expert_profile`` (persists on ``Expert.profile``).
@@ -13,29 +13,12 @@ from research_ai.services.researcher_profile.resolver import (
     resolve_openalex_author,
 )
 from research_ai.services.researcher_profile.works import collect_works
-from utils.openalex import OpenAlex, Work
+from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
 
 _SCHEMA_VERSION = 1
 _CONTEXT_MAX_CHARS = 8000
-
-
-def _build_claims(works: list[Work]) -> list[dict]:
-    """Flatten each work into ``{text, url}``; drop any without a URL, deduped."""
-    out: list[dict] = []
-    seen: set[tuple[str, str]] = set()
-    for work in works:
-        text = (work.label or "").strip()
-        url = (work.source_url or "").strip()
-        if not (text and url):
-            continue
-        key = (text.lower(), url.lower())
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append({"text": text, "url": url})
-    return out
 
 
 def _build_context_text(
@@ -92,14 +75,12 @@ def build_expert_profile(
     works_text = "\n".join(f"- {w.label}" for w in works)
 
     context_text = _build_context_text(expert, resolution, works_text)
-    claims = _build_claims(works)
 
     return {
         "schema_version": _SCHEMA_VERSION,
         "built_at": timezone.now().isoformat(),
         "resolution": resolution.as_dict(),
         "works": [w.as_dict() for w in works],
-        "claims": claims,
         "context_text": context_text,
         "errors": errors,
     }

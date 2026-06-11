@@ -14,27 +14,6 @@ from research_ai.tests.researcher_profile.helpers import (
 from utils.openalex import Work
 
 
-class ClaimsTests(SimpleTestCase):
-    def test_every_claim_has_url_and_dedupes(self):
-        # Act
-        claims = builder._build_claims(
-            [
-                Work("A Paper", "2021", "https://doi.org/10.1/abc"),
-                Work("A Paper", "2021", "https://doi.org/10.1/abc"),  # dup
-            ]
-        )
-        # Assert: every claim has a URL; the duplicate work collapses to one.
-        self.assertTrue(all(c["url"] for c in claims))
-        texts = [c["text"] for c in claims]
-        self.assertEqual(texts.count("(2021) A Paper"), 1)
-
-    def test_work_without_source_url_is_dropped(self):
-        # Act: a work with no source URL can't be cited -> dropped.
-        claims = builder._build_claims([Work("A Paper", "2021", "")])
-        # Assert
-        self.assertEqual(claims, [])
-
-
 class BuildProfileTests(SimpleTestCase):
     def test_builds_full_profile_from_name_match(self):
         # Arrange
@@ -55,13 +34,10 @@ class BuildProfileTests(SimpleTestCase):
         self.assertEqual(profile["schema_version"], 1)
         self.assertEqual(profile["resolution"]["match_method"], "name+affiliation")
         self.assertEqual(profile["works"][0]["author_position"], "first")
-        # Authorship position is surfaced on the work's claim text.
-        self.assertIn(
-            "(2024) Lead Paper [first author]",
-            [c["text"] for c in profile["claims"]],
-        )
-        self.assertTrue(all(c["url"] for c in profile["claims"]))
+        self.assertTrue(all(w["source_url"] for w in profile["works"]))
+        # Authorship position is surfaced on the work label in the context block.
         self.assertIn("Selected works", profile["context_text"])
+        self.assertIn("(2024) Lead Paper [first author]", profile["context_text"])
         self.assertEqual(profile["errors"], [])
 
     def test_unresolved_expert_builds_empty_profile(self):
@@ -73,7 +49,6 @@ class BuildProfileTests(SimpleTestCase):
         # Assert
         self.assertEqual(profile["resolution"]["match_method"], "unresolved")
         self.assertEqual(profile["works"], [])
-        self.assertEqual(profile["claims"], [])
 
     def test_openalex_works_failure_is_recorded(self):
         # Arrange: author resolves but the works listing errors.
@@ -96,12 +71,12 @@ class StoreProfileTests(TestCase):
     @patch("research_ai.services.researcher_profile.builder.build_expert_profile")
     def test_build_and_store_persists_profile(self, mock_build):
         # Arrange
-        mock_build.return_value = {"schema_version": 1, "claims": []}
+        mock_build.return_value = {"schema_version": 1, "works": []}
         expert = Expert.objects.create(email="jane@example.com", first_name="Jane")
         # Act
         returned = builder.build_and_store_expert_profile(expert)
         # Assert
         expert.refresh_from_db()
-        self.assertEqual(expert.profile, {"schema_version": 1, "claims": []})
+        self.assertEqual(expert.profile, {"schema_version": 1, "works": []})
         self.assertEqual(returned, expert.profile)
         mock_build.assert_called_once_with(expert)
