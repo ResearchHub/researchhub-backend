@@ -27,7 +27,7 @@ class NoteInvitationService:
     Service for handling note invitations.
     """
 
-    def accept_invite(self, key, user):
+    def accept_invite(self, key: str, user) -> NoteInvitation:
         """
         Accept a note invitation.
 
