@@ -628,6 +628,54 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         self.assertFalse(review.is_removed)
         self.assertTrue(review.is_public)
 
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_quarantines_user_files(self, storage_service_mock):
+        """
+        S3 objects backing the user's paper, post, and comment are quarantined.
+        """
+        # Arrange
+        mock_storage_service = storage_service_mock.return_value
+        self.paper.file.name = "uploads/papers/users/spam.pdf"
+        self.paper.save()
+        self.post.discussion_src.name = "uploads/posts/users/spam.txt"
+        self.post.save()
+        self.comment.comment_content_src.name = "uploads/comments/users/spam.txt"
+        self.comment.save()
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        quarantined = {
+            call.args[0] for call in mock_storage_service.quarantine_object.mock_calls
+        }
+        self.assertEqual(
+            quarantined,
+            {
+                "uploads/papers/users/spam.pdf",
+                "uploads/posts/users/spam.txt",
+                "uploads/comments/users/spam.txt",
+            },
+        )
+
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_reinstate_restores_user_files(self, mock_storage_service_cls):
+        """
+        Quarantined S3 objects backing the user's content are restored.
+        """
+        # Arrange
+        mock_storage_service = mock_storage_service_cls.return_value
+        self.paper.file.name = "uploads/papers/users/spam.pdf"
+        self.paper.save()
+
+        # Act
+        reinstate_user_task(self.user.id)
+
+        # Assert
+        mock_storage_service.restore_object.assert_called_once_with(
+            "uploads/papers/users/spam.pdf"
+        )
+
 
 class CensorFunctionTests(TestCase):
     def test_censor_soft_deletes_reviews(self):
