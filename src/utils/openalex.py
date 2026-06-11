@@ -588,6 +588,25 @@ class OpenAlex:
         cursor = next_cursor if next_cursor != "*" else None
         return filtered_works, cursor
 
+    def get_works_typed(self, **kwargs) -> list["Work"]:
+        """Typed variant of :meth:`get_works`: parsed ``Work`` objects for one page.
+
+        Forwards every keyword argument to ``get_works`` and maps each raw entity
+        to a ``Work``, dropping unusable ones (no title, or no DOI/OpenAlex URL).
+        ``author_position`` is attributed to ``openalex_author_id`` when given.
+
+        The pagination cursor is intentionally not returned: this is for
+        single-page, select-and-keep use, not full pagination.
+        """
+        author_id = kwargs.get("openalex_author_id")
+        results, _ = self.get_works(**kwargs)
+        works = []
+        for entity in results or []:
+            work = Work.from_openalex(entity, author_id=author_id)
+            if work is not None:
+                works.append(work)
+        return works
+
     def autocomplete_works(self, query):
         """
         Search for works using OpenAlex's autocomplete endpoint.

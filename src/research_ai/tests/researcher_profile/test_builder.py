@@ -69,7 +69,9 @@ class BuildProfileTests(SimpleTestCase):
         client.search_authors_via_name.return_value = {
             "results": [oa_author_record(orcid=None)]
         }
-        client.get_works.return_value = ([oa_work("Lead Paper", 2024, "first")], None)
+        client.get_works_typed.return_value = [
+            Work.from_openalex(oa_work("Lead Paper", 2024, "first"), author_id="A123")
+        ]
         expert = make_expert(affiliation="Stanford University", expertise="genomics")
         # Act
         profile = builder.build_expert_profile(expert, oa_client=client)
@@ -106,7 +108,7 @@ class BuildProfileTests(SimpleTestCase):
             "results": [{"id": "https://openalex.org/I1"}]
         }
         client.search_authors_via_name.return_value = {"results": [oa_author_record()]}
-        client.get_works.side_effect = RuntimeError("works api down")
+        client.get_works_typed.side_effect = RuntimeError("works api down")
         # Act
         profile = builder.build_expert_profile(
             make_expert(affiliation="Stanford University"), oa_client=client

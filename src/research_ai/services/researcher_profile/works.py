@@ -18,28 +18,21 @@ _WORKS_PAGE_SIZE = 50  # recent-works window fetched from OpenAlex before select
 
 
 def _select_works(works: list[Work]) -> list[Work]:
-    """Keep ``_MAX_WORKS``: first/last-author papers outrank middle, then recency."""
-
-    def rank(work: Work) -> tuple[bool, int]:
-        return (work.is_lead_author, work.year_int)
-
-    return sorted(works, key=rank, reverse=True)[:_MAX_WORKS]
-
-
-def _extract_openalex_works(results: list[dict], author_id: str | None) -> list[Work]:
-    """Parse OpenAlex work entities, deduped by title + year."""
-    out: list[Work] = []
+    """Dedup by title + year, then keep ``_MAX_WORKS``: first/last-author papers
+    outrank middle, then recency."""
+    deduped: list[Work] = []
     seen: set[tuple[str, str]] = set()
-    for entity in results or []:
-        work = Work.from_openalex(entity, author_id=author_id)
-        if work is None:
-            continue
+    for work in works:
         key = (work.title.lower(), work.year)
         if key in seen:
             continue
         seen.add(key)
-        out.append(work)
-    return out
+        deduped.append(work)
+
+    def rank(work: Work) -> tuple[bool, int]:
+        return (work.is_lead_author, work.year_int)
+
+    return sorted(deduped, key=rank, reverse=True)[:_MAX_WORKS]
 
 
 def collect_works(
@@ -52,7 +45,7 @@ def collect_works(
     if not resolution.openalex_author_id:
         return [], []
     try:
-        results, _ = oa_client.get_works(
+        works = oa_client.get_works_typed(
             openalex_author_id=resolution.openalex_author_id,
             batch_size=_WORKS_PAGE_SIZE,
             sort="publication_date:desc",
@@ -60,7 +53,4 @@ def collect_works(
     except Exception as exc:  # noqa: BLE001 - works listing is best-effort
         logger.info("OpenAlex works fetch failed: %s", exc)
         return [], [f"openalex-works: {exc}"]
-    works = _select_works(
-        _extract_openalex_works(results, resolution.openalex_author_id)
-    )
-    return works, []
+    return _select_works(works), []

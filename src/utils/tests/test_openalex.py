@@ -136,6 +136,37 @@ class NormalizeOpenalexIdTests(unittest.TestCase):
                 self.assertEqual(result, expected)
 
 
+class GetWorksTypedTests(unittest.TestCase):
+    def test_maps_to_work_objects_and_skips_unusable(self):
+        # Arrange: one usable entity and one without a title (unparseable).
+        results = [
+            {
+                "display_name": "Valid Paper",
+                "publication_year": 2023,
+                "doi": "https://doi.org/10.1/valid",
+                "authorships": [
+                    {
+                        "author": {"id": "https://openalex.org/A123"},
+                        "author_position": "first",
+                    }
+                ],
+            },
+            {"display_name": "", "publication_year": 2023},
+        ]
+        oa = OpenAlex()
+        # Act
+        with patch.object(
+            OpenAlex, "get_works", return_value=(results, None)
+        ) as mock_get_works:
+            works = oa.get_works_typed(openalex_author_id="A123", batch_size=50)
+        # Assert
+        mock_get_works.assert_called_once_with(
+            openalex_author_id="A123", batch_size=50
+        )
+        self.assertEqual([w.title for w in works], ["Valid Paper"])
+        self.assertEqual(works[0].author_position, "first")
+
+
 class ScholarlyIdsFromUrlsTests(unittest.TestCase):
     def test_extracts_orcid_and_openalex_author_id(self):
         # Arrange
