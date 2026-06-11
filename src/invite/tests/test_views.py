@@ -1,13 +1,13 @@
 import uuid
 
 from django.contrib.auth import get_user_model
+from rest_framework.test import APITestCase
 
 from invite.related_models.note_invitation import NoteInvitation
 from invite.related_models.organization_invitation import OrganizationInvitation
-from utils.test_helpers import APITestCaseWithOrg
 
 
-class OrganizationInvitationViewsTest(APITestCaseWithOrg):
+class OrganizationInvitationViewsTest(APITestCase):
     def setUp(self):
         # Create + auth user
         self.sender = get_user_model().objects.create_user(
@@ -56,7 +56,7 @@ class OrganizationInvitationViewsTest(APITestCaseWithOrg):
         self.assertEqual(len(response.data["results"]), 1)
 
 
-class NoteInvitationViewsTest(APITestCaseWithOrg):
+class NoteInvitationViewsTest(APITestCase):
     def setUp(self):
         # Create + auth user
         self.sender = get_user_model().objects.create_user(
