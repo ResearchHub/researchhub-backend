@@ -35,20 +35,13 @@ class ResearchhubPostQuerySet(models.QuerySet):
     def visible_to(self, user: User | None) -> "ResearchhubPostQuerySet":
         """Restrict to posts the given user is allowed to see.
 
-        Public visibility requires two things: the unified document is public
-        (``is_public=True``) and the post has cleared moderation
-        (``status=APPROVED``). Posts awaiting moderation (PENDING) or declined
-        therefore never surface publicly.
+        Anonymous users only see public posts that cleared moderation. Authors
+        can see their own posts. Grant creators and document-permission users
+        can see private posts after moderation clears; ``NO_ACCESS`` still wins.
+        Moderators and hub editors can see all posts.
 
-        A post that has NOT cleared moderation is visible only to its author and
-        to site moderators / hub editors (who need to see it to moderate it).
-        The creator of any grant the post applied to (via GrantApplication) and
-        users with permission on the unified document may only see the post
-        once it has cleared moderation.
-
-        GRANT posts stay APPROVED regardless of the grant's moderation state, so
-        they gate on ``Grant.status`` instead: a pending or declined grant is
-        treated as not yet cleared.
+        Grant posts do not use unified-document moderation status. Their backing
+        document stays approved, so ``Grant.status`` decides whether they cleared.
         """
         if user is None or not getattr(user, "is_authenticated", False):
             return self.publicly_visible()
