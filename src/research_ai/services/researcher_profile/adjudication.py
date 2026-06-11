@@ -11,7 +11,7 @@ import logging
 
 from research_ai.services.bedrock_llm_service import BedrockLLMService
 from research_ai.services.expert_finder_json import ExpertFinderJson
-from research_ai.services.researcher_profile.common import search_name, source_urls
+from research_ai.services.researcher_profile.common import source_urls
 from utils.openalex import author_institution_names
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ def _candidate_block(index: int, record: dict) -> str:
 
 
 def _build_user_prompt(expert, records: list[dict]) -> str:
-    lines = [f"Target researcher: {search_name(expert) or '(unknown)'}"]
+    lines = [f"Target researcher: {expert.full_name or '(unknown)'}"]
     affiliation = (getattr(expert, "affiliation", "") or "").strip()
     if affiliation:
         lines.append(f"Affiliation (from our records): {affiliation}")

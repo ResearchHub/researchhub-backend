@@ -29,7 +29,7 @@ from research_ai.services.researcher_external_context import (
     fetch_openalex_author_record,
 )
 from research_ai.services.researcher_profile.adjudication import pick_candidate
-from research_ai.services.researcher_profile.common import search_name, source_urls
+from research_ai.services.researcher_profile.common import source_urls
 from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
@@ -171,7 +171,7 @@ def resolve_openalex_author(
             )
         # No OpenAlex record behind the cited id -> fall through to name search.
 
-    name = search_name(expert)
+    name = expert.full_name
     if not name:
         return AuthorResolution(match_method="unresolved")
 

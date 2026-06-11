@@ -1,10 +1,10 @@
 """Shared factories for the researcher_profile test modules."""
 
-from types import SimpleNamespace
+from research_ai.models import Expert
 
 
 def make_expert(**kwargs):
-    """Duck-typed Expert stand-in (no DB) for the pure-logic paths."""
+    """Unsaved Expert (no DB) for the pure-logic paths."""
     defaults = {
         "first_name": "Jane",
         "middle_name": "",
@@ -14,7 +14,7 @@ def make_expert(**kwargs):
         "sources": [],
     }
     defaults.update(kwargs)
-    return SimpleNamespace(**defaults)
+    return Expert(**defaults)
 
 
 def oa_author_record(**overrides):

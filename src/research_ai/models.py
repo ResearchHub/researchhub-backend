@@ -181,6 +181,11 @@ class Expert(DefaultModel):
     def __str__(self):
         return f"Expert {self.id} ({self.email})"
 
+    @property
+    def full_name(self) -> str:
+        parts = [self.first_name, self.middle_name, self.last_name]
+        return " ".join(str(p).strip() for p in parts if p and str(p).strip()).strip()
+
     def save(self, *args, **kwargs):
         if self.email:
             self.email = self.email.strip().lower()

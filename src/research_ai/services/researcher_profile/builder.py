@@ -11,7 +11,6 @@ from django.utils import timezone
 from research_ai.services.researcher_external_context import (
     format_openalex_author_record,
 )
-from research_ai.services.researcher_profile.common import search_name
 from research_ai.services.researcher_profile.resolver import (
     AuthorResolution,
     resolve_openalex_author,
@@ -78,7 +77,7 @@ def _build_context_text(
 ) -> str:
     chunks: list[str] = []
 
-    head = [f"Researcher profile: {search_name(expert)}".rstrip(": ")]
+    head = [f"Researcher profile: {expert.full_name}".rstrip(": ")]
     if resolution.openalex_author_id:
         head.append(f"OpenAlex author: {resolution.openalex_author_id}")
     chunks.append("\n".join(head))
