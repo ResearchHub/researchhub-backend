@@ -36,6 +36,88 @@ def normalize_openalex_id(value: str | None) -> str:
     return s.strip("/")
 
 
+def author_institution_names(entity: dict) -> list[str]:
+    """Institution display names found anywhere on an OpenAlex author entity."""
+    names: list[str] = []
+    for inst in entity.get("last_known_institutions") or []:
+        dn = (inst or {}).get("display_name")
+        if dn:
+            names.append(dn)
+    lki = entity.get("last_known_institution") or {}
+    if lki.get("display_name"):
+        names.append(lki["display_name"])
+    for aff in entity.get("affiliations") or []:
+        inst = (aff or {}).get("institution") or {}
+        if inst.get("display_name"):
+            names.append(inst["display_name"])
+    return names
+
+
+@dataclass
+class Author:
+    """An OpenAlex author entity, reduced to the fields profile-building uses.
+
+    ``metrics`` keeps the entity's citation stats under stable keys (note
+    ``2yr_mean_citedness`` becomes ``two_year_mean_citedness``) plus the
+    author URL as ``source_url``; it is ``{}`` when the entity carries no
+    stats at all. ``affiliations`` and ``topics`` are deduped display names,
+    uncapped -- callers apply their own limits.
+    """
+
+    id: str | None
+    display_name: str | None
+    metrics: dict
+    affiliations: list[str]
+    topics: list[str]
+
+    @classmethod
+    def from_openalex(cls, entity: dict):
+        return cls(
+            id=entity.get("id"),
+            display_name=entity.get("display_name"),
+            metrics=cls._metrics(entity),
+            affiliations=cls._affiliations(entity),
+            topics=cls._topics(entity),
+        )
+
+    @staticmethod
+    def _metrics(entity: dict) -> dict:
+        ss = entity.get("summary_stats") or {}
+        metrics = {
+            "h_index": ss.get("h_index"),
+            "i10_index": ss.get("i10_index"),
+            "two_year_mean_citedness": ss.get("2yr_mean_citedness"),
+            "works_count": entity.get("works_count"),
+            "cited_by_count": entity.get("cited_by_count"),
+        }
+        if all(v is None for v in metrics.values()):
+            return {}
+        metrics["source_url"] = entity.get("id")
+        return metrics
+
+    @staticmethod
+    def _affiliations(entity: dict) -> list[str]:
+        out: list[str] = []
+        for name in author_institution_names(entity):
+            name = (name or "").strip()
+            if name and name not in out:
+                out.append(name)
+        return out
+
+    @staticmethod
+    def _topics(entity: dict) -> list[str]:
+        """Topic display names, falling back to ``x_concepts`` when empty."""
+        out: list[str] = []
+        for source in (entity.get("topics") or [], entity.get("x_concepts") or []):
+            for item in source:
+                label = ((item or {}).get("display_name") or "").strip()
+                if label and label not in out:
+                    out.append(label)
+            if out:
+                break
+        return out
+
+
 @dataclass
 class Work:
     """An OpenAlex work entity, reduced to the fields profile-building uses.

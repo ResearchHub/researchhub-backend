@@ -11,16 +11,13 @@ from django.utils import timezone
 from research_ai.services.researcher_external_context import (
     format_openalex_author_record,
 )
-from research_ai.services.researcher_profile.common import (
-    candidate_institution_names,
-    search_name,
-)
+from research_ai.services.researcher_profile.common import search_name
 from research_ai.services.researcher_profile.resolver import (
     AuthorResolution,
     resolve_openalex_author,
 )
 from research_ai.services.researcher_profile.works import collect_works
-from utils.openalex import OpenAlex, Work
+from utils.openalex import Author, OpenAlex, Work
 
 logger = logging.getLogger(__name__)
 
@@ -28,52 +25,6 @@ _SCHEMA_VERSION = 1
 _MAX_AFFILIATIONS = 8
 _MAX_TOPICS = 10
 _CONTEXT_MAX_CHARS = 8000
-
-
-def _extract_metrics(record: dict | None) -> dict:
-    if not record:
-        return {}
-    ss = record.get("summary_stats") or {}
-    metrics = {
-        "h_index": ss.get("h_index"),
-        "i10_index": ss.get("i10_index"),
-        "two_year_mean_citedness": ss.get("2yr_mean_citedness"),
-        "works_count": record.get("works_count"),
-        "cited_by_count": record.get("cited_by_count"),
-    }
-    if all(v is None for v in metrics.values()):
-        return {}
-    metrics["source_url"] = record.get("id")
-    return metrics
-
-
-def _extract_affiliations(record: dict | None) -> list[str]:
-    if not record:
-        return []
-    out: list[str] = []
-    for name in candidate_institution_names(record):
-        name = (name or "").strip()
-        if name and name not in out:
-            out.append(name)
-        if len(out) >= _MAX_AFFILIATIONS:
-            break
-    return out
-
-
-def _extract_topics(record: dict | None) -> list[str]:
-    if not record:
-        return []
-    out: list[str] = []
-    for source in (record.get("topics") or [], record.get("x_concepts") or []):
-        for item in source:
-            label = ((item or {}).get("display_name") or "").strip()
-            if label and label not in out:
-                out.append(label)
-            if len(out) >= _MAX_TOPICS:
-                return out
-        if out:
-            break
-    return out
 
 
 def _build_claims(
@@ -175,9 +126,10 @@ def build_expert_profile(
         errors.append(f"resolve: {resolution.error}")
 
     record = resolution.record
-    metrics = _extract_metrics(record)
-    affiliations = _extract_affiliations(record)
-    topics = _extract_topics(record)
+    author = Author.from_openalex(record) if record else None
+    metrics = author.metrics if author else {}
+    affiliations = author.affiliations[:_MAX_AFFILIATIONS] if author else []
+    topics = author.topics[:_MAX_TOPICS] if author else []
 
     works, works_errors = collect_works(resolution, oa_client=oa)
     errors.extend(works_errors)

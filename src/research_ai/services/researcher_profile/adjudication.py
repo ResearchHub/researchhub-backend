@@ -11,11 +11,8 @@ import logging
 
 from research_ai.services.bedrock_llm_service import BedrockLLMService
 from research_ai.services.expert_finder_json import ExpertFinderJson
-from research_ai.services.researcher_profile.common import (
-    candidate_institution_names,
-    search_name,
-    source_urls,
-)
+from research_ai.services.researcher_profile.common import search_name, source_urls
+from utils.openalex import author_institution_names
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +39,7 @@ _SYSTEM = (
 
 
 def _candidate_block(index: int, record: dict) -> str:
-    institutions = ", ".join(candidate_institution_names(record)[:3]) or "(none)"
+    institutions = ", ".join(author_institution_names(record)[:3]) or "(none)"
     topics = ", ".join(
         label
         for t in (record.get("topics") or [])[:5]

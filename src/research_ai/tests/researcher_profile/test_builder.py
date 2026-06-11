@@ -14,33 +14,6 @@ from research_ai.tests.researcher_profile.helpers import (
 from utils.openalex import Work
 
 
-class RecordExtractorTests(SimpleTestCase):
-    def test_extract_metrics(self):
-        # Act
-        metrics = builder._extract_metrics(oa_author_record())
-        # Assert
-        self.assertEqual(metrics["h_index"], 12)
-        self.assertEqual(metrics["i10_index"], 5)
-        self.assertEqual(metrics["works_count"], 40)
-        self.assertEqual(metrics["cited_by_count"], 900)
-        self.assertEqual(metrics["source_url"], "https://openalex.org/A123")
-
-    def test_extract_metrics_empty_when_no_stats(self):
-        # Arrange
-        record = {"id": "https://openalex.org/A1", "summary_stats": {}}
-        # Act / Assert
-        self.assertEqual(builder._extract_metrics(record), {})
-        self.assertEqual(builder._extract_metrics(None), {})
-
-    def test_extract_affiliations_and_topics(self):
-        # Act
-        affs = builder._extract_affiliations(oa_author_record())
-        topics = builder._extract_topics(oa_author_record())
-        # Assert
-        self.assertEqual(affs, ["Stanford University"])
-        self.assertEqual(topics, ["Genomics", "Bioinformatics"])
-
-
 class ClaimsTests(SimpleTestCase):
     def test_every_claim_has_url_and_dedupes(self):
         # Act

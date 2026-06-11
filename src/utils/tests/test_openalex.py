@@ -7,7 +7,13 @@ from unittest.mock import patch
 import responses
 from django.test import TestCase
 
-from utils.openalex import OpenAlex, Work, normalize_openalex_id
+from utils.openalex import (
+    Author,
+    OpenAlex,
+    Work,
+    author_institution_names,
+    normalize_openalex_id,
+)
 
 fixtures_dir = Path(__file__).parent
 
@@ -214,4 +220,75 @@ class WorkTests(unittest.TestCase):
                 "source_url": "https://doi.org/10.1/p",
                 "author_position": "first",
             },
+        )
+
+
+class AuthorTests(unittest.TestCase):
+    def _entity(self, **overrides):
+        entity = {
+            "id": "https://openalex.org/A123",
+            "display_name": "Jane Doe",
+            "summary_stats": {
+                "h_index": 12,
+                "i10_index": 5,
+                "2yr_mean_citedness": 2.1,
+            },
+            "works_count": 40,
+            "cited_by_count": 900,
+            "affiliations": [
+                {"institution": {"display_name": "Stanford University"}},
+                {"institution": {"display_name": "Stanford University"}},  # dup
+            ],
+            "topics": [
+                {"display_name": "Genomics"},
+                {"display_name": "Bioinformatics"},
+            ],
+        }
+        entity.update(overrides)
+        return entity
+
+    def test_from_openalex_maps_metrics_affiliations_and_topics(self):
+        # Act
+        author = Author.from_openalex(self._entity())
+
+        # Assert
+        self.assertEqual(author.id, "https://openalex.org/A123")
+        self.assertEqual(author.display_name, "Jane Doe")
+        self.assertEqual(author.metrics["h_index"], 12)
+        self.assertEqual(author.metrics["i10_index"], 5)
+        self.assertEqual(author.metrics["two_year_mean_citedness"], 2.1)
+        self.assertEqual(author.metrics["works_count"], 40)
+        self.assertEqual(author.metrics["cited_by_count"], 900)
+        self.assertEqual(author.metrics["source_url"], "https://openalex.org/A123")
+        self.assertEqual(author.affiliations, ["Stanford University"])
+        self.assertEqual(author.topics, ["Genomics", "Bioinformatics"])
+
+    def test_metrics_empty_when_entity_has_no_stats(self):
+        # Arrange
+        entity = {"id": "https://openalex.org/A1", "summary_stats": {}}
+
+        # Act / Assert
+        self.assertEqual(Author.from_openalex(entity).metrics, {})
+
+    def test_topics_fall_back_to_x_concepts(self):
+        # Arrange
+        entity = self._entity(topics=[], x_concepts=[{"display_name": "Chemistry"}])
+
+        # Act / Assert
+        self.assertEqual(Author.from_openalex(entity).topics, ["Chemistry"])
+
+
+class AuthorInstitutionNamesTests(unittest.TestCase):
+    def test_collects_names_from_all_institution_fields(self):
+        # Arrange
+        entity = {
+            "last_known_institutions": [{"display_name": "MIT"}],
+            "last_known_institution": {"display_name": "Harvard University"},
+            "affiliations": [{"institution": {"display_name": "Stanford University"}}],
+        }
+
+        # Act / Assert
+        self.assertEqual(
+            author_institution_names(entity),
+            ["MIT", "Harvard University", "Stanford University"],
         )
