@@ -347,12 +347,11 @@ class AuthorInstitutionNamesTests(unittest.TestCase):
         # Arrange
         entity = {
             "last_known_institutions": [{"display_name": "MIT"}],
-            "last_known_institution": {"display_name": "Harvard University"},
             "affiliations": [{"institution": {"display_name": "Stanford University"}}],
         }
 
         # Act / Assert
         self.assertEqual(
             author_institution_names(entity),
-            ["MIT", "Harvard University", "Stanford University"],
+            ["MIT", "Stanford University"],
         )

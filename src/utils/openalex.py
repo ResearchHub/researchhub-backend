@@ -68,9 +68,6 @@ def author_institution_names(entity: dict) -> list[str]:
         dn = (inst or {}).get("display_name")
         if dn:
             names.append(dn)
-    lki = entity.get("last_known_institution") or {}
-    if lki.get("display_name"):
-        names.append(lki["display_name"])
     for aff in entity.get("affiliations") or []:
         inst = (aff or {}).get("institution") or {}
         if inst.get("display_name"):
