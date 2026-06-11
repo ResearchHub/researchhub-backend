@@ -118,6 +118,39 @@ class StorageServiceTest(TestCase):
         mock_s3_client.delete_object.assert_not_called()
 
     @patch("researchhub.services.storage_service.aws_utils.create_client")
+    def test_quarantine_object_returns_none_when_source_missing(
+        self, create_client_mock
+    ):
+        # Arrange
+        s3_client_mock = Mock()
+        s3_client_mock.head_object.side_effect = ClientError(
+            {"Error": {"Code": "404"}}, "HeadObject"
+        )
+        create_client_mock.return_value = s3_client_mock
+
+        # Act
+        result = S3StorageService().quarantine_object("uploads/papers/file1.pdf")
+
+        # Assert
+        self.assertIsNone(result)
+        s3_client_mock.copy_object.assert_not_called()
+        s3_client_mock.delete_object.assert_not_called()
+
+    @patch("researchhub.services.storage_service.aws_utils.create_client")
+    def test_move_object_raises_on_unexpected_head_error(self, create_client_mock):
+        # Arrange
+        s3_client_mock = Mock()
+        s3_client_mock.head_object.side_effect = ClientError(
+            {"Error": {"Code": "AccessDenied"}}, "HeadObject"
+        )
+        create_client_mock.return_value = s3_client_mock
+
+        # Act & Assert
+        with self.assertRaises(ClientError):
+            S3StorageService().restore_object("uploads/papers/file1.pdf")
+        s3_client_mock.copy_object.assert_not_called()
+
+    @patch("researchhub.services.storage_service.aws_utils.create_client")
     def test_restore_object(self, mock_create_client):
         # Arrange
         mock_s3_client = Mock()
