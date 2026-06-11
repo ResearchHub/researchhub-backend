@@ -3,10 +3,10 @@ from decimal import Decimal
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.request import Request
-from rest_framework.test import APIClient, APIRequestFactory
+from rest_framework.test import APIClient, APIRequestFactory, APITestCase
 
-from feed.serializers import FeedEntrySerializer
-from feed.views.feed_view import FeedViewSet
+from feed.serializers import FeedEntrySerializer, ModeratorFeedEntrySerializer
+from feed.views.moderator_feed_view import ModeratorFeedViewSet
 from paper.tests.helpers import create_paper
 from purchase.models import Grant
 from researchhub_document.helpers import create_post
@@ -21,16 +21,14 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.related_models.risk_score_model import RiskScore
 from user.tests.helpers import create_random_default_user
-from utils.test_helpers import AWSMockTestCase
 
 
-class PendingModerationRiskScoreTests(AWSMockTestCase):
+class PendingModerationRiskScoreTests(APITestCase):
     def setUp(self):
-        super().setUp()
         self.moderator = create_random_default_user("mod", moderator=True)
         self.client = APIClient()
         self.client.force_authenticate(user=self.moderator)
-        self.url = reverse("feed-pending-moderation")
+        self.url = reverse("moderator_feed-pending-moderation")
 
     def _pending_preregistration(self, author):
         post = create_post(created_by=author, document_type=PREREGISTRATION)
@@ -66,7 +64,7 @@ class PendingModerationRiskScoreTests(AWSMockTestCase):
 
         # Act
         with self.assertNumQueries(1):
-            scores = FeedViewSet._risk_score_by_user_id(authors)
+            scores = ModeratorFeedViewSet._risk_score_by_user_id(authors)
 
         # Assert: scored authors mapped; unscored author falls back at read time.
         self.assertEqual(scores[authors[0].id], 10)
@@ -85,7 +83,7 @@ class PendingModerationRiskScoreTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class PendingModerationCountsTests(AWSMockTestCase):
+class PendingModerationCountsTests(APITestCase):
     def test_counts_grouped_by_type(self):
         # Arrange
         author = create_random_default_user("counts_author")
@@ -111,7 +109,7 @@ class PendingModerationCountsTests(AWSMockTestCase):
         client.force_authenticate(create_random_default_user("mod", moderator=True))
 
         # Act
-        response = client.get(reverse("feed-pending-moderation-counts"))
+        response = client.get(reverse("moderator_feed-pending-moderation-counts"))
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -126,27 +124,41 @@ class PendingModerationCountsTests(AWSMockTestCase):
         )
 
 
-class FeedEntryRiskScoreFieldTests(AWSMockTestCase):
+class FeedEntryRiskScoreFieldTests(APITestCase):
     def setUp(self):
-        super().setUp()
         self.factory = APIRequestFactory()
 
-    def _serializer(self, user, **context):
+    def _serializer(self, serializer_class, user):
         request = Request(self.factory.get("/"))
         request.user = user
-        return FeedEntrySerializer(context={"request": request, **context})
+        return serializer_class(context={"request": request})
 
-    def test_field_dropped_without_opt_in(self):
-        moderator = create_random_default_user("mod_no_flag", moderator=True)
-        serializer = self._serializer(moderator)
+    def test_base_serializer_never_exposes_risk_score(self):
+        # Arrange
+        moderator = create_random_default_user("mod_base", moderator=True)
+
+        # Act
+        serializer = self._serializer(FeedEntrySerializer, moderator)
+
+        # Assert
         self.assertNotIn("risk_score", serializer.fields)
 
-    def test_field_present_for_moderator_with_opt_in(self):
+    def test_moderator_serializer_exposes_risk_score_for_moderator(self):
+        # Arrange
         moderator = create_random_default_user("mod_flag", moderator=True)
-        serializer = self._serializer(moderator, include_risk_score=True)
+
+        # Act
+        serializer = self._serializer(ModeratorFeedEntrySerializer, moderator)
+
+        # Assert
         self.assertIn("risk_score", serializer.fields)
 
-    def test_field_dropped_for_non_moderator_with_opt_in(self):
+    def test_moderator_serializer_drops_risk_score_for_non_moderator(self):
+        # Arrange
         regular = create_random_default_user("regular_flag")
-        serializer = self._serializer(regular, include_risk_score=True)
+
+        # Act
+        serializer = self._serializer(ModeratorFeedEntrySerializer, regular)
+
+        # Assert
         self.assertNotIn("risk_score", serializer.fields)

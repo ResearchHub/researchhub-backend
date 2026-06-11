@@ -189,7 +189,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertNotIn(self.non_preregistration_post.id, post_ids)
         self.assertNotIn(self.removed_post.id, post_ids)
 
-    def test_pending_preregistration_excluded(self):
+    def test_pending_preregistration_excluded_from_funding_feed(self):
         """Preregistrations awaiting moderation must not appear in the feed."""
         pending_document = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION,

@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class ResearchhubPostQuerySet(models.QuerySet):
-    def visible_to(self, user):
+    def visible_to(self, user: User | None) -> "ResearchhubPostQuerySet":
         """Restrict to posts the given user is allowed to see.
 
         Public visibility requires two things: the unified document is public
@@ -38,12 +38,9 @@ class ResearchhubPostQuerySet(models.QuerySet):
 
         A post that has NOT cleared moderation is visible only to its author and
         to site moderators / hub editors (who need to see it to moderate it).
-        The broader "elevated" viewers -- the creator of any grant the post
-        applied to (via GrantApplication) and users with a non-revoked
-        Permission on the post's unified document (e.g. invited experts) -- may
-        only see the post once it has cleared moderation. A NO_ACCESS Permission
-        row revokes access even when other (e.g. stale VIEWER) rows exist for the
-        same user/document.
+        The creator of any grant the post applied to (via GrantApplication) and
+        users with permission on the unified document may only see the post
+        once it has cleared moderation.
 
         GRANT posts stay APPROVED regardless of the grant's moderation state, so
         they gate on ``Grant.status`` instead: a pending or declined grant is
@@ -53,12 +50,12 @@ class ResearchhubPostQuerySet(models.QuerySet):
             unified_document_id=OuterRef("unified_document_id"),
             status__in=Grant.PENDING_MODERATION_STATUSES,
         )
-        cleared = Q(
+        moderation_approved = Q(
             unified_document__status=ResearchhubUnifiedDocument.APPROVED
         ) & ~Exists(pending_grant)
-        public = Q(unified_document__is_public=True) & cleared
+        is_public = Q(unified_document__is_public=True) & moderation_approved
         if user is None or not getattr(user, "is_authenticated", False):
-            return self.filter(public)
+            return self.filter(is_public)
 
         if user.is_moderator_or_editor():
             return self
@@ -72,12 +69,16 @@ class ResearchhubPostQuerySet(models.QuerySet):
         allowed = user_perms.exclude(access_type=NO_ACCESS)
         revoked = user_perms.filter(access_type=NO_ACCESS)
 
-        elevated = cleared & (
+        created_by_user = Q(created_by=user)
+
+        visible_to_grant_or_permitted = moderation_approved & (
             Q(grant_applications__grant__created_by=user)
             | (Exists(allowed) & ~Exists(revoked))
         )
 
-        return self.filter(public | Q(created_by=user) | elevated).distinct()
+        return self.filter(
+            is_public | created_by_user | visible_to_grant_or_permitted
+        ).distinct()
 
 
 class ResearchhubPost(AbstractGenericReactionModel):

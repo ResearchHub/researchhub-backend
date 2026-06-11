@@ -38,6 +38,7 @@ from feed.views import (
     FundingFeedViewSet,
     GrantFeedViewSet,
     JournalFeedViewSet,
+    ModeratorFeedViewSet,
 )
 from orcid.views import OrcidCallbackView, OrcidConnectView, OrcidFetchView
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
@@ -188,6 +189,10 @@ router.register(r"grant", purchase.views.GrantViewSet, basename="grant")
 router.register(r"activity_feed", ActivityFeedViewSet, basename="activity_feed")
 
 router.register(r"feed", FeedViewSet, basename="feed")
+
+router.register(
+    r"moderator_feed", ModeratorFeedViewSet, basename="moderator_feed"
+)
 
 router.register(r"funding_feed", FundingFeedViewSet, basename="funding_feed")
 

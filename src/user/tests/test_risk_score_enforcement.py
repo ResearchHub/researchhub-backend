@@ -6,13 +6,15 @@ from researchhub_document.views.researchhub_post_views import (
     MIN_POST_BODY_LENGTH,
     MIN_POST_TITLE_LENGTH,
 )
+from user.constants.risk_score_constants import (
+    DEFAULT_SCORE,
+    RESTRICTED_THRESHOLD,
+    TRUSTED_THRESHOLD,
+)
 from user.related_models.risk_score_model import RiskScore
 from user.services.risk_score_service import RiskScoreService
 from user.tests.helpers import create_random_default_user, make_user_verified
 from utils.models import ModeratedDocumentMixin
-
-NORMAL = 100
-RESTRICTED = 10
 
 
 def _set_score(user, score):
@@ -26,7 +28,7 @@ class InitialWorkStatusTests(TestCase):
 
     def test_trusted_user_auto_approves(self):
         # Arrange
-        _set_score(self.user, 200)
+        _set_score(self.user, TRUSTED_THRESHOLD)
 
         # Act / Assert
         self.assertEqual(
@@ -36,7 +38,7 @@ class InitialWorkStatusTests(TestCase):
 
     def test_normal_user_enters_queue(self):
         # Arrange
-        _set_score(self.user, NORMAL)
+        _set_score(self.user, DEFAULT_SCORE)
 
         # Act / Assert
         self.assertEqual(
@@ -68,7 +70,7 @@ class PostCreationGatingTests(APITestCase):
 
     def test_normal_user_post_enters_queue(self):
         # Arrange
-        _set_score(self.user, NORMAL)
+        _set_score(self.user, DEFAULT_SCORE)
 
         # Act
         response = self._create_post()
@@ -79,7 +81,7 @@ class PostCreationGatingTests(APITestCase):
 
     def test_trusted_user_post_auto_approves(self):
         # Arrange
-        _set_score(self.user, 200)
+        _set_score(self.user, TRUSTED_THRESHOLD)
 
         # Act
         response = self._create_post()
@@ -90,7 +92,7 @@ class PostCreationGatingTests(APITestCase):
 
     def test_restricted_user_post_enters_queue(self):
         # Arrange
-        _set_score(self.user, RESTRICTED)
+        _set_score(self.user, RESTRICTED_THRESHOLD)
 
         # Act
         response = self._create_post()

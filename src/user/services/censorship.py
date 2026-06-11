@@ -4,13 +4,17 @@ Shared by the real-time risk-score signal and the backfill command so both
 attribute censorship identically.
 """
 
+from django.db.models import Model
+
 from paper.related_models.paper_model import Paper
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+from user.related_models.user_model import User
+from user.related_models.verdict_model import Verdict
 
 DECLINED_STATUS = "DECLINED"
 
 
-def _flagged_content(verdict):
+def _flagged_content(verdict: Verdict) -> Model | None:
     model_class = verdict.flag.content_type.model_class()
     if model_class is None:
         return None
@@ -18,7 +22,7 @@ def _flagged_content(verdict):
     return manager.filter(pk=verdict.flag.object_id).first()
 
 
-def resolve_censorship(verdict):
+def resolve_censorship(verdict: Verdict) -> tuple[User | None, Model | None]:
     """Return (author, source) for the content a verdict removed, or (None, None)
     when it shouldn't be scored as censorship.
 

@@ -138,7 +138,7 @@ class PendingModerationFeedTests(APITestCase):
 
         # Act
         response = self.client.get(
-            "/api/feed/pending_moderation/?content_type=PREREGISTRATION"
+            "/api/moderator_feed/pending_moderation/?content_type=PREREGISTRATION"
         )
 
         # Assert
@@ -159,7 +159,7 @@ class PendingModerationFeedTests(APITestCase):
 
         # Act
         response = self.client.get(
-            "/api/feed/pending_moderation/?content_type=PAPER"
+            "/api/moderator_feed/pending_moderation/?content_type=PAPER"
         )
 
         # Assert
@@ -174,7 +174,7 @@ class PendingModerationFeedTests(APITestCase):
         self.client.force_authenticate(self.moderator)
 
         # Act
-        response = self.client.get("/api/feed/pending_moderation/?content_type=PAPER")
+        response = self.client.get("/api/moderator_feed/pending_moderation/?content_type=PAPER")
 
         # Assert
         self.assertEqual(response.status_code, 200)
@@ -187,7 +187,7 @@ class PendingModerationFeedTests(APITestCase):
 
         # Act
         response = self.client.get(
-            "/api/feed/pending_moderation/?content_type=PREREGISTRATION"
+            "/api/moderator_feed/pending_moderation/?content_type=PREREGISTRATION"
         )
 
         # Assert

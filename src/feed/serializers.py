@@ -741,7 +741,6 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     external_metadata = serializers.SerializerMethodField()
     recommendation_id = serializers.SerializerMethodField()
     adjusted_score = serializers.SerializerMethodField()
-    risk_score = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
@@ -753,7 +752,6 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "action_date",
             "action",
             "author",
-            "risk_score",
             "metrics",
             "hot_score_v2",
             "hot_score_breakdown",
@@ -763,32 +761,11 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "adjusted_score",
         ]
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # The author's risk score is moderator-only and surfaced solely on the
-        # pending-moderation feed; drop the field everywhere else so it never
-        # reaches public feeds. Callers opt in via the "include_risk_score"
-        # context flag, and only moderators are ever served the value.
-        requester = getattr(self.context.get("request"), "user", None)
-        is_moderator = bool(requester and getattr(requester, "moderator", False))
-        if not (is_moderator and self.context.get("include_risk_score")):
-            self.fields.pop("risk_score", None)
-
     def get_author(self, obj):
         """Return author data only if feed entry has an associated user"""
         if obj.user and hasattr(obj.user, "author_profile"):
             return SimpleAuthorSerializer(obj.user.author_profile).data
         return None
-
-    def get_risk_score(self, obj):
-        """Return the author's risk score, batch-loaded via context to avoid N+1.
-
-        Falls back to the default score for authors without a stored score.
-        """
-        if not obj.user_id:
-            return None
-        scores = self.context.get("risk_score_by_user_id") or {}
-        return scores.get(obj.user_id, DEFAULT_SCORE)
 
     def get_metrics(self, obj):
         """Return metrics with adjusted_score included."""
@@ -1008,6 +985,29 @@ class GrantFeedEntrySerializer(FeedEntrySerializer):
     class Meta:
         model = FeedEntry
         fields = FeedEntrySerializer.Meta.fields
+
+
+class ModeratorFeedEntrySerializer(FeedEntrySerializer):
+    """Feed entry serializer for moderator-only feeds."""
+
+    risk_score = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeedEntry
+        fields = FeedEntrySerializer.Meta.fields + ["risk_score"]
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        requester = getattr(self.context.get("request"), "user", None)
+        if not (requester and getattr(requester, "moderator", False)):
+            self.fields.pop("risk_score", None)
+
+    def get_risk_score(self, obj: FeedEntry) -> int | None:
+        """Return the author's risk score, falling back to the default."""
+        if not obj.user_id:
+            return None
+        scores = self.context.get("risk_score_by_user_id") or {}
+        return scores.get(obj.user_id, DEFAULT_SCORE)
 
 
 def _get_first_namespace_hub(obj: Any, hub_namespace: Hub.Namespace) -> Hub | None:

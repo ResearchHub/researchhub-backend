@@ -148,7 +148,7 @@ class JournalFeedViewSetTests(AWSMockTestCase):
         self.assertNotIn("Non-Journal Paper", titles)
         self.assertNotIn("Removed Journal Paper", titles)
 
-    def test_pending_paper_excluded(self):
+    def test_pending_paper_excluded_from_journal_feed(self):
         """Papers awaiting moderation must not appear in the journal feed."""
         pending_unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type="PAPER",

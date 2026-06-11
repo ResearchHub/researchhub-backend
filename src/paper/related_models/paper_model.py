@@ -23,6 +23,7 @@ from reputation.models import Score, ScoreChange
 from reputation.related_models.paper_reward import HubCitationValue
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
+from user.related_models.user_model import User
 from utils.aws import lambda_compress_and_linearize_pdf
 from utils.models import ModeratedDocumentMixin
 
@@ -38,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 class PaperQuerySet(models.QuerySet):
-    def visible_to(self, user):
+    def visible_to(self, user: User | None) -> "PaperQuerySet":
         """Restrict to papers by moderation status the given user may see.
 
         This is a moderation-status gate, not the full privacy gate: papers
@@ -50,14 +51,14 @@ class PaperQuerySet(models.QuerySet):
         """
         # A paper without a unified document is not under moderation, so treat
         # it as cleared.
-        approved = Q(unified_document__status=ModeratedDocumentMixin.APPROVED) | Q(
-            unified_document__isnull=True
-        )
+        moderation_approved = Q(
+            unified_document__status=ModeratedDocumentMixin.APPROVED
+        ) | Q(unified_document__isnull=True)
         if user is None or not getattr(user, "is_authenticated", False):
-            return self.filter(approved)
+            return self.filter(moderation_approved)
         if user.is_moderator_or_editor():
             return self
-        return self.filter(approved | Q(uploaded_by=user))
+        return self.filter(moderation_approved | Q(uploaded_by=user))
 
 
 class Paper(AbstractGenericReactionModel):
