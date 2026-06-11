@@ -14,15 +14,15 @@ from researchhub.services.storage_service import S3StorageService
 class StorageServiceTest(TestCase):
     @patch("researchhub.services.storage_service.aws_utils.create_client")
     @patch("researchhub.services.storage_service.uuid.uuid4")
-    def test_create_presigned_url(self, mock_uuid, mock_create_client):
+    def test_create_presigned_url(self, uuid_mock, create_client_mock):
         # Arrange
         uuid1 = uuid.uuid4()
-        mock_uuid.return_value = uuid1
+        uuid_mock.return_value = uuid1
 
-        mock_s3_client = Mock()
-        mock_create_client.return_value = mock_s3_client
+        s3_client_mock = Mock()
+        create_client_mock.return_value = s3_client_mock
 
-        mock_s3_client.generate_presigned_url.return_value = "https://presignedUrl1"
+        s3_client_mock.generate_presigned_url.return_value = "https://presignedUrl1"
 
         service = S3StorageService()
 
@@ -32,7 +32,7 @@ class StorageServiceTest(TestCase):
         )
 
         # Assert
-        mock_s3_client.generate_presigned_url.assert_called_once_with(
+        s3_client_mock.generate_presigned_url.assert_called_once_with(
             "put_object",
             Params={
                 "Bucket": settings.AWS_STORAGE_BUCKET_NAME,
@@ -81,10 +81,10 @@ class StorageServiceTest(TestCase):
         self.assertEqual(s._sanitize_filename("Żurowski.pdf"), "Zurowski.pdf")
 
     @patch("researchhub.services.storage_service.aws_utils.create_client")
-    def test_quarantine_object(self, mock_create_client):
+    def test_quarantine_object(self, create_client_mock):
         # Arrange
-        mock_s3_client = Mock()
-        mock_create_client.return_value = mock_s3_client
+        s3_client_mock = Mock()
+        create_client_mock.return_value = s3_client_mock
         key = "uploads/papers/2024/01/01/file1.pdf"
 
         # Act
@@ -92,30 +92,30 @@ class StorageServiceTest(TestCase):
 
         # Assert
         self.assertEqual(new_key, f"quarantine/{key}")
-        mock_s3_client.copy_object.assert_called_once_with(
+        s3_client_mock.copy_object.assert_called_once_with(
             Bucket="test-bucket",
             CopySource={"Bucket": "test-bucket", "Key": key},
             Key=f"quarantine/{key}",
         )
-        mock_s3_client.delete_object.assert_called_once_with(
+        s3_client_mock.delete_object.assert_called_once_with(
             Bucket="test-bucket", Key=key
         )
 
     @patch("researchhub.services.storage_service.aws_utils.create_client")
-    def test_quarantine_object_returns_none_on_s3_error(self, mock_create_client):
+    def test_quarantine_object_returns_none_on_s3_error(self, create_client_mock):
         # Arrange
-        mock_s3_client = Mock()
-        mock_s3_client.copy_object.side_effect = ClientError(
+        s3_client_mock = Mock()
+        s3_client_mock.copy_object.side_effect = ClientError(
             {"Error": {"Code": "NoSuchKey"}}, "CopyObject"
         )
-        mock_create_client.return_value = mock_s3_client
+        create_client_mock.return_value = s3_client_mock
 
         # Act
         result = S3StorageService().quarantine_object("uploads/papers/file1.pdf")
 
         # Assert
         self.assertIsNone(result)
-        mock_s3_client.delete_object.assert_not_called()
+        s3_client_mock.delete_object.assert_not_called()
 
     @patch("researchhub.services.storage_service.aws_utils.create_client")
     def test_quarantine_object_returns_none_when_source_missing(
@@ -151,10 +151,10 @@ class StorageServiceTest(TestCase):
         s3_client_mock.copy_object.assert_not_called()
 
     @patch("researchhub.services.storage_service.aws_utils.create_client")
-    def test_restore_object(self, mock_create_client):
+    def test_restore_object(self, create_client_mock):
         # Arrange
-        mock_s3_client = Mock()
-        mock_create_client.return_value = mock_s3_client
+        s3_client_mock = Mock()
+        create_client_mock.return_value = s3_client_mock
         key = "uploads/papers/2024/01/01/file1.pdf"
 
         # Act
@@ -162,11 +162,11 @@ class StorageServiceTest(TestCase):
 
         # Assert
         self.assertEqual(restored_key, key)
-        mock_s3_client.copy_object.assert_called_once_with(
+        s3_client_mock.copy_object.assert_called_once_with(
             Bucket="test-bucket",
             CopySource={"Bucket": "test-bucket", "Key": f"quarantine/{key}"},
             Key=key,
         )
-        mock_s3_client.delete_object.assert_called_once_with(
+        s3_client_mock.delete_object.assert_called_once_with(
             Bucket="test-bucket", Key=f"quarantine/{key}"
         )
