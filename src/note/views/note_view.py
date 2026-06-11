@@ -13,6 +13,7 @@ from rest_framework.viewsets import ModelViewSet
 from hub.models import Hub
 from invite.models import NoteInvitation
 from invite.serializers import DynamicNoteInvitationSerializer
+from invite.services import NoteInvitationExpiredError, NoteInvitationService
 from note.models import Note, NoteContent
 from note.serializers import NoteContentSerializer, NoteSerializer
 from researchhub.pagination import MediumPageLimitPagination
@@ -242,7 +243,13 @@ class NoteViewSet(ModelViewSet):
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def get_note_by_key(self, request, pk=None):
-        invite = NoteInvitation.objects.get(key=pk)
+        service = NoteInvitationService()
+
+        try:
+            invite = service.get_active_invite(pk)
+        except NoteInvitationExpiredError:
+            return Response({"data": "Invitation has expired"}, status=403)
+
         serializer = DynamicNoteInvitationSerializer(
             invite,
             context={
