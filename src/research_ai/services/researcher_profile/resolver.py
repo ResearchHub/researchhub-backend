@@ -38,9 +38,6 @@ logger = logging.getLogger(__name__)
 # track record to the expert. Tunable without code changes.
 NAME_SCORE_STRONG = 0.6
 
-_ORCID_RE = re.compile(r"(\d{4}-\d{4}-\d{4}-\d{3}[\dxX])")
-_OPENALEX_AUTHOR_RE = re.compile(r"openalex\.org/(A\d+)", re.IGNORECASE)
-
 
 def _norm(value: str) -> str:
     """Lowercase, strip accents, collapse to ``[a-z0-9 ]`` tokens."""
@@ -68,23 +65,6 @@ class AuthorResolution:
             "match_method": self.match_method,
             "candidates_considered": self.candidates_considered,
         }
-
-
-def _extract_ids_from_sources(expert) -> tuple[str | None, str | None]:
-    """Mine an ORCID and/or OpenAlex author id from the expert's ``sources`` URLs."""
-    orcid: str | None = None
-    oa_id: str | None = None
-    for url in expert.source_urls:
-        low = url.lower()
-        if orcid is None and "orcid.org" in low:
-            m = _ORCID_RE.search(url)
-            if m:
-                orcid = m.group(1).upper()
-        if oa_id is None:
-            m = _OPENALEX_AUTHOR_RE.search(url)
-            if m:
-                oa_id = m.group(1)
-    return orcid, oa_id
 
 
 def _name_score(expert, record: dict) -> float:
@@ -154,7 +134,7 @@ def resolve_openalex_author(
     oa = client or OpenAlex()
 
     # 1. Explicit id links already cited by the expert finder.
-    src_orcid, src_oa = _extract_ids_from_sources(expert)
+    src_orcid, src_oa = expert.source_ids
     if src_orcid or src_oa:
         record = fetch_openalex_author_record(
             orcid_bare=src_orcid, openalex_author_ref=src_oa, client=oa

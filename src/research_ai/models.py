@@ -1,3 +1,5 @@
+import re
+
 from django.db import models
 from django.db.models.functions import Lower
 
@@ -6,6 +8,9 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from utils.models import DefaultModel
+
+_ORCID_RE = re.compile(r"(\d{4}-\d{4}-\d{4}-\d{3}[\dxX])")
+_OPENALEX_AUTHOR_RE = re.compile(r"openalex\.org/(A\d+)", re.IGNORECASE)
 
 
 class ExpertSearch(DefaultModel):
@@ -199,6 +204,22 @@ class Expert(DefaultModel):
             if url:
                 urls.append(url)
         return urls
+
+    @property
+    def source_ids(self) -> tuple[str | None, str | None]:
+        """Mine an ORCID and/or OpenAlex author id from the ``sources`` URLs."""
+        orcid: str | None = None
+        oa_id: str | None = None
+        for url in self.source_urls:
+            if orcid is None and "orcid.org" in url.lower():
+                m = _ORCID_RE.search(url)
+                if m:
+                    orcid = m.group(1).upper()
+            if oa_id is None:
+                m = _OPENALEX_AUTHOR_RE.search(url)
+                if m:
+                    oa_id = m.group(1)
+        return orcid, oa_id
 
     def save(self, *args, **kwargs):
         if self.email:

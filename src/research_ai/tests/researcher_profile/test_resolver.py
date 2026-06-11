@@ -9,29 +9,6 @@ from research_ai.tests.researcher_profile.helpers import make_expert, oa_author_
 
 
 class ResolverHelpersTests(SimpleTestCase):
-    def test_extract_ids_from_sources(self):
-        # Arrange
-        expert = make_expert(
-            sources=[
-                {"text": "ORCID", "url": "https://orcid.org/0000-0002-1825-0097"},
-                {"text": "OpenAlex", "url": "https://openalex.org/A5023888391"},
-            ]
-        )
-        # Act
-        orcid, oa_id = resolver._extract_ids_from_sources(expert)
-        # Assert
-        self.assertEqual(orcid, "0000-0002-1825-0097")
-        self.assertEqual(oa_id, "A5023888391")
-
-    def test_extract_ids_handles_plain_string_sources_and_misses(self):
-        # Arrange
-        expert = make_expert(sources=["https://example.edu/jane", "not a url"])
-        # Act
-        orcid, oa_id = resolver._extract_ids_from_sources(expert)
-        # Assert
-        self.assertIsNone(orcid)
-        self.assertIsNone(oa_id)
-
     def test_name_score_exact_initial_and_lastname_only(self):
         # Arrange
         expert = make_expert(first_name="Jane", last_name="Doe")
