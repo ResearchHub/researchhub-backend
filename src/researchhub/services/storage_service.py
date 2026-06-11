@@ -129,6 +129,18 @@ class S3StorageService(StorageService):
             return None
         return dest_key
 
+    def _object_exists(self, s3_client, bucket: str, key: str) -> bool:
+        """
+        Check whether an object exists in the storage bucket.
+        """
+        try:
+            s3_client.head_object(Bucket=bucket, Key=key)
+            return True
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") == "404":
+                return False
+            raise
+
     def _sanitize_filename(self, filename: str) -> str:
         """
         Sanitize filename for the S3 metadata `file-name` field.
