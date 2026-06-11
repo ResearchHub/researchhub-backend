@@ -264,6 +264,16 @@ class NoteViewSet(ModelViewSet):
                         "organization",
                         "title",
                         "id",
+                        "latest_version",
+                    ]
+                },
+                "nte_dns_get_latest_version": {
+                    "_include_fields": [
+                        "created_date",
+                        "id",
+                        "json",
+                        "plain_text",
+                        "src",
                     ]
                 },
                 "nte_dns_get_organization": {
