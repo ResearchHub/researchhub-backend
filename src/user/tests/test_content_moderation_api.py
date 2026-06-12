@@ -88,6 +88,15 @@ class ContentModerationEndpointTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         paper.unified_document.refresh_from_db()
         self.assertEqual(
+            response.data,
+            {
+                "id": paper.id,
+                "status": ResearchhubUnifiedDocument.APPROVED,
+                "reviewed_by": self.moderator.id,
+                "reviewed_date": response.data["reviewed_date"],
+            },
+        )
+        self.assertEqual(
             paper.unified_document.status, ResearchhubUnifiedDocument.APPROVED
         )
 
@@ -115,6 +124,13 @@ class PendingModerationFeedTests(APITestCase):
         unified_document.save(update_fields=["status"])
         return post
 
+    def _pending_paper(self):
+        paper = create_paper(uploaded_by=self.author)
+        unified_document = paper.unified_document
+        unified_document.status = ResearchhubUnifiedDocument.PENDING
+        unified_document.save(update_fields=["status"])
+        return paper
+
     def test_pending_proposals_feed_returns_pending(self):
         # Arrange
         post = self._pending_post(PREREGISTRATION)
@@ -122,7 +138,7 @@ class PendingModerationFeedTests(APITestCase):
 
         # Act
         response = self.client.get(
-            "/api/feed/pending_moderation/?content_type=PREREGISTRATION"
+            "/api/moderator_feed/pending_moderation/?content_type=PREREGISTRATION"
         )
 
         # Assert
@@ -132,10 +148,7 @@ class PendingModerationFeedTests(APITestCase):
 
     def test_pending_journal_entries_feed_returns_pending_papers(self):
         # Arrange
-        paper = create_paper(uploaded_by=self.author)
-        unified_document = paper.unified_document
-        unified_document.status = ResearchhubUnifiedDocument.PENDING
-        unified_document.save(update_fields=["status"])
+        paper = self._pending_paper()
         PaperVersion.objects.create(
             paper=paper,
             version=1,
@@ -146,8 +159,22 @@ class PendingModerationFeedTests(APITestCase):
 
         # Act
         response = self.client.get(
-            "/api/feed/pending_moderation/?content_type=PAPER"
+            "/api/moderator_feed/pending_moderation/?content_type=PAPER"
         )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        ids = [r["content_object"]["id"] for r in response.data["results"]]
+        self.assertIn(paper.id, ids)
+
+    def test_pending_papers_feed_includes_non_journal_preprints(self):
+        # Arrange: a gated preprint never reaches the RESEARCHHUB journal, so it
+        # must still surface in the queue rather than get stuck invisible.
+        paper = self._pending_paper()
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.get("/api/moderator_feed/pending_moderation/?content_type=PAPER")
 
         # Assert
         self.assertEqual(response.status_code, 200)
@@ -160,7 +187,7 @@ class PendingModerationFeedTests(APITestCase):
 
         # Act
         response = self.client.get(
-            "/api/feed/pending_moderation/?content_type=PREREGISTRATION"
+            "/api/moderator_feed/pending_moderation/?content_type=PREREGISTRATION"
         )
 
         # Assert

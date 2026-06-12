@@ -2,6 +2,7 @@ import logging
 
 from django.core.cache import cache
 from django.db import transaction
+from django_opensearch_dsl.registries import registry
 
 from feed.signals.post_signals import _create_post_feed_entries
 from feed.views.grant_cache_mixin import GrantCacheMixin
@@ -29,6 +30,7 @@ class GrantModerationService:
 
             post = grant.unified_document.posts.first()
             self._publish_to_feed(post)
+            self._reindex_post(post)
 
             cache.delete("grant_available_funding")
             GrantCacheMixin.invalidate_grant_feed_cache()
@@ -72,6 +74,25 @@ class GrantModerationService:
             _create_post_feed_entries(post)
         except Exception:
             logger.exception("Failed to create feed entry for post %s", post.id)
+
+    def _reindex_post(self, post):
+        """Refresh the grant post in OpenSearch after its status changes.
+
+        Approving a grant only saves ``Grant.status``; the backing post (which
+        the post index keys on) is untouched, so its search document would not
+        otherwise reflect the now-approved grant. Run after commit so the index
+        sees the persisted state.
+        """
+        if not post:
+            return
+
+        def _update():
+            try:
+                registry.update(post)
+            except Exception:
+                logger.exception("Failed to reindex grant post %s", post.id)
+
+        transaction.on_commit(_update)
 
     def _send_moderation_notification(self, grant, action_user, notification_type):
         send_moderation_notification(

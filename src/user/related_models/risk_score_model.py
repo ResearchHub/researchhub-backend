@@ -20,7 +20,7 @@ class RiskScore(DefaultModel):
             models.Index(fields=["score"], name="risk_score_score_idx"),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"User {self.user_id} - Score: {self.score}"
 
 
@@ -112,5 +112,5 @@ class RiskScoreEvent(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"User {self.user_id} - {self.event_type} ({self.delta:+d})"

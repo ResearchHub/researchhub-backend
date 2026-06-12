@@ -17,6 +17,7 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from review.serializers.review_serializer import ReviewSerializer
+from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.models import Author, User
 
 from .hot_score_utils import calculate_adjusted_score
@@ -984,6 +985,29 @@ class GrantFeedEntrySerializer(FeedEntrySerializer):
     class Meta:
         model = FeedEntry
         fields = FeedEntrySerializer.Meta.fields
+
+
+class ModeratorFeedEntrySerializer(FeedEntrySerializer):
+    """Feed entry serializer for moderator-only feeds."""
+
+    risk_score = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeedEntry
+        fields = FeedEntrySerializer.Meta.fields + ["risk_score"]
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        requester = getattr(self.context.get("request"), "user", None)
+        if not (requester and getattr(requester, "moderator", False)):
+            self.fields.pop("risk_score", None)
+
+    def get_risk_score(self, obj: FeedEntry) -> int | None:
+        """Return the author's risk score, falling back to the default."""
+        if not obj.user_id:
+            return None
+        scores = self.context.get("risk_score_by_user_id") or {}
+        return scores.get(obj.user_id, DEFAULT_SCORE)
 
 
 def _get_first_namespace_hub(obj: Any, hub_namespace: Hub.Namespace) -> Hub | None:

@@ -1026,6 +1026,18 @@ class GrantModerationServiceTests(APITestCase):
             ).exists()
         )
 
+    @patch("django_opensearch_dsl.registries.registry.update")
+    def test_approve_reindexes_grant_post(self, mock_update):
+        """Approving a grant must refresh its post in OpenSearch, since only
+        Grant.status (not the post) changes."""
+        with self.captureOnCommitCallbacks(execute=True):
+            self.service.approve_grant(self.grant, self.moderator)
+
+        self.assertTrue(
+            any(call.args and call.args[0].id == self.post.id
+                for call in mock_update.call_args_list)
+        )
+
     def test_decline_creates_flag_removes_doc_and_notifies(self):
         # Act
         self.service.decline_grant(
@@ -1084,3 +1096,73 @@ class GrantModerationServiceTests(APITestCase):
         # Assert
         self.grant.refresh_from_db()
         self.assertEqual(self.grant.status, Grant.OPEN)
+
+
+class PendingGrantVisibilityTests(APITestCase):
+    """Pending grants are part of the moderation queue and must only be visible
+    to moderators, hub editors, and the grant's own creator."""
+
+    def setUp(self):
+        self.creator = create_random_authenticated_user("grant_creator")
+        self.outsider = create_random_authenticated_user("grant_outsider")
+        self.moderator = create_random_authenticated_user(
+            "grant_mod", moderator=True
+        )
+
+        self.post = create_post(created_by=self.creator, document_type=GRANT)
+        self.grant = Grant.objects.create(
+            created_by=self.creator,
+            unified_document=self.post.unified_document,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Org",
+            description="desc",
+            status=Grant.PENDING,
+        )
+
+    def _grant_ids(self, user):
+        self.client.force_authenticate(user)
+        response = self.client.get("/api/grant/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {item["id"] for item in response.data["results"]}
+
+    def test_outsider_cannot_list_pending_grant(self):
+        self.assertNotIn(self.grant.id, self._grant_ids(self.outsider))
+
+    def test_creator_can_list_pending_grant(self):
+        self.assertIn(self.grant.id, self._grant_ids(self.creator))
+
+    def test_moderator_can_list_pending_grant(self):
+        self.assertIn(self.grant.id, self._grant_ids(self.moderator))
+
+    def test_outsider_cannot_retrieve_pending_grant(self):
+        self.client.force_authenticate(self.outsider)
+        response = self.client.get(f"/api/grant/{self.grant.id}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_open_grant_is_visible_to_outsider(self):
+        self.grant.status = Grant.OPEN
+        self.grant.save(update_fields=["status"])
+        self.assertIn(self.grant.id, self._grant_ids(self.outsider))
+
+    def test_unified_document_hides_pending_grant_from_outsider(self):
+        self.assertFalse(
+            self.post.unified_document.is_visible_to_user(self.outsider)
+        )
+
+    def test_unified_document_shows_pending_grant_to_creator(self):
+        self.assertTrue(
+            self.post.unified_document.is_visible_to_user(self.creator)
+        )
+
+    def test_outsider_gets_404_on_pending_grant_post(self):
+        """The grant's backing post stays APPROVED, but a pending grant must
+        still 404 (not 500/200) on the post endpoint for a normal user."""
+        self.client.force_authenticate(self.outsider)
+        response = self.client.get(f"/api/researchhubpost/{self.post.id}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_creator_can_retrieve_pending_grant_post(self):
+        self.client.force_authenticate(self.creator)
+        response = self.client.get(f"/api/researchhubpost/{self.post.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

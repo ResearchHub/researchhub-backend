@@ -123,8 +123,8 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
             queryset = queryset.filter(id__in=visible_ids)
         else:
             # The public discovery feed stays user-agnostic so it can be cached
-            # for everyone; never expose private work here.
-            queryset = queryset.filter(unified_document__is_public=True)
+            # for everyone; never expose private or unmoderated work here.
+            queryset = queryset.publicly_visible()
 
         if created_by:
             queryset = queryset.filter(created_by_id=created_by)

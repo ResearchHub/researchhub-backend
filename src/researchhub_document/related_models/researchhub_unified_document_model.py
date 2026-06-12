@@ -151,14 +151,21 @@ class ResearchhubUnifiedDocument(
     def is_visible_to_user(self, user):
         """Whether this unified document may be exposed to ``user``.
 
-        Public documents are visible to everyone. Private documents (e.g.
-        private preregistrations) reuse the post-level ``visible_to`` rules so
-        the logic stays in one place: the author, grant creators the post
-        applied to, users with a non-revoked Permission, and moderators /
-        hub editors can see them.
+        A work is publicly visible only once it is public *and* has cleared
+        moderation. Posts (preregistrations, discussions, grants) defer to
+        ``ResearchhubPost.visible_to``, which keeps a work awaiting moderation
+        limited to its author and to moderators / hub editors (grants gate on
+        ``Grant.status`` there, since their backing post stays APPROVED). Papers
+        awaiting moderation (or declined) are likewise restricted to their
+        uploader and to moderators / hub editors.
         """
-        if self.is_public:
-            return True
+        if self.document_type == PAPER:
+            paper = self.paper if hasattr(self, "paper") else None
+            if paper is not None and not self.is_approved:
+                from paper.related_models.paper_model import Paper
+
+                return Paper.objects.filter(pk=paper.pk).visible_to(user).exists()
+            return self.is_public
 
         from researchhub_document.related_models.researchhub_post_model import (
             ResearchhubPost,

@@ -24,7 +24,7 @@ class ContentModerationActionsMixin:
         except ValueError as e:
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(self.get_serializer(content).data)
+        return Response(self._moderation_result(content))
 
     @action(detail=True, methods=["post"], permission_classes=[IsModerator])
     def decline(self, request: Request, pk: str | None = None) -> Response:
@@ -39,4 +39,13 @@ class ContentModerationActionsMixin:
         except ValueError as e:
             return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(self.get_serializer(content).data)
+        return Response(self._moderation_result(content))
+
+    def _moderation_result(self, content):
+        unified_document = content.unified_document
+        return {
+            "id": content.id,
+            "status": unified_document.status,
+            "reviewed_by": unified_document.reviewed_by_id,
+            "reviewed_date": unified_document.reviewed_date,
+        }

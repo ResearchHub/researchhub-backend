@@ -41,6 +41,7 @@ from user.models import (
     UserVerification,
     Verdict,
 )
+from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.related_models.author_contribution_summary_model import (
     AuthorContributionSummary,
 )
@@ -49,7 +50,6 @@ from user.related_models.coauthor_model import CoAuthor
 from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.related_models.risk_score_model import RiskScoreEvent
-from user.services.risk_score_service import RiskScoreService
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ class ModeratorUserSerializer(ModelSerializer):
             "risk_score",
         ]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         # Risk score is moderator-only: drop the field entirely for hub editors
         # and others so it's never computed or exposed to them.
@@ -103,7 +103,7 @@ class ModeratorUserSerializer(ModelSerializer):
         if not (requester and getattr(requester, "moderator", False)):
             self.fields.pop("risk_score", None)
 
-    def get_verification(self, user):
+    def get_verification(self, user: User) -> dict | None:
         try:
             user_verification = user.userverification
         except UserVerification.DoesNotExist:
@@ -118,8 +118,11 @@ class ModeratorUserSerializer(ModelSerializer):
             "status": user_verification.status,
         }
 
-    def get_risk_score(self, user):
-        return RiskScoreService().get_score(user)
+    def get_risk_score(self, user: User) -> int:
+        risk_score = getattr(user, "risk_score", None)
+        if risk_score is None:
+            return DEFAULT_SCORE
+        return risk_score.score
 
 
 class RiskScoreEventSerializer(ModelSerializer):
@@ -139,12 +142,12 @@ class RiskScoreEventSerializer(ModelSerializer):
             "created_date",
         ]
 
-    def get_source_type(self, event):
+    def get_source_type(self, event: RiskScoreEvent) -> str | None:
         if event.source_content_type_id is None:
             return None
         return event.source_content_type.model
 
-    def get_source_detail(self, event):
+    def get_source_detail(self, event: RiskScoreEvent) -> dict | None:
         return self.context.get("details", {}).get(event.id)
 
 

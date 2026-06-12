@@ -8,6 +8,7 @@ instead of maintaining parallel copies of the same logic.
 import logging
 
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.db.models import Model
 
 from discussion.models import Flag
@@ -47,8 +48,9 @@ def create_removal_verdict(
 def send_moderation_notification(
     notification_type: str, *, recipient: Model, action_user: Model, item: Model
 ) -> None:
-    """Create and dispatch a moderation notification, logging (never raising)
-    on failure so a notification bug can't roll back the moderation action."""
+    """Create a moderation notification and dispatch it once the surrounding
+    transaction commits (so a rolled-back moderation never notifies), logging
+    (never raising) on failure so a notification bug can't roll back the action."""
     try:
         notification = Notification.objects.create(
             notification_type=notification_type,
@@ -58,7 +60,7 @@ def send_moderation_notification(
             object_id=item.id,
             unified_document=item.unified_document,
         )
-        notification.send_notification()
+        transaction.on_commit(notification.send_notification)
     except Exception:
         logger.exception(
             "Failed to send %s notification for %s %s",

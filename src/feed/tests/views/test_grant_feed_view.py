@@ -715,19 +715,22 @@ class GrantFeedViewTests(APITestCase):
         self.assertIsNone(cache.get(unfiltered_key))
         self.assertIsNone(cache.get(filtered_key))
 
-    def test_pending_status_filter(self):
-        """?status=PENDING returns only pending grants."""
-        # Arrange
+    def _make_pending_grant(self, creator, title="Pending Grant"):
         pending_post = create_post(
-            created_by=self.moderator, document_type=GRANT, title="Pending Grant"
+            created_by=creator, document_type=GRANT, title=title
         )
         Grant.objects.create(
-            created_by=self.moderator,
+            created_by=creator,
             unified_document=pending_post.unified_document,
             amount=Decimal("10000.00"),
             status=Grant.PENDING,
         )
-        self.client.force_authenticate(self.user)
+
+    def test_pending_status_filter_visible_to_moderator(self):
+        """?status=PENDING returns pending grants to moderators."""
+        # Arrange
+        self._make_pending_grant(self.moderator)
+        self.client.force_authenticate(self.moderator)
 
         # Act
         response = self.client.get("/api/grant_feed/?status=PENDING")
@@ -736,6 +739,34 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         titles = [r["content_object"]["title"] for r in response.data["results"]]
         self.assertEqual(titles, ["Pending Grant"])
+
+    def test_pending_status_filter_hidden_from_other_users(self):
+        """A regular user may not list someone else's pending grants."""
+        # Arrange
+        self._make_pending_grant(self.moderator)
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get("/api/grant_feed/?status=PENDING")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 0)
+
+    def test_pending_status_filter_shows_only_own_to_creator(self):
+        """A non-moderator creator sees their own pending grant, not others'."""
+        # Arrange
+        self._make_pending_grant(self.moderator, title="Other Pending Grant")
+        self._make_pending_grant(self.user, title="My Pending Grant")
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get("/api/grant_feed/?status=PENDING")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        titles = [r["content_object"]["title"] for r in response.data["results"]]
+        self.assertEqual(titles, ["My Pending Grant"])
 
     def test_removed_proposals_excluded_from_applications(self):
         """Censored proposals must not appear in a grant's applications list."""

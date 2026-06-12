@@ -7,6 +7,7 @@ from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 
 from feed.models import FeedEntry
+from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -162,4 +163,10 @@ class PostDocument(BaseDocument):
 
     @override
     def should_index_object(self, obj) -> bool:  # type: ignore[override]
-        return not obj.is_removed and obj.unified_document.is_public
+        if obj.is_removed or not obj.unified_document.is_public:
+            return False
+        # Grants gate on Grant.status; their backing post stays APPROVED.
+        if obj.document_type == GRANT:
+            grant = obj.unified_document.grants.first()
+            return grant is not None and not grant.is_pending_moderation()
+        return obj.unified_document.is_approved

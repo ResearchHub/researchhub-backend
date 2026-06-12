@@ -3,16 +3,21 @@ from pathlib import Path
 from unittest.mock import patch
 
 from django.conf import settings
+from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient
 
 from hub.models import Hub
 from paper.models import Paper, PaperVersion
 from paper.related_models.authorship_model import Authorship
 from paper.tests.helpers import create_paper
 from paper.views.paper_views import PaperViewSet
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.models import Author
+from user.related_models.risk_score_model import RiskScore
 from user.tests.helpers import (
     create_random_authenticated_user,
     create_user,
@@ -24,8 +29,9 @@ from utils.test_helpers import create_test_user
 fixtures_dir = Path(__file__).parent / "fixtures"
 
 
-class PaperApiTests(APITestCase):
+class PaperApiTests(TestCase):
     def setUp(self):
+        self.client = APIClient()
         self.journal = Hub.objects.create(name="ResearchHub Journal")
         journal_id_patcher = patch.object(
             settings, "RESEARCHHUB_JOURNAL_ID", str(self.journal.id)
@@ -167,17 +173,20 @@ class PaperApiTests(APITestCase):
         self.assertEqual(len(unclaimed_works), 3)
         self.assertEqual(unclaimed_works, openalex_works)
 
-    def test_unverified_user_cannot_create_researchhub_paper(self):
-        """Test that unverified users are blocked from creating papers"""
+    def test_unverified_user_can_create_researchhub_paper(self):
+        """Risk score gating replaces persona verification, so unverified users
+        can create papers."""
         user = create_random_authenticated_user("unverified_user")
         self.client.force_authenticate(user)
+        author = Author.objects.create(first_name="Test", last_name="Author")
 
         response = self.client.post(
-            "/api/paper/create_researchhub_paper/", {}, format="json"
+            "/api/paper/create_researchhub_paper/",
+            self._researchhub_paper_payload(author),
+            format="json",
         )
 
-        self.assertEqual(response.status_code, 403)
-        self.assertIn("verified", (response.data.get("detail") or "").lower())
+        self.assertEqual(response.status_code, 201)
 
     def test_create_researchhub_paper_creates_first_version(self):
         """Test that creating a new paper sets version 1"""
@@ -227,6 +236,72 @@ class PaperApiTests(APITestCase):
         self.assertTrue(authorship.is_corresponding)
 
         self.assertEqual(paper.hubs.first().id, hub.id)
+
+    def _researchhub_paper_payload(self, author):
+        return {
+            "title": "Test Paper",
+            "abstract": "Test abstract",
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
+            "hub_ids": [],
+            "declarations": [
+                {"declaration_type": "ACCEPT_TERMS_AND_CONDITIONS", "accepted": True},
+                {"declaration_type": "AUTHORIZE_CC_BY_4_0", "accepted": True},
+                {"declaration_type": "CONFIRM_AUTHORS_RIGHTS", "accepted": True},
+                {
+                    "declaration_type": "CONFIRM_ORIGINALITY_AND_COMPLIANCE",
+                    "accepted": True,
+                },
+            ],
+        }
+
+    def test_create_researchhub_paper_neutral_author_enters_moderation(self):
+        """A neutral author's submission is gated to PENDING at creation."""
+        # Arrange
+        user = create_random_authenticated_user("neutral_author")
+        make_user_verified(user)
+        self.client.force_authenticate(user)
+        author = Author.objects.create(first_name="Test", last_name="Author")
+
+        # Act
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/",
+            self._researchhub_paper_payload(author),
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["status"], ResearchhubUnifiedDocument.PENDING)
+        paper = Paper.objects.get(id=response.data["id"])
+        self.assertEqual(
+            paper.unified_document.status, ResearchhubUnifiedDocument.PENDING
+        )
+
+    def test_create_researchhub_paper_trusted_author_auto_approves(self):
+        """A trusted author's submission auto-approves at creation."""
+        # Arrange
+        user = create_random_authenticated_user("trusted_author")
+        make_user_verified(user)
+        RiskScore.objects.update_or_create(user=user, defaults={"score": 200})
+        self.client.force_authenticate(user)
+        author = Author.objects.create(first_name="Test", last_name="Author")
+
+        # Act
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/",
+            self._researchhub_paper_payload(author),
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["status"], ResearchhubUnifiedDocument.APPROVED)
+        paper = Paper.objects.get(id=response.data["id"])
+        self.assertEqual(
+            paper.unified_document.status, ResearchhubUnifiedDocument.APPROVED
+        )
 
     def test_create_researchhub_paper_with_multiple_authors(self):
         """Test creating a paper with multiple authors in different positions"""
@@ -806,8 +881,9 @@ class PaperApiTests(APITestCase):
         self.assertEqual(paper_version_v1.original_paper_id, paper_v1_id)
 
 
-class PaperDOITests(APITestCase):
+class PaperDOITests(TestCase):
     def setUp(self):
+        self.client = APIClient()
         self.user = create_test_user()
         self.client.force_authenticate(user=self.user)
 
@@ -953,3 +1029,45 @@ class PaperDOITests(APITestCase):
             )
             self.assertEqual(response.data["doi"], test_doi)
             self.assertEqual(response.data["id"], paper.id)
+
+
+class PaperPendingVisibilityTests(TestCase):
+    """Papers awaiting moderation are not publicly retrievable by direct link."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.uploader = create_random_authenticated_user("paper_uploader")
+        self.pending_paper = create_paper(
+            title="Pending paper", uploaded_by=self.uploader
+        )
+        self.pending_paper.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        self.pending_paper.unified_document.save(update_fields=["status"])
+        self.detail_url = reverse("paper-detail", args=[self.pending_paper.id])
+
+    def test_anonymous_cannot_retrieve_pending_paper(self):
+        self.client.force_authenticate(None)
+        self.assertEqual(
+            self.client.get(self.detail_url).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_outsider_cannot_retrieve_pending_paper(self):
+        outsider = create_random_authenticated_user("paper_outsider")
+        self.client.force_authenticate(outsider)
+        self.assertEqual(
+            self.client.get(self.detail_url).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_uploader_can_retrieve_pending_paper(self):
+        self.client.force_authenticate(self.uploader)
+        self.assertEqual(
+            self.client.get(self.detail_url).status_code, status.HTTP_200_OK
+        )
+
+    def test_moderator_can_retrieve_pending_paper(self):
+        moderator = create_random_authenticated_user("paper_mod", moderator=True)
+        self.client.force_authenticate(moderator)
+        self.assertEqual(
+            self.client.get(self.detail_url).status_code, status.HTTP_200_OK
+        )

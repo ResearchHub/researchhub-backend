@@ -1,6 +1,8 @@
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
+from django.test import TestCase
+
 from discussion.models import Flag
 from notification.models import Notification
 from paper.tests.helpers import create_paper
@@ -13,13 +15,15 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from user.related_models.risk_score_model import RiskScoreEvent
 from user.related_models.verdict_model import Verdict
 from user.services.content_moderation_service import ContentModerationService
 from user.tests.helpers import create_random_authenticated_user
-from utils.test_helpers import AWSMockTransactionTestCase
+
+EventType = RiskScoreEvent.EventType
 
 
-class ContentModerationServiceTests(AWSMockTransactionTestCase):
+class ContentModerationServiceTests(TestCase):
     def setUp(self):
         self.service = ContentModerationService()
         self.moderator = create_random_authenticated_user("cms_mod", moderator=True)
@@ -76,6 +80,18 @@ class ContentModerationServiceTests(AWSMockTransactionTestCase):
             ).exists()
         )
 
+    def test_decline_scores_work_declined_not_censored(self):
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            self.service.decline_content(
+                self.post, self.moderator, reason="Spam", reason_choice="SPAM"
+            )
+
+        # Assert
+        events = RiskScoreEvent.objects.filter(user=self.author)
+        self.assertTrue(events.filter(event_type=EventType.WORK_DECLINED).exists())
+        self.assertFalse(events.filter(event_type=EventType.CONTENT_CENSORED).exists())
+
     def test_approve_non_pending_content_raises(self):
         # Arrange
         self.post.unified_document.status = ResearchhubUnifiedDocument.APPROVED
@@ -124,11 +140,8 @@ class ContentModerationServiceTests(AWSMockTransactionTestCase):
 
     def test_notification_failure_does_not_block_approve(self):
         # Arrange
-        with patch(
-            "user.services.content_moderation_service.Notification"
-        ) as mock_notif_cls:
+        with patch("user.services.moderation.Notification") as mock_notif_cls:
             mock_notif_cls.objects.create.side_effect = Exception("boom")
-            mock_notif_cls.CONTENT_APPROVED = Notification.CONTENT_APPROVED
 
             # Act
             self.service.approve_content(self.post, self.moderator)
