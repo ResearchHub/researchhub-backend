@@ -1,7 +1,7 @@
 import logging
 import unicodedata
 import uuid
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 from urllib.parse import quote
 
 from botocore.exceptions import BotoCoreError, ClientError
@@ -82,7 +82,7 @@ class S3StorageService(StorageService):
             object_url=f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{s3_filename}",
         )
 
-    def quarantine_object(self, key: str) -> Optional[str]:
+    def quarantine_object(self, key: str) -> str | None:
         """
         Move an object to the quarantine prefix within the storage bucket so it
         is no longer served at its original key.
@@ -94,7 +94,7 @@ class S3StorageService(StorageService):
             return None
         return self._move_object(key, f"{QUARANTINE_PREFIX}{key}")
 
-    def restore_object(self, key: str) -> Optional[str]:
+    def restore_object(self, key: str) -> str | None:
         """
         Move a previously quarantined object back to its original key.
         `key` is the original (non-prefixed) key.
@@ -106,7 +106,7 @@ class S3StorageService(StorageService):
             return None
         return self._move_object(f"{QUARANTINE_PREFIX}{key}", key)
 
-    def _move_object(self, source_key: str, dest_key: str) -> Optional[str]:
+    def _move_object(self, source_key: str, dest_key: str) -> str | None:
         """
         Move an object within the storage bucket.
 
