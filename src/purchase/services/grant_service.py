@@ -1,15 +1,16 @@
 import logging
 
-from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import transaction
 
-from discussion.views import create_flag
 from feed.signals.post_signals import _create_post_feed_entries
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from notification.models import Notification
 from purchase.models import Grant
-from user.related_models.verdict_model import Verdict
+from user.services.moderation import (
+    create_removal_verdict,
+    send_moderation_notification,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,22 +58,7 @@ class GrantModerationService:
         return grant
 
     def _flag_and_remove_grant(self, grant, reviewer, reason, reason_choice):
-        flag, _ = create_flag(
-            user=reviewer,
-            item=grant,
-            reason=reason,
-            reason_choice=reason_choice,
-            reason_memo=reason,
-        )
-
-        verdict = Verdict.objects.create(
-            created_by=reviewer,
-            flag=flag,
-            verdict_choice=reason_choice,
-            is_content_removed=True,
-        )
-        flag.verdict_created_date = verdict.created_date
-        flag.save(update_fields=["verdict_created_date"])
+        create_removal_verdict(reviewer, grant, reason, reason_choice)
 
         unified_document = grant.unified_document
         unified_document.is_removed = True
@@ -88,20 +74,9 @@ class GrantModerationService:
             logger.exception("Failed to create feed entry for post %s", post.id)
 
     def _send_moderation_notification(self, grant, action_user, notification_type):
-        try:
-            content_type = ContentType.objects.get_for_model(Grant)
-            notification = Notification.objects.create(
-                notification_type=notification_type,
-                recipient=grant.created_by,
-                action_user=action_user,
-                content_type=content_type,
-                object_id=grant.id,
-                unified_document=grant.unified_document,
-            )
-            notification.send_notification()
-        except Exception:
-            logger.exception(
-                "Failed to send %s notification for grant %s",
-                notification_type,
-                grant.id,
-            )
+        send_moderation_notification(
+            notification_type,
+            recipient=grant.created_by,
+            action_user=action_user,
+            item=grant,
+        )

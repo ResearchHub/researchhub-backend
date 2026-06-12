@@ -22,7 +22,6 @@ from analytics.amplitude import track_event
 from discussion.models import Vote
 from discussion.serializers import VoteSerializer
 from discussion.views import ReactionViewActionMixin
-from hub.permissions import IsModerator
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import Paper, PaperSubmission, PaperVersion
@@ -35,7 +34,8 @@ from paper.serializers import (
     PaperSerializer,
     PaperSubmissionSerializer,
 )
-from user.permissions import IsVerifiedUser
+from user.content_moderation_mixin import ContentModerationActionsMixin
+from user.permissions import IsModerator, IsVerifiedUser
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
@@ -48,7 +48,10 @@ logger = logging.getLogger(__name__)
 
 
 class PaperViewSet(
-    ReactionViewActionMixin, FollowViewActionMixin, viewsets.ModelViewSet
+    ContentModerationActionsMixin,
+    ReactionViewActionMixin,
+    FollowViewActionMixin,
+    viewsets.ModelViewSet,
 ):
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
@@ -58,6 +61,7 @@ class PaperViewSet(
     filterset_class = PaperFilter
     throttle_classes = THROTTLE_CLASSES
     ordering = "-created_date"
+    moderation_model = Paper
 
     permission_classes = [
         IsAuthenticatedOrReadOnly & CreatePaper & UpdatePaper & CreateOrUpdateIfAllowed

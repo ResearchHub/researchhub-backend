@@ -4,6 +4,7 @@ from datetime import timedelta
 from typing import Any, Optional
 
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.utils import timezone
 
 import utils.locking as lock
@@ -56,6 +57,16 @@ def create_feed_entry(
     if unified_document is not None and not unified_document.is_public:
         return None
 
+    # Defense-in-depth: never publish a work still awaiting moderation. The
+    # publishing signals already defer these, but the task can be called directly.
+    if (
+        action == FeedEntry.PUBLISH
+        and isinstance(item, (ResearchhubPost, Paper))
+        and unified_document is not None
+        and not unified_document.is_approved
+    ):
+        return None
+
     content = serialize_feed_item(item, item_content_type)
     if content is None:
         logger.warning(
@@ -105,6 +116,20 @@ def create_feed_entry(
             f"Failed to save feed entry for item_id={item_id} "
             f"content_type={item_content_type.model}: {e}"
         )
+
+
+def publish_to_feed(
+    item: ResearchhubPost | Paper, user_id: Optional[int] = None
+) -> None:
+    """Enqueue a PUBLISH feed entry for ``item`` once the transaction commits."""
+    hub_ids = list(item.unified_document.hubs.values_list("id", flat=True))
+    content_type_id = ContentType.objects.get_for_model(item).id
+    transaction.on_commit(
+        lambda: create_feed_entry.apply_async(
+            args=(item.id, content_type_id, FeedEntry.PUBLISH, hub_ids, user_id),
+            priority=1,
+        )
+    )
 
 
 def refresh_feed_entry(feed_entry, skip_figure_extraction=False):
