@@ -115,21 +115,21 @@ class ResearcherExternalContextTests(SimpleTestCase):
             client=client,
         )
         self.assertEqual(rec, {"display_name": "From ORCID"})
-        client._get.assert_not_called()
+        client.get_author.assert_not_called()
 
     @patch("research_ai.services.researcher_external_context.OpenAlex")
     def test_fetch_openalex_by_author_id_when_no_orcid(self, mock_oa_cls):
         client = MagicMock()
         mock_oa_cls.return_value = client
-        client._get.return_value = {"display_name": "From OA"}
+        client.get_author.return_value = {"display_name": "From OA"}
 
         rec = fetch_openalex_author_record(
             orcid_bare=None,
-            openalex_author_ref="A888",
+            openalex_author_ref="https://openalex.org/A888",
             client=client,
         )
         self.assertEqual(rec, {"display_name": "From OA"})
-        client._get.assert_called_once_with("authors/A888")
+        client.get_author.assert_called_once_with("A888")
 
     def test_build_researcher_external_context_for_author_passes_ids(self):
         mod = "research_ai.services.researcher_external_context"
