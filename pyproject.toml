@@ -104,5 +104,4 @@ extend-select = [
 "src/paper/**/*.py" = ["E501"]
 "src/personalize/**/*.py" = ["E501"]
 "src/referral/**/*.py" = ["E501"]
-"src/research_ai/**/*.py" = ["E501"]
 "src/user/**/*.py" = ["E501"]

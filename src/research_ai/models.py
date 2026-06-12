@@ -42,7 +42,10 @@ class ExpertSearch(DefaultModel):
     name = models.CharField(
         max_length=512,
         blank=True,
-        db_comment="Optional user-defined search name; auto-filled from document title if not provided.",
+        db_comment=(
+            "Optional user-defined search name; auto-filled from document title if not "
+            "provided."
+        ),
     )
     query = models.TextField(
         db_comment="Research description or document content used for the search.",
@@ -150,7 +153,9 @@ class Expert(DefaultModel):
     last_email_sent_at = models.DateTimeField(
         null=True,
         blank=True,
-        db_comment="Last time an outreach email was sent to this expert address (any search).",
+        db_comment=(
+            "Last time an outreach email was sent to this expert address (any search)."
+        ),
     )
 
     class Meta:
@@ -255,7 +260,9 @@ class GeneratedEmail(DefaultModel):
         default=EmailTemplateType.CUSTOM,
         null=True,
         blank=True,
-        db_comment="LLM prompt key; null when placeholder is for fixed {{}} template only.",
+        db_comment=(
+            "LLM prompt key; null when placeholder is for fixed {{}} template only."
+        ),
     )
     status = models.CharField(
         max_length=16,

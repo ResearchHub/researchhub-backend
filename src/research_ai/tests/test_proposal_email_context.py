@@ -70,7 +70,8 @@ class FormatAmountRaisedTests(TestCase):
         self.assertEqual(_format_amount_raised(2_500_000), "$2M")
 
     def test_fallback_when_int_round_raises(self):
-        # NaN passes the <= 0 guard but int(round(nan)) raises ValueError; except formats with .0f.
+        # NaN passes the <= 0 guard but int(round(nan)) raises ValueError
+        # except formats with .0f.
         self.assertEqual(_format_amount_raised(float("nan")), "$nan")
 
 
