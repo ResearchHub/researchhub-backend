@@ -9,13 +9,6 @@ class DynamicModelFieldSerializer(serializers.ModelSerializer):
         # Don't pass the '_exclude_fields' arg up to the superclass
         _exclude_fields = kwargs.pop("_exclude_fields", None)
         # Don't pass the '_filter_fields' arg up to the superclass
-        _filter_fields = kwargs.pop("_filter_fields", None)
-        # Don't pass the '_order_fields' arg up to the superclass
-        _order_fields = kwargs.pop("_order_fields", None)
-        # Don't pass the '_select_related_fields' arg up to the superclass
-        _select_related_fields = kwargs.pop("_select_related_fields", None)
-        # Don't pass the '_prefetch_related_fields' arg up to the superclass
-        _prefetch_related_fields = kwargs.pop("_prefetch_related_fields", None)
 
         super(DynamicModelFieldSerializer, self).__init__(*args, **kwargs)
 
