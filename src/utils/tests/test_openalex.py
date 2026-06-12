@@ -104,6 +104,20 @@ class OpenAlexTests(TestCase):
         self.assertEqual(kwargs["filters"]["cursor"], "*")
 
     @patch.object(OpenAlex, "_get")
+    def test_get_works_adds_open_access_parameter(self, mock_get):
+        """get_works restricts to open-access works when asked."""
+        # Arrange
+        mock_get.return_value = {"results": [], "meta": {"next_cursor": None}}
+
+        # Act
+        OpenAlex().get_works(batch_size=10, open_access_only=True)
+
+        # Assert
+        _, kwargs = mock_get.call_args
+        filter_params = kwargs["filters"]["filter"].split(",")
+        self.assertIn("open_access.is_oa:true", filter_params)
+
+    @patch.object(OpenAlex, "_get")
     def test_get_author_fetches_author_by_id(self, mock_get):
         # Arrange
         mock_get.return_value = {"id": "https://openalex.org/A123"}
@@ -193,13 +207,18 @@ class WorkTests(unittest.TestCase):
         # Arrange
         entity = {
             "display_name": "Lead Paper",
+            "publication_date": "2024-05-01",
             "publication_year": 2024,
             "doi": "https://doi.org/10.1/lead-paper",
             "id": "https://openalex.org/W1",
             "authorships": [
                 {"author": {"id": "A123"}, "author_position": "first"},
             ],
-            "primary_location": {"pdf_url": "https://example.org/lead-paper.pdf"},
+            "primary_location": {
+                "pdf_url": "https://example.org/lead-paper.pdf",
+                "version": "publishedVersion",
+            },
+            "open_access": {"is_oa": True},
         }
 
         # Act
@@ -207,16 +226,18 @@ class WorkTests(unittest.TestCase):
 
         # Assert
         self.assertEqual(work.title, "Lead Paper")
-        self.assertEqual(work.year, "2024")
+        self.assertEqual(work.publication_date, "2024-05-01")
+        self.assertEqual(work.publication_year, "2024")
         self.assertEqual(work.source_url, "https://doi.org/10.1/lead-paper")
         self.assertEqual(work.author_position, "first")
         self.assertEqual(work.pdf_url, "https://example.org/lead-paper.pdf")
+        self.assertTrue(work.is_oa)
 
     def test_from_openalex_falls_back_to_openalex_url_without_doi(self):
         # Arrange: no DOI, and the target author is mid-list under a bare id.
         entity = {
             "display_name": "Paper",
-            "publication_year": 2023,
+            "publication_date": "2023-01-15",
             "doi": None,
             "id": "https://openalex.org/W2",
             "authorships": [
@@ -226,9 +247,15 @@ class WorkTests(unittest.TestCase):
                 },
                 {"author": {"id": "A123"}, "author_position": "middle"},
             ],
-            # No PDF on primary_location; falls through to the secondary location.
-            "primary_location": {"pdf_url": None},
-            "locations": [{"pdf_url": "https://repo.example/W2.pdf"}],
+            # No PDF on primary_location; the published version is hosted on a
+            # secondary (repository) location.
+            "primary_location": {"pdf_url": None, "version": "publishedVersion"},
+            "locations": [
+                {
+                    "pdf_url": "https://repo.example/W2.pdf",
+                    "version": "publishedVersion",
+                }
+            ],
         }
 
         # Act
@@ -241,11 +268,32 @@ class WorkTests(unittest.TestCase):
         # Without an author to match against, the position is unknown.
         self.assertIsNone(Work.from_openalex(entity).author_position)
 
+    def test_from_openalex_pdf_takes_only_the_published_version(self):
+        # Arrange: only preprint/accepted manuscripts are open access -- no
+        # published-version PDF exists, so we take none.
+        entity = {
+            "display_name": "Manuscript Only Paper",
+            "publication_date": "2024-01-01",
+            "doi": "https://doi.org/10.1/mv",
+            "id": "https://openalex.org/W9",
+            "primary_location": {"pdf_url": None, "version": "publishedVersion"},
+            "locations": [
+                {"pdf_url": "https://repo/preprint.pdf", "version": "submittedVersion"},
+                {"pdf_url": "https://repo/accepted.pdf", "version": "acceptedVersion"},
+            ],
+        }
+
+        # Act
+        work = Work.from_openalex(entity)
+
+        # Assert
+        self.assertEqual(work.pdf_url, "")
+
     def test_from_openalex_pdf_url_defaults_to_empty_when_no_open_access(self):
-        # Arrange: a work with no PDF anywhere across its locations.
+        # Arrange: a paywalled work -- no PDF, not open access.
         entity = {
             "display_name": "Paywalled Paper",
-            "publication_year": 2022,
+            "publication_date": "2022-09-30",
             "doi": "https://doi.org/10.1/paywalled",
             "id": "https://openalex.org/W3",
         }
@@ -255,6 +303,7 @@ class WorkTests(unittest.TestCase):
 
         # Assert
         self.assertEqual(work.pdf_url, "")
+        self.assertFalse(work.is_oa)
 
     def test_from_openalex_returns_none_for_unusable_entities(self):
         # Arrange: untitled, and titled but without any URL.
@@ -272,12 +321,19 @@ class WorkTests(unittest.TestCase):
                 self.assertIsNone(work)
 
     def test_label_marks_lead_authorship_and_year(self):
-        # Arrange
+        # Arrange: positional args are (title, publication_date, publication_year,
+        # source_url, author_position); the label reads publication_year.
         cases = [
-            (Work("Paper", "2024", "u", "first"), "(2024) Paper [first author]"),
-            (Work("Paper", "2024", "u", "last"), "(2024) Paper [last author]"),
-            (Work("Paper", "2024", "u", "middle"), "(2024) Paper"),
-            (Work("Paper", "", "u", None), "Paper"),
+            (
+                Work("Paper", "2024-05-01", "2024", "u", "first"),
+                "(2024) Paper [first author]",
+            ),
+            (
+                Work("Paper", "2024-05-01", "2024", "u", "last"),
+                "(2024) Paper [last author]",
+            ),
+            (Work("Paper", "2024-05-01", "2024", "u", "middle"), "(2024) Paper"),
+            (Work("Paper", "", "", "u", None), "Paper"),
         ]
 
         for work, expected in cases:
@@ -285,15 +341,16 @@ class WorkTests(unittest.TestCase):
                 # Act / Assert
                 self.assertEqual(work.label, expected)
 
-    def test_year_int_defaults_to_zero_when_undated(self):
-        # Arrange / Act / Assert
-        self.assertEqual(Work("Paper", "2024", "u").year_int, 2024)
-        self.assertEqual(Work("Paper", "", "u").year_int, 0)
-
     def test_as_dict_round_trips_profile_fields(self):
         # Arrange
         work = Work(
-            "Paper", "2024", "https://doi.org/10.1/p", "first", "https://x.org/p.pdf"
+            "Paper",
+            "2024-05-01",
+            "2024",
+            "https://doi.org/10.1/p",
+            "first",
+            "https://x.org/p.pdf",
+            True,
         )
 
         # Act / Assert
@@ -301,10 +358,12 @@ class WorkTests(unittest.TestCase):
             work.as_dict(),
             {
                 "title": "Paper",
-                "year": "2024",
+                "publication_date": "2024-05-01",
+                "publication_year": "2024",
                 "source_url": "https://doi.org/10.1/p",
                 "author_position": "first",
                 "pdf_url": "https://x.org/p.pdf",
+                "is_oa": True,
             },
         )
 
