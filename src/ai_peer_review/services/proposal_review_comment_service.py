@@ -144,7 +144,7 @@ def proposal_review_to_tiptap_content(review: ProposalReview) -> dict:
     body: list[dict] = []
     _append_title_and_rationale(
         body,
-        title_bold=f"1. Overall Impact. Score: {_format_category_score_value(impact.get('score'))}",
+        title_bold=f"1. Overall Impact. Score: {_format_category_score_value(impact.get('score'))}",  # noqa: E501
         category_rationale=impact_rationale or None,
     )
     _append_category_item_bullets(body, impact)
