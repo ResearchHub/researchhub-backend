@@ -99,7 +99,6 @@ extend-select = [
 # Temporarily ignore lint rules per app.
 # E501: line too long
 # T20:  print statements
-"src/ai_peer_review/**/*.py" = ["E501"]
 "src/feed/**/*.py" = ["E501"]
 "src/paper/**/*.py" = ["E501"]
 "src/personalize/**/*.py" = ["E501"]

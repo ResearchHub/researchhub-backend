@@ -12,7 +12,8 @@ Usage:
     python manage.py run_proposal_key_insights --grant-ids 1,2,3
     python manage.py run_proposal_key_insights --review-ids 10,20
     python manage.py run_proposal_key_insights --created-after 2024-01-01
-    python manage.py run_proposal_key_insights --created-after 2025-01-01 --created-before 2025-12-31
+    python manage.py run_proposal_key_insights --created-after 2025-01-01 \
+        --created-before 2025-12-31
     python manage.py run_proposal_key_insights --review-ids 42 --force
 """
 
@@ -50,11 +51,11 @@ def _parse_date_end(s: str) -> datetime:
 
 class Command(BaseCommand):
     help = (
-        "Run key insights (TLDR + pros/cons) for each selected proposal review that has "
-        "finished the main AI review (processed reviews only). Each LLM call uses proposal "
-        "text, optional grant/funding context, the AI review comment, and assessed human "
-        "community reviews. By default, skips reviews whose key insight already succeeded; "
-        "use --force to re-run the LLM."
+        "Run key insights (TLDR + pros/cons) for each selected proposal review that "
+        "has finished the main AI review (processed reviews only). Each LLM call uses "
+        "proposal text, optional grant/funding context, the AI review comment, and "
+        "assessed human community reviews. By default, skips reviews whose key insight "
+        "already succeeded; use --force to re-run the LLM."
     )
 
     def add_arguments(self, parser):

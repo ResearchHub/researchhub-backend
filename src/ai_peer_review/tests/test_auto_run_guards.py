@@ -59,7 +59,9 @@ class AutoRunProposalReviewGuardsTests(TestCase):
         self.assertEqual(reason, "processing")
 
     def test_repeated_check_same_review_not_throttled_separately_from_daily_cap(self):
-        """No min-interval cooldown; two guard checks in a row both pass if under cap."""
+        """
+        No min-interval cooldown; two guard checks in a row both pass if under cap.
+        """
         pr = ProposalReview.objects.create(
             unified_document=self.ud,
             grant=self.grant,
