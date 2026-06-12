@@ -147,12 +147,16 @@ class Work:
     ``author_position`` is one author's position ("first" | "middle" | "last")
     on the work, resolved against the ``author_id`` given at construction
     (``None`` when that author is not matched on the work).
+
+    ``pdf_url`` is an open-access PDF link when OpenAlex has one (``""``
+    otherwise); it is the entry point for full-text retrieval downstream.
     """
 
     title: str
     year: str
     source_url: str
     author_position: str | None = None
+    pdf_url: str = ""
 
     @classmethod
     def from_openalex(cls, entity: dict, *, author_id: str | None = None):
@@ -174,7 +178,18 @@ class Work:
             year=str(entity.get("publication_year") or "").strip(),
             source_url=url,
             author_position=cls._author_position(entity, author_id),
+            pdf_url=cls._pdf_url(entity),
         )
+
+    @staticmethod
+    def _pdf_url(entity: dict) -> str:
+        """First open-access PDF link across the work's locations (``""`` if none)."""
+        locations = [entity.get("primary_location")] + (entity.get("locations") or [])
+        for location in locations:
+            pdf_url = (location or {}).get("pdf_url")
+            if pdf_url:
+                return str(pdf_url).strip()
+        return ""
 
     @staticmethod
     def _author_position(entity: dict, author_id: str | None) -> str | None:
@@ -211,6 +226,7 @@ class Work:
             "year": self.year,
             "source_url": self.source_url,
             "author_position": self.author_position,
+            "pdf_url": self.pdf_url,
         }
 
 

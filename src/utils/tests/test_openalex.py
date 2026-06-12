@@ -199,6 +199,7 @@ class WorkTests(unittest.TestCase):
             "authorships": [
                 {"author": {"id": "A123"}, "author_position": "first"},
             ],
+            "primary_location": {"pdf_url": "https://example.org/lead-paper.pdf"},
         }
 
         # Act
@@ -209,6 +210,7 @@ class WorkTests(unittest.TestCase):
         self.assertEqual(work.year, "2024")
         self.assertEqual(work.source_url, "https://doi.org/10.1/lead-paper")
         self.assertEqual(work.author_position, "first")
+        self.assertEqual(work.pdf_url, "https://example.org/lead-paper.pdf")
 
     def test_from_openalex_falls_back_to_openalex_url_without_doi(self):
         # Arrange: no DOI, and the target author is mid-list under a bare id.
@@ -224,6 +226,9 @@ class WorkTests(unittest.TestCase):
                 },
                 {"author": {"id": "A123"}, "author_position": "middle"},
             ],
+            # No PDF on primary_location; falls through to the secondary location.
+            "primary_location": {"pdf_url": None},
+            "locations": [{"pdf_url": "https://repo.example/W2.pdf"}],
         }
 
         # Act
@@ -232,8 +237,24 @@ class WorkTests(unittest.TestCase):
         # Assert
         self.assertEqual(work.source_url, "https://openalex.org/W2")
         self.assertEqual(work.author_position, "middle")
+        self.assertEqual(work.pdf_url, "https://repo.example/W2.pdf")
         # Without an author to match against, the position is unknown.
         self.assertIsNone(Work.from_openalex(entity).author_position)
+
+    def test_from_openalex_pdf_url_defaults_to_empty_when_no_open_access(self):
+        # Arrange: a work with no PDF anywhere across its locations.
+        entity = {
+            "display_name": "Paywalled Paper",
+            "publication_year": 2022,
+            "doi": "https://doi.org/10.1/paywalled",
+            "id": "https://openalex.org/W3",
+        }
+
+        # Act
+        work = Work.from_openalex(entity)
+
+        # Assert
+        self.assertEqual(work.pdf_url, "")
 
     def test_from_openalex_returns_none_for_unusable_entities(self):
         # Arrange: untitled, and titled but without any URL.
@@ -271,7 +292,9 @@ class WorkTests(unittest.TestCase):
 
     def test_as_dict_round_trips_profile_fields(self):
         # Arrange
-        work = Work("Paper", "2024", "https://doi.org/10.1/p", "first")
+        work = Work(
+            "Paper", "2024", "https://doi.org/10.1/p", "first", "https://x.org/p.pdf"
+        )
 
         # Act / Assert
         self.assertEqual(
@@ -281,6 +304,7 @@ class WorkTests(unittest.TestCase):
                 "year": "2024",
                 "source_url": "https://doi.org/10.1/p",
                 "author_position": "first",
+                "pdf_url": "https://x.org/p.pdf",
             },
         )
 
