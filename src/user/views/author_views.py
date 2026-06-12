@@ -1,6 +1,5 @@
 from celery import chain
 from django.core.cache import cache
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -23,7 +22,6 @@ from researchhub_document.serializers.researchhub_unified_document_serializer im
 from researchhub_document.views.researchhub_unified_document_views import (
     ResearchhubUnifiedDocumentViewSet,
 )
-from user.filters import AuthorFilter
 from user.models import Author
 from user.permissions import DeleteAuthorPermission, IsVerifiedUser, UpdateAuthor
 from user.serializers import (
@@ -44,8 +42,7 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         "user__userverification",
     )
     serializer_class = AuthorSerializer
-    filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
-    filterset_class = AuthorFilter
+    filter_backends = (SearchFilter, OrderingFilter)
     search_fields = ("first_name", "last_name")
     permission_classes = [
         (IsAuthenticatedOrReadOnly & UpdateAuthor & CreateOrUpdateIfAllowed)
