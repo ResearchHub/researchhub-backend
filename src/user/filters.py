@@ -1,4 +1,3 @@
-from django.db import models
 from django.db.models import Q
 from django_filters import rest_framework as filters
 from django_filters import utils
@@ -13,25 +12,6 @@ from discussion.models import Flag
 from reputation.related_models.distribution import Distribution
 from user.models import Action, User
 from user.related_models.risk_score_model import RiskScoreEvent
-from utils.filters import ListExcludeFilter
-
-from .models import Author
-
-
-class AuthorFilter(filters.FilterSet):
-    id__ne = ListExcludeFilter(field_name="id")
-    education = filters.CharFilter(lookup_expr="icontains")
-    headline = filters.CharFilter(lookup_expr="icontains")
-
-    class Meta:
-        model = Author
-        fields = [field.name for field in model._meta.fields]
-        exclude = ["openalex_ids"]
-        filter_overrides = {
-            models.FileField: {
-                "filter_class": filters.CharFilter,
-            }
-        }
 
 
 class UserFilter(filters.FilterSet):
