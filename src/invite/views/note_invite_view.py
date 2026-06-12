@@ -1,7 +1,8 @@
 from rest_framework.decorators import action
+from rest_framework.mixins import ListModelMixin
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import GenericViewSet
 
 from invite.models import NoteInvitation
 from invite.serializers import NoteInvitationSerializer
@@ -12,7 +13,7 @@ from invite.services import (
 )
 
 
-class NoteInvitationViewSet(ModelViewSet):
+class NoteInvitationViewSet(ListModelMixin, GenericViewSet):
     queryset = NoteInvitation.objects.all()
     permission_classes = [IsAuthenticated]
     serializer_class = NoteInvitationSerializer
