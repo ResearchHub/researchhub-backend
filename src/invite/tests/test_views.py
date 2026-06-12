@@ -5,6 +5,7 @@ from rest_framework.test import APITestCase
 
 from invite.related_models.note_invitation import NoteInvitation
 from invite.related_models.organization_invitation import OrganizationInvitation
+from note.tests.helpers import create_note
 
 
 class OrganizationInvitationViewsTest(APITestCase):
@@ -103,3 +104,34 @@ class NoteInvitationViewsTest(APITestCase):
         self.assertEqual(response.status_code, 200)
 
         self.assertEqual(len(response.data["results"]), 1)
+
+
+class NoteInvitationAcceptViewsTest(APITestCase):
+    def setUp(self):
+        self.sender = get_user_model().objects.create_user(
+            username="sender@researchhub.com",
+            password=uuid.uuid4().hex,
+            email="sender@researchhub.com",
+        )
+        self.note, _ = create_note(self.sender, None, title="Test note")
+
+    def test_accept_invite_requires_authentication(self):
+        # Arrange
+        invite = NoteInvitation.create(
+            expiration_time=1440,
+            recipient=None,
+            recipient_email="new-recipient@researchhub.com",
+            inviter_id=self.sender.id,
+            note_id=self.note.id,
+        )
+        self.client.force_authenticate(user=None)
+
+        # Act
+        response = self.client.post(f"/api/invite/note/{invite.key}/accept_invite/")
+
+        # Assert
+        self.assertEqual(response.status_code, 401)
+
+        invite.refresh_from_db()
+        self.assertFalse(invite.accepted)
+        self.assertIsNone(invite.recipient)
