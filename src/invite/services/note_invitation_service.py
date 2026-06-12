@@ -62,6 +62,9 @@ class NoteInvitationService:
         if invite.recipient and user != invite.recipient:
             raise NoteInvitationRecipientMismatchError()
 
+        if not invite.recipient:
+            self._claim_recipientless_invite(invite, user)
+
         note = invite.note
         invite_type = invite.invite_type
         unified_document = note.unified_document
@@ -79,3 +82,28 @@ class NoteInvitationService:
         invite.accept()
 
         return invite
+
+    def _claim_recipientless_invite(self, invite: NoteInvitation, user) -> None:
+        """
+        Claim a recipientless invite for a user if the user's email matches the invite's
+        email.
+
+        Args:
+            invite: The note invitation to claim.
+            user: The user claiming the invitation.
+        Raises:
+            NoteInvitationRecipientMismatchError: If the user's email doesn't match the
+                invite's email.
+        """
+        user_email = (getattr(user, "email", "") or "").strip().lower()
+        invite_email = (invite.recipient_email or "").strip().lower()
+
+        if (
+            not getattr(user, "is_authenticated", False)
+            or not user_email
+            or not invite_email
+            or user_email != invite_email
+        ):
+            raise NoteInvitationRecipientMismatchError()
+
+        invite.recipient = user

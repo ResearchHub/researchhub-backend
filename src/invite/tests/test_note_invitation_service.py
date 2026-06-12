@@ -29,13 +29,20 @@ class NoteInvitationServiceTest(TestCase):
         )
 
     def _create_note_invitation(
-        self, recipient=None, expiration_time=1440, invite_type=VIEWER
+        self,
+        recipient=None,
+        recipient_email=None,
+        expiration_time=1440,
+        invite_type=VIEWER,
     ):
-        recipient = recipient or self.recipient
+        if recipient_email is None:
+            recipient = recipient or self.recipient
+            recipient_email = recipient.email
+
         return NoteInvitation.create(
             expiration_time=expiration_time,
             recipient=recipient,
-            recipient_email=recipient.email,
+            recipient_email=recipient_email,
             inviter_id=self.sender.id,
             note_id=self.note.id,
             invite_type=invite_type,
@@ -56,6 +63,48 @@ class NoteInvitationServiceTest(TestCase):
 
         permission = self.note.unified_document.permissions.get(user=self.recipient)
         self.assertEqual(permission.access_type, EDITOR)
+
+    def test_accept_invite_claims_recipientless_invite(self):
+        # Arrange
+        invite = self._create_note_invitation(
+            recipient=None,
+            recipient_email="new-recipient@researchhub.com",
+            invite_type=EDITOR,
+        )
+        new_recipient = self._create_user("new-recipient")
+
+        # Act
+        accepted_invite = self.service.accept_invite(invite.key, new_recipient)
+
+        # Assert
+        self.assertEqual(accepted_invite.id, invite.id)
+
+        invite.refresh_from_db()
+        self.assertTrue(invite.accepted)
+        self.assertEqual(invite.recipient, new_recipient)
+
+        permission = self.note.unified_document.permissions.get(user=new_recipient)
+        self.assertEqual(permission.access_type, EDITOR)
+
+    def test_accept_invite_rejects_recipientless_invite_with_different_emails(self):
+        # Arrange
+        invite = self._create_note_invitation(
+            recipient=None,
+            recipient_email="invited@researchhub.com",
+        )
+        other_user = self._create_user("other")
+
+        # Act
+        with self.assertRaises(NoteInvitationRecipientMismatchError):
+            self.service.accept_invite(invite.key, other_user)
+
+        # Assert
+        invite.refresh_from_db()
+        self.assertFalse(invite.accepted)
+        self.assertIsNone(invite.recipient)
+        self.assertFalse(
+            self.note.unified_document.permissions.filter(user=other_user).exists()
+        )
 
     def test_accept_invite_raises_for_expired_invite(self):
         # Arrange

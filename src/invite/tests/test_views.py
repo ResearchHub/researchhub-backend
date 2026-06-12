@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 from invite.related_models.note_invitation import NoteInvitation
 from invite.related_models.organization_invitation import OrganizationInvitation
 from note.tests.helpers import create_note
+from researchhub_access_group.constants import EDITOR
 
 
 class OrganizationInvitationViewsTest(APITestCase):
@@ -114,6 +115,38 @@ class NoteInvitationAcceptViewsTest(APITestCase):
             email="sender@researchhub.com",
         )
         self.note, _ = create_note(self.sender, None, title="Test note")
+
+    def test_accept_invite_claims_recipientless_invite(self):
+        # Arrange
+        recipient_email = "new-recipient@researchhub.com"
+        invite = NoteInvitation.create(
+            expiration_time=1440,
+            recipient=None,
+            recipient_email=recipient_email,
+            inviter_id=self.sender.id,
+            note_id=self.note.id,
+            invite_type=EDITOR,
+        )
+        new_recipient = get_user_model().objects.create_user(
+            username=recipient_email,
+            password=uuid.uuid4().hex,
+            email=recipient_email,
+        )
+        self.client.force_authenticate(user=new_recipient)
+
+        # Act
+        response = self.client.post(f"/api/invite/note/{invite.key}/accept_invite/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"], "User has accepted invitation")
+
+        invite.refresh_from_db()
+        self.assertTrue(invite.accepted)
+        self.assertEqual(invite.recipient, new_recipient)
+
+        permission = self.note.unified_document.permissions.get(user=new_recipient)
+        self.assertEqual(permission.access_type, EDITOR)
 
     def test_accept_invite_requires_authentication(self):
         # Arrange
