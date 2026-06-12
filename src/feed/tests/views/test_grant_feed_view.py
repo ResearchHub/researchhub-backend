@@ -95,7 +95,9 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_grant_feed_returns_all_grants(self):
-        """Test that grant feed returns all grants (no filtering by status/organization)"""
+        """
+        Test that grant feed returns all grants (no filtering by status/organization)
+        """
         self.client.force_authenticate(self.user)
         response = self.client.get("/api/grant_feed/")
 
@@ -487,7 +489,10 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(len(response.data["results"]), 0)
 
     def test_ordering_validation(self):
-        """Test that FundOrderingFilter handles different ordering scenarios correctly for grants."""
+        """
+        Test that FundOrderingFilter handles different ordering scenarios correctly
+        for grants.
+        """
         from unittest.mock import Mock, patch
 
         from rest_framework.request import Request
@@ -623,7 +628,9 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(len(titles), 3)
 
     def test_created_by_cache_key_isolates_per_user(self):
-        """Cache key must differ by created_by so different users don't share results."""
+        """
+        Cache key must differ by created_by so different users don't share results.
+        """
         # Arrange - two grant creators with distinct grants
         user1 = create_random_authenticated_user("grant_creator_1")
         user2 = create_random_authenticated_user("grant_creator_2")
