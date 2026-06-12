@@ -3,7 +3,7 @@ import logging
 from orcid.clients import OrcidClient
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import Author
-from utils.openalex import OpenAlex
+from utils.openalex import OpenAlex, normalize_openalex_id
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +21,9 @@ def _bare_orcid(author_orcid: str | None) -> str | None:
 
 
 def _normalize_openalex_author_token(ref: str | None) -> str | None:
-    if not ref:
-        return None
-    r = str(ref).strip()
-    if "openalex.org/" in r:
-        return r.rstrip("/").rsplit("/", 1)[-1]
-    if r.startswith("A"):
-        return r
-    return None
+    """Bare id from ``ref`` if it looks like an OpenAlex *author* id, else None."""
+    token = normalize_openalex_id(ref)
+    return token if token.startswith("A") else None
 
 
 def fetch_openalex_author_record(
@@ -53,7 +48,7 @@ def fetch_openalex_author_record(
     if not token:
         return None
     try:
-        return oa._get(f"authors/{token}")
+        return oa.get_author(token)
     except Exception as exc:
         logger.info("OpenAlex author lookup by id failed: %s", exc)
         return None

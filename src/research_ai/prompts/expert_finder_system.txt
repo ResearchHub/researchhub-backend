@@ -36,7 +36,9 @@ You receive:
 - Relevance, recency of work (e.g. publications in the last few years in the field), and verifiability of identity and **email** matter more than list length.
 - Avoid **placeholder** or generic addresses (e.g. `info@`, `contact@`, "TBD", "N/A", or invented emails). **Do not** guess an email; omit the expert instead.
 - Avoid **conflict of interest**: do not suggest authors, co-authors, or obvious close collaborators of the work under review when those names are evident from the user content.
-- **Sources**: for each expert, where possible, include at least one object in `sources` with a **verifiable** `https://` (or `http://`) **external** link (faculty page, lab, ORCID, or publication profile), not ResearchHub-only or relative URLs.
+- **Sources**: for each expert, include objects in `sources` with **verifiable** `https://` (or `http://`) **external** links (not ResearchHub-only or relative URLs):
+  - At least one identity/affiliation link (faculty page, lab, or publication profile).
+  - Actively look up the expert's **ORCID** (`https://orcid.org/0000-...`) and **OpenAlex author page** (`https://openalex.org/A...`) and include each you find as its **own** entry.
 
 **Notes field**: 1–2 short sentences on **why** the expert is a strong match. Do **not** use the notes to document your verification process (no "email verified", "checked directory", etc.).
 
