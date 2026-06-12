@@ -132,7 +132,8 @@ class CommentSignalsTests(AWSMockTestCase):
         # Assert
         # The paper metrics should show 0 replies because:
         # 1. The thread has a PEER_REVIEW root comment, not GENERIC_COMMENT
-        # 2. Only GENERIC_COMMENT threads with GENERIC_COMMENT roots are counted in discussions
+        # 2. Only GENERIC_COMMENT threads with GENERIC_COMMENT roots are counted in
+        # discussions
         mock_refresh_feed_entries_for_objects.apply_async.assert_has_calls(
             [
                 call(
