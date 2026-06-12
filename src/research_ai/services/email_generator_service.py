@@ -79,7 +79,9 @@ def _strip_markdown(text: str) -> str:
 
 
 def _strip_existing_signature(text: str, template_data: dict | None) -> str:
-    """Strip trailing signature/closing from LLM output. template_data = normalized dict."""
+    """
+    Strip trailing signature/closing from LLM output. template_data = normalized dict.
+    """
     result = text.strip()
     # 1. Cut at separator (--- or ——) in second half
     sep_match = re.search(r"\n\s*[-—]{2,}\s*\n", result)
@@ -150,7 +152,8 @@ def _strip_existing_signature(text: str, template_data: dict | None) -> str:
 def _replace_placeholders(text: str, template_data: dict) -> str:
     """Replace [Your Name], [Institution], etc. with template_data values."""
     result = text
-    # Name / title / email: only replace when non-empty so callers still see missing tokens.
+    # Name / title / email: only replace when non-empty so callers still see missing
+    # tokens.
     strict_placeholders = [
         ("[Your Name]", template_data.get("name")),
         ("[Your name]", template_data.get("name")),
@@ -164,7 +167,8 @@ def _replace_placeholders(text: str, template_data: dict) -> str:
     for placeholder, value in strict_placeholders:
         if value and str(value).strip():
             result = result.replace(placeholder, str(value).strip())
-    # Institution / phone / website: strip token when empty (clean LLM body + signature).
+    # Institution / phone / website: strip token when empty
+    # (clean LLM body + signature).
     optional_placeholders = [
         ("[Institution]", template_data.get("institution")),
         ("[Your Institution]", template_data.get("institution")),

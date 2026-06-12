@@ -111,7 +111,10 @@ def _stored_template_for_bulk(request_data: dict, validated_data: dict) -> str |
 
 
 class GenerateEmailView(APIView):
-    """POST /api/research_ai/expert-finder/generate-email/ — generate outreach email and save as draft."""
+    """
+    POST /api/research_ai/expert-finder/generate-email/
+    generate outreach email and save as draft.
+    """
 
     permission_classes = [
         IsAuthenticated,
@@ -185,7 +188,10 @@ class GenerateEmailView(APIView):
 
 
 class BulkGenerateEmailView(APIView):
-    """POST /api/research_ai/expert-finder/generate-emails-bulk/ - Create placeholders and enqueue Celery task."""
+    """
+    POST /api/research_ai/expert-finder/generate-emails-bulk/
+    Create placeholders and enqueue Celery task.
+    """
 
     permission_classes = [
         IsAuthenticated,
@@ -216,7 +222,8 @@ class BulkGenerateEmailView(APIView):
                     )
                     if not expert:
                         raise ValueError(
-                            f"Expert not found in search results: {item['expert_email']}."
+                            "Expert not found in search results: "
+                            f"{item['expert_email']}."
                         )
                     ctx = ExpertDisplay.email_generation_dict(expert)
                     email_record = GeneratedEmail.objects.create(
@@ -255,7 +262,10 @@ class BulkGenerateEmailView(APIView):
 
 
 class PreviewEmailView(APIView):
-    """POST /api/research_ai/expert-finder/emails/preview/ - Send generated email(s) to current user."""
+    """
+    POST /api/research_ai/expert-finder/emails/preview/
+    Send generated email(s) to current user.
+    """
 
     permission_classes = [
         IsAuthenticated,
@@ -309,7 +319,10 @@ class PreviewEmailView(APIView):
 
 
 class SendEmailView(APIView):
-    """POST /api/research_ai/expert-finder/emails/send/ - Send generated emails to experts via SES."""
+    """
+    POST /api/research_ai/expert-finder/emails/send/
+    Send generated emails to experts via SES.
+    """
 
     permission_classes = [
         IsAuthenticated,
@@ -353,7 +366,9 @@ class SendEmailView(APIView):
 
 
 class GeneratedEmailListView(APIView):
-    """GET /api/research_ai/expert-finder/emails/ - List. POST - Create draft (no LLM)."""
+    """
+    GET /api/research_ai/expert-finder/emails/ - List. POST - Create draft (no LLM).
+    """
 
     permission_classes = [
         IsAuthenticated,
@@ -402,7 +417,10 @@ class GeneratedEmailListView(APIView):
 
 
 class GeneratedEmailDetailView(APIView):
-    """GET /api/research_ai/expert-finder/emails/<id>/ - Retrieve one. PATCH - Update. DELETE - Delete."""
+    """
+    GET /api/research_ai/expert-finder/emails/<id>/
+    Retrieve one. PATCH - Update. DELETE - Delete.
+    """
 
     permission_classes = [
         IsAuthenticated,

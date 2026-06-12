@@ -109,7 +109,8 @@ def build_proposal_context(
 ) -> dict:
     """
     Build proposal (preregistration post) context dict for email templates.
-    Accepts ResearchhubPost or ResearchhubUnifiedDocument (document_type PREREGISTRATION).
+    Accepts ResearchhubPost or ResearchhubUnifiedDocument (document_type
+    PREREGISTRATION).
     Returns: title, url, created_by_name, goal_amount, amount_raised, contributor_count,
              deadline, blurb.
 
