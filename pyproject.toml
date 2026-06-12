@@ -98,7 +98,6 @@ extend-select = [
 
 # Temporarily ignore lint rules per app.
 # E501: line too long
-# T20:  print statements
 "src/paper/**/*.py" = ["E501"]
 "src/personalize/**/*.py" = ["E501"]
 "src/referral/**/*.py" = ["E501"]
