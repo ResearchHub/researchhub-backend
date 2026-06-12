@@ -25,7 +25,7 @@ class Command(BaseCommand):
                 normalized_doi = (
                     paper.doi.lower()
                     .strip()
-                    .replace("http://", "https://")
+                    .replace("http://", "https://")  # NOSONAR - Ignore http
                     .replace("https://dx.doi.org/", "")
                     .replace("https://doi.org/", "")
                     .replace("dx.doi.org/", "")
