@@ -4,7 +4,10 @@ from research_ai.models import EmailTemplate
 
 
 def list_templates():
-    """Return all templates (shared for editors/moderators), ordered by updated_date descending."""
+    """
+    Return all templates (shared for editors/moderators), ordered by updated_date
+    descending.
+    """
     return EmailTemplate.objects.select_related(
         "created_by",
         "created_by__author_profile",

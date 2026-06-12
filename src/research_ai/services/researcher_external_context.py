@@ -69,7 +69,8 @@ def format_openalex_author_record(record: dict | None) -> str:
     - ``summary_stats``: ``h_index``, ``i10_index``, ``2yr_mean_citedness`` only
     - ``works_count``, ``cited_by_count``
     - ``last_known_institution.display_name``
-    - ``affiliations``: first rows (up to 8), unique ``institution.display_name`` (up to 6)
+    - ``affiliations``: first rows (up to 8), unique ``institution.display_name``
+        (up to 6)
     - ``topics`` / ``x_concepts``: ``display_name`` only (up to 8)
 
     Author entity field reference: https://developers.openalex.org/api-entities/authors/overview
@@ -186,7 +187,9 @@ def fetch_orcid_works(
     orcid_bare: str | None = None,
     client: OrcidClient | None = None,
 ) -> dict:
-    """Load raw ORCID Record ``/works`` JSON (public API). Returns ``{}`` if missing id."""
+    """
+    Load raw ORCID Record ``/works`` JSON (public API). Returns ``{}`` if missing id.
+    """
     oid = (orcid_bare or "").strip()
     if not oid:
         return {}

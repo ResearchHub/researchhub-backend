@@ -120,7 +120,8 @@ class RHCommentFilter(filters.FilterSet):
         )
 
     def handle_ascending(self, qs, name, value):
-        # This method is called by the BooleanFilter but we don't need to do anything here
+        # This method is called by the BooleanFilter
+        # but we don't need to do anything here
         # The actual ordering is handled in ordering_filter
         return qs
 

@@ -56,7 +56,10 @@ class CommentOrderingTests(APITestCase):
             self.fail(f"Failed to create comment: {response.data}")
 
     def test_comment_ordering_with_parent_filter_ascending(self):
-        """Test that comments maintain created_date ordering when filtering parent__isnull=true with ascending=true."""
+        """
+        Test that comments maintain created_date ordering when filtering
+        parent__isnull=true with ascending=true.
+        """
 
         # Create comments with different timestamps
         now = timezone.now()
@@ -114,7 +117,10 @@ class CommentOrderingTests(APITestCase):
         self.assertLess(date2, date3)
 
     def test_comment_ordering_with_parent_filter_descending(self):
-        """Test that comments maintain created_date ordering when filtering parent__isnull=true with ascending=FALSE."""
+        """
+        Test that comments maintain created_date ordering when filtering
+        parent__isnull=true with ascending=FALSE.
+        """
 
         # Create comments with different timestamps
         now = timezone.now()
@@ -133,7 +139,8 @@ class CommentOrderingTests(APITestCase):
             "Child of first", now - timedelta(hours=1), parent=comment1
         )
 
-        # Get comments with ordering=CREATED_DATE, ascending=FALSE (default), parent__isnull=true
+        # Get comments with ordering=CREATED_DATE, ascending=FALSE (default),
+        # parent__isnull=true
         response = self.client.get(
             f"/api/researchhubpost/{self.post.id}/comments/",
             {
@@ -172,7 +179,10 @@ class CommentOrderingTests(APITestCase):
         self.assertGreater(date2, date3)
 
     def test_deleted_comments_excluded_with_parent_filter(self):
-        """Test that deleted/censored comments are excluded when using parent__isnull filter."""
+        """
+        Test that deleted/censored comments are excluded when using parent__isnull
+        filter.
+        """
 
         now = timezone.now()
 
@@ -242,8 +252,10 @@ class CommentOrderingTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         results = response.data["results"]
 
-        # Without parent filter and with default filtering, we might not get all comments
-        # The default filter excludes comments with bounties and includes only GENERIC_COMMENT type
+        # Without parent filter and with default filtering, we might not get all
+        # comments
+        # The default filter excludes comments with bounties and includes only
+        # GENERIC_COMMENT type
         # Just verify that whatever we get is properly ordered
         if len(results) > 1:
             for i in range(len(results) - 1):
@@ -256,5 +268,7 @@ class CommentOrderingTests(APITestCase):
                 self.assertLessEqual(
                     date_current,
                     date_next,
-                    f"Comments not in ascending order: {results[i]['id']} ({date_current}) should come before {results[i + 1]['id']} ({date_next})",
+                    f"Comments not in ascending order: {results[i]['id']} "
+                    f"({date_current}) should come before {results[i + 1]['id']} "
+                    f"({date_next})",
                 )

@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterator
 
 from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
@@ -16,6 +17,7 @@ from purchase.models import Fundraise, Grant
 from purchase.services.fundraise_service import FundraiseService
 from reputation.models import Bounty
 from researchhub.celery import app
+from researchhub.services.storage_service import S3StorageService
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
 from review.models.review_model import Review
@@ -94,6 +96,9 @@ def handle_spam_user_task(user_id, requestor=None):
     # Resolve any open moderation flags on the user's content
     _resolve_open_flags_for_user(user, requestor)
 
+    # Quarantine S3 objects backing the user's content
+    _quarantine_user_files(user)
+
     publish_user_suspended(sender=User, user_id=user.id)
 
 
@@ -143,6 +148,44 @@ def _resolve_open_flags_for_user(user, requestor=None):
     )
 
 
+def _user_file_keys(user: User) -> Iterator[str]:
+    """
+    Yield the S3 object keys for all files of the given user's content.
+    """
+    for paper in user.papers.iterator():
+        if paper.file:
+            yield paper.file.name
+
+    for post in user.created_posts.iterator():
+        for file_field in (post.discussion_src, post.eln_src):
+            if file_field:
+                yield file_field.name
+
+    comments = RhCommentModel.all_objects.filter(created_by=user)
+    for comment in comments.iterator():
+        if comment.comment_content_src:
+            yield comment.comment_content_src.name
+
+
+def _quarantine_user_files(user: User) -> None:
+    """
+    Move the S3 object of the user's content to quaratine.
+    """
+    storage_service = S3StorageService()
+    for key in _user_file_keys(user):
+        storage_service.quarantine_object(key)
+
+
+def _restore_user_files(user: User) -> None:
+    """
+    Move the S3 object of the user's content out of quaratine back to
+    its original location.
+    """
+    storage_service = S3StorageService()
+    for key in _user_file_keys(user):
+        storage_service.restore_object(key)
+
+
 @app.task
 def reinstate_user_task(user_id):
     user = User.objects.get(id=user_id)
@@ -177,6 +220,9 @@ def reinstate_user_task(user_id):
     Review.all_objects.filter(created_by=user).update(
         is_removed=False, is_public=True, is_removed_date=None
     )
+
+    # Restore quarantined S3 objects backing the user's content
+    _restore_user_files(user)
 
     publish_user_reinstated(sender=User, user_id=user.id)
 

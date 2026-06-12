@@ -16,7 +16,6 @@ import sys
 import requests
 import sentry_sdk
 import stripe
-from corsheaders.defaults import default_headers
 from sentry_sdk.integrations.django import DjangoIntegration
 
 APP_ENV = os.environ.get("APP_ENV") or "development"
@@ -173,10 +172,6 @@ if DJANGO_ALLOWED_HOSTS:
                 pass
             ALLOWED_HOSTS += ips
 
-CORS_ALLOW_HEADERS = (
-    *default_headers,
-    "X-organization-id",
-)
 
 # Cors
 CORS_ORIGIN_WHITELIST = [
@@ -276,7 +271,6 @@ INSTALLED_APPS = [
     "new_feature_release",
     "review",
     "organizations",
-    "user_saved",
     "user_lists",
     "research_ai",
     "ai_peer_review",

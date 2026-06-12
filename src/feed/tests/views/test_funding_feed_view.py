@@ -431,7 +431,9 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         )
 
     def test_open_fundraise_sorting(self):
-        """Test that OPEN fundraises are sorted by created_date descending (newest first)"""
+        """
+        Test that OPEN fundraises are sorted by created_date descending (newest first)
+        """
         # Arrange
         today = timezone.now()
 
@@ -503,7 +505,9 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertLess(post_ids.index(newest_post.id), post_ids.index(oldest_post.id))
 
     def test_closed_fundraise_sorting(self):
-        """Test that CLOSED fundraises are sorted by created_date descending (newest first)"""
+        """
+        Test that CLOSED fundraises are sorted by created_date descending (newest first)
+        """
         # Arrange
         today = timezone.now()
 
@@ -575,7 +579,10 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertLess(post_ids.index(newest_post.id), post_ids.index(oldest_post.id))
 
     def test_all_fundraise_conditional_sorting(self):
-        """Test open fundraises appear before closed, both sorted by created_date descending"""
+        """
+        Test open fundraises appear before closed, both sorted by created_date
+        descending
+        """
         # Arrange
         today = timezone.now()
 
@@ -971,7 +978,9 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertIn(private_post.id, post_ids)
 
     def test_public_discovery_feed_excludes_private(self):
-        """The cacheable discovery feed (no personalization) never leaks private work."""
+        """
+        The cacheable discovery feed (no personalization) never leaks private work.
+        """
         # Arrange
         private_post = self._create_private_preregistration(self.user)
 
@@ -1146,7 +1155,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Should include all items: self.post (OPEN), self.other_post (COMPLETED), expired_post (OPEN+Expired)
+        # Should include all items: self.post (OPEN), self.other_post (COMPLETED),
+        # expired_post (OPEN+Expired)
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
         self.assertIn(self.post.id, post_ids)
         self.assertIn(self.other_post.id, post_ids)
@@ -1157,7 +1167,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Should exclude expired_post but include self.post (OPEN+Active) and self.other_post (COMPLETED)
+        # Should exclude expired_post but include self.post (OPEN+Active) and
+        # self.other_post (COMPLETED)
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
         self.assertIn(self.post.id, post_ids)
         self.assertIn(self.other_post.id, post_ids)
@@ -1192,7 +1203,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
             end_date=timezone.now() - timezone.timedelta(days=5),
         )
 
-        # Create open-expired fundraise (would be excluded by include_ended=false without override)
+        # Create open-expired fundraise (would be excluded by include_ended=false
+        # without override)
         open_expired_escrow = Escrow.objects.create(
             amount_holding=50,
             hold_type=Escrow.FUNDRAISE,
@@ -1516,7 +1528,9 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertLess(high_amount_index, low_amount_index)
 
     def test_ordering_validation(self):
-        """Test that FundOrderingFilter handles different ordering scenarios correctly."""
+        """
+        Test that FundOrderingFilter handles different ordering scenarios correctly.
+        """
         from unittest.mock import Mock, patch
 
         from feed.filters import FundOrderingFilter
@@ -1709,7 +1723,9 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertLess(result_ids.index(open_item), result_ids.index(closed_item))
 
     def test_best_sorting_ignores_historical_fundraises(self):
-        """Test best sorting: only counts open fundraise amount, not historical closed"""
+        """
+        Test best sorting: only counts open fundraise amount, not historical closed
+        """
         # Post with $10k closed + $50 open
         doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
         post_historical = ResearchhubPost.objects.create(
@@ -1761,7 +1777,9 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         )
 
     def test_upvotes_sorting_fallback_to_score_when_no_document_filter(self):
-        """Test upvotes sorting falls back to post.score when document_filter is NULL."""
+        """
+        Test upvotes sorting falls back to post.score when document_filter is NULL.
+        """
         # Arrange
         doc_high = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
@@ -1938,7 +1956,9 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         )
 
     def test_funded_by_filter_returns_empty_for_user_with_no_grants(self):
-        """Test funded_by filter returns empty when user has no grants with applications."""
+        """
+        Test funded_by filter returns empty when user has no grants with applications.
+        """
         # Arrange
         user_without_grants = User.objects.create_user(
             username="no_grants", password=uuid.uuid4().hex

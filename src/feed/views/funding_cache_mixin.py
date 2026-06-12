@@ -32,12 +32,15 @@ def _funding_invalidation_request(query_params: dict[str, str]) -> Request:
 
 
 class FundingCacheMixin:
-    """Mixin for :class:`~feed.views.funding_feed_view.FundingFeedViewSet` cache helpers."""
+    """
+    Mixin for :class:`~feed.views.funding_feed_view.FundingFeedViewSet` cache helpers.
+    """
 
     @staticmethod
     def invalidate_funding_feed_cache() -> None:
         """
-        Delete cached funding-feed list responses (pages 1–``FUNDING_FEED_MAX_CACHED_PAGE``).
+        Delete cached funding-feed list responses
+        (pages 1–``FUNDING_FEED_MAX_CACHED_PAGE``).
 
         Only ``:public`` segment keys that can be written when
         ``FundingFeedViewSet.list`` uses the cache branch are targeted.
@@ -45,7 +48,8 @@ class FundingCacheMixin:
         Hub-specific ``?hub_slug=`` keys (other than default) are not enumerated;
         they expire via TTL.
         """
-        # Local import avoids circular import: funding_feed_view loads this module first.
+        # Local import avoids circular import:
+        # funding_feed_view loads this module first.
         from feed.views.funding_feed_view import FundingFeedViewSet
 
         view = FundingFeedViewSet()
