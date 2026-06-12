@@ -1,38 +1,6 @@
 from django.db.models import Q
 from django_filters import rest_framework as filters
 
-FIELD_LOOKUPS = (
-    "exact",
-    "iexact",
-    "contains",
-    "icontains",
-    "in",
-    "gt",
-    "gte",
-    "lt",
-    "lte",
-    "startswith",
-    "istartswith",
-    "endswith",
-    "iendswith",
-    "range",
-    "date",
-    "year",
-    "iso_year",
-    "month",
-    "day",
-    "week",
-    "week_day",
-    "quarter",
-    "time",
-    "hour",
-    "minute",
-    "second",
-    "isnull",
-    "regex",
-    "iregex",
-)
-
 
 class ListExcludeFilter(filters.CharFilter):
     def __init__(self, **kwargs):
