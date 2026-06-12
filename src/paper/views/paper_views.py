@@ -34,13 +34,6 @@ from paper.serializers import (
     PaperSerializer,
     PaperSubmissionSerializer,
 )
-from paper.utils import get_cache_key
-from reputation.related_models.paper_reward import (
-    OPEN_ACCESS_MULTIPLIER,
-    OPEN_DATA_MULTIPLIER,
-    PREREGISTERED_MULTIPLIER,
-)
-from researchhub.permissions import IsObjectOwnerOrModerator
 from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.permissions import IsModerator
 from user.services.risk_score_service import RiskScoreService

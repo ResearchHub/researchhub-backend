@@ -39,6 +39,34 @@ def handle_document_hubs_changed(sender, instance, action, pk_set, **kwargs):
         )
 
 
+def _publishes_on_hub_change(unified_document):
+    """Works awaiting moderation publish on approval, not when hubs change."""
+    return unified_document.is_approved
+
+
+def _create_feed_entry_for_unified_document(unified_document, hub_ids):
+    if not _publishes_on_hub_change(unified_document):
+        return
+
+    item = unified_document.get_document()
+
+    create_feed_entry.apply_async(
+        args=(
+            item.id,
+            ContentType.objects.get_for_model(item).id,
+            "PUBLISH",
+            hub_ids,
+            _get_document_user_id(item),
+        ),
+        priority=1,
+    )
+
+
+def _get_document_user_id(item):
+    user = getattr(item, "created_by", None) or getattr(item, "uploaded_by", None)
+    return user.id if user else None
+
+
 def _create_document_feed_entries(instance, pk_set):
     """
     Create feed entries when documents are added to hubs.
@@ -47,58 +75,13 @@ def _create_document_feed_entries(instance, pk_set):
         hasattr(instance, "paper") or instance.posts.exists()
     ):
         hub_ids = list(pk_set)
-        item = instance.get_document()
-
-        # Works awaiting moderation publish on approval, not when hubs change.
-        if not instance.is_approved:
-            return
-
-        # Get the user from the document
-        user_id = None
-        if hasattr(item, "created_by") and item.created_by:
-            user_id = item.created_by.id
-        elif hasattr(item, "uploaded_by") and item.uploaded_by:
-            user_id = item.uploaded_by.id
-
-        create_feed_entry.apply_async(
-            args=(
-                item.id,
-                ContentType.objects.get_for_model(item).id,
-                "PUBLISH",
-                hub_ids,
-                user_id,
-            ),
-            priority=1,
-        )
+        _create_feed_entry_for_unified_document(instance, hub_ids)
     elif isinstance(instance, Hub):  # instance is Hub
         hub = instance
         for document_id in pk_set:
             unified_document = hub.related_documents.get(id=document_id)
-            item = unified_document.get_document()
-
-            # Works awaiting moderation publish on approval, not when hubs change.
-            if not unified_document.is_approved:
-                continue
-
-            hub_ids = list(item.hubs.values_list("id", flat=True))
-
-            # Get the user from the document
-            user_id = None
-            if hasattr(item, "created_by") and item.created_by:
-                user_id = item.created_by.id
-            elif hasattr(item, "uploaded_by") and item.uploaded_by:
-                user_id = item.uploaded_by.id
-
-            create_feed_entry.apply_async(
-                args=(
-                    item.id,
-                    ContentType.objects.get_for_model(item).id,
-                    "PUBLISH",
-                    hub_ids,
-                    user_id,
-                ),
-                priority=1,
-            )
+            hub_ids = list(unified_document.hubs.values_list("id", flat=True))
+            _create_feed_entry_for_unified_document(unified_document, hub_ids)
 
 
 def _delete_document_feed_entries(instance, pk_set):
