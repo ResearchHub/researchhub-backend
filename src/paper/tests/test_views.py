@@ -3,9 +3,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from django.conf import settings
+from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient
 
 from hub.models import Hub
 from paper.models import Paper, PaperVersion
@@ -28,8 +29,9 @@ from utils.test_helpers import create_test_user
 fixtures_dir = Path(__file__).parent / "fixtures"
 
 
-class PaperApiTests(APITestCase):
+class PaperApiTests(TestCase):
     def setUp(self):
+        self.client = APIClient()
         self.journal = Hub.objects.create(name="ResearchHub Journal")
         journal_id_patcher = patch.object(
             settings, "RESEARCHHUB_JOURNAL_ID", str(self.journal.id)
@@ -879,8 +881,9 @@ class PaperApiTests(APITestCase):
         self.assertEqual(paper_version_v1.original_paper_id, paper_v1_id)
 
 
-class PaperDOITests(APITestCase):
+class PaperDOITests(TestCase):
     def setUp(self):
+        self.client = APIClient()
         self.user = create_test_user()
         self.client.force_authenticate(user=self.user)
 
@@ -1028,10 +1031,11 @@ class PaperDOITests(APITestCase):
             self.assertEqual(response.data["id"], paper.id)
 
 
-class PaperPendingVisibilityTests(APITestCase):
+class PaperPendingVisibilityTests(TestCase):
     """Papers awaiting moderation are not publicly retrievable by direct link."""
 
     def setUp(self):
+        self.client = APIClient()
         self.uploader = create_random_authenticated_user("paper_uploader")
         self.pending_paper = create_paper(
             title="Pending paper", uploaded_by=self.uploader

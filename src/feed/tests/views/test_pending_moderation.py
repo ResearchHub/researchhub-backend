@@ -1,9 +1,10 @@
 from decimal import Decimal
 
+from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.request import Request
-from rest_framework.test import APIClient, APIRequestFactory, APITestCase
+from rest_framework.test import APIClient, APIRequestFactory
 
 from feed.serializers import FeedEntrySerializer, ModeratorFeedEntrySerializer
 from feed.views.moderator_feed_view import ModeratorFeedViewSet
@@ -23,7 +24,7 @@ from user.related_models.risk_score_model import RiskScore
 from user.tests.helpers import create_random_default_user
 
 
-class PendingModerationRiskScoreTests(APITestCase):
+class PendingModerationRiskScoreTests(TestCase):
     def setUp(self):
         self.moderator = create_random_default_user("mod", moderator=True)
         self.client = APIClient()
@@ -83,7 +84,7 @@ class PendingModerationRiskScoreTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class PendingModerationCountsTests(APITestCase):
+class PendingModerationCountsTests(TestCase):
     def test_counts_grouped_by_type(self):
         # Arrange
         author = create_random_default_user("counts_author")
@@ -124,7 +125,7 @@ class PendingModerationCountsTests(APITestCase):
         )
 
 
-class FeedEntryRiskScoreFieldTests(APITestCase):
+class FeedEntryRiskScoreFieldTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
 

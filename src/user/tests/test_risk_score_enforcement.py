@@ -1,5 +1,5 @@
 from django.test import TestCase
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient
 
 from hub.tests.helpers import create_hub
 from researchhub_document.views.researchhub_post_views import (
@@ -47,11 +47,12 @@ class InitialWorkStatusTests(TestCase):
         )
 
 
-class PostCreationGatingTests(APITestCase):
+class PostCreationGatingTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("gating")
         make_user_verified(self.user)
         self.hub = create_hub("gating-hub")
+        self.client = APIClient()
         self.client.force_authenticate(self.user)
 
     def _create_post(self):
