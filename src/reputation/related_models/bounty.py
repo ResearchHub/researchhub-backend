@@ -1,8 +1,7 @@
 import math
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import List, TypedDict
 
-import pytz
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -16,7 +15,7 @@ from utils.models import DefaultModel
 
 
 def get_default_expiration_date():
-    now = datetime.now(pytz.UTC)
+    now = datetime.now(UTC)
     date = now + timedelta(days=14)
     return date
 
