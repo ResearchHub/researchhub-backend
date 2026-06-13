@@ -11,23 +11,7 @@ from .helpers import TestData as PaperTestData
 from .helpers import create_paper
 
 
-class BaseIntegrationMixin:
-    def assertPostWithReputationResponds(self, reputation, status_code):
-        response = self.post_with_reputation(reputation)
-        self.assertEqual(response.status_code, status_code)
-
-    def post_with_reputation(self):
-        raise NotImplementedError
-
-    def create_user_with_reputation(self, reputation):
-        unique_value = self.random_generator.random()
-        user = create_random_authenticated_user(unique_value)
-        user.reputation = reputation
-        user.save()
-        return user
-
-
-class PaperPermissionsIntegrationTests(APITestCase, BaseIntegrationMixin):
+class PaperPermissionsIntegrationTests(APITestCase):
     def setUp(self):
         SEED = "paper"
         self.random_generator = random.Random(SEED)
@@ -36,8 +20,9 @@ class PaperPermissionsIntegrationTests(APITestCase, BaseIntegrationMixin):
         self.flag_reason = "Inappropriate"
 
     def test_can_NOT_post_paper_below_minimum_reputation(self):
-        reputation = -1
-        self.assertPostWithReputationResponds(reputation, 403)
+        user = self.create_user_with_reputation(-1)
+        response = self.get_paper_submission_response(user)
+        self.assertEqual(response.status_code, 403)
 
     def test_can_flag_paper_with_minimum_reputation(self):
         user = self.create_user_with_reputation(50)
@@ -64,10 +49,12 @@ class PaperPermissionsIntegrationTests(APITestCase, BaseIntegrationMixin):
         response = self.get_downvote_response(user)
         self.assertEqual(response.status_code, 201)
 
-    def post_with_reputation(self, reputation):
-        user = self.create_user_with_reputation(reputation)
-        response = self.get_paper_submission_response(user)
-        return response
+    def create_user_with_reputation(self, reputation):
+        unique_value = self.random_generator.random()
+        user = create_random_authenticated_user(unique_value)
+        user.reputation = reputation
+        user.save()
+        return user
 
     def get_paper_submission_response(self, user):
         url = self.base_url
@@ -82,14 +69,6 @@ class PaperPermissionsIntegrationTests(APITestCase, BaseIntegrationMixin):
         data = {"title": "Patched Paper Title"}
         self.client.force_authenticate(user)
         return self.client.patch(url, data, format="multipart")
-
-    def get_put_response(self, user, paper):
-        if paper is None:
-            paper = self.paper
-        url = self.base_url + f"{paper.id}/"
-        form_data = self.build_paper_form()
-        self.client.force_authenticate(user)
-        return self.client.put(url, form_data, format="multipart")
 
     def build_paper_form(self):
         file = SimpleUploadedFile("../config/paper.pdf", b"file_content")
@@ -106,12 +85,6 @@ class PaperPermissionsIntegrationTests(APITestCase, BaseIntegrationMixin):
             "authors": [1, author.id],
         }
         return form
-
-    def create_paper_with_authors(self, author_ids):
-        paper = create_paper(title="Authored Paper")
-        paper.authors.add(*author_ids)
-        paper.save()
-        return paper
 
     def get_flag_response(self, user):
         url = self.base_url + f"{self.paper.id}/flag/"
