@@ -79,7 +79,7 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
         before_exchange_datetime = datetime.strptime(
             before_exchange_rate_date, "%m-%d-%Y"
         )
-        specific_date_aware = UTC.localize(before_exchange_datetime)
+        specific_date_aware = before_exchange_datetime.replace(tzinfo=UTC)
 
         response = HttpResponse(content_type="text/csv")
         response["Content-Disposition"] = 'attachment; filename="transactions.csv"'
