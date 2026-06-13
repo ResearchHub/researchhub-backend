@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-import pytz
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericRelation
@@ -68,7 +67,7 @@ class FundraiseContributorsSummary:
 
 
 def get_default_expiration_date():
-    now = datetime.now(pytz.UTC)
+    now = datetime.now(UTC)
     date = now + timedelta(days=30)
     return date
 
@@ -127,7 +126,7 @@ class Fundraise(DefaultModel):
 
     def is_expired(self):
         if self.end_date:
-            return self.end_date < datetime.now(pytz.UTC)
+            return self.end_date < datetime.now(UTC)
         return False
 
     def get_usd_contributors(self):
