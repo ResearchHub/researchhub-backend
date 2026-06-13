@@ -35,6 +35,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from user.models import User
 from user.related_models.author_model import Author
+from user.related_models.funding_activity_model import FundingActivity
 from utils.test_helpers import AWSMockTestCase
 
 
@@ -866,3 +867,83 @@ class FeedTasksTest(AWSMockTestCase):
 
         # Assert
         self.assertEqual(authors, [author])
+
+    def test_get_unified_document_for_funding_activity(self):
+        """
+        Test getting a unified document from a FundingActivity.
+        """
+        # Arrange
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+        user_ct = ContentType.objects.get_for_model(User)
+        activity = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.BOUNTY_PAYOUT,
+            total_amount=Decimal("50"),
+            unified_document=unified_document,
+            activity_date=timezone.now(),
+            source_content_type=user_ct,
+            source_object_id=self.user.id,
+        )
+        fa_ct = ContentType.objects.get_for_model(FundingActivity)
+
+        # Act
+        actual = _get_unified_document(activity, fa_ct)
+
+        # Assert
+        self.assertEqual(actual, unified_document)
+
+    def test_get_authors_for_funding_activity(self):
+        """
+        Test getting authors from a FundingActivity (funder's author profile).
+        """
+        # Arrange
+        author = self.user.author_profile
+        user_ct = ContentType.objects.get_for_model(User)
+        activity = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.BOUNTY_PAYOUT,
+            total_amount=Decimal("50"),
+            activity_date=timezone.now(),
+            source_content_type=user_ct,
+            source_object_id=self.user.id + 1,
+        )
+        fa_ct = ContentType.objects.get_for_model(FundingActivity)
+
+        # Act
+        authors = _get_authors_for_item(activity, fa_ct)
+
+        # Assert
+        self.assertEqual(authors, [author])
+
+    def test_create_feed_entry_uses_activity_date_for_funding_activity(self):
+        """
+        FundingActivity feed entries should use activity_date, not created_date.
+        """
+        # Arrange
+        activity_date = timezone.now() - timedelta(days=10)
+        user_ct = ContentType.objects.get_for_model(User)
+        activity = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.BOUNTY_PAYOUT,
+            total_amount=Decimal("50"),
+            unified_document=self.unified_document,
+            activity_date=activity_date,
+            source_content_type=user_ct,
+            source_object_id=self.user.id + 2,
+        )
+        fa_ct = ContentType.objects.get_for_model(FundingActivity)
+
+        # Act
+        feed_entry = create_feed_entry(
+            item_id=activity.id,
+            item_content_type_id=fa_ct.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        # Assert
+        self.assertEqual(feed_entry.action_date, activity_date)
+        self.assertNotEqual(feed_entry.action_date, activity.created_date)

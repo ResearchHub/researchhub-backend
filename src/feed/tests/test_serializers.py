@@ -7,6 +7,7 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import FileSystemStorage, default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils import timezone
 
 from ai_peer_review.models import (
     KeyInsightItemType,
@@ -20,6 +21,7 @@ from feed.serializers import (
     CommentSerializer,
     ContentObjectSerializer,
     FeedEntrySerializer,
+    FundingActivityFeedContentSerializer,
     FundingFeedEntrySerializer,
     FundraiseContributionContentSerializer,
     GrantFeedEntrySerializer,
@@ -27,6 +29,7 @@ from feed.serializers import (
     PostSerializer,
     SimpleReviewSerializer,
     SimpleUserSerializer,
+    serialize_feed_item,
 )
 from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
@@ -44,10 +47,11 @@ from purchase.models import (
 )
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from reputation.models import Bounty, Escrow
+from reputation.models import Bounty, Distribution, Escrow
 from researchhub_access_group.models import Permission
 from researchhub_comment.constants import rh_comment_thread_types
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
+from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
@@ -64,6 +68,10 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from review.models import Review
 from topic.models import Topic, UnifiedDocumentTopics
+from user.related_models.funding_activity_model import (
+    FundingActivity,
+    FundingActivityRecipient,
+)
 from user.related_models.user_verification_model import UserVerification
 from user.tests.helpers import create_random_default_user
 from utils.test_helpers import AWSMockTestCase
@@ -2696,3 +2704,142 @@ class FundraiseContributionContentSerializerTests(AWSMockTestCase):
         self.assertEqual(data["proposal_title"], "Test Proposal")
         self.assertEqual(data["proposal_slug"], self.post.slug)
         self.assertEqual(data["unified_document_id"], self.unified_doc.id)
+
+
+class FundingActivityFeedContentSerializerTests(AWSMockTestCase):
+    """
+    Test cases for FundingActivityFeedContentSerializer and serialize_feed_item.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.funder = create_random_default_user("fa_feed_funder")
+        self.recipient = create_random_default_user("fa_feed_recipient")
+        self.unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+        self.hub = create_hub("FAFeedHub")
+        self.unified_doc.hubs.add(self.hub)
+        self.post = ResearchhubPost.objects.create(
+            title="FA Feed Proposal",
+            created_by=self.funder,
+            document_type=document_type.PREREGISTRATION,
+            renderable_text="A test proposal",
+            unified_document=self.unified_doc,
+        )
+        self.user_ct = ContentType.objects.get_for_model(self.funder)
+
+    def test_serializes_bounty_payout(self):
+        # Arrange
+        activity = FundingActivity.objects.create(
+            funder=self.funder,
+            source_type=FundingActivity.BOUNTY_PAYOUT,
+            total_amount=Decimal("50"),
+            total_usd_cents=2500,
+            unified_document=self.unified_doc,
+            activity_date=timezone.now(),
+            source_content_type=self.user_ct,
+            source_object_id=self.funder.id,
+        )
+        FundingActivityRecipient.objects.create(
+            activity=activity,
+            recipient_user=self.recipient,
+            amount=Decimal("50"),
+            amount_usd_cents=2500,
+        )
+
+        # Act
+        data = FundingActivityFeedContentSerializer(activity).data
+
+        # Assert
+        self.assertEqual(data["id"], activity.id)
+        self.assertEqual(data["source_type"], FundingActivity.BOUNTY_PAYOUT)
+        self.assertEqual(data["total_amount"], 50.0)
+        self.assertEqual(data["total_usd_cents"], 2500)
+        self.assertEqual(data["total_usd"], 25.0)
+        self.assertEqual(data["funder"]["id"], self.funder.id)
+        self.assertEqual(data["funder"]["email"], self.funder.email)
+        self.assertEqual(len(data["recipients"]), 1)
+        self.assertEqual(data["recipients"][0]["user_id"], self.recipient.id)
+        self.assertEqual(data["post_id"], self.post.id)
+        self.assertEqual(data["proposal_title"], "FA Feed Proposal")
+        self.assertEqual(data["proposal_slug"], self.post.slug)
+        self.assertEqual(data["unified_document_id"], self.unified_doc.id)
+        self.assertIsNone(data["comment"])
+
+    def test_serializes_tip_review_with_comment(self):
+        # Arrange
+        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=PEER_REVIEW,
+            content_type=post_ct,
+            object_id=self.post.id,
+            created_by=self.recipient,
+        )
+        comment = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "review tip"}]},
+            comment_type=PEER_REVIEW,
+            created_by=self.recipient,
+            thread=thread,
+        )
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        proof_purchase = Purchase.objects.create(
+            user=self.funder,
+            content_type=comment_ct,
+            object_id=comment.id,
+            purchase_type=Purchase.BOOST,
+            paid_status=Purchase.PAID,
+            amount=Decimal("30"),
+            purchase_method=Purchase.OFF_CHAIN,
+        )
+        purchase_ct = ContentType.objects.get_for_model(Purchase)
+        distribution = Distribution.objects.create(
+            giver=self.funder,
+            recipient=self.recipient,
+            amount=Decimal("30"),
+            distribution_type="PURCHASE",
+            proof_item_content_type=purchase_ct,
+            proof_item_object_id=proof_purchase.id,
+        )
+        dist_ct = ContentType.objects.get_for_model(Distribution)
+        activity = FundingActivity.objects.create(
+            funder=self.funder,
+            source_type=FundingActivity.TIP_REVIEW,
+            total_amount=Decimal("30"),
+            total_usd_cents=1500,
+            unified_document=self.unified_doc,
+            activity_date=timezone.now(),
+            source_content_type=dist_ct,
+            source_object_id=distribution.id,
+        )
+
+        # Act
+        data = FundingActivityFeedContentSerializer(activity).data
+
+        # Assert
+        self.assertEqual(data["source_type"], FundingActivity.TIP_REVIEW)
+        self.assertIsNotNone(data["comment"])
+        self.assertEqual(data["comment"]["id"], comment.id)
+        self.assertEqual(data["comment"]["comment_type"], PEER_REVIEW)
+
+    def test_serialize_feed_item_for_funding_activity(self):
+        # Arrange
+        activity = FundingActivity.objects.create(
+            funder=self.funder,
+            source_type=FundingActivity.BOUNTY_PAYOUT,
+            total_amount=Decimal("40"),
+            total_usd_cents=2000,
+            unified_document=self.unified_doc,
+            activity_date=timezone.now(),
+            source_content_type=self.user_ct,
+            source_object_id=self.funder.id + 100,
+        )
+        fa_ct = ContentType.objects.get_for_model(FundingActivity)
+
+        # Act
+        data = serialize_feed_item(activity, fa_ct)
+
+        # Assert
+        self.assertEqual(data["id"], activity.id)
+        self.assertEqual(data["source_type"], FundingActivity.BOUNTY_PAYOUT)
+        self.assertEqual(data["total_amount"], 40.0)

@@ -33,6 +33,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
 from utils.test_helpers import AWSMockTestCase, create_test_user
 
@@ -822,13 +823,15 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
 
 class ActivityFeedFinancialScopeTests(AWSMockTestCase):
     """
-    Test financial scope returns fundraise contribution activities.
+    Test financial scope returns fundraise contributions, funding activities,
+    and grant posts.
     """
 
     def setUp(self):
         super().setUp()
         self.user = create_test_user()
         self.client = APIClient()
+        user_ct = ContentType.objects.get_for_model(User)
 
         self.proposal_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION,
@@ -878,6 +881,53 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
             user=self.user,
         )
 
+        self.bounty_activity = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.BOUNTY_PAYOUT,
+            total_amount=Decimal("50"),
+            unified_document=self.proposal_doc,
+            activity_date=timezone.now(),
+            source_content_type=user_ct,
+            source_object_id=self.user.id,
+        )
+        self.bounty_entry = _make_feed_entry(
+            FundingActivity,
+            self.bounty_activity.id,
+            self.proposal_doc,
+            user=self.user,
+        )
+        self.tip_activity = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.TIP_REVIEW,
+            total_amount=Decimal("25"),
+            unified_document=self.proposal_doc,
+            activity_date=timezone.now(),
+            source_content_type=user_ct,
+            source_object_id=self.user.id + 1000,
+        )
+        self.tip_entry = _make_feed_entry(
+            FundingActivity,
+            self.tip_activity.id,
+            self.proposal_doc,
+            user=self.user,
+        )
+
+        self.grant_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=GRANT,
+        )
+        self.grant_post = ResearchhubPost.objects.create(
+            title="Open Grant",
+            created_by=self.user,
+            document_type=GRANT,
+            unified_document=self.grant_doc,
+        )
+        self.grant_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.grant_post.id,
+            self.grant_doc,
+            user=self.user,
+        )
+
         self.unrelated_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="DISCUSSION",
         )
@@ -919,6 +969,9 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
         ids = {entry["id"] for entry in resp.data["results"]}
         self.assertIn(self.rsc_entry.id, ids)
         self.assertIn(self.usd_entry.id, ids)
+        self.assertIn(self.bounty_entry.id, ids)
+        self.assertIn(self.tip_entry.id, ids)
+        self.assertIn(self.grant_entry.id, ids)
         self.assertNotIn(self.unrelated_entry.id, ids)
         self.assertNotIn(self.boost_entry.id, ids)
 

@@ -724,6 +724,128 @@ class CommentSerializer(serializers.Serializer):
         ]
 
 
+class FundingActivityFeedContentSerializer(serializers.Serializer):
+    """
+    Serializer for bounty payout and review tip feed items (FundingActivity).
+    """
+
+    id = serializers.IntegerField()
+    source_type = serializers.CharField()
+    total_amount = serializers.SerializerMethodField()
+    total_usd_cents = serializers.IntegerField()
+    total_usd = serializers.SerializerMethodField()
+    funder = serializers.SerializerMethodField()
+    recipients = serializers.SerializerMethodField()
+    post_id = serializers.SerializerMethodField()
+    proposal_title = serializers.SerializerMethodField()
+    proposal_slug = serializers.SerializerMethodField()
+    unified_document_id = serializers.SerializerMethodField()
+    hub = serializers.SerializerMethodField()
+    category = serializers.SerializerMethodField()
+    subcategory = serializers.SerializerMethodField()
+    comment = serializers.SerializerMethodField()
+
+    def get_total_amount(self, obj):
+        return float(obj.total_amount)
+
+    def get_total_usd(self, obj):
+        return obj.total_usd_cents / 100.0
+
+    def get_funder(self, obj):
+        return {"id": obj.funder_id, "email": obj.funder.email}
+
+    def get_recipients(self, obj):
+        return [
+            {
+                "user_id": recipient.recipient_user_id,
+                "amount": float(recipient.amount),
+                "amount_usd_cents": recipient.amount_usd_cents,
+            }
+            for recipient in obj.recipients.all()
+        ]
+
+    def get_post_id(self, obj):
+        ud = obj.unified_document
+        if ud and hasattr(ud, "posts"):
+            post = ud.posts.first()
+            if post:
+                return post.id
+        return None
+
+    def get_proposal_title(self, obj):
+        ud = obj.unified_document
+        if ud and hasattr(ud, "posts"):
+            post = ud.posts.first()
+            if post:
+                return post.title
+        return None
+
+    def get_proposal_slug(self, obj):
+        ud = obj.unified_document
+        if ud and hasattr(ud, "posts"):
+            post = ud.posts.first()
+            if post:
+                return post.slug
+        return None
+
+    def get_unified_document_id(self, obj):
+        return obj.unified_document_id
+
+    def get_hub(self, obj):
+        ud = obj.unified_document
+        if ud:
+            hub = ud.get_primary_hub(fallback=True)
+            if hub:
+                return SimpleHubSerializer(hub).data
+        return None
+
+    def get_category(self, obj):
+        ud = obj.unified_document
+        if ud:
+            category = ud.hubs.filter(namespace=Hub.Namespace.CATEGORY).first()
+            if category:
+                return SimpleHubSerializer(category).data
+        return None
+
+    def get_subcategory(self, obj):
+        ud = obj.unified_document
+        if ud:
+            subcategory = ud.hubs.filter(namespace=Hub.Namespace.SUBCATEGORY).first()
+            if subcategory:
+                return SimpleHubSerializer(subcategory).data
+        return None
+
+    def get_comment(self, obj):
+        from user.related_models.funding_activity_model import FundingActivity
+
+        if obj.source_type != FundingActivity.TIP_REVIEW:
+            return None
+
+        comment = self._get_tip_review_comment(obj)
+        if comment:
+            return CommentSerializer(comment).data
+        return None
+
+    def _get_tip_review_comment(self, obj):
+        from purchase.models import Purchase
+        from reputation.models import Distribution
+        from researchhub_comment.models import RhCommentModel
+
+        source = obj.source
+        if not isinstance(source, Distribution):
+            return None
+
+        proof_item = source.proof_item
+        if not isinstance(proof_item, Purchase):
+            return None
+
+        comment = proof_item.item
+        if not isinstance(comment, RhCommentModel):
+            return None
+
+        return comment
+
+
 class FeedEntrySerializer(serializers.ModelSerializer):
     """Serializer for feed entries that can reference different content types"""
 
@@ -911,6 +1033,8 @@ def serialize_feed_item(feed_item, item_content_type):
             return CommentSerializer(feed_item).data
         case "purchase" | "usdfundraisecontribution":
             return FundraiseContributionContentSerializer(feed_item).data
+        case "fundingactivity":
+            return FundingActivityFeedContentSerializer(feed_item).data
         case _:
             return None
 
