@@ -106,6 +106,19 @@ def _post_detail(post):
     )
 
 
+def _paper_detail(paper):
+    # The paper is its own document, so skip the unified_document.get_document()
+    # round-trip that _resolve_doc would add.
+    unified_document = paper.unified_document
+    document_type = unified_document.document_type if unified_document else None
+    return _detail(
+        _doc_title(paper),
+        _doc_text(paper),
+        _doc_url(unified_document, paper),
+        document_type=document_type,
+    )
+
+
 def _comment_detail(comment):
     unified_document = comment.unified_document
     doc, document_type = _resolve_doc(unified_document)
@@ -162,6 +175,7 @@ def _review_detail(review):
 SOURCE_DETAIL_BUILDERS = {
     Grant: _grant_detail,
     ResearchhubPost: _post_detail,
+    Paper: _paper_detail,
     RhCommentModel: _comment_detail,
     ResearchhubUnifiedDocument: _unified_document_detail,
     BountySolution: _bounty_solution_detail,
@@ -175,6 +189,7 @@ SOURCE_SELECT_RELATED = {
     RhCommentModel: ("thread",),
     Grant: ("unified_document",),
     ResearchhubPost: ("unified_document",),
+    Paper: ("unified_document",),
     BountySolution: ("bounty",),
     Review: ("unified_document",),
 }

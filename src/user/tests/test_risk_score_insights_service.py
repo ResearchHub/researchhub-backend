@@ -4,6 +4,7 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from paper.tests.helpers import create_paper
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
 from reputation.related_models.bounty import Bounty, BountySolution
@@ -118,6 +119,22 @@ class BuildEventDetailsTests(APITestCase):
         self.assertEqual(detail["title"], "Quantum Computing")
         self.assertEqual(detail["text"], "some text")
         self.assertEqual(detail["document_type"], "DISCUSSION")
+        self.assertIsNone(detail["comment_type"])
+
+    def test_paper_detail_includes_title_and_abstract(self):
+        # Arrange
+        paper = create_paper(uploaded_by=self.user)
+        paper.paper_title = "Quantum Decoherence"
+        paper.abstract = "An abstract about quantum systems."
+        paper.save(update_fields=["paper_title", "abstract"])
+        event = _record(self.user, EventType.WORK_APPROVED, source=paper)
+
+        # Act
+        detail = build_event_details([event])[event.id]
+
+        # Assert
+        self.assertEqual(detail["title"], "Quantum Decoherence")
+        self.assertEqual(detail["text"], "An abstract about quantum systems.")
         self.assertIsNone(detail["comment_type"])
 
     def test_comment_detail_includes_anchor_and_types(self):
