@@ -26,22 +26,6 @@ def generate_password(length=16):
     )
 
 
-def get_authenticated_post_response(
-    user, url, data, content_type="application/json", follow=False, headers=None
-):
-    """
-    Sends a post request authenticated with `user` and returns the response.
-    """
-    client, content_format = _get_authenticated_client_config(
-        user,
-        url,
-        content_type,
-        http_origin=headers and headers.get("HTTP_ORIGIN", None),
-    )
-    response = client.post(url, data, format=content_format, follow=follow)
-    return response
-
-
 def get_authenticated_patch_response(user, url, data, content_type):
     """
     Sends a patch request authenticated with `user` and returns the response.
