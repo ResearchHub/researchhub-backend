@@ -7,7 +7,6 @@ from user.tests.helpers import (
     create_random_authenticated_user,
     create_random_default_user,
 )
-from utils.test_helpers import get_authenticated_post_response
 
 
 class HubViewsTests(APITestCase):
@@ -174,15 +173,14 @@ class HubViewsTests(APITestCase):
         return self.get_hub_response(url, user)
 
     def get_hub_response(self, url, user):
-        data = None
-        return get_authenticated_post_response(user, url, data)
+        self.client.force_authenticate(user)
+        return self.client.post(url)
 
     def get_invite_to_hub_response(self, user, hub, emails):
         url = self.base_url + f"{hub.id}/invite_to_hub/"
         data = {"emails": emails}
-        return get_authenticated_post_response(
-            user, url, data, headers={"HTTP_ORIGIN": "researchhub.com"}
-        )
+        self.client.force_authenticate(user)
+        return self.client.post(url, data, format="json", HTTP_ORIGIN="researchhub.com")
 
     def test_exclude_journals_parameter(self):
         """Test that exclude_journals parameter filters out journal hubs"""
