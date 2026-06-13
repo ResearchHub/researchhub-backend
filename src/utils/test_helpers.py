@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, TransactionTestCase
 
-from paper.models import Paper
 from user.models import User
 
 
@@ -37,29 +36,6 @@ def create_test_user(
         last_name=last_name,
         email=email,
         password=password,
-    )
-
-
-def create_test_paper(
-    title="Test Paper",
-    doi=None,
-    paper_title=None,
-    abstract="Test abstract",
-    uploaded_by=None,
-):
-    """Create a test paper with the given parameters."""
-    if uploaded_by is None:
-        uploaded_by = create_test_user()
-    if paper_title is None:
-        paper_title = title
-
-    return Paper.objects.create(
-        title=title,
-        paper_title=paper_title,
-        doi=doi,
-        abstract=abstract,
-        uploaded_by=uploaded_by,
-        paper_publish_date="2023-01-01",
     )
 
 
