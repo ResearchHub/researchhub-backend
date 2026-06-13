@@ -1,8 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import PropertyMock, patch
 
-import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import FileSystemStorage, default_storage
@@ -797,7 +796,6 @@ class PostSerializerTests(AWSMockTestCase):
         """Test that grant posts serialize with grant data"""
         from datetime import datetime, timedelta
 
-        import pytz
 
         # Create a grant post
         grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
@@ -813,7 +811,7 @@ class PostSerializerTests(AWSMockTestCase):
         )
 
         # Create a grant for the post
-        end_date = datetime.now(pytz.UTC) + timedelta(days=30)
+        end_date = datetime.now(UTC) + timedelta(days=30)
         grant = Grant.objects.create(
             created_by=self.user,
             unified_document=grant_unified_doc,
@@ -888,7 +886,6 @@ class PostSerializerTests(AWSMockTestCase):
         exist"""
         from datetime import datetime, timedelta
 
-        import pytz
 
         # Create a grant post
         grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
@@ -912,7 +909,7 @@ class PostSerializerTests(AWSMockTestCase):
             organization="Test Foundation",
             description="Grant with applications",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=60),
+            end_date=datetime.now(UTC) + timedelta(days=60),
         )
 
         # Create applicants and their preregistration posts
@@ -1022,7 +1019,7 @@ class PostSerializerTests(AWSMockTestCase):
             organization="Org",
             description="Desc",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
         applicant = create_random_default_user("ki_grant_applicant")
         prereg_doc = ResearchhubUnifiedDocument.objects.create(
@@ -1103,7 +1100,6 @@ class PostSerializerTests(AWSMockTestCase):
         """Test that expired grants are properly identified"""
         from datetime import datetime, timedelta
 
-        import pytz
 
         # Create a grant post with an expired grant
         grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
@@ -1118,7 +1114,7 @@ class PostSerializerTests(AWSMockTestCase):
         )
 
         # Create an expired grant (end_date in the past)
-        past_date = datetime.now(pytz.UTC) - timedelta(days=5)
+        past_date = datetime.now(UTC) - timedelta(days=5)
         grant = Grant.objects.create(
             created_by=self.user,
             unified_document=grant_unified_doc,
