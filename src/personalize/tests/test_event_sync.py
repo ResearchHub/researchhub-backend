@@ -1,7 +1,6 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import Mock, PropertyMock, patch
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, override_settings
 
@@ -66,9 +65,7 @@ class EventSyncTests(TestCase):
                     "id": str(self.paper.paper.id),
                 },
             },
-            "_time": int(
-                (datetime.now(pytz.UTC).timestamp() + timestamp_offset) * 1000
-            ),
+            "_time": int((datetime.now(UTC).timestamp() + timestamp_offset) * 1000),
         }
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
@@ -140,7 +137,7 @@ class EventSyncTests(TestCase):
     def test_session_id_formatting_for_authenticated_users(self):
         # Arrange
         user_id = 12345
-        test_date = datetime(2025, 11, 18, 14, 30, 0, tzinfo=pytz.UTC)
+        test_date = datetime(2025, 11, 18, 14, 30, 0, tzinfo=UTC)
 
         # Act
         session_id = build_session_id_for_user(user_id, test_date)
@@ -148,7 +145,7 @@ class EventSyncTests(TestCase):
         # Assert
         self.assertEqual(session_id, "sess_user_12345_2025_11_18")
 
-        different_date = datetime(2025, 11, 19, 10, 0, 0, tzinfo=pytz.UTC)
+        different_date = datetime(2025, 11, 19, 10, 0, 0, tzinfo=UTC)
         different_session = build_session_id_for_user(user_id, different_date)
         self.assertNotEqual(session_id, different_session)
         self.assertEqual(different_session, "sess_user_12345_2025_11_19")
@@ -213,7 +210,7 @@ class EventSyncTests(TestCase):
             unified_document=self.paper,
             content_type=self.content_type,
             object_id=self.paper.paper.id,
-            event_timestamp=datetime.now(pytz.UTC),
+            event_timestamp=datetime.now(UTC),
             is_synced_with_personalize=False,
         )
 
@@ -241,7 +238,7 @@ class EventSyncTests(TestCase):
             unified_document=self.paper,
             content_type=self.content_type,
             object_id=self.paper.paper.id,
-            event_timestamp=datetime.now(pytz.UTC),
+            event_timestamp=datetime.now(UTC),
             is_synced_with_personalize=False,
         )
 
