@@ -142,21 +142,15 @@ class Author:
 
 @dataclass
 class Work:
-    """An OpenAlex work entity, reduced to the fields profile-building uses.
-
-    ``author_position`` is one author's position ("first" | "middle" | "last")
-    on the work, resolved against the ``author_id`` given at construction
-    (``None`` when that author is not matched on the work).
-
-    ``pdf_url`` is an open-access PDF link when OpenAlex has one (``""``
-    otherwise); it is the entry point for full-text retrieval downstream.
-    """
+    """An OpenAlex work entity, reduced to the fields profile-building uses."""
 
     title: str
-    year: str
+    publication_date: str
+    publication_year: str
     source_url: str
     author_position: str | None = None
     pdf_url: str = ""
+    is_oa: bool = False
 
     @classmethod
     def from_openalex(cls, entity: dict, *, author_id: str | None = None):
@@ -175,19 +169,22 @@ class Work:
             return None
         return cls(
             title=title,
-            year=str(entity.get("publication_year") or "").strip(),
+            publication_date=str(entity.get("publication_date") or "").strip(),
+            publication_year=str(entity.get("publication_year") or "").strip(),
             source_url=url,
             author_position=cls._author_position(entity, author_id),
-            pdf_url=cls._pdf_url(entity),
+            pdf_url=cls._published_pdf_url(entity),
+            is_oa=bool((entity.get("open_access") or {}).get("is_oa")),
         )
 
     @staticmethod
-    def _pdf_url(entity: dict) -> str:
-        """First open-access PDF link across the work's locations (``""`` if none)."""
+    def _published_pdf_url(entity: dict) -> str:
+        """Open-access PDF of the published version of record (``""`` when none)."""
         locations = [entity.get("primary_location")] + (entity.get("locations") or [])
         for location in locations:
-            pdf_url = (location or {}).get("pdf_url")
-            if pdf_url:
+            location = location or {}
+            pdf_url = location.get("pdf_url")
+            if pdf_url and location.get("version") == "publishedVersion":
                 return str(pdf_url).strip()
         return ""
 
@@ -207,15 +204,12 @@ class Work:
         return self.author_position in ("first", "last")
 
     @property
-    def year_int(self) -> int:
-        try:
-            return int(self.year)
-        except ValueError:
-            return 0
-
-    @property
     def label(self) -> str:
-        label = f"({self.year}) {self.title}" if self.year else self.title
+        label = (
+            f"({self.publication_year}) {self.title}"
+            if self.publication_year
+            else self.title
+        )
         if self.is_lead_author:
             label += f" [{self.author_position} author]"
         return label
@@ -223,10 +217,12 @@ class Work:
     def as_dict(self) -> dict:
         return {
             "title": self.title,
-            "year": self.year,
+            "publication_date": self.publication_date,
+            "publication_year": self.publication_year,
             "source_url": self.source_url,
             "author_position": self.author_position,
             "pdf_url": self.pdf_url,
+            "is_oa": self.is_oa,
         }
 
 
@@ -521,6 +517,7 @@ class OpenAlex:
         from_updated_date=None,
         core_sources_only: bool = False,
         require_abstracts_and_authors: bool = False,
+        open_access_only: bool = False,
         sort=None,
     ):
         """
@@ -532,6 +529,8 @@ class OpenAlex:
             core_sources_only (bool): If True, only fetch works from "core sources".
             require_abstracts_and_authors (bool): If True, only fetch works that have
                 abstracts and authors.
+            open_access_only (bool): If True, only fetch open-access works (those with
+                a free full-text copy OpenAlex knows about).
             sort (str): OpenAlex sort expression, e.g. "publication_date:desc".
         """
         # Build the filter
@@ -557,6 +556,10 @@ class OpenAlex:
             # Only fetch works that have abstracts and authors
             oa_filters.append("has_abstract:true")
             oa_filters.append("authors_count:>0")
+
+        if open_access_only:
+            # Only fetch open-access works (a free full-text copy exists).
+            oa_filters.append("open_access.is_oa:true")
 
         if since_date:
             # Format the date in YYYY-MM-DD format
