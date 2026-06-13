@@ -377,58 +377,6 @@ class Author(models.Model):
 
         return interest_hubs[:max_results]
 
-    # Gets ranked list of hubs associated with user's likely expertise.
-    # We use content peer reviewed and published papers to determine expertise
-    def get_expertise_hubs(self, max_results=100, min_relevancy_score=0.2):
-        from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-        from researchhub_document.related_models.researchhub_unified_document_model import (
-            UnifiedDocumentConcepts,
-        )
-
-        # Contains all hubs associated with user's authored papers ordered by relevance
-        expertise_hubs = []
-
-        # All Unified Documents associated with records (peer review, authored paper, etc.)
-        # which will be used to get relevant concepts and related hubs
-        related_unified_documents = []
-
-        # Get unified documents associated with authored papers
-        authored_papers = self.papers.all()
-        for authored_paper in authored_papers:
-            related_unified_documents.append(authored_paper.unified_document)
-
-        # Get unified documents associated with peer reviews
-        peer_reviews = RhCommentModel.objects.filter(
-            comment_type__in=["REVIEW"], created_by_id=self.user.id
-        )
-        for review in peer_reviews:
-            related_unified_documents.append(review.unified_document)
-
-        # Get relevant concepts associated with unified documents
-        ranked_concepts = UnifiedDocumentConcepts.objects.filter(
-            unified_document__in=related_unified_documents
-        ).order_by("-relevancy_score")
-
-        # Omit concepts with relevancy score below threshold
-        expertise_hubs = [
-            ranked.concept.hub
-            for ranked in ranked_concepts
-            if ranked.relevancy_score >= min_relevancy_score
-            and hasattr(ranked.concept, "hub")
-        ]
-
-        # It is quite possible that hubs returned through ranked concepts is less than max_results
-        # As a result, we want to pad the list with the rest of the hubs
-        for doc in related_unified_documents:
-            if hasattr(doc, "hubs"):
-                expertise_hubs = expertise_hubs + list(doc.hubs.all())
-
-        # Remove duplicates while preserving order
-        seen = set()
-        expertise_hubs = [x for x in expertise_hubs if not (x in seen or seen.add(x))]
-
-        return expertise_hubs[:max_results]
-
     def calculate_score(self):
         aggregated_score = self.papers.annotate(
             paper_score=PAPER_SCORE_Q_ANNOTATION
