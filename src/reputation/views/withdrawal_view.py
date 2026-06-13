@@ -1,10 +1,9 @@
 import decimal
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import humanize
-import pytz
 from dj_rest_auth.mfa.totp import TOTP
 from dj_rest_auth.mfa.utils import is_mfa_enabled
 from django.conf import settings
@@ -296,7 +295,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             .order_by("id")
             .last()
         )
-        now = datetime.now(pytz.utc)
+        now = datetime.now(UTC)
         if last_withdrawal_address:
             address_timedelta = now - last_withdrawal_address.created_date
         else:

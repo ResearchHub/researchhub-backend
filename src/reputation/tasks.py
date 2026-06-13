@@ -1,9 +1,8 @@
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import List, Optional
 
-import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -166,7 +165,7 @@ def check_hotwallet_balance():
 
 @app.task
 def check_open_bounties():
-    now = datetime.now(pytz.UTC)
+    now = datetime.now(UTC)
 
     open_bounties = Bounty.objects.filter(
         status=Bounty.OPEN, parent__isnull=True
@@ -521,7 +520,7 @@ def create_daily_staking_snapshots(self):
     Runs before distribute_staking_yield so the distribution task uses
     up-to-date supply and staking data.
     """
-    accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
+    accrual_date = datetime.now(UTC).date() - timedelta(days=1)
     key = lock.name(f"create_daily_staking_snapshots_{accrual_date}")
     if not lock.acquire(key):
         logger.warning("Already locked %s, skipping task", key)
@@ -558,7 +557,7 @@ def create_daily_staking_snapshots(self):
 )
 def distribute_staking_yield(self):
     """Daily task to distribute staking yield for the previous UTC day."""
-    accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
+    accrual_date = datetime.now(UTC).date() - timedelta(days=1)
 
     key = lock.name(f"distribute_staking_yield_{accrual_date}")
     if not lock.acquire(key):

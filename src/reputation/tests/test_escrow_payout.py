@@ -1,9 +1,8 @@
 import decimal
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.test import TransactionTestCase
@@ -113,7 +112,7 @@ class EscrowPayoutApproveBountyTests(APITestCase):
         self.assertEqual(response.status_code, 201)
         bounty = Bounty.objects.get(id=response.data["id"])
         bounty.status = Bounty.ASSESSMENT
-        bounty.assessment_end_date = datetime.now(pytz.UTC) + timedelta(days=5)
+        bounty.assessment_end_date = datetime.now(UTC) + timedelta(days=5)
         bounty.save()
         return bounty
 
@@ -188,7 +187,7 @@ class EscrowPayoutConcurrencyTests(TransactionTestCase):
         self.assertEqual(bounty_res.status_code, 201)
         self.bounty = Bounty.objects.get(id=bounty_res.data["id"])
         self.bounty.status = Bounty.ASSESSMENT
-        self.bounty.assessment_end_date = datetime.now(pytz.UTC) + timedelta(days=5)
+        self.bounty.assessment_end_date = datetime.now(UTC) + timedelta(days=5)
         self.bounty.save()
         self.escrow_id = self.bounty.escrow_id
 
