@@ -41,7 +41,6 @@ from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, PostOnly
-from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
 
 logger = logging.getLogger(__name__)
@@ -180,10 +179,8 @@ class PaperViewSet(
                     try:
                         previous_paper = Paper.objects.get(id=previous_paper_id)
                         work_type = previous_paper.work_type
-                    except Paper.DoesNotExist as e:
-                        log_error(
-                            e, message=f"Previous paper not found: {previous_paper_id}"
-                        )
+                    except Paper.DoesNotExist:
+                        logger.error("Previous paper not found: %s", previous_paper_id)
                         return Response(
                             {
                                 "error": "Previous paper not found. Please check the paper ID and try again."
@@ -193,7 +190,7 @@ class PaperViewSet(
 
                 if not title or not abstract:
                     error_msg = "Title and abstract are required"
-                    log_error(ValueError(error_msg))
+                    logger.error(error_msg)
                     return Response(
                         {"error": error_msg}, status=status.HTTP_400_BAD_REQUEST
                     )
@@ -201,7 +198,7 @@ class PaperViewSet(
                 # Validate author data
                 if not authors_data:
                     error_msg = "At least one author is required"
-                    log_error(ValueError(error_msg))
+                    logger.error(error_msg)
                     return Response(
                         {"error": error_msg}, status=status.HTTP_400_BAD_REQUEST
                     )
@@ -211,7 +208,7 @@ class PaperViewSet(
                     author.get("is_corresponding", False) for author in authors_data
                 ):
                     error_msg = "At least one corresponding author is required"
-                    log_error(ValueError(error_msg))
+                    logger.error(error_msg)
                     return Response(
                         {"error": error_msg}, status=status.HTTP_400_BAD_REQUEST
                     )
@@ -232,19 +229,15 @@ class PaperViewSet(
 
                 try:
                     paper = Paper.objects.create(**paper_data)
-                except Exception as e:
-                    log_error(
-                        e,
-                        message="Failed to create paper",
-                        json_data={"paper_data": paper_data},
-                    )
+                except Exception:
+                    logger.exception("Failed to create paper")
                     raise
 
                 # Create paper series
                 try:
                     paper_series = PaperSeries.objects.create()
-                except Exception as e:
-                    log_error(e, message="Failed to create paper series")
+                except Exception:
+                    logger.exception("Failed to create paper series")
                     raise
 
                 # Get valid declaration types
@@ -263,10 +256,9 @@ class PaperViewSet(
                         )
                     ]
                     if missing_declarations:
-                        error_msg = f"Missing required declarations: {', '.join(missing_declarations)}"
-                        log_error(
-                            ValueError(error_msg),
-                            json_data={"declarations": declarations},
+                        logger.warning(
+                            "Missing declarations",
+                            extra={"missing_declarations": missing_declarations},
                         )
                         return Response(
                             {
@@ -283,10 +275,9 @@ class PaperViewSet(
                         and not d.get("accepted", False)
                     ]
                     if unaccepted_declarations:
-                        error_msg = f"All declarations must be accepted. Unaccepted: {', '.join(unaccepted_declarations)}"
-                        log_error(
-                            ValueError(error_msg),
-                            json_data={"declarations": declarations},
+                        logger.warning(
+                            "Unaccepted declarations",
+                            extra={"unaccepted_declarations": unaccepted_declarations},
                         )
                         return Response(
                             {"error": "All declarations must be accepted to continue."},
@@ -305,13 +296,9 @@ class PaperViewSet(
                     # Log if any authors weren't found
                     missing_author_ids = set(author_ids) - set(author_map.keys())
                     if missing_author_ids:
-                        log_error(
-                            ValueError("Some authors not found"),
-                            message=f"Authors not found: {missing_author_ids}",
-                            json_data={
-                                "author_ids": author_ids,
-                                "found_authors": list(author_map.keys()),
-                            },
+                        logger.error(
+                            "Some authors not found",
+                            extra={"missing_author_ids": missing_author_ids},
                         )
 
                     for author_data in authors_data:
@@ -337,11 +324,10 @@ class PaperViewSet(
 
                         if institution_id:
                             authorship.institutions.add(institution_id)
-                except Exception as e:
-                    log_error(
-                        e,
-                        message="Failed to associate authors with paper",
-                        json_data={"paper_id": paper.id, "author_data": authors_data},
+                except Exception:
+                    logger.exception(
+                        "Failed to associate authors with paper",
+                        extra={"paper_id": paper.id, "author_data": authors_data},
                     )
                     raise
 
@@ -349,11 +335,10 @@ class PaperViewSet(
                 try:
                     if hub_ids:
                         paper.unified_document.hubs.add(*hub_ids)
-                except Exception as e:
-                    log_error(
-                        e,
-                        message="Failed to associate hubs with paper",
-                        json_data={"paper_id": paper.id, "hub_ids": hub_ids},
+                except Exception:
+                    logger.exception(
+                        "Failed to associate hubs with paper",
+                        extra={"paper_id": paper.id, "hub_ids": hub_ids},
                     )
                     raise
 
@@ -378,9 +363,9 @@ class PaperViewSet(
                                 previous_paper_version.publication_status
                             )
                         except PaperVersion.DoesNotExist as e:
-                            log_error(
-                                e,
-                                message=f"Previous paper version not found for paper {previous_paper.id}",
+                            logger.error(
+                                "Previous paper version not found for paper %s",
+                                previous_paper.id,
                             )
                             raise
 
@@ -392,15 +377,14 @@ class PaperViewSet(
                         journal=journal,
                         publication_status=publication_status,
                     )
-                except Exception as e:
-                    log_error(
-                        e,
-                        message="Failed to create paper version",
-                        json_data={
+                except Exception:
+                    logger.exception(
+                        "Failed to create paper version",
+                        extra={
                             "paper_id": paper.id,
-                            "previous_paper_id": (
-                                previous_paper_id if previous_paper else None
-                            ),
+                            "previous_paper_id": previous_paper_id
+                            if previous_paper
+                            else None,
                         },
                     )
                     raise
@@ -423,24 +407,19 @@ class PaperViewSet(
                 )
 
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
-            except Exception as e:
-                log_error(
-                    e,
-                    message="Failed to serialize paper response",
-                    json_data={"paper_id": paper.id},
+            except Exception:
+                logger.exception(
+                    "Failed to serialize paper response", extra={"paper_id": paper.id}
                 )
                 raise
 
-        except Exception as e:
-            log_error(
-                e,
-                message="Unhandled exception in create_researchhub_paper",
-                json_data={"request_data": request.data},
+        except Exception:
+            logger.exception(
+                "Unhandled exception in create_researchhub_paper",
+                extra={"request_data": request.data},
             )
             return Response(
-                {
-                    "error": "An error occurred while creating the paper. Please try again later."
-                },
+                {"error": "An error occurred while creating the paper."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -486,10 +465,8 @@ class PaperViewSet(
                 # Get the previous paper
                 try:
                     previous_paper = Paper.objects.get(id=previous_paper_id)
-                except Paper.DoesNotExist as e:
-                    log_error(
-                        e, message=f"Previous paper not found: {previous_paper_id}"
-                    )
+                except Paper.DoesNotExist:
+                    logger.warning("Previous paper not found: %s", previous_paper_id)
                     return Response(
                         {
                             "error": "Previous paper not found. Please check the paper ID and try again."
@@ -558,9 +535,9 @@ class PaperViewSet(
                     )
                     paper_version_number = paper_version.version + 1
                 except PaperVersion.DoesNotExist:
-                    log_error(
-                        ValueError("Previous paper version not found"),
-                        message=f"Previous paper version not found for paper {previous_paper.id}",
+                    logger.warning(
+                        "Previous paper version not found for paper %s",
+                        previous_paper.id,
                     )
                     raise
 
@@ -591,15 +568,12 @@ class PaperViewSet(
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         except Exception as e:
-            log_error(
-                e,
-                message="Unhandled exception in publish_to_researchhub_journal",
-                json_data={"request_data": request.data},
+            logger.exception(
+                "Unhandled exception in publish_to_researchhub_journal",
+                extra={"request_data": request.data},
             )
             return Response(
-                {
-                    "error": "An error occurred while creating the paper. Please try again later."
-                },
+                {"error": "An error occurred while creating the paper."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -856,8 +830,10 @@ class PaperViewSet(
             }
 
             return Response(response, status=200)
-        except Exception as error:
-            log_error(error)
+        except Exception:
+            logger.exception(
+                "Error fetching publications by DOI", extra={"doi": doi_string}
+            )
             return Response(status=500)
 
     def _filter_unclaimed_works(self, author: Author, openalex_works: list) -> list:
@@ -948,10 +924,10 @@ class PaperViewSet(
             serializer_data = self._serialize_paper(paper, request)
             return Response(serializer_data, status=status.HTTP_201_CREATED)
 
-        except Exception as e:
-            log_error(e)
+        except Exception:
+            logger.exception("Error creating paper by DOI", extra={"doi": doi})
             return Response(
-                {"error": str(e)},
+                {"error": "An error occurred while creating the paper."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
