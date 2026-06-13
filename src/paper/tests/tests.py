@@ -61,11 +61,11 @@ class JournalPdfTests(TestCase):
                 self.assertEqual(journal_url, self.journal_test_urls[i])
 
 
-class PaperPatchTest(TestCase, TestHelper, IntegrationTestHelper):
+class PaperPatchTest(APITestCase):
     base_url = "/api/paper/"
 
     def create_paper(self, doi="1.1.1.2"):
-        original_paper = self.create_paper_without_authors()
+        original_paper = create_test_paper()
         original_paper.raw_authors = [{"first_name": "First", "last_name": "Last"}]
         original_paper.save()
         return original_paper
@@ -76,9 +76,10 @@ class PaperPatchTest(TestCase, TestHelper, IntegrationTestHelper):
         form = {
             "title": updated_title,
         }
-        client = self.get_default_authenticated_client()
+        user = create_random_authenticated_user("paper_patch")
         url = f"{self.base_url}{paper.id}/?make_public=true"
-        response = client.patch(url, form, content_type="application/json")
+        self.client.force_authenticate(user)
+        response = self.client.patch(url, form, format="json")
         data = response.data
         self.assertEqual(response.status_code, 200)
         self.assertEqual(data["title"], updated_title)
@@ -87,7 +88,7 @@ class PaperPatchTest(TestCase, TestHelper, IntegrationTestHelper):
         )
 
 
-class PaperCopyrightTest(TestCase, TestHelper):
+class PaperCopyrightTest(TestCase):
     def setUp(self):
         mock_file = SimpleUploadedFile(
             "test.pdf",
@@ -95,7 +96,7 @@ class PaperCopyrightTest(TestCase, TestHelper):
             content_type="application/pdf",
         )
 
-        self.paper = self.create_paper_without_authors()
+        self.paper = create_test_paper()
         self.paper.pdf_url = "https://arxiv.org/pdf/1706.03762.pdf"
         self.paper.file = mock_file
         self.paper.save()
