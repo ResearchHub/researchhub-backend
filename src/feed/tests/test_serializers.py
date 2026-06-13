@@ -794,8 +794,6 @@ class PostSerializerTests(AWSMockTestCase):
 
     def test_serializes_grant_post_with_grant(self):
         """Test that grant posts serialize with grant data"""
-        from datetime import datetime, timedelta
-
 
         # Create a grant post
         grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
@@ -884,8 +882,6 @@ class PostSerializerTests(AWSMockTestCase):
     def test_serializes_grant_post_with_applications(self):
         """Test that grant posts serialize with application data when applications
         exist"""
-        from datetime import datetime, timedelta
-
 
         # Create a grant post
         grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
@@ -1098,8 +1094,6 @@ class PostSerializerTests(AWSMockTestCase):
 
     def test_serializes_expired_grant(self):
         """Test that expired grants are properly identified"""
-        from datetime import datetime, timedelta
-
 
         # Create a grant post with an expired grant
         grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
