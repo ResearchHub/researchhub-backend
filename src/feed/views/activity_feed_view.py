@@ -222,9 +222,6 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         contribution_purchase_ids = Purchase.objects.filter(
             purchase_type=Purchase.FUNDRAISE_CONTRIBUTION
         ).values_list("id", flat=True)
-        grant_post_ids = ResearchhubPost.objects.filter(
-            document_type=GRANT,
-        ).values_list("id", flat=True)
 
         return queryset.filter(
             Q(
@@ -235,7 +232,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
             | Q(content_type=funding_activity_type)
             | Q(
                 content_type=post_type,
-                object_id__in=grant_post_ids,
+                unified_document__document_type=GRANT,
             )
         )
 
