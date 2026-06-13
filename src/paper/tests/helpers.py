@@ -7,18 +7,9 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 
 
-class TestData:
-    paper_title = (
-        "Messrs Moony, Wormtail, Padfoot, and Prongs Purveyors of"
-        " Aids to Magical Mischief-Makers are proud to present THE"
-        " MARAUDER'S MAP"
-    )
-    paper_publish_date = "1990-10-01"
-
-
 def create_paper(
-    title=TestData.paper_title,
-    paper_publish_date=TestData.paper_publish_date,
+    title="Program development by stepwise refinement",
+    paper_publish_date="1990-10-01",
     uploaded_by=None,
     raw_authors=[],
 ):

@@ -7,7 +7,6 @@ from hub.tests.helpers import create_hub
 from user.models import Author
 from user.tests.helpers import create_random_authenticated_user, create_university
 
-from .helpers import TestData as PaperTestData
 from .helpers import create_paper
 
 
@@ -79,7 +78,7 @@ class PaperPermissionsIntegrationTests(APITestCase):
         )
         form = {
             "title": "The Best Paper",
-            "paper_publish_date": PaperTestData.paper_publish_date,
+            "paper_publish_date": "1990-10-01",
             "file": file,
             "hubs": [hub.id],
             "authors": [1, author.id],
