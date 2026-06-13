@@ -1,7 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-import pytz
 from django.core.cache import cache
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory, APITestCase
@@ -50,7 +49,7 @@ class GrantFeedViewTests(APITestCase):
             organization="NSF",
             description="Open research grant",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
 
         self.closed_grant = Grant.objects.create(
@@ -61,7 +60,7 @@ class GrantFeedViewTests(APITestCase):
             organization="NIH",
             description="Closed research grant",
             status=Grant.CLOSED,
-            end_date=datetime.now(pytz.UTC) - timedelta(days=10),
+            end_date=datetime.now(UTC) - timedelta(days=10),
         )
 
         self.completed_grant = Grant.objects.create(
@@ -72,7 +71,7 @@ class GrantFeedViewTests(APITestCase):
             organization="DOE",
             description="Completed research grant",
             status=Grant.COMPLETED,
-            end_date=datetime.now(pytz.UTC) - timedelta(days=5),
+            end_date=datetime.now(UTC) - timedelta(days=5),
         )
 
     def tearDown(self):
@@ -426,7 +425,7 @@ class GrantFeedViewTests(APITestCase):
             organization="Expired Org",
             description="Expired but still OPEN status",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) - timedelta(days=1),
+            end_date=datetime.now(UTC) - timedelta(days=1),
         )
         self.client.force_authenticate(self.user)
 
@@ -647,7 +646,7 @@ class GrantFeedViewTests(APITestCase):
             organization="Org1",
             description="User1-owned grant",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
 
         user2_post = create_post(
@@ -661,7 +660,7 @@ class GrantFeedViewTests(APITestCase):
             organization="Org2",
             description="User2-owned grant",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
 
         self.client.force_authenticate(self.user)
@@ -697,7 +696,7 @@ class GrantFeedViewTests(APITestCase):
             organization="Org1",
             description="User1-owned grant",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
         self.client.force_authenticate(self.user)
 
@@ -866,7 +865,7 @@ class GrantFeedViewTests(APITestCase):
             organization="NSF",
             description="Grant for cache test",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
         public_post = create_post(
             created_by=applicant, document_type=PREREGISTRATION, title="Public App"

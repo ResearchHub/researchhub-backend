@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -21,7 +21,7 @@ from user.tests.helpers import create_random_default_user
 @override_settings(STAGING=True)
 class CreateDailyStakingSnapshotTaskTest(TestCase):
     def setUp(self):
-        self.release_date = datetime.now(timezone.utc).date() - timedelta(days=2)
+        self.release_date = datetime.now(UTC).date() - timedelta(days=2)
         self.patcher = patch(
             "reputation.services.staking_yield_service.STAKING_RELEASE_DATE",
             self.release_date,
@@ -30,7 +30,7 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         self.addCleanup(self.patcher.stop)
 
     def _expected_accrual_date(self):
-        return datetime.now(timezone.utc).date() - timedelta(days=1)
+        return datetime.now(UTC).date() - timedelta(days=1)
 
     @patch(
         "reputation.services.rsc_supply_service."
@@ -161,7 +161,7 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
 @override_settings(STAGING=True)
 class DistributeStakingYieldTaskTest(TestCase):
     def setUp(self):
-        self.release_date = datetime.now(timezone.utc).date() - timedelta(days=2)
+        self.release_date = datetime.now(UTC).date() - timedelta(days=2)
         self.patcher = patch(
             "reputation.services.staking_yield_service.STAKING_RELEASE_DATE",
             self.release_date,
@@ -169,10 +169,10 @@ class DistributeStakingYieldTaskTest(TestCase):
         self.patcher.start()
         self.addCleanup(self.patcher.stop)
 
-        self.accrual_date = datetime.now(timezone.utc).date() - timedelta(days=1)
+        self.accrual_date = datetime.now(UTC).date() - timedelta(days=1)
         self.user = create_random_default_user("yielduser")
         self.user.is_staking_opted_in = True
-        self.user.staking_opted_in_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        self.user.staking_opted_in_date = datetime(2026, 1, 1, tzinfo=UTC)
         self.user.save()
         create_deposit(self.user, amount="10000")
         self.global_snapshot = StakingGlobalSnapshot.objects.create(
@@ -248,7 +248,7 @@ class DistributeStakingYieldTaskTest(TestCase):
     def test_splits_yield_proportionally_between_two_users(self):
         user2 = create_random_default_user("yielduser2")
         user2.is_staking_opted_in = True
-        user2.staking_opted_in_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        user2.staking_opted_in_date = datetime(2026, 1, 1, tzinfo=UTC)
         user2.save()
         create_deposit(user2, amount="30000")
 

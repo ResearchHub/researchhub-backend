@@ -1,8 +1,7 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest import mock
 
-import pytz
 from celery.exceptions import Retry
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -251,8 +250,8 @@ class WithdrawalOnCommitTests(AWSMockTransactionTestCase):
         self.user = create_random_authenticated_user_with_reputation(
             "on_commit_user", 1000
         )
-        self.user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        self.user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
+        self.user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        self.user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         self.user.save()
         create_deposit(self.user, amount="5000.0")
 
