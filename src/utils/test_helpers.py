@@ -123,12 +123,6 @@ def get_user_from_response(response):
     return response.wsgi_request.user
 
 
-class DatabaseThread(threading.Thread):
-    def run(self):
-        super().run()
-        connection.close()
-
-
 def create_test_user(
     first_name="Test",
     last_name="User",
