@@ -1008,7 +1008,10 @@ class PostSerializerTests(AWSMockTestCase):
             self.assertIsNone(app_data["key_insight"])
 
     def test_serializes_grant_post_application_includes_key_insight_when_present(self):
-        """ProposalReview + ProposalKeyInsight for the grant/proposal pair appear on application."""
+        """
+        ProposalReview + ProposalKeyInsight for the grant/proposal pair appear on
+        application.
+        """
         grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=document_type.GRANT,
         )
@@ -1670,7 +1673,9 @@ class FeedEntrySerializerTests(AWSMockTestCase):
         self.assertEqual(post_data["unified_document_id"], post.unified_document.id)
 
     def test_serializes_comment_feed_entry_with_unified_document_id(self):
-        """Test that comment feed entries include unified_document_id in paper/post fields"""
+        """
+        Test that comment feed entries include unified_document_id in paper/post fields
+        """
         paper = create_paper(uploaded_by=self.user)
 
         thread = RhCommentThreadModel.objects.create(
@@ -2537,7 +2542,10 @@ class FundingFeedEntrySerializerTests(AWSMockTestCase):
     def test_grant_application_fundraise_includes_reviews(
         self, mock_usd_to_rsc, mock_rsc_to_usd
     ):
-        """Reviews on a preregistration appear in its fundraise within a grant's applications."""
+        """
+        Reviews on a preregistration appear in its fundraise within a grant's
+        applications.
+        """
         mock_usd_to_rsc.return_value = 200.0
         mock_rsc_to_usd.return_value = 0.005
 

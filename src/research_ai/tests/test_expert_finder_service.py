@@ -274,7 +274,7 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
         expert_json = (
             '{"experts": ['
             '{"email": "u@mit.edu", "first_name": "U", "last_name": "V", '
-            '"academic_title": "Prof", "affiliation": "MIT", "expertise": "X", "notes": "N", "sources": []}'
+            '"academic_title": "Prof", "affiliation": "MIT", "expertise": "X", "notes": "N", "sources": []}'  # noqa: E501
             "]}"
         )
         mock_oa = MagicMock()

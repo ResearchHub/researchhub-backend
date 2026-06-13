@@ -13,12 +13,15 @@ User = get_user_model()
 
 
 class ExpertPersist:
-    """Create/update ``Expert`` rows and ``SearchExpert`` links from parsed finder dicts."""
+    """
+    Create/update ``Expert`` rows and ``SearchExpert`` links from parsed finder dicts.
+    """
 
     @staticmethod
     def upsert_from_parsed_dict(d: dict[str, Any]) -> Expert:
         """
-        One row per email. Non-empty fields from the latest parse overwrite existing values.
+        One row per email. Non-empty fields from the latest parse overwrite existing
+        values.
         """
         email = ExpertDisplay.normalize_email(d.get("email") or "")
         if not email:
@@ -105,7 +108,9 @@ class ExpertPersist:
 
     @staticmethod
     def mark_last_email_sent_at(email: str) -> None:
-        """Set last_email_sent_at=now on the Expert row for this address, if one exists."""
+        """
+        Set last_email_sent_at=now on the Expert row for this address, if one exists.
+        """
         em = ExpertDisplay.normalize_email(email)
         if not em:
             return

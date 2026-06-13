@@ -35,18 +35,18 @@ class TestChemRxivMapper(TestCase):
             "doi": "10.26434/chemrxiv-2025-81glw",
             "vor": None,
             "title": "Comparison of Theoretical Methods for Predicting Tunneling Rates",
-            "abstract": "Hydrogen atom abstraction reactions play a central role in astrochemistry.",
+            "abstract": "Hydrogen atom abstraction reactions play a central role in astrochemistry.",  # noqa: E501
             "contentType": {"id": "5ce663395846762193c9c430", "name": "Working Paper"},
             "categories": [
                 {
                     "id": "605c72ef153207001f6470ce",
                     "name": "Theoretical and Computational Chemistry",
-                    "description": "Research on Theoretical and Computational Chemistry",
+                    "description": "Research on Theoretical and Computational Chemistry",  # noqa: E501
                 },
                 {
                     "id": "60adf37803f321001cb10530",
                     "name": "Computational Chemistry and Modeling",
-                    "description": "Research on Computational Chemistry and Modeling",
+                    "description": "Research on Computational Chemistry and Modeling",  # noqa: E501
                 },
             ],
             "subject": {
@@ -118,7 +118,7 @@ class TestChemRxivMapper(TestCase):
             "license": {
                 "id": "5cc9d9bf7d4e0000ac04ef25",
                 "name": "CC BY NC ND 4.0",
-                "description": "This license will allow Site users to copy and redistribute the Content.",
+                "description": "This license will allow Site users to copy and redistribute the Content.",  # noqa: E501
                 "url": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
             },
         }
@@ -175,7 +175,7 @@ class TestChemRxivMapper(TestCase):
         )
         self.assertEqual(
             paper.abstract,
-            "Hydrogen atom abstraction reactions play a central role in astrochemistry.",
+            "Hydrogen atom abstraction reactions play a central role in astrochemistry.",  # noqa: E501
         )
 
         # Check dates

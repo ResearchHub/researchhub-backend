@@ -768,7 +768,9 @@ class PaperSpecificFieldTests(TestCase):
         self.assertEqual(result[CITATION_COUNT_TOTAL], 100)
 
     def test_paper_bluesky_metrics_from_external_metadata(self):
-        """Bluesky metrics should extract from paper.external_metadata.metrics.bluesky."""
+        """
+        Bluesky metrics should extract from paper.external_metadata.metrics.bluesky.
+        """
         # Arrange
         mapper = ItemMapper()
         external_metadata = {
@@ -838,7 +840,10 @@ class PaperSpecificFieldTests(TestCase):
         self.assertEqual(result[X_TOTAL_IMPRESSIONS], 516)
 
     def test_paper_github_metrics_from_external_metadata(self):
-        """GitHub metrics should extract from paper.external_metadata.metrics.github_mentions."""
+        """
+        GitHub metrics should extract from
+        paper.external_metadata.metrics.github_mentions.
+        """
         # Arrange
         mapper = ItemMapper()
         external_metadata = {

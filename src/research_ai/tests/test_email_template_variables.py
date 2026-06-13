@@ -1,4 +1,7 @@
-"""Tests for email_template_variables: build_replacement_context and replace_template_variables."""
+"""
+Tests for email_template_variables: build_replacement_context and
+replace_template_variables.
+"""
 
 from unittest.mock import MagicMock, patch
 
@@ -82,7 +85,7 @@ class ReplaceTemplateVariablesTests(TestCase):
             },
             "expert": {},
         }
-        text = "Check out {{proposal.title}} by {{proposal.created_by_name}}. {{proposal.amount_raised}} of {{proposal.goal_amount}}."
+        text = "Check out {{proposal.title}} by {{proposal.created_by_name}}. {{proposal.amount_raised}} of {{proposal.goal_amount}}."  # noqa: E501
         out = replace_template_variables(text, context)
         self.assertIn("Replication Study 2025", out)
         self.assertIn("Jane Doe", out)

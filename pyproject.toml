@@ -64,7 +64,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "coverage>=7.6.1",
-    "pre-commit==2.17.0",
+    "pre-commit>=4.6.0",
     "requests-mock>=1.12.1,<2.0.0",
     "responses>=0.26.0",
     "ruff==0.15.12",
@@ -96,17 +96,3 @@ extend-select = [
 # Allow `print`s in management commands:
 "**/management/commands/*.py" = ["T20"]
 
-# Temporarily ignore lint rules per app.
-# E501: line too long
-# T20:  print statements
-"src/ai_peer_review/**/*.py" = ["E501"]
-"src/discussion/**/*.py" = ["E501"]
-"src/feed/**/*.py" = ["E501"]
-"src/paper/**/*.py" = ["E501"]
-"src/personalize/**/*.py" = ["E501"]
-"src/purchase/**/*.py" = ["E501"]
-"src/referral/**/*.py" = ["E501"]
-"src/research_ai/**/*.py" = ["E501"]
-"src/researchhub_comment/**/*.py" = ["E501"]
-"src/researchhub_document/**/*.py" = ["E501"]
-"src/user/**/*.py" = ["E501"]

@@ -136,7 +136,8 @@ def resolve_expert_search_email_document_context(
 ) -> ExpertSearchEmailDocumentContext:
     """
     GRANT -> rfp dict. PREREGISTRATION -> proposal dict. PAPER -> paper generic dict.
-    Any other linked document type -> one shared generic snippet; no document -> search fallback.
+    Any other linked document type -> one shared generic snippet; no document
+    -> search fallback.
     """
     extra = _user_additional_context_from_search(expert_search)
 

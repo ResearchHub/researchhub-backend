@@ -21,10 +21,6 @@ from user.tests.helpers import (
     create_random_authenticated_user,
     create_random_authenticated_user_with_reputation,
 )
-from utils.test_helpers import (
-    get_authenticated_get_response,
-    get_authenticated_post_response,
-)
 
 VALID_TEST_TO_ADDRESS = "0xabcdef1234567890abcdef1234567890abcdef12"
 VALID_TEST_TO_ADDRESS_SHARED = "0x1111111111111111111111111111111111111111"
@@ -415,8 +411,10 @@ class ReputationViewsTests(APITestCase):
         user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
         user.save()
 
-        response = self.get_withdrawals_post_response(
-            user, data={"amount": 505, "to_address": VALID_TEST_TO_ADDRESS}
+        self.client.force_authenticate(user)
+        response = self.client.post(
+            "/api/withdrawal/",
+            {"amount": 505, "to_address": VALID_TEST_TO_ADDRESS},
         )
         self.assertEqual(response.status_code, 400)
 
@@ -671,15 +669,3 @@ class ReputationViewsTests(APITestCase):
         self.assertLess(base_fee, eth_fee)
 
         self.assertEqual(base_fee, decimal.Decimal("1.2"))
-
-    """
-    Helper methods
-    """
-
-    def get_withdrawals_get_response(self, user):
-        url = "/api/withdrawal/"
-        return get_authenticated_get_response(user, url)
-
-    def get_withdrawals_post_response(self, user, data={}):
-        url = "/api/withdrawal/"
-        return get_authenticated_post_response(user, url, data)

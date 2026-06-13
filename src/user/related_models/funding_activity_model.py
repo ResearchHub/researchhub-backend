@@ -64,7 +64,8 @@ class FundingActivity(DefaultModel):
         db_comment="When the funding activity occurred",
     )
 
-    # Generic foreign key to the source object (Purchase, Distribution, EscrowRecipients)
+    # Generic foreign key to the source object
+    # (Purchase, Distribution, EscrowRecipients)
     source_content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE,

@@ -45,7 +45,8 @@ class PaperService:
                 else:
                     original_paper_id = paper_id
             except self.paper_version_model.DoesNotExist:
-                # If this paper has no version, check if it's an original paper for other versions
+                # If this paper has no version,
+                # check if it's an original paper for other versions
                 original_paper_id = paper_id
 
             # Get all papers related to this original paper

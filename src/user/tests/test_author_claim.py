@@ -168,7 +168,7 @@ class AuthorClaimTests(APITestCase):
 
     @patch.object(OpenAlex, "get_authors")
     @patch.object(OpenAlex, "get_works")
-    def test_already_existing_author_profile_can_be_claimed_if_does_not_belong_to_any_user(
+    def test_already_existing_author_profile_can_be_claimed_if_does_not_belong_to_any_user(  # noqa: E501
         self, mock_get_works, mock_get_authors
     ):
         from user.related_models.author_model import Author

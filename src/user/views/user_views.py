@@ -103,7 +103,8 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         user = User.objects.filter(email=request.data["email"]).first()
         if user:
             # Filtering by provider == google because we only have google login
-            # If we ever add a second login, we need to update the provider to include those social accounts
+            # If we ever add a second login, we need to update the provider to include
+            # those social accounts
             # The case we're guarding against here is ORCID
             social_account = user.socialaccount_set.filter(provider="google").first()
             if social_account:

@@ -313,7 +313,10 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.assertEqual(result.error_count, 1)
 
     def test_enrich_paper_already_has_data(self):
-        """Test enrichment skips license update but still processes authors when paper already has license data."""
+        """
+        Test enrichment skips license update but still processes authors when paper
+        already has license data.
+        """
         # Set up paper with existing license data
         self.paper.pdf_license = "existing-license"
         self.paper.pdf_url = "https://existing.com/pdf.pdf"

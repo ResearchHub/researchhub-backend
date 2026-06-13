@@ -48,7 +48,7 @@ class PersonaWebhookViewTests(TestCase):
             body,
             content_type="application/json",
             headers={
-                "Persona-Signature": "t=1720448965,v1=aaabbb2356a65fd3a1734457430a1a2fe0c566349e0d472c45cb9281a7d3b68d"
+                "Persona-Signature": "t=1720448965,v1=aaabbb2356a65fd3a1734457430a1a2fe0c566349e0d472c45cb9281a7d3b68d"  # noqa: E501
             },
         )
 

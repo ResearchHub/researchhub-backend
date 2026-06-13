@@ -47,7 +47,10 @@ class ReferralRegistrationTest(TestCase):
         self.assertIsNotNone(referral_signup)
 
     def test_user_registration_with_invalid_referral_code_ignores_silently(self):
-        """Test that registering with invalid referral code still works but no signup created"""
+        """
+        Test that registering with invalid referral code still works but no signup
+        created
+        """
         registration_data = {
             "email": "newuser2@example.com",
             "password1": "testpassword123!",

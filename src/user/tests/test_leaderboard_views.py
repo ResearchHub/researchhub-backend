@@ -408,7 +408,9 @@ class LeaderboardApiTests(APITestCase):
         self.assertEqual(response.data["error"], "Date range exceeds 60 days")
 
     def test_date_range_funders_excludes_bank(self):
-        """Excluded users (e.g. bank) do not appear in funders leaderboard by date range."""
+        """
+        Excluded users (e.g. bank) do not appear in funders leaderboard by date range.
+        """
         ct_user = ContentType.objects.get_for_model(type(self.reviewer1))
         FundingActivity.objects.create(
             funder=self.bank,
@@ -429,7 +431,9 @@ class LeaderboardApiTests(APITestCase):
         self.assertIn(self.funder1.id, user_ids)
 
     def test_date_range_reviewers_excludes_bank(self):
-        """Excluded users (e.g. bank) do not appear in reviewers leaderboard by date range."""
+        """
+        Excluded users (e.g. bank) do not appear in reviewers leaderboard by date range.
+        """
         ct_user = ContentType.objects.get_for_model(type(self.reviewer1))
         fa = FundingActivity.objects.create(
             funder=self.funder1,
@@ -567,7 +571,9 @@ class LeaderboardApiTests(APITestCase):
             self.assertEqual(funder1_entry["rank"], 1)
 
     def test_leaderboard_me_reviewer_precomputed_period(self):
-        """Test /leaderboard/me/ with period=7_days returns reviewer data from Leaderboard."""
+        """
+        Test /leaderboard/me/ with period=7_days returns reviewer data from Leaderboard.
+        """
         url = "/api/leaderboard/me/"
         self.client.force_authenticate(user=self.reviewer1)
         response = self.client.get(f"{url}?period=7_days")
@@ -582,7 +588,9 @@ class LeaderboardApiTests(APITestCase):
         self.assertEqual(float(reviewer["earned_rsc"]), 250.0)
 
     def test_leaderboard_me_funder_precomputed_period(self):
-        """Test /leaderboard/me/ with period=30_days returns funder data from Leaderboard."""
+        """
+        Test /leaderboard/me/ with period=30_days returns funder data from Leaderboard.
+        """
         url = "/api/leaderboard/me/"
         self.client.force_authenticate(user=self.funder1)
         response = self.client.get(f"{url}?period=30_days")
@@ -597,7 +605,9 @@ class LeaderboardApiTests(APITestCase):
         self.assertEqual(float(funder["total_funding"]), 650.0)
 
     def test_leaderboard_me_default_all_time(self):
-        """Test /leaderboard/me/ with no params defaults to all_time (overview-style)."""
+        """
+        Test /leaderboard/me/ with no params defaults to all_time (overview-style).
+        """
         url = "/api/leaderboard/me/"
         self.client.force_authenticate(user=self.reviewer1)
         response = self.client.get(url)

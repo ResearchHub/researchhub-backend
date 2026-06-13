@@ -108,7 +108,10 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
         self.assertEqual(result["processed"], 0)
 
     def test_process_bulk_no_processing_placeholders_returns_processed_zero(self):
-        """When no records with status=PROCESSING exist for the given ids, task returns early."""
+        """
+        When no records with status=PROCESSING exist for the given ids,
+        task returns early.
+        """
         rec = GeneratedEmail.objects.create(
             created_by=self.user,
             expert_search=self.expert_search,
@@ -226,7 +229,10 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
     def test_process_bulk_outer_exception_marks_all_failed_and_logs_sentry(
         self, mock_generate, mock_sentry
     ):
-        """Top-level exception (e.g. User.objects.get raises) marks all ids FAILED and logs to Sentry."""
+        """
+        Top-level exception (e.g. User.objects.get raises) marks all ids FAILED
+        and logs to Sentry.
+        """
         rec = GeneratedEmail.objects.create(
             created_by=self.user,
             expert_search=self.expert_search,
