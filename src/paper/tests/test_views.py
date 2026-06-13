@@ -498,7 +498,7 @@ class PaperApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(
-            "Please accept all required declarations to continue.",
+            "Please accept all required declarations.",
             str(response.data["error"]),
         )
 
