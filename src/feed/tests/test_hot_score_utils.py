@@ -5,7 +5,7 @@ These tests validate the JSON extraction and calculation logic
 using mock data without requiring database access.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock
 
 from feed.hot_score_utils import (
@@ -130,7 +130,7 @@ class TestHotScoreUtils(AWSMockTestCase):
 
         # Mock feed_entry with created_date
         feed_entry = Mock()
-        feed_entry.created_date = datetime.now(timezone.utc)
+        feed_entry.created_date = datetime.now(UTC)
 
         total_amount, has_urgent = get_bounties_from_content(content, feed_entry)
 
@@ -190,7 +190,7 @@ class TestHotScoreUtils(AWSMockTestCase):
         For posts: action_date = created_date
         """
         # Create a date 24 hours ago
-        action_date = datetime.now(timezone.utc) - timedelta(hours=24)
+        action_date = datetime.now(UTC) - timedelta(hours=24)
         content = {}  # Content is only used for urgency checks (GRANT, PREREGISTRATION)
 
         # Mock feed_entry with action_date
@@ -209,8 +209,8 @@ class TestHotScoreUtils(AWSMockTestCase):
         Test that old papers use action_date (paper_publish_date), not created_date.
         """
         # Setup: Paper published 180 days ago, but added to platform today
-        paper_publish_date = datetime.now(timezone.utc) - timedelta(days=180)
-        platform_created_date = datetime.now(timezone.utc)
+        paper_publish_date = datetime.now(UTC) - timedelta(days=180)
+        platform_created_date = datetime.now(UTC)
 
         feed_entry = Mock()
         feed_entry.action_date = paper_publish_date
@@ -225,7 +225,7 @@ class TestHotScoreUtils(AWSMockTestCase):
 
     def test_future_action_date_falls_back_to_created_date(self):
         """A future action_date should fall back to created_date for age calculation."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         future_action_date = now + timedelta(days=180)
         created_date = now - timedelta(days=7)
 
@@ -244,7 +244,7 @@ class TestHotScoreUtils(AWSMockTestCase):
 
     def test_future_action_date_never_returns_zero(self):
         """Ensure a future action_date never yields an artificially low age."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         feed_entry = Mock()
         feed_entry.id = 1000
         feed_entry.action_date = now + timedelta(days=30)
