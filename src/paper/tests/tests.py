@@ -1,5 +1,6 @@
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from rest_framework.test import APITestCase
 
 from paper.serializers import DynamicPaperSerializer
 from paper.utils import (
@@ -7,40 +8,15 @@ from paper.utils import (
     convert_pdf_url_to_journal_url,
     pdf_copyright_allows_display,
 )
-from utils.test_helpers import IntegrationTestHelper, TestHelper
+from user.tests.helpers import create_random_authenticated_user
+
+from .helpers import create_paper as create_test_paper
 
 
-class PaperIntegrationTests(TestCase, TestHelper, IntegrationTestHelper):
-    base_url = "/api/paper/"
-
+class PaperIntegrationTests(APITestCase):
     def test_get_base_route(self):
-        response = self.get_get_response(self.base_url)
+        response = self.client.get("/api/paper/")
         self.assertEqual(response.status_code, 200)
-
-    def submit_paper_form(self):
-        client = self.get_default_authenticated_client()
-        url = self.base_url
-        form_data = self.build_paper_form()
-        response = client.post(url, form_data)
-        return response
-
-    def build_paper_form(self):
-        file = SimpleUploadedFile("../config/paper.pdf", b"file_content")
-        hub = self.create_hub("Film")
-        hub_2 = self.create_hub("Comedy")
-        university = self.create_university(name="Charleston")
-        author = self.create_author_without_user(
-            university, first_name="Donald", last_name="Duck"
-        )
-
-        form = {
-            "title": "The Simple Paper",
-            "paper_publish_date": self.paper_publish_date,
-            "file": file,
-            "hubs": [hub.id, hub_2.id],
-            "authors": [author.id],
-        }
-        return form
 
 
 class JournalPdfTests(TestCase):
@@ -85,11 +61,11 @@ class JournalPdfTests(TestCase):
                 self.assertEqual(journal_url, self.journal_test_urls[i])
 
 
-class PaperPatchTest(TestCase, TestHelper, IntegrationTestHelper):
+class PaperPatchTest(APITestCase):
     base_url = "/api/paper/"
 
     def create_paper(self, doi="1.1.1.2"):
-        original_paper = self.create_paper_without_authors()
+        original_paper = create_test_paper()
         original_paper.raw_authors = [{"first_name": "First", "last_name": "Last"}]
         original_paper.save()
         return original_paper
@@ -100,9 +76,10 @@ class PaperPatchTest(TestCase, TestHelper, IntegrationTestHelper):
         form = {
             "title": updated_title,
         }
-        client = self.get_default_authenticated_client()
+        user = create_random_authenticated_user("paper_patch")
         url = f"{self.base_url}{paper.id}/?make_public=true"
-        response = client.patch(url, form, content_type="application/json")
+        self.client.force_authenticate(user)
+        response = self.client.patch(url, form, format="json")
         data = response.data
         self.assertEqual(response.status_code, 200)
         self.assertEqual(data["title"], updated_title)
@@ -111,7 +88,7 @@ class PaperPatchTest(TestCase, TestHelper, IntegrationTestHelper):
         )
 
 
-class PaperCopyrightTest(TestCase, TestHelper):
+class PaperCopyrightTest(TestCase):
     def setUp(self):
         mock_file = SimpleUploadedFile(
             "test.pdf",
@@ -119,7 +96,7 @@ class PaperCopyrightTest(TestCase, TestHelper):
             content_type="application/pdf",
         )
 
-        self.paper = self.create_paper_without_authors()
+        self.paper = create_test_paper()
         self.paper.pdf_url = "https://arxiv.org/pdf/1706.03762.pdf"
         self.paper.file = mock_file
         self.paper.save()

@@ -4,7 +4,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 from django.core.cache import cache
-from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -21,7 +20,6 @@ from user.tests.helpers import (
     create_user,
 )
 from utils.openalex import OpenAlex
-from utils.test_helpers import get_authenticated_patch_response
 
 fixtures_dir = Path(__file__).parent / "fixtures"
 
@@ -256,15 +254,14 @@ class UserApiTests(APITestCase):
         )
 
 
-class UserViewsTests(TestCase):
+class UserViewsTests(APITestCase):
     def test_set_has_seen_first_coin_modal(self):
         user = create_random_authenticated_user("first_coin_viewser")
         self.assertFalse(user.has_seen_first_coin_modal)
 
         url = "/api/user/has_seen_first_coin_modal/"
-        response = get_authenticated_patch_response(
-            user, url, data={}, content_type="application/json"
-        )
+        self.client.force_authenticate(user)
+        response = self.client.patch(url, {})
         self.assertContains(
             response, 'has_seen_first_coin_modal":true', status_code=200
         )
@@ -280,11 +277,10 @@ class UserViewsTests(TestCase):
         user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
 
         url = "/api/user/set_staking_opted_in/"
-        response = get_authenticated_patch_response(
-            user,
+        self.client.force_authenticate(user)
+        response = self.client.patch(
             url,
-            data={"is_staking_opted_in": True},
-            content_type="application/json",
+            {"is_staking_opted_in": True},
         )
 
         self.assertEqual(response.status_code, 200)

@@ -7,7 +7,6 @@ from user.tests.helpers import (
     create_random_authenticated_user,
     create_random_default_user,
 )
-from utils.test_helpers import get_authenticated_post_response, get_get_response
 
 
 class HubViewsTests(APITestCase):
@@ -45,7 +44,7 @@ class HubViewsTests(APITestCase):
 
         # this is a specific ordering used for the front end
         url = self.base_url + "?ordering=-paper_count,-discussion_count,id"
-        response = get_get_response(url)
+        response = self.client.get(url)
         response_data = response.data["results"]
 
         h1_first = False
@@ -63,7 +62,7 @@ class HubViewsTests(APITestCase):
         hub2 = create_hub("Hub B")
 
         url = self.base_url + "?ordering=name"
-        response = get_get_response(url)
+        response = self.client.get(url)
         response_data = response.data["results"]
 
         h1_first = False
@@ -77,7 +76,7 @@ class HubViewsTests(APITestCase):
         self.assertTrue(h1_first and h2_second)
 
         url = self.base_url + "?ordering=-name"
-        response = get_get_response(url)
+        response = self.client.get(url)
         response_data = response.data["results"]
 
         h2_first = False
@@ -96,7 +95,7 @@ class HubViewsTests(APITestCase):
 
         page = 1
         url = self.base_url + f"?page={page}&page_limit=10"
-        response = get_get_response(url)
+        response = self.client.get(url)
         result_count = len(response.data["results"])
         page1_ids = [h["id"] for h in response.data["results"]]
 
@@ -104,7 +103,7 @@ class HubViewsTests(APITestCase):
 
         page = 2
         url = self.base_url + f"?page={page}&page_limit=10"
-        response = get_get_response(url)
+        response = self.client.get(url)
         result_count = len(response.data["results"])
         page2_ids = [h["id"] for h in response.data["results"]]
 
@@ -174,15 +173,14 @@ class HubViewsTests(APITestCase):
         return self.get_hub_response(url, user)
 
     def get_hub_response(self, url, user):
-        data = None
-        return get_authenticated_post_response(user, url, data)
+        self.client.force_authenticate(user)
+        return self.client.post(url)
 
     def get_invite_to_hub_response(self, user, hub, emails):
         url = self.base_url + f"{hub.id}/invite_to_hub/"
         data = {"emails": emails}
-        return get_authenticated_post_response(
-            user, url, data, headers={"HTTP_ORIGIN": "researchhub.com"}
-        )
+        self.client.force_authenticate(user)
+        return self.client.post(url, data, format="json", HTTP_ORIGIN="researchhub.com")
 
     def test_exclude_journals_parameter(self):
         """Test that exclude_journals parameter filters out journal hubs"""
@@ -190,7 +188,7 @@ class HubViewsTests(APITestCase):
         create_hub(name="Journal Hub", namespace="journal")
 
         # Test with exclude_journals=true
-        response = get_get_response(self.base_url + "?exclude_journals=true")
+        response = self.client.get(self.base_url + "?exclude_journals=true")
         results = response.data["results"]
         self.assertEqual(len(results), 2)  # includes self.hub and self.hub2 from setUp
         hub_names = [h["name"] for h in results]
@@ -200,7 +198,7 @@ class HubViewsTests(APITestCase):
         """Test that exclude_journals=false includes journal hubs"""
 
         # Test with exclude_journals=false
-        response = get_get_response(self.base_url + "?exclude_journals=false")
+        response = self.client.get(self.base_url + "?exclude_journals=false")
         self.assertEqual(
             len(response.data["results"]), 2
         )  # includes self.hub and self.hub2 from setUp
