@@ -1,6 +1,5 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
-import pytz
 from django.db.models import Q
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
@@ -74,7 +73,7 @@ class NoteSerializer(ModelSerializer):
         )
 
         has_invited_users = note.invited_users.filter(
-            accepted=False, expiration_date__gt=datetime.now(pytz.utc)
+            accepted=False, expiration_date__gt=datetime.now(UTC)
         ).exists()
 
         if is_workspace:
@@ -198,7 +197,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         )
 
         has_invited_users = note.invited_users.filter(
-            accepted=False, expiration_date__gt=datetime.now(pytz.utc)
+            accepted=False, expiration_date__gt=datetime.now(UTC)
         ).exists()
 
         if is_workspace:

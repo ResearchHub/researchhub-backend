@@ -1,6 +1,5 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db.models import Q
@@ -208,7 +207,7 @@ class NoteViewSet(ModelViewSet):
         note = self.get_object()
         invited_users = (
             note.invited_users.filter(accepted=False)
-            .exclude(expiration_date__lt=datetime.now(pytz.utc))
+            .exclude(expiration_date__lt=datetime.now(UTC))
             .distinct("recipient_email")
         )
         serializer = DynamicNoteInvitationSerializer(
@@ -238,7 +237,7 @@ class NoteViewSet(ModelViewSet):
             recipient_email=recipient_email,
             note=note,
         )
-        invites.update(expiration_date=datetime.now(pytz.utc))
+        invites.update(expiration_date=datetime.now(UTC))
         return Response({"data": f"Invite removed for {recipient_email}"}, status=200)
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
@@ -419,7 +418,7 @@ class NoteViewSet(ModelViewSet):
         )
 
         # Updating all note invites
-        note.invited_users.update(expiration_date=datetime.now(pytz.utc))
+        note.invited_users.update(expiration_date=datetime.now(UTC))
 
         # Set current user as note admin
         content_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
