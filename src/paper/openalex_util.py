@@ -8,7 +8,6 @@ from django.core.validators import URLValidator
 from django.db import IntegrityError, transaction
 from django.db.models import Q, QuerySet
 
-import utils.sentry as sentry
 from institution.models import Institution
 from paper.related_models.citation_model import Citation, Source
 from user.related_models.author_contribution_summary_model import (
@@ -174,10 +173,9 @@ def create_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
         try:
             paper.clean_fields()
             paper.clean()
-        except ValidationError as e:
-            sentry.log_error(
-                e,
-                message=f"Failed to validate paper: {paper.doi}, {work.get('id')}",
+        except ValidationError:
+            logger.exception(
+                "Failed to validate paper: %s, %s", paper.doi, work.get("id")
             )
             continue
 
@@ -199,15 +197,11 @@ def create_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
                 "openalex_work": work,
                 "paper": paper,
             }
-        except IntegrityError as e:
-            sentry.log_error(
-                e, message=f"Failed to save paper, DOI already exists: {paper.doi}"
-            )
+        except IntegrityError:
+            logger.error("Failed to save paper, DOI already exists: %s", paper.doi)
             continue
-        except Exception as e:
-            sentry.log_error(
-                e, message=f"Failed to save paper, unexpected error: {paper.doi}"
-            )
+        except Exception:
+            logger.exception("Failed to save paper, unexpected error: %s", paper.doi)
             continue
 
     return paper_to_openalex_data
@@ -258,8 +252,8 @@ def update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
         papers_to_update = [paper for paper, _ in works]
         try:
             Paper.objects.bulk_update(papers_to_update, fields_to_update)
-        except Exception as e:
-            sentry.log_error(e, message="Failed to bulk update papers")
+        except Exception:
+            logger.exception("Failed to bulk update papers")
 
     return paper_to_openalex_data
 
@@ -298,13 +292,7 @@ def build_oa_authors_by_work_id_dict(
             if oa_author_id in fetched_oa_authors_by_id:
                 oa_authors.append(fetched_oa_authors_by_id[oa_author_id])
             else:
-                logging.warning(
-                    f"Author with OpenAlex ID not found: {oa_author_id}",
-                )
-                sentry.log_error(
-                    None,
-                    message=f"Author with OpenAlex ID not found: {oa_author_id}",
-                )
+                logging.warning("Author with OpenAlex ID not found: %s", oa_author_id)
 
         oa_authors_by_work_id[work.get("id")] = oa_authors
 
@@ -381,9 +369,9 @@ def create_openalex_authorships_and_institutions(
         oa_authors = oa_authors_by_work_id.get(work["id"], [])
 
         if not openalex_authorships or not paper_id:
-            sentry.log_error(
-                None,
-                message=f"Authorships data is missing or paper_id is None for work: {work.get('id')}",
+            logger.warning(
+                "Authorships data is missing or paper_id is None for work: %s",
+                work.get("id"),
             )
             continue
 
@@ -422,10 +410,9 @@ def create_openalex_authorships_and_institutions(
                             if key not in authorship_institution_relations:
                                 authorship_institution_relations[key] = []
                             authorship_institution_relations[key].append(institution)
-                    except Exception as e:
-                        sentry.log_error(
-                            e,
-                            message=f"Failed to upsert institution: {e}",
+                    except Exception:
+                        logger.exception(
+                            "Failed to upsert institution: %s", oa_inst.get("id")
                         )
 
     Authorship.objects.bulk_create(
@@ -458,13 +445,12 @@ def merge_openalex_authors_with_researchhub_authors(oa_authors, authors_by_oa_id
             for rh_author in rh_authors:
                 merge_openalex_author_with_researchhub_author(oa_author, rh_author)
 
-        except Exception as e:
+        except Exception:
             logging.warning(
                 f"Author with OpenAlex ID failed to be merged: {oa_author.get('id')}",
             )
-            sentry.log_error(
-                e,
-                message=f"Author with OpenAlex ID failed to be merged {oa_author.get('id')}",
+            logger.exception(
+                "Author with OpenAlex ID failed to be merged: %s", oa_author.get("id")
             )
             continue
 
