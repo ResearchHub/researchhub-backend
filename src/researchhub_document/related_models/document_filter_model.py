@@ -1,6 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-import pytz
 from django.db import models
 from django.db.models import Count, DecimalField, Q, Sum
 from django.db.models.functions import Coalesce
@@ -243,32 +242,32 @@ class DocumentFilter(DefaultModel):
     def update_discussed_today(self, unified_document, document, update_fields):
         # Same buffer as get_date_ranges_by_time_scope in researchhub_document/utils.py
         hours_buffer = 10
-        now = datetime.now(pytz.UTC)
+        now = datetime.now(UTC)
         start_date = now - timedelta(hours=(24 + hours_buffer))
         self.discussed_today = self.get_discussued(document, start_date, now)
         update_fields.append("discussed_today")
 
     def update_discussed_week(self, unified_document, document, update_fields):
-        now = datetime.now(pytz.UTC)
+        now = datetime.now(UTC)
         start_date = now - timedelta(days=7)
         self.discussed_week = self.get_discussued(document, start_date, now)
         update_fields.append("discussed_week")
 
     def update_discussed_month(self, unified_document, document, update_fields):
-        now = datetime.now(pytz.UTC)
+        now = datetime.now(UTC)
         start_date = now - timedelta(days=30)
         self.discussed_month = self.get_discussued(document, start_date, now)
         update_fields.append("discussed_month")
 
     def update_discussed_year(self, unified_document, document, update_fields):
-        now = datetime.now(pytz.UTC)
+        now = datetime.now(UTC)
         start_date = now - timedelta(days=365)
         self.discussed_year = self.get_discussued(document, start_date, now)
         update_fields.append("discussed_year")
 
     def update_discussed_all(self, unified_document, document, update_fields):
-        now = datetime.now(pytz.UTC)
-        start_date = datetime(year=2018, month=12, day=31, hour=0, tzinfo=pytz.UTC)
+        now = datetime.now(UTC)
+        start_date = datetime(year=2018, month=12, day=31, hour=0, tzinfo=UTC)
         self.discussed_all = self.get_discussued(document, start_date, now)
         update_fields.append("discussed_all")
 
@@ -303,32 +302,32 @@ class DocumentFilter(DefaultModel):
     def update_upvoted_today(self, unified_document, document, update_fields):
         # Same buffer as get_date_ranges_by_time_scope in researchhub_document/utils.py
         hours_buffer = 10
-        now = datetime.now(pytz.UTC)
+        now = datetime.now(UTC)
         start_date = now - timedelta(hours=(24 + hours_buffer))
         self.upvoted_today = self.get_upvotes(document, start_date, now)
         update_fields.append("upvoted_today")
 
     def update_upvoted_week(self, unified_document, document, update_fields):
-        now = datetime.now(pytz.UTC)
+        now = datetime.now(UTC)
         start_date = now - timedelta(days=7)
         self.upvoted_week = self.get_upvotes(document, start_date, now)
         update_fields.append("upvoted_week")
 
     def update_upvoted_month(self, unified_document, document, update_fields):
-        now = datetime.now(pytz.UTC)
+        now = datetime.now(UTC)
         start_date = now - timedelta(days=30)
         self.upvoted_month = self.get_upvotes(document, start_date, now)
         update_fields.append("upvoted_month")
 
     def update_upvoted_year(self, unified_document, document, update_fields):
-        now = datetime.now(pytz.UTC)
+        now = datetime.now(UTC)
         start_date = now - timedelta(days=365)
         self.upvoted_year = self.get_upvotes(document, start_date, now)
         update_fields.append("upvoted_year")
 
     def update_upvoted_all(self, unified_document, document, update_fields):
-        now = datetime.now(pytz.UTC)
-        start_date = datetime(year=2018, month=12, day=31, hour=0, tzinfo=pytz.UTC)
+        now = datetime.now(UTC)
+        start_date = datetime(year=2018, month=12, day=31, hour=0, tzinfo=UTC)
         self.upvoted_all = self.get_upvotes(document, start_date, now)
         update_fields.append("upvoted_all")
 
