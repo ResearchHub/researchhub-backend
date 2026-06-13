@@ -26,20 +26,6 @@ def generate_password(length=16):
     )
 
 
-def get_get_response(
-    path, query_data=None, follow_redirects=True, csrf=False, http_origin=None
-):
-    """
-    Returns the response of a `GET` request made by `client`.
-
-    query_data {'param1': ['value1', 'value2'], 'param2': ['value3']}
-    """
-    client = APIClient(enforce_csrf_checks=csrf, HTTP_ORIGIN=http_origin)
-    return client.get(
-        path, data=query_data, follow=follow_redirects, content_type="application/json"
-    )
-
-
 def get_authenticated_post_response(
     user, url, data, content_type="application/json", follow=False, headers=None
 ):
