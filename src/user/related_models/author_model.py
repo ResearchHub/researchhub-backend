@@ -191,15 +191,6 @@ class Author(models.Model):
         emails = account.extra_data.get("verified_edu_emails", [])
         return emails[0] if emails else None
 
-    @property
-    def profile_image_indexing(self):
-        if self.profile_image is not None:
-            try:
-                return self.profile_image.url
-            except ValueError:
-                return str(self.profile_image)
-        return None
-
     def get_all_authorships(self):
         """
         Get all authorships for this author, including merged shadow authors.
