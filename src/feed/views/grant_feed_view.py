@@ -12,27 +12,23 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from ai_peer_review.models import ProposalReview
+from feed.cache_segment import get_feed_cache_segment
+from feed.feed_list_dto import GrantFeedListEntrySerializer
 from feed.filters import FundOrderingFilter
 from feed.models import FeedEntry
-from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
 from feed.views.grant_cache_mixin import GRANT_FEED_MAX_CACHED_PAGE, GrantCacheMixin
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_model import Grant
-from purchase.related_models.purchase_model import Purchase
-from purchase.related_models.usd_fundraise_contribution_model import (
-    UsdFundraiseContribution,
-)
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from review.models import Review
 
-from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
 
 class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
-    serializer_class = PostSerializer
+    serializer_class = GrantFeedListEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
@@ -44,30 +40,39 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context.update(self.get_common_serializer_context())
+        context["include_key_insights"] = self._include_key_insights()
         return context
+
+    @staticmethod
+    def _include_key_insights_from_request(request):
+        return bool(request.query_params.get("created_by")) or (
+            request.query_params.get("include_key_insights", "").lower() == "true"
+        )
+
+    def _include_key_insights(self):
+        return self._include_key_insights_from_request(self.request)
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
         page_num = int(page)
-        cache_key = self.get_cache_key(request, "grants")
-        use_cache = page_num <= GRANT_FEED_MAX_CACHED_PAGE
+        suffix, should_cache = get_feed_cache_segment(request)
+        use_cache = should_cache and page_num <= GRANT_FEED_MAX_CACHED_PAGE
+        cache_key = (
+            (self.get_cache_key(request, "grants") + suffix) if use_cache else None
+        )
 
-        if use_cache:
+        if cache_key:
             cached_response = cache.get(cache_key)
             if cached_response:
-                if request.user.is_authenticated:
-                    self.add_user_votes_to_response(request.user, cached_response)
                 return Response(cached_response)
 
-        # Get paginated posts
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
 
         feed_entries = []
         for post in page:
-            # Create an unsaved FeedEntry instance
             feed_entry = FeedEntry(
-                id=post.id,  # We can use the post ID as a temporary ID
+                id=post.id,
                 content_type=self._post_content_type,
                 object_id=post.id,
                 action="PUBLISH",
@@ -76,17 +81,14 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
                 unified_document=post.unified_document,
             )
             feed_entry.item = post
-            metrics = serialize_feed_metrics(post, self._post_content_type)
-            feed_entry.metrics = metrics
             feed_entries.append(feed_entry)
 
-        serializer = GrantFeedEntrySerializer(feed_entries, many=True)
+        serializer = GrantFeedListEntrySerializer(
+            feed_entries, many=True, context=self.get_serializer_context()
+        )
         response_data = self.get_paginated_response(serializer.data).data
 
-        if request.user.is_authenticated:
-            self.add_user_votes_to_response(request.user, response_data)
-
-        if use_cache:
+        if cache_key:
             cache.set(cache_key, response_data, timeout=self.DEFAULT_CACHE_TIMEOUT)
 
         return Response(response_data)
@@ -95,6 +97,34 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
         status = self.request.query_params.get("status")
         organization = self.request.query_params.get("organization")
         created_by = self.request.query_params.get("created_by")
+        include_key_insights = self._include_key_insights()
+
+        prefetch_related = [
+            "unified_document__hubs",
+            "unified_document__grants__applications__applicant__author_profile",
+            Prefetch(
+                "unified_document__grants__applications__preregistration_post__unified_document__reviews",
+                queryset=Review.objects.filter(is_removed=False).select_related(
+                    "created_by__author_profile"
+                ),
+            ),
+            Prefetch(
+                "unified_document__grants__applications__preregistration_post__unified_document__fundraises",
+                queryset=Fundraise.objects.prefetch_related(
+                    "nonprofit_links__nonprofit",
+                ),
+            ),
+        ]
+
+        if include_key_insights:
+            prefetch_related.append(
+                Prefetch(
+                    "unified_document__grants__proposal_reviews",
+                    queryset=ProposalReview.objects.prefetch_related(
+                        "key_insight__items"
+                    ),
+                )
+            )
 
         queryset = (
             ResearchhubPost.objects.filter(unified_document__is_public=True)
@@ -103,50 +133,7 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
                 "created_by__author_profile",
                 "unified_document",
             )
-            .prefetch_related(
-                "unified_document__hubs",
-                Prefetch(
-                    "unified_document__reviews",
-                    queryset=Review.objects.select_related(
-                        "created_by__author_profile"
-                    ),
-                ),
-                Prefetch(
-                    "unified_document__grants__proposal_reviews",
-                    queryset=ProposalReview.objects.prefetch_related(
-                        "key_insight__items"
-                    ),
-                ),
-                "unified_document__grants__applications__applicant__author_profile",
-                Prefetch(
-                    "unified_document__grants__applications__preregistration_post__unified_document__reviews",
-                    queryset=Review.objects.filter(is_removed=False).select_related(
-                        "created_by__author_profile"
-                    ),
-                ),
-                Prefetch(
-                    "unified_document__grants__applications__preregistration_post__unified_document__fundraises",
-                    queryset=Fundraise.objects.select_related(
-                        "escrow"
-                    ).prefetch_related(
-                        Prefetch(
-                            "purchases",
-                            queryset=Purchase.objects.select_related(
-                                "user__author_profile"
-                            ),
-                            to_attr="prefetched_purchases",
-                        ),
-                        Prefetch(
-                            "usd_contributions",
-                            queryset=UsdFundraiseContribution.objects.select_related(
-                                "user__author_profile"
-                            ),
-                            to_attr="prefetched_usd_contributions",
-                        ),
-                        "nonprofit_links__nonprofit",
-                    ),
-                ),
-            )
+            .prefetch_related(*prefetch_related)
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )
 
