@@ -96,6 +96,3 @@ extend-select = [
 # Allow `print`s in management commands:
 "**/management/commands/*.py" = ["T20"]
 
-# Temporarily ignore lint rules per app.
-# E501: line too long
-"src/paper/**/*.py" = ["E501"]
