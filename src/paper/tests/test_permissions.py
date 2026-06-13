@@ -1,20 +1,17 @@
 import random
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from rest_framework.test import APITestCase
 
-from utils.test_helpers import (
-    IntegrationTestHelper,
-    TestHelper,
-    get_authenticated_patch_response,
-    get_authenticated_post_response,
-    get_authenticated_put_response,
-)
+from hub.tests.helpers import create_hub
+from user.models import Author
+from user.tests.helpers import create_random_authenticated_user, create_university
 
+from .helpers import TestData as PaperTestData
 from .helpers import create_paper
 
 
-class BaseIntegrationMixin(TestHelper, IntegrationTestHelper):
+class BaseIntegrationMixin:
     def assertPostWithReputationResponds(self, reputation, status_code):
         response = self.post_with_reputation(reputation)
         self.assertEqual(response.status_code, status_code)
@@ -24,13 +21,13 @@ class BaseIntegrationMixin(TestHelper, IntegrationTestHelper):
 
     def create_user_with_reputation(self, reputation):
         unique_value = self.random_generator.random()
-        user = self.create_random_authenticated_user(unique_value)
+        user = create_random_authenticated_user(unique_value)
         user.reputation = reputation
         user.save()
         return user
 
 
-class PaperPermissionsIntegrationTests(TestCase, BaseIntegrationMixin):
+class PaperPermissionsIntegrationTests(APITestCase, BaseIntegrationMixin):
     def setUp(self):
         SEED = "paper"
         self.random_generator = random.Random(SEED)
@@ -75,41 +72,35 @@ class PaperPermissionsIntegrationTests(TestCase, BaseIntegrationMixin):
     def get_paper_submission_response(self, user):
         url = self.base_url
         form_data = self.build_paper_form()
-        response = get_authenticated_post_response(
-            user, url, form_data, content_type="multipart/form-data"
-        )
-        return response
+        self.client.force_authenticate(user)
+        return self.client.post(url, form_data, format="multipart")
 
     def get_patch_response(self, user, paper):
         if paper is None:
             paper = self.paper
         url = self.base_url + f"{paper.id}/"
         data = {"title": "Patched Paper Title"}
-        response = get_authenticated_patch_response(
-            user, url, data, content_type="multipart/form-data"
-        )
-        return response
+        self.client.force_authenticate(user)
+        return self.client.patch(url, data, format="multipart")
 
     def get_put_response(self, user, paper):
         if paper is None:
             paper = self.paper
         url = self.base_url + f"{paper.id}/"
         form_data = self.build_paper_form()
-        response = get_authenticated_put_response(
-            user, url, form_data, content_type="multipart/form-data"
-        )
-        return response
+        self.client.force_authenticate(user)
+        return self.client.put(url, form_data, format="multipart")
 
     def build_paper_form(self):
         file = SimpleUploadedFile("../config/paper.pdf", b"file_content")
-        hub = self.create_hub("Cryptography")
-        university = self.create_university(name="Univeristy of Atlanta")
-        author = self.create_author_without_user(
-            university, first_name="Tom", last_name="Riddle"
+        hub = create_hub("Cryptography")
+        university = create_university(name="Univeristy of Atlanta")
+        author = Author.objects.create(
+            university=university, first_name="Tom", last_name="Riddle"
         )
         form = {
             "title": "The Best Paper",
-            "paper_publish_date": self.paper_publish_date,
+            "paper_publish_date": PaperTestData.paper_publish_date,
             "file": file,
             "hubs": [hub.id],
             "authors": [1, author.id],
@@ -125,23 +116,17 @@ class PaperPermissionsIntegrationTests(TestCase, BaseIntegrationMixin):
     def get_flag_response(self, user):
         url = self.base_url + f"{self.paper.id}/flag/"
         data = {"reason": self.flag_reason, "reason_choice": "SPAM"}
-        response = get_authenticated_post_response(
-            user, url, data, content_type="application/json"
-        )
-        return response
+        self.client.force_authenticate(user)
+        return self.client.post(url, data, format="json")
 
     def get_upvote_response(self, user):
         url = self.base_url + f"{self.paper.id}/upvote/"
         data = {}
-        response = get_authenticated_post_response(
-            user, url, data, content_type="application/json"
-        )
-        return response
+        self.client.force_authenticate(user)
+        return self.client.post(url, data, format="json")
 
     def get_downvote_response(self, user):
         url = self.base_url + f"{self.paper.id}/downvote/"
         data = {}
-        response = get_authenticated_post_response(
-            user, url, data, content_type="application/json"
-        )
-        return response
+        self.client.force_authenticate(user)
+        return self.client.post(url, data, format="json")
