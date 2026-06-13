@@ -1,6 +1,5 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db import transaction
@@ -163,7 +162,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         permissions = organization.permissions
         invited_users = (
             organization.invited_users.filter(accepted=False)
-            .exclude(expiration_date__lt=datetime.now(pytz.utc))
+            .exclude(expiration_date__lt=datetime.now(UTC))
             .distinct("recipient_email")
         )
         admin_user_ids = permissions.filter(
@@ -178,7 +177,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
         invited_users = invited_users.exclude(
             recipient__in=all_users.values("id"),
-        ).filter(expiration_date__gt=datetime.now(pytz.utc))
+        ).filter(expiration_date__gt=datetime.now(UTC))
         invitation_serializer = DynamicOrganizationInvitationSerializer(
             invited_users,
             _include_fields=[
@@ -329,7 +328,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             recipient_email=recipient_email,
             organization=organization,
         )
-        invites.update(expiration_date=datetime.now(pytz.utc))
+        invites.update(expiration_date=datetime.now(UTC))
         return Response({"data": f"Invite removed for {recipient_email}"}, status=200)
 
     @action(
