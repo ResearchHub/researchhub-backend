@@ -3,7 +3,6 @@ import string
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, TransactionTestCase
-from rest_framework.test import APIClient
 
 from paper.models import Paper
 from user.models import User
@@ -24,31 +23,6 @@ def generate_password(length=16):
             for _ in range(length - 3)
         )
     )
-
-
-def get_authenticated_patch_response(user, url, data, content_type):
-    """
-    Sends a patch request authenticated with `user` and returns the response.
-    """
-    client, content_format = _get_authenticated_client_config(user, url, content_type)
-    response = client.patch(url, data, format=content_format)
-    return response
-
-
-def _get_authenticated_client_config(user, url, content_type, http_origin=None):
-    csrf = False
-
-    if content_type == "multipart/form-data":
-        content_format = "multipart"
-        csrf = True
-    elif content_type == "plain/text":
-        content_format = "txt"
-    else:
-        content_format = "json"
-
-    client = APIClient(enforce_csrf_checks=csrf, HTTP_ORIGIN=http_origin)
-    client.force_authenticate(user=user, token=user.auth_token)
-    return client, content_format
 
 
 def create_test_user(
