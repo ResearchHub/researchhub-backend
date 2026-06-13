@@ -6,6 +6,7 @@ from django.test import TestCase
 
 from paper.tests.helpers import create_paper
 from purchase.models import Fundraise, Purchase
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
@@ -13,6 +14,9 @@ from reputation.models import Distribution
 from reputation.related_models.escrow import Escrow, EscrowRecipients
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.related_models.funding_activity_model import (
     FundingActivity,
     FundingActivityRecipient,
@@ -29,7 +33,9 @@ class FundingActivitySignalsTests(TestCase):
     @patch("user.signals.funding_activity_signals.create_funding_activity_task")
     @patch("user.signals.funding_activity_signals.transaction")
     def test_purchase_paid_boost_schedules_task(self, mock_transaction, mock_task):
-        """When Purchase is saved with PAID + BOOST, task is scheduled with TIP_DOCUMENT."""
+        """
+        When Purchase is saved with PAID + BOOST, task is scheduled with TIP_DOCUMENT.
+        """
         mock_transaction.on_commit = lambda func: func()
         from django.contrib.contenttypes.models import ContentType
 
@@ -57,11 +63,10 @@ class FundingActivitySignalsTests(TestCase):
 
     @patch("user.signals.funding_activity_signals.create_funding_activity_task")
     def test_purchase_paid_fundraise_does_not_schedule_task(self, mock_task):
-        """When Purchase is saved with PAID + FUNDRAISE_CONTRIBUTION, task is not scheduled (fundraise payouts are triggered from Escrow signal)."""
-        from researchhub_document.related_models.researchhub_unified_document_model import (
-            ResearchhubUnifiedDocument,
-        )
-
+        """
+        When Purchase is saved with PAID + FUNDRAISE_CONTRIBUTION, task is not scheduled
+        (fundraise payouts are triggered from Escrow signal).
+        """
         uni_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="PREREGISTRATION"
         )
@@ -97,11 +102,11 @@ class FundingActivitySignalsTests(TestCase):
     def test_escrow_paid_fundraise_schedules_task_per_purchase(
         self, mock_transaction, mock_task
     ):
-        """When Escrow is saved with PAID + FUNDRAISE, task is scheduled for each PAID FUNDRAISE_CONTRIBUTION purchase."""
+        """
+        When Escrow is saved with PAID + FUNDRAISE, task is scheduled for each
+        PAID FUNDRAISE_CONTRIBUTION purchase.
+        """
         mock_transaction.on_commit = lambda func: func()
-        from researchhub_document.related_models.researchhub_unified_document_model import (
-            ResearchhubUnifiedDocument,
-        )
 
         uni_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="PREREGISTRATION"
@@ -142,11 +147,11 @@ class FundingActivitySignalsTests(TestCase):
     def test_escrow_paid_fundraise_schedules_usd_contribution_tasks(
         self, mock_transaction, mock_task
     ):
-        """When Escrow is PAID + FUNDRAISE, task is scheduled for each non-refunded USD contribution."""
+        """
+        When Escrow is PAID + FUNDRAISE, task is scheduled for each non-refunded USD
+        contribution.
+        """
         mock_transaction.on_commit = lambda func: func()
-        from researchhub_document.related_models.researchhub_unified_document_model import (
-            ResearchhubUnifiedDocument,
-        )
 
         uni_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="PREREGISTRATION"
@@ -219,7 +224,10 @@ class FundingActivitySignalsTests(TestCase):
     def test_escrow_paid_bounty_schedules_task_per_recipient(
         self, mock_transaction, mock_task
     ):
-        """When Escrow is saved with PAID + BOUNTY, task is scheduled for each EscrowRecipients."""
+        """
+        When Escrow is saved with PAID + BOUNTY, task is scheduled for each
+        EscrowRecipients.
+        """
         mock_transaction.on_commit = lambda func: func()
         from django.contrib.contenttypes.models import ContentType
 
@@ -256,7 +264,10 @@ class FundingActivitySignalsTests(TestCase):
     def test_distribution_created_purchase_schedules_task(
         self, mock_transaction, mock_task
     ):
-        """When Distribution is created with PURCHASE (proof = Purchase on review comment), task is scheduled with TIP_REVIEW."""
+        """
+        When Distribution is created with PURCHASE (proof = Purchase on review comment),
+        task is scheduled with TIP_REVIEW.
+        """
         mock_transaction.on_commit = lambda func: func()
         paper = create_paper(title="Review paper", uploaded_by=self.recipient)
         thread = RhCommentThreadModel.objects.create(
@@ -379,7 +390,8 @@ class FundingActivitySignalsTests(TestCase):
         self.assertEqual(
             activities.count(),
             1,
-            "Exactly one FundingActivity (BOUNTY_PAYOUT) should exist for this EscrowRecipients; check user_fundingactivity",
+            "Exactly one FundingActivity (BOUNTY_PAYOUT) should exist for this "
+            "EscrowRecipients; check user_fundingactivity",
         )
         activity = activities.get()
         self.assertEqual(activity.funder_id, self.funder.id)
@@ -388,7 +400,8 @@ class FundingActivitySignalsTests(TestCase):
         self.assertEqual(
             recipients.count(),
             1,
-            "Exactly one FundingActivityRecipient should exist; check user_fundingactivityrecipient",
+            "Exactly one FundingActivityRecipient should exist; "
+            "check user_fundingactivityrecipient",
         )
         self.assertEqual(recipients.get().recipient_user_id, self.recipient.id)
         self.assertEqual(
@@ -414,10 +427,6 @@ class FundingActivitySignalsTests(TestCase):
             "user.signals.funding_activity_signals.create_funding_activity_task"
         ) as mock_task:
             mock_task.delay = run_task_sync
-
-            from researchhub_document.related_models.researchhub_unified_document_model import (
-                ResearchhubUnifiedDocument,
-            )
 
             uni_doc = ResearchhubUnifiedDocument.objects.create(
                 document_type="PREREGISTRATION"
@@ -457,7 +466,8 @@ class FundingActivitySignalsTests(TestCase):
         self.assertEqual(
             activities.count(),
             1,
-            "Exactly one FundingActivity (FUNDRAISE_PAYOUT) should exist for this Purchase; check user_fundingactivity",
+            "Exactly one FundingActivity (FUNDRAISE_PAYOUT) should exist for this "
+            "Purchase; check user_fundingactivity",
         )
         activity = activities.get()
         self.assertEqual(activity.funder_id, self.funder.id)
@@ -466,7 +476,8 @@ class FundingActivitySignalsTests(TestCase):
         self.assertEqual(
             recipients.count(),
             1,
-            "Exactly one FundingActivityRecipient should exist; check user_fundingactivityrecipient",
+            "Exactly one FundingActivityRecipient should exist; "
+            "check user_fundingactivityrecipient",
         )
         self.assertEqual(recipients.get().recipient_user_id, self.recipient.id)
 
@@ -487,11 +498,6 @@ class FundingActivitySignalsTests(TestCase):
             "user.signals.funding_activity_signals.create_funding_activity_task"
         ) as mock_task:
             mock_task.delay = run_task_sync
-
-            from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-            from researchhub_document.related_models.researchhub_unified_document_model import (
-                ResearchhubUnifiedDocument,
-            )
 
             RscExchangeRate.objects.create(
                 rate=0.5, real_rate=0.5, target_currency="USD"
