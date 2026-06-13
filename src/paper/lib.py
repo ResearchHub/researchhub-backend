@@ -311,9 +311,7 @@ class AAAS(Journal):
         parts = journal_url.split(cls.journal_url_split_on)
         without_query_params = parts[1].split("?")[0]
         try:
-            pdf_url = (
-                f"{parts[0]}{cls.journal_url_split_on}/pdf{without_query_params}{cls.pdf_url_suffix}",
-            )
+            pdf_url = f"{parts[0]}{cls.journal_url_split_on}/pdf{without_query_params}{cls.pdf_url_suffix}"  # noqa: E501
             return pdf_url
         except Exception as e:
             sentry.log_error(e, message=journal_url)

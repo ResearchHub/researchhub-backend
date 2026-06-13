@@ -448,9 +448,6 @@ def merge_openalex_authors_with_researchhub_authors(oa_authors, authors_by_oa_id
                 merge_openalex_author_with_researchhub_author(oa_author, rh_author)
 
         except Exception:
-            logging.warning(
-                f"Author with OpenAlex ID failed to be merged: {oa_author.get('id')}",
-            )
             logger.exception(
                 "Author with OpenAlex ID failed to be merged: %s", oa_author.get("id")
             )

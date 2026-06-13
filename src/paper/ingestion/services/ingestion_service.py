@@ -262,7 +262,7 @@ class PaperIngestionService:
 
             except Exception as e:
                 logger.exception(
-                    "Failed to process paper %s: %s", record.get("id", "unknown")
+                    "Failed to process paper %s", record.get("id", "unknown")
                 )
                 failed_records.append(
                     {

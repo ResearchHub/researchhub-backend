@@ -109,7 +109,9 @@ class PaperMetricsEnrichmentService:
             self._update_paper_metrics(paper, {"github_mentions": result})
 
             logger.info(
-                "Successfully saved %s mentions for paper %s.", result, paper.id
+                "Successfully saved %s mentions for paper %s.",
+                result["total_mentions"],
+                paper.id,
             )
 
             return EnrichmentResult(
