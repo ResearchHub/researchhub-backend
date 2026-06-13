@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
@@ -155,11 +156,7 @@ class PaymentIntentSerializerTest(TestCase):
 
     def test_fundraise_id_expired_fundraise(self):
         # Arrange
-        from datetime import datetime, timedelta
-
-        import pytz
-
-        self.fundraise.end_date = datetime.now(pytz.UTC) - timedelta(days=1)
+        self.fundraise.end_date = datetime.now(UTC) - timedelta(days=1)
         self.fundraise.save()
 
         data = {
