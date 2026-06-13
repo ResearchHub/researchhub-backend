@@ -1,10 +1,7 @@
-import json
 import secrets
 import string
-import threading
 from unittest.mock import MagicMock, patch
 
-from django.db import connection
 from django.test import TestCase, TransactionTestCase
 from rest_framework.test import APIClient
 
@@ -27,23 +24,6 @@ def generate_password(length=16):
             for _ in range(length - 3)
         )
     )
-
-
-def bytes_to_json(data_bytes):
-    """Returns `json_dict` representation of `data_bytes`."""
-    data_string = data_bytes.decode("utf-8")
-    json_dict = json.loads(data_string)
-    return json_dict
-
-
-def get_authenticated_get_response(user, url, content_type="application/json"):
-    """
-    Sends a get request authenticated with `user` and returns the response.
-    """
-    client, content_format = _get_authenticated_client_config(user, url, content_type)
-
-    response = client.get(url, format=content_format)
-    return response
 
 
 def get_get_response(
@@ -85,24 +65,6 @@ def get_authenticated_patch_response(user, url, data, content_type):
     return response
 
 
-def get_authenticated_put_response(user, url, data, content_type="application/json"):
-    """
-    Sends a put request authenticated with `user` and returns the response.
-    """
-    client, content_format = _get_authenticated_client_config(user, url, content_type)
-    response = client.put(url, data, format=content_format)
-    return response
-
-
-def get_authenticated_delete_response(user, url, data, content_type):
-    """
-    Sends a delete request authenticated with `user` and returns the response.
-    """
-    client, content_format = _get_authenticated_client_config(user, url, content_type)
-    response = client.delete(url, data, format=content_format)
-    return response
-
-
 def _get_authenticated_client_config(user, url, content_type, http_origin=None):
     csrf = False
 
@@ -117,10 +79,6 @@ def _get_authenticated_client_config(user, url, content_type, http_origin=None):
     client = APIClient(enforce_csrf_checks=csrf, HTTP_ORIGIN=http_origin)
     client.force_authenticate(user=user, token=user.auth_token)
     return client, content_format
-
-
-def get_user_from_response(response):
-    return response.wsgi_request.user
 
 
 def create_test_user(
