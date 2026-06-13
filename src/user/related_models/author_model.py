@@ -82,7 +82,8 @@ class Author(models.Model):
         max_length=20,
     )
 
-    # Indicates whether the user was created through the RH platform or through another source such as OpenAlex
+    # Indicates whether the user was created through the RH platform or through another
+    # source such as OpenAlex
     created_source = models.CharField(
         max_length=20,
         null=False,
@@ -91,7 +92,8 @@ class Author(models.Model):
         default=SOURCE_RESEARCHHUB,
     )
 
-    # Indicates the last time we did a full fetch from OpenAlex which includes all the works
+    # Indicates the last time we did a full fetch from OpenAlex which includes all the
+    # works
     last_full_fetch_from_openalex = models.DateTimeField(null=True, blank=True)
 
     # AKA Impact Factor. Derived from OpenAlex:  https://en.wikipedia.org/wiki/Impact_factor
