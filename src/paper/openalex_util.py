@@ -45,7 +45,8 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
 
 """
 This dictionary maps OpenAlex sources (`external_source`) to ResearchHub journal hubs.
-It is used to automatically tag papers with the appropriate journal hub when they are fetched from OpenAlex.
+It is used to automatically tag papers with the appropriate journal hub when they are
+fetched from OpenAlex.
 Note: If the name of the journal hub changes, this dictionary will need to be updated.
 """
 OPENALEX_SOURCES_TO_JOURNAL_HUBS: Dict[str, str] = {
@@ -402,7 +403,8 @@ def create_openalex_authorships_and_institutions(
 
                 authorships_to_create_or_update[key] = authorship
 
-                # Set institutions associated with authorships if they do not already exist
+                # Set institutions associated with authorships
+                # if they do not already exist
                 for oa_inst in oa_authorship.get("institutions", []):
                     try:
                         institution = Institution.upsert_from_openalex(oa_inst)
@@ -457,7 +459,8 @@ def merge_openalex_authors_with_researchhub_authors(oa_authors, authors_by_oa_id
 
 def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_author):
     """
-    Merges the OpenAlex author data with the ResearchHub author data. This is necessary because the OpenAlex author data
+    Merges the OpenAlex author data with the ResearchHub author data.
+    This is necessary because the OpenAlex author data
     """
     # Update basic metadata fields
     researchhub_author.i10_index = openalex_author.get("summary_stats", {}).get(

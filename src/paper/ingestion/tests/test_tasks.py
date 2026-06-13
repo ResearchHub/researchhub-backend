@@ -854,7 +854,8 @@ class XMetricsTasksTests(TestCase):
         self, mock_metrics_client_class
     ):
         """
-        Test enrichment of paper without DOI but with title - should use title for search.
+        Test enrichment of paper without DOI but with title -
+        should use title for search.
         """
         # Arrange
         mock_client = Mock()

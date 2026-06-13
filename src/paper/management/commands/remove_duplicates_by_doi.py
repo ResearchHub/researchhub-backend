@@ -42,8 +42,8 @@ class Command(BaseCommand):
                     is_removed=False,
                 ).exclude(id=paper.id)
 
-                # Exclude papers that have non-zero discussion counts or related CitationEntry
-                # Since these are probably (in use)
+                # Exclude papers that have non-zero discussion counts or related
+                # CitationEntry since these are probably (in use)
                 duplicate_papers = (
                     duplicate_papers.filter(discussion_count=0)
                     .exclude(unified_document__citation_entries__isnull=False)
@@ -64,6 +64,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                "Successfully marked duplicate papers with 0 discussion count as removed in batches."
+                "Successfully marked duplicate papers with 0 discussion count as "
+                "removed in batches."
             )
         )

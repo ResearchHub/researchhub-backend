@@ -324,7 +324,10 @@ class PaperApiTests(APITestCase):
         self.assertIn("corresponding author is required", str(response.data["error"]))
 
     def test_create_researchhub_paper_increments_version(self):
-        """Test that creating a new version of an existing paper increments the version number"""
+        """
+        Test that creating a new version of an existing paper increments
+        the version number
+        """
         # Create initial paper
         original_paper = create_paper()
         PaperVersion.objects.create(
@@ -537,7 +540,9 @@ class PaperApiTests(APITestCase):
         self.assertEqual(paper_version.original_paper_id, original_paper.id)
 
     def test_create_researchhub_paper_version_lineage(self):
-        """Test that creating multiple versions maintains consistent original_paper_id"""
+        """
+        Test that creating multiple versions maintains consistent original_paper_id
+        """
         user = create_random_authenticated_user("test_user")
         make_user_verified(user)
         self.client.force_authenticate(user)

@@ -276,7 +276,8 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         if not file:
             return None
 
-        # Don't return copyrighted content by default, but enable override for specific cases
+        # Don't return copyrighted content by default,
+        # but enable override for specific cases
         exclude_copyrighted_content = self.context.get(
             "exclude_copyrighted_content", True
         )
@@ -291,7 +292,8 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         if not paper.pdf_url:
             return None
 
-        # Don't return copyrighted content by default, but enable override for specific cases
+        # Don't return copyrighted content by default,
+        # but enable override for specific cases
         exclude_copyrighted_content = self.context.get(
             "exclude_copyrighted_content", True
         )
@@ -1012,7 +1014,8 @@ class DynamicPaperSerializer(
         if not paper.file:
             return None
 
-        # Don't return copyrighted content by default, but enable override for specific cases
+        # Don't return copyrighted content by default,
+        # but enable override for specific cases
         exclude_copyrighted_content = self.context.get(
             "exclude_copyrighted_content", True
         )
@@ -1027,7 +1030,8 @@ class DynamicPaperSerializer(
         if not paper.pdf_url:
             return None
 
-        # Don't return copyrighted content by default, but enable override for specific cases
+        # Don't return copyrighted content by default,
+        # but enable override for specific cases
         exclude_copyrighted_content = self.context.get(
             "exclude_copyrighted_content", True
         )

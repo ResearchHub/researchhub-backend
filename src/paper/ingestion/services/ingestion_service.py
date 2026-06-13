@@ -122,8 +122,10 @@ class PaperIngestionService:
                     created_authors.append(author_model)
                     saved_authors[author_model.orcid_id] = author_model
                     logger.info(
-                        f"Created author: {author_model.first_name} {author_model.last_name} "
-                        f"with ORCID: {author_model.orcid_id}"
+                        "Created author: %s %s with ORCID: %s",
+                        author_model.first_name,
+                        author_model.last_name,
+                        author_model.orcid_id,
                     )
 
             except Exception as e:
@@ -159,7 +161,9 @@ class PaperIngestionService:
                                 )
 
                     logger.info(
-                        f"Created authorship: {authorship_model.author.last_name} -> {paper.title[:50]}"
+                        "Created authorship: %s -> %s",
+                        authorship_model.author.last_name,
+                        paper.title[:50],
                     )
 
             except Exception as e:
@@ -249,15 +253,16 @@ class PaperIngestionService:
                         )
                     except Exception as e:
                         logger.warning(
-                            f"Failed to create authors/institutions for paper {paper.id}: {e}"
+                            "Failed to create authors/institutions for paper %s: %s",
+                            paper.id,
+                            e,
                         )
 
                 successful_papers.append(paper)
 
             except Exception as e:
-                logger.error(
-                    f"Failed to process paper {record.get('id', 'unknown')}: {e}",
-                    exc_info=True,
+                logger.exception(
+                    "Failed to process paper %s: %s", record.get("id", "unknown")
                 )
                 failed_records.append(
                     {

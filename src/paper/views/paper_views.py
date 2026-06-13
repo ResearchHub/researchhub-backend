@@ -183,7 +183,10 @@ class PaperViewSet(
                         logger.error("Previous paper not found: %s", previous_paper_id)
                         return Response(
                             {
-                                "error": "Previous paper not found. Please check the paper ID and try again."
+                                "error": (
+                                    "Previous paper not found. "
+                                    "Please check the paper ID and try again."
+                                )
                             },
                             status=status.HTTP_400_BAD_REQUEST,
                         )
@@ -261,9 +264,7 @@ class PaperViewSet(
                             extra={"missing_declarations": missing_declarations},
                         )
                         return Response(
-                            {
-                                "error": "Please accept all required declarations to continue."
-                            },
+                            {"error": ("Please accept all required declarations.")},
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
@@ -318,7 +319,10 @@ class PaperViewSet(
                             email=author_data.get("email"),
                             source="RESEARCHHUB",
                             author_position=author_position,
-                            raw_author_name=f"{author_map[author_id].first_name} {author_map[author_id].last_name}",
+                            raw_author_name=(
+                                f"{author_map[author_id].first_name} "
+                                f"{author_map[author_id].last_name}"
+                            ),
                             is_corresponding=author_data.get("is_corresponding", False),
                         )
 
@@ -362,7 +366,7 @@ class PaperViewSet(
                             publication_status = (
                                 previous_paper_version.publication_status
                             )
-                        except PaperVersion.DoesNotExist as e:
+                        except PaperVersion.DoesNotExist:
                             logger.error(
                                 "Previous paper version not found for paper %s",
                                 previous_paper.id,
@@ -469,7 +473,10 @@ class PaperViewSet(
                     logger.warning("Previous paper not found: %s", previous_paper_id)
                     return Response(
                         {
-                            "error": "Previous paper not found. Please check the paper ID and try again."
+                            "error": (
+                                "Previous paper not found. "
+                                "Please check the paper ID and try again."
+                            )
                         },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
@@ -567,7 +574,7 @@ class PaperViewSet(
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        except Exception as e:
+        except Exception:
             logger.exception(
                 "Unhandled exception in publish_to_researchhub_journal",
                 extra={"request_data": request.data},
@@ -761,7 +768,8 @@ class PaperViewSet(
         doi_string = request.query_params.get("doi", "")
         rh_author = request.user.author_profile
 
-        # Client has the ability (optional) to specify explicilty which OpenAlex ID it wants works for
+        # Client has the ability (optional) to specify explicilty which OpenAlex ID it
+        # wants works for
         openalex_author_id = request.query_params.get("author_id", None)
 
         if doi_string is None:
@@ -778,8 +786,10 @@ class PaperViewSet(
             except DOINotFoundError:
                 return Response(status=404)
 
-            # Next we want to try and guess the author in the list of authors associated with the work.
-            # The guess doesn't have to be precise since the user will have the ability to select the correct author.
+            # Next we want to try and guess the author in the list of authors associated
+            # with the work.
+            # The guess doesn't have to be precise since the user will have the ability
+            # to select the correct author.
             # In case we can't guess the author, we will return an error.
             if not openalex_author_id:
                 for authorship in work.get("authorships", []):
