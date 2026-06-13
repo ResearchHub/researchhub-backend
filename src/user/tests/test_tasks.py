@@ -555,7 +555,9 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         self.assertEqual(comment_verdict.verdict_choice, ABUSIVE_OR_RUDE)
 
     def test_suspend_deletes_feed_entries(self):
-        """Feed entries for the banned user are hard-deleted; other users' entries remain."""
+        """
+        Feed entries for the banned user are hard-deleted; other users' entries remain.
+        """
         # Arrange
         post_ct = ContentType.objects.get_for_model(ResearchhubPost)
         user_entry = FeedEntry.objects.create(

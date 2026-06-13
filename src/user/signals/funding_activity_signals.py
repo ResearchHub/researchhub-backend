@@ -124,7 +124,9 @@ def on_escrow_paid(sender, instance, created, **kwargs):
     dispatch_uid="funding_activity_on_distribution_created",
 )
 def on_distribution_created(sender, instance, created, **kwargs):
-    """Schedule FundingActivity when Distribution is created (PURCHASE tip or fee types)."""
+    """
+    Schedule FundingActivity when Distribution is created (PURCHASE tip or fee types).
+    """
     if not created:
         return
     if instance.distribution_type not in DISTRIBUTION_TYPES_FOR_FUNDING:

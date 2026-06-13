@@ -59,7 +59,8 @@ def editor_daily_payout_task():
                 num_days_this_month
             )
         except Exception as e:
-            # NOTE: moralis is a back up. Backup failing should not hard kill payout process.
+            # NOTE: moralis is a back up. Backup failing should not hard kill payout
+            # process.
             logger.warning("Payout with moralis failed: %s", e)
 
         result = gecko_result or moralis_result
