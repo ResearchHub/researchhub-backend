@@ -8,10 +8,10 @@ from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from paper.related_models.paper_version import PaperVersion
 from paper.tests.helpers import create_paper
+from purchase.related_models.payment_model import Payment
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
-from purchase.related_models.payment_model import Payment
 from user.tests.helpers import create_random_default_user
 
 

@@ -36,8 +36,8 @@ from paper.serializers import (
 )
 from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.permissions import IsModerator
-from user.services.risk_score_service import RiskScoreService
 from user.related_models.author_model import Author
+from user.services.risk_score_service import RiskScoreService
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
 from utils.openalex import OpenAlex
