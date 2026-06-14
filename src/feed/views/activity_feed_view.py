@@ -3,7 +3,7 @@ from django.db.models import Q
 from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
-from feed.serializers import FeedEntrySerializer
+from feed.serializers import ActivityFeedEntrySerializer
 from feed.views.common import FeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
 from paper.related_models.paper_model import Paper
@@ -46,7 +46,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     returns only comments across all grant-related documents.
     """
 
-    serializer_class = FeedEntrySerializer
+    serializer_class = ActivityFeedEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
     http_method_names = ["get", "head", "options"]

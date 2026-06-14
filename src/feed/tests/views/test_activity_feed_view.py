@@ -118,6 +118,95 @@ class ActivityFeedBaseTests(AWSMockTestCase):
         )
 
 
+class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
+    """Test related_work field on activity feed responses."""
+
+    def setUp(self):
+        super().setUp()
+
+        self.grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=self.grant_doc,
+            amount=10000,
+            currency="USD",
+            status=Grant.OPEN,
+            organization="Test Org",
+        )
+        self.fundraise = Fundraise.objects.create(
+            unified_document=self.prereg_doc,
+            created_by=self.user,
+            goal_amount=Decimal("5000.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+
+        self.grant_comment_entry = _make_feed_entry(
+            RhCommentModel,
+            object_id=10001,
+            unified_document=self.grant_doc,
+            user=self.user,
+        )
+        self.prereg_comment_entry = _make_feed_entry(
+            RhCommentModel,
+            object_id=10002,
+            unified_document=self.prereg_doc,
+            user=self.user,
+        )
+
+    def _get_entry(self, entry_id):
+        resp = self.client.get(ACTIVITY_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        for entry in resp.data["results"]:
+            if entry["id"] == entry_id:
+                return entry
+        self.fail(f"Feed entry {entry_id} not found in response")
+
+    def test_related_work_on_grant_comment(self):
+        # Act
+        entry = self._get_entry(self.grant_comment_entry.id)
+
+        # Assert
+        related_work = entry["related_work"]
+        self.assertIsNotNone(related_work)
+        self.assertEqual(related_work["document_type"], "GRANT")
+        self.assertEqual(related_work["title"], "Grant Post")
+        self.assertEqual(related_work["unified_document_id"], self.grant_doc.id)
+        self.assertIn("grant", related_work)
+        self.assertEqual(related_work["grant"]["status"], Grant.OPEN)
+        self.assertEqual(related_work["grant"]["organization"], "Test Org")
+        self.assertIn("amount", related_work["grant"])
+        self.assertEqual(related_work["grant"]["amount"]["usd"], 10000.0)
+        self.assertIn("application_count", related_work["grant"])
+
+    def test_related_work_on_prereg_comment(self):
+        # Act
+        entry = self._get_entry(self.prereg_comment_entry.id)
+
+        # Assert
+        related_work = entry["related_work"]
+        self.assertIsNotNone(related_work)
+        self.assertEqual(related_work["document_type"], "PREREGISTRATION")
+        self.assertEqual(related_work["title"], "Prereg Post")
+        self.assertIn("fundraise", related_work)
+        self.assertEqual(related_work["fundraise"]["status"], Fundraise.OPEN)
+        self.assertIn("goal_amount", related_work["fundraise"])
+        self.assertIn("amount_raised", related_work["fundraise"])
+        self.assertIn("start_date", related_work["fundraise"])
+        self.assertIn("end_date", related_work["fundraise"])
+
+    def test_related_work_on_grant_post(self):
+        # Act
+        entry = self._get_entry(self.grant_entry.id)
+
+        # Assert
+        related_work = entry["related_work"]
+        self.assertIsNotNone(related_work)
+        self.assertEqual(related_work["document_type"], "GRANT")
+        self.assertEqual(related_work["title"], "Grant Post")
+        self.assertEqual(related_work["id"], self.grant_post.id)
+        self.assertIn("grant", related_work)
+
+
 class ActivityFeedListTests(ActivityFeedBaseTests):
     """Test the base list endpoint returns all content types."""
 

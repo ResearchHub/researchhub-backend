@@ -21,6 +21,7 @@ from user.models import Author, User
 
 from .hot_score_utils import calculate_adjusted_score
 from .models import FeedEntry
+from .related_work import serialize_related_work
 
 logger = logging.getLogger(__name__)
 
@@ -858,6 +859,16 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
     def get_recommendation_id(self, obj):
         return self.context.get("recommendation_id")
+
+
+class ActivityFeedEntrySerializer(FeedEntrySerializer):
+    related_work = serializers.SerializerMethodField()
+
+    class Meta(FeedEntrySerializer.Meta):
+        fields = FeedEntrySerializer.Meta.fields + ["related_work"]
+
+    def get_related_work(self, obj):
+        return serialize_related_work(obj.unified_document, self.context)
 
 
 def serialize_feed_metrics(item, item_content_type):
