@@ -294,8 +294,10 @@ def _get_created_by_payload(obj):
 
 def resolve_work_for_unified_document(unified_doc, context=None):
     """
-    Resolve a unified document to work payload (paper or post) using paper/post serializers.
-    Returns None if resolution fails (no document, unknown type, or serialization error).
+    Resolve a unified document to work payload (paper or post) using paper/post
+    serializers.
+    Returns None if resolution fails (no document, unknown type, or serialization
+        error).
     """
     if not unified_doc:
         return None
@@ -605,7 +607,10 @@ class BulkGenerateEmailRequestSerializer(serializers.Serializer):
 
 
 class PreviewEmailRequestSerializer(serializers.Serializer):
-    """Request for POST /expert-finder/emails/preview/. Send existing generated emails to current user."""
+    """
+    Request for POST /expert-finder/emails/preview/. Send existing generated emails to
+    current user.
+    """
 
     generated_email_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1),

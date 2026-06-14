@@ -71,7 +71,8 @@ from utils.throttles import THROTTLE_CLASSES
 class CommentPagination(PageNumberPagination):
     django_paginator_class = FasterDjangoPaginator
     page_size_query_param = "page_size"
-    # Large max page size needed for inline comments since they are not paginated and need to be load all at once
+    # Large max page size needed for inline comments since they are not paginated and
+    # need to be loaded all at once
     max_page_size = 500
     page_size = 500
 
@@ -338,7 +339,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             availability = get_review_availability(user)
             if not availability.can_review:
                 raise PermissionDenied(
-                    f"You can only create {MAX_REVIEWS_PER_WINDOW} reviews every {REVIEW_WINDOW_DAYS} days."
+                    f"You can only create {MAX_REVIEWS_PER_WINDOW} reviews "
+                    f"every {REVIEW_WINDOW_DAYS} days."
                 )
 
         # Enforce author-only for author updates
@@ -406,7 +408,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         expiration_date = data.pop("expiration_date", None)
         item_content_type = RhCommentModel.__name__.lower()
 
-        # If set, users with expertise matching these hubs will be notified of the bounty
+        # If set, users with expertise matching these hubs will be notified
+        # of the bounty
         target_hubs = data.pop("target_hub_ids", [])
 
         response = _create_bounty_checks(user, amount, item_content_type)
@@ -485,7 +488,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         return Response(
-            "Directly creating RhComment with view is prohibited. Use /rh_comment_thread/create_comment",
+            "Directly creating RhComment with view is prohibited. "
+            "Use /rh_comment_thread/create_comment",
             status=status.HTTP_400_BAD_REQUEST,
         )
 

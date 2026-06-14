@@ -564,7 +564,8 @@ def celery_create_paper(self, celery_data):
             paper.doi = async_paper_updator.doi
             paper.unified_document.hubs.add(*async_paper_updator.hubs)
             paper.title = async_paper_updator.title
-            # Used for backwards compatibility. Hubs should preferrably be retrieved through the unified_document model.
+            # Used for backwards compatibility. Hubs should preferrably be retrieved
+            # through the unified_document model.
             paper.hub.add(*async_paper_updator.hubs)
 
         paper.full_clean()
@@ -591,9 +592,10 @@ def celery_create_paper(self, celery_data):
         paper.unified_document.update_filter(FILTER_OPEN_ACCESS)
         download_pdf.apply_async((paper_id,), priority=3, countdown=5)
 
-        # We need to ensure this paper is processed properly so that all metadata is retrieved
-        # from OpenAlex. The OpenAlex metadata above is superficial and does not include the rest
-        # of the processing necessary to have this paper (e.g. authorship).
+        # We need to ensure this paper is processed properly so that all metadata is
+        # retrieved from OpenAlex. The OpenAlex metadata above is superficial and does
+        # not include the rest of the processing necessary to have this paper
+        # (e.g. authorship).
         if paper.openalex_id:
             pull_openalex_author_works_batch.apply_async(
                 ([paper.openalex_id],), priority=1

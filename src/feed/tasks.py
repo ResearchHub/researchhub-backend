@@ -136,8 +136,10 @@ def refresh_feed_entry(feed_entry, skip_figure_extraction=False):
     content = serialize_feed_item(feed_entry.item, feed_entry.content_type)
     if content is None:
         logger.warning(
-            f"Unsupported content type for feed entry refresh: "
-            f"{feed_entry.content_type.model} (feed_entry_id={feed_entry.id}). Skipping."
+            "Unsupported content type for feed entry refresh: %s (feed_entry_id=%s). "
+            "Skipping.",
+            feed_entry.content_type.model,
+            feed_entry.id,
         )
         return
 

@@ -548,7 +548,8 @@ class ExpertFinderService:
                 if all_filtered_by_exclusion:
                     umsg = (
                         "Every recommendation matched an email from a prior search "
-                        "you excluded. Try broadening criteria or adjust excluded searches."
+                        "you excluded. Try broadening criteria or adjust excluded "
+                        "searches."
                     )
                     return fail_return(umsg, current_step="All experts excluded")
 

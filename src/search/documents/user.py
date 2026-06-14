@@ -77,9 +77,18 @@ class UserDocument(BaseDocument):
             )
             return None
 
-        profile["profile_image"] = instance.author_profile.profile_image_indexing
+        profile["profile_image"] = self._prepare_profile_image(instance.author_profile)
 
         return profile
+
+    def _prepare_profile_image(self, author_profile) -> str | None:
+        image = author_profile.profile_image
+        if image is None:
+            return None
+        try:
+            return image.url
+        except ValueError:
+            return str(image)
 
     # Used specifically for "autocomplete" style suggest feature
     def prepare_full_name_suggest(self, instance) -> dict[str, Any]:

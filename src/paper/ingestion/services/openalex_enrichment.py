@@ -341,7 +341,9 @@ class PaperOpenAlexEnrichmentService:
                 ).first()
                 if not author:
                     logger.warning(
-                        f"Author with OpenAlex ID {author_openalex_id} not found for paper {paper.id}"
+                        "Author with OpenAlex ID %s not found for paper %s",
+                        author_openalex_id,
+                        paper.id,
                     )
                     continue
 
@@ -385,7 +387,8 @@ class PaperOpenAlexEnrichmentService:
 
     def process_hubs(self, paper: Paper, openalex_data: dict) -> int:
         """
-        Process hubs from OpenAlex data, create Hub instances, and assign it to the given paper.
+        Process hubs from OpenAlex data, create Hub instances, and assign it to the
+        given paper.
 
         Args:
             paper: Paper instance

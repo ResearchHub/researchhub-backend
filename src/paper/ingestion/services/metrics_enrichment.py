@@ -109,7 +109,9 @@ class PaperMetricsEnrichmentService:
             self._update_paper_metrics(paper, {"github_mentions": result})
 
             logger.info(
-                f"Successfully saved {result['total_mentions']} mentions for paper {paper.id}."
+                "Successfully saved %s mentions for paper %s.",
+                result["total_mentions"],
+                paper.id,
             )
 
             return EnrichmentResult(
@@ -160,7 +162,9 @@ class PaperMetricsEnrichmentService:
             self._update_paper_metrics(paper, {"bluesky": result})
 
             logger.info(
-                f"Successfully saved {result['post_count']} Bluesky posts for paper {paper.id}."
+                "Successfully saved %s Bluesky posts for paper %s.",
+                result["post_count"],
+                paper.id,
             )
 
             return EnrichmentResult(
@@ -207,7 +211,9 @@ class PaperMetricsEnrichmentService:
             self._update_paper_metrics(paper, {"x": result})
 
             logger.info(
-                f"Successfully saved {result['post_count']} X posts for paper {paper.id}."
+                "Successfully saved %s X posts for paper %s.",
+                result["post_count"],
+                paper.id,
             )
 
             return EnrichmentResult(

@@ -109,7 +109,8 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         Returns:
             tuple: (is_valid, error_response)
                 - is_valid: Boolean indicating if the range is valid
-                - error_response: Response object with error details if invalid, None otherwise
+                - error_response: Response object with error details if invalid,
+                    None otherwise
         """
         if not (start_date and end_date):
             return True, None
@@ -172,8 +173,10 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         Args:
             leaderboard_type: Either Leaderboard.EARNER or Leaderboard.FUNDER
             period: Pre-computed period constant (e.g., Leaderboard.SEVEN_DAYS) or None
-            start_dt: Start datetime for custom date range (None if using pre-computed period)
-            end_dt: End datetime for custom date range (None if using pre-computed period)
+            start_dt: Start datetime for custom date range
+                (None if using pre-computed period)
+            end_dt: End datetime for custom date range
+                (None if using pre-computed period)
 
         Returns:
             dict: Serialized user data with rank and amount, or None
@@ -336,8 +339,9 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         self, aggregated_queryset, user_id_key, amount_label
     ):
         """
-        Build paginated response from aggregated queryset (rows with user_id_key and total).
-        amount_label is the key in each output item (e.g. "earned_rsc", "total_funding").
+        Build paginated response from aggregated queryset (rows with user_id_key
+        and total). amount_label is the key in each output item
+        (e.g. "earned_rsc", "total_funding").
         """
         page = self.paginate_queryset(aggregated_queryset)
         if page is None:

@@ -205,7 +205,9 @@ class TestHotScoreUtils(AWSMockTestCase):
         self.assertIsInstance(result, float)
 
     def test_old_paper_uses_action_date_for_age(self):
-        """Test that old papers use action_date (paper_publish_date), not created_date."""
+        """
+        Test that old papers use action_date (paper_publish_date), not created_date.
+        """
         # Setup: Paper published 180 days ago, but added to platform today
         paper_publish_date = datetime.now(timezone.utc) - timedelta(days=180)
         platform_created_date = datetime.now(timezone.utc)

@@ -261,7 +261,7 @@ class TestPersonalizedFeed(APITestCase):
         url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
 
-        for i in range(5):
+        for _ in range(5):
             response = self.client.get(
                 url, {"feed_view": "personalized"}, HTTP_RH_FORCE_REFRESH="true"
             )
@@ -290,7 +290,7 @@ class TestPersonalizedFeed(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         # Make many requests without the header - none should be throttled
-        for i in range(10):
+        for _ in range(10):
             response = self.client.get(url, {"feed_view": "personalized"})
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -311,7 +311,7 @@ class TestPersonalizedFeed(APITestCase):
         self.client.force_authenticate(user=self.user)
 
         # Make many requests with header=false - none should be throttled
-        for i in range(10):
+        for _ in range(10):
             response = self.client.get(
                 url, {"feed_view": "personalized"}, HTTP_RH_FORCE_REFRESH="false"
             )

@@ -1,10 +1,10 @@
 import json
 
 from django.test import TransactionTestCase
+from rest_framework.test import APIClient
 
 from mailing_list.models import EmailRecipient
 from user.tests.helpers import create_random_authenticated_user
-from utils.test_helpers import get_authenticated_post_response
 
 
 class MailingListSNSEmailTests(TransactionTestCase):
@@ -17,9 +17,9 @@ class MailingListSNSEmailTests(TransactionTestCase):
         data = json.dumps({"Type": "Notification", "Message": json.dumps(message)})
 
         # Act
-        return get_authenticated_post_response(
-            self.user, "/email_notifications/", data, content_type="plain/text"
-        )
+        client = APIClient()
+        client.force_authenticate(user=self.user, token=self.user.auth_token)
+        return client.post("/email_notifications/", data, format="txt")
 
     def test_bounce_marks_do_not_email(self):
         # Act

@@ -320,7 +320,8 @@ def _process_one_bulk_email(
     template_id: int | None,
 ) -> tuple[int, int]:
     """
-    Generate email for one placeholder and update record. Returns (success_delta, failed_delta).
+    Generate email for one placeholder and update record.
+    Returns (success_delta, failed_delta).
     """
     rec = (
         GeneratedEmail.objects.filter(
@@ -387,8 +388,10 @@ def process_bulk_generate_emails_task(
     created_by_id: int | None = None,
 ):
     """
-    Process placeholder GeneratedEmail rows: generate subject/body and set status to draft.
-    Placeholders have status=processing; on success set to draft, on failure set to failed.
+    Process placeholder GeneratedEmail rows: generate subject/body and set status to
+    draft.
+    Placeholders have status=processing; on success set to draft, on failure set to
+    failed.
     """
     if not generated_email_ids:
         return {"processed": 0}

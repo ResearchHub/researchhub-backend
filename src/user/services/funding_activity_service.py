@@ -81,7 +81,10 @@ class FundingActivityService:
 
     @classmethod
     def _get_historical_rsc_usd_rate(cls, at_datetime) -> float | None:
-        """Return Coalesce(real_rate, rate) for the latest USD rate at or before at_datetime."""
+        """
+        Return Coalesce(real_rate, rate) for the latest USD rate at or before
+        at_datetime.
+        """
         rate_record = (
             RscExchangeRate.objects.filter(
                 created_date__lte=at_datetime,
@@ -100,7 +103,9 @@ class FundingActivityService:
 
     @classmethod
     def _resolve_rate_for_purchase(cls, purchase) -> float | None:
-        """Prefer purchase.rsc_usd_rate, else historical rate at purchase.created_date."""
+        """
+        Prefer purchase.rsc_usd_rate, else historical rate at purchase.created_date.
+        """
         if purchase.rsc_usd_rate is not None:
             return purchase.rsc_usd_rate
         return cls._get_historical_rsc_usd_rate(purchase.created_date)
@@ -268,9 +273,9 @@ class FundingActivityService:
 
         NOTE: There is no strong way to connect completed spending RSC on the
         platform (e.g. payout bounty, fundraise contribution, support/BOOST)
-        with the fee Distribution records—fee. All fees are included here regardless of whether they are
-        related to completed, expired, or pending transactions, until we have
-        a way to link fees to the underlying transaction outcome.
+        with the fee Distribution records. All fees are included here regardless of
+        whether they are related to completed, expired, or pending transactions, until
+        we have a way to link fees to the underlying transaction outcome.
         """
         qs = Distribution.objects.filter(
             distribution_type__in=[

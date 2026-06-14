@@ -9,7 +9,9 @@ BASE_FRONTEND_URL = getattr(
 
 
 class ExpertiseLevel(models.TextChoices):
-    """Career stage for expert recommendations. Value: snake_case (API/DB), label: display."""
+    """
+    Career stage for expert recommendations. Value: snake_case (API/DB), label: display.
+    """
 
     PHD_POSTDOCS = "phd_postdocs", "PhD/PostDocs"
     EARLY_CAREER = "early_career", "Early Career Researchers"

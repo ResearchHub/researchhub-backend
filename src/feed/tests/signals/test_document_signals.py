@@ -187,7 +187,8 @@ class DocumentSignalsTests(AWSMockTestCase):
 
 class DocumentRemovalSignalsTests(AWSMockTransactionTestCase):
     """
-    Uses AWSMockTransactionTestCase to allow transaction.on_commit() callbacks to execute.
+    Uses AWSMockTransactionTestCase to allow transaction.on_commit() callbacks to
+    execute.
     This is necessary because TestCase wraps tests in an atomic transaction that
     never commits, preventing on_commit hooks from firing.
     """

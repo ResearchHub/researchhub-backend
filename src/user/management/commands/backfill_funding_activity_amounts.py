@@ -47,7 +47,10 @@ class Command(BaseCommand):
         parser.add_argument(
             "--skip-usd-fundraise",
             action="store_true",
-            help="Only populate amounts on existing rows; skip creating USD_FUNDRAISE_PAYOUT.",
+            help=(
+                "Only populate amounts on existing rows; skip creating "
+                "USD_FUNDRAISE_PAYOUT."
+            ),
         )
 
     def handle(self, *args, **options):

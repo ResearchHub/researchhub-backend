@@ -301,7 +301,8 @@ class ProcessOpenAlexWorksTests(APITestCase):
     @patch.object(OpenAlex, "get_authors")
     def test_add_orcid_to_author_when_processing_work(self, mock_get_authors):
         # Note: In actuality orcid value could be null but the payload in this
-        # test has an orcid value in order to test if orcid is set properly when exists in payload
+        # test has an orcid value in order to test if orcid is set properly when exists
+        # in payload
 
         with open(fixtures_dir / "openalex_authors.json", "r") as file:
             mock_data = json.load(file)

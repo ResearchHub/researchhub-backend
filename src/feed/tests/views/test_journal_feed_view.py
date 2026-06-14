@@ -443,7 +443,8 @@ class JournalFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(paper_data["user_vote"]["id"], vote.id)  # NOSONAR
 
     def test_unique_base_doi(self):
-        """Test that journal feed returns only one paper per base_doi (the latest one)"""
+        """
+        Test that journal feed returns only one paper per base_doi (the latest one)"""
         # Create a common base_doi for multiple papers
         base_doi = "10.1234/test.12345"
 

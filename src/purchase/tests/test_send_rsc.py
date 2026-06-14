@@ -1,5 +1,4 @@
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from paper.tests.helpers import create_paper
@@ -14,14 +13,9 @@ from user.tests.helpers import (
     create_random_default_user,
     create_user,
 )
-from utils.test_helpers import (
-    IntegrationTestHelper,
-    TestHelper,
-    get_authenticated_post_response,
-)
 
 
-class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
+class SendRSCTest(APITestCase):
     base_url = "/api/transactions/send_rsc/"
     balance_amount = 50
 
@@ -84,8 +78,9 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         self.assertEqual(len(response.data["results"]), 0)
 
     def test_regular_user_send_rsc(self):
-        client = self.get_default_authenticated_client()
-        response = self._send_rsc(client, self.recipient)
+        user = create_random_authenticated_user("regular_user")
+        self.client.force_authenticate(user)
+        response = self._send_rsc(self.client, self.recipient)
         self.assertEqual(response.status_code, 403)
 
     def test_gatekeeper_send_rsc(self):
@@ -230,8 +225,8 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
 
     def _post_support_response(self, user, object_id, content_type, amount=10):
         url = "/api/purchase/"
-        return get_authenticated_post_response(
-            user,
+        self.client.force_authenticate(user)
+        return self.client.post(
             url,
             {
                 "amount": amount,
@@ -253,8 +248,8 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
             amount="10000", user=purchaser, content_type=DISTRIBUTION_CONTENT_TYPE
         )
 
-        response = get_authenticated_post_response(
-            purchaser,
+        self.client.force_authenticate(purchaser)
+        response = self.client.post(
             "/api/purchase/",
             {
                 "amount": tip_amount,

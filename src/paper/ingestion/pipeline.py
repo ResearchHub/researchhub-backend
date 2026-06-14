@@ -68,8 +68,10 @@ class PaperIngestionPipeline:
         Run the ingestion pipeline for specified sources.
 
         Args:
-            sources: List of source names to fetch from. Uses all enabled sources if none provided.
-            since: Start date for fetching papers. Uses last successful fetch time if none provided.
+            sources: List of source names to fetch from.
+                Uses all enabled sources if none provided.
+            since: Start date for fetching papers.
+                Uses last successful fetch time if none provided.
             until: End date for fetching papers. Uses current time if none provided.
             create_fetch_log: Whether to create PaperFetchLog entries. Defaults to True.
 

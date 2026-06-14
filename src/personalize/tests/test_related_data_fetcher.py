@@ -109,7 +109,9 @@ class ProposalDataTests(TestCase):
         self.assertNotIn(closed_doc.id, closed_result)
 
     def test_fetch_proposal_data_identifies_funders(self):
-        """Should return has_funders=True when Purchase.FUNDRAISE_CONTRIBUTION exists."""
+        """
+        Should return has_funders=True when Purchase.FUNDRAISE_CONTRIBUTION exists.
+        """
         # Arrange
         unified_doc = create_prefetched_proposal(status=Fundraise.OPEN)
         fundraise = unified_doc.fundraises.first()
@@ -230,7 +232,9 @@ class BatchFetchingTests(TestCase):
     """Tests for batch fetching functionality."""
 
     def test_fetch_all_returns_all_four_data_types(self):
-        """fetch_all should return dict with bounty, proposal, rfp, and review_count keys."""
+        """
+        fetch_all should return dict with bounty, proposal, rfp, and review_count keys.
+        """
         # Arrange
         unified_doc = create_prefetched_paper()
         fetcher = RelatedDataFetcher()
