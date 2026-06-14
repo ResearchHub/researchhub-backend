@@ -22,6 +22,7 @@ from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     hidden_comment_ids,
 )
+from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.user_model import AI_EXPERT_EMAIL
 
@@ -35,8 +36,9 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
       - scope: "grants" returns all activity across every grant and
         every preregistration that applied to any grant.
         "peer_reviews" returns only peer review comments.
-        "financial" returns only fundraise contribution activity
-        across RSC and USD contributions.
+        "financial" returns fundraise contribution activity
+        (RSC and USD contributions) and approved grant post
+        feed entries.
       - document_type: PREREGISTRATION, GRANT, etc.
       - grant_id: all activity on a grant and its applied preregistrations
       - funder_id: all activity on OPEN/COMPLETED grants where this user is
@@ -233,12 +235,14 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     @staticmethod
     def _filter_financial_activities(queryset):
         """
-        Return feed entries for fundraise contributions.
+        Return feed entries for fundraise contributions and grant post
+        publications.
         """
         purchase_type = ContentType.objects.get_for_model(Purchase)
         usd_contribution_type = ContentType.objects.get_for_model(
             UsdFundraiseContribution
         )
+        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
         contribution_purchase_ids = Purchase.objects.filter(
             purchase_type=Purchase.FUNDRAISE_CONTRIBUTION
         ).values_list("id", flat=True)
@@ -249,6 +253,10 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
                 object_id__in=contribution_purchase_ids,
             )
             | Q(content_type=usd_contribution_type)
+            | Q(
+                content_type=post_ct,
+                unified_document__document_type=GRANT,
+            )
         )
 
     @staticmethod

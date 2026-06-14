@@ -1062,6 +1062,29 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
             user=self.user,
         )
 
+        self.grant_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=GRANT,
+        )
+        self.grant_post = ResearchhubPost.objects.create(
+            title="Approved Grant",
+            created_by=self.user,
+            document_type=GRANT,
+            unified_document=self.grant_doc,
+        )
+        Grant.objects.create(
+            created_by=self.user,
+            unified_document=self.grant_doc,
+            amount=5000,
+            currency="USD",
+            status=Grant.OPEN,
+        )
+        self.grant_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.grant_post.id,
+            self.grant_doc,
+            user=self.user,
+        )
+
     def test_scope_financial_includes_rsc_and_usd_contributions(self):
         # Act
         resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "financial"})
@@ -1073,6 +1096,16 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
         self.assertIn(self.usd_entry.id, ids)
         self.assertNotIn(self.unrelated_entry.id, ids)
         self.assertNotIn(self.boost_entry.id, ids)
+
+    def test_scope_financial_includes_grant_post_entries(self):
+        # Act
+        resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "financial"})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        ids = {entry["id"] for entry in resp.data["results"]}
+        self.assertIn(self.grant_entry.id, ids)
+        self.assertNotIn(self.unrelated_entry.id, ids)
 
 
 class ActivityFeedFunderFilterTests(APITestCase):
