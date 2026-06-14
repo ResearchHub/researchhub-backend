@@ -1,5 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.db.models import Count, Prefetch, Q
 from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
@@ -7,6 +7,7 @@ from feed.serializers import ActivityFeedEntrySerializer
 from feed.views.common import FeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
 from paper.related_models.paper_model import Paper
+from purchase.models import Fundraise
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
@@ -21,6 +22,7 @@ from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     hidden_comment_ids,
 )
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.user_model import AI_EXPERT_EMAIL
 
 
@@ -65,13 +67,38 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         return response
 
     def get_queryset(self):
-        queryset = FeedEntry.objects.select_related(
-            "content_type",
-            "unified_document",
-            "user",
-            "user__author_profile",
-            "user__userverification",
-        ).order_by("-action_date")
+        queryset = (
+            FeedEntry.objects.select_related(
+                "content_type",
+                "unified_document",
+                "user",
+                "user__author_profile",
+                "user__userverification",
+                "unified_document__paper__uploaded_by__author_profile",
+            )
+            .prefetch_related(
+                Prefetch(
+                    "unified_document__posts",
+                    queryset=ResearchhubPost.objects.select_related(
+                        "created_by__author_profile"
+                    ),
+                ),
+                Prefetch(
+                    "unified_document__grants",
+                    queryset=Grant.objects.annotate(
+                        num_applicants=Count("applications", distinct=True),
+                    ),
+                ),
+                Prefetch(
+                    "unified_document__fundraises",
+                    queryset=Fundraise.objects.select_related(
+                        "created_by__author_profile"
+                    ),
+                ),
+                "unified_document__paper__authors",
+            )
+            .order_by("-action_date")
+        )
 
         # Exclude paper publications
         paper_ct = ContentType.objects.get_for_model(Paper)
