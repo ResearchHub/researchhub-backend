@@ -150,7 +150,8 @@ class OrganizationTests(APITestCase):
         )
         self.assertEqual(response.status_code, 404)
 
-        # Refetch org A members list and ensure it did not grow, reauth as org A admin to access.
+        # Refetch org A members list and ensure it did not grow, reauth as org A admin
+        # to access.
         self.client.force_authenticate(self.org_a_admin)
         response = self.client.get(
             f"/api/organization/{self.org_a['id']}/get_organization_users/"

@@ -145,7 +145,8 @@ class RecommendationClient:
             }
 
             logger.info(
-                f"Applying recent-preprints filter for trending with date_cutoff: {date_cutoff}"
+                "Applying recent-preprints filter for trending with date_cutoff: %s",
+                date_cutoff,
             )
 
             response = self.client.get_recommendations(**params)

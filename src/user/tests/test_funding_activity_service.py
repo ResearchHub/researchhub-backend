@@ -73,7 +73,10 @@ class FundingActivityServiceTests(TestCase):
         self.assertIn(purchase_paid, qs)
 
     def test_multiple_fundraises_only_completed_in_funding_activity(self):
-        """Multiple fundraises: only the completed one (escrow PAID) is in funding activity."""
+        """
+        Multiple fundraises: only the completed one (escrow PAID) is in funding
+        activity.
+        """
         uni_doc_completed = ResearchhubUnifiedDocument.objects.create(
             document_type="PREREGISTRATION",
         )
@@ -138,7 +141,8 @@ class FundingActivityServiceTests(TestCase):
         self.assertNotIn(purchase_in_progress, qs)
         self.assertEqual(qs.count(), 1)
 
-        # create_funding_activity for completed creates activity; for in-progress returns None
+        # create_funding_activity for completed creates activity; for in-progress
+        # returns None
         with patch.object(Fundraise, "get_recipient", return_value=self.other_user):
             activity_completed = FundingActivityService.create_funding_activity(
                 FundingActivity.FUNDRAISE_PAYOUT, purchase_completed
@@ -394,7 +398,9 @@ class FundingActivityServiceTests(TestCase):
         self.assertEqual(FundingActivity.objects.filter(funder=bank_user).count(), 1)
 
     def test_create_funding_activity_stored_when_funder_is_foundation(self):
-        """We store FundingActivity when the funder is foundation (activity is tracked)."""
+        """
+        We store FundingActivity when the funder is foundation (activity is tracked).
+        """
         foundation_user = create_user(email=FOUNDATION_EMAIL)
         dist = Distribution.objects.create(
             giver=foundation_user,
@@ -473,7 +479,9 @@ class FundingActivityServiceTests(TestCase):
         return UsdFundraiseContribution.objects.create(**defaults)
 
     def test_get_usd_fundraise_payouts_returns_only_completed_non_refunded(self):
-        """get_usd_fundraise_payouts returns non-refunded contributions on PAID escrow."""
+        """
+        get_usd_fundraise_payouts returns non-refunded contributions on PAID escrow.
+        """
         # Arrange
         fundraise_paid = self._create_completed_fundraise()
         contribution = self._create_usd_contribution(fundraise_paid)
@@ -511,7 +519,9 @@ class FundingActivityServiceTests(TestCase):
         self.assertEqual(qs.count(), 1)
 
     def test_usd_fundraise_payout_sets_native_usd_and_calculated_rsc(self):
-        """USD_FUNDRAISE_PAYOUT: native usd_cents + calculated RSC from historical rate."""
+        """
+        USD_FUNDRAISE_PAYOUT: native usd_cents + calculated RSC from historical rate.
+        """
         # Arrange
         RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, target_currency="USD")
         fundraise = self._create_completed_fundraise()

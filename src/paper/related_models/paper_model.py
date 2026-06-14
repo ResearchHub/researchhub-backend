@@ -52,7 +52,8 @@ class Paper(AbstractGenericReactionModel):
     # TODO clean this up to use SoftDeleteable mixin in utils
     is_removed = models.BooleanField(default=False, help_text=HELP_TEXT_IS_REMOVED)
 
-    # We assume that is_pdf_removed_by_moderator is only set to True if the PDF was removed for copyright reasons
+    # We assume that is_pdf_removed_by_moderator is only set to True if the PDF was
+    # removed for copyright reasons
     is_pdf_removed_by_moderator = models.BooleanField(
         default=False, help_text=HELP_TEXT_IS_PDF_REMOVED
     )
@@ -156,7 +157,9 @@ class Paper(AbstractGenericReactionModel):
     slug = models.SlugField(
         max_length=1024,
         blank=True,
-        help_text="Slug is automatically generated on a signal, so it is not needed in a form",
+        help_text=(
+            "Slug is automatically generated on a signal, so it is not needed in a form"
+        ),
     )
     unified_document = models.OneToOneField(
         "researchhub_document.ResearchhubUnifiedDocument",
@@ -466,8 +469,8 @@ class Paper(AbstractGenericReactionModel):
     def hubs(self):
         """
         Access hubs through the unified document.
-        This property maintains backwards compatibility while enforcing the unified document
-        as the single source of truth for hubs.
+        This property maintains backwards compatibility while enforcing the unified
+        document as the single source of truth for hubs.
         """
         if self.unified_document:
             return self.unified_document.hubs

@@ -143,7 +143,7 @@ class BioRxivBaseClient(BaseClient):
             # BioRxiv API endpoint format:
             # /details/{server}/{interval}/{cursor}/{format}
             # interval is a date range like "2025-01-01/2025-01-31"
-            endpoint = f"/details/{self.default_server}/{since_str}/{until_str}/{current_cursor}/{format}"
+            endpoint = f"/details/{self.default_server}/{since_str}/{until_str}/{current_cursor}/{format}"  # noqa: E501
 
             logger.info(f"Fetching from {endpoint}")
 

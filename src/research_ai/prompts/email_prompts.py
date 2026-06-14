@@ -33,7 +33,8 @@ def build_email_prompt(
               publication, rfp-outreach, or custom (use custom_use_case for custom).
     sender_context: lines describing the sending user (name, org, email, etc.).
     document_context: plain-language summary of linked grant, proposal, or paper/work
-        (from DB); empty when unknown. Used only for LLM generation, not fixed templates.
+        (from DB); empty when unknown. Used only for LLM generation, not fixed
+        templates.
     """
     base_rules = _load_email_template("email_base_rules.txt").strip()
     common_raw = _load_email_template("email_common_instructions.txt")

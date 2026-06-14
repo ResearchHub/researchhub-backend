@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from django.test import TestCase
 
 from search.documents.user import UserDocument
@@ -249,3 +251,27 @@ class UserDocumentTests(TestCase):
         self.assertIsInstance(result, dict)
         self.assertIn("input", result)
         self.assertIn("weight", result)
+
+    def test_prepare_profile_image_returns_url_when_present(self):
+        # Arrange
+        profile = SimpleNamespace(
+            profile_image=SimpleNamespace(url="https://cdn.example.com/profile.png")
+        )
+
+        # Act
+        result = self.document._prepare_profile_image(profile)
+
+        # Assert
+        self.assertEqual(result, "https://cdn.example.com/profile.png")
+
+    def test_prepare_profile_image_when_author_has_no_image(self):
+        # Arrange
+        # A freshly created author has an empty profile image field,
+        # whose .url raises ValueError, so the helper falls back to str() -> "".
+        profile = self.active_user.author_profile
+
+        # Act
+        result = self.document._prepare_profile_image(profile)
+
+        # Assert
+        self.assertEqual(result, "")

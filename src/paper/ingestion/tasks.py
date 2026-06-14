@@ -82,7 +82,8 @@ def update_recent_papers_with_github_metrics(days: int = 7):
     for papers created in the last N days.
 
     Each paper is processed by a separate rate-limited task.
-    This dispatcher does not retry - individual enrichment tasks handle their own retries.
+    This dispatcher does not retry - individual enrichment tasks handle their own
+    retries.
     """
     logger.info(f"Starting GitHub metrics update for papers (last {days} days)")
 
@@ -215,7 +216,8 @@ def update_recent_papers_with_bluesky_metrics(days: int = 7):
     for papers created in the last N days.
 
     Each paper is processed by a separate rate-limited task.
-    This dispatcher does not retry - individual enrichment tasks handle their own retries.
+    This dispatcher does not retry - individual enrichment tasks handle their
+    own retries.
     """
     logger.info(f"Starting Bluesky metrics update for papers (last {days} days)")
 

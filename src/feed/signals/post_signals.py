@@ -13,8 +13,9 @@ Signal handlers for ResearchhubPost model.
 The signal handlers are responsbile for creating and deleting feed entries
 when posts are created and deleted, respectively.
 
-A post is created after hubs are added to the unified document that the post is associated with
-so we need to create a feed entry for the post when it is created instead.
+A post is created after hubs are added to the unified document that the post is
+associated with so we need to create a feed entry for the post when it is created
+instead.
 
 Posts awaiting moderator approval skip feed entry creation here; they get
 entries once approved. This covers Grants (published on grant approval) and any

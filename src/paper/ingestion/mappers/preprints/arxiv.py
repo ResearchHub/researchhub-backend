@@ -312,7 +312,8 @@ class ArXivMapper(BaseMapper):
         if len(parts) == 2:
             return {"first_name": parts[0], "middle_name": "", "last_name": parts[1]}
 
-        # Three or more parts - assume first is first name, last is last name, middle is everything else
+        # Three or more parts
+        # assume first is first name, last is last name, middle is everything else
         return {
             "first_name": parts[0],
             "middle_name": " ".join(parts[1:-1]),

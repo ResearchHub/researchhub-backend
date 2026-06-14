@@ -638,15 +638,28 @@ class GrantCacheInvalidationTests(APITestCase):
         cache.clear()
 
     def test_invalidate_clears_grant_feed_caches(self):
+        from rest_framework.request import Request
+        from rest_framework.test import APIRequestFactory
+
+        from feed.views.grant_feed_view import GrantFeedViewSet
+
+        factory = APIRequestFactory()
+        view = GrantFeedViewSet()
+        requests = [
+            factory.get("/api/grant_feed/"),
+            factory.get("/api/grant_feed/", {"status": "OPEN"}),
+            factory.get("/api/grant_feed/", {"page": "2", "ordering": "newest"}),
+            factory.get(
+                "/api/grant_feed/",
+                {"page": "3", "ordering": "upvotes", "status": "CLOSED"},
+            ),
+        ]
         cache_keys = [
-            "grants_feed:popular:all:all:none:1-20::",
-            "grants_feed:popular:all:all:none:1-20:OPEN:",
-            "grants_feed:popular:all:all:none:2-20-newest::",
-            "grants_feed:popular:all:all:none:3-20-upvotes:CLOSED:",
+            view.get_cache_key(Request(req), "grants") + ":public" for req in requests
         ]
 
         for key in cache_keys:
-            cache.set(key, {"test": "data"})
+            cache.set(key, {"test": key})
 
         GrantCacheMixin.invalidate_grant_feed_cache()
 
