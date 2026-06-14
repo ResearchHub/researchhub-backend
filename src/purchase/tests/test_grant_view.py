@@ -614,13 +614,19 @@ class GrantViewTests(APITestCase):
             amount=Decimal("5000.00"),
             currency="USD",
             description="Pending grant",
+            status=Grant.PENDING,
         )
-        self.client.force_authenticate(self.regular_user)
+        moderator_preregistration = create_post(
+            created_by=self.moderator,
+            document_type=PREREGISTRATION,
+            title="Moderator Preregistration for Pending Grant",
+        )
+        self.client.force_authenticate(self.moderator)
 
         # Act
         response = self.client.post(
             f"/api/grant/{pending_grant.id}/application/",
-            {"preregistration_post_id": self.preregistration_post.id},
+            {"preregistration_post_id": moderator_preregistration.id},
         )
 
         # Assert
