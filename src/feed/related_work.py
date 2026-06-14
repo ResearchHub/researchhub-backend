@@ -62,6 +62,11 @@ def _serialize_slim_fundraise_for_related_work(fundraise):
     }
 
 
+def _first_prefetched(relation):
+    items = list(relation.all())
+    return items[0] if items else None
+
+
 def _serialize_grant_nested(grant):
     from feed.feed_list_dto import _grant_amount
 
@@ -129,10 +134,7 @@ def _build_common_fields_from_paper(paper, unified_document):
     return data
 
 
-def serialize_related_work(unified_document, context=None):
-    if unified_document is None:
-        return None
-
+def _serialize_related_work_impl(unified_document):
     document_type = unified_document.document_type
 
     if document_type == PAPER:
@@ -142,7 +144,9 @@ def serialize_related_work(unified_document, context=None):
         return _build_common_fields_from_paper(paper, unified_document)
 
     post = (
-        unified_document.posts.first() if hasattr(unified_document, "posts") else None
+        _first_prefetched(unified_document.posts)
+        if hasattr(unified_document, "posts")
+        else None
     )
     if not post:
         return None
@@ -150,15 +154,36 @@ def serialize_related_work(unified_document, context=None):
     data = _build_common_fields_from_post(post, unified_document)
 
     if document_type == GRANT:
-        if hasattr(unified_document, "grants") and unified_document.grants.exists():
-            grant = unified_document.grants.first()
+        grant = (
+            _first_prefetched(unified_document.grants)
+            if hasattr(unified_document, "grants")
+            else None
+        )
+        if grant:
             data["grant"] = _serialize_grant_nested(grant)
     elif document_type == PREREGISTRATION:
-        if (
-            hasattr(unified_document, "fundraises")
-            and unified_document.fundraises.exists()
-        ):
-            fundraise = unified_document.fundraises.first()
+        fundraise = (
+            _first_prefetched(unified_document.fundraises)
+            if hasattr(unified_document, "fundraises")
+            else None
+        )
+        if fundraise:
             data["fundraise"] = _serialize_slim_fundraise_for_related_work(fundraise)
 
     return data
+
+
+def serialize_related_work(unified_document, context=None):
+    if unified_document is None:
+        return None
+
+    if context is not None:
+        cache = context.setdefault("related_work_cache", {})
+        cache_key = unified_document.id
+        if cache_key in cache:
+            return cache[cache_key]
+        result = _serialize_related_work_impl(unified_document)
+        cache[cache_key] = result
+        return result
+
+    return _serialize_related_work_impl(unified_document)

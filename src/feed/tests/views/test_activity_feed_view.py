@@ -2,7 +2,9 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.db import connection
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -10,9 +12,12 @@ from rest_framework.test import APIClient, APITestCase
 
 from feed.models import FeedEntry
 from purchase.models import Fundraise
+from purchase.related_models.constants.currency import USD
+from purchase.related_models.constants.rsc_exchange_currency import MORALIS
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
@@ -124,6 +129,13 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
     def setUp(self):
         super().setUp()
 
+        RscExchangeRate.objects.create(
+            price_source=MORALIS,
+            rate=3.0,
+            real_rate=3.0,
+            target_currency=USD,
+        )
+
         self.grant = Grant.objects.create(
             created_by=self.user,
             unified_document=self.grant_doc,
@@ -205,6 +217,57 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
         self.assertEqual(related_work["title"], "Grant Post")
         self.assertEqual(related_work["id"], self.grant_post.id)
         self.assertIn("grant", related_work)
+
+
+class ActivityFeedRelatedWorkPrefetchTests(ActivityFeedRelatedWorkTests):
+    """Ensure related_work serialization avoids N+1 queries."""
+
+    def setUp(self):
+        super().setUp()
+        # Arrange: multiple entries on the same unified documents
+        self.shared_grant_comment_2 = _make_feed_entry(
+            RhCommentModel,
+            object_id=10003,
+            unified_document=self.grant_doc,
+            user=self.user,
+        )
+        self.shared_grant_comment_3 = _make_feed_entry(
+            RhCommentModel,
+            object_id=10004,
+            unified_document=self.grant_doc,
+            user=self.user,
+        )
+        self.shared_prereg_comment_2 = _make_feed_entry(
+            RhCommentModel,
+            object_id=10005,
+            unified_document=self.prereg_doc,
+            user=self.user,
+        )
+
+    def _activity_feed_query_count(self):
+        with CaptureQueriesContext(connection) as context:
+            resp = self.client.get(ACTIVITY_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        return len(context.captured_queries)
+
+    def test_related_work_prefetch_does_not_scale_with_shared_documents(self):
+        # Arrange
+        baseline_query_count = self._activity_feed_query_count()
+
+        for object_id in (10006, 10007, 10008):
+            _make_feed_entry(
+                RhCommentModel,
+                object_id=object_id,
+                unified_document=self.grant_doc,
+                user=self.user,
+            )
+
+        # Act
+        expanded_query_count = self._activity_feed_query_count()
+
+        # Assert: extra rows on the same unified document should not re-fetch
+        # related_work relations (only generic FK lookups for new content rows).
+        self.assertLessEqual(expanded_query_count - baseline_query_count, 4)
 
 
 class ActivityFeedListTests(ActivityFeedBaseTests):
