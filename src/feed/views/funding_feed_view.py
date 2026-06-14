@@ -20,7 +20,6 @@ from feed.feed_list_dto import (
     serialize_fund_feed_metrics,
 )
 from feed.filters import FundOrderingFilter
-from feed.models import FeedEntry
 from feed.views.feed_view_mixin import FeedViewMixin
 from feed.views.funding_cache_mixin import (
     FUNDING_FEED_MAX_CACHED_PAGE,
@@ -79,16 +78,9 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
 
         feed_entries = []
         for post in page:
-            feed_entry = FeedEntry(
-                id=post.id,
-                content_type=self._post_content_type,
-                object_id=post.id,
-                action="PUBLISH",
-                action_date=post.created_date,
-                user=post.created_by,
-                unified_document=post.unified_document,
+            feed_entry = self.build_unsaved_feed_entry(
+                post, self._post_content_type, post.created_by
             )
-            feed_entry.item = post
             feed_entry.metrics = serialize_fund_feed_metrics(
                 post, self._post_content_type
             )

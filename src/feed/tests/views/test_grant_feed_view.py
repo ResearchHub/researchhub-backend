@@ -884,11 +884,11 @@ class GrantFeedViewTests(APITestCase):
         )
         cache.clear()
 
-        # Act — grant owner hits feed first (viewer segment)
+        # Act - grant owner hits feed first (viewer segment)
         self.client.force_authenticate(grant_owner)
         owner_response = self.client.get("/api/grant_feed/")
 
-        # Assert — owner sees both applications
+        # Assert - owner sees both applications
         self.assertEqual(owner_response.status_code, 200)
         grant_entry = next(
             e
@@ -916,11 +916,11 @@ class GrantFeedViewTests(APITestCase):
         public_key = view.get_cache_key(anon_request, "grants") + public_suffix
         self.assertNotEqual(viewer_key, public_key)
 
-        # Act — anonymous uses separate public cache entry
+        # Act - anonymous uses separate public cache entry
         self.client.logout()
         anon_response = self.client.get("/api/grant_feed/")
 
-        # Assert — anonymous does not see private application
+        # Assert - anonymous does not see private application
         self.assertEqual(anon_response.status_code, 200)
         anon_grant_entry = next(
             e

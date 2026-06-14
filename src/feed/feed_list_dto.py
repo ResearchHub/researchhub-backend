@@ -439,7 +439,10 @@ class GrantFeedListEntrySerializer(serializers.ModelSerializer):
     def get_content_object(self, obj):
         if not obj.item:
             return None
-        return GrantFeedPostSerializer(obj.item, context=self.context).data
+        serializer_class = self.post_serializer_class
+        if serializer_class is None:
+            return None
+        return serializer_class(obj.item, context=self.context).data
 
 
 class FundingFeedListEntrySerializer(FundFeedListEntrySerializer):

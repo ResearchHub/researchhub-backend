@@ -95,4 +95,3 @@ extend-select = [
 [tool.ruff.lint.per-file-ignores]
 # Allow `print`s in management commands:
 "**/management/commands/*.py" = ["T20"]
-
