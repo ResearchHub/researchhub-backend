@@ -18,6 +18,7 @@ from ai_peer_review.models import (
 )
 from feed.models import FeedEntry
 from feed.serializers import (
+    ActivityFeedEntrySerializer,
     CommentSerializer,
     ContentObjectSerializer,
     FeedEntrySerializer,
@@ -47,7 +48,7 @@ from purchase.models import (
 )
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from reputation.models import Bounty, Distribution, Escrow
+from reputation.models import Bounty, Distribution, Escrow, EscrowRecipients
 from researchhub_access_group.models import Permission
 from researchhub_comment.constants import rh_comment_thread_types
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
@@ -2843,3 +2844,102 @@ class FundingActivityFeedContentSerializerTests(AWSMockTestCase):
         self.assertEqual(data["id"], activity.id)
         self.assertEqual(data["source_type"], FundingActivity.BOUNTY_PAYOUT)
         self.assertEqual(data["total_amount"], 40.0)
+
+    def test_serializes_bounty_payout_with_bounty_id(self):
+        # Arrange
+        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
+        escrow = Escrow.objects.create(
+            hold_type=Escrow.BOUNTY,
+            status=Escrow.PAID,
+            created_by=self.funder,
+            content_type=post_ct,
+            object_id=self.post.id,
+        )
+        bounty = Bounty.objects.create(
+            created_by=self.funder,
+            bounty_type=Bounty.Type.REVIEW,
+            unified_document=self.unified_doc,
+            item_content_type=post_ct,
+            item_object_id=self.post.id,
+            escrow=escrow,
+            amount=Decimal("50"),
+        )
+        er_ct = ContentType.objects.get_for_model(EscrowRecipients)
+        recipient = EscrowRecipients.objects.create(
+            escrow=escrow,
+            user=self.recipient,
+            amount=Decimal("50"),
+        )
+        activity = FundingActivity.objects.create(
+            funder=self.funder,
+            source_type=FundingActivity.BOUNTY_PAYOUT,
+            total_amount=Decimal("50"),
+            total_usd_cents=2500,
+            unified_document=self.unified_doc,
+            activity_date=timezone.now(),
+            source_content_type=er_ct,
+            source_object_id=recipient.id,
+        )
+        activity._prefetched_bounty_payout_source = recipient
+
+        # Act
+        data = FundingActivityFeedContentSerializer(activity).data
+
+        # Assert
+        self.assertEqual(data["bounty_id"], bounty.id)
+
+
+class ActivityFeedEntrySerializerTests(AWSMockTestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = create_random_default_user("activity_feed_entry_user")
+        self.unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        self.hub = create_hub("ActivityFeedEntryHub")
+        self.unified_doc.hubs.add(self.hub)
+        self.post = ResearchhubPost.objects.create(
+            title="Activity Feed Proposal",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=self.unified_doc,
+        )
+        Fundraise.objects.create(
+            unified_document=self.unified_doc,
+            created_by=self.user,
+            goal_amount=Decimal("500.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
+        self.feed_entry = FeedEntry.objects.create(
+            content_type=post_ct,
+            object_id=self.post.id,
+            unified_document=self.unified_doc,
+            user=self.user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content={},
+            metrics={},
+        )
+
+    def test_includes_related_work_and_activity_context(self):
+        # Arrange
+        items_by_id = {
+            (self.feed_entry.content_type_id, self.post.id): self.post,
+        }
+
+        # Act
+        data = ActivityFeedEntrySerializer(
+            self.feed_entry,
+            context={"activity_feed_items_by_id": items_by_id},
+        ).data
+
+        # Assert
+        self.assertEqual(data["activity_context"], "proposal_submitted")
+        self.assertIsNotNone(data["related_work"])
+        self.assertEqual(data["related_work"]["id"], self.post.id)
+        self.assertEqual(data["related_work"]["document_type"], PREREGISTRATION)
+        self.assertEqual(data["related_work"]["hub"]["slug"], self.hub.slug)
+        self.assertIsNotNone(data["related_work"]["fundraise"])
+        self.assertIsNone(data["activity_bounty"])

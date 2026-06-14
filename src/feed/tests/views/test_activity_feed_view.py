@@ -975,6 +975,43 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
         self.assertNotIn(self.unrelated_entry.id, ids)
         self.assertNotIn(self.boost_entry.id, ids)
 
+    def test_financial_entries_include_related_work_and_activity_context(self):
+        # Act
+        resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "financial"})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        by_id = {entry["id"]: entry for entry in resp.data["results"]}
+
+        tip_row = by_id[self.tip_entry.id]
+        self.assertEqual(tip_row["activity_context"], "tip_review")
+        self.assertEqual(tip_row["related_work"]["id"], self.proposal_post.id)
+        self.assertEqual(tip_row["related_work"]["document_type"], PREREGISTRATION)
+        self.assertIsNotNone(tip_row["related_work"]["fundraise"])
+
+        rsc_row = by_id[self.rsc_entry.id]
+        self.assertEqual(rsc_row["activity_context"], "fundraise_contribution")
+        self.assertEqual(rsc_row["related_work"]["title"], "Funding Proposal")
+
+        grant_row = by_id[self.grant_entry.id]
+        self.assertEqual(grant_row["activity_context"], "grant_opened")
+        self.assertEqual(grant_row["related_work"]["document_type"], GRANT)
+
+    def test_related_work_query_count_bounded_for_financial_page(self):
+        # Arrange
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        # Act
+        with CaptureQueriesContext(connection) as context:
+            resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "financial"})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertGreater(len(resp.data["results"]), 0)
+        # Bounded prefetch: should not scale linearly with one query per entry.
+        self.assertLess(len(context.captured_queries), 40)
+
 
 class ActivityFeedFunderFilterTests(APITestCase):
     """Test ?funder_id= filtering across grants created by or

@@ -19,6 +19,12 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from review.serializers.review_serializer import ReviewSerializer
 from user.models import Author, User
 
+from .activity_feed_dto import (
+    build_related_work,
+    resolve_activity_bounty,
+    resolve_activity_context,
+    resolve_bounty_id_for_funding_activity,
+)
 from .hot_score_utils import calculate_adjusted_score
 from .models import FeedEntry
 
@@ -744,6 +750,7 @@ class FundingActivityFeedContentSerializer(serializers.Serializer):
     category = serializers.SerializerMethodField()
     subcategory = serializers.SerializerMethodField()
     comment = serializers.SerializerMethodField()
+    bounty_id = serializers.SerializerMethodField()
 
     def get_total_amount(self, obj):
         return float(obj.total_amount)
@@ -825,6 +832,9 @@ class FundingActivityFeedContentSerializer(serializers.Serializer):
         if comment:
             return CommentSerializer(comment).data
         return None
+
+    def get_bounty_id(self, obj):
+        return resolve_bounty_id_for_funding_activity(obj)
 
     def _get_tip_review_comment(self, obj):
         from purchase.models import Purchase
@@ -980,6 +990,54 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
     def get_recommendation_id(self, obj):
         return self.context.get("recommendation_id")
+
+
+class ActivityFeedEntrySerializer(FeedEntrySerializer):
+    """Activity feed entries with related_work and activity_context."""
+
+    related_work = serializers.SerializerMethodField()
+    activity_context = serializers.SerializerMethodField()
+    activity_bounty = serializers.SerializerMethodField()
+
+    class Meta(FeedEntrySerializer.Meta):
+        fields = FeedEntrySerializer.Meta.fields + [
+            "related_work",
+            "activity_context",
+            "activity_bounty",
+        ]
+
+    def _get_feed_item(self, obj):
+        items_by_id = self.context.get("activity_feed_items_by_id")
+        if items_by_id:
+            return items_by_id.get((obj.content_type_id, obj.object_id), obj.item)
+        return obj.item
+
+    def get_related_work(self, obj):
+        return build_related_work(obj.unified_document)
+
+    def get_activity_context(self, obj):
+        return resolve_activity_context(obj, item=self._get_feed_item(obj))
+
+    def get_activity_bounty(self, obj):
+        return resolve_activity_bounty(obj, item=self._get_feed_item(obj))
+
+    def get_content_object(self, obj):
+        content = super().get_content_object(obj)
+        if content is None or obj.content_type.model != "fundingactivity":
+            return content
+
+        if content.get("bounty_id") is not None:
+            return content
+
+        item = self._get_feed_item(obj)
+        if item is None:
+            return content
+
+        bounty_id = resolve_bounty_id_for_funding_activity(item)
+        if bounty_id is None:
+            return content
+
+        return {**content, "bounty_id": bounty_id}
 
 
 def serialize_feed_metrics(item, item_content_type):

@@ -1,18 +1,22 @@
+from collections import defaultdict
+
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.db.models import Count, Prefetch, Q
+from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
-from feed.serializers import FeedEntrySerializer
+from feed.serializers import ActivityFeedEntrySerializer
 from feed.views.common import FeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
-from paper.related_models.paper_model import Paper
+from paper.related_models.paper_model import Figure, Paper
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
+from reputation.related_models.escrow import EscrowRecipients
 from researchhub_comment.constants.rh_comment_thread_types import (
     COMMUNITY_REVIEW,
     PEER_REVIEW,
@@ -49,7 +53,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     returns only comments across all grant-related documents.
     """
 
-    serializer_class = FeedEntrySerializer
+    serializer_class = ActivityFeedEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
     http_method_names = ["get", "head", "options"]
@@ -60,12 +64,82 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         return context
 
     def list(self, request, *args, **kwargs):
-        response = super().list(request, *args, **kwargs)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        context = self.get_serializer_context()
+
+        if page is not None:
+            context["activity_feed_items_by_id"] = (
+                self._build_activity_feed_items_cache(page)
+            )
+            serializer = self.get_serializer(page, many=True, context=context)
+            response = self.get_paginated_response(serializer.data)
+        else:
+            entries = list(queryset)
+            context["activity_feed_items_by_id"] = (
+                self._build_activity_feed_items_cache(entries)
+            )
+            serializer = self.get_serializer(entries, many=True, context=context)
+            response = Response(serializer.data)
 
         if request.user.is_authenticated:
             self.add_user_votes_to_response(request.user, response.data)
 
         return response
+
+    @staticmethod
+    def _build_activity_feed_items_cache(feed_entries):
+        """Batch-load polymorphic feed items for the current page."""
+        ids_by_model = defaultdict(set)
+        for entry in feed_entries:
+            ids_by_model[entry.content_type.model].add(entry.object_id)
+
+        items_by_key = {}
+
+        if ids_by_model.get("rhcommentmodel"):
+            comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+            comments = RhCommentModel.objects.filter(
+                id__in=ids_by_model["rhcommentmodel"]
+            ).prefetch_related("bounties")
+            for comment in comments:
+                items_by_key[(comment_ct.id, comment.id)] = comment
+
+        if ids_by_model.get("fundingactivity"):
+            fa_ct = ContentType.objects.get_for_model(FundingActivity)
+            escrow_recipient_ct = ContentType.objects.get_for_model(EscrowRecipients)
+            activities = list(
+                FundingActivity.objects.filter(
+                    id__in=ids_by_model["fundingactivity"]
+                ).prefetch_related("recipients")
+            )
+            er_ids = [
+                activity.source_object_id
+                for activity in activities
+                if activity.source_type == FundingActivity.BOUNTY_PAYOUT
+                and activity.source_content_type_id == escrow_recipient_ct.id
+            ]
+            escrow_recipients = {
+                recipient.id: recipient
+                for recipient in EscrowRecipients.objects.filter(id__in=er_ids)
+                .select_related("escrow")
+                .prefetch_related("escrow__bounties")
+            }
+            for activity in activities:
+                if activity.source_type == FundingActivity.BOUNTY_PAYOUT:
+                    activity._prefetched_bounty_payout_source = escrow_recipients.get(
+                        activity.source_object_id
+                    )
+                items_by_key[(fa_ct.id, activity.id)] = activity
+
+        if ids_by_model.get("researchhubpost"):
+            post_ct = ContentType.objects.get_for_model(ResearchhubPost)
+            posts = ResearchhubPost.objects.filter(
+                id__in=ids_by_model["researchhubpost"]
+            )
+            for post in posts:
+                items_by_key[(post_ct.id, post.id)] = post
+
+        return items_by_key
 
     def get_queryset(self):
         queryset = FeedEntry.objects.select_related(
@@ -116,6 +190,20 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         content_type = self.request.query_params.get("content_type")
         if content_type:
             queryset = self._filter_by_content_type(queryset, content_type)
+
+        annotated_grants = Grant.objects.annotate(
+            num_applicants=Count("applications", distinct=True)
+        )
+        queryset = queryset.prefetch_related(
+            "unified_document__hubs",
+            "unified_document__posts",
+            Prefetch(
+                "unified_document__paper__figures",
+                queryset=Figure.objects.filter(is_primary=True),
+            ),
+            "unified_document__fundraises",
+            Prefetch("unified_document__grants", queryset=annotated_grants),
+        )
 
         return queryset
 
