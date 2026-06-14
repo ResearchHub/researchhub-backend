@@ -610,6 +610,43 @@ class FundraiseContributionContentSerializer(serializers.Serializer):
         return None
 
 
+class FundingActivityRecipientSerializer(serializers.Serializer):
+    recipient_user = serializers.SerializerMethodField()
+    amount = serializers.DecimalField(max_digits=19, decimal_places=8)
+    amount_usd_cents = serializers.IntegerField()
+
+    def get_recipient_user(self, obj):
+        user = obj.recipient_user
+        if user and hasattr(user, "author_profile") and user.author_profile:
+            return SimpleAuthorSerializer(user.author_profile).data
+        return None
+
+
+class FundingActivityContentSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    source_type = serializers.CharField()
+    total_amount = serializers.DecimalField(max_digits=19, decimal_places=8)
+    total_usd_cents = serializers.IntegerField()
+    activity_date = serializers.DateTimeField()
+    funder = serializers.SerializerMethodField()
+    recipients = serializers.SerializerMethodField()
+
+    def get_funder(self, obj):
+        if (
+            obj.funder
+            and hasattr(obj.funder, "author_profile")
+            and obj.funder.author_profile
+        ):
+            return SimpleAuthorSerializer(obj.funder.author_profile).data
+        return None
+
+    def get_recipients(self, obj):
+        recipients = obj.recipients.select_related(
+            "recipient_user__author_profile"
+        ).all()
+        return FundingActivityRecipientSerializer(recipients, many=True).data
+
+
 class CommentSerializer(serializers.Serializer):
     author = serializers.SerializerMethodField()
     comment_content_json = serializers.JSONField()
@@ -922,6 +959,8 @@ def serialize_feed_item(feed_item, item_content_type):
             return CommentSerializer(feed_item).data
         case "purchase" | "usdfundraisecontribution":
             return FundraiseContributionContentSerializer(feed_item).data
+        case "fundingactivity":
+            return FundingActivityContentSerializer(feed_item).data
         case _:
             return None
 
