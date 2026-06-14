@@ -40,8 +40,9 @@ from reputation.serializers import (
     DynamicBountySerializer,
     EscrowSerializer,
 )
-from reputation.tasks import create_contribution
+from reputation.tasks import create_contribution, find_qualified_users_and_notify
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
+from researchhub.settings import TESTING
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_CLOSED,
     FILTER_BOUNTY_OPEN,
@@ -262,6 +263,7 @@ class BountyViewSet(viewsets.ModelViewSet):
         item_content_type = data.get("item_content_type", "")
         item_object_id = data.get("item_object_id", 0)
         amount = str(data.get("amount", "0"))
+        target_hubs = data.pop("target_hub_ids", [])
 
         if _open_bounty_exists_on_item(item_content_type, item_object_id):
             return Response(
@@ -326,6 +328,16 @@ class BountyViewSet(viewsets.ModelViewSet):
                     SORT_BOUNTY_TOTAL_AMOUNT,
                 )
             )
+
+            if target_hubs:
+                if TESTING:
+                    find_qualified_users_and_notify(
+                        bounty.id, target_hubs, exclude_users=[user.id]
+                    )
+                else:
+                    find_qualified_users_and_notify.apply_async(
+                        (bounty.id, target_hubs, [user.id]), priority=3, countdown=1
+                    )
 
             return Response(serializer.data, status=201)
 
