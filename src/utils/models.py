@@ -5,6 +5,8 @@ from django.utils import timezone
 
 from utils.managers import SoftDeletableManager
 
+USER_MODEL = "user.User"
+
 
 class DefaultModel(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
@@ -21,7 +23,7 @@ class DefaultAuthenticatedModel(models.Model):
         abstract = True
 
     created_by = models.ForeignKey(
-        "user.User",
+        USER_MODEL,
         on_delete=models.CASCADE,
         related_name="created_%(app_label)s_%(class)s",
     )
@@ -29,7 +31,7 @@ class DefaultAuthenticatedModel(models.Model):
         auto_now_add=True,
     )
     updated_by = models.ForeignKey(
-        "user.User",
+        USER_MODEL,
         blank=True,
         help_text="Last user to update the instance",
         null=True,
@@ -86,6 +88,47 @@ class SoftDeletableModel(models.Model):
             self.save(update_fields=["is_removed", "is_removed_date", "is_public"])
         else:
             return super().delete(*args, **kwargs)
+
+
+class ModeratedDocumentMixin(models.Model):
+    """Moderation lifecycle shared by works that gate public visibility.
+
+    Bundles the PENDING / APPROVED / DECLINED status with the moderator
+    audit trail (`reviewed_by`, `reviewed_date`) so each work model inherits
+    one definition instead of redeclaring it.
+    """
+
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    DECLINED = "DECLINED"
+    STATUS_CHOICES = (
+        (PENDING, "Pending"),
+        (APPROVED, "Approved"),
+        (DECLINED, "Declined"),
+    )
+
+    status = models.CharField(
+        choices=STATUS_CHOICES,
+        default=APPROVED,
+        max_length=32,
+        help_text="Moderation status used to gate public visibility.",
+    )
+    reviewed_by = models.ForeignKey(
+        USER_MODEL,
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="reviewed_%(class)ss",
+        help_text="Moderator who approved or declined this work",
+    )
+    reviewed_date = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When the work was approved or declined",
+    )
+
+    class Meta:
+        abstract = True
 
 
 class PaidStatusModelMixin(models.Model):
