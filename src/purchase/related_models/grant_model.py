@@ -142,7 +142,7 @@ class Grant(DefaultModel):
         the status of their backing post (which stays APPROVED).
         """
         return self.status in self.PENDING_MODERATION_STATUSES
-        
+
     def get_llm_context_text(self):
         """Grant terms as prompt-ready text for LLM grounding.
 

@@ -189,9 +189,7 @@ router.register(r"activity_feed", ActivityFeedViewSet, basename="activity_feed")
 
 router.register(r"feed", FeedViewSet, basename="feed")
 
-router.register(
-    r"moderator_feed", ModeratorFeedViewSet, basename="moderator_feed"
-)
+router.register(r"moderator_feed", ModeratorFeedViewSet, basename="moderator_feed")
 
 router.register(r"funding_feed", FundingFeedViewSet, basename="funding_feed")
 

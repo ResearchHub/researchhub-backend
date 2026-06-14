@@ -1047,8 +1047,10 @@ class GrantModerationServiceTests(APITestCase):
             self.service.approve_grant(self.grant, self.moderator)
 
         self.assertTrue(
-            any(call.args and call.args[0].id == self.post.id
-                for call in mock_update.call_args_list)
+            any(
+                call.args and call.args[0].id == self.post.id
+                for call in mock_update.call_args_list
+            )
         )
 
     def test_decline_creates_flag_removes_doc_and_notifies(self):
@@ -1118,9 +1120,7 @@ class PendingGrantVisibilityTests(APITestCase):
     def setUp(self):
         self.creator = create_random_authenticated_user("grant_creator")
         self.outsider = create_random_authenticated_user("grant_outsider")
-        self.moderator = create_random_authenticated_user(
-            "grant_mod", moderator=True
-        )
+        self.moderator = create_random_authenticated_user("grant_mod", moderator=True)
 
         self.post = create_post(created_by=self.creator, document_type=GRANT)
         self.grant = Grant.objects.create(
@@ -1159,14 +1159,10 @@ class PendingGrantVisibilityTests(APITestCase):
         self.assertIn(self.grant.id, self._grant_ids(self.outsider))
 
     def test_unified_document_hides_pending_grant_from_outsider(self):
-        self.assertFalse(
-            self.post.unified_document.is_visible_to_user(self.outsider)
-        )
+        self.assertFalse(self.post.unified_document.is_visible_to_user(self.outsider))
 
     def test_unified_document_shows_pending_grant_to_creator(self):
-        self.assertTrue(
-            self.post.unified_document.is_visible_to_user(self.creator)
-        )
+        self.assertTrue(self.post.unified_document.is_visible_to_user(self.creator))
 
     def test_outsider_gets_404_on_pending_grant_post(self):
         """The grant's backing post stays APPROVED, but a pending grant must
