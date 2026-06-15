@@ -89,6 +89,7 @@ extend-select = [
     "E",    # pycodestyle errors
     "W",    # pycodestyle warnings
     "I",    # isort
+    "UP017",  # datetime-timezone-utc
     "T20",  # flake8-print: forbid print statements
     "TID251",  # flake8-tidy-imports
 ]
