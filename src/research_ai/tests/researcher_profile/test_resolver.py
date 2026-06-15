@@ -75,7 +75,9 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
         # Arrange: OpenAlex has no author behind the cited ORCID.
         mock_fetch.return_value = None
         client = MagicMock()
-        client.search_authors_via_name.return_value = {"results": [create_oa_author_record()]}
+        client.search_authors_via_name.return_value = {
+            "results": [create_oa_author_record()]
+        }
         expert = make_expert(sources=[{"url": "https://orcid.org/0000-0002-1825-0097"}])
         # Act
         res = resolver.resolve_openalex_author(expert, client=client)
@@ -89,7 +91,9 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
         client.search_institutions.return_value = {
             "results": [{"id": "https://openalex.org/I114027177"}]
         }
-        client.search_authors_via_name.return_value = {"results": [create_oa_author_record()]}
+        client.search_authors_via_name.return_value = {
+            "results": [create_oa_author_record()]
+        }
         expert = make_expert(affiliation="Stanford University")
         # Act
         res = resolver.resolve_openalex_author(expert, client=client)
@@ -107,7 +111,9 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
         # Arrange: institution search finds nothing usable.
         client = MagicMock()
         client.search_institutions.return_value = {"results": []}
-        client.search_authors_via_name.return_value = {"results": [create_oa_author_record()]}
+        client.search_authors_via_name.return_value = {
+            "results": [create_oa_author_record()]
+        }
         expert = make_expert(affiliation="Tiny Unknown Lab")
         # Act
         res = resolver.resolve_openalex_author(expert, client=client)
@@ -140,8 +146,12 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
         client = MagicMock()
         client.search_authors_via_name.return_value = {
             "results": [
-                create_oa_author_record(id="https://openalex.org/A1", cited_by_count=10),
-                create_oa_author_record(id="https://openalex.org/A2", cited_by_count=900),
+                create_oa_author_record(
+                    id="https://openalex.org/A1", cited_by_count=10
+                ),
+                create_oa_author_record(
+                    id="https://openalex.org/A2", cited_by_count=900
+                ),
             ]
         }
         # Act
@@ -164,7 +174,9 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
     def test_single_exact_name_match_without_affiliation(self):
         # Arrange
         client = MagicMock()
-        client.search_authors_via_name.return_value = {"results": [create_oa_author_record()]}
+        client.search_authors_via_name.return_value = {
+            "results": [create_oa_author_record()]
+        }
         # Act: expert has no affiliation, only one strong candidate -> accept by name.
         res = resolver.resolve_openalex_author(make_expert(), client=client)
         # Assert
