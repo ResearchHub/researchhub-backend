@@ -10,11 +10,18 @@ author and builds the profile.
 One module per concern:
 
 - ``resolver``       maps the ``Expert`` (cited id links, else name +
-                     affiliation) to an OpenAlex author id
-- ``works``          fetches and selects the expert's papers (first/last
+                     affiliation) to an OpenAlex author id, and exposes the
+                     candidate-gathering / confidence primitives the ladder uses
+- ``disambiguator``  hands ambiguous candidate sets to the LLM, which picks the
+                     matching author or abstains
+- ``works``          fetches and selects a resolved author's papers (first/last
                      authorship outranks middle, then recency)
-- ``builder``        assembles the profile dict and persists it **once** on
-                     ``Expert.profile`` so it is reused instead of re-fetched
+- ``builder``        walks the escalation ladder, assembles the profile dict,
+                     and persists it **once** on ``Expert.profile``
+
+The builder escalates only as far as needed (source-link -> name -> LLM
+disambiguation), stopping at the first confident rung, so the LLM runs at most
+once per expert; an expert that still cannot be matched is left ``unresolved``.
 
 **Every work is readable** -- works seed proposal generation, so the list is
 restricted to open-access papers that expose a full-text ``pdf_url`` (the most
@@ -30,14 +37,19 @@ authoritative version available), each with a ``source_url`` to cite.
         "display_name": str | None,
         "match_score": float,                # 0..1
         "match_method": "source-link" | "name+affiliation" | "name"
-                        | "unresolved",
+                        | "name-llm" | "unresolved",
         "candidates_considered": int,
+        "disambiguation": {                  # present only when the LLM was consulted
+          "confidence": float,               # 0..1, the model's stated confidence
+          "reasoning": str,                  # one-sentence rationale
+          "chosen": bool,                    # False when the model abstained
+        },
       },
       "works": [                             # lead-author outrank middle, then recency.
-        {"title", "publication_date",        # date orders recency; year is dedup key.
-         "publication_year", "source_url",   # author_position: first|middle|last
-         "author_position", "pdf_url",       # pdf_url: published-version OA PDF ("" if
-         "is_oa"},                           # none); is_oa: work is open access
+        {"title", "publication_date",        # date orders recency; year dedups.
+         "publication_year", "source_url",   # author_position: first|middle|last|None
+         "author_position", "pdf_url",       # pdf_url: published-version OA PDF
+         "is_oa"},                           # ("" when none); is_oa: open access
         ...,
       ],
       "errors": [str, ...],                  # non-fatal failures, for auditability

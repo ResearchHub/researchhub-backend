@@ -4,8 +4,11 @@ These works seed proposal generation, so we only keep papers we can actually
 read: the fetch asks OpenAlex for open-access works, and selection then drops any
 without a usable full-text PDF. Each entity is parsed into a ``utils.openalex.Work``
 carrying this author's ``author_position`` ("first" | "middle" | "last"). Selection
-keeps the ``_MAX_WORKS`` papers with first/last authorship outranking middle
+keeps the ``MAX_WORKS`` papers with first/last authorship outranking middle
 authorship, then recency.
+
+``MAX_WORKS`` is the profile-wide cap on stored works; the web-search fallback
+imports it so both resolution paths keep the same number of papers.
 """
 
 import logging
@@ -15,13 +18,13 @@ from utils.openalex import OpenAlex, Work
 
 logger = logging.getLogger(__name__)
 
-_MAX_WORKS = 5  # papers kept on the profile (first/last author, then recency)
+MAX_WORKS = 5  # papers kept on the profile (first/last author, then recency)
 _WORKS_PAGE_SIZE = 50  # recent-works window fetched from OpenAlex before selection
 
 
 def _select_works(works: list[Work]) -> list[Work]:
     """Drop papers with no full-text ``pdf_url``, rank by lead-authorship then
-    recency, dedup by title + year, and keep ``_MAX_WORKS``."""
+    recency, dedup by title + year, and keep ``MAX_WORKS``."""
     readable = [work for work in works if work.pdf_url]
 
     def rank(work: Work) -> tuple[bool, str]:
@@ -38,7 +41,7 @@ def _select_works(works: list[Work]) -> list[Work]:
         seen.add(key)
         deduped.append(work)
 
-    return deduped[:_MAX_WORKS]
+    return deduped[:MAX_WORKS]
 
 
 def collect_works(

@@ -181,3 +181,102 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
         res = resolver.resolve_openalex_author(make_expert(), client=client)
         # Assert
         self.assertEqual(res.match_method, "name")
+
+
+class ResolveViaSourceLinkTests(SimpleTestCase):
+    @patch(
+        "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
+    )
+    def test_returns_resolution_for_cited_id(self, mock_fetch):
+        # Arrange
+        mock_fetch.return_value = create_oa_author_record()
+        expert = make_expert(sources=[{"url": "https://orcid.org/0000-0002-1825-0097"}])
+        # Act
+        res = resolver.resolve_via_source_link(expert, client=MagicMock())
+        # Assert
+        self.assertEqual(res.match_method, "source-link")
+        self.assertEqual(res.match_score, 1.0)
+
+    def test_returns_none_when_no_id_cited(self):
+        # Arrange: no sources -> nothing to look up.
+        # Act
+        res = resolver.resolve_via_source_link(make_expert(), client=MagicMock())
+        # Assert
+        self.assertIsNone(res)
+
+    @patch(
+        "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
+    )
+    def test_returns_none_when_openalex_has_no_record(self, mock_fetch):
+        # Arrange
+        mock_fetch.return_value = None
+        expert = make_expert(sources=[{"url": "https://orcid.org/0000-0002-1825-0097"}])
+        # Act
+        res = resolver.resolve_via_source_link(expert, client=MagicMock())
+        # Assert
+        self.assertIsNone(res)
+
+
+class GatherNameCandidatesTests(SimpleTestCase):
+    def test_prefers_institution_scoped_candidates(self):
+        # Arrange
+        client = MagicMock()
+        client.search_institutions.return_value = {
+            "results": [{"id": "https://openalex.org/I1"}]
+        }
+        client.search_authors_via_name.return_value = {
+            "results": [create_oa_author_record()]
+        }
+        # Act
+        cands = resolver.gather_name_candidates(
+            make_expert(affiliation="Stanford University"), client=client
+        )
+        # Assert
+        self.assertTrue(cands.scoped)
+        self.assertEqual(len(cands.scored), 1)
+        client.search_authors_via_name.assert_called_once_with(
+            "Jane Doe", institution_id="https://openalex.org/I1"
+        )
+
+    def test_falls_back_to_unscoped_and_returns_all_strong_candidates(self):
+        # Arrange: no affiliation -> unscoped search; two exact-name candidates.
+        client = MagicMock()
+        client.search_authors_via_name.return_value = {
+            "results": [
+                create_oa_author_record(id="https://openalex.org/A1"),
+                create_oa_author_record(id="https://openalex.org/A2"),
+            ]
+        }
+        # Act
+        cands = resolver.gather_name_candidates(make_expert(), client=client)
+        # Assert
+        self.assertFalse(cands.scoped)
+        self.assertEqual(len(cands.scored), 2)
+        self.assertEqual(cands.candidates_considered, 2)
+
+    def test_search_error_is_captured(self):
+        # Arrange
+        client = MagicMock()
+        client.search_authors_via_name.side_effect = RuntimeError("network")
+        # Act
+        cands = resolver.gather_name_candidates(make_expert(), client=client)
+        # Assert
+        self.assertEqual(cands.scored, [])
+        self.assertIn("network", cands.error or "")
+
+
+class ConfidentSingleTests(SimpleTestCase):
+    def test_lone_strong_match_is_confident(self):
+        # Arrange / Act / Assert
+        self.assertIsNotNone(resolver.confident_single([(1.0, {"id": "A1"})]))
+
+    def test_lone_borderline_match_is_not_confident(self):
+        # Arrange: a single initial-only (0.6) match clears STRONG but not CONFIDENT.
+        # Act / Assert
+        self.assertIsNone(resolver.confident_single([(0.6, {"id": "A1"})]))
+
+    def test_multiple_candidates_are_not_confident(self):
+        # Arrange / Act / Assert
+        self.assertIsNone(
+            resolver.confident_single([(1.0, {"id": "A1"}), (1.0, {"id": "A2"})])
+        )

@@ -23,7 +23,7 @@ take-the-top name rung will miss rather than accept a weak match.
 import logging
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from research_ai.services.researcher_external_context import (
     fetch_openalex_author_record,
@@ -36,6 +36,13 @@ logger = logging.getLogger(__name__)
 # Deliberately conservative: a wrong match would attribute someone else's
 # track record to the expert. Tunable without code changes.
 NAME_SCORE_STRONG = 0.6
+
+# A single candidate at or above this score is taken directly, no LLM. This is
+# the "confident" bar: 0.85+ means the expert's full first name is present (an
+# exact full-name match scores 1.0). A lone initial-only match (0.6) clears
+# STRONG but not this, so it is escalated to the disambiguator rather than
+# guessed at. See ``confident_single``.
+NAME_SCORE_CONFIDENT = 0.85
 
 
 def _norm(value: str) -> str:
@@ -200,3 +207,115 @@ def resolve_openalex_author(
         candidates_considered=len(candidates),
         record=record,
     )
+
+
+# ---------------------------------------------------------------------------
+# Escalation-ladder primitives
+#
+# ``resolve_openalex_author`` above is the original take-the-top resolver,
+# kept for callers that just want a single best-effort match. The builder's
+# escalation ladder instead composes the pieces below so it can branch on
+# confidence: resolve a cited id -> gather name candidates -> hand ambiguous
+# sets to the LLM disambiguator -> fall back to web search.
+# ---------------------------------------------------------------------------
+
+
+def resolve_via_source_link(expert, *, client: OpenAlex) -> AuthorResolution | None:
+    """Rung 1: an OpenAlex/ORCID id the expert finder already cited.
+
+    Returns a certain (score 1.0) resolution, or ``None`` when no id is cited
+    or OpenAlex has no author behind it -- the caller then falls through to the
+    name rungs.
+    """
+    src_orcid, src_oa = expert.source_ids
+    if not (src_orcid or src_oa):
+        return None
+    record = fetch_openalex_author_record(
+        orcid_bare=src_orcid, openalex_author_ref=src_oa, client=client
+    )
+    if not record:
+        return None
+    return AuthorResolution(
+        openalex_author_id=record.get("id")
+        or (f"https://openalex.org/{src_oa}" if src_oa else None),
+        display_name=record.get("display_name"),
+        match_score=1.0,
+        match_method="source-link",
+        record=record,
+    )
+
+
+@dataclass
+class NameCandidates:
+    """Name-strong author candidates for an expert, best first.
+
+    ``scoped`` records whether the candidates came from the institution-scoped
+    search (``True`` -> ``name+affiliation``) or the unscoped name search
+    (``False`` -> ``name``); the builder uses it to label the match method.
+    """
+
+    scored: list[tuple[float, dict]] = field(default_factory=list)
+    institution_id: str | None = None
+    scoped: bool = False
+    candidates_considered: int = 0
+    error: str | None = None
+
+
+def gather_name_candidates(expert, *, client: OpenAlex) -> NameCandidates:
+    """Gather name-strong author candidates, preferring institution-scoped hits.
+
+    Mirrors the search order of ``resolve_openalex_author`` (scoped first, then
+    unscoped) but returns the whole candidate set rather than just the top one,
+    so the disambiguator can adjudicate. Best-effort: search failures surface in
+    ``error`` and yield an empty candidate set.
+    """
+    name = expert.full_name
+    if not name:
+        return NameCandidates()
+
+    institution_id = _resolve_institution_id(
+        getattr(expert, "affiliation", ""), client=client
+    )
+
+    # Institution-scoped name search.
+    if institution_id:
+        try:
+            resp = client.search_authors_via_name(name, institution_id=institution_id)
+            results = resp.get("results") or []
+        except Exception as exc:  # noqa: BLE001 - fall through to unscoped search
+            logger.info("Institution-scoped author search failed: %s", exc)
+            results = []
+        scored = _name_scored_candidates(expert, results)
+        if scored:
+            return NameCandidates(
+                scored=scored,
+                institution_id=institution_id,
+                scoped=True,
+                candidates_considered=len(results),
+            )
+
+    # Unscoped name search.
+    try:
+        resp = client.search_authors_via_name(name)
+    except Exception as exc:  # noqa: BLE001 - network/parse errors are non-fatal
+        logger.info("OpenAlex author search failed for %r: %s", name, exc)
+        return NameCandidates(institution_id=institution_id, error=str(exc))
+    results = resp.get("results") or []
+    return NameCandidates(
+        scored=_name_scored_candidates(expert, results),
+        institution_id=institution_id,
+        scoped=False,
+        candidates_considered=len(results),
+    )
+
+
+def confident_single(scored: list[tuple[float, dict]]) -> tuple[float, dict] | None:
+    """The lone, strong-enough candidate to accept without the LLM, else ``None``.
+
+    "Confident" means exactly one candidate cleared ``NAME_SCORE_STRONG`` and it
+    is a strong personal-name match (``NAME_SCORE_CONFIDENT``+). Two-plus
+    candidates (ambiguous) or a single borderline one are escalated instead.
+    """
+    if len(scored) == 1 and scored[0][0] >= NAME_SCORE_CONFIDENT:
+        return scored[0]
+    return None
