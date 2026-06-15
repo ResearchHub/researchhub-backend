@@ -1,7 +1,7 @@
 """Shared factories for building OpenAlex API payloads in tests."""
 
 
-def oa_author_record(**overrides):
+def create_oa_author_record(**overrides):
     record = {
         "id": "https://openalex.org/A123",
         "display_name": "Jane Doe",
@@ -17,7 +17,7 @@ def oa_author_record(**overrides):
     return record
 
 
-def oa_work(
+def create_oa_work(
     title,
     year,
     position,
