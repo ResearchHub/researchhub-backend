@@ -1,27 +1,23 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from django.db import transaction
 from django.utils import timezone
 
 from feed.tasks import publish_to_feed
 from notification.models import Notification
 from paper.related_models.paper_model import Paper
+from purchase.related_models.grant_model import Grant
 from purchase.services.grant_service import GrantModerationService
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from user.related_models.user_model import User
 from user.services.moderation import (
     create_removal_verdict,
     send_moderation_notification,
 )
-
-if TYPE_CHECKING:
-    from purchase.models import Grant
-    from user.models import User
 
 # A work this service can moderate directly (grants are delegated to
 # GrantModerationService). Papers and posts gate visibility through their

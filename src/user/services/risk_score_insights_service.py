@@ -155,32 +155,16 @@ def _unified_document_detail(unified_document: ResearchhubUnifiedDocument) -> di
     )
 
 
-def _bounty_solution_detail(solution: BountySolution) -> dict | None:
-    if isinstance(solution.item, RhCommentModel):
-        return _comment_detail(solution.item)
+def _comment_source_detail(source: Model) -> dict | None:
+    """Detail for sources whose payload is a comment (bounty solutions, tips,
+    reviews). Anything else has no comment to surface, so there's no detail."""
+    item = source.item
+    if isinstance(item, RhCommentModel):
+        return _comment_detail(item)
     logger.warning(
-        "BountySolution %s has non-comment item; no risk score detail available",
-        solution.pk,
-    )
-    return None
-
-
-def _purchase_detail(purchase: Purchase) -> dict | None:
-    if isinstance(purchase.item, RhCommentModel):
-        return _comment_detail(purchase.item)
-    logger.warning(
-        "Purchase %s has non-comment item; no risk score detail available",
-        purchase.pk,
-    )
-    return None
-
-
-def _review_detail(review: Review) -> dict | None:
-    if isinstance(review.item, RhCommentModel):
-        return _comment_detail(review.item)
-    logger.warning(
-        "Review %s has non-comment item; no risk score detail available",
-        review.pk,
+        "%s %s has non-comment item; no risk score detail available",
+        type(source).__name__,
+        source.pk,
     )
     return None
 
@@ -191,9 +175,9 @@ SOURCE_DETAIL_BUILDERS = {
     Paper: _paper_detail,
     RhCommentModel: _comment_detail,
     ResearchhubUnifiedDocument: _unified_document_detail,
-    BountySolution: _bounty_solution_detail,
-    Purchase: _purchase_detail,
-    Review: _review_detail,
+    BountySolution: _comment_source_detail,
+    Purchase: _comment_source_detail,
+    Review: _comment_source_detail,
 }
 
 # Per-model FK hints applied when batch-loading sources. Keeps subsequent
@@ -222,7 +206,7 @@ def _build_detail(source: Model | None) -> dict | None:
     return builder(source) if builder else None
 
 
-def build_event_details(events: Iterable[RiskScoreEvent]) -> dict:
+def build_event_details(events: Iterable[RiskScoreEvent]) -> dict[int, dict | None]:
     """Map event id to a detail payload (or None for sourceless events)."""
     events = list(events)
     ids_by_ct = {}
@@ -248,7 +232,7 @@ def build_event_details(events: Iterable[RiskScoreEvent]) -> dict:
     }
 
 
-def build_insights(user: User) -> list:
+def build_insights(user: User) -> list[dict]:
     """Aggregate per-event-type counts and sentiment for a user."""
     aggregates = (
         RiskScoreEvent.objects.filter(user=user)

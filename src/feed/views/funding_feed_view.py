@@ -9,7 +9,7 @@ This is done for three reasons:
 """
 
 from django.core.cache import cache
-from django.db.models import Count, Prefetch
+from django.db.models import Count, Prefetch, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -27,9 +27,13 @@ from feed.views.funding_cache_mixin import (
 )
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.grant_application_model import approved_proposal_filters
 from reputation.related_models.bounty import Bounty
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from review.models import Review
 
 from .common import FeedPagination
@@ -105,8 +109,13 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
         created_by = self.request.query_params.get("created_by")
         funded_by = self.request.query_params.get("funded_by")
 
+        application_lookup = "applications"
         annotated_grants = Grant.objects.annotate(
-            num_applicants=Count("applications", distinct=True)
+            num_applicants=Count(
+                application_lookup,
+                distinct=True,
+                filter=Q(**approved_proposal_filters(application_lookup)),
+            )
         ).prefetch_related("unified_document__posts")
 
         grant_applications_prefetch = Prefetch(
@@ -151,6 +160,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
             .filter(
                 document_type=PREREGISTRATION,
                 unified_document__is_removed=False,
+                unified_document__status=ResearchhubUnifiedDocument.APPROVED,
             )
         )
 
@@ -167,8 +177,8 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
             queryset = queryset.filter(id__in=visible_ids)
         else:
             # The public discovery feed stays user-agnostic so it can be cached
-            # for everyone; never expose private work here.
-            queryset = queryset.filter(unified_document__is_public=True)
+            # for everyone; never expose private or unmoderated work here.
+            queryset = queryset.publicly_visible()
 
         if created_by:
             queryset = queryset.filter(created_by_id=created_by)

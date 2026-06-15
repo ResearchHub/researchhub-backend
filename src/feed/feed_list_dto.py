@@ -11,7 +11,6 @@ from feed.serializers import (
     SimpleReviewSerializer,
 )
 from purchase.related_models.constants.currency import RSC, USD
-from purchase.related_models.grant_model import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -204,11 +203,11 @@ def serialize_slim_grant_applications(grant, context):
         if not author_profile:
             continue
 
-        ud = getattr(application.preregistration_post, "unified_document", None)
-        if ud and ud.is_removed:
+        if not application.has_approved_proposal():
             continue
 
-        if ud and not ud.is_public and not is_grant_reviewer:
+        proposal_document = application.preregistration_post.unified_document
+        if not proposal_document.is_public and not is_grant_reviewer:
             if not viewer or not getattr(viewer, "is_authenticated", False):
                 continue
             if application.applicant_id != viewer.id:
@@ -233,11 +232,6 @@ def serialize_slim_grant_applications(grant, context):
 
 
 def _serialize_slim_grant(grant, context):
-    request = context.get("request")
-    status = ""
-    if request:
-        status = request.query_params.get("status", "").upper()
-
     data = {
         "id": grant.id,
         "status": grant.status,
@@ -247,10 +241,6 @@ def _serialize_slim_grant(grant, context):
         "is_expired": grant.is_expired(),
         "is_active": grant.is_active(),
     }
-
-    if status == Grant.PENDING:
-        data["end_date"] = grant.end_date
-        return data
 
     all_applications = serialize_slim_grant_applications(grant, context)
     data["application_count"] = len(all_applications)
@@ -483,7 +473,7 @@ class FundingFeedListEntrySerializer(FundFeedListEntrySerializer):
             grant = app.grant
             num_applicants = getattr(grant, "num_applicants", None)
             if num_applicants is None:
-                num_applicants = grant.applications.count()
+                num_applicants = grant.applications.with_approved_proposal().count()
 
             results.append(
                 {

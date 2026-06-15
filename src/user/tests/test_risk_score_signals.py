@@ -193,6 +193,18 @@ class ContentCensoredSignalTests(RiskScoreSignalTestCase):
         # Assert
         self._assert_no_events(self.user, EventType.CONTENT_CENSORED)
 
+    def test_declined_post_verdict_does_not_record(self):
+        # Arrange
+        self.post.unified_document.status = ResearchhubUnifiedDocument.DECLINED
+        self.post.unified_document.save(update_fields=["status"])
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            remove_content_via_verdict(self.post)
+
+        # Assert
+        self._assert_no_events(self.user, EventType.CONTENT_CENSORED)
+
     def test_dismissed_verdict_does_not_record(self):
         # Arrange
         comment = self._create_comment(self.post, self.user)

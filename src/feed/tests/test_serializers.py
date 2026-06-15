@@ -1664,6 +1664,75 @@ class FeedEntrySerializerTests(AWSMockTestCase):
         self.assertIn("unified_document_id", post_data)
         self.assertEqual(post_data["unified_document_id"], post.unified_document.id)
 
+    def test_filters_unapproved_grant_applications_from_cached_content(self):
+        # Arrange
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant_post = ResearchhubPost.objects.create(
+            title="Grant",
+            created_by=self.user,
+            document_type=GRANT,
+            unified_document=grant_doc,
+        )
+        approved_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        approved_post = ResearchhubPost.objects.create(
+            title="Approved proposal",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=approved_doc,
+        )
+        pending_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+            status=ResearchhubUnifiedDocument.PENDING,
+        )
+        pending_post = ResearchhubPost.objects.create(
+            title="Pending proposal",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=pending_doc,
+        )
+        removed_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+            is_removed=True,
+        )
+        removed_post = ResearchhubPost.objects.create(
+            title="Removed proposal",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=removed_doc,
+        )
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=grant_post.id,
+            content={
+                "id": grant_post.id,
+                "grant": {
+                    "application_count": 3,
+                    "applications": [
+                        {"preregistration_post_id": approved_post.id},
+                        {"preregistration_post_id": pending_post.id},
+                        {"preregistration_post_id": removed_post.id},
+                    ],
+                },
+            },
+            metrics={},
+            user=self.user,
+            action="PUBLISH",
+            action_date=grant_post.created_date,
+            unified_document=grant_doc,
+        )
+
+        # Act
+        data = FeedEntrySerializer(feed_entry).data
+
+        # Assert
+        grant = data["content_object"]["grant"]
+        applications = grant["applications"]
+        self.assertEqual(grant["application_count"], 1)
+        self.assertEqual(len(applications), 1)
+        self.assertEqual(applications[0]["preregistration_post_id"], approved_post.id)
+
     def test_serializes_comment_feed_entry_with_unified_document_id(self):
         """
         Test that comment feed entries include unified_document_id in paper/post fields

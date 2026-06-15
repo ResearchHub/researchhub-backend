@@ -14,6 +14,9 @@ from feed.serializers import FeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
 from paper.related_models.paper_model import Paper
 from paper.related_models.paper_version import PaperVersion
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 
 from .common import FeedPagination
 
@@ -108,6 +111,7 @@ class JournalFeedViewSet(FeedViewMixin, ModelViewSet):
             .filter(
                 is_removed=False,
                 is_public=True,
+                unified_document__status=ResearchhubUnifiedDocument.APPROVED,
             )
         )
 

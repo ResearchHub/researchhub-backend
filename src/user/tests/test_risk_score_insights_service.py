@@ -1,8 +1,9 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
+from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient
 
 from paper.tests.helpers import create_paper
 from purchase.related_models.grant_model import Grant
@@ -53,7 +54,7 @@ def _record_many(user, event_type, count, *, delta=None):
         )
 
 
-class BuildEventDetailsTests(APITestCase):
+class BuildEventDetailsTests(TestCase):
     def setUp(self):
         self.user = create_user(email="author@test.com")
         self.post = create_post(created_by=self.user, title="Quantum Computing")
@@ -299,7 +300,7 @@ class BuildEventDetailsTests(APITestCase):
         self.assertEqual(len(comment_fetches), 1)
 
 
-class BuildInsightsTests(APITestCase):
+class BuildInsightsTests(TestCase):
     def setUp(self):
         self.user = create_user(email="insights@test.com")
 
@@ -422,11 +423,12 @@ class BuildInsightsTests(APITestCase):
             build_insights(self.user)
 
 
-class RiskScoreEventsApiTests(APITestCase):
+class RiskScoreEventsApiTests(TestCase):
     def setUp(self):
         self.moderator = create_user(email="mod@test.com", moderator=True)
         self.target = create_user(email="target@test.com")
         self.post = create_post(created_by=self.target, title="Subject paper")
+        self.client = APIClient()
         self.client.force_authenticate(user=self.moderator)
 
     def test_response_includes_source_detail_and_insights(self):

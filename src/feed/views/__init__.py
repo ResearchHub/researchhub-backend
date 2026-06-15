@@ -7,6 +7,7 @@ from .feed_view import FeedViewSet
 from .funding_feed_view import FundingFeedViewSet
 from .grant_feed_view import GrantFeedViewSet
 from .journal_feed_view import JournalFeedViewSet
+from .moderator_feed_view import ModeratorFeedViewSet
 
 __all__ = [
     "ActivityFeedViewSet",
@@ -14,4 +15,5 @@ __all__ = [
     "FundingFeedViewSet",
     "GrantFeedViewSet",
     "JournalFeedViewSet",
+    "ModeratorFeedViewSet",
 ]
