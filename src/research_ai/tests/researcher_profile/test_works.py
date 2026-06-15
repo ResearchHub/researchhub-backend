@@ -4,7 +4,7 @@ from django.test import SimpleTestCase
 
 from research_ai.services.researcher_profile import works as works_mod
 from utils.openalex import Work
-from utils.tests.openalex_helpers import oa_work
+from utils.tests.openalex_helpers import create_oa_work
 
 
 def _works(results, author_id="A123"):
@@ -16,8 +16,8 @@ class SelectWorksTests(SimpleTestCase):
         # Arrange: the same paper twice.
         works = _works(
             [
-                oa_work("Same Paper", 2023, "first"),
-                oa_work("Same Paper", 2023, "first"),
+                create_oa_work("Same Paper", 2023, "first"),
+                create_oa_work("Same Paper", 2023, "first"),
             ]
         )
         # Act
@@ -29,8 +29,8 @@ class SelectWorksTests(SimpleTestCase):
         # Arrange: a readable paper and a paywalled one with no PDF.
         works = _works(
             [
-                oa_work("Readable", 2023, "first"),
-                oa_work("No Full Text", 2024, "first", pdf_url=""),
+                create_oa_work("Readable", 2023, "first"),
+                create_oa_work("No Full Text", 2024, "first", pdf_url=""),
             ]
         )
         # Act
@@ -54,14 +54,14 @@ class SelectWorksTests(SimpleTestCase):
         # and one work is undated (sorts last within its tier).
         works = _works(
             [
-                oa_work("Middle A", 2025, "middle"),
-                oa_work("Middle B", 2024, "middle"),
-                oa_work("First Old", 2019, "first"),
-                oa_work("Last Older", 2018, "last"),
-                oa_work("Middle C", 2022, "middle"),
-                oa_work("First New", 2023, "first"),
-                oa_work("Middle D", 2021, "middle"),
-                oa_work("Middle Undated", None, "middle"),
+                create_oa_work("Middle A", 2025, "middle"),
+                create_oa_work("Middle B", 2024, "middle"),
+                create_oa_work("First Old", 2019, "first"),
+                create_oa_work("Last Older", 2018, "last"),
+                create_oa_work("Middle C", 2022, "middle"),
+                create_oa_work("First New", 2023, "first"),
+                create_oa_work("Middle D", 2021, "middle"),
+                create_oa_work("Middle Undated", None, "middle"),
             ]
         )
         # Act

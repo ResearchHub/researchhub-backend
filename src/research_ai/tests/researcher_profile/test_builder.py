@@ -8,7 +8,7 @@ from research_ai.models import Expert
 from research_ai.services.researcher_profile import builder
 from research_ai.tests.researcher_profile.helpers import make_expert
 from utils.openalex import Work
-from utils.tests.openalex_helpers import oa_author_record, oa_work
+from utils.tests.openalex_helpers import create_oa_author_record, create_oa_work
 
 
 class BuildProfileTests(SimpleTestCase):
@@ -19,10 +19,10 @@ class BuildProfileTests(SimpleTestCase):
             "results": [{"id": "https://openalex.org/I1"}]
         }
         client.search_authors_via_name.return_value = {
-            "results": [oa_author_record(orcid=None)]
+            "results": [create_oa_author_record(orcid=None)]
         }
         client.get_works_typed.return_value = [
-            Work.from_openalex(oa_work("Lead Paper", 2024, "first"), author_id="A123")
+            Work.from_openalex(create_oa_work("Lead Paper", 2024, "first"), author_id="A123")
         ]
         expert = make_expert(affiliation="Stanford University", expertise="genomics")
         # Act
@@ -54,7 +54,7 @@ class BuildProfileTests(SimpleTestCase):
         client.search_institutions.return_value = {
             "results": [{"id": "https://openalex.org/I1"}]
         }
-        client.search_authors_via_name.return_value = {"results": [oa_author_record()]}
+        client.search_authors_via_name.return_value = {"results": [create_oa_author_record()]}
         client.get_works_typed.side_effect = RuntimeError("works api down")
         # Act
         profile = builder.build_expert_profile(
