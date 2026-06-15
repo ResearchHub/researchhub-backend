@@ -1033,9 +1033,38 @@ class ModeratorFeedEntrySerializer(FeedEntrySerializer):
                 context=self._build_grant_context(),
                 _include_fields=MODERATOR_GRANT_FEED_ITEM_FIELDS,
             )
-            return serializer.data
+            return {
+                **serializer.data,
+                **self._get_grant_post_data(obj.item),
+            }
 
         return super().get_content_object(obj)
+
+    @staticmethod
+    def _get_grant_post_data(grant):
+        post = grant.unified_document.posts.first()
+        if not post:
+            return {
+                "title": "",
+                "slug": "",
+                "type": None,
+                "image_url": None,
+                "renderable_text": "",
+                "unified_document_id": grant.unified_document_id,
+            }
+
+        renderable_text = post.renderable_text[:255]
+        if len(post.renderable_text) > 255:
+            renderable_text += "..."
+
+        return {
+            "title": post.title,
+            "slug": post.slug,
+            "type": post.document_type,
+            "image_url": default_storage.url(post.image) if post.image else None,
+            "renderable_text": renderable_text,
+            "unified_document_id": post.unified_document_id,
+        }
 
     def _build_grant_context(self):
         context = dict(self.context)

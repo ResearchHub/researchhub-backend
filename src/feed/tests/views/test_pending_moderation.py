@@ -62,6 +62,9 @@ class PendingModerationFeedTests(TestCase):
         author = create_random_default_user("grant_author")
         RiskScore.objects.create(user=author, score=64)
         grant_post = create_post(created_by=author, document_type=GRANT)
+        grant_post.title = "Pending grant title"
+        grant_post.renderable_text = "Pending grant body"
+        grant_post.save(update_fields=["title", "renderable_text"])
         grant = Grant.objects.create(
             created_by=author,
             unified_document=grant_post.unified_document,
@@ -93,6 +96,11 @@ class PendingModerationFeedTests(TestCase):
         self.assertEqual(item["content_object"]["id"], grant.id)
         self.assertEqual(item["content_object"]["status"], Grant.PENDING)
         self.assertEqual(item["content_object"]["post_id"], grant_post.id)
+        self.assertEqual(item["content_object"]["title"], grant_post.title)
+        self.assertEqual(item["content_object"]["slug"], grant_post.slug)
+        self.assertEqual(
+            item["content_object"]["renderable_text"], grant_post.renderable_text
+        )
         self.assertNotIn("applications", item["content_object"])
         self.assertEqual(item["risk_score"], 64)
 
