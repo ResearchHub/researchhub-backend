@@ -98,9 +98,7 @@ class ModeratorFeedViewSet(FeedViewMixin, GenericViewSet):
         )
         return Response(
             {
-                "funding_opportunities": Grant.objects.filter(
-                    status=Grant.PENDING
-                ).count(),
+                "funding_opportunities": self._pending_grants_queryset().count(),
                 "proposals": post_counts.get(PREREGISTRATION, 0),
                 "posts": post_counts.get(DISCUSSION, 0),
                 "journal_entries": self._pending_papers_queryset().count(),
@@ -119,6 +117,21 @@ class ModeratorFeedViewSet(FeedViewMixin, GenericViewSet):
 
     def _pending_moderation_source(self, content_type: str) -> PendingSource | None:
         """Map a moderation tab's content_type to its pending queryset."""
+        if content_type == "GRANT":
+            queryset = (
+                self._pending_grants_queryset()
+                .select_related(
+                    "created_by", "created_by__author_profile", "unified_document"
+                )
+                .prefetch_related(
+                    "contacts",
+                    "contacts__author_profile",
+                    "unified_document__posts",
+                )
+                .order_by("-created_date")
+            )
+            return PendingSource(queryset, self._get_content_type(Grant), "created_by")
+
         if content_type == "PAPER":
             # Every author-submitted paper (preprint or journal) is gated at
             # submission, so the queue is simply the pending ones. Machine
@@ -159,6 +172,10 @@ class ModeratorFeedViewSet(FeedViewMixin, GenericViewSet):
             unified_document__status=ResearchhubUnifiedDocument.PENDING,
             is_removed=False,
         )
+
+    @staticmethod
+    def _pending_grants_queryset() -> QuerySet:
+        return Grant.objects.filter(status=Grant.PENDING)
 
     @staticmethod
     def _pending_posts_queryset(**filters: Any) -> QuerySet:

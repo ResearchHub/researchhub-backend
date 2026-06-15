@@ -24,7 +24,7 @@ from user.related_models.risk_score_model import RiskScore
 from user.tests.helpers import create_random_default_user
 
 
-class PendingModerationRiskScoreTests(TestCase):
+class PendingModerationFeedTests(TestCase):
     def setUp(self):
         self.moderator = create_random_default_user("mod", moderator=True)
         self.client = APIClient()
@@ -56,6 +56,45 @@ class PendingModerationRiskScoreTests(TestCase):
         }
         self.assertEqual(score_by_post[scored_post.id], 42)
         self.assertEqual(score_by_post[default_post.id], DEFAULT_SCORE)
+
+    def test_pending_grants_return_feed_entries(self):
+        # Arrange
+        author = create_random_default_user("grant_author")
+        RiskScore.objects.create(user=author, score=64)
+        grant_post = create_post(created_by=author, document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=author,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Org",
+            description="desc",
+            status=Grant.PENDING,
+        )
+        open_post = create_post(created_by=author, document_type=GRANT)
+        Grant.objects.create(
+            created_by=author,
+            unified_document=open_post.unified_document,
+            amount=Decimal("500.00"),
+            currency="USD",
+            organization="Org",
+            description="open grant",
+            status=Grant.OPEN,
+        )
+
+        # Act
+        response = self.client.get(self.url, {"content_type": "GRANT"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+        item = response.data["results"][0]
+        self.assertEqual(item["content_type"], "GRANT")
+        self.assertEqual(item["content_object"]["id"], grant.id)
+        self.assertEqual(item["content_object"]["status"], Grant.PENDING)
+        self.assertEqual(item["content_object"]["post_id"], grant_post.id)
+        self.assertNotIn("applications", item["content_object"])
+        self.assertEqual(item["risk_score"], 64)
 
     def test_risk_score_helper_uses_single_query(self):
         # Arrange: three authors; an N+1 would issue one query per author.

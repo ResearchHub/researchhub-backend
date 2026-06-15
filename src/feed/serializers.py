@@ -987,6 +987,30 @@ class GrantFeedEntrySerializer(FeedEntrySerializer):
         fields = FeedEntrySerializer.Meta.fields
 
 
+MODERATOR_GRANT_FEED_ITEM_FIELDS = (
+    "id",
+    "status",
+    "amount",
+    "currency",
+    "organization",
+    "short_title",
+    "description",
+    "start_date",
+    "end_date",
+    "is_expired",
+    "is_active",
+    "created_by",
+    "contacts",
+    "post_id",
+)
+MODERATOR_GRANT_FEED_USER_FIELDS = (
+    "id",
+    "author_profile",
+    "first_name",
+    "last_name",
+)
+
+
 class ModeratorFeedEntrySerializer(FeedEntrySerializer):
     """Feed entry serializer for moderator-only feeds."""
 
@@ -1001,6 +1025,29 @@ class ModeratorFeedEntrySerializer(FeedEntrySerializer):
         requester = getattr(self.context.get("request"), "user", None)
         if not (requester and getattr(requester, "moderator", False)):
             self.fields.pop("risk_score", None)
+
+    def get_content_object(self, obj):
+        if obj.content == {} and obj.content_type.model == "grant":
+            serializer = DynamicGrantSerializer(
+                obj.item,
+                context=self._build_grant_context(),
+                _include_fields=MODERATOR_GRANT_FEED_ITEM_FIELDS,
+            )
+            return serializer.data
+
+        return super().get_content_object(obj)
+
+    def _build_grant_context(self):
+        context = dict(self.context)
+        context.setdefault(
+            "pch_dgs_get_created_by",
+            {"_include_fields": MODERATOR_GRANT_FEED_USER_FIELDS},
+        )
+        context.setdefault(
+            "pch_dgs_get_contacts",
+            {"_include_fields": MODERATOR_GRANT_FEED_USER_FIELDS},
+        )
+        return context
 
     def get_risk_score(self, obj: FeedEntry) -> int | None:
         """Return the author's risk score, falling back to the default."""
