@@ -22,6 +22,7 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.request import Request
 
 from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.grant_application_model import approved_proposal_filters
 from purchase.related_models.grant_model import Grant
 
 
@@ -279,13 +280,12 @@ class FundOrderingFilter(OrderingFilter):
         self, queryset: QuerySet, model_class: Union[Type[Grant], Type[Fundraise]]
     ) -> QuerySet:
         if model_class == Grant:
+            application_lookup = "unified_document__grants__applications"
             return queryset.annotate(
                 application_count=Count(
-                    "unified_document__grants__applications",
+                    application_lookup,
                     distinct=True,
-                    filter=Q(
-                        unified_document__grants__applications__preregistration_post__unified_document__is_removed=False
-                    ),
+                    filter=Q(**approved_proposal_filters(application_lookup)),
                 )
             ).order_by("-application_count", "-created_date")
         else:

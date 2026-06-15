@@ -203,11 +203,11 @@ def serialize_slim_grant_applications(grant, context):
         if not author_profile:
             continue
 
-        ud = getattr(application.preregistration_post, "unified_document", None)
-        if ud and ud.is_removed:
+        if not application.has_approved_proposal():
             continue
 
-        if ud and not ud.is_public and not is_grant_reviewer:
+        proposal_document = application.preregistration_post.unified_document
+        if not proposal_document.is_public and not is_grant_reviewer:
             if not viewer or not getattr(viewer, "is_authenticated", False):
                 continue
             if application.applicant_id != viewer.id:
@@ -473,7 +473,7 @@ class FundingFeedListEntrySerializer(FundFeedListEntrySerializer):
             grant = app.grant
             num_applicants = getattr(grant, "num_applicants", None)
             if num_applicants is None:
-                num_applicants = grant.applications.count()
+                num_applicants = grant.applications.with_approved_proposal().count()
 
             results.append(
                 {

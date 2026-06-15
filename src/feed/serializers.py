@@ -16,6 +16,9 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from review.serializers.review_serializer import ReviewSerializer
 from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.models import Author, User
@@ -816,6 +819,9 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
         content = obj.content
 
+        if obj.content_type.model == "researchhubpost":
+            content = self._remove_unapproved_grant_applications(content)
+
         # Shim #1: temporary shim to ensure we have a journal set for as many
         # papers as possible until we get to the bottom of why some papers
         # don't have journal properly set.
@@ -853,6 +859,50 @@ class FeedEntrySerializer(serializers.ModelSerializer):
                 content["primary_image_thumbnail"] = None
 
         return content
+
+    @staticmethod
+    def _remove_unapproved_grant_applications(content):
+        if not isinstance(content, dict):
+            return content
+
+        grant = content.get("grant")
+        if not isinstance(grant, dict):
+            return content
+
+        applications = grant.get("applications")
+        if not isinstance(applications, list) or not applications:
+            return content
+
+        proposal_post_ids = {
+            app.get("preregistration_post_id")
+            for app in applications
+            if isinstance(app, dict) and app.get("preregistration_post_id")
+        }
+        approved_post_ids = (
+            set(
+                ResearchhubPost.objects.filter(
+                    id__in=proposal_post_ids,
+                    document_type=PREREGISTRATION,
+                    unified_document__status=ResearchhubUnifiedDocument.APPROVED,
+                    unified_document__is_removed=False,
+                ).values_list("id", flat=True)
+            )
+            if proposal_post_ids
+            else set()
+        )
+        filtered_applications = [
+            app
+            for app in applications
+            if isinstance(app, dict)
+            and app.get("preregistration_post_id") in approved_post_ids
+        ]
+        if len(filtered_applications) == len(applications):
+            return content
+
+        filtered_grant = {**grant, "applications": filtered_applications}
+        if "application_count" in filtered_grant:
+            filtered_grant["application_count"] = len(filtered_applications)
+        return {**content, "grant": filtered_grant}
 
     def get_content_type(self, obj):
         return obj.content_type.model.upper()
@@ -956,20 +1006,28 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
         if not obj.item or not hasattr(obj.item, "grant_applications"):
             return []
 
-        return [
-            {
-                "id": app.grant.id,
-                "organization": app.grant.organization,
-                "short_title": app.grant.short_title,
-                "amount": str(app.grant.amount),
-                "currency": app.grant.currency,
-                "description": app.grant.description,
-                "status": app.grant.status,
-                "image": self._get_grant_image(app.grant),
-                "num_applicants": app.grant.applications.count(),
-            }
-            for app in obj.item.grant_applications.all()
-        ]
+        associated_grants = []
+        for app in obj.item.grant_applications.all():
+            num_applicants = getattr(app.grant, "num_applicants", None)
+            if num_applicants is None:
+                num_applicants = (
+                    app.grant.applications.with_approved_proposal().count()
+                )
+
+            associated_grants.append(
+                {
+                    "id": app.grant.id,
+                    "organization": app.grant.organization,
+                    "short_title": app.grant.short_title,
+                    "amount": str(app.grant.amount),
+                    "currency": app.grant.currency,
+                    "description": app.grant.description,
+                    "status": app.grant.status,
+                    "image": self._get_grant_image(app.grant),
+                    "num_applicants": num_applicants,
+                }
+            )
+        return associated_grants
 
     @staticmethod
     def _get_grant_image(grant):

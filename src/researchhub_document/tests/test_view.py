@@ -1863,6 +1863,19 @@ class PreregistrationGrantsPayloadTests(APITestCase):
             preregistration_post=self.prereg_post,
             applicant=self.user,
         )
+        pending_prereg_post = create_post(
+            title="Pending prereg title for grants payload",
+            renderable_text="x" * MIN_POST_BODY_LENGTH,
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+        )
+        pending_prereg_post.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        pending_prereg_post.unified_document.save(update_fields=["status"])
+        GrantApplication.objects.create(
+            grant=self.grant_a,
+            preregistration_post=pending_prereg_post,
+            applicant=self.user,
+        )
         ProposalReview.objects.create(
             unified_document=self.prereg_post.unified_document,
             grant=self.grant_a,

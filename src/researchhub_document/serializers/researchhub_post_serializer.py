@@ -266,7 +266,8 @@ class ResearchhubPostSerializer(
             grant_post_by_ud.setdefault(p.unified_document_id, p)
         applicant_counts = (
             dict(
-                GrantApplication.objects.filter(grant_id__in=grant_ids)
+                GrantApplication.objects.with_approved_proposal()
+                .filter(grant_id__in=grant_ids)
                 .values_list("grant_id")
                 .annotate(count=Count("id"))
             )
