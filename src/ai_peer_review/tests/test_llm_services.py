@@ -114,3 +114,6 @@ class OpenAIReviewContextServiceTests(SimpleTestCase):
         svc = OpenAIReviewContextService()
         self.assertEqual(svc.invoke("s", "u"), "fallback")
         mock_client.chat.completions.create.assert_called_once()
+        cc_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        self.assertEqual(cc_kwargs["max_completion_tokens"], 2048)
+        self.assertNotIn("max_tokens", cc_kwargs)
