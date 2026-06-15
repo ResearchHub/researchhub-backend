@@ -1010,9 +1010,7 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
         for app in obj.item.grant_applications.all():
             num_applicants = getattr(app.grant, "num_applicants", None)
             if num_applicants is None:
-                num_applicants = (
-                    app.grant.applications.with_approved_proposal().count()
-                )
+                num_applicants = app.grant.applications.with_approved_proposal().count()
 
             associated_grants.append(
                 {

@@ -812,9 +812,7 @@ class GrantFeedViewTests(APITestCase):
         # Assert - closed_grant (1 visible) ranks above the unapproved-only grants
         titles = [r["content_object"]["title"] for r in response.data["results"]]
         self.assertLess(titles.index("Closed Grant"), titles.index("Open Grant"))
-        self.assertLess(
-            titles.index("Closed Grant"), titles.index("Completed Grant")
-        )
+        self.assertLess(titles.index("Closed Grant"), titles.index("Completed Grant"))
 
     def test_invalidate_if_grant_linked(self):
         """invalidate_if_grant_linked clears cache for grant-linked docs only."""
