@@ -34,9 +34,9 @@ authoritative version available), each with a ``source_url`` to cite.
         "candidates_considered": int,
       },
       "works": [                             # lead-author outrank middle, then recency.
-        {"title", "publication_date",        # date orders recency; year is the dedup key.
-         "publication_year", "source_url",   # author_position: first|middle|last|None
-         "author_position", "pdf_url",       # pdf_url: published-version OA PDF ("" when
+        {"title", "publication_date",        # date orders recency; year is dedup key.
+         "publication_year", "source_url",   # author_position: first|middle|last
+         "author_position", "pdf_url",       # pdf_url: published-version OA PDF ("" if
          "is_oa"},                           # none); is_oa: work is open access
         ...,
       ],
