@@ -31,6 +31,9 @@ from purchase.related_models.grant_application_model import approved_proposal_fi
 from reputation.related_models.bounty import Bounty
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from review.models import Review
 
 from .common import FeedPagination
@@ -157,6 +160,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
             .filter(
                 document_type=PREREGISTRATION,
                 unified_document__is_removed=False,
+                unified_document__status=ResearchhubUnifiedDocument.APPROVED,
             )
         )
 

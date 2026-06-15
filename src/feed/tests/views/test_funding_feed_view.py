@@ -779,6 +779,21 @@ class FundingFeedViewSetTests(AWSMockTestCase):
             grant=grant, preregistration_post=self.post, applicant=self.user
         )
 
+        pending_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+            status=ResearchhubUnifiedDocument.PENDING,
+        )
+        pending_post = ResearchhubPost.objects.create(
+            title="Pending Grant Application",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=pending_doc,
+            created_date=timezone.now(),
+        )
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=pending_post, applicant=self.user
+        )
+
         # Create another preregistration post without grant application
         other_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
@@ -798,7 +813,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 1)
 
-        # Should only return the post that applied to this grant
+        # Should only return the approved post that applied to this grant
         returned_post_id = response.data["results"][0]["content_object"]["id"]
         self.assertEqual(returned_post_id, self.post.id)
 
