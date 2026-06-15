@@ -273,7 +273,7 @@ class FundingActivityService:
 
         NOTE: There is no strong way to connect completed spending RSC on the
         platform (e.g. payout bounty, fundraise contribution, support/BOOST)
-        with the fee Distribution records—fee. All fees are included here regardless of
+        with the fee Distribution records. All fees are included here regardless of
         whether they are related to completed, expired, or pending transactions, until
         we have a way to link fees to the underlying transaction outcome.
         """

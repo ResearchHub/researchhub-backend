@@ -1487,6 +1487,9 @@ class NoteTests(APITestCase):
             },
         )
         self.assertEqual(preregistration_response.status_code, 200)
+        ResearchhubUnifiedDocument.objects.filter(
+            id=preregistration_response.data["unified_document"]["id"]
+        ).update(status=ResearchhubUnifiedDocument.APPROVED)
 
         # Apply to the grant
         from purchase.models import Grant, GrantApplication

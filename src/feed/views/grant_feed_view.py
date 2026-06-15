@@ -15,7 +15,6 @@ from ai_peer_review.models import ProposalReview
 from feed.cache_segment import get_feed_cache_segment
 from feed.feed_list_dto import GrantFeedListEntrySerializer
 from feed.filters import FundOrderingFilter
-from feed.models import FeedEntry
 from feed.views.feed_view_mixin import FeedViewMixin
 from feed.views.grant_cache_mixin import GRANT_FEED_MAX_CACHED_PAGE, GrantCacheMixin
 from purchase.related_models.fundraise_model import Fundraise
@@ -69,19 +68,12 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
 
-        feed_entries = []
-        for post in page:
-            feed_entry = FeedEntry(
-                id=post.id,
-                content_type=self._post_content_type,
-                object_id=post.id,
-                action="PUBLISH",
-                action_date=post.created_date,
-                user=post.created_by,
-                unified_document=post.unified_document,
+        feed_entries = [
+            self.build_unsaved_feed_entry(
+                post, self._post_content_type, post.created_by
             )
-            feed_entry.item = post
-            feed_entries.append(feed_entry)
+            for post in page
+        ]
 
         serializer = GrantFeedListEntrySerializer(
             feed_entries, many=True, context=self.get_serializer_context()
@@ -137,12 +129,9 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )
 
-        if status and status.upper() == Grant.PENDING:
-            queryset = queryset.filter(unified_document__grants__status=Grant.PENDING)
-        else:
-            queryset = queryset.exclude(
-                unified_document__grants__status__in=[Grant.PENDING, Grant.DECLINED]
-            )
+        queryset = queryset.exclude(
+            unified_document__grants__status__in=[Grant.PENDING, Grant.DECLINED]
+        )
 
         if status:
             status_upper = status.upper()

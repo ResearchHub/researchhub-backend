@@ -23,7 +23,9 @@ from reputation.models import Score, ScoreChange
 from reputation.related_models.paper_reward import HubCitationValue
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
+from user.related_models.user_model import User
 from utils.aws import lambda_compress_and_linearize_pdf
+from utils.models import ModeratedDocumentMixin
 
 DOI_IDENTIFIER = "10."
 ARXIV_IDENTIFIER = "arXiv:"
@@ -36,11 +38,36 @@ HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 logger = logging.getLogger(__name__)
 
 
+class PaperQuerySet(models.QuerySet):
+    def visible_to(self, user: User | None) -> "PaperQuerySet":
+        """Restrict to papers by moderation status the given user may see.
+
+        This is a moderation-status gate, not the full privacy gate: papers
+        whose unified document has cleared moderation (``status=APPROVED``)
+        pass for everyone, while papers still awaiting moderation or declined
+        pass only for their uploader and for site moderators / hub editors.
+        The ``is_public`` flag is layered on separately by callers that need it
+        (see ``ResearchhubUnifiedDocument.is_visible_to_user``).
+        """
+        # A paper without a unified document is not under moderation, so treat
+        # it as cleared.
+        moderation_approved = Q(
+            unified_document__status=ModeratedDocumentMixin.APPROVED
+        ) | Q(unified_document__isnull=True)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return self.filter(moderation_approved)
+        if user.is_moderator_or_editor():
+            return self
+        return self.filter(moderation_approved | Q(uploaded_by=user))
+
+
 class Paper(AbstractGenericReactionModel):
     REGULAR = "REGULAR"
     PRE_REGISTRATION = "PRE_REGISTRATION"
 
     PAPER_TYPE_CHOICES = [(REGULAR, REGULAR), (PRE_REGISTRATION, PRE_REGISTRATION)]
+
+    objects = PaperQuerySet.as_manager()
 
     rh_threads = GenericRelation(
         RhCommentThreadModel,
