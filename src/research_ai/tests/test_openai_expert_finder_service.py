@@ -81,7 +81,8 @@ class OpenAIExpertFinderServiceTests(TestCase):
                 {"role": "user", "content": "user"},
             ],
         )
-        self.assertEqual(cc_kwargs["max_tokens"], 100)
+        self.assertEqual(cc_kwargs["max_completion_tokens"], 100)
+        self.assertNotIn("max_tokens", cc_kwargs)
         self.assertEqual(cc_kwargs["temperature"], 0.0)
 
     @override_settings(OPENAI_API_KEY="sk-test")
