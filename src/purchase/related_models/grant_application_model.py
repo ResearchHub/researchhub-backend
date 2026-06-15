@@ -1,10 +1,10 @@
 from django.db import models
 from django.db.models import CASCADE
 
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from utils.models import DefaultModel, ModeratedDocumentMixin
 
 
+PREREGISTRATION_DOCUMENT_TYPE = "PREREGISTRATION"
 PROPOSAL_POST_LOOKUP = "preregistration_post"
 PROPOSAL_DOCUMENT_LOOKUP = f"{PROPOSAL_POST_LOOKUP}__unified_document"
 
@@ -22,7 +22,7 @@ def approved_proposal_filters(application_lookup=""):
         else PROPOSAL_DOCUMENT_LOOKUP
     )
     return {
-        f"{proposal_post_lookup}__document_type": PREREGISTRATION,
+        f"{proposal_post_lookup}__document_type": PREREGISTRATION_DOCUMENT_TYPE,
         f"{proposal_document_lookup}__status": ModeratedDocumentMixin.APPROVED,
         f"{proposal_document_lookup}__is_removed": False,
     }
@@ -82,7 +82,7 @@ class GrantApplication(DefaultModel):
         proposal_document = getattr(proposal, "unified_document", None)
         return (
             proposal is not None
-            and proposal.document_type == PREREGISTRATION
+            and proposal.document_type == PREREGISTRATION_DOCUMENT_TYPE
             and proposal_document is not None
             and not proposal_document.is_removed
             and proposal_document.status == ModeratedDocumentMixin.APPROVED
