@@ -9,17 +9,17 @@ author and builds the profile.
 
 One module per concern:
 
-- ``resolver``       maps the ``Expert`` (cited id links, else name +
-                     affiliation) to an OpenAlex author id, and exposes the
-                     candidate-gathering / confidence primitives the ladder uses
+- ``resolver``       maps the ``Expert`` to an OpenAlex author id via the full
+                     escalation ladder (cited id links, else name + affiliation,
+                     else LLM disambiguation); ``resolve_author`` is the entry
 - ``disambiguator``  hands ambiguous candidate sets to the LLM, which picks the
                      matching author or abstains
 - ``works``          fetches and selects a resolved author's papers (first/last
                      authorship outranks middle, then recency)
-- ``builder``        walks the escalation ladder, assembles the profile dict,
-                     and persists it **once** on ``Expert.profile``
+- ``builder``        delegates resolution, then assembles the profile dict and
+                     persists it **once** on ``Expert.profile``
 
-The builder escalates only as far as needed (source-link -> name -> LLM
+The resolver escalates only as far as needed (source-link -> name -> LLM
 disambiguation), stopping at the first confident rung, so the LLM runs at most
 once per expert; an expert that still cannot be matched is left ``unresolved``.
 
@@ -62,12 +62,12 @@ from research_ai.services.researcher_profile.builder import (
 )
 from research_ai.services.researcher_profile.resolver import (
     AuthorResolution,
-    resolve_openalex_author,
+    resolve_author,
 )
 
 __all__ = [
     "AuthorResolution",
     "build_and_store_expert_profile",
     "build_expert_profile",
-    "resolve_openalex_author",
+    "resolve_author",
 ]

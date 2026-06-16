@@ -48,7 +48,9 @@ class ResolverHelpersTests(SimpleTestCase):
         )
 
 
-class ResolveOpenAlexAuthorTests(SimpleTestCase):
+class ResolveAuthorTests(SimpleTestCase):
+    """The full escalation ladder, exercised through ``resolve_author``."""
+
     @patch(
         "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
     )
@@ -57,11 +59,14 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
         mock_fetch.return_value = create_oa_author_record()
         expert = make_expert(sources=[{"url": "https://orcid.org/0000-0002-1825-0097"}])
         # Act
-        res = resolver.resolve_openalex_author(expert, client=MagicMock())
+        res, disamb, errors = resolver.resolve_author(expert, client=MagicMock())
         # Assert
         self.assertEqual(res.match_method, "source-link")
         self.assertEqual(res.openalex_author_id, "https://openalex.org/A123")
         self.assertEqual(res.match_score, 1.0)
+        # No name candidates gathered -> the LLM was never consulted.
+        self.assertIsNone(disamb)
+        self.assertEqual(errors, [])
         # The cited ORCID is only a lookup key into OpenAlex.
         mock_fetch.assert_called_once()
         self.assertEqual(
@@ -80,7 +85,7 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
         }
         expert = make_expert(sources=[{"url": "https://orcid.org/0000-0002-1825-0097"}])
         # Act
-        res = resolver.resolve_openalex_author(expert, client=client)
+        res, _, _ = resolver.resolve_author(expert, client=client)
         # Assert: resolved by the unscoped single-exact-name rung instead.
         self.assertEqual(res.match_method, "name")
 
@@ -96,7 +101,7 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
         }
         expert = make_expert(affiliation="Stanford University")
         # Act
-        res = resolver.resolve_openalex_author(expert, client=client)
+        res, _, _ = resolver.resolve_author(expert, client=client)
         # Assert
         self.assertEqual(res.match_method, "name+affiliation")
         self.assertEqual(res.openalex_author_id, "https://openalex.org/A123")
@@ -116,7 +121,7 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
         }
         expert = make_expert(affiliation="Tiny Unknown Lab")
         # Act
-        res = resolver.resolve_openalex_author(expert, client=client)
+        res, _, _ = resolver.resolve_author(expert, client=client)
         # Assert: single exact full-name match accepted by name alone.
         self.assertEqual(res.match_method, "name")
         client.search_authors_via_name.assert_called_once_with("Jane Doe")
@@ -134,15 +139,14 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
         ]
         expert = make_expert(affiliation="Stanford University")
         # Act
-        res = resolver.resolve_openalex_author(expert, client=client)
+        res, _, _ = resolver.resolve_author(expert, client=client)
         # Assert
         self.assertEqual(res.match_method, "name")
         self.assertEqual(res.openalex_author_id, "https://openalex.org/A123")
 
-    def test_ambiguous_candidates_take_top_by_ordering(self):
-        # Arrange: two exact-name candidates, no affiliation to scope by. v1 takes
-        # the strongest match (name score tied -> most-cited wins) instead of
-        # adjudicating.
+    def test_ambiguous_candidates_escalate_to_llm(self):
+        # Arrange: two exact-name candidates, no affiliation to scope by. The
+        # ladder does NOT take the top -- it hands the set to the disambiguator.
         client = MagicMock()
         client.search_authors_via_name.return_value = {
             "results": [
@@ -154,22 +158,49 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
                 ),
             ]
         }
+        llm = MagicMock()
+        # Candidates are sorted by citation count, so index 0 is the 900-cite A2.
+        llm.invoke.return_value = (
+            '{"choice": 0, "confidence": 0.91, "reasoning": "topics match"}'
+        )
         # Act
-        res = resolver.resolve_openalex_author(make_expert(), client=client)
-        # Assert
-        self.assertEqual(res.match_method, "name")
+        res, disamb, _ = resolver.resolve_author(make_expert(), client=client, llm=llm)
+        # Assert: the LLM adjudicated and its pick won.
+        self.assertEqual(res.match_method, "name-llm")
         self.assertEqual(res.openalex_author_id, "https://openalex.org/A2")
         self.assertEqual(res.candidates_considered, 2)
+        self.assertTrue(disamb.chosen)
+        llm.invoke.assert_called_once()
+
+    def test_llm_abstains_leaves_unresolved(self):
+        # Arrange: ambiguous candidates the LLM declines to disambiguate.
+        client = MagicMock()
+        client.search_authors_via_name.return_value = {
+            "results": [
+                create_oa_author_record(id="https://openalex.org/A1"),
+                create_oa_author_record(id="https://openalex.org/A2"),
+            ]
+        }
+        llm = MagicMock()
+        llm.invoke.return_value = (
+            '{"choice": null, "confidence": 0.2, "reasoning": "unsure"}'
+        )
+        # Act
+        res, disamb, _ = resolver.resolve_author(make_expert(), client=client, llm=llm)
+        # Assert: left unresolved rather than guessed; abstain surfaced for audit.
+        self.assertEqual(res.match_method, "unresolved")
+        self.assertFalse(disamb.chosen)
 
     def test_unresolved_search_error_is_captured(self):
         # Arrange
         client = MagicMock()
         client.search_authors_via_name.side_effect = RuntimeError("network")
         # Act
-        res = resolver.resolve_openalex_author(make_expert(), client=client)
-        # Assert
+        res, disamb, errors = resolver.resolve_author(make_expert(), client=client)
+        # Assert: the search failure surfaces in the errors list, never raised.
         self.assertEqual(res.match_method, "unresolved")
-        self.assertIn("network", res.error or "")
+        self.assertIsNone(disamb)
+        self.assertTrue(any("network" in e for e in errors))
 
     def test_single_exact_name_match_without_affiliation(self):
         # Arrange
@@ -178,9 +209,10 @@ class ResolveOpenAlexAuthorTests(SimpleTestCase):
             "results": [create_oa_author_record()]
         }
         # Act: expert has no affiliation, only one strong candidate -> accept by name.
-        res = resolver.resolve_openalex_author(make_expert(), client=client)
-        # Assert
+        res, disamb, _ = resolver.resolve_author(make_expert(), client=client)
+        # Assert: a lone strong match is accepted directly, no LLM.
         self.assertEqual(res.match_method, "name")
+        self.assertIsNone(disamb)
 
 
 class ResolveViaSourceLinkTests(SimpleTestCase):
