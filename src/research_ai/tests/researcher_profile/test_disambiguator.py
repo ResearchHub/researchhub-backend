@@ -67,12 +67,12 @@ class DisambiguateAuthorTests(SimpleTestCase):
     def test_llm_error_returns_abstain_with_error(self):
         # Arrange
         llm = MagicMock()
-        llm.invoke.side_effect = RuntimeError("bedrock down")
+        llm.invoke.side_effect = RuntimeError("llm down")
         # Act
         result = disambiguator.disambiguate_author(make_expert(), _scored(), llm=llm)
         # Assert
         self.assertFalse(result.chosen)
-        self.assertIn("bedrock down", result.error or "")
+        self.assertIn("llm down", result.error or "")
 
     def test_unparseable_reply_returns_abstain(self):
         # Arrange
@@ -84,11 +84,30 @@ class DisambiguateAuthorTests(SimpleTestCase):
         self.assertFalse(result.chosen)
         self.assertIsNotNone(result.error)
 
-    def test_empty_candidates_returns_abstain_without_calling_llm(self):
-        # Arrange
+    def test_reports_found_identifier_instead_of_a_candidate(self):
+        # Arrange: none of the candidates fit, but web search found an ORCID.
         llm = MagicMock()
+        llm.invoke.return_value = (
+            '{"choice": null, "orcid": "0000-0002-1825-0097", '
+            '"openalex_id": null, "confidence": 0.8, "reasoning": "moved"}'
+        )
+        # Act
+        result = disambiguator.disambiguate_author(make_expert(), _scored(), llm=llm)
+        # Assert: not "chosen" (no candidate record), but carries the id to verify.
+        self.assertFalse(result.chosen)
+        self.assertEqual(result.found_orcid, "0000-0002-1825-0097")
+        self.assertIsNone(result.found_openalex_id)
+
+    def test_empty_candidates_still_invokes_llm(self):
+        # Arrange: no candidates -> the model is still asked to look the expert up.
+        llm = MagicMock()
+        llm.invoke.return_value = (
+            '{"choice": null, "openalex_id": "https://openalex.org/A9", '
+            '"confidence": 0.7, "reasoning": "found"}'
+        )
         # Act
         result = disambiguator.disambiguate_author(make_expert(), [], llm=llm)
         # Assert
+        llm.invoke.assert_called_once()
         self.assertFalse(result.chosen)
-        llm.invoke.assert_not_called()
+        self.assertEqual(result.found_openalex_id, "https://openalex.org/A9")

@@ -41,6 +41,15 @@ _ORCID_RE = re.compile(r"(\d{4}-\d{4}-\d{4}-\d{3}[\dxX])")
 _OPENALEX_AUTHOR_RE = re.compile(r"openalex\.org/(A\d+)", re.IGNORECASE)
 
 
+def normalize_orcid(value: str | None) -> str | None:
+    """Bare, upper-cased ORCID iD mined from a URL or raw string, else ``None``.
+
+    ORCID is only ever a lookup key into OpenAlex's ``/authors`` endpoint here.
+    """
+    match = _ORCID_RE.search(str(value or ""))
+    return match.group(1).upper() if match else None
+
+
 def scholarly_ids_from_urls(urls) -> tuple[str | None, str | None]:
     """Mine an ORCID and/or OpenAlex author id from a list of URLs.
 
@@ -51,9 +60,7 @@ def scholarly_ids_from_urls(urls) -> tuple[str | None, str | None]:
     oa_id: str | None = None
     for url in urls or []:
         if orcid is None and "orcid.org" in url.lower():
-            m = _ORCID_RE.search(url)
-            if m:
-                orcid = m.group(1).upper()
+            orcid = normalize_orcid(url)
         if oa_id is None:
             m = _OPENALEX_AUTHOR_RE.search(url)
             if m:

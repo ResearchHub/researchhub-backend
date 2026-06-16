@@ -11,17 +11,21 @@ One module per concern:
 
 - ``resolver``       maps the ``Expert`` to an OpenAlex author id via the full
                      escalation ladder (cited ORCID, else name + affiliation,
-                     else LLM disambiguation); ``resolve_author`` is the entry
-- ``disambiguator``  hands ambiguous candidate sets to the LLM, which picks the
-                     matching author or abstains
+                     else web-search disambiguation); ``resolve_author`` is the
+                     entry
+- ``disambiguator``  hands the candidate set to an OpenAI model with web search,
+                     which picks the matching author, reports an ORCID/OpenAlex
+                     id it found online, or abstains
 - ``works``          fetches and selects a resolved author's papers (first/last
                      authorship outranks middle, then recency)
 - ``builder``        delegates resolution, then assembles the profile dict and
                      persists it **once** on ``Expert.profile``
 
-The resolver escalates only as far as needed (source-link -> name -> LLM
-disambiguation), stopping at the first confident rung, so the LLM runs at most
-once per expert; an expert that still cannot be matched is left ``unresolved``.
+The resolver escalates only as far as needed (source-link -> name+affiliation ->
+web-search disambiguation), stopping at the first confident rung, so the LLM runs
+at most once per expert. A match is only accepted directly when name *and*
+institution corroborate; everything weaker is escalated, and an expert that
+still cannot be matched is left ``unresolved``.
 
 **Every work is readable** -- works seed proposal generation, so the list is
 restricted to open-access papers that expose a full-text ``pdf_url`` (the most
@@ -36,8 +40,8 @@ authoritative version available), each with a ``source_url`` to cite.
         "openalex_author_id": str | None,
         "display_name": str | None,
         "match_score": float,                # 0..1
-        "match_method": "source-link" | "name+affiliation" | "name"
-                        | "name-llm" | "unresolved",
+        "match_method": "source-link" | "name+affiliation" | "name-llm"
+                        | "web-id" | "unresolved",
         "candidates_considered": int,
         "disambiguation": {                  # present only when the LLM was consulted
           "confidence": float,               # 0..1, the model's stated confidence

@@ -77,17 +77,20 @@ class ResolveAuthorTests(SimpleTestCase):
         "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
     )
     def test_source_link_miss_falls_through_to_name_search(self, mock_fetch):
-        # Arrange: OpenAlex has no author behind the cited ORCID.
+        # Arrange: OpenAlex has no author behind the cited ORCID, so the expert
+        # falls through to the name rungs. A name-only match escalates to the LLM.
         mock_fetch.return_value = None
         client = MagicMock()
         client.search_authors_via_name.return_value = {
             "results": [create_oa_author_record()]
         }
+        llm = MagicMock()
+        llm.invoke.return_value = '{"choice": 0, "confidence": 0.9, "reasoning": "x"}'
         expert = make_expert(sources=[{"url": "https://orcid.org/0000-0002-1825-0097"}])
         # Act
-        res, _, _ = resolver.resolve_author(expert, client=client)
-        # Assert: resolved by the unscoped single-exact-name rung instead.
-        self.assertEqual(res.match_method, "name")
+        res, _, _ = resolver.resolve_author(expert, client=client, llm=llm)
+        # Assert: resolved by the disambiguator, not auto-accepted on name alone.
+        self.assertEqual(res.match_method, "name-llm")
 
     def test_resolves_by_name_scoped_to_institution(self):
         # Arrange: OpenAlex resolves the affiliation string to an institution id,
@@ -113,22 +116,26 @@ class ResolveAuthorTests(SimpleTestCase):
         )
 
     def test_falls_back_to_unscoped_search_when_institution_unknown(self):
-        # Arrange: institution search finds nothing usable.
+        # Arrange: institution search finds nothing usable, so the match is
+        # name-only (unscoped) and must be adjudicated by the disambiguator.
         client = MagicMock()
         client.search_institutions.return_value = {"results": []}
         client.search_authors_via_name.return_value = {
             "results": [create_oa_author_record()]
         }
+        llm = MagicMock()
+        llm.invoke.return_value = '{"choice": 0, "confidence": 0.9, "reasoning": "x"}'
         expert = make_expert(affiliation="Tiny Unknown Lab")
         # Act
-        res, _, _ = resolver.resolve_author(expert, client=client)
-        # Assert: single exact full-name match accepted by name alone.
-        self.assertEqual(res.match_method, "name")
+        res, _, _ = resolver.resolve_author(expert, client=client, llm=llm)
+        # Assert: name-only is never auto-accepted -> escalated.
+        self.assertEqual(res.match_method, "name-llm")
         client.search_authors_via_name.assert_called_once_with("Jane Doe")
 
     def test_moved_researcher_resolves_via_unscoped_search(self):
         # Arrange: the institution resolves but the author isn't affiliated with
-        # it in OpenAlex (e.g. they moved) -> scoped search is empty.
+        # it in OpenAlex (e.g. they moved) -> scoped search is empty, so the
+        # unscoped (name-only) hit is adjudicated by the disambiguator.
         client = MagicMock()
         client.search_institutions.return_value = {
             "results": [{"id": "https://openalex.org/I1"}]
@@ -137,11 +144,13 @@ class ResolveAuthorTests(SimpleTestCase):
             {"results": []},  # scoped
             {"results": [create_oa_author_record()]},  # unscoped
         ]
+        llm = MagicMock()
+        llm.invoke.return_value = '{"choice": 0, "confidence": 0.9, "reasoning": "x"}'
         expert = make_expert(affiliation="Stanford University")
         # Act
-        res, _, _ = resolver.resolve_author(expert, client=client)
+        res, _, _ = resolver.resolve_author(expert, client=client, llm=llm)
         # Assert
-        self.assertEqual(res.match_method, "name")
+        self.assertEqual(res.match_method, "name-llm")
         self.assertEqual(res.openalex_author_id, "https://openalex.org/A123")
 
     def test_ambiguous_candidates_escalate_to_llm(self):
@@ -195,24 +204,98 @@ class ResolveAuthorTests(SimpleTestCase):
         # Arrange
         client = MagicMock()
         client.search_authors_via_name.side_effect = RuntimeError("network")
+        llm = MagicMock()
+        llm.invoke.return_value = (
+            '{"choice": null, "confidence": 0.1, "reasoning": "x"}'
+        )
         # Act
-        res, disamb, errors = resolver.resolve_author(make_expert(), client=client)
+        res, _, errors = resolver.resolve_author(make_expert(), client=client, llm=llm)
         # Assert: the search failure surfaces in the errors list, never raised.
         self.assertEqual(res.match_method, "unresolved")
-        self.assertIsNone(disamb)
         self.assertTrue(any("network" in e for e in errors))
 
-    def test_single_exact_name_match_without_affiliation(self):
-        # Arrange
+    def test_name_only_match_escalates_to_disambiguator(self):
+        # Arrange: expert has no affiliation, one strong candidate -> name-only,
+        # which is never auto-accepted; the disambiguator confirms it.
         client = MagicMock()
         client.search_authors_via_name.return_value = {
             "results": [create_oa_author_record()]
         }
-        # Act: expert has no affiliation, only one strong candidate -> accept by name.
-        res, disamb, _ = resolver.resolve_author(make_expert(), client=client)
-        # Assert: a lone strong match is accepted directly, no LLM.
-        self.assertEqual(res.match_method, "name")
-        self.assertIsNone(disamb)
+        llm = MagicMock()
+        llm.invoke.return_value = (
+            '{"choice": 0, "confidence": 0.88, "reasoning": "topics match"}'
+        )
+        # Act
+        res, disamb, _ = resolver.resolve_author(make_expert(), client=client, llm=llm)
+        # Assert
+        self.assertEqual(res.match_method, "name-llm")
+        self.assertEqual(res.match_score, 0.88)
+        self.assertTrue(disamb.chosen)
+
+    @patch(
+        "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
+    )
+    def test_web_found_identifier_is_fetched_and_accepted(self, mock_fetch):
+        # Arrange: no candidate fits, but the disambiguator reports an ORCID; the
+        # re-fetched record's name validates, so it resolves as web-id.
+        mock_fetch.return_value = create_oa_author_record(id="https://openalex.org/A9")
+        client = MagicMock()
+        client.search_authors_via_name.return_value = {
+            "results": [create_oa_author_record(id="https://openalex.org/A1")]
+        }
+        llm = MagicMock()
+        llm.invoke.return_value = (
+            '{"choice": null, "orcid": "0000-0002-1825-0097", '
+            '"confidence": 0.8, "reasoning": "moved"}'
+        )
+        # Act
+        res, disamb, _ = resolver.resolve_author(make_expert(), client=client, llm=llm)
+        # Assert
+        self.assertEqual(res.match_method, "web-id")
+        self.assertEqual(res.openalex_author_id, "https://openalex.org/A9")
+        self.assertEqual(res.match_score, resolver.WEB_ID_SCORE)
+        # ORCID is mined to a bare key for the OpenAlex lookup.
+        self.assertEqual(
+            mock_fetch.call_args.kwargs["orcid_bare"], "0000-0002-1825-0097"
+        )
+
+    @patch(
+        "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
+    )
+    def test_web_found_identifier_rejected_when_name_mismatches(self, mock_fetch):
+        # Arrange: the reported id resolves to someone with a different name ->
+        # rejected as a likely hallucination, expert left unresolved.
+        mock_fetch.return_value = create_oa_author_record(display_name="John Smith")
+        client = MagicMock()
+        client.search_authors_via_name.return_value = {"results": []}
+        llm = MagicMock()
+        llm.invoke.return_value = (
+            '{"choice": null, "openalex_id": "https://openalex.org/A9", '
+            '"confidence": 0.8, "reasoning": "x"}'
+        )
+        # Act
+        res, _, _ = resolver.resolve_author(make_expert(), client=client, llm=llm)
+        # Assert
+        self.assertEqual(res.match_method, "unresolved")
+
+    @patch(
+        "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
+    )
+    def test_zero_candidates_recovered_via_web_id(self, mock_fetch):
+        # Arrange: the name search finds nobody, but web search turns up an ORCID.
+        mock_fetch.return_value = create_oa_author_record(id="https://openalex.org/A9")
+        client = MagicMock()
+        client.search_authors_via_name.return_value = {"results": []}
+        llm = MagicMock()
+        llm.invoke.return_value = (
+            '{"choice": null, "orcid": "0000-0002-1825-0097", '
+            '"confidence": 0.75, "reasoning": "found"}'
+        )
+        # Act
+        res, _, _ = resolver.resolve_author(make_expert(), client=client, llm=llm)
+        # Assert
+        self.assertEqual(res.match_method, "web-id")
+        self.assertEqual(res.openalex_author_id, "https://openalex.org/A9")
 
 
 class ResolveViaSourceLinkTests(SimpleTestCase):

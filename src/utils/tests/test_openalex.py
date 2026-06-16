@@ -13,6 +13,7 @@ from utils.openalex import (
     Work,
     author_institution_names,
     normalize_openalex_id,
+    normalize_orcid,
     scholarly_ids_from_urls,
 )
 
@@ -146,6 +147,26 @@ class NormalizeOpenalexIdTests(unittest.TestCase):
                 # Act
                 result = normalize_openalex_id(value)
 
+                # Assert
+                self.assertEqual(result, expected)
+
+
+class NormalizeOrcidTests(unittest.TestCase):
+    def test_normalize_orcid(self):
+        # Arrange
+        cases = [
+            ("https://orcid.org/0000-0002-1825-0097", "0000-0002-1825-0097"),
+            ("0000-0002-1825-0097", "0000-0002-1825-0097"),
+            # Trailing check digit can be X (upper-cased).
+            ("0000-0002-1694-233x", "0000-0002-1694-233X"),
+            ("no orcid here", None),
+            (None, None),
+            ("", None),
+        ]
+        for value, expected in cases:
+            with self.subTest(value=value):
+                # Act
+                result = normalize_orcid(value)
                 # Assert
                 self.assertEqual(result, expected)
 

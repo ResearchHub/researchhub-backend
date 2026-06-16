@@ -95,17 +95,21 @@ class DisambiguationRungTests(SimpleTestCase):
 
 
 class UnresolvedRungTests(SimpleTestCase):
-    def test_no_candidates_leaves_unresolved_without_calling_llm(self):
-        # Arrange: no name candidates at all -> nothing for the LLM to adjudicate.
+    def test_no_candidates_consults_disambiguator_then_unresolved(self):
+        # Arrange: no name candidates -> the disambiguator is still consulted (it
+        # can web-search from scratch); here it abstains, so we stay unresolved.
         client = MagicMock()
         client.search_authors_via_name.return_value = {"results": []}
         llm = MagicMock()
+        llm.invoke.return_value = (
+            '{"choice": null, "confidence": 0.1, "reasoning": "not found"}'
+        )
         # Act
         profile = builder.build_expert_profile(make_expert(), oa_client=client, llm=llm)
         # Assert
         self.assertEqual(profile["resolution"]["match_method"], "unresolved")
         self.assertEqual(profile["works"], [])
-        llm.invoke.assert_not_called()
+        llm.invoke.assert_called_once()
 
 
 class SourceLinkRungTests(SimpleTestCase):
