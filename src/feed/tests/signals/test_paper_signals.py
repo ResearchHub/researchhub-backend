@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 from django.contrib.contenttypes.models import ContentType
@@ -50,7 +50,7 @@ class PaperSignalsTests(AWSMockTestCase):
                 "facebook_count": 15,
                 "twitter_count": 230,
                 "bluesky_count": 8,
-                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "last_updated": datetime.now(UTC).isoformat(),
             }
         }
 

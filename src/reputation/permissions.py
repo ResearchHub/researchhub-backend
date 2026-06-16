@@ -1,6 +1,5 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.permissions import BasePermission
 
@@ -65,7 +64,7 @@ class UserCanApproveBounty(BasePermission):
             self.message = "Bounty is closed."
             return False
 
-        now = datetime.now(pytz.UTC)
+        now = datetime.now(UTC)
         if obj.status == Bounty.OPEN:
             # During OPEN phase, check expiration_date
             if obj.expiration_date and obj.expiration_date <= now:

@@ -1,6 +1,7 @@
 import datetime
 import logging
 import math
+from datetime import UTC
 
 from django.db.models import Q
 
@@ -39,7 +40,7 @@ class HotScoreMixin:
 
         # Define the 3-day threshold
         three_days = datetime.timedelta(days=3)
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(UTC)
 
         for fundraise in self.fundraises.all():
             # Only use end_date if it exists, is in the future,
@@ -88,11 +89,10 @@ class HotScoreMixin:
 
             for bounty in open_bounties:
                 seconds_since_create = (
-                    datetime.datetime.now(datetime.timezone.utc) - bounty.created_date
+                    datetime.datetime.now(UTC) - bounty.created_date
                 ).total_seconds()
                 seconds_to_expiration = (
-                    bounty.expiration_date
-                    - datetime.datetime.now(datetime.timezone.utc)
+                    bounty.expiration_date - datetime.datetime.now(UTC)
                 ).total_seconds()
                 percentage_within_promo_period = 0
                 this_bounty_score = 0
@@ -138,7 +138,7 @@ class HotScoreMixin:
 
             for fundraise in fundraises:
                 # Get time since creation
-                now = datetime.datetime.now(datetime.timezone.utc)
+                now = datetime.datetime.now(UTC)
                 seconds_since_create = (now - fundraise.start_date).total_seconds()
 
                 # Calculate time to expiration if end_date exists
