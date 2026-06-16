@@ -4,7 +4,6 @@ BioRxiv API client for fetching papers.
 Inherits from BioRxivBaseClient with BioRxiv-specific configuration.
 """
 
-
 from .biorxiv_base import BioRxivBaseClient, BioRxivBaseConfig
 
 

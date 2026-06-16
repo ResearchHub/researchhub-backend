@@ -1,4 +1,3 @@
-
 from orcid.clients import OrcidClient
 from orcid.config import EDU_DOMAINS
 

@@ -2,7 +2,6 @@
 Functional mappers for converting source records to UserInteractions.
 """
 
-
 from django.contrib.contenttypes.models import ContentType
 
 from analytics.constants.event_types import (

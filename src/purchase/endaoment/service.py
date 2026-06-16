@@ -47,9 +47,7 @@ class EndaomentService:
     def __init__(self, client: EndaomentClient | None = None):
         self.client = client or EndaomentClient()
 
-    def get_authorization_url(
-        self, user_id: int, return_url: str | None = None
-    ) -> str:
+    def get_authorization_url(self, user_id: int, return_url: str | None = None) -> str:
         """
         Generate the Endaoment OAuth authorization URL.
 

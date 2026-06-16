@@ -84,9 +84,7 @@ class BlueskyClient:
             logger.error(f"Bluesky authentication failed: {e}")
             raise
 
-    def search_posts(
-        self, query: str, limit: int = MAX_SEARCH_RESULTS
-    ) -> Dict | None:
+    def search_posts(self, query: str, limit: int = MAX_SEARCH_RESULTS) -> Dict | None:
         """
         Search for posts on Bluesky matching a query.
 

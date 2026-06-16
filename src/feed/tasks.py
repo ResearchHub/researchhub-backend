@@ -118,9 +118,7 @@ def create_feed_entry(
         )
 
 
-def publish_to_feed(
-    item: ResearchhubPost | Paper, user_id: int | None = None
-) -> None:
+def publish_to_feed(item: ResearchhubPost | Paper, user_id: int | None = None) -> None:
     """Enqueue a PUBLISH feed entry for ``item`` once the transaction commits."""
     hub_ids = list(item.unified_document.hubs.values_list("id", flat=True))
     content_type_id = ContentType.objects.get_for_model(item).id
