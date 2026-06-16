@@ -64,6 +64,17 @@ class DisambiguateAuthorTests(SimpleTestCase):
         self.assertTrue(result.chosen)
         self.assertEqual(result.record["id"], "https://openalex.org/A1")
 
+    def test_clamps_model_confidence_to_valid_range(self):
+        # Arrange
+        llm = MagicMock()
+        llm.invoke.return_value = (
+            '{"choice": 0, "confidence": 1.7, "reasoning": "overconfident"}'
+        )
+        # Act
+        result = disambiguator.disambiguate_author(make_expert(), _scored(), llm=llm)
+        # Assert
+        self.assertEqual(result.confidence, 1.0)
+
     def test_llm_error_returns_abstain_with_error(self):
         # Arrange
         llm = MagicMock()

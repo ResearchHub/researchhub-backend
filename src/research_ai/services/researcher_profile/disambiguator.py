@@ -156,7 +156,12 @@ def _parse_decision(raw: str, count: int):
     orcid = _clean_str(data.get("orcid"))
     openalex_id = _clean_str(data.get("openalex_id"))
     confidence = data.get("confidence")
-    confidence = float(confidence) if isinstance(confidence, (int, float)) else 0.0
+    confidence = (
+        float(confidence)
+        if isinstance(confidence, (int, float)) and not isinstance(confidence, bool)
+        else 0.0
+    )
+    confidence = max(0.0, min(1.0, confidence))
     reasoning = str(data.get("reasoning") or "")
     return choice, orcid, openalex_id, confidence, reasoning
 

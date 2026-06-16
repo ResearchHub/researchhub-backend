@@ -200,6 +200,27 @@ class ResolveAuthorTests(SimpleTestCase):
         self.assertEqual(res.match_method, "unresolved")
         self.assertFalse(disamb.chosen)
 
+    def test_low_confidence_llm_choice_leaves_unresolved(self):
+        # Arrange: the model picks a candidate, but reports too little confidence to
+        # attach that candidate's papers to the expert.
+        client = MagicMock()
+        client.search_authors_via_name.return_value = {
+            "results": [
+                create_oa_author_record(id="https://openalex.org/A1"),
+                create_oa_author_record(id="https://openalex.org/A2"),
+            ]
+        }
+        llm = MagicMock()
+        llm.invoke.return_value = (
+            '{"choice": 0, "confidence": 0.2, "reasoning": "weak match"}'
+        )
+        # Act
+        res, disamb, _ = resolver.resolve_author(make_expert(), client=client, llm=llm)
+        # Assert: treated as an abstain for profile-building purposes.
+        self.assertEqual(res.match_method, "unresolved")
+        self.assertFalse(disamb.chosen)
+        self.assertEqual(disamb.confidence, 0.2)
+
     def test_unresolved_search_error_is_captured(self):
         # Arrange
         client = MagicMock()
@@ -281,6 +302,25 @@ class ResolveAuthorTests(SimpleTestCase):
     @patch(
         "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
     )
+    def test_web_found_identifier_rejected_when_only_initial_matches(self, mock_fetch):
+        # Arrange: "John Doe" shares Jane Doe's surname and initial, but is still not
+        # a strong enough name match for a web-discovered identifier.
+        mock_fetch.return_value = create_oa_author_record(display_name="John Doe")
+        client = MagicMock()
+        client.search_authors_via_name.return_value = {"results": []}
+        llm = MagicMock()
+        llm.invoke.return_value = (
+            '{"choice": null, "openalex_id": "https://openalex.org/A9", '
+            '"confidence": 0.8, "reasoning": "x"}'
+        )
+        # Act
+        res, _, _ = resolver.resolve_author(make_expert(), client=client, llm=llm)
+        # Assert
+        self.assertEqual(res.match_method, "unresolved")
+
+    @patch(
+        "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
+    )
     def test_zero_candidates_recovered_via_web_id(self, mock_fetch):
         # Arrange: the name search finds nobody, but web search turns up an ORCID.
         mock_fetch.return_value = create_oa_author_record(id="https://openalex.org/A9")
@@ -338,6 +378,19 @@ class ResolveViaSourceLinkTests(SimpleTestCase):
     def test_returns_none_when_openalex_has_no_record(self, mock_fetch):
         # Arrange
         mock_fetch.return_value = None
+        expert = make_expert(sources=[{"url": "https://orcid.org/0000-0002-1825-0097"}])
+        # Act
+        res = resolver.resolve_via_source_link(expert, client=MagicMock())
+        # Assert
+        self.assertIsNone(res)
+
+    @patch(
+        "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
+    )
+    def test_returns_none_when_cited_orcid_name_does_not_match(self, mock_fetch):
+        # Arrange: a bad source URL must not attach another person's author record
+        # with source-link certainty.
+        mock_fetch.return_value = create_oa_author_record(display_name="John Smith")
         expert = make_expert(sources=[{"url": "https://orcid.org/0000-0002-1825-0097"}])
         # Act
         res = resolver.resolve_via_source_link(expert, client=MagicMock())

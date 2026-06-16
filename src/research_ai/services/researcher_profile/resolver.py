@@ -64,6 +64,11 @@ NAME_SCORE_CONFIDENT = 0.85
 # since the id came from the model's web search rather than the expert finder.
 WEB_ID_SCORE = 0.9
 
+# Candidate choices below this model-reported confidence are treated as abstains.
+# A low-confidence choice is still useful audit data, but should not attach papers
+# to the expert.
+LLM_CHOICE_MIN_CONFIDENCE = 0.75
+
 
 def _norm(value: str) -> str:
     """Lowercase, strip accents, collapse to ``[a-z0-9 ]`` tokens."""
@@ -171,6 +176,12 @@ def resolve_via_source_link(expert, *, client: OpenAlex) -> AuthorResolution | N
         return None
     record = fetch_openalex_author_record(orcid_bare=src_orcid, client=client)
     if not record:
+        return None
+    if _name_score(expert, record) < NAME_SCORE_CONFIDENT:
+        logger.info(
+            "OpenAlex author fetched by cited ORCID did not name-match expert: %s",
+            record.get("id"),
+        )
         return None
     return AuthorResolution(
         openalex_author_id=record.get("id"),
@@ -299,7 +310,7 @@ def _resolve_found_identifier(
     except Exception as exc:  # noqa: BLE001 - web-id lookup is best-effort
         logger.info("web-id lookup failed: %s", exc)
         return None
-    if not record or _name_score(expert, record) < NAME_SCORE_STRONG:
+    if not record or _name_score(expert, record) < NAME_SCORE_CONFIDENT:
         return None
     return AuthorResolution(
         openalex_author_id=record.get("id"),
@@ -371,6 +382,17 @@ def resolve_author(
         errors.append(f"disambiguate: {disambiguation.error}")
 
     if disambiguation.chosen:
+        if disambiguation.confidence < LLM_CHOICE_MIN_CONFIDENCE:
+            disambiguation.record = None
+            disambiguation.name_score = 0.0
+            return (
+                AuthorResolution(
+                    match_method="unresolved",
+                    candidates_considered=candidates.candidates_considered,
+                ),
+                disambiguation,
+                errors,
+            )
         resolution = AuthorResolution(
             openalex_author_id=disambiguation.record.get("id"),
             display_name=disambiguation.record.get("display_name"),
