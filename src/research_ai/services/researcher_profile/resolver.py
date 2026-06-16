@@ -362,9 +362,10 @@ def resolve_author(
 
     # Rung 4: a web-discovered identifier, re-fetched and name-validated.
     if disambiguation.found_orcid or disambiguation.found_openalex_id:
-        resolution = _resolve_found_identifier(expert, disambiguation, client=oa)
-        if resolution is not None:
-            return resolution, disambiguation, errors
+        if disambiguation.confidence >= LLM_CHOICE_MIN_CONFIDENCE:
+            resolution = _resolve_found_identifier(expert, disambiguation, client=oa)
+            if resolution is not None:
+                return resolution, disambiguation, errors
 
     # No confident match, and the disambiguator did not (or could not) pick one.
     resolution = AuthorResolution(

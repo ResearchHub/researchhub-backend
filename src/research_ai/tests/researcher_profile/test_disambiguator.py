@@ -52,6 +52,18 @@ class DisambiguateAuthorTests(SimpleTestCase):
         # Assert
         self.assertFalse(result.chosen)
 
+    def test_boolean_choice_coerced_to_abstain(self):
+        # Arrange: JSON booleans are ints in Python, but not valid candidate ids.
+        llm = MagicMock()
+        llm.invoke.return_value = (
+            '{"choice": false, "confidence": 0.9, "reasoning": "abstain"}'
+        )
+        # Act
+        result = disambiguator.disambiguate_author(make_expert(), _scored(), llm=llm)
+        # Assert
+        self.assertFalse(result.chosen)
+        self.assertIsNone(result.record)
+
     def test_handles_json_code_fences(self):
         # Arrange
         llm = MagicMock()

@@ -283,6 +283,29 @@ class ResolveAuthorTests(SimpleTestCase):
     @patch(
         "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
     )
+    def test_low_confidence_web_found_identifier_leaves_unresolved(self, mock_fetch):
+        # Arrange: the model reports an ORCID, but not confidently enough to trust
+        # the web-discovered identifier path.
+        client = MagicMock()
+        client.search_authors_via_name.return_value = {
+            "results": [create_oa_author_record(id="https://openalex.org/A1")]
+        }
+        llm = MagicMock()
+        llm.invoke.return_value = (
+            '{"choice": null, "orcid": "0000-0002-1825-0097", '
+            '"confidence": 0.2, "reasoning": "maybe"}'
+        )
+        # Act
+        res, disamb, _ = resolver.resolve_author(make_expert(), client=client, llm=llm)
+        # Assert: low confidence is treated like an abstain; no id lookup occurs.
+        self.assertEqual(res.match_method, "unresolved")
+        self.assertFalse(disamb.chosen)
+        self.assertEqual(disamb.confidence, 0.2)
+        mock_fetch.assert_not_called()
+
+    @patch(
+        "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
+    )
     def test_web_found_identifier_rejected_when_name_mismatches(self, mock_fetch):
         # Arrange: the reported id resolves to someone with a different name ->
         # rejected as a likely hallucination, expert left unresolved.
