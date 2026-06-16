@@ -134,8 +134,10 @@ def _parse_decision(raw: str, count: int) -> _Decision:
     data = extract_json_object(raw)
 
     choice = data.get("choice")
-    if isinstance(choice, bool) or not isinstance(choice, int) or not (
-        0 <= choice < count
+    if (
+        isinstance(choice, bool)
+        or not isinstance(choice, int)
+        or not (0 <= choice < count)
     ):
         choice = None
     confidence = data.get("confidence")
