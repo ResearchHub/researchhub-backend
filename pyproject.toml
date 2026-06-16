@@ -90,7 +90,7 @@ extend-select = [
     "W",    # pycodestyle warnings
     "I",    # isort
     "T20",  # flake8-print: forbid print statements
-    "TID251",  # flake8-tidy-imports
+    "TID",  # flake8-tidy-imports
 ]
 
 [tool.ruff.lint.per-file-ignores]
