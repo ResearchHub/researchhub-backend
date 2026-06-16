@@ -2,7 +2,7 @@
 Cold-start researcher profile builder.
 
 Starts from an ``Expert`` -- names, an ``affiliation``, an ``expertise`` blurb,
-and ``sources`` URLs that may carry an ORCID or OpenAlex id. An ``Expert`` is not
+and ``sources`` URLs that may carry an ORCID. An ``Expert`` is not
 a ResearchHub ``Author``, so the existing ``researcher_external_context`` helpers
 cannot be called directly -- this package resolves the expert to an OpenAlex
 author and builds the profile.
@@ -10,7 +10,7 @@ author and builds the profile.
 One module per concern:
 
 - ``resolver``       maps the ``Expert`` to an OpenAlex author id via the full
-                     escalation ladder (cited id links, else name + affiliation,
+                     escalation ladder (cited ORCID, else name + affiliation,
                      else LLM disambiguation); ``resolve_author`` is the entry
 - ``disambiguator``  hands ambiguous candidate sets to the LLM, which picks the
                      matching author or abstains

@@ -3,9 +3,11 @@
 Resolution ladder, most to least certain -- it stops at the first rung that
 produces a match and returns "unresolved" rather than guess:
 
-1. **source-link** -- an OpenAlex author URL or ORCID iD the expert finder
-   already cited in ``expert.sources``. An ORCID here is only a lookup key
-   into OpenAlex's ``/authors`` endpoint; there is no ORCID API integration.
+1. **source-link** -- an ORCID iD the expert finder already cited in
+   ``expert.sources``. The ORCID is only a lookup key into OpenAlex's
+   ``/authors`` endpoint; there is no ORCID API integration. A cited OpenAlex
+   author id is *not* trusted here -- the finder is prone to fabricating them,
+   so the expert falls through to the name rungs instead.
 2. **name+affiliation** -- the affiliation string is resolved to an OpenAlex
    *institution* (OpenAlex's own entity resolution handles abbreviations,
    aliases, and other languages), then the author search is scoped to that
@@ -147,23 +149,22 @@ def _resolve_institution_id(affiliation: str, *, client: OpenAlex) -> str | None
 
 
 def resolve_via_source_link(expert, *, client: OpenAlex) -> AuthorResolution | None:
-    """Rung 1: an OpenAlex/ORCID id the expert finder already cited.
+    """Rung 1: an ORCID iD the expert finder already cited.
 
-    Returns a certain (score 1.0) resolution, or ``None`` when no id is cited
-    or OpenAlex has no author behind it -- the caller then falls through to the
-    name rungs.
+    Only the ORCID is used as a lookup key; a cited OpenAlex author id is
+    deliberately ignored because the finder is prone to fabricating them.
+    Returns a certain (score 1.0) resolution, or ``None`` when no ORCID is
+    cited or OpenAlex has no author behind it -- the caller then falls through
+    to the name rungs.
     """
-    src_orcid, src_oa = expert.source_ids
-    if not (src_orcid or src_oa):
+    src_orcid, _ = expert.source_ids
+    if not src_orcid:
         return None
-    record = fetch_openalex_author_record(
-        orcid_bare=src_orcid, openalex_author_ref=src_oa, client=client
-    )
+    record = fetch_openalex_author_record(orcid_bare=src_orcid, client=client)
     if not record:
         return None
     return AuthorResolution(
-        openalex_author_id=record.get("id")
-        or (f"https://openalex.org/{src_oa}" if src_oa else None),
+        openalex_author_id=record.get("id"),
         display_name=record.get("display_name"),
         match_score=1.0,
         match_method="source-link",
@@ -278,7 +279,7 @@ def resolve_author(
     Walks the full ladder from the module docstring, stopping at the first
     confident rung so the LLM disambiguator runs at most once:
 
-    1. **source-link** -- a cited OpenAlex/ORCID id (certain).
+    1. **source-link** -- a cited ORCID id (certain).
     2. **name / name+affiliation** -- a lone, strong match is accepted directly.
     3. **name-llm** -- ambiguous or borderline candidates go to the LLM, which
        picks one or abstains (leaving the expert ``unresolved``).
@@ -295,7 +296,7 @@ def resolve_author(
     oa = client or OpenAlex()
     errors: list[str] = []
 
-    # Rung 1: a cited OpenAlex/ORCID id is certain -- no LLM needed.
+    # Rung 1: a cited ORCID id is certain -- no LLM needed.
     try:
         source = resolve_via_source_link(expert, client=oa)
     except Exception as exc:  # noqa: BLE001 - resolver is best-effort

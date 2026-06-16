@@ -239,6 +239,19 @@ class ResolveViaSourceLinkTests(SimpleTestCase):
     @patch(
         "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
     )
+    def test_ignores_cited_openalex_author_id(self, mock_fetch):
+        # Arrange: only an OpenAlex author URL is cited (no ORCID). The finder is
+        # prone to fabricating these, so they must not resolve at score 1.0.
+        expert = make_expert(sources=[{"url": "https://openalex.org/A123"}])
+        # Act
+        res = resolver.resolve_via_source_link(expert, client=MagicMock())
+        # Assert: falls through, and OpenAlex is never queried for the cited id.
+        self.assertIsNone(res)
+        mock_fetch.assert_not_called()
+
+    @patch(
+        "research_ai.services.researcher_profile.resolver.fetch_openalex_author_record"
+    )
     def test_returns_none_when_openalex_has_no_record(self, mock_fetch):
         # Arrange
         mock_fetch.return_value = None
