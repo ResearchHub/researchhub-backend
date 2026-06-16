@@ -25,6 +25,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
+from research_ai.services.openai_llm_service import OpenAIWebSearchLLMService
 from research_ai.services.researcher_external_context import (
     fetch_openalex_author_record,
 )
@@ -290,7 +291,10 @@ def _resolve_found_identifier(
 
 
 def resolve_author(
-    expert, *, client: OpenAlex | None = None, llm=None
+    expert,
+    *,
+    client: OpenAlex | None = None,
+    llm: OpenAIWebSearchLLMService | None = None,
 ) -> tuple[AuthorResolution, DisambiguationResult | None, list[str]]:
     """Resolve an ``Expert`` to an OpenAlex author, escalating only as needed.
 
