@@ -3,21 +3,12 @@ import logging
 from orcid.clients import OrcidClient
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import Author
-from utils.openalex import OpenAlex, normalize_openalex_id
+from utils.openalex import OpenAlex, normalize_openalex_id, normalize_orcid
 
 logger = logging.getLogger(__name__)
 
 _MAX_ORCID_WORK_LINES = 30
 _DEFAULT_PIPELINE_MAX_CHARS = 8000
-
-
-def _bare_orcid(author_orcid: str | None) -> str | None:
-    if not author_orcid:
-        return None
-    s = str(author_orcid).strip()
-    if "orcid.org/" in s:
-        return s.split("orcid.org/", 1)[-1].strip().strip("/")
-    return s or None
 
 
 def _normalize_openalex_author_token(ref: str | None) -> str | None:
@@ -163,7 +154,7 @@ def build_researcher_external_context_for_author(
     """
     if author is None:
         return ""
-    orcid = _bare_orcid(getattr(author, "orcid_id", None))
+    orcid = normalize_orcid(getattr(author, "orcid_id", None))
     oa_ref: str | None = None
     ids = getattr(author, "openalex_ids", None) or []
     for oid in ids:
@@ -295,7 +286,7 @@ def build_researcher_external_context(
 
     try:
         works_text = build_orcid_works_context_text(
-            orcid_bare=_bare_orcid(author.orcid_id) or author.orcid_id.strip(),
+            orcid_bare=normalize_orcid(author.orcid_id) or author.orcid_id.strip(),
         )
         if works_text.strip():
             chunks.append(

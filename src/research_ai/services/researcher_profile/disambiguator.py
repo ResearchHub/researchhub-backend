@@ -22,6 +22,7 @@ import logging
 from dataclasses import dataclass
 
 from research_ai.services.openai_llm_service import OpenAIWebSearchLLMService
+from research_ai.utils import extract_json_object
 
 logger = logging.getLogger(__name__)
 
@@ -141,14 +142,7 @@ def _parse_decision(raw: str, count: int):
     candidate list every index is out of range, so ``choice`` is always
     ``None``).
     """
-    text = (raw or "").strip()
-    if text.startswith("```"):
-        text = text.strip("`")
-        text = text[4:] if text[:4].lower() == "json" else text
-    start, end = text.find("{"), text.rfind("}")
-    if start == -1 or end == -1:
-        raise ValueError(f"no JSON object in model reply: {raw!r}")
-    data = json.loads(text[start : end + 1])
+    data = extract_json_object(raw)
 
     choice = data.get("choice")
     if not isinstance(choice, int) or not (0 <= choice < count):

@@ -1,13 +1,11 @@
-import json
 import logging
-import re
 from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 
 from research_ai.services.expert_display import ExpertDisplay
-from research_ai.utils import trimmed_str
+from research_ai.utils import extract_json_object, trimmed_str
 
 logger = logging.getLogger(__name__)
 
@@ -43,24 +41,7 @@ class ExpertFinderJson:
         """
         Parse JSON from raw LLM completion.
         """
-        text = text.strip()
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            pass
-        code_block = re.search(r"```(?:json)?\s*(\{[^\}]*\})\s*```", text)
-        if code_block:
-            try:
-                return json.loads(code_block.group(1))
-            except json.JSONDecodeError:
-                pass
-        brace_match = re.search(r"\{.*\}", text, re.DOTALL)
-        if brace_match:
-            try:
-                return json.loads(brace_match.group(0))
-            except json.JSONDecodeError:
-                pass
-        raise ValueError("Could not extract valid JSON from expert finder LLM response")
+        return extract_json_object(text)
 
     @staticmethod
     def validate_output(obj: Any) -> list[dict[str, Any]]:
