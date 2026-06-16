@@ -3,12 +3,11 @@ Utility functions for AWS Personalize item data export.
 """
 
 import re
-from typing import Optional
 
 from personalize.config.constants import MAX_TEXT_LENGTH
 
 
-def prepare_text_for_personalize(text: Optional[str]) -> Optional[str]:
+def prepare_text_for_personalize(text: str | None) -> str | None:
     """
     Prepare text for CSV export.
     """

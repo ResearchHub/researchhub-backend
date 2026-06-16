@@ -7,7 +7,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 from paper.ingestion.exceptions import FetchError, RetryExhaustedError, TimeoutError
 
@@ -37,8 +37,8 @@ class ClientConfig:
     page_size: int = 100
 
     # Authentication
-    api_key: Optional[str] = None
-    auth_token: Optional[str] = None
+    api_key: str | None = None
+    auth_token: str | None = None
 
 
 class RateLimiter:
@@ -68,7 +68,7 @@ class BaseClient(ABC):
 
     @abstractmethod
     def fetch(
-        self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs
+        self, endpoint: str, params: Dict[str, Any] | None = None, **kwargs
     ) -> Union[str, bytes, Dict[str, Any]]:
         """
         Fetch data from the source API.
@@ -92,14 +92,14 @@ class BaseClient(ABC):
         pass
 
     def fetch_with_rate_limit(
-        self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs
+        self, endpoint: str, params: Dict[str, Any] | None = None, **kwargs
     ) -> Union[str, bytes, Dict[str, Any]]:
         """Fetch data with rate limiting."""
         self.rate_limiter.wait_if_needed()
         return self.fetch(endpoint, params, **kwargs)
 
     def fetch_with_retry(
-        self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs
+        self, endpoint: str, params: Dict[str, Any] | None = None, **kwargs
     ) -> Union[str, bytes, Dict[str, Any]]:
         """Fetch data with retry logic and exponential backoff."""
         backoff = self.config.initial_backoff
@@ -139,8 +139,8 @@ class BaseClient(ABC):
     @abstractmethod
     def fetch_recent(
         self,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
         **kwargs,
     ) -> List[Dict[str, Any]]:
         """Fetch recent papers within date range."""

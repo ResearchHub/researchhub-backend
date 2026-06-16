@@ -1,4 +1,3 @@
-from typing import Optional
 
 from orcid.clients import OrcidClient
 from orcid.config import EDU_DOMAINS
@@ -7,7 +6,7 @@ from orcid.config import EDU_DOMAINS
 class OrcidEmailService:
     """Fetches and validates verified edu emails from ORCID."""
 
-    def __init__(self, client: Optional[OrcidClient] = None):
+    def __init__(self, client: OrcidClient | None = None):
         self.client = client or OrcidClient()
 
     def fetch_verified_edu_emails(self, orcid_id: str, access_token: str) -> list[str]:

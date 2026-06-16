@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from django.core.cache import cache
 
@@ -13,7 +13,7 @@ DEFAULT_NUM_RESULTS = 200
 
 
 class FeedService:
-    def __init__(self, personalize_client: Optional[RecommendationClient] = None):
+    def __init__(self, personalize_client: RecommendationClient | None = None):
         self.personalize_client = personalize_client or RecommendationClient()
         self.cache_hit = False
         self.cache_hit_trending = False
@@ -21,9 +21,9 @@ class FeedService:
     def get_recommendation_ids(
         self,
         user_id: int,
-        filter_param: Optional[str] = None,
-        hub_id: Optional[int] = None,
-        num_results: Optional[int] = None,
+        filter_param: str | None = None,
+        hub_id: int | None = None,
+        num_results: int | None = None,
         force_refresh: bool = False,
     ) -> Dict[str, Any]:
         # If hub_id is provided, use the per-hub filter
@@ -44,8 +44,8 @@ class FeedService:
         self,
         user_id: int,
         filter_param: str,
-        hub_id: Optional[int],
-        num_results: Optional[int],
+        hub_id: int | None,
+        num_results: int | None,
         force_refresh: bool,
     ) -> Dict[str, Any]:
         if num_results is None:
@@ -77,7 +77,7 @@ class FeedService:
         return result
 
     def _build_cache_key(
-        self, user_id: int, filter_param: Optional[str], hub_id: Optional[int] = None
+        self, user_id: int, filter_param: str | None, hub_id: int | None = None
     ) -> str:
         filter_value = filter_param if filter_param else "none"
         hub_value = f":hub-is-{hub_id}" if hub_id else ""
@@ -86,7 +86,7 @@ class FeedService:
     def invalidate_cache_for_user(
         self,
         user_id: int,
-        filter_param: Optional[str] = None,
+        filter_param: str | None = None,
     ) -> None:
         if filter_param:
             filters = [filter_param]
@@ -104,7 +104,7 @@ class FeedService:
 
     def get_trending_ids(
         self,
-        num_results: Optional[int] = None,
+        num_results: int | None = None,
         force_refresh: bool = False,
     ) -> Dict[str, Any]:
         """
@@ -141,7 +141,7 @@ class FeedService:
 
     def invalidate_trending_cache(
         self,
-        num_results: Optional[int] = None,
+        num_results: int | None = None,
     ) -> None:
         """Invalidate trending cache."""
         if num_results is None:

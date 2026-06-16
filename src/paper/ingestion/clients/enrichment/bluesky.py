@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from atproto import Client
 from django.conf import settings
@@ -31,9 +31,9 @@ class BlueskyClient:
 
     def __init__(
         self,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        client: Optional[Client] = None,
+        username: str | None = None,
+        password: str | None = None,
+        client: Client | None = None,
         rate_limit: float = DEFAULT_RATE_LIMIT,
     ):
         """
@@ -86,7 +86,7 @@ class BlueskyClient:
 
     def search_posts(
         self, query: str, limit: int = MAX_SEARCH_RESULTS
-    ) -> Optional[Dict]:
+    ) -> Dict | None:
         """
         Search for posts on Bluesky matching a query.
 
@@ -116,7 +116,7 @@ class BlueskyMetricsClient:
     Client for retrieving Bluesky metrics for papers.
     """
 
-    def __init__(self, bluesky_client: Optional[BlueskyClient] = None):
+    def __init__(self, bluesky_client: BlueskyClient | None = None):
         """
         Constructor.
 
@@ -128,7 +128,7 @@ class BlueskyMetricsClient:
 
     def get_metrics(
         self, terms: List[str], limit: int = BlueskyClient.MAX_SEARCH_RESULTS
-    ) -> Optional[Dict]:
+    ) -> Dict | None:
         """
         Get Bluesky metrics for a list of terms (DOI, title, etc.).
 

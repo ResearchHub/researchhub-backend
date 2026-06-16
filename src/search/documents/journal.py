@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Any, Optional, override
+from typing import Any, override
 
 from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
@@ -53,8 +53,8 @@ class JournalDocument(BaseDocument):
     @override
     def get_queryset(
         self,
-        filter_: Optional[Q] = None,
-        exclude: Optional[Q] = None,
+        filter_: Q | None = None,
+        exclude: Q | None = None,
         count: int = None,  # type: ignore[override]
     ) -> QuerySet:
         return (

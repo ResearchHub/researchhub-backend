@@ -6,7 +6,7 @@ Maps ChemRxiv paper records to ResearchHub Paper model fields.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from hub.models import Hub
@@ -138,7 +138,7 @@ class ChemRxivMapper(BaseMapper):
 
         return paper
 
-    def _get_best_date(self, record: Dict[str, Any]) -> Optional[str]:
+    def _get_best_date(self, record: Dict[str, Any]) -> str | None:
         """
         Get the best available date from the record.
 
@@ -160,7 +160,7 @@ class ChemRxivMapper(BaseMapper):
 
         return None
 
-    def _parse_date(self, date_str: Optional[str]) -> Optional[str]:
+    def _parse_date(self, date_str: str | None) -> str | None:
         """
         Parse ISO date string to Paper model format (YYYY-MM-DD).
 
@@ -382,7 +382,7 @@ class ChemRxivMapper(BaseMapper):
 
         return authorships
 
-    def _parse_license(self, license_str: Optional[str]) -> Optional[str]:
+    def _parse_license(self, license_str: str | None) -> str | None:
         """
         Parse license string to standard format.
 
@@ -401,7 +401,7 @@ class ChemRxivMapper(BaseMapper):
         # Currently just return lowercased, hyphenated version
         return license_str.lower().replace(" ", "-").strip()
 
-    def _extract_license(self, license_obj: Optional[Dict[str, Any]]) -> Optional[str]:
+    def _extract_license(self, license_obj: Dict[str, Any] | None) -> str | None:
         """
         Extract license name.
 
@@ -415,7 +415,7 @@ class ChemRxivMapper(BaseMapper):
             return None
         return license_obj.get("name")
 
-    def _extract_pdf_url(self, asset_obj: Dict[str, Any]) -> Optional[str]:
+    def _extract_pdf_url(self, asset_obj: Dict[str, Any]) -> str | None:
         """
         Extract PDF URL from asset object.
 

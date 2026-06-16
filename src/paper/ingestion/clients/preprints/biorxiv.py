@@ -4,7 +4,6 @@ BioRxiv API client for fetching papers.
 Inherits from BioRxivBaseClient with BioRxiv-specific configuration.
 """
 
-from typing import Optional
 
 from .biorxiv_base import BioRxivBaseClient, BioRxivBaseConfig
 
@@ -25,7 +24,7 @@ class BioRxivClient(BioRxivBaseClient):
 
     default_server = "biorxiv"
 
-    def __init__(self, config: Optional[BioRxivConfig] = None):
+    def __init__(self, config: BioRxivConfig | None = None):
         """Initialize BioRxiv client."""
         if config is None:
             config = BioRxivConfig()

@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 import requests
 
@@ -13,7 +12,7 @@ REQUEST_TIMEOUT = 30
 class OrcidClient:
     """Client for ORCID OAuth API."""
 
-    def __init__(self, session: Optional[requests.Session] = None):
+    def __init__(self, session: requests.Session | None = None):
         self.session = session or requests
 
     def exchange_code_for_token(

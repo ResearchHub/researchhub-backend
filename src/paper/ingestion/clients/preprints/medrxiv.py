@@ -4,7 +4,6 @@ MedRxiv API client for fetching papers.
 Inherits from BioRxivBaseClient with MedRxiv-specific configuration.
 """
 
-from typing import Optional
 
 from .biorxiv_base import BioRxivBaseClient, BioRxivBaseConfig
 
@@ -25,7 +24,7 @@ class MedRxivClient(BioRxivBaseClient):
 
     default_server = "medrxiv"
 
-    def __init__(self, config: Optional[MedRxivConfig] = None):
+    def __init__(self, config: MedRxivConfig | None = None):
         """Initialize MedRxiv client."""
         if config is None:
             config = MedRxivConfig()

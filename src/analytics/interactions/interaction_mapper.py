@@ -2,7 +2,6 @@
 Functional mappers for converting source records to UserInteractions.
 """
 
-from typing import Optional
 
 from django.contrib.contenttypes.models import ContentType
 
@@ -84,7 +83,7 @@ def map_from_amplitude_event(amplitude_event: AmplitudeEvent) -> UserInteraction
 
 
 def map_from_comment(
-    comment, content_type: Optional[ContentType] = None
+    comment, content_type: ContentType | None = None
 ) -> UserInteractions:
     """
     Map a RhCommentModel record to a UserInteractions instance (not saved to database).
@@ -112,7 +111,7 @@ def map_from_comment(
 
 
 def map_from_list_item(
-    list_item: ListItem, content_type: Optional[ContentType] = None
+    list_item: ListItem, content_type: ContentType | None = None
 ) -> UserInteractions:
     """
     Map a ListItem record (saved to list) to a UserInteractions instance

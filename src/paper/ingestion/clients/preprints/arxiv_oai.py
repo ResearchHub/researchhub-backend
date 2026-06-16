@@ -9,7 +9,7 @@ See: https://info.arxiv.org/help/oa/index.html
 import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 import requests
 
@@ -25,7 +25,7 @@ _ARXIV_RAW_NS = "{http://arxiv.org/OAI/arXivRaw/}"
 _DC_NS = "{http://purl.org/dc/elements/1.1/}"
 
 
-def _get_text(element: ET.Element, tag: str) -> Optional[str]:
+def _get_text(element: ET.Element, tag: str) -> str | None:
     """
     Get text content from an XML element.
 
@@ -211,7 +211,7 @@ class ArXivOAIClient(BaseClient):
     # XML namespaces
     OAI_NS = "{http://www.openarchives.org/OAI/2.0/}"
 
-    def __init__(self, config: Optional[ArXivOAIConfig] = None):
+    def __init__(self, config: ArXivOAIConfig | None = None):
         """
         Constructor.
         """
@@ -221,7 +221,7 @@ class ArXivOAIClient(BaseClient):
         self.session = requests.Session()
 
     def fetch(
-        self, endpoint: str = "", params: Optional[Dict[str, Any]] = None, **kwargs
+        self, endpoint: str = "", params: Dict[str, Any] | None = None, **kwargs
     ) -> Union[str, bytes, Dict[str, Any]]:
         """
         Fetch data from ArXiv OAI API.
@@ -324,7 +324,7 @@ class ArXivOAIClient(BaseClient):
 
         return papers
 
-    def _extract_resumption_token(self, xml_response: str) -> Optional[str]:
+    def _extract_resumption_token(self, xml_response: str) -> str | None:
         """
         Extract resumption token from OAI response for pagination.
 
@@ -348,9 +348,9 @@ class ArXivOAIClient(BaseClient):
 
     def fetch_recent(
         self,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        max_results: Optional[int] = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        max_results: int | None = None,
         **kwargs,
     ) -> List[Dict[str, Any]]:
         """

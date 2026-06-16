@@ -1,7 +1,7 @@
 import logging
 import re
 from functools import wraps
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import requests
 from cdp.auth.utils.jwt import JwtOptions, generate_jwt
@@ -168,8 +168,8 @@ class CoinbaseService:
     def create_session_token(
         self,
         user: User,
-        assets: Optional[List[str]] = None,
-        client_ip: Optional[str] = None,
+        assets: List[str] | None = None,
+        client_ip: str | None = None,
     ) -> Dict[str, Any]:
         """
         Create a single use token for initializing an Onramp or Offramp session.
@@ -247,12 +247,12 @@ class CoinbaseService:
     def generate_onramp_url(
         self,
         user: User,
-        assets: Optional[List[str]] = None,
-        default_network: Optional[str] = None,
-        preset_fiat_amount: Optional[int] = None,
-        preset_crypto_amount: Optional[float] = None,
-        default_asset: Optional[str] = None,
-        client_ip: Optional[str] = None,
+        assets: List[str] | None = None,
+        default_network: str | None = None,
+        preset_fiat_amount: int | None = None,
+        preset_crypto_amount: float | None = None,
+        default_asset: str | None = None,
+        client_ip: str | None = None,
     ) -> str:
         """
         Generate a complete Onramp URL with session token.

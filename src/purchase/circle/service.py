@@ -3,7 +3,6 @@ import time
 import uuid
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Optional
 
 from django.conf import settings
 from django.db import transaction
@@ -180,7 +179,7 @@ class CircleWalletService:
     existing Circle wallet address or provisions a new one via the Circle API.
     """
 
-    def __init__(self, client: Optional[CircleWalletClient] = None):
+    def __init__(self, client: CircleWalletClient | None = None):
         self.client = client or CircleWalletClient()
 
     def get_or_create_deposit_address(self, user: User) -> DepositAddressResult:
