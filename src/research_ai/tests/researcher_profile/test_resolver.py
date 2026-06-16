@@ -270,7 +270,7 @@ class ResolveAuthorTests(SimpleTestCase):
             '"confidence": 0.8, "reasoning": "moved"}'
         )
         # Act
-        res, disamb, _ = resolver.resolve_author(make_expert(), client=client, llm=llm)
+        res, _, _ = resolver.resolve_author(make_expert(), client=client, llm=llm)
         # Assert
         self.assertEqual(res.match_method, "web-id")
         self.assertEqual(res.openalex_author_id, "https://openalex.org/A9")
