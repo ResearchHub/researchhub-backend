@@ -38,6 +38,17 @@ _SYSTEM_PROMPT = (
 
 
 @dataclass
+class _Decision:
+    """Parsed-and-validated LLM reply, before resolving against candidates."""
+
+    choice: int | None = None
+    orcid: str | None = None
+    openalex_id: str | None = None
+    confidence: float = 0.0
+    reasoning: str = ""
+
+
+@dataclass
 class DisambiguationResult:
     """Outcome of an LLM disambiguation pass.
 
@@ -114,29 +125,30 @@ def _clean_str(value) -> str | None:
     return s or None
 
 
-def _parse_decision(raw: str, count: int):
+def _parse_decision(raw: str, count: int) -> _Decision:
     """Parse the model's JSON reply into a disambiguation decision.
 
-    Returns ``(choice, orcid, openalex_id, confidence, reasoning)``. An
-    out-of-range/garbage choice is coerced to ``None`` so a malformed reply never
-    picks a wrong author.
+    An out-of-range/garbage choice is coerced to ``None`` so a malformed reply
+    never picks a wrong author.
     """
     data = extract_json_object(raw)
 
     choice = data.get("choice")
     if not isinstance(choice, int) or not (0 <= choice < count):
         choice = None
-    orcid = _clean_str(data.get("orcid"))
-    openalex_id = _clean_str(data.get("openalex_id"))
     confidence = data.get("confidence")
     confidence = (
         float(confidence)
         if isinstance(confidence, (int, float)) and not isinstance(confidence, bool)
         else 0.0
     )
-    confidence = max(0.0, min(1.0, confidence))
-    reasoning = str(data.get("reasoning") or "")
-    return choice, orcid, openalex_id, confidence, reasoning
+    return _Decision(
+        choice=choice,
+        orcid=_clean_str(data.get("orcid")),
+        openalex_id=_clean_str(data.get("openalex_id")),
+        confidence=max(0.0, min(1.0, confidence)),
+        reasoning=str(data.get("reasoning") or ""),
+    )
 
 
 def disambiguate_author(
@@ -154,26 +166,24 @@ def disambiguate_author(
     service = llm or OpenAIWebSearchLLMService()
     try:
         reply = service.invoke(_SYSTEM_PROMPT, _build_user_prompt(expert, scored))
-        choice, orcid, openalex_id, confidence, reasoning = _parse_decision(
-            reply, len(scored)
-        )
+        decision = _parse_decision(reply, len(scored))
     except Exception as exc:  # noqa: BLE001 - disambiguation is best-effort
         logger.info("LLM disambiguation failed: %s", exc)
         return DisambiguationResult(error=str(exc))
 
-    if choice is not None:
-        name_score, record = scored[choice]
+    if decision.choice is not None:
+        name_score, record = scored[decision.choice]
         return DisambiguationResult(
             record=record,
             name_score=name_score,
-            confidence=confidence,
-            reasoning=reasoning,
+            confidence=decision.confidence,
+            reasoning=decision.reasoning,
         )
 
     # No candidate chosen: may still carry a web-found identifier to verify.
     return DisambiguationResult(
-        confidence=confidence,
-        reasoning=reasoning,
-        found_orcid=orcid,
-        found_openalex_id=openalex_id,
+        confidence=decision.confidence,
+        reasoning=decision.reasoning,
+        found_orcid=decision.orcid,
+        found_openalex_id=decision.openalex_id,
     )
