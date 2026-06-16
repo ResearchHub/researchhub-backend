@@ -1,14 +1,4 @@
-"""Assemble and persist the researcher profile.
-
-The entry points live here: ``build_expert_profile`` (no write) and
-``build_and_store_expert_profile`` (persists on ``Expert.profile``).
-
-Resolution -- mapping the ``Expert`` to an OpenAlex author, including the LLM
-disambiguation rung -- is delegated to ``resolver.resolve_author``. The builder
-then collects the resolved author's works and assembles the profile dict. Every
-stage is best-effort: failures are captured in ``errors`` and the profile is
-still returned with whatever was found.
-"""
+"""Assemble and persist the researcher profile."""
 
 import logging
 
@@ -29,21 +19,16 @@ def build_expert_profile(
     oa_client: OpenAlex | None = None,
     llm=None,
 ) -> dict:
-    """
-    Build the source-attributed researcher profile for an ``Expert`` (no write).
+    """Build the researcher profile for an ``Expert`` (no write).
 
-    Resolution (including LLM disambiguation) is delegated to ``resolve_author``;
-    the builder collects the resolved author's works and assembles the profile
-    dict. ``llm`` (a ``BedrockLLMService``) is injectable for testing; when
-    omitted it is constructed lazily only if the disambiguation rung is reached,
-    so an easily-resolved expert never instantiates it.
+    ``llm`` is injectable for testing; when omitted it is constructed lazily only
+    if the disambiguation rung is reached.
     """
     oa = oa_client or OpenAlex()
 
     resolution, disambiguation, errors = resolve_author(expert, client=oa, llm=llm)
 
-    # ``collect_works`` no-ops for an unresolved author, so this is safe to call
-    # unconditionally.
+    # ``collect_works`` no-ops for an unresolved author.
     works, works_errors = collect_works(resolution, oa_client=oa)
     errors.extend(works_errors)
 

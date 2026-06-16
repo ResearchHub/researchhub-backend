@@ -2,34 +2,11 @@
 Cold-start researcher profile builder.
 
 Starts from an ``Expert`` -- names, an ``affiliation``, an ``expertise`` blurb,
-and ``sources`` URLs that may carry an ORCID. An ``Expert`` is not
-a ResearchHub ``Author``, so the existing ``researcher_external_context`` helpers
-cannot be called directly -- this package resolves the expert to an OpenAlex
-author and builds the profile.
-
-One module per concern:
-
-- ``resolver``       maps the ``Expert`` to an OpenAlex author id via the full
-                     escalation ladder (cited ORCID, else name + affiliation,
-                     else web-search disambiguation); ``resolve_author`` is the
-                     entry
-- ``disambiguator``  hands the candidate set to an OpenAI model with web search,
-                     which picks the matching author, reports an ORCID/OpenAlex
-                     id it found online, or abstains
-- ``works``          fetches and selects a resolved author's papers (first/last
-                     authorship outranks middle, then recency)
-- ``builder``        delegates resolution, then assembles the profile dict and
-                     persists it **once** on ``Expert.profile``
-
-The resolver escalates only as far as needed (source-link -> name+affiliation ->
-web-search disambiguation), stopping at the first confident rung, so the LLM runs
-at most once per expert. A match is only accepted directly when name *and*
-institution corroborate; everything weaker is escalated, and an expert that
-still cannot be matched is left ``unresolved``.
-
-**Every work is readable** -- works seed proposal generation, so the list is
-restricted to open-access papers that expose a full-text ``pdf_url`` (the most
-authoritative version available), each with a ``source_url`` to cite.
+and ``sources`` URLs that may carry an ORCID. An ``Expert`` is not a ResearchHub
+``Author``, so this package resolves it to an OpenAlex author and builds the
+profile. One module per concern: ``resolver`` maps the expert to an author id,
+``disambiguator`` is the LLM rung, ``works`` selects the papers, and ``builder``
+assembles and persists the profile dict on ``Expert.profile``.
 
 ``Expert.profile`` schema (JSON, ``schema_version`` 1)::
 

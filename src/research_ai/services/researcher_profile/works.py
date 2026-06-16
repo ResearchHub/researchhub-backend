@@ -1,14 +1,8 @@
-"""Works on the profile: fetch, extract, and select the expert's papers.
+"""Fetch and select the expert's papers for the profile.
 
 These works seed proposal generation, so we only keep papers we can actually
-read: the fetch asks OpenAlex for open-access works, and selection then drops any
-without a usable full-text PDF. Each entity is parsed into a ``utils.openalex.Work``
-carrying this author's ``author_position`` ("first" | "middle" | "last"). Selection
-keeps the ``MAX_WORKS`` papers with first/last authorship outranking middle
-authorship, then recency.
-
-``MAX_WORKS`` is the profile-wide cap on stored works; the web-search fallback
-imports it so both resolution paths keep the same number of papers.
+read: open-access works that expose a full-text PDF. Selection keeps the
+``MAX_WORKS`` papers with first/last authorship outranking middle, then recency.
 """
 
 import logging
@@ -23,8 +17,7 @@ _WORKS_PAGE_SIZE = 50  # recent-works window fetched from OpenAlex before select
 
 
 def _select_works(works: list[Work]) -> list[Work]:
-    """Drop papers with no full-text ``pdf_url``, rank by lead-authorship then
-    recency, dedup by title + year, and keep ``MAX_WORKS``."""
+    """Drop PDF-less papers, rank by lead-authorship then recency, dedup, cap."""
     readable = [work for work in works if work.pdf_url]
 
     def rank(work: Work) -> tuple[bool, str]:

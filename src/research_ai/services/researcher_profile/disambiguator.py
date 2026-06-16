@@ -1,21 +1,4 @@
-"""LLM disambiguation: identify the right OpenAlex author, grounded by web search.
-
-Reached when the cheap name rungs are *not* confident -- several authors clear
-the name bar, the lone match is borderline (see ``resolver.confident_single``),
-or the name search turned up nothing at all. Backed by an OpenAI model with a
-``web_search`` tool, so it can check the live web when OpenAlex's institution
-data is stale (e.g. a researcher who recently moved) or look the researcher up
-from scratch.
-
-The model may answer in one of three ways: pick one of the candidate records,
-report an ORCID/OpenAlex id it found online (when no candidate fits), or abstain.
-Abstaining is a first-class answer -- the resolver leaves the expert unresolved
-rather than guess.
-
-The model never invents records: a chosen candidate is a real OpenAlex entity,
-and a *reported* identifier is only a lookup key -- the resolver re-fetches it
-from OpenAlex and name-validates it before trusting it.
-"""
+"""LLM disambiguation: identify the right OpenAlex author, grounded by web search."""
 
 import json
 import logging
@@ -60,10 +43,8 @@ class DisambiguationResult:
 
     ``record`` is the chosen OpenAlex author entity (``None`` when the model
     abstained, reported an identifier instead, or the call failed).
-    ``name_score`` is carried through from the chosen candidate so the builder
-    can fold it into the match score. ``found_orcid``/``found_openalex_id`` carry
-    a web-discovered identifier the resolver must re-fetch and name-validate;
-    they are only set when no candidate was chosen.
+    ``found_orcid``/``found_openalex_id`` carry a web-discovered identifier the
+    resolver must re-fetch and name-validate; set only when no candidate chosen.
     """
 
     record: dict | None = None
@@ -136,11 +117,9 @@ def _clean_str(value) -> str | None:
 def _parse_decision(raw: str, count: int):
     """Parse the model's JSON reply into a disambiguation decision.
 
-    Returns ``(choice, orcid, openalex_id, confidence, reasoning)``. Tolerates
-    ```` ```json ```` fences; an out-of-range/garbage choice is coerced to
-    ``None`` so a malformed reply never picks a wrong author (with an empty
-    candidate list every index is out of range, so ``choice`` is always
-    ``None``).
+    Returns ``(choice, orcid, openalex_id, confidence, reasoning)``. An
+    out-of-range/garbage choice is coerced to ``None`` so a malformed reply never
+    picks a wrong author.
     """
     data = extract_json_object(raw)
 
@@ -168,14 +147,9 @@ def disambiguate_author(
 ) -> DisambiguationResult:
     """Ask the LLM to identify the matching author, grounded by web search.
 
-    The model may pick one of the ``scored`` candidates, report an ORCID/OpenAlex
-    id it found online (when no candidate fits), or abstain. ``scored`` may be
-    empty -- the model is still asked to look the researcher up.
-
+    ``scored`` may be empty -- the model is still asked to look the researcher up.
     Best-effort: any failure (LLM error, unparseable reply) is returned as an
-    abstain with ``error`` set, so the resolver escalates rather than raising. A
-    reported identifier is *not* fetched here -- the resolver re-fetches and
-    name-validates it before trusting it.
+    abstain with ``error`` set, so the resolver escalates rather than raising.
     """
     service = llm or OpenAIWebSearchLLMService()
     try:
