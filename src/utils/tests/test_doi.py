@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from django.conf import settings
 
-from ..doi import DOI
+from utils.doi import DOI
 
 
 class TestDOI(unittest.TestCase):
