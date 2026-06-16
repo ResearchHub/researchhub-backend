@@ -4,7 +4,7 @@ from typing import Dict, List, Optional
 from atproto import Client
 from django.conf import settings
 
-from ..base import RateLimiter
+from paper.ingestion.clients.base import RateLimiter
 
 logger = logging.getLogger(__name__)
 

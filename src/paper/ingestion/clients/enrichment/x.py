@@ -4,7 +4,8 @@ from typing import Dict, List, Optional, Set
 from django.conf import settings
 from xdk import Client
 
-from ..base import RateLimiter
+from paper.ingestion.clients.base import RateLimiter
+
 from .x_bot_accounts import X_BOT_ACCOUNTS
 
 logger = logging.getLogger(__name__)
