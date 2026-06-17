@@ -22,16 +22,16 @@ class TestArXivOAIClient(TestCase):
         self.client = ArXivOAIClient(self.config)
 
         # Load fixture files
-        with open(fixtures_dir / "arxiv_oai_sample_response.xml", "r") as f:
+        with open(fixtures_dir / "arxiv_oai_sample_response.xml") as f:
             self.sample_xml_response = f.read()
 
-        with open(fixtures_dir / "arxiv_oai_empty_response.xml", "r") as f:
+        with open(fixtures_dir / "arxiv_oai_empty_response.xml") as f:
             self.empty_xml_response = f.read()
 
-        with open(fixtures_dir / "arxiv_oai_with_resumption.xml", "r") as f:
+        with open(fixtures_dir / "arxiv_oai_with_resumption.xml") as f:
             self.resumption_xml_response = f.read()
 
-        with open(fixtures_dir / "arxiv_oai_metadata_sample.xml", "r") as f:
+        with open(fixtures_dir / "arxiv_oai_metadata_sample.xml") as f:
             self.sample_metadata_xml = f.read()
 
     def test_config_defaults(self):

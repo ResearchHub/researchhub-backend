@@ -16,11 +16,11 @@ class BackfillCitationTableTest(TestCase):
     @patch.object(OpenAlex, "get_authors")
     def setUp(self, mock_get_authors):
         # Create some test data
-        with open(fixtures_dir / "openalex_works.json", "r") as file:
+        with open(fixtures_dir / "openalex_works.json") as file:
             response = json.load(file)
             self.works = response.get("results")
 
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
