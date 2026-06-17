@@ -182,18 +182,22 @@ class FundraiseService:
         goal_amount: Decimal,
         goal_currency: str = USD,
         status: str = Fundraise.OPEN,
+        end_date=None,
     ) -> Fundraise:
         """
         Creates a fundraise with its associated escrow.
         All input validation is handled by FundraiseCreateSerializer.
         """
-        fundraise = Fundraise.objects.create(
+        create_kwargs = dict(
             created_by=user,
             unified_document=unified_document,
             goal_amount=goal_amount,
             goal_currency=goal_currency,
             status=status,
         )
+        if end_date is not None:
+            create_kwargs["end_date"] = end_date
+        fundraise = Fundraise.objects.create(**create_kwargs)
 
         escrow = Escrow.objects.create(
             created_by=user,

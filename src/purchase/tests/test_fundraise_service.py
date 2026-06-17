@@ -1,8 +1,10 @@
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import Mock
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
@@ -62,6 +64,27 @@ class TestFundraiseService(APITestCase):
         self.assertEqual(db_fundraise.escrow.hold_type, "FUNDRAISE")
         self.assertEqual(db_fundraise.escrow.content_type.model, "fundraise")
         self.assertEqual(db_fundraise.escrow.object_id, db_fundraise.id)
+
+    def test_create_fundraise_with_custom_end_date(self):
+        # Arrange
+        goal_amount = Decimal("100.00")
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        custom_end_date = timezone.now() + timedelta(days=90)
+
+        # Act
+        fundraise = self.service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=unified_document,
+            goal_amount=goal_amount,
+            goal_currency=USD,
+            end_date=custom_end_date,
+        )
+
+        # Assert
+        db_fundraise = Fundraise.objects.get(id=fundraise.id)
+        self.assertEqual(db_fundraise.end_date, custom_end_date)
 
     def test_create_fundraise_invalid_document_type(self):
         # Arrange
