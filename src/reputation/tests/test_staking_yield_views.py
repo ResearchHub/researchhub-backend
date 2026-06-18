@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -120,7 +120,7 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
         self.content_type = ContentType.objects.get_for_model(StakingGlobalSnapshot)
         self.today = date(2026, 6, 1)
         # Opt-in well before any lot so effective_start_date == lot.created_date
-        self.user.staking_opted_in_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        self.user.staking_opted_in_date = datetime(2026, 1, 1, tzinfo=UTC)
         self.user.save()
 
     def _create_balance(self, amount, created_offset_days):
@@ -133,7 +133,7 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
         created = datetime.combine(
             self.today - timedelta(days=created_offset_days),
             time.min,
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         )
         balance.created_date = created
         balance.save(update_fields=["created_date"])
@@ -141,9 +141,7 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
 
     def _get_details(self):
         with patch("reputation.views.staking_yield_view.timezone.now") as mock_now:
-            mock_now.return_value = datetime.combine(
-                self.today, time.min, tzinfo=timezone.utc
-            )
+            mock_now.return_value = datetime.combine(self.today, time.min, tzinfo=UTC)
             # Keep django timezone.now compatible for any other code paths
             mock_now.side_effect = None
             return self.client.get("/api/staking_yield/details/")
@@ -168,7 +166,7 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
         self.assertEqual(Decimal(lot["projected_overall_multiplier"]), Decimal("1.05"))
 
     def test_lot_at_max_tier_has_no_next_multiplier(self):
-        self.user.staking_opted_in_date = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        self.user.staking_opted_in_date = datetime(2024, 1, 1, tzinfo=UTC)
         self.user.save()
         self._create_balance("100", created_offset_days=400)
 
@@ -186,7 +184,7 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
 
     def test_effective_start_uses_opt_in_date(self):
         # Lot created long before opt-in; opt-in date should drive age
-        self.user.staking_opted_in_date = datetime(2026, 5, 15, tzinfo=timezone.utc)
+        self.user.staking_opted_in_date = datetime(2026, 5, 15, tzinfo=UTC)
         self.user.save()
         self._create_balance("100", created_offset_days=400)
 
@@ -211,7 +209,7 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
     def test_lots_with_same_effective_start_date_are_grouped(self):
         # Two pre-opt-in deposits collapse onto the opt-in date, plus two
         # post-opt-in deposits on the same later day — should produce 2 entries.
-        self.user.staking_opted_in_date = datetime(2026, 5, 15, tzinfo=timezone.utc)
+        self.user.staking_opted_in_date = datetime(2026, 5, 15, tzinfo=UTC)
         self.user.save()
         self._create_balance("100", created_offset_days=400)
         self._create_balance("200", created_offset_days=300)
@@ -357,7 +355,7 @@ class StakingPublicStatsTestBase(APITestCase):
         )
         # `created_date` is auto-set to now; force it to the desired day so the
         # /history endpoint resolves the rate correctly.
-        forced_dt = datetime.combine(on_date, datetime.min.time(), tzinfo=timezone.utc)
+        forced_dt = datetime.combine(on_date, datetime.min.time(), tzinfo=UTC)
         RscExchangeRate.objects.filter(pk=record.pk).update(created_date=forced_dt)
         cache.delete(RscExchangeRate._LATEST_EXCHANGE_RATE_CACHE_KEY)
         return record

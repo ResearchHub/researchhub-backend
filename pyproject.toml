@@ -86,12 +86,17 @@ extend-exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
 extend-select = [
-    "E",    # pycodestyle errors
-    "W",    # pycodestyle warnings
-    "I",    # isort
-    "T20",  # flake8-print: forbid print statements
+    "E",      # pycodestyle errors
+    "I",      # isort
+    "T20",    # flake8-print: forbid print statements
+    "TID",    # flake8-tidy-imports
+    "UP017",  # datetime-timezone-utc
+    "W",      # pycodestyle warnings
 ]
 
 [tool.ruff.lint.per-file-ignores]
 # Allow `print`s in management commands:
 "**/management/commands/*.py" = ["T20"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"pytz".msg = "Use the standard library instead: `datetime.UTC` / `datetime.timezone.utc` for UTC, or `zoneinfo.ZoneInfo(...)` for named time zones."

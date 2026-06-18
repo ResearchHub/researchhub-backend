@@ -230,14 +230,18 @@ class ResearchhubPostViewSet(
 
                 fundraise = None
                 if goal_amount := data.get("fundraise_goal_amount"):
-                    serializer = FundraiseCreateSerializer(
-                        data={
-                            "goal_amount": goal_amount,
-                            "goal_currency": data.get("fundraise_goal_currency", USD),
-                            "unified_document_id": unified_document.id,
-                            "recipient_user_id": created_by.id,
-                        }
-                    )
+                    fundraise_data = {
+                        "goal_amount": goal_amount,
+                        "goal_currency": data.get("fundraise_goal_currency", USD),
+                        "unified_document_id": unified_document.id,
+                        "recipient_user_id": created_by.id,
+                    }
+                    if (
+                        fundraise_end_date := data.get("fundraise_end_date")
+                    ) is not None:
+                        fundraise_data["end_date"] = fundraise_end_date
+
+                    serializer = FundraiseCreateSerializer(data=fundraise_data)
                     serializer.is_valid(raise_exception=True)
 
                     fundraise_service = FundraiseService()
@@ -247,6 +251,7 @@ class ResearchhubPostViewSet(
                             unified_document=unified_document,
                             goal_amount=serializer.validated_data["goal_amount"],
                             goal_currency=serializer.validated_data["goal_currency"],
+                            end_date=serializer.validated_data.get("end_date"),
                         )
                     except serializers.ValidationError as e:
                         return Response({"message": str(e)}, status=400)

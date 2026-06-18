@@ -1,8 +1,7 @@
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from rest_framework.renderers import JSONRenderer
@@ -677,7 +676,7 @@ class ViewTests(APITestCase):
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
         hub = create_hub()
-        end_date = datetime.now(pytz.UTC) + timedelta(days=30)
+        end_date = datetime.now(UTC) + timedelta(days=30)
 
         self.client.force_authenticate(author)
 
@@ -1128,8 +1127,8 @@ class ViewTests(APITestCase):
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
         hub = create_hub()
-        initial_end_date = datetime.now(pytz.UTC) + timedelta(days=30)
-        updated_end_date = datetime.now(pytz.UTC) + timedelta(days=60)
+        initial_end_date = datetime.now(UTC) + timedelta(days=30)
+        updated_end_date = datetime.now(UTC) + timedelta(days=60)
 
         self.client.force_authenticate(author)
 
@@ -1278,9 +1277,7 @@ class ViewTests(APITestCase):
                 "grant_amount": 50000,
                 "grant_organization": "Test Foundation",
                 "grant_description": "Test grant with end date",
-                "grant_end_date": (
-                    datetime.now(pytz.UTC) + timedelta(days=30)
-                ).isoformat(),
+                "grant_end_date": (datetime.now(UTC) + timedelta(days=30)).isoformat(),
             },
         )
 

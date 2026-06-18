@@ -1,9 +1,8 @@
 import decimal
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest import mock
 
 import pyotp
-import pytz
 from dj_rest_auth.mfa.totp import TOTP, generate_totp_secret
 from django.conf import settings
 from django.contrib.admin.models import LogEntry
@@ -94,8 +93,8 @@ class WithdrawalViewSetTests(APITestCase):
 
     def _create_withdrawer(self, name):
         user = create_random_authenticated_user_with_reputation(name, 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
         return user
 

@@ -5,7 +5,7 @@ These tests validate that the hot score calculation uses FeedEntry.content
 and FeedEntry.metrics JSON fields instead of querying related models.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from django.contrib.contenttypes.models import ContentType
 
@@ -22,7 +22,7 @@ class TestHotScoreV2(AWSMockTestCase):
         """Set up test fixtures."""
         super().setUp()
         self.user = create_random_default_user("hotscore_v2_test")
-        self.now = datetime.now(timezone.utc)
+        self.now = datetime.now(UTC)
 
     def test_basic_hot_score_calculation(self):
         """Test basic hot score calculation with simple metrics."""

@@ -1,8 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from rest_framework import status
@@ -125,7 +124,7 @@ class GrantViewTests(APITestCase):
         self.client.force_authenticate(self.moderator)
 
         new_post = create_post(created_by=self.moderator, document_type=GRANT)
-        end_date = datetime.now(pytz.UTC) + timedelta(days=60)
+        end_date = datetime.now(UTC) + timedelta(days=60)
 
         grant_data = {
             "unified_document_id": new_post.unified_document.id,
@@ -459,7 +458,7 @@ class GrantViewTests(APITestCase):
     def test_apply_to_expired_grant(self):
         """Test applying to an expired grant"""
         # Set end_date to yesterday
-        yesterday = datetime.now(pytz.UTC) - timedelta(days=1)
+        yesterday = datetime.now(UTC) - timedelta(days=1)
         self.grant.end_date = yesterday
         self.grant.save()
 
@@ -734,7 +733,7 @@ class AvailableFundingTests(APITestCase):
         self.assertEqual(response.data["available_funding_in_usd"], 10000.0)
 
     def test_excludes_expired_grants(self):
-        yesterday = datetime.now(pytz.UTC) - timedelta(days=1)
+        yesterday = datetime.now(UTC) - timedelta(days=1)
         self._create_grant("10000.00", post=self.post1)
         self._create_grant("40000.00", end_date=yesterday)
 
@@ -752,7 +751,7 @@ class AvailableFundingTests(APITestCase):
         self.assertEqual(response.data["available_funding_in_usd"], 25000.0)
 
     def test_includes_grants_with_future_end_date(self):
-        tomorrow = datetime.now(pytz.UTC) + timedelta(days=1)
+        tomorrow = datetime.now(UTC) + timedelta(days=1)
         self._create_grant("15000.00", end_date=tomorrow, post=self.post1)
 
         response = self.client.get("/api/grant/available_funding/")

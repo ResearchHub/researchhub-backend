@@ -1,8 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-import pytz
 from django.test import SimpleTestCase, TestCase
 
 from purchase.models import Grant
@@ -62,7 +61,7 @@ class GrantModelTests(TestCase):
 
     def test_is_expired_future_end_date(self):
         """Test that a grant with a future end date is not expired"""
-        future_date = datetime.now(pytz.UTC) + timedelta(days=30)
+        future_date = datetime.now(UTC) + timedelta(days=30)
         self.grant.end_date = future_date
         self.grant.save()
 
@@ -70,7 +69,7 @@ class GrantModelTests(TestCase):
 
     def test_is_expired_past_end_date(self):
         """Test that a grant with a past end date is expired"""
-        past_date = datetime.now(pytz.UTC) - timedelta(days=1)
+        past_date = datetime.now(UTC) - timedelta(days=1)
         self.grant.end_date = past_date
         self.grant.save()
 
@@ -78,7 +77,7 @@ class GrantModelTests(TestCase):
 
     def test_is_active_open_not_expired(self):
         """Test that an open grant that's not expired is active"""
-        future_date = datetime.now(pytz.UTC) + timedelta(days=30)
+        future_date = datetime.now(UTC) + timedelta(days=30)
         self.grant.end_date = future_date
         self.grant.status = Grant.OPEN
         self.grant.save()
@@ -87,7 +86,7 @@ class GrantModelTests(TestCase):
 
     def test_is_active_open_expired(self):
         """Test that an open grant that's expired is not active"""
-        past_date = datetime.now(pytz.UTC) - timedelta(days=1)
+        past_date = datetime.now(UTC) - timedelta(days=1)
         self.grant.end_date = past_date
         self.grant.status = Grant.OPEN
         self.grant.save()
@@ -180,7 +179,7 @@ class GrantModelTests(TestCase):
 
     def test_grant_with_end_date(self):
         """Test creating a grant with an end date"""
-        end_date = datetime.now(pytz.UTC) + timedelta(days=60)
+        end_date = datetime.now(UTC) + timedelta(days=60)
         grant = Grant.objects.create(
             created_by=self.user,
             unified_document=self.post.unified_document,
