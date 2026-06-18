@@ -58,13 +58,10 @@ class RunExpertFinderSearchTaskTests(TestCase):
             created_by=self.user,
             query="Task query",
             status=ExpertSearch.Status.PENDING,
-            excluded_search_ids=[42],
         )
 
     @patch("research_ai.tasks.expert_finder_service_mod.run_expert_finder_search")
-    def test_task_merges_excluded_search_ids_from_model_when_kwargs_omitted(
-        self, mock_run
-    ):
+    def test_task_does_not_pass_excluded_search_ids(self, mock_run):
         mock_run.return_value = {
             "status": ExpertSearch.Status.COMPLETED,
             "experts": [],
@@ -80,8 +77,7 @@ class RunExpertFinderSearchTaskTests(TestCase):
             }
         ).get()
         mock_run.assert_called_once()
-        kw = mock_run.call_args.kwargs
-        self.assertEqual(kw["excluded_search_ids"], [42])
+        self.assertNotIn("excluded_search_ids", mock_run.call_args.kwargs)
 
 
 # --- process_bulk_generate_emails_task ---

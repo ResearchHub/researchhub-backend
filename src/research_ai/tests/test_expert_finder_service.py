@@ -8,6 +8,7 @@ from research_ai.services.expert_finder_service import (
     PDF_TOO_LARGE_MESSAGE,
     _extract_text_from_pdf_bytes,
     _get_paper_pdf_bytes,
+    _names_and_emails_from_prior_document_searches,
     get_document_content,
     run_expert_finder_search,
 )
@@ -296,3 +297,112 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
         self.assertEqual(se.count(), 1)
         self.assertTrue(Expert.objects.filter(email="u_test@mit.edu").exists())
         self.assertFalse(Expert.objects.filter(email="u@mit.edu").exists())
+
+
+class PriorDocumentExpertExclusionTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("prior_excl")
+        from paper.tests.helpers import create_paper
+
+        self.paper_a = create_paper(
+            title="Paper A",
+            paper_publish_date="2020-01-01",
+        )
+        self.paper_b = create_paper(
+            title="Paper B",
+            paper_publish_date="2020-01-02",
+        )
+        self.prior_search = ExpertSearch.objects.create(
+            created_by=self.user,
+            unified_document=self.paper_a.unified_document,
+            query="Prior search",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        self.current_search = ExpertSearch.objects.create(
+            created_by=self.user,
+            unified_document=self.paper_a.unified_document,
+            query="Current search",
+            status=ExpertSearch.Status.PENDING,
+        )
+        self.prior_expert = Expert.objects.create(
+            email="prior@uni.edu",
+            first_name="Prior",
+            last_name="Expert",
+        )
+        SearchExpert.objects.create(
+            expert_search=self.prior_search,
+            expert=self.prior_expert,
+            position=0,
+        )
+
+    def test_includes_experts_from_prior_searches_on_same_document(self):
+        # Arrange
+        unified_document_id = self.paper_a.unified_document_id
+
+        # Act
+        names, emails = _names_and_emails_from_prior_document_searches(
+            unified_document_id,
+            exclude_search_id=self.current_search.id,
+        )
+
+        # Assert
+        self.assertIn("Prior Expert", names)
+        self.assertEqual(emails, {"prior@uni.edu"})
+
+    def test_excludes_current_search_id(self):
+        # Arrange
+        SearchExpert.objects.create(
+            expert_search=self.current_search,
+            expert=self.prior_expert,
+            position=0,
+        )
+
+        # Act
+        names, emails = _names_and_emails_from_prior_document_searches(
+            self.paper_a.unified_document_id,
+            exclude_search_id=self.current_search.id,
+        )
+
+        # Assert
+        self.assertIn("Prior Expert", names)
+        self.assertEqual(emails, {"prior@uni.edu"})
+
+    def test_does_not_include_experts_from_other_documents(self):
+        # Arrange
+        other_search = ExpertSearch.objects.create(
+            created_by=self.user,
+            unified_document=self.paper_b.unified_document,
+            query="Other doc search",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        other_expert = Expert.objects.create(
+            email="other@uni.edu",
+            first_name="Other",
+            last_name="Expert",
+        )
+        SearchExpert.objects.create(
+            expert_search=other_search,
+            expert=other_expert,
+            position=0,
+        )
+
+        # Act
+        names, emails = _names_and_emails_from_prior_document_searches(
+            self.paper_a.unified_document_id,
+            exclude_search_id=self.current_search.id,
+        )
+
+        # Assert
+        self.assertNotIn("Other Expert", names)
+        self.assertNotIn("other@uni.edu", emails)
+
+    def test_returns_empty_when_no_unified_document(self):
+        # Act
+        names, emails = _names_and_emails_from_prior_document_searches(
+            None,
+            exclude_search_id=self.current_search.id,
+        )
+
+        # Assert
+        self.assertEqual(names, [])
+        self.assertEqual(emails, set())

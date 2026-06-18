@@ -95,16 +95,14 @@ class ExpertSearchConfigSerializerTests(TestCase):
 
 
 class ExpertSearchCreateSerializerTests(TestCase):
-    def test_valid_document_and_dedupes_excluded_search_ids(self):
+    def test_valid_document(self):
         ser = ExpertSearchCreateSerializer(
             data={
                 "unified_document_id": 1,
                 "input_type": "abstract",
-                "excluded_search_ids": [1, 2, 1],
             }
         )
         self.assertTrue(ser.is_valid())
-        self.assertEqual(ser.validated_data["excluded_search_ids"], [1, 2])
 
     def test_requires_input_type_with_unified_document(self):
         ser = ExpertSearchCreateSerializer(data={"unified_document_id": 1})
@@ -135,7 +133,6 @@ class ExpertSearchDetailSerializerTests(TestCase):
             created_by=self.user,
             query="V2",
             status=ExpertSearch.Status.COMPLETED,
-            excluded_search_ids=[9],
         )
         ex = Expert.objects.create(email="v2@x.edu", first_name="Vi", last_name="Two")
         SearchExpert.objects.create(expert_search=self.search, expert=ex, position=0)
@@ -294,14 +291,12 @@ class ExpertSearchListItemSerializerTests(TestCase):
             created_by=self.user,
             query="List test",
             status=ExpertSearch.Status.COMPLETED,
-            excluded_search_ids=[3],
         )
 
     def test_list_item_fields(self):
         ser = ExpertSearchListItemSerializer(self.search)
         self.assertEqual(ser.data["search_id"], self.search.id)
         self.assertEqual(ser.data["query"], "List test")
-        self.assertEqual(ser.data["excluded_search_ids"], [3])
 
     def test_created_by_payload_has_user_id_and_author_key(self):
         ser = ExpertSearchListItemSerializer(self.search)
