@@ -1,5 +1,4 @@
 from django.core.exceptions import ObjectDoesNotExist
-from django.core.files.storage import default_storage
 from rest_framework import serializers
 
 from ai_peer_review.serializers import ProposalKeyInsightSerializer
@@ -256,7 +255,7 @@ class GrantFeedPostSerializer(serializers.Serializer):
             "slug": post.slug,
             "title": post.title,
             "type": post.document_type,
-            "image_url": self._get_image_url(post),
+            "image_url": post.get_image_url(),
             "unified_document_id": (
                 post.unified_document_id if post.unified_document_id else None
             ),
@@ -273,12 +272,6 @@ class GrantFeedPostSerializer(serializers.Serializer):
             data["grant"] = _serialize_slim_grant(grant, self.context)
 
         return data
-
-    @staticmethod
-    def _get_image_url(post):
-        if not post.image:
-            return None
-        return default_storage.url(post.image)
 
 
 def _serialize_slim_fundraise(fundraise, context):
@@ -328,7 +321,7 @@ class FundingFeedPostSerializer(serializers.Serializer):
             "slug": post.slug,
             "title": post.title,
             "type": post.document_type,
-            "image_url": self._get_image_url(post),
+            "image_url": post.get_image_url(),
             "institution": getattr(post, "institution", None),
             "unified_document_id": (
                 post.unified_document_id if post.unified_document_id else None
@@ -359,12 +352,6 @@ class FundingFeedPostSerializer(serializers.Serializer):
             data["fundraise"] = _serialize_slim_fundraise(fundraise, self.context)
 
         return data
-
-    @staticmethod
-    def _get_image_url(post):
-        if not post.image:
-            return None
-        return default_storage.url(post.image)
 
 
 class FundFeedListEntrySerializer(serializers.ModelSerializer):
@@ -499,6 +486,4 @@ class FundingFeedListEntrySerializer(FundFeedListEntrySerializer):
     @staticmethod
     def _get_grant_image(grant):
         post = grant.unified_document.posts.first()
-        if post and post.image:
-            return default_storage.url(post.image)
-        return None
+        return post.get_image_url() if post else None
