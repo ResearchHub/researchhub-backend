@@ -7,12 +7,12 @@ idempotency. Historical events use source-based deduplication (each event
 is tied to the source object that triggered it).
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
-from django.db.models import Min
+from django.db.models import Min, Model
 from django.utils import timezone
 
 from purchase.related_models.grant_model import Grant
@@ -35,15 +35,15 @@ EventType = RiskScoreEvent.EventType
 ACCOUNT_AGE_BONUS_DAYS = 90
 
 
-def _grant_decision_date(grant):
+def _grant_decision_date(grant: Grant) -> datetime:
     return grant.updated_date
 
 
-def _solution_award_date(solution):
+def _solution_award_date(solution: BountySolution) -> datetime:
     return solution.updated_date
 
 
-def _review_assessment_date(review):
+def _review_assessment_date(review: Review) -> datetime:
     return review.updated_date
 
 
@@ -71,14 +71,14 @@ class Command(BaseCommand):
         "signals and historical action events. Idempotent."
     )
 
-    def add_arguments(self, parser):
+    def add_arguments(self, parser) -> None:
         parser.add_argument(
             "--dry-run",
             action="store_true",
             help="Print what would change without writing.",
         )
 
-    def handle(self, *args, **options):
+    def handle(self, *args, **options) -> None:
         dry_run = options["dry_run"]
         self.service = RiskScoreService()
         self.events_recorded = 0
@@ -95,7 +95,7 @@ class Command(BaseCommand):
             self.style.SUCCESS(f"Done. Total events recorded: {self.events_recorded}")
         )
 
-    def _backfill_one_time_signals(self, dry_run):
+    def _backfill_one_time_signals(self, dry_run: bool) -> None:
         self.stdout.write("  Backfilling one-time profile signals...")
         lookups = self._build_one_time_signal_lookups()
 
@@ -104,7 +104,7 @@ class Command(BaseCommand):
             for event_type, occurred_at in self._detect_one_time_signals(user, lookups):
                 self._record(user, event_type, dry_run, occurred_at=occurred_at)
 
-    def _backfill_historical_events(self, dry_run):
+    def _backfill_historical_events(self, dry_run: bool) -> None:
         self.stdout.write("  Backfilling historical events...")
         active_user_ids = set(
             User.objects.filter(is_active=True).values_list("pk", flat=True)
@@ -127,7 +127,9 @@ class Command(BaseCommand):
         self._backfill_censorship_verdicts(active_user_ids, dry_run)
         self._backfill_foundation_tips(active_user_ids, dry_run)
 
-    def _backfill_censorship_verdicts(self, active_user_ids, dry_run):
+    def _backfill_censorship_verdicts(
+        self, active_user_ids: set[int], dry_run: bool
+    ) -> None:
         """Backfill CONTENT_CENSORED for content a moderator removed via verdict."""
         verdicts = Verdict.objects.filter(is_content_removed=True).select_related(
             "flag__content_type"
@@ -144,7 +146,9 @@ class Command(BaseCommand):
                 occurred_at=verdict.created_date,
             )
 
-    def _backfill_foundation_tips(self, active_user_ids, dry_run):
+    def _backfill_foundation_tips(
+        self, active_user_ids: set[int], dry_run: bool
+    ) -> None:
         """Backfill PEER_REVIEW_TIPPED for comments tipped by the foundation."""
         try:
             community = User.objects.get_community_account()
@@ -178,7 +182,15 @@ class Command(BaseCommand):
                 occurred_at=purchase.created_date,
             )
 
-    def _record(self, user, event_type, dry_run, *, source=None, occurred_at=None):
+    def _record(
+        self,
+        user: User,
+        event_type: EventType,
+        dry_run: bool,
+        *,
+        source: Model | None = None,
+        occurred_at: datetime | None = None,
+    ) -> None:
         """Record one event at its historical date, skipping duplicates."""
         if dry_run:
             self.events_recorded += 1
@@ -192,7 +204,7 @@ class Command(BaseCommand):
 
         self.events_recorded += 1
 
-    def _build_one_time_signal_lookups(self):
+    def _build_one_time_signal_lookups(self) -> dict:
         age_bonus_threshold = timezone.now() - timedelta(days=ACCOUNT_AGE_BONUS_DAYS)
         return {
             "expert_user_ids": set(
@@ -210,7 +222,7 @@ class Command(BaseCommand):
             "age_bonus_threshold": age_bonus_threshold,
         }
 
-    def _earliest_social_dates(self, *, provider):
+    def _earliest_social_dates(self, *, provider: str) -> dict[int, datetime]:
         """Map user -> earliest link date for the given social provider."""
         return {
             row["user_id"]: row["joined"]
@@ -219,7 +231,7 @@ class Command(BaseCommand):
             .annotate(joined=Min("date_joined"))
         }
 
-    def _earliest_orcid_edu_dates(self):
+    def _earliest_orcid_edu_dates(self) -> dict[int, datetime]:
         """Map user -> earliest ORCID link date, ORCID accounts with a
         verified .edu email only (filtered in Python; lives in extra_data)."""
         dates = {}
@@ -231,7 +243,9 @@ class Command(BaseCommand):
                 dates[account.user_id] = account.date_joined
         return dates
 
-    def _detect_one_time_signals(self, user, lookups):
+    def _detect_one_time_signals(
+        self, user: User, lookups: dict
+    ) -> list[tuple[EventType, datetime | None]]:
         """Yield (event_type, occurred_at) for each one-time signal the user
         qualifies for, dated to when the user earned it."""
         signals = []

@@ -16,7 +16,11 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from review.serializers.review_serializer import ReviewSerializer
+from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.models import Author, User
 
 from .hot_score_utils import calculate_adjusted_score
@@ -610,6 +614,43 @@ class FundraiseContributionContentSerializer(serializers.Serializer):
         return None
 
 
+class FundingActivityRecipientSerializer(serializers.Serializer):
+    recipient_user = serializers.SerializerMethodField()
+    amount = serializers.DecimalField(max_digits=19, decimal_places=8)
+    amount_usd_cents = serializers.IntegerField()
+
+    def get_recipient_user(self, obj):
+        user = obj.recipient_user
+        if user and hasattr(user, "author_profile") and user.author_profile:
+            return SimpleAuthorSerializer(user.author_profile).data
+        return None
+
+
+class FundingActivityContentSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    source_type = serializers.CharField()
+    total_amount = serializers.DecimalField(max_digits=19, decimal_places=8)
+    total_usd_cents = serializers.IntegerField()
+    activity_date = serializers.DateTimeField()
+    funder = serializers.SerializerMethodField()
+    recipients = serializers.SerializerMethodField()
+
+    def get_funder(self, obj):
+        if (
+            obj.funder
+            and hasattr(obj.funder, "author_profile")
+            and obj.funder.author_profile
+        ):
+            return SimpleAuthorSerializer(obj.funder.author_profile).data
+        return None
+
+    def get_recipients(self, obj):
+        recipients = obj.recipients.select_related(
+            "recipient_user__author_profile"
+        ).all()
+        return FundingActivityRecipientSerializer(recipients, many=True).data
+
+
 class CommentSerializer(serializers.Serializer):
     author = serializers.SerializerMethodField()
     comment_content_json = serializers.JSONField()
@@ -816,6 +857,9 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
         content = obj.content
 
+        if obj.content_type.model == "researchhubpost":
+            content = self._remove_unapproved_grant_applications(content)
+
         # Shim #1: temporary shim to ensure we have a journal set for as many
         # papers as possible until we get to the bottom of why some papers
         # don't have journal properly set.
@@ -853,6 +897,50 @@ class FeedEntrySerializer(serializers.ModelSerializer):
                 content["primary_image_thumbnail"] = None
 
         return content
+
+    @staticmethod
+    def _remove_unapproved_grant_applications(content):
+        if not isinstance(content, dict):
+            return content
+
+        grant = content.get("grant")
+        if not isinstance(grant, dict):
+            return content
+
+        applications = grant.get("applications")
+        if not isinstance(applications, list) or not applications:
+            return content
+
+        proposal_post_ids = {
+            app.get("preregistration_post_id")
+            for app in applications
+            if isinstance(app, dict) and app.get("preregistration_post_id")
+        }
+        approved_post_ids = (
+            set(
+                ResearchhubPost.objects.filter(
+                    id__in=proposal_post_ids,
+                    document_type=PREREGISTRATION,
+                    unified_document__status=ResearchhubUnifiedDocument.APPROVED,
+                    unified_document__is_removed=False,
+                ).values_list("id", flat=True)
+            )
+            if proposal_post_ids
+            else set()
+        )
+        filtered_applications = [
+            app
+            for app in applications
+            if isinstance(app, dict)
+            and app.get("preregistration_post_id") in approved_post_ids
+        ]
+        if len(filtered_applications) == len(applications):
+            return content
+
+        filtered_grant = {**grant, "applications": filtered_applications}
+        if "application_count" in filtered_grant:
+            filtered_grant["application_count"] = len(filtered_applications)
+        return {**content, "grant": filtered_grant}
 
     def get_content_type(self, obj):
         return obj.content_type.model.upper()
@@ -922,6 +1010,8 @@ def serialize_feed_item(feed_item, item_content_type):
             return CommentSerializer(feed_item).data
         case "purchase" | "usdfundraisecontribution":
             return FundraiseContributionContentSerializer(feed_item).data
+        case "fundingactivity":
+            return FundingActivityContentSerializer(feed_item).data
         case _:
             return None
 
@@ -966,20 +1056,26 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
         if not obj.item or not hasattr(obj.item, "grant_applications"):
             return []
 
-        return [
-            {
-                "id": app.grant.id,
-                "organization": app.grant.organization,
-                "short_title": app.grant.short_title,
-                "amount": str(app.grant.amount),
-                "currency": app.grant.currency,
-                "description": app.grant.description,
-                "status": app.grant.status,
-                "image": self._get_grant_image(app.grant),
-                "num_applicants": app.grant.applications.count(),
-            }
-            for app in obj.item.grant_applications.all()
-        ]
+        associated_grants = []
+        for app in obj.item.grant_applications.all():
+            num_applicants = getattr(app.grant, "num_applicants", None)
+            if num_applicants is None:
+                num_applicants = app.grant.applications.with_approved_proposal().count()
+
+            associated_grants.append(
+                {
+                    "id": app.grant.id,
+                    "organization": app.grant.organization,
+                    "short_title": app.grant.short_title,
+                    "amount": str(app.grant.amount),
+                    "currency": app.grant.currency,
+                    "description": app.grant.description,
+                    "status": app.grant.status,
+                    "image": self._get_grant_image(app.grant),
+                    "num_applicants": num_applicants,
+                }
+            )
+        return associated_grants
 
     @staticmethod
     def _get_grant_image(grant):
@@ -995,6 +1091,105 @@ class GrantFeedEntrySerializer(FeedEntrySerializer):
     class Meta:
         model = FeedEntry
         fields = FeedEntrySerializer.Meta.fields
+
+
+MODERATOR_GRANT_FEED_ITEM_FIELDS = (
+    "id",
+    "status",
+    "amount",
+    "currency",
+    "organization",
+    "short_title",
+    "description",
+    "start_date",
+    "end_date",
+    "is_expired",
+    "is_active",
+    "created_by",
+    "contacts",
+    "post_id",
+)
+MODERATOR_GRANT_FEED_USER_FIELDS = (
+    "id",
+    "author_profile",
+    "first_name",
+    "last_name",
+)
+
+
+class ModeratorFeedEntrySerializer(FeedEntrySerializer):
+    """Feed entry serializer for moderator-only feeds."""
+
+    risk_score = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeedEntry
+        fields = FeedEntrySerializer.Meta.fields + ["risk_score"]
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        requester = getattr(self.context.get("request"), "user", None)
+        if not (requester and getattr(requester, "moderator", False)):
+            self.fields.pop("risk_score", None)
+
+    def get_content_object(self, obj):
+        if obj.content == {} and obj.content_type.model == "grant":
+            serializer = DynamicGrantSerializer(
+                obj.item,
+                context=self._build_grant_context(),
+                _include_fields=MODERATOR_GRANT_FEED_ITEM_FIELDS,
+            )
+            return {
+                **serializer.data,
+                **self._get_grant_post_data(obj.item),
+            }
+
+        return super().get_content_object(obj)
+
+    @staticmethod
+    def _get_grant_post_data(grant):
+        post = grant.unified_document.posts.first()
+        if not post:
+            return {
+                "title": "",
+                "slug": "",
+                "type": None,
+                "image_url": None,
+                "renderable_text": "",
+                "unified_document_id": grant.unified_document_id,
+            }
+
+        renderable_text = post.renderable_text[:255]
+        if len(post.renderable_text) > 255:
+            renderable_text += "..."
+
+        return {
+            "title": post.title,
+            "slug": post.slug,
+            "type": post.document_type,
+            "image_url": default_storage.url(post.image) if post.image else None,
+            "renderable_text": renderable_text,
+            "unified_document_id": post.unified_document_id,
+        }
+
+    def _build_grant_context(self):
+        context = dict(self.context)
+        context.setdefault(
+            "pch_dgs_get_created_by",
+            {"_include_fields": MODERATOR_GRANT_FEED_USER_FIELDS},
+        )
+        context.setdefault(
+            "pch_dgs_get_contacts",
+            {"_include_fields": MODERATOR_GRANT_FEED_USER_FIELDS},
+        )
+        return context
+
+    def get_risk_score(self, obj: FeedEntry) -> int | None:
+        """Return the author's risk score, falling back to the default."""
+        if not obj.user_id:
+            return None
+        scores = self.context.get("risk_score_by_user_id") or {}
+        return scores.get(obj.user_id, DEFAULT_SCORE)
 
 
 def _get_first_namespace_hub(obj: Any, hub_namespace: Hub.Namespace) -> Hub | None:

@@ -10,11 +10,10 @@ from typing import Any, Dict, List, Optional
 
 from hub.models import Hub
 from institution.models import Institution
+from paper.ingestion.mappers.base import BaseMapper
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from user.related_models.author_model import Author
-
-from ..base import BaseMapper
 
 logger = logging.getLogger(__name__)
 

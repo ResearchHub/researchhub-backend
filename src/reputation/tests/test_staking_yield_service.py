@@ -1,4 +1,4 @@
-from datetime import datetime, time, timedelta, timezone
+from datetime import UTC, datetime, time, timedelta
 from decimal import ROUND_DOWN, Decimal
 from unittest.mock import patch
 
@@ -173,7 +173,7 @@ class StakingMultiplierCalculationTest(TestCase):
         return datetime.combine(
             self.accrual_date - timedelta(days=days_before_accrual),
             time.min,
-            tzinfo=timezone.utc,
+            tzinfo=UTC,
         )
 
     def _create_balance(self, amount, days_before_accrual, is_locked=False, user=None):

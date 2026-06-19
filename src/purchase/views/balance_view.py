@@ -1,11 +1,10 @@
 import csv
 import decimal
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Optional
 
-import pytz
 from django.http import HttpResponse
 from django_filters import rest_framework as filters
 from rest_framework import viewsets
@@ -80,7 +79,7 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
         before_exchange_datetime = datetime.strptime(
             before_exchange_rate_date, "%m-%d-%Y"
         )
-        specific_date_aware = pytz.utc.localize(before_exchange_datetime)
+        specific_date_aware = before_exchange_datetime.replace(tzinfo=UTC)
 
         response = HttpResponse(content_type="text/csv")
         response["Content-Disposition"] = 'attachment; filename="transactions.csv"'

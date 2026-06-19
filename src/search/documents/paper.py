@@ -85,7 +85,9 @@ class PaperDocument(BaseDocument):
 
     @override
     def should_index_object(self, obj) -> bool:  # type: ignore[override]
-        return not obj.is_removed
+        unified_document = obj.unified_document
+        cleared = unified_document is None or unified_document.is_approved
+        return not obj.is_removed and cleared
 
     # Used specifically for "autocomplete" style suggest feature.
     # Includes a bunch of phrases the user may search by.

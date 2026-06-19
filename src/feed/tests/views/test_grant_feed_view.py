@@ -1,7 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-import pytz
 from django.core.cache import cache
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory, APITestCase
@@ -14,6 +13,9 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -50,7 +52,7 @@ class GrantFeedViewTests(APITestCase):
             organization="NSF",
             description="Open research grant",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
 
         self.closed_grant = Grant.objects.create(
@@ -61,7 +63,7 @@ class GrantFeedViewTests(APITestCase):
             organization="NIH",
             description="Closed research grant",
             status=Grant.CLOSED,
-            end_date=datetime.now(pytz.UTC) - timedelta(days=10),
+            end_date=datetime.now(UTC) - timedelta(days=10),
         )
 
         self.completed_grant = Grant.objects.create(
@@ -72,7 +74,7 @@ class GrantFeedViewTests(APITestCase):
             organization="DOE",
             description="Completed research grant",
             status=Grant.COMPLETED,
-            end_date=datetime.now(pytz.UTC) - timedelta(days=5),
+            end_date=datetime.now(UTC) - timedelta(days=5),
         )
 
     def tearDown(self):
@@ -426,7 +428,7 @@ class GrantFeedViewTests(APITestCase):
             organization="Expired Org",
             description="Expired but still OPEN status",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) - timedelta(days=1),
+            end_date=datetime.now(UTC) - timedelta(days=1),
         )
         self.client.force_authenticate(self.user)
 
@@ -647,7 +649,7 @@ class GrantFeedViewTests(APITestCase):
             organization="Org1",
             description="User1-owned grant",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
 
         user2_post = create_post(
@@ -661,7 +663,7 @@ class GrantFeedViewTests(APITestCase):
             organization="Org2",
             description="User2-owned grant",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
 
         self.client.force_authenticate(self.user)
@@ -697,7 +699,7 @@ class GrantFeedViewTests(APITestCase):
             organization="Org1",
             description="User1-owned grant",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
         self.client.force_authenticate(self.user)
 
@@ -730,38 +732,20 @@ class GrantFeedViewTests(APITestCase):
         self.assertIsNone(cache.get(unfiltered_key))
         self.assertIsNone(cache.get(filtered_key))
 
-    def test_pending_status_filter(self):
-        """?status=PENDING returns only pending grants."""
-        # Arrange
-        pending_post = create_post(
-            created_by=self.moderator, document_type=GRANT, title="Pending Grant"
-        )
-        Grant.objects.create(
-            created_by=self.moderator,
-            unified_document=pending_post.unified_document,
-            amount=Decimal("10000.00"),
-            status=Grant.PENDING,
-        )
-        self.client.force_authenticate(self.user)
-
-        # Act
-        response = self.client.get("/api/grant_feed/?status=PENDING")
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        titles = [r["content_object"]["title"] for r in response.data["results"]]
-        self.assertEqual(titles, ["Pending Grant"])
-
-    def test_removed_proposals_excluded_from_applications(self):
-        """Censored proposals must not appear in a grant's applications list."""
+    def test_unapproved_proposals_excluded_from_applications(self):
+        """Only approved proposals should appear in grant application lists."""
         # Arrange
         applicant1 = create_random_authenticated_user("app_removed_1")
         applicant2 = create_random_authenticated_user("app_removed_2")
+        applicant3 = create_random_authenticated_user("app_pending_3")
         post1 = create_post(
             created_by=applicant1, document_type=PREREGISTRATION, title="Visible"
         )
         post2 = create_post(
             created_by=applicant2, document_type=PREREGISTRATION, title="Removed"
+        )
+        post3 = create_post(
+            created_by=applicant3, document_type=PREREGISTRATION, title="Pending"
         )
         GrantApplication.objects.create(
             grant=self.open_grant, preregistration_post=post1, applicant=applicant1
@@ -769,8 +753,13 @@ class GrantFeedViewTests(APITestCase):
         GrantApplication.objects.create(
             grant=self.open_grant, preregistration_post=post2, applicant=applicant2
         )
+        GrantApplication.objects.create(
+            grant=self.open_grant, preregistration_post=post3, applicant=applicant3
+        )
         post2.unified_document.is_removed = True
         post2.unified_document.save()
+        post3.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        post3.unified_document.save(update_fields=["status"])
         self.client.force_authenticate(self.user)
 
         # Act
@@ -786,8 +775,8 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(len(applications), 1)
         self.assertEqual(applications[0]["preregistration_post_id"], post1.id)
 
-    def test_most_applicants_sorting_excludes_removed(self):
-        """most_applicants ordering must not count removed proposals."""
+    def test_most_applicants_sorting_excludes_unapproved(self):
+        """most_applicants ordering must only count approved proposals."""
         # Arrange
         applicant = create_random_authenticated_user("sort_applicant")
         visible = create_post(
@@ -796,22 +785,33 @@ class GrantFeedViewTests(APITestCase):
         removed = create_post(
             created_by=applicant, document_type=PREREGISTRATION, title="Removed"
         )
+        pending = create_post(
+            created_by=applicant, document_type=PREREGISTRATION, title="Pending"
+        )
         GrantApplication.objects.create(
             grant=self.closed_grant, preregistration_post=visible, applicant=applicant
         )
         GrantApplication.objects.create(
             grant=self.open_grant, preregistration_post=removed, applicant=applicant
         )
+        GrantApplication.objects.create(
+            grant=self.completed_grant,
+            preregistration_post=pending,
+            applicant=applicant,
+        )
         removed.unified_document.is_removed = True
-        removed.unified_document.save()
+        removed.unified_document.save(update_fields=["is_removed"])
+        pending.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        pending.unified_document.save(update_fields=["status"])
         self.client.force_authenticate(self.user)
 
         # Act
         response = self.client.get("/api/grant_feed/?ordering=-most_applicants")
 
-        # Assert — closed_grant (1 visible) ranks above open_grant (0 visible)
+        # Assert - closed_grant (1 visible) ranks above the unapproved-only grants
         titles = [r["content_object"]["title"] for r in response.data["results"]]
         self.assertLess(titles.index("Closed Grant"), titles.index("Open Grant"))
+        self.assertLess(titles.index("Closed Grant"), titles.index("Completed Grant"))
 
     def test_invalidate_if_grant_linked(self):
         """invalidate_if_grant_linked clears cache for grant-linked docs only."""
@@ -866,7 +866,7 @@ class GrantFeedViewTests(APITestCase):
             organization="NSF",
             description="Grant for cache test",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
         public_post = create_post(
             created_by=applicant, document_type=PREREGISTRATION, title="Public App"
@@ -884,11 +884,11 @@ class GrantFeedViewTests(APITestCase):
         )
         cache.clear()
 
-        # Act — grant owner hits feed first (viewer segment)
+        # Act - grant owner hits feed first (viewer segment)
         self.client.force_authenticate(grant_owner)
         owner_response = self.client.get("/api/grant_feed/")
 
-        # Assert — owner sees both applications
+        # Assert - owner sees both applications
         self.assertEqual(owner_response.status_code, 200)
         grant_entry = next(
             e
@@ -916,11 +916,11 @@ class GrantFeedViewTests(APITestCase):
         public_key = view.get_cache_key(anon_request, "grants") + public_suffix
         self.assertNotEqual(viewer_key, public_key)
 
-        # Act — anonymous uses separate public cache entry
+        # Act - anonymous uses separate public cache entry
         self.client.logout()
         anon_response = self.client.get("/api/grant_feed/")
 
-        # Assert — anonymous does not see private application
+        # Assert - anonymous does not see private application
         self.assertEqual(anon_response.status_code, 200)
         anon_grant_entry = next(
             e

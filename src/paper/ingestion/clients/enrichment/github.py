@@ -3,7 +3,7 @@ from typing import Dict, Optional
 
 import requests
 
-from ..base import RateLimiter
+from paper.ingestion.clients.base import RateLimiter
 
 logger = logging.getLogger(__name__)
 

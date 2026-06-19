@@ -1,4 +1,6 @@
 from rest_framework.decorators import action
+from rest_framework.request import Request
+from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from user.filters import RiskScoreEventFilter
@@ -22,11 +24,15 @@ class ModeratorView(ModelViewSet):
     permission_classes = [UserIsEditor | IsModerator]
 
     @action(detail=True, methods=["get"])
-    def user_details(self, request, pk=None, **kwargs):
+    def user_details(
+        self, request: Request, pk: str | None = None, **kwargs
+    ) -> Response:
         return super().retrieve(request, pk, **kwargs)
 
     @action(detail=True, methods=["get"], permission_classes=[IsModerator])
-    def risk_score_events(self, request, pk=None, **kwargs):
+    def risk_score_events(
+        self, request: Request, pk: str | None = None, **kwargs
+    ) -> Response:
         user = self.get_object()
         events = RiskScoreEvent.objects.filter(user=user).select_related(
             "source_content_type"

@@ -8,7 +8,7 @@ All functions gracefully handle missing keys and malformed data.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ def parse_iso_datetime(date_string: str) -> Optional[datetime]:
 
         # Ensure timezone aware
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
 
         return dt
     except (ValueError, TypeError, AttributeError) as e:
@@ -309,7 +309,7 @@ def get_bounties_from_content(
     if not isinstance(bounties, list):
         return 0.0, False
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     urgency_threshold = timedelta(hours=urgency_hours)
 
     total_amount = 0.0
@@ -510,7 +510,7 @@ def get_age_hours_from_content(
             }
         }
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     doc_type = safe_get_nested(content, "type", default="")
 
     # Handle GRANT with approaching deadline

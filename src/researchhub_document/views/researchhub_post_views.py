@@ -22,6 +22,7 @@ from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from purchase.services.fundraise_service import FundraiseService
+from purchase.services.grant_service import GrantModerationService
 from researchhub.settings import TESTING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
@@ -38,8 +39,9 @@ from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
 )
+from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.models import User
-from user.permissions import IsVerifiedUser
+from user.services.risk_score_service import RiskScoreService
 from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
 
@@ -49,18 +51,20 @@ MIN_POST_TITLE_LENGTH = 20
 MIN_POST_BODY_LENGTH = 50
 
 
-class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
+class ResearchhubPostViewSet(
+    ContentModerationActionsMixin, ReactionViewActionMixin, ModelViewSet
+):
     ordering = "-created_date"
     queryset = ResearchhubUnifiedDocument.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly, HasDocumentEditingPermission]
     serializer_class = ResearchhubPostSerializer
     throttle_classes = THROTTLE_CLASSES
+    moderation_model = ResearchhubPost
 
     def get_permissions(self):
         if self.action in ("create", "update"):
             permission_classes = [
                 IsAuthenticatedOrReadOnly,
-                IsVerifiedUser,
                 HasDocumentEditingPermission,
             ]
         else:
@@ -168,6 +172,15 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         try:
             with transaction.atomic():
                 created_by = request.user
+                risk_score_service = RiskScoreService()
+
+                # Risk-score gating: trusted users auto-approve, everyone else
+                # enters the moderation queue as PENDING. Grants gate via their
+                # own Grant.status, so the post itself stays APPROVED.
+                if document_type == GRANT:
+                    work_status = ResearchhubUnifiedDocument.APPROVED
+                else:
+                    work_status = risk_score_service.initial_work_status(created_by)
 
                 # Resolve the target grant up front when applying to one so
                 # that create_unified_doc can honor the grant's privacy
@@ -188,9 +201,12 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 unified_document = self.create_unified_doc(
                     request, target_grant=target_grant
                 )
+                # The unified document owns moderation status; record the
+                # risk-score gating decision before the post is created.
+                unified_document.status = work_status
                 if access_group is not None:
                     unified_document.access_groups = access_group
-                    unified_document.save()
+                unified_document.save()
 
                 slug = slugify(title)
                 rh_post = ResearchhubPost.objects.create(
@@ -214,14 +230,18 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
 
                 fundraise = None
                 if goal_amount := data.get("fundraise_goal_amount"):
-                    serializer = FundraiseCreateSerializer(
-                        data={
-                            "goal_amount": goal_amount,
-                            "goal_currency": data.get("fundraise_goal_currency", USD),
-                            "unified_document_id": unified_document.id,
-                            "recipient_user_id": created_by.id,
-                        }
-                    )
+                    fundraise_data = {
+                        "goal_amount": goal_amount,
+                        "goal_currency": data.get("fundraise_goal_currency", USD),
+                        "unified_document_id": unified_document.id,
+                        "recipient_user_id": created_by.id,
+                    }
+                    if (
+                        fundraise_end_date := data.get("fundraise_end_date")
+                    ) is not None:
+                        fundraise_data["end_date"] = fundraise_end_date
+
+                    serializer = FundraiseCreateSerializer(data=fundraise_data)
                     serializer.is_valid(raise_exception=True)
 
                     fundraise_service = FundraiseService()
@@ -231,6 +251,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                             unified_document=unified_document,
                             goal_amount=serializer.validated_data["goal_amount"],
                             goal_currency=serializer.validated_data["goal_currency"],
+                            end_date=serializer.validated_data.get("end_date"),
                         )
                     except serializers.ValidationError as e:
                         return Response({"message": str(e)}, status=400)
@@ -286,6 +307,12 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         grant.contacts.set(contacts)
                     else:
                         grant.contacts.clear()
+
+                    # Trusted users skip the grant moderation queue.
+                    if risk_score_service.is_trusted(created_by):
+                        GrantModerationService().approve_grant(grant, created_by)
+
+                    GrantCacheMixin.invalidate_grant_feed_cache()
 
                 if not TESTING:
                     if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:

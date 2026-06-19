@@ -13,7 +13,10 @@ from discussion.serializers import (
 )
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from purchase.models import GrantApplication, Purchase
-from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub.serializers import (
+    DynamicModelFieldSerializer,
+    ModeratedDocumentStatusSerializerMixin,
+)
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
@@ -31,7 +34,11 @@ from utils.http import get_user_from_request
 logger = logging.getLogger(__name__)
 
 
-class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin):
+class ResearchhubPostSerializer(
+    ModelSerializer,
+    GenericReactionSerializerMixin,
+    ModeratedDocumentStatusSerializerMixin,
+):
     class Meta(object):
         model = ResearchhubPost
         fields = [
@@ -59,7 +66,10 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "post_src",
             "preview_img",
             "renderable_text",
+            "reviewed_by",
+            "reviewed_date",
             "slug",
+            "status",
             "title",
             "unified_document_id",
             "unified_document",
@@ -256,7 +266,8 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             grant_post_by_ud.setdefault(p.unified_document_id, p)
         applicant_counts = (
             dict(
-                GrantApplication.objects.filter(grant_id__in=grant_ids)
+                GrantApplication.objects.with_approved_proposal()
+                .filter(grant_id__in=grant_ids)
                 .values_list("grant_id")
                 .annotate(count=Count("id"))
             )
@@ -352,7 +363,9 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
         return instance.get_boost_amount()
 
 
-class DynamicPostSerializer(DynamicModelFieldSerializer):
+class DynamicPostSerializer(
+    DynamicModelFieldSerializer, ModeratedDocumentStatusSerializerMixin
+):
     authors = SerializerMethodField()
     boost_amount = SerializerMethodField()
     bounties = SerializerMethodField()
@@ -383,7 +396,9 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         those paths to an unauthorized viewer.
         """
         unified_document = instance.unified_document
-        if unified_document is not None and not unified_document.is_public:
+        if unified_document is not None and not (
+            unified_document.is_public and unified_document.is_approved
+        ):
             user = get_user_from_request(self.context)
             if not unified_document.is_visible_to_user(user):
                 return {"id": instance.id, "is_public": False}

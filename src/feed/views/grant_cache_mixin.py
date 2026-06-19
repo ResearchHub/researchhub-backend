@@ -13,7 +13,7 @@ GRANT_FEED_ORDERINGS = [
     "most_applicants",
     "amount_raised",
 ]
-GRANT_FEED_STATUSES = ["", "OPEN", "CLOSED", "COMPLETED", "PENDING"]
+GRANT_FEED_STATUSES = ["", "OPEN", "CLOSED", "COMPLETED"]
 GRANT_FEED_MAX_CACHED_PAGE = 3
 
 

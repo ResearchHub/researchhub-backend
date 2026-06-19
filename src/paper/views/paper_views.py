@@ -22,7 +22,6 @@ from analytics.amplitude import track_event
 from discussion.models import Vote
 from discussion.serializers import VoteSerializer
 from discussion.views import ReactionViewActionMixin
-from hub.permissions import IsModerator
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import Paper, PaperSubmission, PaperVersion
@@ -35,8 +34,10 @@ from paper.serializers import (
     PaperSerializer,
     PaperSubmissionSerializer,
 )
-from user.permissions import IsVerifiedUser
+from user.content_moderation_mixin import ContentModerationActionsMixin
+from user.permissions import IsModerator
 from user.related_models.author_model import Author
+from user.services.risk_score_service import RiskScoreService
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
 from utils.openalex import OpenAlex
@@ -47,7 +48,10 @@ logger = logging.getLogger(__name__)
 
 
 class PaperViewSet(
-    ReactionViewActionMixin, FollowViewActionMixin, viewsets.ModelViewSet
+    ContentModerationActionsMixin,
+    ReactionViewActionMixin,
+    FollowViewActionMixin,
+    viewsets.ModelViewSet,
 ):
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
@@ -57,6 +61,7 @@ class PaperViewSet(
     filterset_class = PaperFilter
     throttle_classes = THROTTLE_CLASSES
     ordering = "-created_date"
+    moderation_model = Paper
 
     permission_classes = [
         IsAuthenticatedOrReadOnly & CreatePaper & UpdatePaper & CreateOrUpdateIfAllowed
@@ -99,6 +104,11 @@ class PaperViewSet(
         if user.is_staff:
             return queryset
 
+        # Papers that have not yet been approved (pending or declined) are not
+        # publicly viewable (including via a direct link); only the uploader and
+        # moderators / hub editors may see them until they are approved.
+        queryset = queryset.visible_to(user)
+
         if not user.is_anonymous and user.moderator and external_source:
             queryset = queryset.filter(
                 is_removed=False, retrieved_from_external_source=True
@@ -135,7 +145,10 @@ class PaperViewSet(
     @action(
         detail=False,
         methods=["post"],
-        permission_classes=[IsAuthenticated, CreatePaper, IsVerifiedUser],
+        permission_classes=[
+            IsAuthenticated,
+            CreatePaper,
+        ],
     )
     def create_researchhub_paper(self, request):
         """
@@ -216,7 +229,10 @@ class PaperViewSet(
                         {"error": error_msg}, status=status.HTTP_400_BAD_REQUEST
                     )
 
-                # Create paper
+                # Risk-score gating at submission: trusted authors auto-approve,
+                # everyone else enters the moderation queue as PENDING and stays
+                # there through payment until a moderator approves.
+                work_status = RiskScoreService().initial_work_status(request.user)
                 paper_data = {
                     "title": title,
                     "paper_title": title,
@@ -235,6 +251,11 @@ class PaperViewSet(
                 except Exception:
                     logger.exception("Failed to create paper")
                     raise
+
+                # The Paper post_save signal creates the unified document, which
+                # owns moderation status; carry the gating decision onto it.
+                paper.unified_document.status = work_status
+                paper.unified_document.save(update_fields=["status"])
 
                 # Create paper series
                 try:
@@ -405,6 +426,7 @@ class PaperViewSet(
                         "abstract",
                         "authors",
                         "hubs",
+                        "status",
                         "version",
                         "version_list",
                     ],
