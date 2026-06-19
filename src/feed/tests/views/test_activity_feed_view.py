@@ -716,6 +716,7 @@ class ActivityFeedScopeGrantsTests(AWSMockTestCase):
         self,
     ):
         resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "grants"})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
         ids = {e["id"] for e in resp.data["results"]}
         self.assertIn(self.grant_a_entry.id, ids)
         self.assertIn(self.grant_b_entry.id, ids)
@@ -723,6 +724,7 @@ class ActivityFeedScopeGrantsTests(AWSMockTestCase):
 
     def test_scope_grants_excludes_unrelated(self):
         resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "grants"})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
         ids = {e["id"] for e in resp.data["results"]}
         self.assertNotIn(self.disc_entry.id, ids)
         self.assertNotIn(self.lone_prereg_entry.id, ids)
@@ -742,6 +744,7 @@ class ActivityFeedScopeGrantsTests(AWSMockTestCase):
             user=self.user,
         )
         resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "grants"})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
         ids = {e["id"] for e in resp.data["results"]}
         self.assertIn(comment_on_grant.id, ids)
         self.assertIn(comment_on_prereg.id, ids)
@@ -758,6 +761,7 @@ class ActivityFeedScopeGrantsTests(AWSMockTestCase):
             ACTIVITY_LIST_URL,
             {"scope": "grants", "content_type": "RHCOMMENTMODEL"},
         )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
         ids = {e["id"] for e in resp.data["results"]}
         self.assertIn(comment_entry.id, ids)
         self.assertNotIn(self.grant_a_entry.id, ids)

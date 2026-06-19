@@ -80,6 +80,37 @@ class SimpleAuthorSerializer(serializers.ModelSerializer):
         ]
 
 
+def _grant_amount(grant):
+    usd_amount = float(grant.amount)
+    try:
+        rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
+    except Exception:
+        rsc_amount = None
+    return {"usd": usd_amount, "rsc": rsc_amount}
+
+
+class SlimAuthorSerializer(serializers.ModelSerializer):
+    """Minimal author payload without nested user."""
+
+    profile_image = serializers.SerializerMethodField()
+
+    def get_profile_image(self, obj):
+        try:
+            if (
+                hasattr(obj, "profile_image")
+                and obj.profile_image.name
+                and obj.profile_image.url
+            ):
+                return obj.profile_image.url
+        except Exception:
+            pass
+        return None
+
+    class Meta:
+        model = Author
+        fields = ["id", "first_name", "last_name", "profile_image", "headline"]
+
+
 class SimpleHubSerializer(serializers.ModelSerializer):
     """Minimal hub serializer with just essential fields"""
 
@@ -1022,8 +1053,6 @@ class RelatedWorkSerializer(serializers.Serializer):
         if not author_profile:
             return None
 
-        from feed.feed_list_dto import SlimAuthorSerializer
-
         return SlimAuthorSerializer(author_profile).data
 
     def get_authors(self, unified_document):
@@ -1049,8 +1078,6 @@ class RelatedWorkSerializer(serializers.Serializer):
         grant = self._first_prefetched(unified_document.grants)
         if not grant:
             return None
-
-        from feed.feed_list_dto import _grant_amount
 
         num_applicants = getattr(grant, "num_applicants", None)
         if num_applicants is None:

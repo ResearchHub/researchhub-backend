@@ -8,6 +8,8 @@ from feed.serializers import (
     BountyContributionSerializer,
     SimpleAuthorSerializer,
     SimpleReviewSerializer,
+    SlimAuthorSerializer,
+    _grant_amount,
 )
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
@@ -15,43 +17,11 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
-from user.models import Author
 from user.serializers import DynamicUserSerializer
-
-
-def _grant_amount(grant):
-    usd_amount = float(grant.amount)
-    try:
-        rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
-    except AttributeError:
-        rsc_amount = None
-    return {"usd": usd_amount, "rsc": rsc_amount}
 
 
 def _assessed_reviews(queryset):
     return queryset.filter(is_assessed=True, is_removed=False)
-
-
-class SlimAuthorSerializer(serializers.ModelSerializer):
-    """Minimal author payload for grant/funding feed list responses (no nested user)."""
-
-    profile_image = serializers.SerializerMethodField()
-
-    def get_profile_image(self, obj):
-        try:
-            if (
-                hasattr(obj, "profile_image")
-                and obj.profile_image.name
-                and obj.profile_image.url
-            ):
-                return obj.profile_image.url
-        except Exception:
-            pass
-        return None
-
-    class Meta:
-        model = Author
-        fields = ["id", "first_name", "last_name", "profile_image", "headline"]
 
 
 class SlimReviewSerializer(serializers.Serializer):
