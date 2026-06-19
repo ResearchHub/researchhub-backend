@@ -18,6 +18,10 @@ from research_ai.models import (
     SearchExpert,
 )
 from research_ai.services.expert_display import ExpertDisplay
+from research_ai.services.expert_outreach_history_service import (
+    build_expert_outreach_history_map,
+    serialize_expert_outreach_history,
+)
 from research_ai.services.invited_experts_service import (
     EDITOR_SORT_FIELDS,
     default_overview_date_range,
@@ -140,7 +144,30 @@ class ExpertSerializer(serializers.Serializer):
     notes = serializers.CharField(allow_blank=True)
     sources = serializers.ListField(required=False, allow_null=True)
     last_email_sent_at = serializers.DateTimeField(allow_null=True)
+    emailed_for_current_document = serializers.SerializerMethodField()
+    emailed_on_other_documents = serializers.SerializerMethodField()
     display_name = serializers.SerializerMethodField()
+
+    def _outreach_history_for(self, obj):
+        by_email = self.context.get("expert_outreach_by_email") or {}
+        email = ExpertDisplay.normalize_email(getattr(obj, "email", "") or "")
+        return by_email.get(email)
+
+    def get_emailed_for_current_document(self, obj):
+        history = self._outreach_history_for(obj)
+        if history is None:
+            return None
+        return serialize_expert_outreach_history(history)[
+            "emailed_for_current_document"
+        ]
+
+    def get_emailed_on_other_documents(self, obj):
+        history = self._outreach_history_for(obj)
+        if history is None:
+            return []
+        return serialize_expert_outreach_history(history)[
+            "emailed_on_other_documents"
+        ]
 
     def get_display_name(self, obj):
         return ExpertDisplay.display_name_for(obj)
@@ -408,8 +435,19 @@ class ExpertSearchDetailSerializer(serializers.ModelSerializer):
             .order_by("-expert__is_manually_added", "position")
         )
         experts = [se.expert for se in qs]
+        outreach_by_email = build_expert_outreach_history_map(
+            expert_emails=[e.email for e in experts],
+            current_unified_document_id=obj.unified_document_id,
+        )
 
-        return ExpertSerializer(experts, many=True).data
+        return ExpertSerializer(
+            experts,
+            many=True,
+            context={
+                **self.context,
+                "expert_outreach_by_email": outreach_by_email,
+            },
+        ).data
 
     def get_report_urls(self, obj):
         out = {}
