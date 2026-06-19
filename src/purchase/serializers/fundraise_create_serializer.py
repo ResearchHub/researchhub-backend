@@ -15,6 +15,7 @@ class FundraiseCreateSerializer(serializers.ModelSerializer):
     unified_document_id = serializers.IntegerField(required=False, allow_null=True)
     post_id = serializers.IntegerField(required=False, allow_null=True)
     recipient_user_id = serializers.IntegerField(required=True)
+    end_date = serializers.DateTimeField(required=False, allow_null=True)
 
     class Meta:
         model = Fundraise
@@ -24,6 +25,7 @@ class FundraiseCreateSerializer(serializers.ModelSerializer):
             "unified_document_id",
             "post_id",
             "recipient_user_id",
+            "end_date",
         ]
 
     def validate(self, data):

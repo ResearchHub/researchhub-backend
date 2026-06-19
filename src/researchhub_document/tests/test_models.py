@@ -10,6 +10,9 @@ from paper.tests.helpers import create_paper
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from review.models import Review
 from user.tests.helpers import create_random_default_user
 
@@ -155,3 +158,29 @@ class ModelTests(TestCase):
         # only the review on the active comment is counted
         self.assertEqual(details["count"], 1)
         self.assertEqual(details["avg"], 6.0)
+
+
+class ResearchhubPostStatusTests(TestCase):
+    def setUp(self):
+        self.user = create_random_default_user("post_status_user")
+
+    def test_default_status_is_approved(self):
+        # Act
+        post = create_post(created_by=self.user)
+
+        # Assert
+        unified_document = post.unified_document
+        self.assertEqual(unified_document.status, ResearchhubUnifiedDocument.APPROVED)
+        self.assertIsNone(unified_document.reviewed_by)
+        self.assertIsNone(unified_document.reviewed_date)
+
+    def test_status_choices_match_constants(self):
+        # Assert
+        self.assertEqual(
+            set(dict(ResearchhubUnifiedDocument.STATUS_CHOICES).keys()),
+            {
+                ResearchhubUnifiedDocument.PENDING,
+                ResearchhubUnifiedDocument.APPROVED,
+                ResearchhubUnifiedDocument.DECLINED,
+            },
+        )

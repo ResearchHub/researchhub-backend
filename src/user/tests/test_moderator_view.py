@@ -1,5 +1,6 @@
+from django.test import TestCase
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient
 
 from user.tests.helpers import (
     create_hub_editor,
@@ -7,7 +8,10 @@ from user.tests.helpers import (
 )
 
 
-class ModeratorTests(APITestCase):
+class ModeratorTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
     def test_moderator_can_view_details(self):
         self.user = create_user(
             email="mod@example.com",

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from ..exceptions import FetchError, RetryExhaustedError, TimeoutError
+from paper.ingestion.exceptions import FetchError, RetryExhaustedError, TimeoutError
 
 logger = logging.getLogger(__name__)
 

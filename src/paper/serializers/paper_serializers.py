@@ -40,7 +40,10 @@ from paper.utils import (
 from purchase.models import Purchase
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
-from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub.serializers import (
+    DynamicModelFieldSerializer,
+    ModeratedDocumentStatusSerializerMixin,
+)
 from researchhub.settings import TESTING
 from researchhub_document.utils import update_unified_document_to_paper
 from review.serializers.review_serializer import DynamicReviewSerializer
@@ -372,7 +375,7 @@ class ContributionPaperSerializer(BasePaperSerializer):
     discussion_users = None
 
 
-class PaperSerializer(BasePaperSerializer):
+class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixin):
     authors = serializers.SerializerMethodField()
     uploaded_date = serializers.ReadOnlyField()
 
@@ -704,7 +707,9 @@ class DynamicAuthorshipSerializer(DynamicModelFieldSerializer):
 
 
 class DynamicPaperSerializer(
-    DynamicModelFieldSerializer, GenericReactionSerializerMixin
+    DynamicModelFieldSerializer,
+    GenericReactionSerializerMixin,
+    ModeratedDocumentStatusSerializerMixin,
 ):
     authors = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()

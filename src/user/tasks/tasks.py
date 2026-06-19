@@ -169,7 +169,7 @@ def _user_file_keys(user: User) -> Iterator[str]:
 
 def _quarantine_user_files(user: User) -> None:
     """
-    Move the S3 object of the user's content to quaratine.
+    Move the S3 object of the user's content to quarantine.
     """
     storage_service = S3StorageService()
     for key in _user_file_keys(user):
@@ -178,7 +178,7 @@ def _quarantine_user_files(user: User) -> None:
 
 def _restore_user_files(user: User) -> None:
     """
-    Move the S3 object of the user's content out of quaratine back to
+    Move the S3 object of the user's content out of quarantine back to
     its original location.
     """
     storage_service = S3StorageService()

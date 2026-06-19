@@ -9,6 +9,9 @@ from paper.related_models.paper_model import Paper
 from paper.related_models.paper_version import PaperVersion
 from paper.tests.helpers import create_paper
 from purchase.related_models.payment_model import Payment
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.tests.helpers import create_random_default_user
 
 
@@ -55,6 +58,34 @@ class UpdatePaperJournalStatusSignalTest(TransactionTestCase):
 
             # Verify that the publication status was not changed
             self.assertEqual(paper_version.publication_status, PaperVersion.PREPRINT)
+
+    def test_payment_preserves_pending_moderation_status(self):
+        """Paying the APC must not approve a paper; gating happens at submission
+        and a pending paper stays pending until a moderator approves."""
+        # Arrange
+        self.paper.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        self.paper.unified_document.save(update_fields=["status"])
+        PaperVersion.objects.create(
+            paper=self.paper, version=1, publication_status=PaperVersion.PREPRINT
+        )
+
+        # Act
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123"):
+            Payment.objects.create(
+                amount=1000,
+                currency="USD",
+                external_payment_id="test_payment_id",
+                payment_processor="STRIPE",
+                content_type=self.paper_content_type,
+                object_id=self.paper.id,
+                user=self.user,
+            )
+
+        # Assert
+        self.paper.unified_document.refresh_from_db()
+        self.assertEqual(
+            self.paper.unified_document.status, ResearchhubUnifiedDocument.PENDING
+        )
 
     def test_payment_for_non_paper_doesnt_update_journal_status(self):
         """Test that a payment for a non-paper doesn't update any journal status."""

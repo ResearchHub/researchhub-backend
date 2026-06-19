@@ -2,9 +2,8 @@
 Tests for Personalize item mapper functions.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
-import pytz
 from django.test import TestCase
 
 from hub.models import Hub
@@ -448,7 +447,7 @@ class CommonFieldTests(TestCase):
         """Papers should use paper_publish_date for timestamp when available."""
         # Arrange
         mapper = ItemMapper()
-        publish_date = datetime(2023, 1, 15, 12, 0, 0, tzinfo=pytz.UTC)
+        publish_date = datetime(2023, 1, 15, 12, 0, 0, tzinfo=UTC)
         unified_doc = create_prefetched_paper(paper_publish_date=publish_date)
         batch_data = create_batch_data()
 

@@ -189,6 +189,30 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertNotIn(self.non_preregistration_post.id, post_ids)
         self.assertNotIn(self.removed_post.id, post_ids)
 
+    def test_pending_preregistration_excluded_from_funding_feed(self):
+        """Preregistrations awaiting moderation must not appear in the feed."""
+        pending_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+            status=ResearchhubUnifiedDocument.PENDING,
+        )
+        pending_post = ResearchhubPost.objects.create(
+            title="Pending Preregistration",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            renderable_text="This preregistration is awaiting moderation",
+            slug="pending-preregistration",
+            unified_document=pending_document,
+            created_date=timezone.now(),
+        )
+
+        url = reverse("funding_feed-list")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(pending_post.id, post_ids)
+        self.assertIn(self.post.id, post_ids)
+
     @patch("feed.views.funding_feed_view.cache")
     def test_funding_feed_cache(self, mock_cache):
         """Test caching functionality for funding feed"""
@@ -755,6 +779,21 @@ class FundingFeedViewSetTests(AWSMockTestCase):
             grant=grant, preregistration_post=self.post, applicant=self.user
         )
 
+        pending_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+            status=ResearchhubUnifiedDocument.PENDING,
+        )
+        pending_post = ResearchhubPost.objects.create(
+            title="Pending Grant Application",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=pending_doc,
+            created_date=timezone.now(),
+        )
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=pending_post, applicant=self.user
+        )
+
         # Create another preregistration post without grant application
         other_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
@@ -774,7 +813,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 1)
 
-        # Should only return the post that applied to this grant
+        # Should only return the approved post that applied to this grant
         returned_post_id = response.data["results"][0]["content_object"]["id"]
         self.assertEqual(returned_post_id, self.post.id)
 

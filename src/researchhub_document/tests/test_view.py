@@ -1,8 +1,7 @@
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from rest_framework.renderers import JSONRenderer
@@ -64,13 +63,11 @@ class ViewTests(APITestCase):
         # Add exchange rate for fundraise tests
         RscExchangeRate.objects.create(rate=1.0)
 
-        # Require verified user for create/update
-        # make setUp users verified so existing tests pass
         make_user_verified(self.admin_user)
         make_user_verified(self.member_user)
         make_user_verified(self.non_member)
 
-    def test_unverified_user_cannot_create_post(self):
+    def test_unverified_user_can_create_post(self):
         unverified = create_random_default_user("unverified_no_verification")
         self.client.force_authenticate(unverified)
         hub = create_hub("hub")
@@ -86,19 +83,17 @@ class ViewTests(APITestCase):
                 "hubs": [hub.id],
             },
         )
-        self.assertEqual(response.status_code, 403)
-        self.assertIn("verified", (response.data.get("detail") or "").lower())
+        self.assertEqual(response.status_code, 200)
 
-    def test_unverified_user_cannot_update_post(self):
-        author = create_random_default_user("author_verified_owner")
-        make_user_verified(author)
-        self.client.force_authenticate(author)
+    def test_unverified_user_can_update_own_post(self):
+        unverified = create_random_default_user("unverified_owner")
+        self.client.force_authenticate(unverified)
         hub = create_hub("hub")
         create_resp = self.client.post(
             "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
-                "created_by": author.id,
+                "created_by": unverified.id,
                 "full_src": "body",
                 "is_public": True,
                 "renderable_text": "x" * MIN_POST_BODY_LENGTH,
@@ -108,15 +103,12 @@ class ViewTests(APITestCase):
         )
         self.assertEqual(create_resp.status_code, 200)
         post_id = create_resp.data["id"]
-        # Unverified user cannot update another's post
-        unverified = create_random_default_user("unverified_updater")
-        self.client.force_authenticate(unverified)
         update_resp = self.client.put(
             f"/api/researchhubpost/{post_id}/",
             {
                 "post_id": post_id,
                 "document_type": "DISCUSSION",
-                "created_by": author.id,
+                "created_by": unverified.id,
                 "full_src": "updated",
                 "is_public": True,
                 "renderable_text": "x" * MIN_POST_BODY_LENGTH,
@@ -124,8 +116,7 @@ class ViewTests(APITestCase):
                 "hubs": [hub.id],
             },
         )
-        self.assertEqual(update_resp.status_code, 403)
-        self.assertIn("verified", (update_resp.data.get("detail") or "").lower())
+        self.assertEqual(update_resp.status_code, 200)
 
     def test_verified_user_can_create_and_update_post(self):
         verified = create_random_default_user("verified_creator")
@@ -685,7 +676,7 @@ class ViewTests(APITestCase):
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
         hub = create_hub()
-        end_date = datetime.now(pytz.UTC) + timedelta(days=30)
+        end_date = datetime.now(UTC) + timedelta(days=30)
 
         self.client.force_authenticate(author)
 
@@ -887,6 +878,34 @@ class ViewTests(APITestCase):
             for app in response.data["grant"]["applications"]
         ]
         self.assertNotIn(private_post_id, prereg_ids)
+
+    def test_pending_paper_metadata_hidden_from_public(self):
+        """A paper awaiting moderation is not publicly viewable via a direct
+        link; only the uploader and moderators can load its document metadata.
+        """
+        uploader = create_random_default_user("paper_uploader")
+        pending_paper = create_paper(title="Pending paper", uploaded_by=uploader)
+        pending_paper.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        pending_paper.unified_document.save(update_fields=["status"])
+
+        metadata_url = (
+            f"/api/researchhub_unified_document/{pending_paper.unified_document_id}"
+            "/get_document_metadata/"
+        )
+
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get(metadata_url).status_code, 403)
+
+        outsider = create_random_default_user("paper_outsider")
+        self.client.force_authenticate(outsider)
+        self.assertEqual(self.client.get(metadata_url).status_code, 403)
+
+        self.client.force_authenticate(uploader)
+        self.assertEqual(self.client.get(metadata_url).status_code, 200)
+
+        moderator = create_random_default_user("paper_metadata_mod", moderator=True)
+        self.client.force_authenticate(moderator)
+        self.assertEqual(self.client.get(metadata_url).status_code, 200)
 
     def test_grant_update_existing_grant(self):
         """Test that an existing grant can be updated when updating a post"""
@@ -1108,8 +1127,8 @@ class ViewTests(APITestCase):
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
         hub = create_hub()
-        initial_end_date = datetime.now(pytz.UTC) + timedelta(days=30)
-        updated_end_date = datetime.now(pytz.UTC) + timedelta(days=60)
+        initial_end_date = datetime.now(UTC) + timedelta(days=30)
+        updated_end_date = datetime.now(UTC) + timedelta(days=60)
 
         self.client.force_authenticate(author)
 
@@ -1258,9 +1277,7 @@ class ViewTests(APITestCase):
                 "grant_amount": 50000,
                 "grant_organization": "Test Foundation",
                 "grant_description": "Test grant with end date",
-                "grant_end_date": (
-                    datetime.now(pytz.UTC) + timedelta(days=30)
-                ).isoformat(),
+                "grant_end_date": (datetime.now(UTC) + timedelta(days=30)).isoformat(),
             },
         )
 
@@ -1841,6 +1858,19 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         GrantApplication.objects.create(
             grant=self.grant_b,
             preregistration_post=self.prereg_post,
+            applicant=self.user,
+        )
+        pending_prereg_post = create_post(
+            title="Pending prereg title for grants payload",
+            renderable_text="x" * MIN_POST_BODY_LENGTH,
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+        )
+        pending_prereg_post.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        pending_prereg_post.unified_document.save(update_fields=["status"])
+        GrantApplication.objects.create(
+            grant=self.grant_a,
+            preregistration_post=pending_prereg_post,
             applicant=self.user,
         )
         ProposalReview.objects.create(

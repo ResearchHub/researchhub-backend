@@ -40,7 +40,7 @@ class FundingCacheMixin:
     def invalidate_funding_feed_cache() -> None:
         """
         Delete cached funding-feed list responses
-        (pages 1–``FUNDING_FEED_MAX_CACHED_PAGE``).
+        (pages 1-``FUNDING_FEED_MAX_CACHED_PAGE``).
 
         Only ``:public`` segment keys that can be written when
         ``FundingFeedViewSet.list`` uses the cache branch are targeted.

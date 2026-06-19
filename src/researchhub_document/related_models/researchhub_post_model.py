@@ -7,7 +7,7 @@ from django.db.models import Exists, IntegerField, OuterRef, Q, Sum
 from django.db.models.functions import Cast
 
 from discussion.models import AbstractGenericReactionModel, Vote
-from purchase.models import Purchase
+from purchase.models import Grant, Purchase
 from researchhub_access_group.constants import NO_ACCESS
 from researchhub_access_group.models import Permission
 from researchhub_comment.models import RhCommentThreadModel
@@ -28,25 +28,28 @@ logger = logging.getLogger(__name__)
 
 
 class ResearchhubPostQuerySet(models.QuerySet):
-    def visible_to(self, user):
+    def publicly_visible(self) -> "ResearchhubPostQuerySet":
+        """Restrict to posts safe for anonymous/public discovery surfaces."""
+        return self.filter(self._public_visibility_filter())
+
+    def visible_to(self, user: User | None) -> "ResearchhubPostQuerySet":
         """Restrict to posts the given user is allowed to see.
 
-        Public posts (unified_document.is_public=True) are visible to anyone.
-        Private posts are visible to: the author, the creator of any grant the
-        post has applied to (via GrantApplication), users with a non-revoked
-        Permission on the post's unified document (e.g. invited experts), and
-        site moderators / hub editors who need to see private grants and
-        preregistrations to moderate them. A NO_ACCESS Permission row revokes
-        access even when other (e.g. stale VIEWER) rows exist for the same
-        user/document.
-        """
-        public = Q(unified_document__is_public=True)
-        if user is None or not getattr(user, "is_authenticated", False):
-            return self.filter(public)
+        Anonymous users only see public posts that cleared moderation. Authors
+        can see their own posts. Grant creators and document-permission users
+        can see private posts after moderation clears; ``NO_ACCESS`` still wins.
+        Moderators and hub editors can see all posts.
 
-        if getattr(user, "moderator", False) or user.is_hub_editor():
+        Grant posts do not use unified-document moderation status. Their backing
+        document stays approved, so ``Grant.status`` decides whether they cleared.
+        """
+        if user is None or not getattr(user, "is_authenticated", False):
+            return self.publicly_visible()
+
+        if user.is_moderator_or_editor():
             return self
 
+        moderation_approved = self._moderation_approved_filter()
         ud_ct = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
         user_perms = Permission.objects.filter(
             content_type=ud_ct,
@@ -56,12 +59,31 @@ class ResearchhubPostQuerySet(models.QuerySet):
         allowed = user_perms.exclude(access_type=NO_ACCESS)
         revoked = user_perms.filter(access_type=NO_ACCESS)
 
-        return self.filter(
-            public
-            | Q(created_by=user)
-            | Q(grant_applications__grant__created_by=user)
+        created_by_user = Q(created_by=user)
+
+        visible_to_grant_or_permitted = moderation_approved & (
+            Q(grant_applications__grant__created_by=user)
             | (Exists(allowed) & ~Exists(revoked))
+        )
+
+        return self.filter(
+            self._public_visibility_filter()
+            | created_by_user
+            | visible_to_grant_or_permitted
         ).distinct()
+
+    def _public_visibility_filter(self) -> Q:
+        return Q(unified_document__is_public=True) & self._moderation_approved_filter()
+
+    @staticmethod
+    def _moderation_approved_filter() -> Q:
+        pending_grant = Grant.objects.filter(
+            unified_document_id=OuterRef("unified_document_id"),
+            status__in=Grant.PENDING_MODERATION_STATUSES,
+        )
+        return Q(
+            unified_document__status=ResearchhubUnifiedDocument.APPROVED
+        ) & ~Exists(pending_grant)
 
 
 class ResearchhubPost(AbstractGenericReactionModel):
