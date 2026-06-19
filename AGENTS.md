@@ -52,9 +52,40 @@ uv add --dev <package_name>
 - Prefer standard Django and DRF patterns.
 - Keep imports at the top of the file when possible.
 - Use serializers and viewsets for API boundaries.
-- Keep business logic out of views when it can live in services or model-layer code.
 - Keep migrations focused and reversible.
 - Run the relevant tests before committing.
+
+## Code Placement
+New code belongs to a layer and to the app that owns the domain. Decide both
+before writing it.
+
+### Pick the owning app first
+- Logic that operates on a domain lives in that domain's app, not in a shared
+  catch-all. Paper logic goes in `paper`, reputation/fee logic in `reputation`,
+  payments/funding in `purchase`, AI/LLM work in `research_ai`, and so on.
+- `src/utils/` is only for genuinely cross-app, framework-level helpers
+  (HTTP, AWS, parsing, locking, time). Do not add domain logic there; if a
+  helper knows about a specific app's models or rules, it belongs in that app.
+
+### Pick the layer
+- **Views** (`{app}/views/`) — HTTP concerns only. Delegate real work to a
+  service or model; no business logic here.
+- **Services** (`{app}/services/*_service.py`) — the default home for business
+  logic: multi-step operations, calculations, validation, transactions, and
+  external-API/integration calls. This is where most new non-trivial logic
+  should go.
+- **Models / managers** (`{app}/models.py`, `models/`, or `related_models/`) —
+  persistence and thin domain methods/querysets that operate on a single record
+  or query. Keep cross-entity orchestration out of models; put it in a service.
+- **Tasks** (`{app}/tasks.py` or `tasks/`) — Celery entry points and retry
+  handling only. The actual work they perform should live in a service the task
+  calls.
+- **Signals** (`{app}/signals.py`) — event wiring and lightweight side effects;
+  defer heavy work to a service or task.
+
+### Service conventions
+- Accept dependencies (clients, other services) via the constructor so they can
+  be mocked in tests; default them to the real implementation.
 
 ## Testing
 - If possible, use `unittest.TestCase` when there is no dependency on Django, otherwise use `django.test.TestCase` or DRF `APITestCase`.
