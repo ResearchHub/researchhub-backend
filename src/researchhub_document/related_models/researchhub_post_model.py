@@ -14,6 +14,7 @@ from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     DOCUMENT_TYPES,
+    RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
 from researchhub_document.related_models.constants.editor_type import (
     CK_EDITOR,
@@ -262,7 +263,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     def get_full_markdown(self):
         try:
-            if self.document_type == DISCUSSION:
+            if self.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
                 byte_string = self.discussion_src.read()
             else:
                 byte_string = self.eln_src.read()

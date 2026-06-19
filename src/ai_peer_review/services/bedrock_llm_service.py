@@ -6,12 +6,12 @@ from utils.aws import bedrock_runtime_client
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+DEFAULT_BEDROCK_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 
 BEDROCK_MODEL_ID = getattr(
     settings,
     "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
-    _DEFAULT_MODEL,
+    DEFAULT_BEDROCK_MODEL_ID,
 )
 
 _BEDROCK_OMIT_TEMPERATURE_SUBSTRINGS: tuple[str, ...] = ("opus-4-7",)
@@ -30,9 +30,9 @@ def _converse_inference_config(
 class BedrockLLMService:
     """Invoke Bedrock for structured proposal review JSON (and related tasks)."""
 
-    def __init__(self):
+    def __init__(self, model_id: str | None = None):
         self.bedrock_client = bedrock_runtime_client()
-        self.model_id = BEDROCK_MODEL_ID
+        self.model_id = model_id or BEDROCK_MODEL_ID
 
     def invoke(
         self,

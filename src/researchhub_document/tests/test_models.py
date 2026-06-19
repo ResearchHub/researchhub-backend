@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core.files.base import ContentFile
 from django.test import TestCase
 
 from hub.models import Hub
@@ -10,6 +11,10 @@ from paper.tests.helpers import create_paper
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import (
+    NOTE,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )

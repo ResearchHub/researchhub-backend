@@ -9,7 +9,10 @@ from ai_peer_review.prompts.proposal_review_prompts import (
     build_proposal_review_user_prompt,
     get_proposal_review_system_prompt,
 )
-from ai_peer_review.services.bedrock_llm_service import BedrockLLMService
+from ai_peer_review.services.bedrock_llm_service import (
+    DEFAULT_BEDROCK_MODEL_ID,
+    BedrockLLMService,
+)
 from ai_peer_review.services.openai_web_context_service import (
     fetch_proposal_review_web_context,
 )
@@ -130,6 +133,20 @@ def run_proposal_review(review_id: int) -> None:
             max_tokens=PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS,
             temperature=0.0,
         )
+        if not (raw or "").strip() and llm.model_id != DEFAULT_BEDROCK_MODEL_ID:
+            logger.warning(
+                "Proposal review %s: %s returned no text; retrying with %s",
+                review_id,
+                llm.model_id,
+                DEFAULT_BEDROCK_MODEL_ID,
+            )
+            llm = BedrockLLMService(model_id=DEFAULT_BEDROCK_MODEL_ID)
+            raw = llm.invoke(
+                system,
+                user,
+                max_tokens=PROPOSAL_REVIEW_MAX_OUTPUT_TOKENS,
+                temperature=0.0,
+            )
         review.progress = 70
         review.current_step = "Normalizing scores"
         review.save(update_fields=["progress", "current_step", "updated_date"])
