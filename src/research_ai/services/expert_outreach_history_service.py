@@ -186,8 +186,6 @@ def build_expert_outreach_history_map(
     for email in normalized:
         out[email] = ExpertOutreachHistory(
             emailed_for_current_document=current_by_email.get(email),
-            emailed_on_other_documents=list(
-                other_by_email_doc.get(email, {}).values()
-            ),
+            emailed_on_other_documents=list(other_by_email_doc.get(email, {}).values()),
         )
     return out

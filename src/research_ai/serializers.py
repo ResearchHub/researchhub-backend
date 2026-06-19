@@ -165,9 +165,7 @@ class ExpertSerializer(serializers.Serializer):
         history = self._outreach_history_for(obj)
         if history is None:
             return []
-        return serialize_expert_outreach_history(history)[
-            "emailed_on_other_documents"
-        ]
+        return serialize_expert_outreach_history(history)["emailed_on_other_documents"]
 
     def get_display_name(self, obj):
         return ExpertDisplay.display_name_for(obj)

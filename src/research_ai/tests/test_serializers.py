@@ -350,9 +350,7 @@ class ExpertSearchDetailSerializerOutreachTests(TestCase):
         self.assertIsNone(expert["emailed_for_current_document"])
         self.assertEqual(len(expert["emailed_on_other_documents"]), 1)
         other = expert["emailed_on_other_documents"][0]
-        self.assertEqual(
-            other["unified_document_id"], self.paper_b.unified_document_id
-        )
+        self.assertEqual(other["unified_document_id"], self.paper_b.unified_document_id)
         self.assertEqual(other["document_type"], "PAPER")
         self.assertEqual(other["title"], "RFP B Paper Title")
         self.assertEqual(other["slug"], self.paper_b.slug)
