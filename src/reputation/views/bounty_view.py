@@ -247,6 +247,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "abstract",
                 "renderable_text",
                 "authors",
+                "renderable_text",
             )
         }
         context["rep_dbs_get_hubs"] = {
