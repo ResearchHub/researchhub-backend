@@ -38,6 +38,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
 from utils.test_helpers import AWSMockTestCase, create_test_user
 
@@ -982,6 +983,13 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
         self.user = create_test_user()
         self.client = APIClient()
 
+        RscExchangeRate.objects.create(
+            price_source=MORALIS,
+            rate=3.0,
+            real_rate=3.0,
+            target_currency=USD,
+        )
+
         self.proposal_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION,
         )
@@ -1085,6 +1093,59 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
             user=self.user,
         )
 
+        self.bounty_fa = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.BOUNTY_PAYOUT,
+            total_amount=Decimal("25"),
+            total_usd_cents=500,
+            unified_document=self.proposal_doc,
+            activity_date=timezone.now(),
+            source_content_type=ContentType.objects.get_for_model(Purchase),
+            source_object_id=self.rsc_contribution.id,
+        )
+        self.bounty_fa_entry = _make_feed_entry(
+            FundingActivity,
+            self.bounty_fa.id,
+            self.proposal_doc,
+            user=self.user,
+        )
+
+        self.tip_review_fa = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.TIP_REVIEW,
+            total_amount=Decimal("20"),
+            total_usd_cents=400,
+            unified_document=self.proposal_doc,
+            activity_date=timezone.now(),
+            source_content_type=ContentType.objects.get_for_model(
+                UsdFundraiseContribution
+            ),
+            source_object_id=self.usd_contribution.id,
+        )
+        self.tip_review_fa_entry = _make_feed_entry(
+            FundingActivity,
+            self.tip_review_fa.id,
+            self.proposal_doc,
+            user=self.user,
+        )
+
+        self.tip_document_fa = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.TIP_DOCUMENT,
+            total_amount=Decimal("10"),
+            total_usd_cents=200,
+            unified_document=self.unrelated_doc,
+            activity_date=timezone.now(),
+            source_content_type=ContentType.objects.get_for_model(Purchase),
+            source_object_id=self.boost_purchase.id,
+        )
+        self.tip_document_fa_entry = _make_feed_entry(
+            FundingActivity,
+            self.tip_document_fa.id,
+            self.unrelated_doc,
+            user=self.user,
+        )
+
     def test_scope_financial_includes_rsc_and_usd_contributions(self):
         # Act
         resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "financial"})
@@ -1106,6 +1167,42 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
         ids = {entry["id"] for entry in resp.data["results"]}
         self.assertIn(self.grant_entry.id, ids)
         self.assertNotIn(self.unrelated_entry.id, ids)
+
+    def test_scope_financial_includes_bounty_and_tip_review_funding_activities(self):
+        # Act
+        resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "financial"})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        ids = {entry["id"] for entry in resp.data["results"]}
+        self.assertIn(self.bounty_fa_entry.id, ids)
+        self.assertIn(self.tip_review_fa_entry.id, ids)
+        self.assertNotIn(self.tip_document_fa_entry.id, ids)
+
+    def test_scope_financial_funding_activity_has_related_work(self):
+        # Act
+        resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "financial"})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        bounty_result = next(
+            entry
+            for entry in resp.data["results"]
+            if entry["id"] == self.bounty_fa_entry.id
+        )
+        self.assertIsNotNone(bounty_result["related_work"])
+        self.assertEqual(
+            bounty_result["related_work"]["document_type"],
+            PREREGISTRATION,
+        )
+        self.assertEqual(
+            bounty_result["related_work"]["unified_document_id"],
+            self.proposal_doc.id,
+        )
+        self.assertEqual(
+            bounty_result["related_work"]["title"],
+            self.proposal_post.title,
+        )
 
 
 class ActivityFeedFunderFilterTests(APITestCase):
