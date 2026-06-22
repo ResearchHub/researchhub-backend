@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from purchase.models import Grant, GrantApplication
 from researchhub_document.helpers import create_post
-from researchhub_document.models import ResearchJourney, ResearchhubUnifiedDocument
+from researchhub_document.models import ResearchhubUnifiedDocument, ResearchJourney
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     GRANT,

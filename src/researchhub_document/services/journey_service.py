@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from django.db import IntegrityError, transaction
 
 from purchase.models import GrantApplication
-from researchhub_document.models import ResearchJourney, ResearchhubPost
+from researchhub_document.models import ResearchhubPost, ResearchJourney
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
     REGISTERED_REPORT,
