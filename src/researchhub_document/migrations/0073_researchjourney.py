@@ -45,7 +45,7 @@ class Migration(migrations.Migration):
                     "created_by",
                     models.ForeignKey(
                         blank=True,
-                        help_text="User who created the source preregistration.",
+                        help_text="User who created the preregistration.",
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
                         related_name="created_research_journeys",

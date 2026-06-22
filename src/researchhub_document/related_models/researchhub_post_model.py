@@ -155,12 +155,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
         on_delete=models.SET_NULL,
         related_name="stage_posts",
     )
-    message = models.TextField(
-        blank=True,
-        default=None,
-        null=True,
-        help_text="Version change message for registered report updates.",
-    )
     note = models.OneToOneField(
         "note.Note",
         null=True,
@@ -223,6 +217,18 @@ class ResearchhubPost(AbstractGenericReactionModel):
     )
 
     objects = ResearchhubPostQuerySet.as_manager()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["journey"],
+                condition=Q(
+                    document_type=REGISTERED_REPORT,
+                    journey__isnull=False,
+                ),
+                name="unique_rr_per_journey",
+            ),
+        ]
 
     @property
     def is_latest_version(self):

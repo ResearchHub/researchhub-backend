@@ -20,14 +20,15 @@ class Migration(migrations.Migration):
                 to="researchhub_document.researchjourney",
             ),
         ),
-        migrations.AddField(
+        migrations.AddConstraint(
             model_name="researchhubpost",
-            name="message",
-            field=models.TextField(
-                blank=True,
-                default=None,
-                help_text="Version change message for registered report updates.",
-                null=True,
+            constraint=models.UniqueConstraint(
+                condition=models.Q(
+                    document_type="REGISTERED_REPORT",
+                    journey__isnull=False,
+                ),
+                fields=("journey",),
+                name="unique_rr_per_journey",
             ),
         ),
     ]

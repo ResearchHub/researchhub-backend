@@ -10,7 +10,7 @@ class ResearchJourney(DefaultModel):
         null=True,
         on_delete=models.SET_NULL,
         related_name="created_research_journeys",
-        help_text="User who created the source preregistration.",
+        help_text="User who created the preregistration.",
     )
     grant = models.ForeignKey(
         "purchase.Grant",
