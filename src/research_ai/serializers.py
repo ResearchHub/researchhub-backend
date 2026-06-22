@@ -186,7 +186,7 @@ class ExpertSerializer(serializers.Serializer):
 
     def get_emailed_for_current_document(self, obj):
         history = self._outreach_history_for(obj)
-        if history is None:
+        if history is None or history.emailed_for_current_document is None:
             return None
         return ExpertCurrentDocumentOutreachSerializer(
             history.emailed_for_current_document
