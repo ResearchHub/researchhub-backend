@@ -4,21 +4,13 @@ from utils.models import DefaultModel
 
 
 class ResearchJourney(DefaultModel):
-    created_by = models.ForeignKey(
-        "user.User",
+    grant_post = models.ForeignKey(
+        "researchhub_document.ResearchhubPost",
         blank=True,
         null=True,
         on_delete=models.SET_NULL,
-        related_name="created_research_journeys",
-        help_text="User who created the source preregistration.",
-    )
-    grant = models.ForeignKey(
-        "purchase.Grant",
-        blank=True,
-        null=True,
-        on_delete=models.SET_NULL,
-        related_name="research_journeys",
-        help_text="Grant that funded this journey, when known.",
+        related_name="grant_research_journeys",
+        help_text="Grant post that funded this journey, when known.",
     )
     preregistration_post = models.ForeignKey(
         "researchhub_document.ResearchhubPost",
