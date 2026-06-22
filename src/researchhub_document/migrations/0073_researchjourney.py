@@ -1,14 +1,11 @@
 import django.db.models.deletion
-from django.conf import settings
 from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("purchase", "0056_alter_purchase_purchase_method"),
         ("researchhub_document", "0072_add_registered_report_document_type"),
-        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
@@ -42,25 +39,14 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    "created_by",
+                    "grant_post",
                     models.ForeignKey(
                         blank=True,
-                        help_text="User who created the preregistration.",
+                        help_text="Grant post that funded this journey, when known.",
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        related_name="created_research_journeys",
-                        to=settings.AUTH_USER_MODEL,
-                    ),
-                ),
-                (
-                    "grant",
-                    models.ForeignKey(
-                        blank=True,
-                        help_text="Grant that funded this journey, when known.",
-                        null=True,
-                        on_delete=django.db.models.deletion.SET_NULL,
-                        related_name="research_journeys",
-                        to="purchase.grant",
+                        related_name="grant_research_journeys",
+                        to="researchhub_document.researchhubpost",
                     ),
                 ),
                 (
