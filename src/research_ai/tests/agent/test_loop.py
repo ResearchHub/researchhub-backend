@@ -65,6 +65,17 @@ def _toolset(seen=None):
     )
 
 
+def _agent(provider, toolset, *, max_iterations=12):
+    return Agent(
+        provider,
+        toolset,
+        system_prompt="sys",
+        max_iterations=max_iterations,
+        max_tokens=4096,
+        temperature=0.0,
+    )
+
+
 class AgentLoopTests(SimpleTestCase):
     def test_dispatches_tools_then_stops_on_terminal_tool(self):
         # Arrange
@@ -75,7 +86,7 @@ class AgentLoopTests(SimpleTestCase):
             ]
         )
         seen = []
-        agent = Agent(provider, _toolset(seen), system_prompt="sys")
+        agent = _agent(provider, _toolset(seen))
 
         # Act
         result = agent.run("find jane")
@@ -93,7 +104,7 @@ class AgentLoopTests(SimpleTestCase):
                 _text_turn("done"),
             ]
         )
-        agent = Agent(provider, _toolset(), system_prompt="sys")
+        agent = _agent(provider, _toolset())
 
         # Act
         result = agent.run("find jane")
@@ -106,7 +117,7 @@ class AgentLoopTests(SimpleTestCase):
     def test_plain_text_turn_ends_loop(self):
         # Arrange
         provider = FakeProvider([_text_turn("all done")])
-        agent = Agent(provider, _toolset(), system_prompt="sys")
+        agent = _agent(provider, _toolset())
 
         # Act
         result = agent.run("hi")
@@ -119,7 +130,7 @@ class AgentLoopTests(SimpleTestCase):
     def test_exceeding_max_iterations_raises(self):
         # Arrange: the model never stops calling tools.
         provider = FakeProvider([_tool_turn(f"t{i}", "search", {}) for i in range(5)])
-        agent = Agent(provider, _toolset(), system_prompt="sys", max_iterations=3)
+        agent = _agent(provider, _toolset(), max_iterations=3)
 
         # Act / Assert
         with self.assertRaises(RuntimeError):
@@ -132,7 +143,7 @@ class AgentLoopTests(SimpleTestCase):
             Message(role="assistant", content=[TextBlock(text="reply")]),
         ]
         provider = FakeProvider([_text_turn("second answer")])
-        agent = Agent(provider, _toolset(), system_prompt="sys")
+        agent = _agent(provider, _toolset())
 
         # Act
         result = agent.continue_conversation(history, "follow up")

@@ -52,9 +52,9 @@ class Agent:
         toolset: Toolset,
         *,
         system_prompt: str,
-        max_iterations: int = 12,
-        max_tokens: int = 4096,
-        temperature: float = 0.0,
+        max_iterations: int,
+        max_tokens: int,
+        temperature: float,
     ):
         self.provider = provider
         self.toolset = toolset
