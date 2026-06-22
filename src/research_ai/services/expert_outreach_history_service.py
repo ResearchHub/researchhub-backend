@@ -1,11 +1,19 @@
 from dataclasses import dataclass
-from typing import Any
 
 from research_ai.models import GeneratedEmail
 from research_ai.services.expert_display import ExpertDisplay
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+
+
+@dataclass(frozen=True)
+class DocumentOutreachMeta:
+    unified_document_id: int
+    document_type: str
+    title: str
+    slug: str
+    id: int
 
 
 @dataclass(frozen=True)
@@ -31,74 +39,22 @@ class ExpertOutreachHistory:
     emailed_on_other_documents: list[ExpertOutreachDocumentRef]
 
 
-def _document_title_from_doc(doc) -> str:
-    if hasattr(doc, "display_title"):
-        return (doc.display_title or "").strip()[:512]
-    if hasattr(doc, "title"):
-        return (str(doc.title or "")).strip()[:512]
-    return ""
-
-
-def _document_ref_from_unified_doc(
+def _document_meta_from_unified_doc(
     unified_doc: ResearchhubUnifiedDocument,
-) -> dict[str, Any] | None:
+) -> DocumentOutreachMeta | None:
     try:
         doc = unified_doc.get_document()
         if doc is None:
             return None
-        doc_type = (unified_doc.document_type or "").strip()
-        if not doc_type:
-            return None
-        return {
-            "unified_document_id": unified_doc.id,
-            "document_type": doc_type,
-            "title": _document_title_from_doc(doc),
-            "slug": getattr(doc, "slug", "") or "",
-            "id": doc.id,
-        }
+        return DocumentOutreachMeta(
+            unified_document_id=unified_doc.id,
+            document_type=unified_doc.document_type,
+            title=unified_doc.get_display_title(),
+            slug=unified_doc.get_document_slug(),
+            id=doc.id,
+        )
     except Exception:
         return None
-
-
-def _serialize_current_outreach(
-    entry: ExpertCurrentDocumentOutreach | None,
-) -> dict[str, Any] | None:
-    if entry is None:
-        return None
-    return {
-        "sent_at": entry.sent_at,
-        "search_id": entry.search_id,
-    }
-
-
-def _serialize_document_ref(ref: ExpertOutreachDocumentRef) -> dict[str, Any]:
-    return {
-        "unified_document_id": ref.unified_document_id,
-        "document_type": ref.document_type,
-        "title": ref.title,
-        "slug": ref.slug,
-        "id": ref.id,
-        "sent_at": ref.sent_at,
-        "search_id": ref.search_id,
-    }
-
-
-def serialize_expert_outreach_history(
-    history: ExpertOutreachHistory | None,
-) -> dict[str, Any]:
-    if history is None:
-        return {
-            "emailed_for_current_document": None,
-            "emailed_on_other_documents": [],
-        }
-    return {
-        "emailed_for_current_document": _serialize_current_outreach(
-            history.emailed_for_current_document
-        ),
-        "emailed_on_other_documents": [
-            _serialize_document_ref(ref) for ref in history.emailed_on_other_documents
-        ],
-    }
 
 
 def build_expert_outreach_history_map(
@@ -135,7 +91,7 @@ def build_expert_outreach_history_map(
 
     current_by_email: dict[str, ExpertCurrentDocumentOutreach] = {}
     other_by_email_doc: dict[str, dict[int, ExpertOutreachDocumentRef]] = {}
-    doc_meta_cache: dict[int, dict[str, Any] | None] = {}
+    doc_meta_cache: dict[int, DocumentOutreachMeta | None] = {}
 
     for row in rows:
         email = ExpertDisplay.normalize_email(row.expert_email or "")
@@ -163,7 +119,9 @@ def build_expert_outreach_history_map(
             continue
 
         if unified_doc_id not in doc_meta_cache:
-            doc_meta_cache[unified_doc_id] = _document_ref_from_unified_doc(unified_doc)
+            doc_meta_cache[unified_doc_id] = _document_meta_from_unified_doc(
+                unified_doc
+            )
         meta = doc_meta_cache[unified_doc_id]
         if meta is None:
             continue
@@ -173,11 +131,11 @@ def build_expert_outreach_history_map(
             continue
 
         per_email[unified_doc_id] = ExpertOutreachDocumentRef(
-            unified_document_id=meta["unified_document_id"],
-            document_type=meta["document_type"],
-            title=meta["title"],
-            slug=meta["slug"],
-            id=meta["id"],
+            unified_document_id=meta.unified_document_id,
+            document_type=meta.document_type,
+            title=meta.title,
+            slug=meta.slug,
+            id=meta.id,
             sent_at=sent_at,
             search_id=search_id,
         )

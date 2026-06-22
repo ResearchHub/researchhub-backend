@@ -55,21 +55,6 @@ def _get_sse_url(request, search_id):
     return base + "/api/research_ai/expert-finder/progress/" + search_id + "/"
 
 
-def _get_document_title(unified_doc):
-    """Return a display title for the document (paper or post), max 512 chars."""
-    try:
-        doc = unified_doc.get_document()
-        if doc is None:
-            return ""
-        if hasattr(doc, "display_title"):
-            return (doc.display_title or "")[:512]
-        if hasattr(doc, "title"):
-            return (str(doc.title or ""))[:512]
-        return ""
-    except Exception:
-        return ""
-
-
 def _search_prefetch():
     return Prefetch(
         "search_experts",
@@ -155,7 +140,7 @@ class ExpertSearchListCreateView(APIView):
         effective_input_type = content_type
         is_pdf = content_type == ExpertSearch.InputType.PDF
         if not search_name:
-            search_name = _get_document_title(unified_doc)
+            search_name = unified_doc.get_display_title()
 
         expert_search = ExpertSearch.objects.create(
             created_by=request.user,

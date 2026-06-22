@@ -19,8 +19,8 @@ from research_ai.models import (
 )
 from research_ai.services.expert_display import ExpertDisplay
 from research_ai.services.expert_outreach_history_service import (
+    ExpertOutreachHistory,
     build_expert_outreach_history_map,
-    serialize_expert_outreach_history,
 )
 from research_ai.services.invited_experts_service import (
     EDITOR_SORT_FIELDS,
@@ -130,6 +130,37 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
         return attrs
 
 
+class ExpertCurrentDocumentOutreachSerializer(serializers.Serializer):
+    sent_at = serializers.CharField()
+    search_id = serializers.IntegerField()
+
+
+class ExpertOutreachDocumentRefSerializer(serializers.Serializer):
+    unified_document_id = serializers.IntegerField()
+    document_type = serializers.CharField()
+    title = serializers.CharField()
+    slug = serializers.CharField()
+    id = serializers.IntegerField()
+    sent_at = serializers.CharField()
+    search_id = serializers.IntegerField()
+
+
+class ExpertOutreachHistorySerializer(serializers.Serializer):
+    emailed_for_current_document = ExpertCurrentDocumentOutreachSerializer(
+        allow_null=True,
+        required=False,
+    )
+    emailed_on_other_documents = ExpertOutreachDocumentRefSerializer(many=True)
+
+    def to_representation(self, instance: ExpertOutreachHistory | None):
+        if instance is None:
+            return {
+                "emailed_for_current_document": None,
+                "emailed_on_other_documents": [],
+            }
+        return super().to_representation(instance)
+
+
 class ExpertSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     honorific = serializers.CharField(allow_blank=True)
@@ -157,15 +188,18 @@ class ExpertSerializer(serializers.Serializer):
         history = self._outreach_history_for(obj)
         if history is None:
             return None
-        return serialize_expert_outreach_history(history)[
-            "emailed_for_current_document"
-        ]
+        return ExpertCurrentDocumentOutreachSerializer(
+            history.emailed_for_current_document
+        ).data
 
     def get_emailed_on_other_documents(self, obj):
         history = self._outreach_history_for(obj)
         if history is None:
             return []
-        return serialize_expert_outreach_history(history)["emailed_on_other_documents"]
+        return ExpertOutreachDocumentRefSerializer(
+            history.emailed_on_other_documents,
+            many=True,
+        ).data
 
     def get_display_name(self, obj):
         return ExpertDisplay.display_name_for(obj)
