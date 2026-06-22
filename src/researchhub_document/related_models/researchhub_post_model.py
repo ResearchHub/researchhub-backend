@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Exists, IntegerField, OuterRef, Q, Sum
 from django.db.models.functions import Cast
+from django.utils.functional import cached_property
 
 from discussion.models import AbstractGenericReactionModel, Vote
 from purchase.models import Grant, Purchase
@@ -14,6 +15,9 @@ from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     DOCUMENT_TYPES,
+    GRANT,
+    PREREGISTRATION,
+    REGISTERED_REPORT,
 )
 from researchhub_document.related_models.constants.editor_type import (
     CK_EDITOR,
@@ -25,6 +29,20 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from user.models import Author, User
 
 logger = logging.getLogger(__name__)
+
+JOURNAL_STAGE_GRANT = "grant"
+JOURNAL_STAGE_PROPOSAL = "proposal"
+JOURNAL_STAGE_REGISTERED_REPORT = "r_report"
+JOURNAL_STAGE_BY_DOCUMENT_TYPE = {
+    GRANT: JOURNAL_STAGE_GRANT,
+    PREREGISTRATION: JOURNAL_STAGE_PROPOSAL,
+    REGISTERED_REPORT: JOURNAL_STAGE_REGISTERED_REPORT,
+}
+JOURNAL_STAGE_ORDER = {
+    JOURNAL_STAGE_GRANT: 1,
+    JOURNAL_STAGE_PROPOSAL: 2,
+    JOURNAL_STAGE_REGISTERED_REPORT: 3,
+}
 
 
 class ResearchhubPostQuerySet(models.QuerySet):
@@ -130,6 +148,19 @@ class ResearchhubPost(AbstractGenericReactionModel):
         null=True,
         default=None,
     )
+    journey = models.ForeignKey(
+        "researchhub_document.ResearchJourney",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="stage_posts",
+    )
+    message = models.TextField(
+        blank=True,
+        default=None,
+        null=True,
+        help_text="Version change message for registered report updates.",
+    )
     note = models.OneToOneField(
         "note.Note",
         null=True,
@@ -200,6 +231,10 @@ class ResearchhubPost(AbstractGenericReactionModel):
     @property
     def is_root_version(self):
         return self.version_number == 1
+
+    @cached_property
+    def stage(self):
+        return JOURNAL_STAGE_BY_DOCUMENT_TYPE.get(self.document_type)
 
     @property
     def users_to_notify(self):
