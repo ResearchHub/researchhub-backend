@@ -33,6 +33,7 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_HAS_BOUNTY,
     GRANT,
     PREREGISTRATION,
+    REGISTERED_REPORT,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
@@ -40,6 +41,7 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.serializers.researchhub_post_serializer import (
     CompletedProposalCandidateSerializer,
+    RegisteredReportCreateSerializer,
     ResearchhubPostSerializer,
 )
 from researchhub_document.services.journey_service import JourneyService
@@ -99,6 +101,82 @@ class ResearchhubPostViewSet(
             many=True,
         )
         return Response(serializer.data)
+
+    @action(
+        detail=False,
+        methods=["post"],
+        permission_classes=[IsAuthenticated],
+        url_name="create-registered-report",
+        url_path="create-registered-report",
+    )
+    def create_registered_report(self, request: Request) -> Response:
+        """Create a registered report for a completed proposal."""
+        serializer = RegisteredReportCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        validation_response = self.validate_post_content(
+            data["title"],
+            data["renderable_text"],
+        )
+        if validation_response is not None:
+            return validation_response
+
+        try:
+            with transaction.atomic():
+                registered_report = JourneyService().create_registered_report(
+                    user=request.user,
+                    proposal_id=data["proposal_id"],
+                    title=data["title"],
+                    renderable_text=data["renderable_text"],
+                    note_id=data.get("note_id"),
+                    editor_type=data.get("editor_type"),
+                    image=data.get("image"),
+                    preview_img=data.get("preview_img"),
+                )
+                if not TESTING:
+                    file_name = (
+                        f"RH-POST-{REGISTERED_REPORT}-USER-{request.user.id}.txt"
+                    )
+                    full_src_file = ContentFile(data["full_src"].encode())
+                    registered_report.discussion_src.save(file_name, full_src_file)
+                self.add_upvote(request.user, registered_report)
+        except ValueError as error:
+            return Response({"error": str(error)}, status=400)
+
+        response_data = ResearchhubPostSerializer(
+            registered_report,
+            context={"request": request},
+        ).data
+        return Response(response_data, status=200)
+
+    def validate_post_content(
+        self, title: object, renderable_text: object
+    ) -> Response | None:
+        """Return an error response when post title or body content is invalid."""
+        if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
+            return Response(
+                {
+                    "msg": (
+                        f"Title cannot be less than {MIN_POST_TITLE_LENGTH} characters"
+                    )
+                },
+                400,
+            )
+        if (
+            type(renderable_text) is not str
+            or len(renderable_text) < MIN_POST_BODY_LENGTH
+        ):
+            return Response(
+                {
+                    "msg": (
+                        f"Post body cannot be less than "
+                        f"{MIN_POST_BODY_LENGTH} characters"
+                    )
+                },
+                400,
+            )
+        return None
 
     def get_queryset(self):
         request = self.request
@@ -167,28 +245,9 @@ class ResearchhubPostViewSet(
                 status=400,
             )
 
-        if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
-            return Response(
-                {
-                    "msg": (
-                        f"Title cannot be less than {MIN_POST_TITLE_LENGTH} characters"
-                    )
-                },
-                400,
-            )
-        elif (
-            type(renderable_text) is not str
-            or len(renderable_text) < MIN_POST_BODY_LENGTH
-        ):
-            return Response(
-                {
-                    "msg": (
-                        f"Post body cannot be less than "
-                        f"{MIN_POST_BODY_LENGTH} characters"
-                    )
-                },
-                400,
-            )
+        validation_response = self.validate_post_content(title, renderable_text)
+        if validation_response is not None:
+            return validation_response
 
         try:
             with transaction.atomic():
@@ -445,29 +504,9 @@ class ResearchhubPostViewSet(
             renderable_text = data.get("renderable_text", "")
             title = data.get("title", "")
 
-            if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
-                return Response(
-                    {
-                        "msg": (
-                            f"Title cannot be less than "
-                            f"{MIN_POST_TITLE_LENGTH} characters"
-                        )
-                    },
-                    400,
-                )
-            elif (
-                type(renderable_text) is not str
-                or len(renderable_text) < MIN_POST_BODY_LENGTH
-            ):
-                return Response(
-                    {
-                        "msg": (
-                            f"Post body cannot be less than "
-                            f"{MIN_POST_BODY_LENGTH} characters"
-                        )
-                    },
-                    400,
-                )
+            validation_response = self.validate_post_content(title, renderable_text)
+            if validation_response is not None:
+                return validation_response
 
             serializer = ResearchhubPostSerializer(
                 rh_post, data=request.data, partial=True, context={"request": request}
