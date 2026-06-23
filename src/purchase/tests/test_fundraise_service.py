@@ -1,6 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
@@ -26,6 +26,7 @@ from researchhub_document.related_models.constants.document_type import PREREGIS
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.journey_service import JourneyService
 from user.related_models.user_model import User
 from user.tests.helpers import create_random_authenticated_user
 
@@ -316,6 +317,29 @@ class CloseFundraiseTests(TestCase):
         # Verify contributor got refunded
         refund_balance = Balance.objects.filter(user=contributor, amount=100).exists()
         self.assertTrue(refund_balance)
+
+    def test_include_journey_when_fundraise_completes(self) -> None:
+        """Verify completing a fundraise includes its journey in the journal."""
+        # Arrange
+        journey_service = Mock(spec=JourneyService)
+        referral_bonus_service = Mock()
+        fundraise_service = FundraiseService(
+            referral_bonus_service=referral_bonus_service,
+            journey_service=journey_service,
+        )
+        self.fundraise.escrow.amount_holding = Decimal("100")
+        self.fundraise.escrow.save(update_fields=["amount_holding"])
+
+        # Act
+        with patch.object(self.fundraise, "payout_funds", return_value=True):
+            fundraise_service.complete_fundraise(self.fundraise)
+
+        # Assert
+        self.fundraise.refresh_from_db()
+        self.assertEqual(self.fundraise.status, Fundraise.COMPLETED)
+        journey_service.include_completed_fundraise_in_journal.assert_called_once_with(
+            self.fundraise
+        )
 
     def test_close_fundraise_already_closed(self):
         """Test that a fundraise that's already closed can't be closed again"""
