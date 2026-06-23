@@ -5,6 +5,7 @@ from django.db.models import Count
 from rest_framework.serializers import (
     CharField,
     IntegerField,
+    JSONField,
     ModelSerializer,
     Serializer,
     SerializerMethodField,
@@ -107,6 +108,15 @@ class RegisteredReportCreateSerializer(Serializer):
     editor_type = CharField(required=False, allow_blank=True, allow_null=True)
     image = CharField(required=False, allow_blank=True, allow_null=True)
     preview_img = CharField(required=False, allow_blank=True, allow_null=True)
+
+
+class RegisteredReportResultsCreateSerializer(Serializer):
+    """Validate a registered report results update request."""
+
+    registered_report_id = IntegerField()
+    comment_content_json = JSONField()
+    comment_content_type = CharField(required=False, allow_blank=True, allow_null=True)
+    context_title = CharField(required=False, allow_blank=True, allow_null=True)
 
 
 class ResearchhubPostSerializer(

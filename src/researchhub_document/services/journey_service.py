@@ -1,11 +1,15 @@
 from dataclasses import dataclass
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
 from django.db.models import Exists, OuterRef, Prefetch, QuerySet
 from django.utils import timezone
 from django.utils.text import slugify
 
 from purchase.models import Fundraise, GrantApplication
+from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
+from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
+from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.models import (
     ResearchhubPost,
     ResearchhubUnifiedDocument,
@@ -24,6 +28,8 @@ from researchhub_document.related_models.constants.journey_stage import (
 )
 from user.models import User
 
+REGISTERED_REPORT_RESULTS_REFERENCE = "REGISTERED_REPORT_RESULTS"
+
 
 @dataclass(frozen=True)
 class JourneyStage:
@@ -41,6 +47,8 @@ class JourneyService:
         journey_model: type[ResearchJourney] | None = None,
         post_model: type[ResearchhubPost] | None = None,
         unified_document_model: type[ResearchhubUnifiedDocument] | None = None,
+        comment_model: type[RhCommentModel] | None = None,
+        comment_thread_model: type[RhCommentThreadModel] | None = None,
         grant_application_model: type[GrantApplication] | None = None,
     ) -> None:
         """Initialize the service with optional model dependencies."""
@@ -49,6 +57,8 @@ class JourneyService:
         self.unified_document_model = (
             unified_document_model or ResearchhubUnifiedDocument
         )
+        self.comment_model = comment_model or RhCommentModel
+        self.comment_thread_model = comment_thread_model or RhCommentThreadModel
         self.grant_application_model = grant_application_model or GrantApplication
 
     @transaction.atomic
@@ -169,6 +179,52 @@ class JourneyService:
         registered_report.authors.set(proposal.authors.all())
         self.attach_stage(proposal.journey, registered_report)
         return registered_report
+
+    def get_owned_registered_report(
+        self, user: User, registered_report_id: int
+    ) -> ResearchhubPost:
+        """Return an owned registered report or raise a validation error."""
+        report = self.post_model.objects.filter(
+            created_by=user,
+            document_type=REGISTERED_REPORT,
+            id=registered_report_id,
+            journey_id__isnull=False,
+        ).first()
+        if report is None:
+            raise ValueError("Registered report is not eligible for results.")
+        return report
+
+    @transaction.atomic
+    def append_registered_report_results(
+        self,
+        *,
+        user: User,
+        registered_report_id: int,
+        comment_content_json: object,
+        comment_content_type: str | None = None,
+        context_title: str | None = None,
+    ) -> RhCommentModel:
+        """Append results to a registered report as an author update."""
+        registered_report = self.get_owned_registered_report(
+            user, registered_report_id
+        )
+        thread = self.comment_thread_model.objects.create(
+            content_type=ContentType.objects.get_for_model(registered_report),
+            object_id=registered_report.id,
+            thread_reference=REGISTERED_REPORT_RESULTS_REFERENCE,
+            thread_type=AUTHOR_UPDATE,
+        )
+        comment = self.comment_model.objects.create(
+            comment_content_json=comment_content_json,
+            comment_content_type=comment_content_type or QUILL_EDITOR,
+            comment_type=AUTHOR_UPDATE,
+            context_title=context_title,
+            created_by=user,
+            thread=thread,
+            updated_by=user,
+        )
+        comment.refresh_related_discussion_count()
+        return comment
 
     @transaction.atomic
     def include_completed_fundraise_in_journal(
