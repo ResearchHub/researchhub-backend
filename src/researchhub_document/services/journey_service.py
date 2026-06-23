@@ -8,53 +8,57 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
     REGISTERED_REPORT,
 )
-from researchhub_document.related_models.researchhub_post_model import (
-    JOURNAL_STAGE_GRANT,
-    JOURNAL_STAGE_ORDER,
-    JOURNAL_STAGE_PROPOSAL,
-    JOURNAL_STAGE_REGISTERED_REPORT,
+from researchhub_document.related_models.constants.journey_stage import (
+    JOURNEY_STAGE_GRANT,
+    JOURNEY_STAGE_ORDER,
+    JOURNEY_STAGE_PROPOSAL,
+    JOURNEY_STAGE_REGISTERED_REPORT,
 )
 
 
 @dataclass(frozen=True)
 class JourneyStage:
+    """A single ordered research journey stage."""
+
     stage: str
-    item: object
+    item: ResearchhubPost
 
 
 class JourneyService:
+    """Service for managing the ordered post stages in a research journey."""
+
     def __init__(
         self,
-        journey_model=None,
-        post_model=None,
-        grant_application_model=None,
-    ):
+        journey_model: type[ResearchJourney] | None = None,
+        post_model: type[ResearchhubPost] | None = None,
+        grant_application_model: type[GrantApplication] | None = None,
+    ) -> None:
+        """Initialize the service with optional model dependencies."""
         self.journey_model = journey_model or ResearchJourney
         self.post_model = post_model or ResearchhubPost
         self.grant_application_model = grant_application_model or GrantApplication
 
     @transaction.atomic
-    def get_or_create_for_preregistration(self, post):
+    def get_or_create_for_preregistration(
+        self, post: ResearchhubPost
+    ) -> ResearchJourney:
+        """Return the journey that starts from a preregistration post."""
         self._require_saved_post(post)
         if post.document_type != PREREGISTRATION:
             raise ValueError("Research journeys start from a preregistration post.")
 
-        grant = self._grant_for_preregistration(post)
+        grant_post = self._get_grant_post_for_preregistration(post)
         journey, _ = self.journey_model.objects.get_or_create(
             preregistration_post=post,
             defaults={
-                "created_by": post.created_by,
-                "grant": grant,
+                "grant_post": grant_post,
             },
         )
 
         update_fields = []
-        if journey.created_by_id is None and post.created_by_id is not None:
-            journey.created_by = post.created_by
-            update_fields.append("created_by")
-        if journey.grant_id is None and grant is not None:
-            journey.grant = grant
-            update_fields.append("grant")
+        if journey.grant_post_id is None and grant_post is not None:
+            journey.grant_post = grant_post
+            update_fields.append("grant_post")
         if update_fields:
             journey.save(update_fields=update_fields)
 
@@ -62,7 +66,10 @@ class JourneyService:
         return journey
 
     @transaction.atomic
-    def attach_stage(self, journey, post):
+    def attach_stage(
+        self, journey: ResearchJourney, post: ResearchhubPost
+    ) -> ResearchhubPost:
+        """Attach a proposal or registered report post to a journey."""
         self._require_saved_journey(journey)
         self._require_saved_post(post)
 
@@ -74,7 +81,7 @@ class JourneyService:
         if post.document_type == PREREGISTRATION:
             self._ensure_proposal_slot(journey, post)
         else:
-            if self.proposal(journey) is None:
+            if self.get_proposal(journey) is None:
                 raise ValueError("Journey needs a proposal before a registered report.")
             self._ensure_registered_report_slot(journey, post)
 
@@ -84,7 +91,8 @@ class JourneyService:
 
         return post
 
-    def proposal(self, journey):
+    def get_proposal(self, journey: ResearchJourney) -> ResearchhubPost | None:
+        """Return the proposal post for the journey, if one exists."""
         self._require_saved_journey(journey)
         if journey.preregistration_post_id is not None:
             return journey.preregistration_post
@@ -97,7 +105,10 @@ class JourneyService:
             .first()
         )
 
-    def registered_report(self, journey):
+    def get_registered_report(
+        self, journey: ResearchJourney
+    ) -> ResearchhubPost | None:
+        """Return the registered report post for the journey, if one exists."""
         self._require_saved_journey(journey)
         return (
             self.post_model.objects.filter(
@@ -108,43 +119,60 @@ class JourneyService:
             .first()
         )
 
-    def latest_stage_post(self, journey):
-        return self.registered_report(journey) or self.proposal(journey)
+    def get_latest_stage_post(
+        self, journey: ResearchJourney
+    ) -> ResearchhubPost | None:
+        """Return the latest available post stage in the journey."""
+        return self.get_registered_report(journey) or self.get_proposal(journey)
 
-    def stages(self, journey):
+    def get_stages(self, journey: ResearchJourney) -> list[JourneyStage]:
+        """Return journey stages in journal display order."""
         self._require_saved_journey(journey)
         stages = []
 
-        if journey.grant_id is not None:
-            stages.append(JourneyStage(JOURNAL_STAGE_GRANT, journey.grant))
+        if journey.grant_post_id is not None:
+            stages.append(JourneyStage(JOURNEY_STAGE_GRANT, journey.grant_post))
 
-        proposal = self.proposal(journey)
+        proposal = self.get_proposal(journey)
         if proposal is not None:
-            stages.append(JourneyStage(JOURNAL_STAGE_PROPOSAL, proposal))
+            stages.append(JourneyStage(JOURNEY_STAGE_PROPOSAL, proposal))
 
-        registered_report = self.registered_report(journey)
+        registered_report = self.get_registered_report(journey)
         if registered_report is not None:
             stages.append(
-                JourneyStage(JOURNAL_STAGE_REGISTERED_REPORT, registered_report)
+                JourneyStage(JOURNEY_STAGE_REGISTERED_REPORT, registered_report)
             )
 
-        return sorted(stages, key=lambda stage: JOURNAL_STAGE_ORDER[stage.stage])
+        return sorted(stages, key=lambda stage: JOURNEY_STAGE_ORDER[stage.stage])
 
-    def has_registered_report(self, journey):
-        return self.registered_report(journey) is not None
+    def has_registered_report(self, journey: ResearchJourney) -> bool:
+        """Return whether the journey has a registered report stage."""
+        return self.get_registered_report(journey) is not None
 
-    def _grant_for_preregistration(self, post):
+    def _get_grant_post_for_preregistration(
+        self, post: ResearchhubPost
+    ) -> ResearchhubPost | None:
+        """Return the grant post linked through the proposal's grant application."""
         application = (
             self.grant_application_model.objects.filter(preregistration_post=post)
-            .select_related("grant")
+            .select_related("grant__unified_document")
             .order_by("created_date", "id")
             .first()
         )
         if application is None:
             return None
-        return application.grant
+        return (
+            self.post_model.objects.filter(
+                unified_document=application.grant.unified_document,
+            )
+            .order_by("id")
+            .first()
+        )
 
-    def _ensure_proposal_slot(self, journey, post):
+    def _ensure_proposal_slot(
+        self, journey: ResearchJourney, post: ResearchhubPost
+    ) -> None:
+        """Validate and reserve the proposal slot for a journey."""
         if (
             journey.preregistration_post_id is not None
             and journey.preregistration_post_id != post.id
@@ -167,20 +195,26 @@ class JourneyService:
             journey.preregistration_post = post
             journey.save(update_fields=["preregistration_post"])
 
-    def _ensure_registered_report_slot(self, journey, post):
-        registered_report = self.registered_report(journey)
+    def _ensure_registered_report_slot(
+        self, journey: ResearchJourney, post: ResearchhubPost
+    ) -> None:
+        """Validate that the registered report slot is available."""
+        registered_report = self.get_registered_report(journey)
         if registered_report is not None and registered_report.id != post.id:
             raise ValueError("Journey already has a registered report.")
 
-    def _require_saved_post(self, post):
+    def _require_saved_post(self, post: ResearchhubPost | None) -> None:
+        """Require a persisted post instance."""
         if post is None or post.pk is None:
             raise ValueError("Post must be saved.")
 
-    def _require_saved_journey(self, journey):
+    def _require_saved_journey(self, journey: ResearchJourney | None) -> None:
+        """Require a persisted journey instance."""
         if journey is None or journey.pk is None:
             raise ValueError("Journey must be saved.")
 
-    def _save_stage_link(self, post):
+    def _save_stage_link(self, post: ResearchhubPost) -> None:
+        """Persist a post-to-journey link and normalize duplicate report errors."""
         try:
             with transaction.atomic():
                 post.save(update_fields=["journey"])
