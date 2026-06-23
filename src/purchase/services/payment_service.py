@@ -1,6 +1,6 @@
 import logging
 from decimal import Decimal
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 import stripe
 from django.contrib.contenttypes.models import ContentType
@@ -72,10 +72,10 @@ class PaymentService:
         self,
         user_id: int,
         purpose: str,
-        amount: Optional[int] = None,
-        paper_id: Optional[int] = None,
-        success_url: Optional[str] = None,
-        cancel_url: Optional[str] = None,
+        amount: int | None = None,
+        paper_id: int | None = None,
+        success_url: str | None = None,
+        cancel_url: str | None = None,
     ) -> Dict[str, Any]:
         """
         Create a Stripe checkout session.
@@ -268,7 +268,7 @@ class PaymentService:
         self,
         user_id: int,
         rsc_amount: Decimal,
-        fundraise_id: Optional[int] = None,
+        fundraise_id: int | None = None,
     ) -> Dict[str, Any]:
         """
         Create a Stripe payment intent for RSC purchase.
@@ -349,7 +349,7 @@ class PaymentService:
 
     def process_payment_intent_confirmation(
         self, payment_intent_id: str
-    ) -> Tuple[Payment, Optional[Purchase]]:
+    ) -> Tuple[Payment, Purchase | None]:
         """
         Process a confirmed payment intent and create a Payment record for RSC purchase.
 
@@ -502,7 +502,7 @@ class PaymentService:
         user_id: int,
         rsc_amount: Decimal,
         fundraise_service,
-    ) -> Optional[Purchase]:
+    ) -> Purchase | None:
         """
         Process fundraise contribution in a separate transaction.
         Failures here do not affect the payment processing.

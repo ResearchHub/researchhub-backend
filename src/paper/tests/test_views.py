@@ -45,8 +45,8 @@ class PaperApiTests(TestCase):
         self, mock_get_works, mock_get_data_from_doi
     ):
         with (
-            open(fixtures_dir / "openalex_author_works.json", "r") as works_file,
-            open(fixtures_dir / "openalex_single_work.json", "r") as single_work_file,
+            open(fixtures_dir / "openalex_author_works.json") as works_file,
+            open(fixtures_dir / "openalex_single_work.json") as single_work_file,
         ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(
@@ -73,8 +73,8 @@ class PaperApiTests(TestCase):
         self, mock_get_works, mock_get_data_from_doi
     ):
         with (
-            open(fixtures_dir / "openalex_author_works.json", "r") as works_file,
-            open(fixtures_dir / "openalex_single_work.json", "r") as single_work_file,
+            open(fixtures_dir / "openalex_author_works.json") as works_file,
+            open(fixtures_dir / "openalex_single_work.json") as single_work_file,
         ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(
@@ -102,8 +102,8 @@ class PaperApiTests(TestCase):
         self, mock_get_works, mock_get_data_from_doi
     ):
         with (
-            open(fixtures_dir / "openalex_author_works.json", "r") as works_file,
-            open(fixtures_dir / "openalex_single_work.json", "r") as single_work_file,
+            open(fixtures_dir / "openalex_author_works.json") as works_file,
+            open(fixtures_dir / "openalex_single_work.json") as single_work_file,
         ):
             # Set up a user that has a matching name to the one in the mocked response
             user_with_published_works = create_user(

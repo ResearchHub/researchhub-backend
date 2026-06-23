@@ -7,7 +7,7 @@ Both repositories share the same API structure and data format.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from hub.models import Hub
@@ -127,7 +127,7 @@ class BioRxivBaseMapper(BaseMapper):
 
         return paper
 
-    def _parse_license(self, license_str: Optional[str]) -> Optional[str]:
+    def _parse_license(self, license_str: str | None) -> str | None:
         """
         Parse license string to standard format.
 
@@ -143,7 +143,7 @@ class BioRxivBaseMapper(BaseMapper):
         # Currently just return lowercased, hyphenated version
         return license_str.lower().replace("_", "-").strip()
 
-    def _parse_date(self, date_str: Optional[str]) -> Optional[str]:
+    def _parse_date(self, date_str: str | None) -> str | None:
         """
         Parse date string to Paper model format.
 

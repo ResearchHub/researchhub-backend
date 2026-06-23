@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Set
 
 from django.conf import settings
 from xdk import Client
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_bot_accounts_for_paper(
-    external_source: Optional[str], hub_slugs: Optional[List[str]]
+    external_source: str | None, hub_slugs: List[str] | None
 ) -> Set[str]:
     """
     Get bot accounts to exclude based on paper's external source and hub slugs.
@@ -43,7 +43,7 @@ def get_bot_accounts_for_paper(
 
 
 def build_query_with_exclusions(
-    base_query: str, excluded_accounts: Optional[Set[str]]
+    base_query: str, excluded_accounts: Set[str] | None
 ) -> str:
     """
     Build an X search query with account exclusions.
@@ -84,7 +84,7 @@ class XClient:
 
     def __init__(
         self,
-        bearer_token: Optional[str] = None,
+        bearer_token: str | None = None,
         client=None,
         rate_limit: float = DEFAULT_RATE_LIMIT,
     ):
@@ -121,7 +121,7 @@ class XClient:
         if self._client is None:
             self._client = Client(bearer_token=self.bearer_token)
 
-    def search_posts(self, query: str, max_results: int = 10) -> Optional[Dict]:
+    def search_posts(self, query: str, max_results: int = 10) -> Dict | None:
         """
         Search for posts on X matching a query.
 
@@ -198,7 +198,7 @@ class XMetricsClient:
     Client for retrieving X metrics for papers.
     """
 
-    def __init__(self, x_client: Optional[XClient] = None):
+    def __init__(self, x_client: XClient | None = None):
         """
         Constructor.
 
@@ -212,9 +212,9 @@ class XMetricsClient:
         self,
         terms: List[str],
         max_results: int = XClient.MAX_SEARCH_RESULTS,
-        external_source: Optional[str] = None,
-        hub_slugs: Optional[List[str]] = None,
-    ) -> Optional[Dict]:
+        external_source: str | None = None,
+        hub_slugs: List[str] | None = None,
+    ) -> Dict | None:
         """
         Get X metrics for a list of terms using OR logic.
 

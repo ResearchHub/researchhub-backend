@@ -159,6 +159,50 @@ class ModelTests(TestCase):
         self.assertEqual(details["count"], 1)
         self.assertEqual(details["avg"], 6.0)
 
+    def test_get_display_title_for_paper(self):
+        # Arrange
+        self.paper.title = "Short title"
+        self.paper.paper_title = "Full paper title"
+        self.paper.save()
+
+        # Act
+        title = self.paper.unified_document.get_display_title()
+
+        # Assert
+        self.assertEqual(title, "Short title")
+
+    def test_get_display_title_for_paper_falls_back_to_paper_title(self):
+        # Arrange
+        self.paper.title = ""
+        self.paper.paper_title = "Full paper title"
+        self.paper.save()
+
+        # Act
+        title = self.paper.unified_document.get_display_title()
+
+        # Assert
+        self.assertEqual(title, "Full paper title")
+
+    def test_get_display_title_for_post(self):
+        # Arrange
+        post = create_post(title="Post title", created_by=self.user)
+
+        # Act
+        title = post.unified_document.get_display_title()
+
+        # Assert
+        self.assertEqual(title, "Post title")
+
+    def test_get_document_slug(self):
+        # Arrange
+        post = create_post(title="Post title", created_by=self.user)
+
+        # Act
+        slug = post.unified_document.get_document_slug()
+
+        # Assert
+        self.assertEqual(slug, post.slug)
+
 
 class ResearchhubPostStatusTests(TestCase):
     def setUp(self):

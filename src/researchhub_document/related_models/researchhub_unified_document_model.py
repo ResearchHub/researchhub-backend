@@ -297,6 +297,25 @@ class ResearchhubUnifiedDocument(
         else:
             raise Exception(f"Unrecognized document_type: {self.document_type}")
 
+    def get_display_title(self, *, max_length: int = 512) -> str:
+        """Return the user-facing title of the underlying document."""
+        doc = self.get_document()
+        if doc is None:
+            return ""
+        if hasattr(doc, "display_title"):
+            title = (doc.display_title or "").strip()
+        elif hasattr(doc, "title"):
+            title = (str(doc.title or "")).strip()
+        else:
+            title = ""
+        return title[:max_length]
+
+    def get_document_slug(self) -> str:
+        doc = self.get_document()
+        if doc is None:
+            return ""
+        return getattr(doc, "slug", "") or ""
+
     @cached_property
     def fe_document_type(self):
         document_type = self.document_type

@@ -1,7 +1,6 @@
 import argparse
 import time
 from datetime import datetime
-from typing import Optional
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, reset_queries
@@ -96,11 +95,11 @@ class Command(BaseCommand):
 
     def export_items(
         self,
-        since_publish_date: Optional[datetime],
-        ids: Optional[list] = None,
+        since_publish_date: datetime | None,
+        ids: list | None = None,
         with_interactions: bool = True,
         with_posts: bool = False,
-        post_types: Optional[list] = None,
+        post_types: list | None = None,
     ):
         """Export items from ResearchhubUnifiedDocument to CSV."""
         # Force enable query tracking for debugging
@@ -263,7 +262,7 @@ class Command(BaseCommand):
             document_type__in=SUPPORTED_DOCUMENT_TYPES,
         )
 
-    def _get_posts_filter(self, post_types: Optional[list] = None) -> Q:
+    def _get_posts_filter(self, post_types: list | None = None) -> Q:
         """Get Q filter for all ResearchHub post documents.
 
         Args:
@@ -277,11 +276,11 @@ class Command(BaseCommand):
 
     def _get_queryset(
         self,
-        since_publish_date: Optional[datetime],
-        ids: Optional[list] = None,
+        since_publish_date: datetime | None,
+        ids: list | None = None,
         with_interactions: bool = True,
         with_posts: bool = False,
-        post_types: Optional[list] = None,
+        post_types: list | None = None,
     ) -> QuerySet[ResearchhubUnifiedDocument]:
         base_queryset = self._build_base_queryset()
 
@@ -339,7 +338,7 @@ class Command(BaseCommand):
         # Return queryset filtered by the combined IDs
         return base_queryset.filter(id__in=combined_ids).order_by("id")
 
-    def _parse_date(self, date_str: Optional[str]) -> Optional[datetime]:
+    def _parse_date(self, date_str: str | None) -> datetime | None:
         """Parse date string to timezone-aware datetime object."""
         if not date_str:
             return None

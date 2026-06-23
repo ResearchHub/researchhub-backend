@@ -1,4 +1,3 @@
-from typing import Optional
 from urllib.parse import urlparse
 
 from allauth.socialaccount.models import SocialApp
@@ -11,7 +10,7 @@ def get_orcid_app() -> SocialApp:
     return SocialApp.objects.get(provider=OrcidProvider.id)
 
 
-def is_valid_redirect_url(url: Optional[str]) -> bool:
+def is_valid_redirect_url(url: str | None) -> bool:
     """Validate redirect URL against CORS whitelist."""
     if not url:
         return False

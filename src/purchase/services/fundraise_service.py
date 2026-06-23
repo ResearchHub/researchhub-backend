@@ -2,7 +2,7 @@ import logging
 import time
 from datetime import timedelta
 from decimal import Decimal
-from typing import Optional, Tuple
+from typing import Tuple
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -72,7 +72,7 @@ class FundraiseService:
 
     def validate_fundraise_for_contribution(
         self, fundraise: Fundraise, user: User, check_self_contribution: bool = True
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> Tuple[bool, str | None]:
         """
         Validates that a fundraise is valid for contributions.
 
@@ -105,9 +105,9 @@ class FundraiseService:
         amount: Decimal,
         currency: str = RSC,
         check_self_contribution: bool = True,
-        origin_fund_id: Optional[str] = None,
+        origin_fund_id: str | None = None,
         use_credits: bool = True,
-    ) -> Tuple[Optional[Purchase], Optional[str]]:
+    ) -> Tuple[Purchase | None, str | None]:
         """
         Validates and creates a contribution to a fundraise.
         Handles both RSC and USD contributions with limit validation.
@@ -216,7 +216,7 @@ class FundraiseService:
         fundraise: Fundraise,
         amount: Decimal,
         use_credits: bool = True,
-    ) -> Tuple[Optional[Purchase], Optional[str]]:
+    ) -> Tuple[Purchase | None, str | None]:
         """
         Creates an RSC contribution to a fundraise.
 
@@ -326,7 +326,7 @@ class FundraiseService:
         fundraise: Fundraise,
         amount_cents: int,
         origin_fund_id: str = None,
-    ) -> Tuple[Optional[UsdFundraiseContribution], Optional[str]]:
+    ) -> Tuple[UsdFundraiseContribution | None, str | None]:
         """
         Creates a USD contribution to a fundraise.
 

@@ -22,13 +22,13 @@ class TestOpenAlexClient(TestCase):
         self.client = OpenAlexClient(self.config)
 
         # Load fixture files
-        with open(fixtures_dir / "openalex_sample_response.json", "r") as f:
+        with open(fixtures_dir / "openalex_sample_response.json") as f:
             self.sample_list_response = json.load(f)
 
-        with open(fixtures_dir / "openalex_sample_get_by_doi_response.json", "r") as f:
+        with open(fixtures_dir / "openalex_sample_get_by_doi_response.json") as f:
             self.sample_single_response = json.load(f)
 
-        with open(fixtures_dir / "openalex_empty_response.json", "r") as f:
+        with open(fixtures_dir / "openalex_empty_response.json") as f:
             self.empty_list_response = json.load(f)
 
     def test_config_defaults(self):

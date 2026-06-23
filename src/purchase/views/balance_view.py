@@ -3,7 +3,6 @@ import decimal
 import time
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Optional
 
 from django.http import HttpResponse
 from django_filters import rest_framework as filters
@@ -126,7 +125,7 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
     def turbotax_csv_export(self, request):
         """Export transactions in TurboTax-compatible CSV format."""
 
-        def format_decimal(value: Optional[Decimal]) -> str:
+        def format_decimal(value: Decimal | None) -> str:
             """Format decimal to 8 decimal places."""
             if value is None:
                 return "0.00"

@@ -25,13 +25,13 @@ fixtures_dir = Path(__file__).parent / "fixtures"
 
 class ProcessOpenAlexWorksTests(APITestCase):
     def setUp(self):
-        with open(fixtures_dir / "openalex_works.json", "r") as file:
+        with open(fixtures_dir / "openalex_works.json") as file:
             response = json.load(file)
             self.works = response.get("results")
 
     @patch.object(OpenAlex, "get_authors")
     def test_create_papers_from_openalex_works(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -53,7 +53,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
     @patch.object(OpenAlex, "get_authors")
     def test_creating_papers_should_create_related_concepts(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -70,7 +70,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
     @patch.object(OpenAlex, "get_authors")
     def test_creating_papers_should_create_related_topics(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -87,7 +87,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
     @patch.object(OpenAlex, "get_authors")
     def test_creating_papers_should_create_related_hubs(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -104,7 +104,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
     @patch.object(OpenAlex, "get_authors")
     def test_creating_papers_should_tag_with_reputation_hubs(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -125,7 +125,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
     @patch.object(OpenAlex, "get_authors")
     def test_updating_existing_papers_from_openalex_works(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -157,7 +157,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
     @patch.object(OpenAlex, "get_authors")
     def test_create_authors_when_processing_work(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -177,7 +177,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
     @patch.object(OpenAlex, "get_authors")
     def test_create_authors_when_processing_work_twice(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -198,7 +198,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
     @patch.object(OpenAlex, "get_authors")
     def test_create_authorships_when_processing_work(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -215,7 +215,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
     @patch.object(OpenAlex, "get_authors")
     def test_create_authorships_when_processing_work_twice(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             # Arrange
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
@@ -239,7 +239,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
     def test_create_authorships_when_processing_work_with_field_updates(
         self, mock_get_authors
     ):
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             # Arrange
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
@@ -274,7 +274,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
     def test_create_authorship_institutions_when_processing_work(
         self, mock_get_authors
     ):
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -304,7 +304,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
         # test has an orcid value in order to test if orcid is set properly when exists
         # in payload
 
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -317,7 +317,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
     @patch.object(OpenAlex, "get_authors")
     def test_author_summary_stats_are_set(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -335,7 +335,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
     @patch.object(OpenAlex, "get_authors")
     def test_create_contribution_activity(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 

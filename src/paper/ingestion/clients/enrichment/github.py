@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional
+from typing import Dict
 
 import requests
 
@@ -21,7 +21,7 @@ class GithubClient:
 
     def __init__(
         self,
-        api_token: Optional[str] = None,
+        api_token: str | None = None,
         timeout: int = DEFAULT_TIMEOUT,
         rate_limit: float = DEFAULT_RATE_LIMIT,
     ):
@@ -52,7 +52,7 @@ class GithubClient:
         endpoint: str,
         query: str,
         per_page: int = 1,
-    ) -> Optional[Dict]:
+    ) -> Dict | None:
         """
         Execute a search request against GitHub's search API.
 
@@ -101,7 +101,7 @@ class GithubMetricsClient:
     VALID_SEARCH_AREAS = ["code", "issues", "commits", "repositories"]
     DEFAULT_SEARCH_AREAS = ["issues", "commits", "repositories"]
 
-    def __init__(self, github_client: Optional[GithubClient] = None):
+    def __init__(self, github_client: GithubClient | None = None):
         """
         Constructor.
 
@@ -112,8 +112,8 @@ class GithubMetricsClient:
         self.github_client = github_client or GithubClient()
 
     def get_mentions(
-        self, terms: list[str], search_areas: Optional[list] = None
-    ) -> Optional[Dict]:
+        self, terms: list[str], search_areas: list | None = None
+    ) -> Dict | None:
         """
         Get mentions of terms on GitHub using OR logic.
 
@@ -182,7 +182,7 @@ class GithubMetricsClient:
         quoted_terms = [f'"{term}"' for term in terms if term]
         return " OR ".join(quoted_terms)
 
-    def _search_area(self, query: str, area: str) -> Optional[int]:
+    def _search_area(self, query: str, area: str) -> int | None:
         """
         Search a specific GitHub area for mentions.
 
