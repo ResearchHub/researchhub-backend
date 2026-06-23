@@ -8,9 +8,11 @@ from notification.models import Notification
 from paper.tests.helpers import create_paper
 from purchase.models import Grant
 from researchhub_document.helpers import create_post
+from researchhub_document.models import ResearchJourney
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     GRANT,
+    PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -53,6 +55,19 @@ class ContentModerationServiceTests(TestCase):
             notification_type=Notification.CONTENT_APPROVED, recipient=self.author
         )
         self.assertTrue(notification.body)
+
+    def test_approve_preregistration_creates_journey(self) -> None:
+        """Verify approving a preregistration creates its journey anchor."""
+        # Arrange
+        proposal = self._pending_post(document_type=PREREGISTRATION)
+
+        # Act
+        self.service.approve_content(proposal, self.moderator)
+
+        # Assert
+        proposal.refresh_from_db()
+        journey = ResearchJourney.objects.get(preregistration_post=proposal)
+        self.assertEqual(proposal.journey, journey)
 
     def test_decline_flags_removes_doc_and_notifies(self):
         # Arrange - self.post is a pending post created in setUp

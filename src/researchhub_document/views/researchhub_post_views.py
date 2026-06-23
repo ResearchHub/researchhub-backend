@@ -39,6 +39,7 @@ from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
 )
+from researchhub_document.services.journey_service import JourneyService
 from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.models import User
 from user.services.risk_score_service import RiskScoreService
@@ -336,6 +337,8 @@ class ResearchhubPostViewSet(
                         applicant=created_by,
                     )
                     GrantCacheMixin.invalidate_grant_feed_cache()
+
+                JourneyService().ensure_approved_preregistration_has_journey(rh_post)
 
             response_data = ResearchhubPostSerializer(
                 rh_post, context={"request": request}

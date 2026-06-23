@@ -16,7 +16,7 @@ from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
-from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.models import ResearchhubUnifiedDocument, ResearchJourney
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
@@ -29,8 +29,10 @@ from researchhub_document.views.researchhub_post_views import (
     MIN_POST_TITLE_LENGTH,
 )
 from review.models import Review
+from user.constants.risk_score_constants import TRUSTED_THRESHOLD
 from user.related_models.author_model import Author
 from user.related_models.organization_model import Organization
+from user.related_models.risk_score_model import RiskScore
 from user.tests.helpers import (
     create_organization,
     create_random_default_user,
@@ -1756,6 +1758,25 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
                 applicant=self.user,
             ).exists()
         )
+
+    def test_create_auto_approved_preregistration_creates_journey(self) -> None:
+        """Verify trusted preregistration creation creates a journey anchor."""
+        # Arrange
+        RiskScore.objects.update_or_create(
+            user=self.user,
+            defaults={"score": TRUSTED_THRESHOLD},
+        )
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post(extra_data={"grant_id": self.grant.id})
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        journey = ResearchJourney.objects.get(
+            preregistration_post_id=response.data["id"]
+        )
+        self.assertEqual(journey.grant_post, self.grant.unified_document.posts.first())
 
     def test_create_preregistration_without_grant_id_does_not_attach(self):
         # Arrange
