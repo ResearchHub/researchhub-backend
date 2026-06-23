@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import List, Optional
+from typing import List
 
 from django.db import transaction
 from django.utils import timezone
@@ -22,9 +22,9 @@ class EnrichmentResult:
     """Result of enriching a single paper with OpenAlex data."""
 
     status: str  # "success", "not_found", "skipped", or "error"
-    license: Optional[str] = None
-    license_url: Optional[str] = None
-    reason: Optional[str] = None
+    license: str | None = None
+    license_url: str | None = None
+    reason: str | None = None
     authors_created: int = 0
     authors_updated: int = 0
     institutions_created: int = 0

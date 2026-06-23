@@ -1,6 +1,6 @@
 import csv
 import time
-from typing import Callable, Iterator, Optional
+from typing import Callable, Iterator
 
 from django.db import connection, reset_queries
 from django.db.models import QuerySet
@@ -30,8 +30,8 @@ class ExportService:
     def export_items(
         self,
         queryset: QuerySet[ResearchhubUnifiedDocument],
-        progress_callback: Optional[Callable[[int, int, int], None]] = None,
-        total_items: Optional[int] = None,
+        progress_callback: Callable[[int, int, int], None] | None = None,
+        total_items: int | None = None,
     ) -> Iterator[dict]:
         """Export items from queryset as an iterator of CSV row dicts.
 
@@ -114,8 +114,8 @@ class ExportService:
         self,
         queryset: QuerySet[ResearchhubUnifiedDocument],
         filename: str,
-        progress_callback: Optional[Callable[[int, int, int], None]] = None,
-        total_items: Optional[int] = None,
+        progress_callback: Callable[[int, int, int], None] | None = None,
+        total_items: int | None = None,
     ) -> dict:
         """Export items directly to CSV file.
 
@@ -164,7 +164,7 @@ class ExportService:
     def _process_chunk(
         self,
         chunk: list[ResearchhubUnifiedDocument],
-        timing: Optional[dict] = None,
+        timing: dict | None = None,
     ) -> list[dict]:
         """Process a chunk of documents with batch fetching."""
         if not chunk:

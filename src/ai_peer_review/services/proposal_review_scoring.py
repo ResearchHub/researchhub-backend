@@ -1,6 +1,5 @@
 import json
 import re
-from typing import Optional
 
 from ai_peer_review.constants import CATEGORY_ITEMS, CATEGORY_KEYS, CRITICAL_FAIL_ITEMS
 from ai_peer_review.models import OverallRating
@@ -27,7 +26,7 @@ def parse_json_response(text: str) -> dict:
     raise ValueError("Could not extract valid JSON from LLM response")
 
 
-def _decision_to_score_value(decision: object) -> Optional[float]:
+def _decision_to_score_value(decision: object) -> float | None:
     """
     Map one item ``decision`` to a 1-5 scale value for averaging.
 
@@ -112,7 +111,7 @@ def normalize_category_scores_from_item_decisions(review_dict: dict) -> None:
         cat_obj["score"] = _category_score_from_items(cat_key, cat_obj)
 
 
-def _category_score_label(categories: dict, cat_key: str) -> Optional[int]:
+def _category_score_label(categories: dict, cat_key: str) -> int | None:
     """
     Return stored category score as 1-5, or None.
     """
@@ -199,9 +198,9 @@ def compute_overall_rating_totals(review_dict: dict) -> tuple[str, int, int]:
     return rating, total, n
 
 
-def category_scores(review_dict: dict) -> dict[str, Optional[int]]:
+def category_scores(review_dict: dict) -> dict[str, int | None]:
     """Return each category score 1-5; ``None`` if missing category object."""
-    out: dict[str, Optional[int]] = {}
+    out: dict[str, int | None] = {}
     cats = review_dict.get("categories")
     if not isinstance(cats, dict):
         for key in CATEGORY_KEYS:

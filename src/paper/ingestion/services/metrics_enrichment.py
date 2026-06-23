@@ -2,7 +2,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from django.utils import timezone
 
@@ -19,8 +19,8 @@ class EnrichmentResult:
     """Result of enriching a single paper with metrics."""
 
     status: str  # "success", "not_found", "skipped", "error", or "retryable_error"
-    metrics: Optional[Dict[str, Any]] = None
-    reason: Optional[str] = None
+    metrics: Dict[str, Any] | None = None
+    reason: str | None = None
 
 
 @dataclass

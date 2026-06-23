@@ -5,7 +5,7 @@ Paper ingestion pipeline for fetching and processing papers from multiple source
 import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from celery import group
 from django.conf import settings
@@ -31,7 +31,7 @@ class IngestionStatus:
 
     source: str
     start_time: datetime
-    end_time: Optional[datetime] = None
+    end_time: datetime | None = None
     total_fetched: int = 0
     total_processed: int = 0
     total_created: int = 0
@@ -59,9 +59,9 @@ class PaperIngestionPipeline:
 
     def run_ingestion(
         self,
-        sources: Optional[List[str]] = None,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
+        sources: List[str] | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
         create_fetch_log: bool = True,
     ) -> Dict[str, IngestionStatus]:
         """
@@ -265,8 +265,8 @@ def fetch_all_papers() -> Dict[str, Any]:
 )
 def fetch_papers_from_source(
     source: str,
-    since: Optional[str] = None,
-    until: Optional[str] = None,
+    since: str | None = None,
+    until: str | None = None,
     create_fetch_log: bool = True,
 ) -> Dict[str, Any]:
     """

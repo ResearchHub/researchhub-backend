@@ -1,6 +1,6 @@
 import logging
 from datetime import timedelta
-from typing import Callable, Optional, Tuple
+from typing import Callable, Tuple
 
 from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
@@ -27,9 +27,9 @@ class OrcidCallbackService:
 
     def __init__(
         self,
-        client: Optional[OrcidClient] = None,
-        email_service: Optional[OrcidEmailService] = None,
-        sync_task: Optional[Callable] = None,
+        client: OrcidClient | None = None,
+        email_service: OrcidEmailService | None = None,
+        sync_task: Callable | None = None,
     ):
         self.client = client or OrcidClient()
         self.email_service = email_service or OrcidEmailService(client=self.client)
@@ -57,7 +57,7 @@ class OrcidCallbackService:
             return self.get_redirect_url(error="error", return_url=return_url)
 
     def get_redirect_url(
-        self, error: Optional[str] = None, return_url: Optional[str] = None
+        self, error: str | None = None, return_url: str | None = None
     ) -> str:
         """Build redirect URL with success or error query params."""
         base = (
@@ -72,7 +72,7 @@ class OrcidCallbackService:
             else f"{base}{sep}orcid_connected=true"
         )
 
-    def _validate_state(self, state: str) -> Tuple[User, Optional[str]]:
+    def _validate_state(self, state: str) -> Tuple[User, str | None]:
         """Decode and validate the signed state token, returning user and return_url."""
         try:
             state_data = signing.loads(state, max_age=STATE_MAX_AGE)

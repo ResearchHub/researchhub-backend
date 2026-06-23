@@ -4,7 +4,7 @@ Client for interacting with AWS Personalize service.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from django.conf import settings
 
@@ -37,8 +37,8 @@ class RecommendationClient:
         self,
         user_id: str,
         campaign_arn: str,
-        filter_arn: Optional[str] = None,
-        filter_values: Optional[Dict[str, str]] = None,
+        filter_arn: str | None = None,
+        filter_values: Dict[str, str] | None = None,
         num_results: int = 20,
     ) -> Dict[str, Any]:
         """
@@ -90,8 +90,8 @@ class RecommendationClient:
     def get_recommendations_for_user(
         self,
         user_id: str,
-        filter: Optional[str] = None,
-        hub_id: Optional[str] = None,
+        filter: str | None = None,
+        hub_id: str | None = None,
         num_results: int = 20,
     ) -> Dict[str, Any]:
         filter_arn = None

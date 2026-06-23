@@ -1,7 +1,7 @@
 import base64
 import logging
 from io import BytesIO
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from django.conf import settings
 from PIL import Image
@@ -125,7 +125,7 @@ class BedrockPrimaryImageService:
         self.model_id = BEDROCK_MODEL_ID
         self.anthropic_version = BEDROCK_ANTHROPIC_VERSION
 
-    def _encode_image_to_base64(self, figure) -> Optional[tuple]:
+    def _encode_image_to_base64(self, figure) -> tuple | None:
         """
         Encode figure image to base64 string.
 
@@ -437,8 +437,8 @@ on other criteria."""
         batch_figures: List,
         paper_title: str,
         paper_abstract: str,
-        batch_number: Optional[int] = None,
-    ) -> Tuple[Optional[int], Optional[float]]:
+        batch_number: int | None = None,
+    ) -> Tuple[int | None, float | None]:
         """
         Select the best figure from a batch of figures using AWS Bedrock.
 
@@ -627,7 +627,7 @@ on other criteria."""
 
     def select_primary_image(
         self, paper_title: str, paper_abstract: str, figures: List
-    ) -> Tuple[Optional[int], Optional[float]]:
+    ) -> Tuple[int | None, float | None]:
         """
         Select primary image from figures using AWS Bedrock with batching support.
 

@@ -7,7 +7,7 @@ Handles communication with ArXiv API endpoints.
 import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 import requests
 
@@ -91,7 +91,7 @@ def parse_xml_entry(raw_xml: str) -> Dict[str, Any]:
         return {}
 
 
-def _get_text(element: ET.Element, tag: str) -> Optional[str]:
+def _get_text(element: ET.Element, tag: str) -> str | None:
     """
     Get text content from an XML element.
 
@@ -145,7 +145,7 @@ class ArXivClient(BaseClient):
     ARXIV_NS = "{http://arxiv.org/schemas/atom}"
     OPENSEARCH_NS = "{http://a9.com/-/spec/opensearch/1.1/}"
 
-    def __init__(self, config: Optional[ArXivConfig] = None):
+    def __init__(self, config: ArXivConfig | None = None):
         """Initialize ArXiv client."""
         if config is None:
             config = ArXivConfig()
@@ -153,7 +153,7 @@ class ArXivClient(BaseClient):
         self.session = requests.Session()
 
     def fetch(
-        self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs
+        self, endpoint: str, params: Dict[str, Any] | None = None, **kwargs
     ) -> Union[str, bytes, Dict[str, Any]]:
         """
         Fetch data from ArXiv API.
@@ -232,9 +232,9 @@ class ArXivClient(BaseClient):
 
     def fetch_recent(
         self,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        max_results: Optional[int] = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        max_results: int | None = None,
         **kwargs,
     ) -> List[Dict[str, Any]]:
         """

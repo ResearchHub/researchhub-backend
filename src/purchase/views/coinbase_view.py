@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -23,7 +22,7 @@ class CoinbaseViewSet(viewsets.ViewSet):
 
     permission_classes = [IsAuthenticated]
 
-    def __init__(self, coinbase_service: Optional[CoinbaseService] = None, **kwargs):
+    def __init__(self, coinbase_service: CoinbaseService | None = None, **kwargs):
         super().__init__(**kwargs)
         self.coinbase_service = coinbase_service or CoinbaseService()
 

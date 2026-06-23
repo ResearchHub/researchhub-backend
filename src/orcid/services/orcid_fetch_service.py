@@ -1,5 +1,5 @@
 import logging
-from typing import Callable, Optional, Tuple
+from typing import Callable, Tuple
 
 from allauth.socialaccount.models import SocialAccount, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
@@ -25,10 +25,10 @@ class OrcidFetchService:
 
     def __init__(
         self,
-        client: Optional[OrcidClient] = None,
-        openalex: Optional[OpenAlex] = None,
-        email_service: Optional[OrcidEmailService] = None,
-        process_works_fn: Optional[Callable] = None,
+        client: OrcidClient | None = None,
+        openalex: OpenAlex | None = None,
+        email_service: OrcidEmailService | None = None,
+        process_works_fn: Callable | None = None,
     ):
         self.client = client or OrcidClient()
         self.openalex = openalex or OpenAlex()
@@ -36,7 +36,7 @@ class OrcidFetchService:
         self.process_works_fn = process_works_fn or process_openalex_works
 
     @staticmethod
-    def _normalize_orcid(orcid: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+    def _normalize_orcid(orcid: str | None) -> Tuple[str | None, str | None]:
         """Normalize ORCID to (full_url, bare_id) format."""
         if not orcid:
             return None, None
@@ -70,7 +70,7 @@ class OrcidFetchService:
             raise ValueError(f"Author {author_id} has no ORCID connected")
         return author, orcid_id
 
-    def _sync_edu_emails(self, user: Optional[User], orcid_id: str) -> None:
+    def _sync_edu_emails(self, user: User | None, orcid_id: str) -> None:
         """Sync verified edu emails from ORCID to user's social account."""
         if not user:
             return
@@ -111,7 +111,7 @@ class OrcidFetchService:
                 update_fields=["h_index", "i10_index", "two_year_mean_citedness"]
             )
 
-    def _extract_orcid_id(self, orcid_url: Optional[str]) -> str:
+    def _extract_orcid_id(self, orcid_url: str | None) -> str:
         """Extract bare ORCID ID from full URL (e.g., '0000-0001-2345-6789')."""
         _, bare = self._normalize_orcid(orcid_url)
         return bare or ""
@@ -231,7 +231,7 @@ class OrcidFetchService:
                     )
 
     def _link_papers_to_author(
-        self, works: list[dict], syncing_author: Optional[Author] = None
+        self, works: list[dict], syncing_author: Author | None = None
     ) -> int:
         """Merge authorships for all authors on papers that have ORCID matches."""
         linked = 0
@@ -280,7 +280,7 @@ class OrcidFetchService:
 
     def _link_work_to_author(
         self, paper: Paper, work: dict, author: Author
-    ) -> Optional[int]:
+    ) -> int | None:
         """
         Link the user's authorship on this paper.
 
@@ -315,7 +315,7 @@ class OrcidFetchService:
 
     def _find_author_openalex_id(
         self, work: dict, orcid: str, openalex_ids: set[str]
-    ) -> Optional[str]:
+    ) -> str | None:
         """Find the OpenAlex author ID matching ORCID or known IDs."""
         for openalex_authorship in work.get("authorships", []):
             openalex_author = openalex_authorship.get("author", {})
@@ -398,7 +398,7 @@ class OrcidFetchService:
             cache.delete(f"author-{author_id}-publications")
             cache.delete(f"author-{author_id}-summary-stats")
 
-    def _find_paper_by_doi(self, raw_doi: str) -> Optional[Paper]:
+    def _find_paper_by_doi(self, raw_doi: str) -> Paper | None:
         """Find paper by DOI (handles both full URL and bare DOI formats)."""
         if not raw_doi:
             return None
