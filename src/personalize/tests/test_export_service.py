@@ -152,7 +152,7 @@ class ExportToCSVTests(TestCase):
             result = service.export_to_csv(queryset, filename)
 
             # Read back the file
-            with open(filename, "r", encoding="utf-8") as csvfile:
+            with open(filename, encoding="utf-8") as csvfile:
                 reader = csv.DictReader(csvfile)
                 headers = reader.fieldnames
 
@@ -288,7 +288,7 @@ class IntegrationTests(TestCase):
             result = service.export_to_csv(queryset, filename)
 
             # Read back the file
-            with open(filename, "r", encoding="utf-8") as csvfile:
+            with open(filename, encoding="utf-8") as csvfile:
                 reader = csv.DictReader(csvfile)
                 rows = list(reader)
 

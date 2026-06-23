@@ -1,6 +1,6 @@
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
-BIORXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
+BIORXIV_MAPPINGS: Dict[str, Tuple[str, str | None]] = {
     "animal behavior and cognition": ("biology", "neuroscience"),
     "biochemistry": ("biology", "biochemistry"),
     "bioengineering": ("engineering", "bioengineering"),

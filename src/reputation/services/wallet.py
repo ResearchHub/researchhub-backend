@@ -1,7 +1,6 @@
 import logging
 import time
 from decimal import Decimal
-from typing import Optional
 
 from django.conf import settings
 from django.db import transaction
@@ -28,7 +27,7 @@ class WalletService:
     """Service for managing wallet operations including RSC burning."""
 
     @staticmethod
-    def burn_revenue_rsc(network: str = "BASE") -> Optional[str]:
+    def burn_revenue_rsc(network: str = "BASE") -> str | None:
         """
         Burn RSC from the revenue account.
 

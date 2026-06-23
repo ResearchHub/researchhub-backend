@@ -88,7 +88,7 @@ jobs:
           uv run python manage.py collectstatic --noinput
           uv run python manage.py opensearch index rebuild --force
 
-      - uses: anthropics/claude-code-action@eee73e2ae5399c561de4ff038aa7b36a7aa991a7 # v1.0.143
+      - uses: anthropics/claude-code-action@806af32823ef69c8ef357086c573a902af641307 # v1.0.151
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           additional_permissions: |

@@ -1,6 +1,6 @@
 import csv
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand, CommandError
@@ -71,8 +71,8 @@ class Command(BaseCommand):
 
     def handle_import(
         self,
-        start_date: Optional[datetime],
-        end_date: Optional[datetime],
+        start_date: datetime | None,
+        end_date: datetime | None,
         batch_size: int,
         source: str = "all",
     ):
@@ -124,8 +124,8 @@ class Command(BaseCommand):
 
     def _import_from_votes(
         self,
-        start_date: Optional[datetime],
-        end_date: Optional[datetime],
+        start_date: datetime | None,
+        end_date: datetime | None,
         batch_size: int,
     ) -> tuple:
         """Import interactions from Vote model."""
@@ -173,8 +173,8 @@ class Command(BaseCommand):
 
     def _import_from_comments(
         self,
-        start_date: Optional[datetime],
-        end_date: Optional[datetime],
+        start_date: datetime | None,
+        end_date: datetime | None,
         batch_size: int,
     ) -> tuple:
         """Import interactions from RhCommentModel."""
@@ -225,8 +225,8 @@ class Command(BaseCommand):
 
     def _import_from_list_items(
         self,
-        start_date: Optional[datetime],
-        end_date: Optional[datetime],
+        start_date: datetime | None,
+        end_date: datetime | None,
         batch_size: int,
     ) -> tuple:
         """Import interactions from ListItem model (saved to list)."""
@@ -276,8 +276,8 @@ class Command(BaseCommand):
 
     def handle_export(
         self,
-        start_date: Optional[datetime],
-        end_date: Optional[datetime],
+        start_date: datetime | None,
+        end_date: datetime | None,
         mark_synced: bool,
         users_only: bool = False,
     ):
@@ -379,7 +379,7 @@ class Command(BaseCommand):
         UserInteractions.objects.bulk_create(batch, ignore_conflicts=True)
         return UserInteractions.objects.count() - before
 
-    def _parse_date(self, date_str: Optional[str]) -> Optional[datetime]:
+    def _parse_date(self, date_str: str | None) -> datetime | None:
         if not date_str:
             return None
         try:
@@ -388,7 +388,7 @@ class Command(BaseCommand):
             raise CommandError(f"Invalid date: {date_str}. Use YYYY-MM-DD")
 
     def _get_upvote_queryset(
-        self, start_date: Optional[datetime], end_date: Optional[datetime]
+        self, start_date: datetime | None, end_date: datetime | None
     ) -> QuerySet:
         queryset = Vote.objects.select_related("created_by").filter(
             vote_type=Vote.UPVOTE
@@ -400,7 +400,7 @@ class Command(BaseCommand):
         return queryset
 
     def _get_comment_queryset(
-        self, start_date: Optional[datetime], end_date: Optional[datetime]
+        self, start_date: datetime | None, end_date: datetime | None
     ) -> QuerySet:
         queryset = RhCommentModel.objects.select_related("created_by")
         if start_date:
@@ -410,7 +410,7 @@ class Command(BaseCommand):
         return queryset
 
     def _get_list_item_queryset(
-        self, start_date: Optional[datetime], end_date: Optional[datetime]
+        self, start_date: datetime | None, end_date: datetime | None
     ) -> QuerySet:
         queryset = ListItem.objects.select_related(
             "created_by", "unified_document", "parent_list"

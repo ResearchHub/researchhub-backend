@@ -3,7 +3,7 @@ import logging
 import math
 import sys
 import time
-from typing import Any, Iterable, Optional, override
+from typing import Any, Iterable, override
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
@@ -65,8 +65,8 @@ class PaperDocument(BaseDocument):
     @override
     def get_queryset(
         self,
-        filter_: Optional[Q] = None,
-        exclude: Optional[Q] = None,
+        filter_: Q | None = None,
+        exclude: Q | None = None,
         count: int = None,  # type: ignore[override]
     ) -> QuerySet:
         """
@@ -258,8 +258,8 @@ class PaperDocument(BaseDocument):
     def get_indexing_queryset(
         self,
         verbose: bool = False,
-        filter_: Optional[Q] = None,
-        exclude: Optional[Q] = None,
+        filter_: Q | None = None,
+        exclude: Q | None = None,
         count: int = None,
         action: str = "Index",
         stdout: io.FileIO = sys.stdout,

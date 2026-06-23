@@ -6,7 +6,7 @@ Maps ArXiv paper records to ResearchHub Paper model fields.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from hub.models import Hub
@@ -34,7 +34,7 @@ class ArXivMapper(BaseMapper):
         super().__init__(hub_mapper)
 
     @property
-    def preprint_hub(self) -> Optional[Hub]:
+    def preprint_hub(self) -> Hub | None:
         """
         Lazy load the ArXiv hub.
         """
@@ -180,7 +180,7 @@ class ArXivMapper(BaseMapper):
 
         return f"10.48550/arXiv.{base_id}"
 
-    def _get_best_date(self, record: Dict[str, Any]) -> Optional[str]:
+    def _get_best_date(self, record: Dict[str, Any]) -> str | None:
         """
         Get the best available date from the record.
 
@@ -202,7 +202,7 @@ class ArXivMapper(BaseMapper):
 
         return None
 
-    def _parse_date(self, date_str: Optional[str]) -> Optional[str]:
+    def _parse_date(self, date_str: str | None) -> str | None:
         """
         Parse ISO date string to Paper model format (YYYY-MM-DD).
 

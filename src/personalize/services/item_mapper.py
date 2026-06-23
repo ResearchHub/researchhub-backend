@@ -3,7 +3,7 @@ Mapper class for converting ResearchhubUnifiedDocument to AWS Personalize items.
 """
 
 import json
-from typing import Dict, Optional, Protocol, runtime_checkable
+from typing import Dict, Protocol, runtime_checkable
 
 from personalize.config.constants import (
     BLUESKY_POST_COUNT,
@@ -75,7 +75,7 @@ class ItemMapper:
         proposal_data: dict,
         rfp_data: dict,
         review_count_data: dict,
-    ) -> Dict[str, Optional[str]]:
+    ) -> Dict[str, str | None]:
         return self._map_to_item(
             prefetched_doc, bounty_data, proposal_data, rfp_data, review_count_data
         )
@@ -112,7 +112,7 @@ class ItemMapper:
         proposal_data: dict,
         rfp_data: dict,
         review_count_data: dict,
-    ) -> Dict[str, Optional[str]]:
+    ) -> Dict[str, str | None]:
         # Initialize row with default values from constants
         row = {field: default for field, default in FIELD_DEFAULTS.items()}
 
