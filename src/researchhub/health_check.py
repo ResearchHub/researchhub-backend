@@ -38,7 +38,7 @@ class GitHashBackend(BaseHealthCheckBackend):
             base_dir = os.path.dirname(os.path.abspath(__file__))
             parent_dir = os.path.dirname(base_dir)
             file_path = os.path.join(parent_dir, "git_hash.txt")
-            with open(file_path, "r") as f:
+            with open(file_path) as f:
                 git_hash = f.read().strip()
         except FileNotFoundError:
             pass

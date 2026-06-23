@@ -9,7 +9,7 @@ All functions gracefully handle missing keys and malformed data.
 
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any, Optional, Tuple
+from typing import Any, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def has_comments(metrics: dict) -> bool:
     return replies > 0 or review_count > 0
 
 
-def parse_iso_datetime(date_string: str) -> Optional[datetime]:
+def parse_iso_datetime(date_string: str) -> datetime | None:
     if not date_string or not isinstance(date_string, str):
         return None
 

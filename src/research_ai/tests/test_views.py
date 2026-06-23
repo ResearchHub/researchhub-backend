@@ -89,21 +89,6 @@ class ExpertSearchDetailViewTests(APITestCase):
         self.assertEqual(data["experts"][0]["email"], "d@v.edu")
         self.assertEqual(data["experts"][0]["id"], ex.id)
 
-    def test_detail_returns_excluded_search_ids(self):
-        search = ExpertSearch.objects.create(
-            created_by=self.moderator,
-            query="With exclusions",
-            status=ExpertSearch.Status.COMPLETED,
-            expert_count=0,
-            excluded_search_ids=[7],
-        )
-        self.client.force_authenticate(self.moderator)
-        r = self.client.get(
-            "/api/research_ai/expert-finder/searches/{}/".format(search.id)
-        )
-        self.assertEqual(r.status_code, status.HTTP_200_OK)
-        self.assertEqual(r.json()["excluded_search_ids"], [7])
-
 
 class ExpertSearchListViewTests(APITestCase):
     def setUp(self):
@@ -566,36 +551,7 @@ class ExpertSearchListCreateViewTests(APITestCase):
         self.assertIn("search_id", data)
         mock_delay.assert_called_once()
         search = ExpertSearch.objects.get(id=data["search_id"])
-        self.assertEqual(search.excluded_search_ids, [])
         self.assertEqual(search.unified_document_id, paper.unified_document_id)
-
-    @patch("research_ai.views.expert_finder_views.get_document_content")
-    @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")
-    def test_create_persists_excluded_search_ids(
-        self, mock_delay, mock_get_document_content
-    ):
-        from paper.tests.helpers import create_paper
-
-        mock_get_document_content.return_value = ("abstract text", "abstract")
-        paper = create_paper(
-            title="V2 Exclude Paper",
-            paper_publish_date="2020-01-01",
-        )
-        self.client.force_authenticate(self.moderator)
-        r = self.client.post(
-            self.base,
-            {
-                "unified_document_id": paper.unified_document_id,
-                "input_type": "abstract",
-                "excluded_search_ids": [3, 3, 5],
-            },
-            format="json",
-        )
-        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
-        search = ExpertSearch.objects.get(id=r.json()["search_id"])
-        self.assertEqual(search.excluded_search_ids, [3, 5])
-        _, kwargs = mock_delay.call_args
-        self.assertEqual(kwargs.get("excluded_search_ids"), [3, 5])
 
     def test_list_requires_auth(self):
         r = self.client.get(self.base)
@@ -624,7 +580,6 @@ class ExpertSearchListCreateViewTests(APITestCase):
         self.assertEqual(body["total"], 1)
         row = body["searches"][0]
         self.assertEqual(row["search_id"], es.id)
-        self.assertIn("excluded_search_ids", row)
         self.assertNotIn("expert_names", row)
         self.assertEqual(row["expert_count"], 1)
 

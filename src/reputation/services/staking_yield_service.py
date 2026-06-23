@@ -4,7 +4,6 @@ import time
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import ROUND_DOWN, Decimal
-from typing import Optional
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -233,7 +232,7 @@ class StakingYieldService:
         return snapshot.user_snapshots.filter(stake_amount__gt=0).count()
 
     @staticmethod
-    def build_history(start_date: Optional[date], end_date: Optional[date]) -> list:
+    def build_history(start_date: date | None, end_date: date | None) -> list:
         """Return per-snapshot history rows in ascending date order.
 
         Each row: {accrual_date, apy, total_staked_rsc, total_value_locked_usd,

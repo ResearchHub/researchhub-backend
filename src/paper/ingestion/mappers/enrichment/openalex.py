@@ -6,7 +6,7 @@ Maps OpenAlex work records to ResearchHub Paper model fields.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from hub.models import Hub
 from institution.models import Institution
@@ -150,7 +150,7 @@ class OpenAlexMapper(BaseMapper):
         # If it's already just an ID, return it
         return id_url
 
-    def _extract_doi(self, doi_url: Optional[str]) -> Optional[str]:
+    def _extract_doi(self, doi_url: str | None) -> str | None:
         """
         Extract DOI from URL format.
 
@@ -170,7 +170,7 @@ class OpenAlexMapper(BaseMapper):
         # If it's already just a DOI, return it
         return doi_url
 
-    def _get_best_date(self, record: Dict[str, Any]) -> Optional[str]:
+    def _get_best_date(self, record: Dict[str, Any]) -> str | None:
         """
         Get the best available date from the record.
 
@@ -196,7 +196,7 @@ class OpenAlexMapper(BaseMapper):
 
         return None
 
-    def _parse_date(self, date_str: Optional[str]) -> Optional[str]:
+    def _parse_date(self, date_str: str | None) -> str | None:
         """
         Parse date string to Paper model format (YYYY-MM-DD).
 

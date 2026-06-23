@@ -80,7 +80,7 @@ class SyncUserInteractionsExportTests(TestCase):
         csv_files = [f for f in os.listdir(".") if f.startswith("user_interactions_")]
         self.assertEqual(len(csv_files), 1)
 
-        with open(csv_files[0], "r") as f:
+        with open(csv_files[0]) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
 
@@ -107,7 +107,7 @@ class SyncUserInteractionsExportTests(TestCase):
         csv_files = [f for f in os.listdir(".") if f.startswith("user_interactions_")]
         self.assertEqual(len(csv_files), 1)
 
-        with open(csv_files[0], "r") as f:
+        with open(csv_files[0]) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
 
@@ -162,7 +162,7 @@ class SyncUserInteractionsExportTests(TestCase):
         csv_files = [f for f in os.listdir(".") if f.startswith("user_interactions_")]
         self.assertEqual(len(csv_files), 1)
 
-        with open(csv_files[0], "r") as f:
+        with open(csv_files[0]) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
 
@@ -204,7 +204,7 @@ class SyncUserInteractionsExportTests(TestCase):
         csv_files = [f for f in os.listdir(".") if f.startswith("user_interactions_")]
         self.assertEqual(len(csv_files), 1)
 
-        with open(csv_files[0], "r") as f:
+        with open(csv_files[0]) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
 

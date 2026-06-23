@@ -6,7 +6,7 @@ Handles communication with ChemRxiv Engage API endpoints.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 import requests
 
@@ -37,7 +37,7 @@ class ChemRxivConfig(ClientConfig):
 class ChemRxivClient(BaseClient):
     """Client for fetching papers from ChemRxiv Engage API."""
 
-    def __init__(self, config: Optional[ChemRxivConfig] = None):
+    def __init__(self, config: ChemRxivConfig | None = None):
         """Initialize ChemRxiv client."""
         if config is None:
             config = ChemRxivConfig()
@@ -45,7 +45,7 @@ class ChemRxivClient(BaseClient):
         self.session = requests.Session()
 
     def fetch(
-        self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs
+        self, endpoint: str, params: Dict[str, Any] | None = None, **kwargs
     ) -> Union[str, bytes, Dict[str, Any]]:
         """
         Fetch data from ChemRxiv API.
@@ -127,9 +127,9 @@ class ChemRxivClient(BaseClient):
 
     def fetch_recent(
         self,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        max_results: Optional[int] = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        max_results: int | None = None,
         **kwargs,
     ) -> List[Dict[str, Any]]:
         """

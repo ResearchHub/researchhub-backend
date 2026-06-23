@@ -108,7 +108,7 @@ class PaperSubmissionViewTests(APITestCase):
 
     def _install_mock_responses(self):
         # https://api.openalex.org/works?filter=doi:10.34133/2020/8086309
-        with open(fixtures_dir / "work_by_doi.json", "r") as response_body_file:
+        with open(fixtures_dir / "work_by_doi.json") as response_body_file:
             works_json = json.load(response_body_file)
         works_response = responses.Response(
             method="GET",
@@ -127,9 +127,7 @@ class PaperSubmissionViewTests(APITestCase):
         # |https://openalex.org/C2961294
         # |https://openalex.org/C41008148
         # |https://openalex.org/C33923547
-        with open(
-            fixtures_dir / "concepts_by_openalex_id.json", "r"
-        ) as response_body_file:
+        with open(fixtures_dir / "concepts_by_openalex_id.json") as response_body_file:
             concepts_json = json.load(response_body_file)
         concepts_response = responses.Response(
             method="GET",

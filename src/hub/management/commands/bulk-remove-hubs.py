@@ -585,7 +585,7 @@ class Command(BaseCommand):
     def _read_hub_ids_from_file(self, filepath):
         """Read hub IDs from a file (one per line, skip comments)"""
         hub_ids = []
-        with open(filepath, "r") as f:
+        with open(filepath) as f:
             for line in f:
                 line = line.strip()
                 # Skip empty lines and comments
