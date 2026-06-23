@@ -2,7 +2,6 @@
 Factory for creating mapper instances with hub mapper configuration.
 """
 
-from typing import Dict
 
 from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from paper.ingestion.constants import IngestionSource
@@ -23,7 +22,7 @@ class MapperFactory:
 
     _hub_mapper = ExternalCategoryMapper()
 
-    def create_mappers(self) -> Dict[IngestionSource, BaseMapper]:
+    def create_mappers(self) -> dict[IngestionSource, BaseMapper]:
         """
         Create all mapper instances.
         """

@@ -7,7 +7,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Union
+from typing import Any, Union
 
 from paper.ingestion.exceptions import FetchError, RetryExhaustedError, TimeoutError
 
@@ -68,8 +68,8 @@ class BaseClient(ABC):
 
     @abstractmethod
     def fetch(
-        self, endpoint: str, params: Dict[str, Any] | None = None, **kwargs
-    ) -> Union[str, bytes, Dict[str, Any]]:
+        self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
+    ) -> Union[str, bytes, dict[str, Any]]:
         """
         Fetch data from the source API.
 
@@ -81,8 +81,8 @@ class BaseClient(ABC):
     @abstractmethod
     def parse(
         self,
-        raw_data: Union[str, bytes, Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        raw_data: Union[str, bytes, dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """
         Parse raw response into list of paper records.
 
@@ -92,15 +92,15 @@ class BaseClient(ABC):
         pass
 
     def fetch_with_rate_limit(
-        self, endpoint: str, params: Dict[str, Any] | None = None, **kwargs
-    ) -> Union[str, bytes, Dict[str, Any]]:
+        self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
+    ) -> Union[str, bytes, dict[str, Any]]:
         """Fetch data with rate limiting."""
         self.rate_limiter.wait_if_needed()
         return self.fetch(endpoint, params, **kwargs)
 
     def fetch_with_retry(
-        self, endpoint: str, params: Dict[str, Any] | None = None, **kwargs
-    ) -> Union[str, bytes, Dict[str, Any]]:
+        self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
+    ) -> Union[str, bytes, dict[str, Any]]:
         """Fetch data with retry logic and exponential backoff."""
         backoff = self.config.initial_backoff
 
@@ -131,8 +131,8 @@ class BaseClient(ABC):
         )
 
     def process_page(
-        self, page_data: Union[str, bytes, Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, page_data: Union[str, bytes, dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """Process a page of results."""
         return self.parse(page_data)
 
@@ -142,6 +142,6 @@ class BaseClient(ABC):
         since: datetime | None = None,
         until: datetime | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Fetch recent papers within date range."""
         pass

@@ -1,7 +1,7 @@
 import logging
 import re
 from functools import wraps
-from typing import Any, Dict, List
+from typing import Any
 
 import requests
 from cdp.auth.utils.jwt import JwtOptions, generate_jwt
@@ -30,7 +30,7 @@ class CoinbaseService:
             logger.warning("Coinbase API credentials not configured")
 
     @staticmethod
-    def _get_approved_web_origins() -> List[str]:
+    def _get_approved_web_origins() -> list[str]:
         return getattr(settings, "CORS_ORIGIN_WHITELIST", [])
 
     @staticmethod
@@ -168,9 +168,9 @@ class CoinbaseService:
     def create_session_token(
         self,
         user: User,
-        assets: List[str] | None = None,
+        assets: list[str] | None = None,
         client_ip: str | None = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Create a single use token for initializing an Onramp or Offramp session.
 
@@ -247,7 +247,7 @@ class CoinbaseService:
     def generate_onramp_url(
         self,
         user: User,
-        assets: List[str] | None = None,
+        assets: list[str] | None = None,
         default_network: str | None = None,
         preset_fiat_amount: int | None = None,
         preset_crypto_amount: float | None = None,

@@ -4,7 +4,7 @@ Client for interacting with AWS Personalize service.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict
+from typing import Any
 
 from django.conf import settings
 
@@ -38,9 +38,9 @@ class RecommendationClient:
         user_id: str,
         campaign_arn: str,
         filter_arn: str | None = None,
-        filter_values: Dict[str, str] | None = None,
+        filter_values: dict[str, str] | None = None,
         num_results: int = 20,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Get personalized recommendations from AWS Personalize.
         """
@@ -93,7 +93,7 @@ class RecommendationClient:
         filter: str | None = None,
         hub_id: str | None = None,
         num_results: int = 20,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         filter_arn = None
         filter_values = None
         date_cutoff = self._get_date_cutoff()
@@ -131,7 +131,7 @@ class RecommendationClient:
     def get_trending_items(
         self,
         num_results: int = 200,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Get global trending items from AWS Personalize.
         """

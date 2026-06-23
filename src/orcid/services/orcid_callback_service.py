@@ -1,6 +1,6 @@
 import logging
 from datetime import timedelta
-from typing import Callable, Tuple
+from typing import Callable
 
 from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
@@ -72,7 +72,7 @@ class OrcidCallbackService:
             else f"{base}{sep}orcid_connected=true"
         )
 
-    def _validate_state(self, state: str) -> Tuple[User, str | None]:
+    def _validate_state(self, state: str) -> tuple[User, str | None]:
         """Decode and validate the signed state token, returning user and return_url."""
         try:
             state_data = signing.loads(state, max_age=STATE_MAX_AGE)

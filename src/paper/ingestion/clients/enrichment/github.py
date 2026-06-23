@@ -1,5 +1,4 @@
 import logging
-from typing import Dict
 
 import requests
 
@@ -52,7 +51,7 @@ class GithubClient:
         endpoint: str,
         query: str,
         per_page: int = 1,
-    ) -> Dict | None:
+    ) -> dict | None:
         """
         Execute a search request against GitHub's search API.
 
@@ -113,7 +112,7 @@ class GithubMetricsClient:
 
     def get_mentions(
         self, terms: list[str], search_areas: list | None = None
-    ) -> Dict | None:
+    ) -> dict | None:
         """
         Get mentions of terms on GitHub using OR logic.
 

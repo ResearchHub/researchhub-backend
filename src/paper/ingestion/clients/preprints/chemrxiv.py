@@ -6,7 +6,7 @@ Handles communication with ChemRxiv Engage API endpoints.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Union
+from typing import Any, Union
 
 import requests
 
@@ -45,8 +45,8 @@ class ChemRxivClient(BaseClient):
         self.session = requests.Session()
 
     def fetch(
-        self, endpoint: str, params: Dict[str, Any] | None = None, **kwargs
-    ) -> Union[str, bytes, Dict[str, Any]]:
+        self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
+    ) -> Union[str, bytes, dict[str, Any]]:
         """
         Fetch data from ChemRxiv API.
 
@@ -84,8 +84,8 @@ class ChemRxivClient(BaseClient):
             raise FetchError(f"Failed to fetch from {url}: {str(e)}")
 
     def parse(
-        self, raw_data: Union[str, bytes, Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, raw_data: Union[str, bytes, dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Parse ChemRxiv JSON response and return raw paper data.
 
@@ -131,7 +131,7 @@ class ChemRxivClient(BaseClient):
         until: datetime | None = None,
         max_results: int | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Fetch recent papers from ChemRxiv within date range.
 

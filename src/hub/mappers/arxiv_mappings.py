@@ -1,6 +1,5 @@
-from typing import Dict, Tuple
 
-ARXIV_MAPPINGS: Dict[str, Tuple[str, str | None]] = {
+ARXIV_MAPPINGS: dict[str, tuple[str, str | None]] = {
     "cs.ai": ("computer-science", "artificial-intelligence"),
     "cs.ar": ("computer-science", "hardware-architecture"),
     "cs.cc": ("computer-science", "computational-complexity"),
