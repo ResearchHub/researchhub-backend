@@ -5,7 +5,9 @@ from django.db import transaction
 from django.db.models import Prefetch
 from django.utils.text import slugify
 from rest_framework import serializers
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -37,6 +39,7 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.serializers.researchhub_post_serializer import (
+    CompletedProposalCandidateSerializer,
     ResearchhubPostSerializer,
 )
 from researchhub_document.services.journey_service import JourneyService
@@ -79,6 +82,23 @@ class ResearchhubPostViewSet(
 
     def update(self, request, *args, **kwargs):
         return self.upsert_researchhub_posts(request)
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[IsAuthenticated],
+        url_name="list-completed-proposals",
+        url_path="list-completed-proposals",
+    )
+    def list_completed_proposals(self, request: Request) -> Response:
+        """Return completed proposals that can receive a registered report."""
+        proposals = JourneyService().list_completed_proposal_candidates(request.user)
+        serializer = CompletedProposalCandidateSerializer(
+            proposals,
+            context={"request": request},
+            many=True,
+        )
+        return Response(serializer.data)
 
     def get_queryset(self):
         request = self.request
