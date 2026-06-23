@@ -2,7 +2,6 @@
 Factory for creating mapper instances with hub mapper configuration.
 """
 
-
 from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from paper.ingestion.constants import IngestionSource
 from paper.ingestion.mappers.base import BaseMapper

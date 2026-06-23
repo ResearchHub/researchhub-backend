@@ -1,4 +1,3 @@
-
 ARXIV_MAPPINGS: dict[str, tuple[str, str | None]] = {
     "cs.ai": ("computer-science", "artificial-intelligence"),
     "cs.ar": ("computer-science", "hardware-architecture"),

@@ -3,7 +3,6 @@ MedRxiv to ResearchHub category mappings.
 Maps MedRxiv subject areas to ResearchHub categories and subcategories.
 """
 
-
 MEDRXIV_MAPPINGS: dict[str, tuple[str, str | None]] = {
     "addiction medicine": ("medicine", "psychiatry"),
     "allergy and immunology": ("medicine", "immunology"),
