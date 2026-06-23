@@ -4,7 +4,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
 from django.db.models import Exists, OuterRef, Prefetch, QuerySet
 from django.utils import timezone
-from django.utils.text import slugify
 
 from purchase.models import Fundraise, GrantApplication
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
@@ -19,7 +18,6 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
     REGISTERED_REPORT,
 )
-from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.related_models.constants.journey_stage import (
     JOURNEY_STAGE_GRANT,
     JOURNEY_STAGE_ORDER,
@@ -46,7 +44,6 @@ class JourneyService:
         self,
         journey_model: type[ResearchJourney] | None = None,
         post_model: type[ResearchhubPost] | None = None,
-        unified_document_model: type[ResearchhubUnifiedDocument] | None = None,
         comment_model: type[RhCommentModel] | None = None,
         comment_thread_model: type[RhCommentThreadModel] | None = None,
         grant_application_model: type[GrantApplication] | None = None,
@@ -54,9 +51,6 @@ class JourneyService:
         """Initialize the service with optional model dependencies."""
         self.journey_model = journey_model or ResearchJourney
         self.post_model = post_model or ResearchhubPost
-        self.unified_document_model = (
-            unified_document_model or ResearchhubUnifiedDocument
-        )
         self.comment_model = comment_model or RhCommentModel
         self.comment_thread_model = comment_thread_model or RhCommentThreadModel
         self.grant_application_model = grant_application_model or GrantApplication
@@ -141,44 +135,6 @@ class JourneyService:
         if proposal is None:
             raise ValueError("Proposal is not eligible for a registered report.")
         return proposal
-
-    @transaction.atomic
-    def create_registered_report(
-        self,
-        *,
-        user: User,
-        proposal_id: int,
-        title: str,
-        renderable_text: str,
-        note_id: int | None = None,
-        editor_type: str | None = None,
-        image: str | None = None,
-        preview_img: str | None = None,
-    ) -> ResearchhubPost:
-        """Create an approved registered report for a completed proposal."""
-        proposal = self.get_completed_proposal_candidate(user, proposal_id)
-        unified_document = self.unified_document_model.objects.create(
-            document_type=REGISTERED_REPORT,
-            is_public=True,
-            status=ResearchhubUnifiedDocument.APPROVED,
-        )
-        unified_document.hubs.set(proposal.unified_document.hubs.all())
-
-        registered_report = self.post_model.objects.create(
-            created_by=user,
-            document_type=REGISTERED_REPORT,
-            editor_type=editor_type or CK_EDITOR,
-            image=image,
-            note_id=note_id,
-            preview_img=preview_img,
-            renderable_text=renderable_text,
-            slug=slugify(title),
-            title=title,
-            unified_document=unified_document,
-        )
-        registered_report.authors.set(proposal.authors.all())
-        self.attach_stage(proposal.journey, registered_report)
-        return registered_report
 
     def get_owned_registered_report(
         self, user: User, registered_report_id: int

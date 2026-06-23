@@ -10,6 +10,7 @@ from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
+    REGISTERED_REPORT,
 )
 from researchhub_document.services.journey_service import (
     REGISTERED_REPORT_RESULTS_REFERENCE,
@@ -123,15 +124,17 @@ class AppendRegisteredReportResultsTests(APITestCase):
     def _create_registered_report(self, user: User) -> ResearchhubPost:
         """Create a registered report attached to a completed proposal."""
         proposal = self._create_completed_proposal(user)
-        return self.service.create_registered_report(
-            user=user,
-            proposal_id=proposal.id,
+        report = create_post(
+            created_by=user,
+            document_type=REGISTERED_REPORT,
             title="Registered report title",
             renderable_text=(
                 "Registered report body. Registered report body. "
                 "Registered report body."
             ),
         )
+        self.service.attach_stage(proposal.journey, report)
+        return report
 
     def _create_completed_proposal(self, user: User) -> ResearchhubPost:
         """Create an approved proposal with a completed fundraise."""
