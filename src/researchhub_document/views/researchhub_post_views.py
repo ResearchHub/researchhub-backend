@@ -26,7 +26,6 @@ from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from purchase.services.fundraise_service import FundraiseService
 from purchase.services.grant_service import GrantModerationService
 from researchhub.settings import TESTING
-from researchhub_comment.serializers import RhCommentSerializer
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
@@ -43,7 +42,6 @@ from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.serializers.researchhub_post_serializer import (
     CompletedProposalCandidateSerializer,
     RegisteredReportCreateSerializer,
-    RegisteredReportResultsCreateSerializer,
     ResearchhubPostSerializer,
 )
 from researchhub_document.services.journey_service import JourneyService
@@ -103,32 +101,6 @@ class ResearchhubPostViewSet(
             many=True,
         )
         return Response(serializer.data)
-
-    @action(
-        detail=False,
-        methods=["post"],
-        permission_classes=[IsAuthenticated],
-        url_name="append-registered-report-results",
-        url_path="append-registered-report-results",
-    )
-    def append_registered_report_results(self, request: Request) -> Response:
-        """Append results to a registered report as an author update."""
-        serializer = RegisteredReportResultsCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-
-        try:
-            comment = JourneyService().append_registered_report_results(
-                user=request.user,
-                registered_report_id=data["registered_report_id"],
-                comment_content_json=data["comment_content_json"],
-                comment_content_type=data.get("comment_content_type"),
-                context_title=data.get("context_title"),
-            )
-        except ValueError as error:
-            return Response({"error": str(error)}, status=400)
-
-        return Response(RhCommentSerializer(comment).data, status=200)
 
     def validate_post_content(
         self, title: object, renderable_text: object

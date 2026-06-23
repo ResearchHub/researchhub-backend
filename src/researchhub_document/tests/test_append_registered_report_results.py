@@ -4,6 +4,9 @@ from rest_framework.test import APITestCase
 
 from purchase.models import Fundraise
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
+from researchhub_comment.constants.rh_comment_thread_references import (
+    REGISTERED_REPORT_RESULTS_REFERENCE,
+)
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.helpers import create_post
@@ -12,17 +15,12 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
     REGISTERED_REPORT,
 )
-from researchhub_document.services.journey_service import (
-    REGISTERED_REPORT_RESULTS_REFERENCE,
-    JourneyService,
-)
+from researchhub_document.services.journey_service import JourneyService
 from user.models import User
 from user.tests.helpers import create_random_default_user
 
 
 class AppendRegisteredReportResultsTests(APITestCase):
-    results_url = "/api/researchhubpost/append-registered-report-results/"
-
     def setUp(self) -> None:
         """Create users and service dependencies for results update tests."""
         self.user = create_random_default_user("rr_results_owner")
@@ -39,10 +37,14 @@ class AppendRegisteredReportResultsTests(APITestCase):
         report = self._create_registered_report(self.user)
         original_title = report.title
         original_body = report.renderable_text
-        payload = self._build_payload(report)
+        payload = self._build_payload()
 
         # Act
-        response = self.client.post(self.results_url, payload, format="json")
+        response = self.client.post(
+            self._build_results_url(report),
+            payload,
+            format="json",
+        )
 
         # Assert
         self.assertEqual(response.status_code, 200)
@@ -71,13 +73,13 @@ class AppendRegisteredReportResultsTests(APITestCase):
 
         # Act
         response = self.client.post(
-            self.results_url,
-            self._build_payload(report),
+            self._build_results_url(report),
+            self._build_payload(),
             format="json",
         )
 
         # Assert
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 403)
         self.assertFalse(RhCommentModel.objects.exists())
         self.assertFalse(RhCommentThreadModel.objects.exists())
 
@@ -85,10 +87,14 @@ class AppendRegisteredReportResultsTests(APITestCase):
         """Verify results cannot be appended to a proposal post."""
         # Arrange
         proposal = self._create_completed_proposal(self.user)
-        payload = self._build_payload(proposal)
+        payload = self._build_payload()
 
         # Act
-        response = self.client.post(self.results_url, payload, format="json")
+        response = self.client.post(
+            self._build_results_url(proposal),
+            payload,
+            format="json",
+        )
 
         # Assert
         self.assertEqual(response.status_code, 400)
@@ -103,23 +109,30 @@ class AppendRegisteredReportResultsTests(APITestCase):
 
         # Act
         response = self.client.post(
-            self.results_url,
-            self._build_payload(report),
+            self._build_results_url(report),
+            self._build_payload(),
             format="json",
         )
 
         # Assert
         self.assertIn(response.status_code, (401, 403))
 
-    def _build_payload(self, post: ResearchhubPost) -> dict[str, object]:
+    def _build_payload(self) -> dict[str, object]:
         """Build a valid registered report results request payload."""
         return {
-            "registered_report_id": post.id,
             "comment_content_json": {
                 "ops": [{"insert": "Registered report results."}],
             },
+            "comment_type": AUTHOR_UPDATE,
+            "comment_content_type": QUILL_EDITOR,
             "context_title": "Results",
+            "thread_reference": REGISTERED_REPORT_RESULTS_REFERENCE,
+            "thread_type": AUTHOR_UPDATE,
         }
+
+    def _build_results_url(self, post: ResearchhubPost) -> str:
+        """Build the author-update comment URL for a post."""
+        return f"/api/researchhubpost/{post.id}/comments/create_rh_comment/"
 
     def _create_registered_report(self, user: User) -> ResearchhubPost:
         """Create a registered report attached to a completed proposal."""
