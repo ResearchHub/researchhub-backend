@@ -48,8 +48,8 @@ def build_excluded_experts_instruction(excluded_expert_names: list[str]) -> str:
     """
     Build the optional paragraph instructing the model to exclude given experts.
 
-    Used when the user runs multiple searches on the same document and wants
-    different experts (exclude previously suggested names).
+    Used when running multiple searches on the same document and prior experts
+    should not be suggested again.
 
     Args:
         excluded_expert_names: List of full names to exclude.

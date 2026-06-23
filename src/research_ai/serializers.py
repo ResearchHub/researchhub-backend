@@ -111,21 +111,8 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
         required=True,
     )
     config = ExpertSearchConfigSerializer(required=False, default=dict)
-    excluded_search_ids = serializers.ListField(
-        child=serializers.IntegerField(min_value=1),
-        required=False,
-        default=list,
-    )
 
     def validate(self, attrs):
-        raw_ids = attrs.get("excluded_search_ids") or []
-        norm_ids: list[int] = []
-        seen: set[int] = set()
-        for x in raw_ids:
-            if x not in seen:
-                seen.add(x)
-                norm_ids.append(int(x))
-        attrs["excluded_search_ids"] = norm_ids
         attrs["config"] = attrs.get("config") or {}
         return attrs
 
@@ -403,7 +390,6 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
             "query",
             "status",
             "expert_count",
-            "excluded_search_ids",
             "created_at",
             "completed_at",
         ]
@@ -435,7 +421,6 @@ class ExpertSearchDetailSerializer(serializers.ModelSerializer):
             "work",
             "input_type",
             "config",
-            "excluded_search_ids",
             "llm_model",
             "status",
             "progress",

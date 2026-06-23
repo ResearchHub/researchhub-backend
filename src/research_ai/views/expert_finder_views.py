@@ -111,7 +111,6 @@ class ExpertSearchListCreateView(APIView):
         search_name = (data.get("name") or "").strip()
         input_type = data["input_type"]
         config = data.get("config") or {}
-        excluded_search_ids = data.get("excluded_search_ids") or []
 
         search_config = {
             "expert_count": config.get("expert_count", 10),
@@ -150,7 +149,6 @@ class ExpertSearchListCreateView(APIView):
             additional_context=additional_context,
             input_type=effective_input_type,
             config=search_config,
-            excluded_search_ids=excluded_search_ids,
             status=ExpertSearch.Status.PENDING,
             progress=0,
             current_step="Queued for processing",
@@ -161,7 +159,6 @@ class ExpertSearchListCreateView(APIView):
             search_id=str(search_id),
             query=query_text,
             config=search_config,
-            excluded_search_ids=excluded_search_ids or None,
             is_pdf=is_pdf,
             additional_context=additional_context or None,
         )

@@ -207,16 +207,20 @@ def load_experts_for_expert_search(expert_search_id: int) -> list[Expert]:
     return [se.expert for se in qs]
 
 
-def _names_and_emails_from_excluded_searches(
-    excluded_search_ids: list[int] | None,
+def _names_and_emails_from_prior_document_searches(
+    unified_document_id: int | None,
+    *,
+    exclude_search_id: int | None = None,
 ) -> tuple[list[str], set[str]]:
-    if not excluded_search_ids:
+    if not unified_document_id:
         return [], set()
     out_names: list[str] = []
     out_emails: set[str] = set()
     qs = SearchExpert.objects.filter(
-        expert_search_id__in=excluded_search_ids
+        expert_search__unified_document_id=unified_document_id,
     ).select_related("expert")
+    if exclude_search_id is not None:
+        qs = qs.exclude(expert_search_id=exclude_search_id)
     for se in qs:
         e = se.expert
         label = ExpertDisplay.personal_name_for(e)
@@ -329,12 +333,19 @@ class ExpertFinderService:
         query: str,
         config: dict[str, Any],
         *,
-        excluded_search_ids: list[int] | None = None,
         is_pdf: bool = False,
         additional_context: str | None = None,
         progress_callback: Callable[[str, int, str], None] | None = None,
     ) -> dict[str, Any]:
         expert_search_id = int(search_id)
+        try:
+            unified_document_id = (
+                ExpertSearch.objects.only("unified_document_id")
+                .get(id=expert_search_id)
+                .unified_document_id
+            )
+        except ExpertSearch.DoesNotExist:
+            unified_document_id = None
         progress_service = self.progress_service
         openai = self.openai_expert
 
@@ -404,7 +415,10 @@ class ExpertFinderService:
         data_persisted = False
         try:
             search_id_names, search_id_emails = (
-                _names_and_emails_from_excluded_searches(excluded_search_ids)
+                _names_and_emails_from_prior_document_searches(
+                    unified_document_id,
+                    exclude_search_id=expert_search_id,
+                )
             )
             expert_count = int(config.get("expert_count", 10) or 10)
             target_expert_count = max(0, expert_count)
@@ -547,9 +561,8 @@ class ExpertFinderService:
             if len(experts_rows) == 0:
                 if all_filtered_by_exclusion:
                     umsg = (
-                        "Every recommendation matched an email from a prior search "
-                        "you excluded. Try broadening criteria or adjust excluded "
-                        "searches."
+                        "Every recommendation matched an email from a prior expert "
+                        "search on this document. Try broadening criteria."
                     )
                     return fail_return(umsg, current_step="All experts excluded")
 
@@ -637,7 +650,6 @@ def run_expert_finder_search(
     query: str,
     config: dict[str, Any],
     *,
-    excluded_search_ids: list[int] | None = None,
     is_pdf: bool = False,
     additional_context: str | None = None,
     progress_callback: Callable[[str, int, str], None] | None = None,
@@ -646,7 +658,6 @@ def run_expert_finder_search(
         search_id,
         query,
         config,
-        excluded_search_ids=excluded_search_ids,
         is_pdf=is_pdf,
         additional_context=additional_context,
         progress_callback=progress_callback,
