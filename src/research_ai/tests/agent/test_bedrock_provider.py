@@ -27,8 +27,8 @@ class FakeConverseClient:
         return self._responses.pop(0)
 
 
-def _provider(responses=None):
-    # Inject a fake client so no AWS client is constructed.
+def _build_provider(responses=None):
+    """Build a BedrockProvider with a fake client so no AWS client is constructed."""
     return BedrockProvider(
         client=FakeConverseClient(responses or []), model_id="test-model"
     )
@@ -37,7 +37,7 @@ def _provider(responses=None):
 class RenderToolsTests(SimpleTestCase):
     def test_render_tools_produces_tool_spec_shape(self):
         # Arrange
-        provider = _provider()
+        provider = _build_provider()
         tool = Tool(
             name="search",
             description="search things",
@@ -70,7 +70,7 @@ class RenderToolsTests(SimpleTestCase):
 class RenderMessagesTests(SimpleTestCase):
     def test_blocks_render_to_converse_wire_shapes(self):
         # Arrange
-        provider = _provider()
+        provider = _build_provider()
         messages = [
             Message(role="user", content=[TextBlock(text="hi")]),
             Message(
@@ -127,7 +127,7 @@ class CompleteAndParseTests(SimpleTestCase):
             },
             "stopReason": "tool_use",
         }
-        provider = _provider([response])
+        provider = _build_provider([response])
 
         # Act
         turn = provider.complete(
@@ -149,7 +149,7 @@ class CompleteAndParseTests(SimpleTestCase):
 
     def test_parse_turn_maps_unknown_stop_reason_to_other(self):
         # Arrange
-        provider = _provider()
+        provider = _build_provider()
         response = {
             "output": {"message": {"role": "assistant", "content": []}},
             "stopReason": "something_new",
@@ -163,7 +163,7 @@ class CompleteAndParseTests(SimpleTestCase):
 
     def test_missing_output_message_raises(self):
         # Arrange
-        provider = _provider([{"stopReason": "end_turn"}])
+        provider = _build_provider([{"stopReason": "end_turn"}])
 
         # Act / Assert
         with self.assertRaises(RuntimeError):

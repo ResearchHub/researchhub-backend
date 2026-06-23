@@ -5,7 +5,8 @@ from django.test import SimpleTestCase
 from research_ai.services.agent.tools import Tool, Toolset
 
 
-def _ok_tool(name, *, is_terminal=False):
+def _build_ok_tool(name, *, is_terminal=False):
+    """Build a well-behaved Tool whose handler echoes its input."""
     return Tool(
         name=name,
         description=name,
@@ -18,7 +19,7 @@ def _ok_tool(name, *, is_terminal=False):
 class ToolsetDispatchTests(SimpleTestCase):
     def test_unknown_tool_returns_error_and_no_stop(self):
         # Arrange
-        toolset = Toolset([_ok_tool("search")])
+        toolset = Toolset([_build_ok_tool("search")])
 
         # Act
         result, stop = toolset.dispatch("nope", {})
@@ -43,7 +44,7 @@ class ToolsetDispatchTests(SimpleTestCase):
 
     def test_terminal_tool_signals_stop(self):
         # Arrange
-        toolset = Toolset([_ok_tool("submit", is_terminal=True)])
+        toolset = Toolset([_build_ok_tool("submit", is_terminal=True)])
 
         # Act
         result, stop = toolset.dispatch("submit", {"a": 1})
@@ -54,7 +55,7 @@ class ToolsetDispatchTests(SimpleTestCase):
 
     def test_non_terminal_tool_does_not_stop(self):
         # Arrange
-        toolset = Toolset([_ok_tool("search")])
+        toolset = Toolset([_build_ok_tool("search")])
 
         # Act
         result, stop = toolset.dispatch("search", {"q": "x"})
@@ -65,7 +66,7 @@ class ToolsetDispatchTests(SimpleTestCase):
 
     def test_registry_accessors(self):
         # Arrange
-        search = _ok_tool("search")
+        search = _build_ok_tool("search")
         toolset = Toolset([search])
 
         # Act / Assert

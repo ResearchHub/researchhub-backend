@@ -14,7 +14,8 @@ from research_ai.services.agent.types import (
 )
 
 
-def _text_turn(text):
+def _build_text_turn(text):
+    """Build an end-of-turn AssistantTurn carrying a single text block."""
     return AssistantTurn(
         text_blocks=[TextBlock(text=text)],
         tool_calls=[],
@@ -22,7 +23,8 @@ def _text_turn(text):
     )
 
 
-def _tool_turn(tool_use_id, name, tool_input):
+def _build_tool_turn(tool_use_id, name, tool_input):
+    """Build an AssistantTurn that requests a single tool call."""
     return AssistantTurn(
         text_blocks=[],
         tool_calls=[ToolUseBlock(id=tool_use_id, name=name, input=tool_input)],
@@ -46,7 +48,8 @@ class FakeProvider(LLMProvider):
         return self._turns.pop(0)
 
 
-def _toolset(seen=None):
+def _build_toolset(seen=None):
+    """Build a Toolset with search/submit tools that record calls into ``seen``."""
     seen = seen if seen is not None else []
 
     def search(input):
@@ -65,7 +68,8 @@ def _toolset(seen=None):
     )
 
 
-def _agent(provider, toolset, *, max_iterations=12):
+def _build_agent(provider, toolset, *, max_iterations=12):
+    """Build an Agent wired to the given provider and toolset with fixed defaults."""
     return Agent(
         provider,
         toolset,
@@ -81,12 +85,12 @@ class AgentLoopTests(SimpleTestCase):
         # Arrange
         provider = FakeProvider(
             [
-                _tool_turn("t1", "search", {"q": "jane"}),
-                _tool_turn("t2", "submit", {"done": True}),
+                _build_tool_turn("t1", "search", {"q": "jane"}),
+                _build_tool_turn("t2", "submit", {"done": True}),
             ]
         )
         seen = []
-        agent = _agent(provider, _toolset(seen))
+        agent = _build_agent(provider, _build_toolset(seen))
 
         # Act
         result = agent.run("find jane")
@@ -100,11 +104,11 @@ class AgentLoopTests(SimpleTestCase):
         # Arrange
         provider = FakeProvider(
             [
-                _tool_turn("t1", "search", {"q": "jane"}),
-                _text_turn("done"),
+                _build_tool_turn("t1", "search", {"q": "jane"}),
+                _build_text_turn("done"),
             ]
         )
-        agent = _agent(provider, _toolset())
+        agent = _build_agent(provider, _build_toolset())
 
         # Act
         result = agent.run("find jane")
@@ -116,8 +120,8 @@ class AgentLoopTests(SimpleTestCase):
 
     def test_plain_text_turn_ends_loop(self):
         # Arrange
-        provider = FakeProvider([_text_turn("all done")])
-        agent = _agent(provider, _toolset())
+        provider = FakeProvider([_build_text_turn("all done")])
+        agent = _build_agent(provider, _build_toolset())
 
         # Act
         result = agent.run("hi")
@@ -129,8 +133,10 @@ class AgentLoopTests(SimpleTestCase):
 
     def test_exceeding_max_iterations_raises(self):
         # Arrange: the model never stops calling tools.
-        provider = FakeProvider([_tool_turn(f"t{i}", "search", {}) for i in range(5)])
-        agent = _agent(provider, _toolset(), max_iterations=3)
+        provider = FakeProvider(
+            [_build_tool_turn(f"t{i}", "search", {}) for i in range(5)]
+        )
+        agent = _build_agent(provider, _build_toolset(), max_iterations=3)
 
         # Act / Assert
         with self.assertRaises(RuntimeError):
@@ -142,8 +148,8 @@ class AgentLoopTests(SimpleTestCase):
             Message(role="user", content=[TextBlock(text="earlier")]),
             Message(role="assistant", content=[TextBlock(text="reply")]),
         ]
-        provider = FakeProvider([_text_turn("second answer")])
-        agent = _agent(provider, _toolset())
+        provider = FakeProvider([_build_text_turn("second answer")])
+        agent = _build_agent(provider, _build_toolset())
 
         # Act
         result = agent.continue_conversation(history, "follow up")
