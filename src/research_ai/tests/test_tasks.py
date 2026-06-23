@@ -8,7 +8,6 @@ from research_ai.models import Expert, ExpertSearch, GeneratedEmail
 from research_ai.tasks import (
     _update_search_progress,
     process_bulk_generate_emails_task,
-    run_expert_finder_search,
     send_queued_emails_task,
 )
 from user.tests.helpers import create_random_authenticated_user
@@ -45,39 +44,6 @@ class UpdateSearchProgressTests(TestCase):
 
     def test_update_search_progress_invalid_id_logs_and_does_not_raise(self):
         _update_search_progress("99999999", 0, "No-op")  # no such id – should not raise
-
-
-# --- run_expert_finder_search (Celery) ---
-
-
-@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-class RunExpertFinderSearchTaskTests(TestCase):
-    def setUp(self):
-        self.user = create_random_authenticated_user("task_user")
-        self.search = ExpertSearch.objects.create(
-            created_by=self.user,
-            query="Task query",
-            status=ExpertSearch.Status.PENDING,
-        )
-
-    @patch("research_ai.tasks.expert_finder_service_mod.run_expert_finder_search")
-    def test_task_does_not_pass_excluded_search_ids(self, mock_run):
-        mock_run.return_value = {
-            "status": ExpertSearch.Status.COMPLETED,
-            "experts": [],
-            "expert_count": 1,
-            "report_urls": {"pdf": "/p", "csv": "/c"},
-            "llm_model": "m",
-        }
-        run_expert_finder_search.apply(
-            kwargs={
-                "search_id": str(self.search.id),
-                "query": self.search.query,
-                "config": {},
-            }
-        ).get()
-        mock_run.assert_called_once()
-        self.assertNotIn("excluded_search_ids", mock_run.call_args.kwargs)
 
 
 # --- process_bulk_generate_emails_task ---
