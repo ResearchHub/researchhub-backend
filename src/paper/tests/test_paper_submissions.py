@@ -127,9 +127,7 @@ class PaperSubmissionViewTests(APITestCase):
         # |https://openalex.org/C2961294
         # |https://openalex.org/C41008148
         # |https://openalex.org/C33923547
-        with open(
-            fixtures_dir / "concepts_by_openalex_id.json"
-        ) as response_body_file:
+        with open(fixtures_dir / "concepts_by_openalex_id.json") as response_body_file:
             concepts_json = json.load(response_body_file)
         concepts_response = responses.Response(
             method="GET",
