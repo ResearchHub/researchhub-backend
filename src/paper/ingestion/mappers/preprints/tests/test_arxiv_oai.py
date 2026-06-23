@@ -29,7 +29,7 @@ class TestArXivOAIMapper(TestCase):
         fixtures_dir = Path(__file__).parent / "fixtures"
 
         # Load pre-parsed record from JSON fixture
-        with open(fixtures_dir / "arxiv_oai_parsed_record.json", "r") as f:
+        with open(fixtures_dir / "arxiv_oai_parsed_record.json") as f:
             self.sample_record = json.load(f)
 
     def test_validate_valid_record(self):

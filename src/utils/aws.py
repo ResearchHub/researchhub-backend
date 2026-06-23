@@ -1,5 +1,4 @@
 import json
-from typing import Optional
 
 import boto3
 from boto3.session import Session
@@ -31,7 +30,7 @@ def create_client(
     service_name: str,
     region_name: str = settings.AWS_REGION_NAME,
     *,
-    config: Optional[Config] = None,
+    config: Config | None = None,
 ) -> boto3.client:
     """
     Create a boto3 client for the given service.

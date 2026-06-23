@@ -60,31 +60,18 @@ def _expert_search_task_progress_callback(
 
 def _resolve_expert_finder_task_inputs(
     search_id: str,
-    excluded_search_ids: list | None,
     additional_context: str | None,
-) -> tuple[ExpertSearch | None, list[int], str | None]:
+) -> tuple[ExpertSearch | None, str | None]:
     """
-    Load ExpertSearch and derive excluded-search ids + context.
+    Load ExpertSearch and resolve additional_context.
 
-    Returns ``(None, [], None)`` when the search row is missing.
+    Returns ``(None, None)`` when the search row is missing.
     """
     try:
         es = ExpertSearch.objects.get(id=int(search_id))
     except ExpertSearch.DoesNotExist:
         logger.warning("run_expert_finder_search: ExpertSearch %s not found", search_id)
-        return None, [], None
-
-    merged = (
-        excluded_search_ids
-        if excluded_search_ids is not None
-        else (es.excluded_search_ids or [])
-    )
-    norm: list[int] = []
-    for x in merged or []:
-        try:
-            norm.append(int(x))
-        except (TypeError, ValueError):
-            continue
+        return None, None
 
     if additional_context is not None:
         ctx: str | None = additional_context
@@ -92,7 +79,7 @@ def _resolve_expert_finder_task_inputs(
         stripped = (es.additional_context or "").strip()
         ctx = stripped or None
 
-    return es, norm, ctx
+    return es, ctx
 
 
 def _finalize_expert_search_in_db(
@@ -173,7 +160,6 @@ def run_expert_finder_search(
     query: str,
     config: dict,
     *,
-    excluded_search_ids: list | None = None,
     is_pdf: bool = False,
     additional_context: str | None = None,
 ):
@@ -184,15 +170,14 @@ def run_expert_finder_search(
         search_id: ExpertSearch id (string of integer).
         query: Research description or document text.
         config: Dict with expert_count, expertise_level, region, state, gender.
-        excluded_search_ids: Optional list of expert search ids to exclude experts from.
         is_pdf: True if query was extracted from PDF.
         additional_context: Optional user notes to steer the model alongside query.
     """
 
     progress_callback = partial(_expert_search_task_progress_callback, self)
 
-    es, norm_search_ids, additional_context = _resolve_expert_finder_task_inputs(
-        search_id, excluded_search_ids, additional_context
+    es, additional_context = _resolve_expert_finder_task_inputs(
+        search_id, additional_context
     )
     if es is None:
         return {"status": "not_found", "search_id": search_id}
@@ -210,7 +195,6 @@ def run_expert_finder_search(
             search_id=search_id,
             query=query,
             config=config,
-            excluded_search_ids=norm_search_ids,
             is_pdf=is_pdf,
             additional_context=additional_context,
             progress_callback=progress_callback,

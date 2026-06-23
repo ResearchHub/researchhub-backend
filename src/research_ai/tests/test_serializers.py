@@ -95,16 +95,14 @@ class ExpertSearchConfigSerializerTests(TestCase):
 
 
 class ExpertSearchCreateSerializerTests(TestCase):
-    def test_valid_document_and_dedupes_excluded_search_ids(self):
+    def test_valid_document(self):
         ser = ExpertSearchCreateSerializer(
             data={
                 "unified_document_id": 1,
                 "input_type": "abstract",
-                "excluded_search_ids": [1, 2, 1],
             }
         )
         self.assertTrue(ser.is_valid())
-        self.assertEqual(ser.validated_data["excluded_search_ids"], [1, 2])
 
     def test_requires_input_type_with_unified_document(self):
         ser = ExpertSearchCreateSerializer(data={"unified_document_id": 1})
@@ -135,7 +133,6 @@ class ExpertSearchDetailSerializerTests(TestCase):
             created_by=self.user,
             query="V2",
             status=ExpertSearch.Status.COMPLETED,
-            excluded_search_ids=[9],
         )
         ex = Expert.objects.create(email="v2@x.edu", first_name="Vi", last_name="Two")
         SearchExpert.objects.create(expert_search=self.search, expert=ex, position=0)
@@ -147,6 +144,8 @@ class ExpertSearchDetailSerializerTests(TestCase):
         self.assertEqual(ser.data["experts"][0]["email"], "v2@x.edu")
         self.assertIn("last_email_sent_at", ser.data["experts"][0])
         self.assertIsNone(ser.data["experts"][0]["last_email_sent_at"])
+        self.assertIsNone(ser.data["experts"][0]["emailed_for_current_document"])
+        self.assertEqual(ser.data["experts"][0]["emailed_on_other_documents"], [])
 
     def test_manually_added_experts_returned_first(self):
         # Existing setUp seeded a non-manual expert at position 0.
@@ -287,6 +286,88 @@ class ExpertSearchDetailSerializerWorkTests(TestCase):
         self.assertIn("pdf_url", work)
 
 
+class ExpertSearchDetailSerializerOutreachTests(TestCase):
+    def setUp(self):
+        from paper.tests.helpers import create_paper
+
+        self.user = create_random_authenticated_user("outreach")
+        self.paper_a = create_paper(
+            title="RFP A",
+            paper_publish_date="2020-01-01",
+        )
+        self.paper_b = create_paper(
+            title="RFP B Paper Title",
+            paper_publish_date="2020-01-02",
+        )
+        self.search_a = ExpertSearch.objects.create(
+            created_by=self.user,
+            unified_document=self.paper_a.unified_document,
+            query="Search A",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        self.search_b = ExpertSearch.objects.create(
+            created_by=self.user,
+            unified_document=self.paper_b.unified_document,
+            query="Search B",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        self.expert = Expert.objects.create(
+            email="scoped@uni.edu",
+            first_name="Scoped",
+            last_name="Expert",
+        )
+        SearchExpert.objects.create(
+            expert_search=self.search_a, expert=self.expert, position=0
+        )
+
+    def test_emailed_for_current_document_when_sent_on_same_unified_doc(self):
+        GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_search=self.search_a,
+            expert_email="scoped@uni.edu",
+            status=GeneratedEmail.Status.SENT,
+        )
+        ser = ExpertSearchDetailSerializer(self.search_a)
+        expert = ser.data["experts"][0]
+        self.assertIsNotNone(expert["emailed_for_current_document"])
+        self.assertEqual(
+            expert["emailed_for_current_document"]["search_id"], self.search_a.id
+        )
+        self.assertEqual(expert["emailed_on_other_documents"], [])
+
+    def test_other_document_email_does_not_set_current_document_flag(self):
+        GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_search=self.search_b,
+            expert_email="scoped@uni.edu",
+            status=GeneratedEmail.Status.SENT,
+        )
+        ser = ExpertSearchDetailSerializer(self.search_a)
+        expert = ser.data["experts"][0]
+        self.assertIsNone(expert["emailed_for_current_document"])
+        self.assertEqual(len(expert["emailed_on_other_documents"]), 1)
+        other = expert["emailed_on_other_documents"][0]
+        self.assertEqual(other["unified_document_id"], self.paper_b.unified_document_id)
+        self.assertEqual(other["document_type"], "PAPER")
+        self.assertEqual(other["title"], "RFP B Paper Title")
+        self.assertEqual(other["slug"], self.paper_b.slug)
+        self.assertEqual(other["id"], self.paper_b.id)
+        self.assertEqual(other["search_id"], self.search_b.id)
+        self.assertIn("sent_at", other)
+
+    def test_draft_email_is_excluded(self):
+        GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_search=self.search_a,
+            expert_email="scoped@uni.edu",
+            status=GeneratedEmail.Status.DRAFT,
+        )
+        ser = ExpertSearchDetailSerializer(self.search_a)
+        expert = ser.data["experts"][0]
+        self.assertIsNone(expert["emailed_for_current_document"])
+        self.assertEqual(expert["emailed_on_other_documents"], [])
+
+
 class ExpertSearchListItemSerializerTests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("list")
@@ -294,14 +375,12 @@ class ExpertSearchListItemSerializerTests(TestCase):
             created_by=self.user,
             query="List test",
             status=ExpertSearch.Status.COMPLETED,
-            excluded_search_ids=[3],
         )
 
     def test_list_item_fields(self):
         ser = ExpertSearchListItemSerializer(self.search)
         self.assertEqual(ser.data["search_id"], self.search.id)
         self.assertEqual(ser.data["query"], "List test")
-        self.assertEqual(ser.data["excluded_search_ids"], [3])
 
     def test_created_by_payload_has_user_id_and_author_key(self):
         ser = ExpertSearchListItemSerializer(self.search)

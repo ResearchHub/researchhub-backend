@@ -5,7 +5,7 @@ ArXiv OAI data mapper for transforming OAI responses to Paper model format.
 import logging
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from hub.models import Hub
@@ -35,7 +35,7 @@ class ArXivOAIMapper(BaseMapper):
         super().__init__(hub_mapper)
 
     @property
-    def preprint_hub(self) -> Optional[Hub]:
+    def preprint_hub(self) -> Hub | None:
         """
         Lazy load the ArXiv hub.
         """
@@ -161,7 +161,7 @@ class ArXivOAIMapper(BaseMapper):
 
         return f"10.48550/arXiv.{base_id}"
 
-    def _get_best_date(self, record: Dict[str, Any]) -> Optional[str]:
+    def _get_best_date(self, record: Dict[str, Any]) -> str | None:
         """
         Get the best available date from the record.
 
@@ -183,7 +183,7 @@ class ArXivOAIMapper(BaseMapper):
 
         return None
 
-    def _parse_date(self, date_str: Optional[str]) -> Optional[str]:
+    def _parse_date(self, date_str: str | None) -> str | None:
         """
         Parse date string to Paper model format (YYYY-MM-DD).
 
@@ -212,7 +212,7 @@ class ArXivOAIMapper(BaseMapper):
             logger.warning(f"Invalid date format: {date_str}")
             return None
 
-    def _parse_license(self, license_str: Optional[str]) -> Optional[str]:
+    def _parse_license(self, license_str: str | None) -> str | None:
         """
         Parse license string to standard format.
 

@@ -1,7 +1,6 @@
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Optional
 
 import jwt as pyjwt
 import requests
@@ -26,8 +25,8 @@ class CallbackResult:
     """
 
     success: bool
-    return_url: Optional[str] = None
-    error: Optional[str] = None
+    return_url: str | None = None
+    error: str | None = None
 
 
 @dataclass
@@ -37,7 +36,7 @@ class ConnectionStatus:
     """
 
     connected: bool
-    endaoment_user_id: Optional[str] = None
+    endaoment_user_id: str | None = None
 
 
 class EndaomentService:
@@ -45,12 +44,10 @@ class EndaomentService:
     Service for managing Endaoment connections and operations.
     """
 
-    def __init__(self, client: Optional[EndaomentClient] = None):
+    def __init__(self, client: EndaomentClient | None = None):
         self.client = client or EndaomentClient()
 
-    def get_authorization_url(
-        self, user_id: int, return_url: Optional[str] = None
-    ) -> str:
+    def get_authorization_url(self, user_id: int, return_url: str | None = None) -> str:
         """
         Generate the Endaoment OAuth authorization URL.
 
@@ -65,9 +62,9 @@ class EndaomentService:
 
     def process_callback(
         self,
-        code: Optional[str],
+        code: str | None,
         state: str,
-        error: Optional[str] = None,
+        error: str | None = None,
     ) -> CallbackResult:
         """
         Process the OAuth callback from Endaoment.
@@ -135,7 +132,7 @@ class EndaomentService:
         account.delete()
         return True
 
-    def get_valid_access_token(self, user) -> Optional[str]:
+    def get_valid_access_token(self, user) -> str | None:
         """
         Get a valid access token for the user, refreshing if necessary.
 
@@ -327,7 +324,7 @@ class EndaomentService:
 
     @staticmethod
     def build_redirect_url(
-        error: Optional[str] = None, return_url: Optional[str] = None
+        error: str | None = None, return_url: str | None = None
     ) -> str:
         """
         Build redirect URL with success or error query params.

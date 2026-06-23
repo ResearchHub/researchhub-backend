@@ -3,7 +3,7 @@ import re
 import string
 import time
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 import requests
 from django.conf import settings
@@ -22,9 +22,9 @@ from user.models import Author
 class DOI:
     def __init__(
         self,
-        base_doi: Optional[str] = None,
-        version: Optional[int] = None,
-        journal: Optional[str] = None,
+        base_doi: str | None = None,
+        version: int | None = None,
+        journal: str | None = None,
     ) -> None:
         self.base_doi = base_doi
         if base_doi is None:
@@ -115,7 +115,7 @@ class DOI:
 
     # Generate a random DOI using the configured prefix
     # (e.g., "10.55277/researchhub." or "10.55277/rhj.") and a random suffix.
-    def _generate_base_doi(self, journal: Optional[str] = None) -> str:
+    def _generate_base_doi(self, journal: str | None = None) -> str:
         # Use ResearchHub Journal prefix for RHJ papers
         if journal == PaperVersion.RESEARCHHUB:
             prefix = settings.CROSSREF_DOI_RHJ_PREFIX
@@ -141,7 +141,7 @@ class DOI:
         url = f"{settings.BASE_FRONTEND_URL}/paper/{rh_paper.id}/{rh_paper.slug}"
         return self.register_doi(authors, rh_paper.authorships.all(), title, url)
 
-    def clean_orcid_id(self, orcid_id: str) -> Optional[str]:
+    def clean_orcid_id(self, orcid_id: str) -> str | None:
         if orcid_id.startswith("https://orcid.org/"):
             orcid_id = orcid_id.replace("https://orcid.org/", "")
 

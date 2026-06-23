@@ -11,7 +11,7 @@ fixtures_dir = Path(__file__).parent
 
 class ProcessOpenAlexWorksTests(APITestCase):
     def setUp(self):
-        with open(fixtures_dir / "openalex_institutions.json", "r") as file:
+        with open(fixtures_dir / "openalex_institutions.json") as file:
             response = json.load(file)
             self.institutions = response.get("results")
 

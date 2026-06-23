@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 from urllib.parse import urlencode
 
 import requests
@@ -60,16 +60,16 @@ def nonprofit_fields_from_org(org: Dict[str, Any]) -> Dict[str, str]:
 class EndaomentService:
     """Service for interacting with the Endaoment API."""
 
-    def __init__(self, base_url: Optional[str] = None):
+    def __init__(self, base_url: str | None = None):
         """Initialize the service with configurable base URL for testing."""
         self.base_url = base_url or default_org_search_url()
 
     def search_nonprofit_orgs(
         self,
-        search_term: Optional[str] = None,
-        ntee_major_codes: Optional[str] = None,
-        ntee_minor_codes: Optional[str] = None,
-        countries: Optional[str] = None,
+        search_term: str | None = None,
+        ntee_major_codes: str | None = None,
+        ntee_minor_codes: str | None = None,
+        countries: str | None = None,
         count: int = 15,
         offset: int = 0,
     ) -> Union[List[Any], Dict[str, Any]]:
@@ -137,7 +137,7 @@ class EndaomentService:
         results: List[Dict[str, Any]],
         normalized_ein: str,
         endaoment_org_id: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any] | None:
         for org in results:
             if (
                 normalize_ein(org.get("ein", "")) == normalized_ein

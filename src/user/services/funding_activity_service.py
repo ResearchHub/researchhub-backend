@@ -1,6 +1,5 @@
 import logging
 from decimal import Decimal
-from typing import Optional
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -299,7 +298,7 @@ class FundingActivityService:
         cls,
         source_type: str,
         source_object,
-    ) -> Optional[FundingActivity]:
+    ) -> FundingActivity | None:
         """
         Create FundingActivity and FundingActivityRecipient(s) for the given
         source. Idempotent: if a FundingActivity already exists for this
@@ -343,7 +342,7 @@ class FundingActivityService:
         return None
 
     @classmethod
-    def _create_fundraise_payout_activity(cls, purchase) -> Optional[FundingActivity]:
+    def _create_fundraise_payout_activity(cls, purchase) -> FundingActivity | None:
         """
         One FundingActivity per Purchase (FUNDRAISE_CONTRIBUTION, paid).
 
@@ -404,7 +403,7 @@ class FundingActivityService:
     @classmethod
     def _create_usd_fundraise_payout_activity(
         cls, contribution: UsdFundraiseContribution
-    ) -> Optional[FundingActivity]:
+    ) -> FundingActivity | None:
         """
         One FundingActivity per non-refunded UsdFundraiseContribution on PAID escrow.
 
@@ -464,7 +463,7 @@ class FundingActivityService:
     @classmethod
     def _create_bounty_payout_activity(
         cls, escrow_recipient: EscrowRecipients
-    ) -> Optional[FundingActivity]:
+    ) -> FundingActivity | None:
         """One FundingActivity per EscrowRecipients (bounty payout)."""
         escrow = escrow_recipient.escrow
         if escrow.hold_type != Escrow.BOUNTY or escrow.status != Escrow.PAID:
@@ -497,7 +496,7 @@ class FundingActivityService:
         return activity
 
     @classmethod
-    def _create_tip_document_activity(cls, purchase) -> Optional[FundingActivity]:
+    def _create_tip_document_activity(cls, purchase) -> FundingActivity | None:
         """One FundingActivity per Purchase BOOST on paper/post."""
         if (
             purchase.purchase_type != Purchase.BOOST
@@ -537,7 +536,7 @@ class FundingActivityService:
         return activity
 
     @classmethod
-    def _create_tip_review_activity(cls, distribution) -> Optional[FundingActivity]:
+    def _create_tip_review_activity(cls, distribution) -> FundingActivity | None:
         """One FundingActivity per Distribution PURCHASE (review tip)."""
         if distribution.distribution_type != "PURCHASE":
             return None
@@ -578,7 +577,7 @@ class FundingActivityService:
         return activity
 
     @classmethod
-    def _create_fee_activity(cls, distribution) -> Optional[FundingActivity]:
+    def _create_fee_activity(cls, distribution) -> FundingActivity | None:
         """One FundingActivity per fee Distribution (no recipient user)."""
         if distribution.distribution_type not in (
             "BOUNTY_DAO_FEE",

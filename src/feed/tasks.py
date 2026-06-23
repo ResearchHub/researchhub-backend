@@ -1,7 +1,7 @@
 import logging
 import time
 from datetime import timedelta
-from typing import Any, Optional
+from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -118,9 +118,7 @@ def create_feed_entry(
         )
 
 
-def publish_to_feed(
-    item: ResearchhubPost | Paper, user_id: Optional[int] = None
-) -> None:
+def publish_to_feed(item: ResearchhubPost | Paper, user_id: int | None = None) -> None:
     """Enqueue a PUBLISH feed entry for ``item`` once the transaction commits."""
     hub_ids = list(item.unified_document.hubs.values_list("id", flat=True))
     content_type_id = ContentType.objects.get_for_model(item).id
@@ -214,7 +212,7 @@ def update_feed_metrics(item_id, item_content_type_id, metrics):
 
 def _get_unified_document(
     item: Any, item_content_type: ContentType
-) -> Optional[ResearchhubUnifiedDocument]:
+) -> ResearchhubUnifiedDocument | None:
     """
     Extract unified document from different content types.
 

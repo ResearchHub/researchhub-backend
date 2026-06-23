@@ -6,7 +6,7 @@ and handles the saving process with proper validation and error handling.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from django.db import transaction
 
@@ -401,7 +401,7 @@ class PaperIngestionService:
         raw_record: Dict[str, Any],
         source: IngestionSource,
         validate: bool = True,
-    ) -> Optional[Paper]:
+    ) -> Paper | None:
         """
         Process and save a single paper from raw ingestion client response.
 
