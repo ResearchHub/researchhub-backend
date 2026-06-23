@@ -102,54 +102,6 @@ class ResearchhubPostViewSet(
         )
         return Response(serializer.data)
 
-    @action(
-        detail=False,
-        methods=["post"],
-        permission_classes=[IsAuthenticated],
-        url_name="create-registered-report",
-        url_path="create-registered-report",
-    )
-    def create_registered_report(self, request: Request) -> Response:
-        """Create a registered report for a completed proposal."""
-        serializer = RegisteredReportCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-
-        validation_response = self.validate_post_content(
-            data["title"],
-            data["renderable_text"],
-        )
-        if validation_response is not None:
-            return validation_response
-
-        try:
-            with transaction.atomic():
-                registered_report = JourneyService().create_registered_report(
-                    user=request.user,
-                    proposal_id=data["proposal_id"],
-                    title=data["title"],
-                    renderable_text=data["renderable_text"],
-                    note_id=data.get("note_id"),
-                    editor_type=data.get("editor_type"),
-                    image=data.get("image"),
-                    preview_img=data.get("preview_img"),
-                )
-                if not TESTING:
-                    file_name = (
-                        f"RH-POST-{REGISTERED_REPORT}-USER-{request.user.id}.txt"
-                    )
-                    full_src_file = ContentFile(data["full_src"].encode())
-                    registered_report.discussion_src.save(file_name, full_src_file)
-                self.add_upvote(request.user, registered_report)
-        except ValueError as error:
-            return Response({"error": str(error)}, status=400)
-
-        response_data = ResearchhubPostSerializer(
-            registered_report,
-            context={"request": request},
-        ).data
-        return Response(response_data, status=200)
-
     def validate_post_content(
         self, title: object, renderable_text: object
     ) -> Response | None:
@@ -252,12 +204,27 @@ class ResearchhubPostViewSet(
         try:
             with transaction.atomic():
                 created_by = request.user
+                journey_service = JourneyService()
+                registered_report_proposal = None
+                if document_type == REGISTERED_REPORT:
+                    serializer = RegisteredReportCreateSerializer(data=data)
+                    serializer.is_valid(raise_exception=True)
+                    registered_report_proposal = (
+                        journey_service.get_completed_proposal_candidate(
+                            created_by,
+                            serializer.validated_data["proposal_id"],
+                        )
+                    )
+                    authors = registered_report_proposal.authors.all()
+
                 risk_score_service = RiskScoreService()
 
                 # Risk-score gating: trusted users auto-approve, everyone else
                 # enters the moderation queue as PENDING. Grants gate via their
-                # own Grant.status, so the post itself stays APPROVED.
-                if document_type == GRANT:
+                # own Grant.status, so the post itself stays APPROVED. Registered
+                # Reports will always be auto approved, as they require the attached
+                # completed proposal.
+                if document_type in (GRANT, REGISTERED_REPORT):
                     work_status = ResearchhubUnifiedDocument.APPROVED
                 else:
                     work_status = risk_score_service.initial_work_status(created_by)
@@ -287,6 +254,10 @@ class ResearchhubPostViewSet(
                 if access_group is not None:
                     unified_document.access_groups = access_group
                 unified_document.save()
+                if registered_report_proposal is not None:
+                    unified_document.hubs.set(
+                        registered_report_proposal.unified_document.hubs.all()
+                    )
 
                 slug = slugify(title)
                 rh_post = ResearchhubPost.objects.create(
@@ -307,6 +278,11 @@ class ResearchhubPostViewSet(
                 full_src_file = ContentFile(data["full_src"].encode())
                 rh_post.authors.set(authors)
                 self.add_upvote(created_by, rh_post)
+                if registered_report_proposal is not None:
+                    journey_service.attach_stage(
+                        registered_report_proposal.journey,
+                        rh_post,
+                    )
 
                 fundraise = None
                 if goal_amount := data.get("fundraise_goal_amount"):
@@ -417,7 +393,7 @@ class ResearchhubPostViewSet(
                     )
                     GrantCacheMixin.invalidate_grant_feed_cache()
 
-                JourneyService().ensure_approved_preregistration_has_journey(rh_post)
+                journey_service.ensure_approved_preregistration_has_journey(rh_post)
 
             response_data = ResearchhubPostSerializer(
                 rh_post, context={"request": request}
@@ -482,7 +458,7 @@ class ResearchhubPostViewSet(
 
         except serializers.ValidationError as e:
             return Response({"error": e.detail}, status=400)
-        except (KeyError, TypeError) as exception:
+        except (KeyError, TypeError, ValueError) as exception:
             log_error(exception)
             return Response({"error": str(exception)}, status=400)
 

@@ -17,7 +17,7 @@ from user.tests.helpers import create_organization, create_random_default_user
 
 
 class CreateRegisteredReportTests(APITestCase):
-    create_url = "/api/researchhubpost/create-registered-report/"
+    create_url = "/api/researchhubpost/"
 
     def setUp(self) -> None:
         """Create users and proposal context for registered report tests."""
@@ -144,6 +144,7 @@ class CreateRegisteredReportTests(APITestCase):
     ) -> dict[str, object]:
         """Build a valid registered report request payload."""
         payload = {
+            "document_type": REGISTERED_REPORT,
             "proposal_id": proposal.id,
             "title": "Registered report title",
             "renderable_text": (
