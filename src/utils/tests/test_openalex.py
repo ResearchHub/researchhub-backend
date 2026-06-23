@@ -21,11 +21,9 @@ fixtures_dir = Path(__file__).parent
 
 class OpenAlexTests(TestCase):
     def setUp(self):
-        with open(fixtures_dir / "work_by_doi.json", "r") as response_body_file:
+        with open(fixtures_dir / "work_by_doi.json") as response_body_file:
             self.works_json = json.load(response_body_file)
-        with open(
-            fixtures_dir / "openalex_with_researchhub_works.json", "r"
-        ) as content:
+        with open(fixtures_dir / "openalex_with_researchhub_works.json") as content:
             self.works_json_with_researchhub_works = json.load(content)
         self.works_url = re.compile(r"^https://api.openalex.org/works")
         self.method = "GET"
