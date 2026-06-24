@@ -751,10 +751,8 @@ else:
 
 # Celery
 
-CELERY_BROKER_URL = "redis://{}:{}/0".format(REDIS_HOST, REDIS_PORT)
-CELERY_RESULT_BACKEND = "db+postgresql://{}:{}@{}:{}/{}".format(
-    DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME
-)
+CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
+CELERY_RESULT_BACKEND = f"db+postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 CELERY_TIMEZONE = "UTC"
 CELERY_RESULT_BACKEND = "django-db"
 CELERY_TASK_TRACK_STARTED = True
@@ -774,7 +772,7 @@ if ELASTIC_BEANSTALK:
 if TESTING:
     CELERY_BROKER_URL = "memory://localhost"  # use in-memory broker for testing
 
-REDBEAT_REDIS_URL = "redis://{}:{}/2".format(REDIS_HOST, REDIS_PORT)
+REDBEAT_REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/2"
 REDBEAT_KEY_PREFIX = f"{APP_ENV}_redbeat_"
 
 # Django Channels

@@ -115,7 +115,7 @@ class Hub(models.Model):
         ]
 
     def __str__(self):
-        return "{}:{}, locked: {}".format(self.namespace, self.name, self.is_locked)
+        return f"{self.namespace}:{self.name}, locked: {self.is_locked}"
 
     def save(self, *args, **kwargs):
         self.slugify()
@@ -130,7 +130,7 @@ class Hub(models.Model):
             # We only want slugs that equal exactly or are appended with "-{number}"
             hub_slugs = Hub.objects.filter(
                 models.Q(slug=self.slug)
-                | models.Q(slug__regex=r"^{}-\d+$".format(self.slug))
+                | models.Q(slug__regex=rf"^{self.slug}-\d+$")
             ).order_by(models.F("slug_index").asc(nulls_first=True))
 
             if hub_slugs.exists():
