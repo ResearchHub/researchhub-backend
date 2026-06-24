@@ -6,7 +6,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from utils.models import DefaultModel
-from utils.openalex import scholarly_ids_from_urls
+from utils.openalex import orcid_from_urls
 
 
 class ExpertSearch(DefaultModel):
@@ -202,9 +202,9 @@ class Expert(DefaultModel):
         return urls
 
     @property
-    def source_ids(self) -> tuple[str | None, str | None]:
-        """``(orcid, openalex_author_id)`` mined from the ``sources`` URLs."""
-        return scholarly_ids_from_urls(self.source_urls)
+    def orcid(self) -> str | None:
+        """ORCID mined from the ``sources`` URLs, or ``None`` when absent."""
+        return orcid_from_urls(self.source_urls)
 
     def save(self, *args, **kwargs):
         if self.email:
