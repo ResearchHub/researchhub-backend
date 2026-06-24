@@ -50,7 +50,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
 
     def _get_personalized_response(self, request):
         """Handle personalized feed (Personalize recommendations)."""
-        response = super(FeedViewSet, self).list(request)
+        response = super().list(request)
 
         if request.user.is_authenticated:
             self.add_user_votes_to_response(request.user, response.data)
@@ -84,7 +84,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
                 return response
 
         # Fetch fresh data
-        response = super(FeedViewSet, self).list(request)
+        response = super().list(request)
 
         if use_cache:
             cache.set(cache_key, response.data, timeout=self.DEFAULT_CACHE_TIMEOUT)

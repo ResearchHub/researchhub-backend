@@ -437,7 +437,7 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
                 if paper is None:
                     # It is important to note that paper signals
                     # are ran after call to super
-                    paper = super(PaperSerializer, self).create(validated_data)
+                    paper = super().create(validated_data)
                     paper.full_clean(exclude=["paper_type"])
 
                 unified_doc_id = paper.unified_document.id
@@ -519,7 +519,7 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
                 self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
 
-                paper = super(PaperSerializer, self).update(instance, validated_data)
+                paper = super().update(instance, validated_data)
                 paper.full_clean(exclude=["paper_type"])
 
                 unified_doc = paper.unified_document
