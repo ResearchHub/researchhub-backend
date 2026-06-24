@@ -21,7 +21,6 @@ from research_ai.services.agent.types import (
     ToolResultBlock,
     ToolUseBlock,
 )
-from utils import sentry
 from utils.aws import bedrock_runtime_client
 
 logger = logging.getLogger(__name__)
@@ -91,7 +90,6 @@ class BedrockProvider(LLMProvider):
         try:
             response = self._client.converse(**kwargs)
         except Exception as e:
-            sentry.log_error(e, message="Bedrock Converse API call failed")
             logger.exception("Bedrock complete failed")
             raise RuntimeError(f"Bedrock complete failed: {e}") from e
 
