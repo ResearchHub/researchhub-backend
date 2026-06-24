@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Exists, IntegerField, OuterRef, Q, Sum
 from django.db.models.functions import Cast
+from django.utils.functional import cached_property
 
 from discussion.models import AbstractGenericReactionModel, Vote
 from purchase.models import Grant, Purchase
@@ -14,10 +15,14 @@ from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     DOCUMENT_TYPES,
+    REGISTERED_REPORT,
 )
 from researchhub_document.related_models.constants.editor_type import (
     CK_EDITOR,
     EDITOR_TYPES,
+)
+from researchhub_document.related_models.constants.journey_stage import (
+    JOURNEY_STAGE_BY_DOCUMENT_TYPE,
 )
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -130,6 +135,13 @@ class ResearchhubPost(AbstractGenericReactionModel):
         null=True,
         default=None,
     )
+    journey = models.ForeignKey(
+        "researchhub_document.ResearchJourney",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="stage_posts",
+    )
     note = models.OneToOneField(
         "note.Note",
         null=True,
@@ -193,6 +205,18 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     objects = ResearchhubPostQuerySet.as_manager()
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["journey"],
+                condition=Q(
+                    document_type=REGISTERED_REPORT,
+                    journey__isnull=False,
+                ),
+                name="unique_rr_per_journey",
+            ),
+        ]
+
     @property
     def is_latest_version(self):
         return self.next_version is None
@@ -200,6 +224,10 @@ class ResearchhubPost(AbstractGenericReactionModel):
     @property
     def is_root_version(self):
         return self.version_number == 1
+
+    @cached_property
+    def stage(self):
+        return JOURNEY_STAGE_BY_DOCUMENT_TYPE.get(self.document_type)
 
     @property
     def users_to_notify(self):
