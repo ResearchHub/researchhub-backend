@@ -7,7 +7,7 @@ matcher and recency sort did poorly. The tools guarantee every author id and
 work URL is real; this module adds a grounding pass so a hallucinated citation
 cannot reach the stored profile.
 
-Built on PR1's neutral agent core (``Agent``/``Toolset``/``LLMProvider``): the
+Built on the neutral agent core (``Agent``/``Toolset``/``LLMProvider``): the
 agent drives a ``BedrockProvider`` over the OpenAlex tools, captures the
 terminal ``submit_profile`` payload from the toolset, and grounds it.
 """
@@ -32,15 +32,15 @@ _SYSTEM_PROMPT = """\
 You identify a researcher in OpenAlex and summarize their best work.
 
 You are given an "expert" -- a name, an affiliation, an expertise blurb, and
-source links that may contain an ORCID or OpenAlex author id. The affiliation
-and expertise are machine-generated and noisy; treat them as hints, not facts.
+source links that may contain an ORCID. The affiliation and expertise are
+machine-generated and noisy; treat them as hints, not facts.
 
 Goal: resolve the expert to the correct OpenAlex author, then pick up to five of
 their most relevant, readable papers.
 
 How to work:
-- If a source link already gives an ORCID or OpenAlex author id, confirm it with
-  get_author before trusting it.
+- If a source link already gives an ORCID, confirm it with get_author before
+  trusting it.
 - Otherwise search_authors by name. Use search_institutions to turn the
   affiliation into an institution id and scope the search when names are common.
   Compare candidates' institutions, topics, and citation counts before choosing.
@@ -57,14 +57,12 @@ edit a URL. Finish by calling submit_profile exactly once.
 
 
 def _user_prompt(expert) -> str:
-    orcid, openalex_id = expert.source_ids
     payload = {
         "name": expert.full_name,
         "affiliation": getattr(expert, "affiliation", "") or "",
         "expertise": getattr(expert, "expertise", "") or "",
         "source_urls": expert.source_urls,
-        "cited_orcid": orcid,
-        "cited_openalex_author_id": openalex_id,
+        "cited_orcid": expert.orcid,
     }
     return "Resolve this expert and build their profile:\n" + json.dumps(
         payload, indent=2, ensure_ascii=False

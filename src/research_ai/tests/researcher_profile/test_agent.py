@@ -1,6 +1,6 @@
 """Unit tests for the researcher-profile agent (orchestration + grounding).
 
-The agent runs on PR1's core ``Agent`` loop. A ``FakeProvider`` replays a fixed
+The agent runs on the core ``Agent`` loop. A ``FakeProvider`` replays a fixed
 sequence of tool-call turns through the real ``OpenAlexToolset``, so the agent's
 grounding and assembly are exercised end to end without Bedrock or the network.
 """

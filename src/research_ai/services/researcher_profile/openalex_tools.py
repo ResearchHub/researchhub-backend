@@ -5,7 +5,7 @@ citing); these tools own *ground truth*. Every tool returns data read straight
 from OpenAlex, so the agent can only select from real records -- it never
 invents an author id, a DOI, or a PDF link.
 
-``OpenAlexToolset`` builds neutral core ``Tool`` objects (PR1's
+``OpenAlexToolset`` builds neutral core ``Tool`` objects (the
 ``Tool``/``Toolset`` abstraction) rather than provider-specific Converse specs.
 ``build_tools()`` returns the list of ``Tool``s; ``as_toolset()`` wraps them in a
 core ``Toolset`` ready to hand to an ``Agent``.
