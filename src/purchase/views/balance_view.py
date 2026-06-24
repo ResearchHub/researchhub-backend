@@ -129,7 +129,7 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
             """Format decimal to 8 decimal places."""
             if value is None:
                 return "0.00"
-            return "{:.8f}".format(float(value))
+            return f"{float(value):.8f}"
 
         def get_transaction_type_for_turbotax(balance) -> str:
             """

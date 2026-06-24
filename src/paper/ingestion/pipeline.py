@@ -5,7 +5,7 @@ Paper ingestion pipeline for fetching and processing papers from multiple source
 import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any
 
 from celery import group
 from django.conf import settings
@@ -37,13 +37,13 @@ class IngestionStatus:
     total_created: int = 0
     total_updated: int = 0
     total_errors: int = 0
-    errors: List[Dict[str, Any]] = None
+    errors: list[dict[str, Any]] = None
 
     def __post_init__(self):
         if self.errors is None:
             self.errors = []
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -54,16 +54,16 @@ class PaperIngestionPipeline:
 
     BATCH_SIZE = 25  # Number of papers to process in each batch
 
-    def __init__(self, clients: Dict[str, Any]):
+    def __init__(self, clients: dict[str, Any]):
         self.clients = clients
 
     def run_ingestion(
         self,
-        sources: List[str] | None = None,
+        sources: list[str] | None = None,
         since: datetime | None = None,
         until: datetime | None = None,
         create_fetch_log: bool = True,
-    ) -> Dict[str, IngestionStatus]:
+    ) -> dict[str, IngestionStatus]:
         """
         Run the ingestion pipeline for specified sources.
 
@@ -135,7 +135,7 @@ class PaperIngestionPipeline:
         since: datetime,
         until: datetime,
         status: IngestionStatus,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Fetch papers from the given source (preprint server).
         """
@@ -162,7 +162,7 @@ class PaperIngestionPipeline:
     def _process_papers_in_batches(
         self,
         source: str,
-        papers_data: List[Dict[str, Any]],
+        papers_data: list[dict[str, Any]],
     ) -> None:
         """
         Process papers in batches to avoid blocking the database.
@@ -226,7 +226,7 @@ class PaperIngestionPipeline:
 @app.task(
     queue=QUEUE_PULL_PAPERS,
 )
-def fetch_all_papers() -> Dict[str, Any]:
+def fetch_all_papers() -> dict[str, Any]:
     """
     Orchestrator task that triggers parallel fetching from all sources.
     Entry point for scheduling.
@@ -268,7 +268,7 @@ def fetch_papers_from_source(
     since: str | None = None,
     until: str | None = None,
     create_fetch_log: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Task for fetching papers from a specific source.
 
@@ -307,8 +307,8 @@ def fetch_papers_from_source(
 )
 def process_batch_task(
     source: str,
-    batch: List[Dict[str, Any]],
-) -> Dict[str, Any]:
+    batch: list[dict[str, Any]],
+) -> dict[str, Any]:
     """
     Process a batch of papers and save them to the database.
     """

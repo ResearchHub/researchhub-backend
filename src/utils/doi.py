@@ -3,7 +3,6 @@ import re
 import string
 import time
 from datetime import datetime
-from typing import List
 
 import requests
 from django.conf import settings
@@ -129,14 +128,14 @@ class DOI:
 
     # Register DOI for a ResearchHub post.
     def register_doi_for_post(
-        self, authors: List[Author], title: str, rh_post: ResearchhubPost
+        self, authors: list[Author], title: str, rh_post: ResearchhubPost
     ) -> HttpResponse:
         url = f"{settings.BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}"
         return self.register_doi(authors, [], title, url)
 
     # Register DOI for a ResearchHub paper.
     def register_doi_for_paper(
-        self, authors: List[Author], title: str, rh_paper: Paper
+        self, authors: list[Author], title: str, rh_paper: Paper
     ) -> HttpResponse:
         url = f"{settings.BASE_FRONTEND_URL}/paper/{rh_paper.id}/{rh_paper.slug}"
         return self.register_doi(authors, rh_paper.authorships.all(), title, url)
@@ -152,8 +151,8 @@ class DOI:
     # Main method to register a DOI with Crossref.
     def register_doi(
         self,
-        authors: List[Author],
-        authorships: List[Authorship],
+        authors: list[Author],
+        authorships: list[Authorship],
         title: str,
         url: str,
     ) -> HttpResponse:

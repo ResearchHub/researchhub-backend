@@ -198,7 +198,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
         emailContext = {
             "hub_name": hub.name.capitalize(),
-            "link": base_url + "/hubs/{}/".format(hub.name),
+            "link": base_url + f"/hubs/{hub.name}/",
             "opt_out": base_url + "/email/opt-out/",
         }
 
