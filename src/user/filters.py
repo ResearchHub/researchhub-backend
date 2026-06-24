@@ -100,11 +100,8 @@ class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
 
         if filterset_model and queryset is not None:
             assert issubclass(queryset.model, filterset_model), (
-                "FilterSet model %s does not match queryset model %s"
-                % (
-                    filterset_model,
-                    queryset.model,
-                )
+                f"FilterSet model {filterset_model} does not match queryset model "
+                f"{queryset.model}"
             )
 
         return filterset_class
