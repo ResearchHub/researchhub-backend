@@ -6,6 +6,7 @@ from rest_framework.serializers import (
     CharField,
     IntegerField,
     ModelSerializer,
+    Serializer,
     SerializerMethodField,
 )
 
@@ -93,6 +94,19 @@ class CompletedProposalCandidateSerializer(ModelSerializer):
             .order_by("-created_date", "-id")
             .first()
         )
+
+
+class RegisteredReportCreateSerializer(Serializer):
+    """Validate a registered report creation request."""
+
+    proposal_id = IntegerField()
+    title = CharField()
+    renderable_text = CharField()
+    full_src = CharField()
+    note_id = IntegerField(required=False, allow_null=True)
+    editor_type = CharField(required=False, allow_blank=True, allow_null=True)
+    image = CharField(required=False, allow_blank=True, allow_null=True)
+    preview_img = CharField(required=False, allow_blank=True, allow_null=True)
 
 
 class ResearchhubPostSerializer(

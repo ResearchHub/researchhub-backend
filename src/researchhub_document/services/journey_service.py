@@ -118,6 +118,17 @@ class JourneyService:
             .order_by("-created_date", "-id")
         )
 
+    def get_completed_proposal_candidate(
+        self, user: User, proposal_id: int
+    ) -> ResearchhubPost:
+        """Return one completed proposal candidate or raise a validation error."""
+        proposal = self.list_completed_proposal_candidates(user).filter(
+            id=proposal_id
+        ).first()
+        if proposal is None:
+            raise ValueError("Proposal is not eligible for a registered report.")
+        return proposal
+
     @transaction.atomic
     def include_completed_fundraise_in_journal(
         self, fundraise: Fundraise
