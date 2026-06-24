@@ -6,7 +6,7 @@ Handles communication with OpenAlex API endpoints.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Union
+from typing import Any
 
 import requests
 
@@ -53,7 +53,7 @@ class OpenAlexClient(BaseClient):
 
     def fetch(
         self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
-    ) -> Union[str, bytes, dict[str, Any]]:
+    ) -> str | bytes | dict[str, Any]:
         """
         Fetch data from OpenAlex API.
 
@@ -97,7 +97,7 @@ class OpenAlexClient(BaseClient):
             raise FetchError(f"Failed to fetch from {url}: {str(e)}")
 
     def parse(
-        self, raw_data: Union[str, bytes, dict[str, Any]]
+        self, raw_data: str | bytes | dict[str, Any]
     ) -> list[dict[str, Any]]:
         """
         Parse OpenAlex JSON response and return raw entry data.

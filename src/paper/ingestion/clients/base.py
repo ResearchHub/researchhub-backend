@@ -7,7 +7,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Union
+from typing import Any
 
 from paper.ingestion.exceptions import FetchError, RetryExhaustedError, TimeoutError
 
@@ -69,7 +69,7 @@ class BaseClient(ABC):
     @abstractmethod
     def fetch(
         self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
-    ) -> Union[str, bytes, dict[str, Any]]:
+    ) -> str | bytes | dict[str, Any]:
         """
         Fetch data from the source API.
 
@@ -81,7 +81,7 @@ class BaseClient(ABC):
     @abstractmethod
     def parse(
         self,
-        raw_data: Union[str, bytes, dict[str, Any]],
+        raw_data: str | bytes | dict[str, Any],
     ) -> list[dict[str, Any]]:
         """
         Parse raw response into list of paper records.
@@ -93,14 +93,14 @@ class BaseClient(ABC):
 
     def fetch_with_rate_limit(
         self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
-    ) -> Union[str, bytes, dict[str, Any]]:
+    ) -> str | bytes | dict[str, Any]:
         """Fetch data with rate limiting."""
         self.rate_limiter.wait_if_needed()
         return self.fetch(endpoint, params, **kwargs)
 
     def fetch_with_retry(
         self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
-    ) -> Union[str, bytes, dict[str, Any]]:
+    ) -> str | bytes | dict[str, Any]:
         """Fetch data with retry logic and exponential backoff."""
         backoff = self.config.initial_backoff
 
@@ -131,7 +131,7 @@ class BaseClient(ABC):
         )
 
     def process_page(
-        self, page_data: Union[str, bytes, dict[str, Any]]
+        self, page_data: str | bytes | dict[str, Any]
     ) -> list[dict[str, Any]]:
         """Process a page of results."""
         return self.parse(page_data)
