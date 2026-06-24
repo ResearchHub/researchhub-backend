@@ -17,6 +17,7 @@ from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Toolset
 from research_ai.services.agent.types import (
     Message,
+    StopReason,
     TextBlock,
     ToolResultBlock,
 )
@@ -105,13 +106,18 @@ class Agent:
                 )
             )
 
-            if not turn.tool_calls:
+            if not turn.tool_calls and turn.stop_reason == StopReason.END_TURN:
                 # Model answered in plain text without calling a tool: done.
                 return AgentResult(
                     messages=messages,
                     final_text=turn.text,
-                    stop_reason="end_turn",
+                    stop_reason=turn.stop_reason.value,
                     iterations=iteration,
+                )
+            if not turn.tool_calls:
+                raise RuntimeError(
+                    "Provider stopped without completing the agent run: "
+                    f"{turn.stop_reason.value}"
                 )
 
             result_blocks: list[ToolResultBlock] = []

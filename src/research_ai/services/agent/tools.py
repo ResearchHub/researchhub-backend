@@ -82,7 +82,8 @@ class Toolset:
         Returns ``(result, stop)``. Unknown tool ->
         ``({"error": "unknown tool: ..."}, False)``. A handler that raises is
         caught and logged -> ``({"error": str(exc)}, False)``. A terminal tool
-        returns ``stop=True`` so the loop ends after its result is delivered.
+        returns ``stop=True`` after a non-error result so the loop ends after
+        its result is delivered.
         """
         tool = self._tools.get(name)
         if tool is None:
@@ -92,7 +93,8 @@ class Toolset:
         except Exception as exc:  # noqa: BLE001 - tool errors go back to the model
             logger.info("tool %r failed: %s", name, exc)
             return {"error": str(exc)}, False
-        return result, tool.is_terminal
+        is_error = isinstance(result, dict) and "error" in result
+        return result, tool.is_terminal and not is_error
 
     def render_specs(self, provider: "LLMProvider") -> Any:
         """Render this toolset to ``provider``'s wire format."""

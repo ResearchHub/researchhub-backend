@@ -14,12 +14,12 @@ from research_ai.services.agent.types import (
 )
 
 
-def _build_text_turn(text):
+def _build_text_turn(text, *, stop_reason=StopReason.END_TURN):
     """Build an end-of-turn AssistantTurn carrying a single text block."""
     return AssistantTurn(
         text_blocks=[TextBlock(text=text)],
         tool_calls=[],
-        stop_reason=StopReason.END_TURN,
+        stop_reason=stop_reason,
     )
 
 
@@ -130,6 +130,17 @@ class AgentLoopTests(SimpleTestCase):
         self.assertEqual(result.final_text, "all done")
         self.assertEqual(result.stop_reason, "end_turn")
         self.assertEqual(result.iterations, 1)
+
+    def test_non_terminal_provider_stop_without_tool_calls_raises(self):
+        # Arrange: partial text from the provider is not a completed answer.
+        provider = FakeProvider(
+            [_build_text_turn("partial", stop_reason=StopReason.MAX_TOKENS)]
+        )
+        agent = _build_agent(provider, _build_toolset())
+
+        # Act / Assert
+        with self.assertRaisesRegex(RuntimeError, "max_tokens"):
+            agent.run("hi")
 
     def test_exceeding_max_iterations_raises(self):
         # Arrange: the model never stops calling tools.

@@ -53,6 +53,24 @@ class ToolsetDispatchTests(SimpleTestCase):
         self.assertEqual(result, {"echo": {"a": 1}})
         self.assertTrue(stop)
 
+    def test_terminal_tool_error_does_not_signal_stop(self):
+        # Arrange
+        tool = Tool(
+            name="submit",
+            description="submit",
+            input_schema={"type": "object"},
+            handler=lambda input: {"error": "missing required field"},
+            is_terminal=True,
+        )
+        toolset = Toolset([tool])
+
+        # Act
+        result, stop = toolset.dispatch("submit", {})
+
+        # Assert
+        self.assertEqual(result, {"error": "missing required field"})
+        self.assertFalse(stop)
+
     def test_non_terminal_tool_does_not_stop(self):
         # Arrange
         toolset = Toolset([_build_ok_tool("search")])
