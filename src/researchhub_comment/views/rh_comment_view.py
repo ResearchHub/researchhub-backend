@@ -361,7 +361,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 )
             data["comment_type"] = AUTHOR_UPDATE
             target = target or self._get_model_object()
-            self.validate_registered_report_results_target(target)
+            self._validate_registered_report_results_target(target)
 
         with transaction.atomic():
             rh_thread, parent_id = self._retrieve_or_create_thread_from_request(request)
@@ -402,7 +402,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             ).data
             return Response(serializer_data, status=200)
 
-    def validate_registered_report_results_target(self, target: object) -> None:
+    def _validate_registered_report_results_target(self, target: object) -> None:
         """Require results updates to target an attached registered report."""
         if (
             getattr(target, "document_type", None) != REGISTERED_REPORT
