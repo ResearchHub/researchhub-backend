@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import (
     AllowAny,
@@ -29,6 +29,9 @@ from researchhub.permissions import IsObjectOwner, IsObjectOwnerOrModerator
 from researchhub.settings import TESTING
 from researchhub_access_group.constants import ADMIN, EDITOR, PRIVATE, WORKSPACE
 from researchhub_access_group.models import Permission
+from researchhub_comment.constants.rh_comment_thread_references import (
+    REGISTERED_REPORT_RESULTS_REFERENCE,
+)
 from researchhub_comment.constants.rh_comment_thread_types import (
     AUTHOR_UPDATE,
     COMMUNITY_REVIEW,
@@ -55,6 +58,7 @@ from researchhub_comment.tasks import celery_create_mention_notification
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
+    REGISTERED_REPORT,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
     SORT_DISCUSSED,
@@ -333,6 +337,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     def _create_rh_comment(self, request, *args, **kwargs):
         data = request.data
         user = request.user
+        target = None
 
         # Enforce rate limit for community reviews
         if data.get("comment_type") == COMMUNITY_REVIEW:
@@ -348,6 +353,15 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             target = self._get_model_object()
             if not getattr(target, "created_by", None) or target.created_by != user:
                 raise PermissionDenied("Only the author can add author updates.")
+
+        if data.get("thread_reference") == REGISTERED_REPORT_RESULTS_REFERENCE:
+            if data.get("thread_type") != AUTHOR_UPDATE:
+                raise ValidationError(
+                    "Registered report results must be author updates."
+                )
+            data["comment_type"] = AUTHOR_UPDATE
+            target = target or self._get_model_object()
+            self._validate_registered_report_results_target(target)
 
         with transaction.atomic():
             rh_thread, parent_id = self._retrieve_or_create_thread_from_request(request)
@@ -387,6 +401,16 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 ),
             ).data
             return Response(serializer_data, status=200)
+
+    def _validate_registered_report_results_target(self, target: object) -> None:
+        """Require results updates to target an attached registered report."""
+        if (
+            getattr(target, "document_type", None) != REGISTERED_REPORT
+            or getattr(target, "journey_id", None) is None
+        ):
+            raise ValidationError(
+                "Registered report results require a registered report."
+            )
 
     @track_event
     @action(
