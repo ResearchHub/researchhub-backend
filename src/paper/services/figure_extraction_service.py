@@ -1,6 +1,5 @@
 import logging
 from io import BytesIO
-from typing import List
 
 import fitz
 from django.core.files.base import ContentFile
@@ -87,7 +86,7 @@ class FigureExtractionService:
 
     def extract_figures_from_pdf(
         self, pdf_content: bytes, paper_id: int
-    ) -> List[ContentFile]:
+    ) -> list[ContentFile]:
         """
         Extract embedded images from PDF content.
 

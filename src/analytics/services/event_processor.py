@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from django.db import transaction
 
@@ -21,7 +21,7 @@ class EventProcessor:
     def __init__(self):
         self.amplitude_parser = AmplitudeEventParser()
 
-    def process_event(self, event: Dict[str, Any]) -> None:
+    def process_event(self, event: dict[str, Any]) -> None:
         """
         Process an event, routing to appropriate handler based on event type.
         """
@@ -32,7 +32,7 @@ class EventProcessor:
         else:
             self._process_single_event(event)
 
-    def _process_single_event(self, event: Dict[str, Any]) -> None:
+    def _process_single_event(self, event: dict[str, Any]) -> None:
         """Process a single event that creates one interaction record."""
         event_type = event.get("event_type", "unknown").lower()
         event_props = event.get("event_properties", {})
@@ -98,7 +98,7 @@ class EventProcessor:
                 f"for user {user_identifier} - {e}"
             ) from e
 
-    def _process_bulk_event(self, event: Dict[str, Any]) -> None:
+    def _process_bulk_event(self, event: dict[str, Any]) -> None:
         """Process a bulk event that creates multiple interaction records."""
         event_props = event.get("event_properties", {})
         user_id = event_props.get("user_id") or event.get("user_id")
