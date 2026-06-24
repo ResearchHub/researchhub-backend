@@ -147,6 +147,56 @@ class CompleteAndParseTests(SimpleTestCase):
         # toolConfig was forwarded because tools were present.
         self.assertIn("toolConfig", provider._client.calls[0])
 
+    def test_omits_temperature_for_models_that_reject_sampling_params(self):
+        # Arrange: Opus 4.8 rejects `temperature` with a 400.
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+        }
+        provider = BedrockProvider(
+            client=FakeConverseClient([response]),
+            model_id="us.anthropic.claude-opus-4-8",
+        )
+
+        # Act
+        provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=100,
+            temperature=0.0,
+        )
+
+        # Assert: temperature is not forwarded; maxTokens still is.
+        inference_config = provider._client.calls[0]["inferenceConfig"]
+        self.assertNotIn("temperature", inference_config)
+        self.assertEqual(inference_config["maxTokens"], 100)
+
+    def test_includes_temperature_for_models_that_accept_it(self):
+        # Arrange: a sampling-friendly model (e.g. Sonnet/Haiku) keeps temperature.
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+        }
+        provider = BedrockProvider(
+            client=FakeConverseClient([response]),
+            model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        )
+
+        # Act
+        provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=100,
+            temperature=0.0,
+        )
+
+        # Assert
+        self.assertEqual(
+            provider._client.calls[0]["inferenceConfig"]["temperature"], 0.0
+        )
+
     def test_parse_turn_maps_unknown_stop_reason_to_other(self):
         # Arrange
         provider = _build_provider()

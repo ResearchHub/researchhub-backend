@@ -25,9 +25,21 @@ from utils.aws import bedrock_runtime_client
 
 logger = logging.getLogger(__name__)
 
-# Default generator model. Should eventually be Opus 4.8, but the exact Bedrock
-# id must be confirmed against the AWS catalog at deploy -- keep it config-only.
-_DEFAULT_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+# Default generator model. Bedrock requires the cross-region inference profile
+# (the ``us.`` prefix); the bare ``anthropic.claude-opus-4-8`` is provisioned-
+# throughput only. Override per environment via RESEARCH_AI_GENERATOR_MODEL_ID.
+_DEFAULT_MODEL_ID = "us.anthropic.claude-opus-4-8"
+
+# Opus 4.7+ and Fable reject sampling params (temperature/top_p/top_k) with a
+# 400 ("`temperature` is deprecated for this model"). Match by substring so the
+# provider omits them for those models.
+_NO_SAMPLING_PARAMS = ("opus-4-7", "opus-4-8", "fable")
+
+
+def _accepts_sampling_params(model_id: str) -> bool:
+    mid = model_id.lower()
+    return not any(tag in mid for tag in _NO_SAMPLING_PARAMS)
+
 
 # Bedrock Converse ``stopReason`` -> neutral ``StopReason``.
 _STOP_REASONS = {
@@ -75,14 +87,14 @@ class BedrockProvider(LLMProvider):
         max_tokens: int,
         temperature: float,
     ) -> AssistantTurn:
+        inference_config: dict = {"maxTokens": max_tokens}
+        if _accepts_sampling_params(self.model_id):
+            inference_config["temperature"] = temperature
         kwargs: dict = {
             "modelId": self.model_id,
             "system": [{"text": system_prompt}],
             "messages": self._render_messages(messages),
-            "inferenceConfig": {
-                "maxTokens": max_tokens,
-                "temperature": temperature,
-            },
+            "inferenceConfig": inference_config,
         }
         if rendered_tools and rendered_tools.get("tools"):
             kwargs["toolConfig"] = rendered_tools

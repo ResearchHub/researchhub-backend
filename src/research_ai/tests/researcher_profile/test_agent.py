@@ -145,11 +145,12 @@ class RunProfileAgentTests(SimpleTestCase):
         self.assertEqual([w["title"] for w in profile["works"]], ["Lead Paper"])
         self.assertTrue(any("ungrounded" in e for e in profile["errors"]))
 
-    def test_blanks_ungrounded_pdf_url(self):
-        # Arrange: real source_url, but a pdf_url the tools never returned.
+    def test_ignores_tampered_fields_and_uses_ground_truth(self):
+        # Arrange: real source_url, but title/pdf_url the model mangled.
         work = _work()
         client = _oa_client_returning(work)
         tampered = _as_submitted_work(work)
+        tampered["title"] = "Totally Different Title"
         tampered["pdf_url"] = "https://example.org/not-real.pdf"
         provider = _scripted_provider(
             [
@@ -165,8 +166,11 @@ class RunProfileAgentTests(SimpleTestCase):
         )
         # Act
         profile = run_profile_agent(make_expert(), provider=provider, oa_client=client)
-        # Assert
-        self.assertEqual(profile["works"][0]["pdf_url"], "")
+        # Assert: the work is materialized from the tool record, not the model.
+        self.assertEqual(profile["works"][0]["title"], "Lead Paper")
+        self.assertEqual(
+            profile["works"][0]["pdf_url"], "https://example.org/lead-paper.pdf"
+        )
 
     def test_caps_works_at_five(self):
         # Arrange: six grounded works submitted.
@@ -188,6 +192,27 @@ class RunProfileAgentTests(SimpleTestCase):
         profile = run_profile_agent(make_expert(), provider=provider, oa_client=client)
         # Assert
         self.assertEqual(len(profile["works"]), 5)
+
+    def test_drops_non_list_works(self):
+        # Arrange: works arrives as something other than a list of work dicts.
+        client = _oa_client_returning(_work())
+        provider = _scripted_provider(
+            [
+                ("get_author_works", {"openalex_author_id": "A123"}),
+                (
+                    "submit_profile",
+                    {
+                        "resolution": {"openalex_author_id": "A123", "confidence": 0.9},
+                        "works": "not a list",
+                    },
+                ),
+            ]
+        )
+        # Act
+        profile = run_profile_agent(make_expert(), provider=provider, oa_client=client)
+        # Assert: nothing is kept and the malformed shape is surfaced, not swallowed.
+        self.assertEqual(profile["works"], [])
+        self.assertTrue(any("not a list" in e for e in profile["errors"]))
 
     def test_unresolved_submission(self):
         # Arrange: the model gives up with a null author id.

@@ -50,9 +50,11 @@ How to work:
   ones where this author is first/last author and that are recent and relevant.
   Only keep works that have a pdf_url (readable full text).
 
-Grounding rule: every work you submit MUST be copied verbatim from a
-get_author_works result -- same title, source_url, and pdf_url. Never invent or
-edit a URL. Finish by calling submit_profile exactly once.
+Grounding rule: every work you submit MUST come from a get_author_works result.
+Only its source_url is used to look the work up -- copy that exactly and never
+invent or edit a URL (the title and other fields are taken from the tool data,
+so do not worry about reproducing them perfectly). Finish by calling
+submit_profile exactly once.
 """
 
 
@@ -69,41 +71,41 @@ def _user_prompt(expert) -> str:
     )
 
 
-def _ground_works(
-    works: list[dict], toolset: OpenAlexToolset
-) -> tuple[list[dict], list[str]]:
-    """Keep only works whose ``source_url`` the tools actually returned.
+def _ground_works(works, toolset: OpenAlexToolset) -> tuple[list[dict], list[str]]:
+    """Materialize the selected works from ground truth.
 
-    Drops fabricated citations; blanks a ``pdf_url`` the tools never returned.
-    Returns ``(kept_works, errors)``.
+    The model only chooses works by ``source_url``; each kept work is rebuilt
+    from the record the tools actually returned, so a mangled or fabricated copy
+    cannot reach the profile. Returns ``(kept_works, errors)``.
     """
     kept: list[dict] = []
     errors: list[str] = []
     seen: set[str] = set()
+    if not isinstance(works, list):
+        errors.append(
+            f"submitted works was {type(works).__name__}, not a list; dropped"
+        )
+        works = []
     for work in works:
-        if not isinstance(work, dict):
+        source_url = (
+            str(work.get("source_url") or "").strip() if isinstance(work, dict) else ""
+        )
+        if not source_url or source_url in seen:
             continue
-        source_url = str(work.get("source_url") or "").strip()
-        if source_url not in toolset.returned_source_urls:
-            errors.append(
-                f"dropped ungrounded work: {work.get('title') or source_url!r}"
-            )
-            continue
-        if source_url in seen:
+        record = toolset.returned_works.get(source_url)
+        if record is None:
+            errors.append(f"dropped ungrounded work: {source_url!r}")
             continue
         seen.add(source_url)
-        pdf_url = str(work.get("pdf_url") or "").strip()
-        if pdf_url and pdf_url not in toolset.returned_pdf_urls:
-            pdf_url = ""  # never returned by a tool -> do not trust it
         kept.append(
             {
-                "title": str(work.get("title") or "").strip(),
-                "publication_date": str(work.get("publication_date") or "").strip(),
-                "publication_year": str(work.get("publication_year") or "").strip(),
+                "title": str(record.get("title") or "").strip(),
+                "publication_date": str(record.get("publication_date") or "").strip(),
+                "publication_year": str(record.get("publication_year") or "").strip(),
                 "source_url": source_url,
-                "pdf_url": pdf_url,
-                "author_position": work.get("author_position"),
-                "is_oa": bool(work.get("is_oa")),
+                "pdf_url": str(record.get("pdf_url") or "").strip(),
+                "author_position": record.get("author_position"),
+                "is_oa": bool(record.get("is_oa")),
             }
         )
         if len(kept) >= _MAX_WORKS:

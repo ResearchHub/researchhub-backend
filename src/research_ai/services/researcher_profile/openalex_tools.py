@@ -10,9 +10,9 @@ invents an author id, a DOI, or a PDF link.
 ``build_tools()`` returns the list of ``Tool``s; ``as_toolset()`` wraps them in a
 core ``Toolset`` ready to hand to an ``Agent``.
 
-The toolset also records the ``source_url``/``pdf_url`` of every work it hands
-back (``returned_source_urls`` / ``returned_pdf_urls``). The agent validates the
-final profile against these sets so a hallucinated citation cannot survive.
+The toolset also retains the full ground-truth record of every work it hands
+back, keyed by ``source_url`` (``returned_works``). The agent materializes the
+final profile from these records so a hallucinated citation cannot survive.
 """
 
 import logging
@@ -76,9 +76,10 @@ class OpenAlexToolset:
 
     def __init__(self, *, client: OpenAlex | None = None):
         self._oa = client or OpenAlex()
-        # Provenance of every work URL handed to the model, for grounding.
-        self.returned_source_urls: set[str] = set()
-        self.returned_pdf_urls: set[str] = set()
+        # Full ground-truth work record for every work handed to the model,
+        # keyed by source_url. The profile is materialized from these rather
+        # than from the model's (often mangled) copy of each work.
+        self.returned_works: dict[str, dict] = {}
         # Captured input of the terminal submit_profile call (None until called).
         self.submitted: dict | None = None
 
@@ -267,9 +268,7 @@ class OpenAlexToolset:
         for work in works[:max_results]:
             data = work.as_dict()
             if data["source_url"]:
-                self.returned_source_urls.add(data["source_url"])
-            if data["pdf_url"]:
-                self.returned_pdf_urls.add(data["pdf_url"])
+                self.returned_works[data["source_url"]] = data
             payload.append(data)
         return {"works": payload}
 
