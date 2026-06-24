@@ -1,5 +1,4 @@
 import logging
-from typing import Dict, List
 
 from atproto import Client
 from django.conf import settings
@@ -84,7 +83,7 @@ class BlueskyClient:
             logger.error(f"Bluesky authentication failed: {e}")
             raise
 
-    def search_posts(self, query: str, limit: int = MAX_SEARCH_RESULTS) -> Dict | None:
+    def search_posts(self, query: str, limit: int = MAX_SEARCH_RESULTS) -> dict | None:
         """
         Search for posts on Bluesky matching a query.
 
@@ -125,8 +124,8 @@ class BlueskyMetricsClient:
         self.bluesky_client = bluesky_client or BlueskyClient()
 
     def get_metrics(
-        self, terms: List[str], limit: int = BlueskyClient.MAX_SEARCH_RESULTS
-    ) -> Dict | None:
+        self, terms: list[str], limit: int = BlueskyClient.MAX_SEARCH_RESULTS
+    ) -> dict | None:
         """
         Get Bluesky metrics for a list of terms (DOI, title, etc.).
 
@@ -171,7 +170,7 @@ class BlueskyMetricsClient:
             return None
 
         # Collect posts from all terms, deduplicated by URI
-        all_posts: Dict[str, Dict] = {}
+        all_posts: dict[str, dict] = {}
 
         for term in terms:
             try:
@@ -202,7 +201,7 @@ class BlueskyMetricsClient:
         return metrics
 
     @staticmethod
-    def _extract_metrics(posts: List[Dict]) -> Dict:
+    def _extract_metrics(posts: list[dict]) -> dict:
         """
         Extract aggregated metrics from a list of posts.
 

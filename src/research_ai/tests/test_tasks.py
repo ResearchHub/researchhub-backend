@@ -142,10 +142,10 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
         self.assertIsNone(kw["template"])
         self.assertEqual(kw["template_id"], 99)
 
-    @patch("research_ai.tasks.sentry")
+    @patch("research_ai.tasks.logger")
     @patch("research_ai.tasks.generate_expert_email")
-    def test_process_bulk_one_fails_marks_failed_and_logs_sentry(
-        self, mock_generate, mock_sentry
+    def test_process_bulk_one_fails_marks_failed_and_logs(
+        self, mock_generate, mock_logger
     ):
         rec_ok = GeneratedEmail.objects.create(
             created_by=self.user,
@@ -184,16 +184,16 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
         rec_fail.refresh_from_db()
         self.assertEqual(rec_ok.status, GeneratedEmail.Status.DRAFT)
         self.assertEqual(rec_fail.status, GeneratedEmail.Status.FAILED)
-        mock_sentry.log_error.assert_called_once()
+        mock_logger.warning.assert_called_once()
 
-    @patch("research_ai.tasks.sentry")
+    @patch("research_ai.tasks.logger")
     @patch("research_ai.tasks.generate_expert_email")
-    def test_process_bulk_outer_exception_marks_all_failed_and_logs_sentry(
-        self, mock_generate, mock_sentry
+    def test_process_bulk_outer_exception_marks_all_failed_and_logs(
+        self, mock_generate, mock_logger
     ):
         """
         Top-level exception (e.g. User.objects.get raises) marks all ids FAILED
-        and logs to Sentry.
+        and logs the error.
         """
         rec = GeneratedEmail.objects.create(
             created_by=self.user,
@@ -217,7 +217,7 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
                 ).get()
         rec.refresh_from_db()
         self.assertEqual(rec.status, GeneratedEmail.Status.FAILED)
-        mock_sentry.log_error.assert_called_once()
+        mock_logger.exception.assert_called_once()
 
 
 # --- send_queued_emails_task ---
