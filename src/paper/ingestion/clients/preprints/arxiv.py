@@ -191,9 +191,7 @@ class ArXivClient(BaseClient):
         except requests.RequestException as e:
             raise FetchError(f"Failed to fetch from {url}: {str(e)}")
 
-    def parse(
-        self, raw_data: str | bytes | dict[str, Any]
-    ) -> list[dict[str, Any]]:
+    def parse(self, raw_data: str | bytes | dict[str, Any]) -> list[dict[str, Any]]:
         """
         Parse ArXiv Atom XML feed and return parsed entry data.
 

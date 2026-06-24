@@ -83,9 +83,7 @@ class ChemRxivClient(BaseClient):
         except requests.RequestException as e:
             raise FetchError(f"Failed to fetch from {url}: {str(e)}")
 
-    def parse(
-        self, raw_data: str | bytes | dict[str, Any]
-    ) -> list[dict[str, Any]]:
+    def parse(self, raw_data: str | bytes | dict[str, Any]) -> list[dict[str, Any]]:
         """
         Parse ChemRxiv JSON response and return raw paper data.
 

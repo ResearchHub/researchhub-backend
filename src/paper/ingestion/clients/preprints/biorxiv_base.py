@@ -83,9 +83,7 @@ class BioRxivBaseClient(BaseClient):
         except requests.RequestException as e:
             raise FetchError(f"Failed to fetch from {url}: {str(e)}")
 
-    def parse(
-        self, raw_data: str | bytes | dict[str, Any]
-    ) -> list[dict[str, Any]]:
+    def parse(self, raw_data: str | bytes | dict[str, Any]) -> list[dict[str, Any]]:
         """
         Extract collection from BioRxiv API response.
 
