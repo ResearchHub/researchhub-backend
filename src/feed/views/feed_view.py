@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.core.cache import cache
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -10,6 +11,7 @@ from feed.ordering import FeedOrderingBackend
 from feed.serializers import FeedEntrySerializer
 from feed.views.common import FeedPagination as BaseFeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
+from user.permissions import IsModerator
 from utils.throttles import FeedRecommendationRefreshThrottle
 
 
@@ -162,3 +164,36 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         )
 
         return queryset
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="user_generated",
+        permission_classes=[IsModerator],
+        throttle_classes=[],
+    )
+    def user_generated(self, request):
+        """
+        Moderator-only feed of user-uploaded entries (`user` is not null).
+
+        Bypasses `FeedFilteringBackend` so the preprint-hub allowlist and
+        `pdf_copyright_allows_display` filter don't hide moderation targets.
+        """
+        queryset = (
+            FeedEntry.objects.filter(user__isnull=False)
+            .select_related(
+                "content_type",
+                "user",
+                "user__author_profile",
+                "user__userverification",
+                "unified_document",
+            )
+            .order_by("-action_date")
+        )
+
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page, many=True)
+        response = self.get_paginated_response(serializer.data)
+        self.add_user_votes_to_response(request.user, response.data)
+        response["RH-Feed-Source"] = "rh-user-generated"
+        return response
