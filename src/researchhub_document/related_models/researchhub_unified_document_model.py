@@ -204,7 +204,7 @@ class ResearchhubUnifiedDocument(
 
         doc = self.get_document()
 
-        return "{}/{}/{}/{}".format(BASE_FRONTEND_URL, doc_url, doc.id, doc.slug)
+        return f"{BASE_FRONTEND_URL}/{doc_url}/{doc.id}/{doc.slug}"
 
     def get_client_doc_type(self):
         if self.document_type == PAPER:

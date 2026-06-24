@@ -207,6 +207,60 @@ class JourneyServiceTests(TestCase):
         self.assertIsNone(journey)
         self.assertFalse(ResearchJourney.objects.exists())
 
+    def test_log_completed_fundraise_without_proposal(self) -> None:
+        """Verify completed fundraises without proposals are logged."""
+        # Arrange
+        post = self._create_post(DISCUSSION)
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=post.unified_document,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+            status=Fundraise.COMPLETED,
+        )
+
+        # Act
+        with self.assertLogs(
+            "researchhub_document.services.journey_service",
+            level="WARNING",
+        ) as logs:
+            journey = self.service.include_completed_fundraise_in_journal(fundraise)
+
+        # Assert
+        self.assertIsNone(journey)
+        self.assertIn(
+            "Completed fundraise has no preregistration post.",
+            logs.output[0],
+        )
+
+    def test_log_completed_fundraise_with_ineligible_proposal(self) -> None:
+        """Verify completed fundraises with ineligible proposals are logged."""
+        # Arrange
+        proposal = self._create_post(PREREGISTRATION)
+        proposal.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        proposal.unified_document.save(update_fields=["status"])
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+            status=Fundraise.COMPLETED,
+        )
+
+        # Act
+        with self.assertLogs(
+            "researchhub_document.services.journey_service",
+            level="WARNING",
+        ) as logs:
+            journey = self.service.include_completed_fundraise_in_journal(fundraise)
+
+        # Assert
+        self.assertIsNone(journey)
+        self.assertIn(
+            "Completed fundraise preregistration was not eligible for a journey.",
+            logs.output[0],
+        )
+
     def test_attach_stage_attaches_registered_report(self) -> None:
         """Verify registered reports attach to journeys with proposals."""
         # Arrange
@@ -313,9 +367,7 @@ class JourneyServiceTests(TestCase):
         self.assertFalse(self.service.has_registered_report(journey))
 
         self.service.attach_stage(journey, registered_report)
-        self.assertEqual(
-            self.service.get_latest_stage_post(journey), registered_report
-        )
+        self.assertEqual(self.service.get_latest_stage_post(journey), registered_report)
         self.assertTrue(self.service.has_registered_report(journey))
 
     def test_get_stages_returns_grant_proposal_and_registered_report(self) -> None:

@@ -1,6 +1,5 @@
 import csv
 from datetime import datetime
-from typing import List
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand, CommandError
@@ -372,7 +371,7 @@ class Command(BaseCommand):
         )
 
     @transaction.atomic
-    def _insert_batch(self, batch: List[UserInteractions]) -> int:
+    def _insert_batch(self, batch: list[UserInteractions]) -> int:
         if not batch:
             return 0
         before = UserInteractions.objects.count()
