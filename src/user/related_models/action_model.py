@@ -47,8 +47,9 @@ class Action(DefaultModel):
         )
 
     def __str__(self):
-        return "Action: {}-{}-{}, ".format(
-            self.content_type.app_label, self.content_type.model, self.object_id
+        return (
+            f"Action: {self.content_type.app_label}-{self.content_type.model}-"
+            f"{self.object_id}, "
         )
 
     def save(self, *args, **kwargs):
@@ -92,7 +93,7 @@ class Action(DefaultModel):
             else:
                 noun = f"your {self.doc_type}"
 
-        act.label = "has {} {}".format(verb, noun)
+        act.label = f"has {verb} {noun}"
 
         if act.content_type_name == "summary":
             act.label += " summary"
@@ -194,7 +195,7 @@ class Action(DefaultModel):
                 item = item.get_document()
 
         if isinstance(item, Paper):
-            link += "/paper/{}/".format(item.id)
+            link += f"/paper/{item.id}/"
         elif isinstance(item, RhCommentModel):
             uni_doc = self.item.unified_document
             doc_type = uni_doc.document_type
@@ -205,11 +206,11 @@ class Action(DefaultModel):
                 or doc_type == "QUESTION"
                 or doc_type == "BOUNTY"
             ):
-                link += "/post/{}/{}#comments".format(doc.id, doc.slug)
+                link += f"/post/{doc.id}/{doc.slug}#comments"
             else:
-                link += "/paper/{}/{}#comments".format(doc.id, doc.slug)
+                link += f"/paper/{doc.id}/{doc.slug}#comments"
         elif isinstance(item, ResearchhubPost):
-            link += "/post/{}/{}".format(item.id, item.title)
+            link += f"/post/{item.id}/{item.title}"
         elif isinstance(item, Withdrawal):
             link = ""
         elif isinstance(item, PaperSubmission):

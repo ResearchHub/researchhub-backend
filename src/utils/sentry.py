@@ -1,4 +1,5 @@
 import traceback
+from warnings import deprecated
 
 from sentry_sdk import (
     capture_exception,
@@ -6,6 +7,7 @@ from sentry_sdk import (
 )
 
 
+@deprecated("Use logging instead")
 def log_error(e, base_error=None, message=None, json_data=None):
     """Captures an exception with the sentry sdk.
 

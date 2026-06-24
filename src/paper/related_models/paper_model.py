@@ -238,7 +238,7 @@ class Paper(AbstractGenericReactionModel):
         title = self.title
         uploaded_by = self.uploaded_by
         if title and uploaded_by:
-            return "{} - {}".format(title, uploaded_by)
+            return f"{title} - {uploaded_by}"
         elif title:
             return title
         else:
@@ -366,7 +366,7 @@ class Paper(AbstractGenericReactionModel):
             self.is_removed = True
 
         res = requests.get(
-            "https://doi.org/api/handles/{}".format(doi),
+            f"https://doi.org/api/handles/{doi}",
             headers=requests.utils.default_headers(),
         )
         if res.status_code >= 200 and res.status_code < 400 and has_doi:

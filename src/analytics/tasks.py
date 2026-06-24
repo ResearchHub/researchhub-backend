@@ -1,4 +1,4 @@
-from typing import Any, Dict, Literal
+from typing import Any, Literal
 
 from analytics.amplitude import Amplitude
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
@@ -8,7 +8,7 @@ from utils.sentry import log_error
 
 
 @app.task(queue=QUEUE_EXTERNAL_REPORTING)
-def process_amplitude_event(event: Dict[str, Any]) -> None:
+def process_amplitude_event(event: dict[str, Any]) -> None:
     """Process a single Amplitude event asynchronously."""
     from analytics.exceptions import EventProcessingError
     from analytics.services.event_processor import EventProcessor

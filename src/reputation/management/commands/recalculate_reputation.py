@@ -12,7 +12,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         users = User.objects.all()
         for i, user in enumerate(users):
-            print("{} / {}".format(i, users.count()))
+            print(f"{i} / {users.count()}")
             rep_sum = user.reputation_records.exclude(
                 distribution_type="REFERRAL"
             ).aggregate(rep=Sum("amount"))

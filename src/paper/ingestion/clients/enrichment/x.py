@@ -1,5 +1,4 @@
 import logging
-from typing import Dict, List, Set
 
 from django.conf import settings
 from xdk import Client
@@ -12,8 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_bot_accounts_for_paper(
-    external_source: str | None, hub_slugs: List[str] | None
-) -> Set[str]:
+    external_source: str | None, hub_slugs: list[str] | None
+) -> set[str]:
     """
     Get bot accounts to exclude based on paper's external source and hub slugs.
 
@@ -31,7 +30,7 @@ def get_bot_accounts_for_paper(
     if not source_bots:
         return set()
 
-    bot_accounts: Set[str] = set()
+    bot_accounts: set[str] = set()
 
     # Add category-specific bots based on hub slugs
     if hub_slugs:
@@ -43,7 +42,7 @@ def get_bot_accounts_for_paper(
 
 
 def build_query_with_exclusions(
-    base_query: str, excluded_accounts: Set[str] | None
+    base_query: str, excluded_accounts: set[str] | None
 ) -> str:
     """
     Build an X search query with account exclusions.
@@ -121,7 +120,7 @@ class XClient:
         if self._client is None:
             self._client = Client(bearer_token=self.bearer_token)
 
-    def search_posts(self, query: str, max_results: int = 10) -> Dict | None:
+    def search_posts(self, query: str, max_results: int = 10) -> dict | None:
         """
         Search for posts on X matching a query.
 
@@ -156,7 +155,7 @@ class XClient:
             }
         return {"posts": [], "meta": {}}
 
-    def _parse_post(self, post) -> Dict:
+    def _parse_post(self, post) -> dict:
         """
         Parse a post object from the X API response.
 
@@ -210,11 +209,11 @@ class XMetricsClient:
 
     def get_metrics(
         self,
-        terms: List[str],
+        terms: list[str],
         max_results: int = XClient.MAX_SEARCH_RESULTS,
         external_source: str | None = None,
-        hub_slugs: List[str] | None = None,
-    ) -> Dict | None:
+        hub_slugs: list[str] | None = None,
+    ) -> dict | None:
         """
         Get X metrics for a list of terms using OR logic.
 
@@ -278,7 +277,7 @@ class XMetricsClient:
         metrics["terms"] = terms
         return metrics
 
-    def _build_query(self, terms: List[str]) -> str:
+    def _build_query(self, terms: list[str]) -> str:
         """
         Build an X search query from a list of terms using OR logic.
 
@@ -295,7 +294,7 @@ class XMetricsClient:
         return " OR ".join(quoted_terms)
 
     @staticmethod
-    def _extract_metrics(posts: List[Dict]) -> Dict:
+    def _extract_metrics(posts: list[dict]) -> dict:
         """
         Extract aggregated metrics from a list of posts.
 

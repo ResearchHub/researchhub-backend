@@ -313,9 +313,7 @@ class JourneyServiceTests(TestCase):
         self.assertFalse(self.service.has_registered_report(journey))
 
         self.service.attach_stage(journey, registered_report)
-        self.assertEqual(
-            self.service.get_latest_stage_post(journey), registered_report
-        )
+        self.assertEqual(self.service.get_latest_stage_post(journey), registered_report)
         self.assertTrue(self.service.has_registered_report(journey))
 
     def test_get_stages_returns_grant_proposal_and_registered_report(self) -> None:

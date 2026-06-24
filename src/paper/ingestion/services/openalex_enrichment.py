@@ -1,7 +1,6 @@
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import List
 
 from django.db import transaction
 from django.utils import timezone
@@ -70,7 +69,7 @@ class PaperOpenAlexEnrichmentService:
         self.openalex_client = openalex_client
         self.openalex_mapper = openalex_mapper
 
-    def get_recent_papers_with_dois(self, days: int) -> List[int]:
+    def get_recent_papers_with_dois(self, days: int) -> list[int]:
         """
         Query papers created in the last N days that have DOIs.
 
@@ -418,7 +417,7 @@ class PaperOpenAlexEnrichmentService:
 
         return hubs_created
 
-    def enrich_papers_batch(self, paper_ids: List[int]) -> BatchEnrichmentResult:
+    def enrich_papers_batch(self, paper_ids: list[int]) -> BatchEnrichmentResult:
         """
         Enrich multiple papers with OpenAlex data, including license info,
         authors, institutions, and authorships.

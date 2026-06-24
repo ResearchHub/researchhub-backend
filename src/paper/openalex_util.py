@@ -1,7 +1,7 @@
 import copy
 import logging
 import urllib.parse
-from typing import Any, Dict, List
+from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
@@ -49,7 +49,7 @@ It is used to automatically tag papers with the appropriate journal hub when the
 fetched from OpenAlex.
 Note: If the name of the journal hub changes, this dictionary will need to be updated.
 """
-OPENALEX_SOURCES_TO_JOURNAL_HUBS: Dict[str, str] = {
+OPENALEX_SOURCES_TO_JOURNAL_HUBS: dict[str, str] = {
     "arXiv (Cornell University)": "Arxiv",
     "bioRxiv (Cold Spring Harbor Laboratory)": "Biorxiv",
     "medRxiv (Cold Spring Harbor Laboratory)": "Medrxiv",
@@ -96,7 +96,7 @@ def create_all_paper_tags(papers_to_openalex_data):
         )
 
 
-def create_and_update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
+def create_and_update_papers(open_alex, works) -> dict[int, dict[str, Any]]:
     from paper.models import Paper
 
     dois = [work.get("doi") for work in works]
@@ -151,7 +151,7 @@ def create_and_update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
     return paper_to_openalex_data
 
 
-def create_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
+def create_papers(open_alex, works) -> dict[int, dict[str, Any]]:
     from paper.models import Paper
 
     paper_to_openalex_data = {}
@@ -208,7 +208,7 @@ def create_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
     return paper_to_openalex_data
 
 
-def update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
+def update_papers(open_alex, works) -> dict[int, dict[str, Any]]:
     from paper.models import Paper
 
     paper_to_openalex_data = {}
@@ -259,7 +259,7 @@ def update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
     return paper_to_openalex_data
 
 
-def fetch_authors_for_works(openalex_works) -> List[Dict[str, Any]]:
+def fetch_authors_for_works(openalex_works) -> list[dict[str, Any]]:
     open_alex = OpenAlex()
     all_authors_to_fetch = set()
     batch_size = 100
@@ -281,7 +281,7 @@ def fetch_authors_for_works(openalex_works) -> List[Dict[str, Any]]:
 
 def build_oa_authors_by_work_id_dict(
     openalex_works, fetched_oa_authors
-) -> Dict[str, List[Dict[str, Any]]]:
+) -> dict[str, list[dict[str, Any]]]:
     fetched_oa_authors_by_id = {author["id"]: author for author in fetched_oa_authors}
 
     oa_authors_by_work_id = {}
@@ -342,7 +342,7 @@ def create_authors(openalex_works) -> QuerySet[Author]:
     return Author.objects.filter(openalex_ids__overlap=all_openalex_author_ids)
 
 
-def build_authors_by_oa_id_dict(authors: QuerySet[Author]) -> Dict[str, List[Author]]:
+def build_authors_by_oa_id_dict(authors: QuerySet[Author]) -> dict[str, list[Author]]:
     authors_by_oa_id = {}
     for author in authors:
         for openalex_id in author.openalex_ids:

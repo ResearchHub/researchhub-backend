@@ -633,7 +633,7 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
             return True
 
         res = requests.get(
-            "https://doi.org/api/handles/{}".format(doi),
+            f"https://doi.org/api/handles/{doi}",
             headers=requests.utils.default_headers(),
         )
         if res.status_code >= 200 and res.status_code < 400 and has_doi:

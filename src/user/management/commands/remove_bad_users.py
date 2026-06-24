@@ -9,6 +9,6 @@ class Command(BaseCommand):
         objects = User.objects.filter(probable_spammer=True)
         count = objects.count()
         for i, user in enumerate(objects):
-            print("{} / {}".format(i, count))
+            print(f"{i} / {count}")
             handle_spam_user_task(user.id)
             user.papers.update(is_removed=True)

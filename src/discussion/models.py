@@ -49,7 +49,7 @@ class Vote(DefaultModel):
         ]
 
     def __str__(self):
-        return "{} - {}".format(self.created_by, self.vote_type)
+        return f"{self.created_by} - {self.vote_type}"
 
     @property
     def paper(self):
