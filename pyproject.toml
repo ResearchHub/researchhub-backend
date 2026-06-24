@@ -90,6 +90,7 @@ extend-select = [
     "I",      # isort
     "T20",    # flake8-print: forbid print statements
     "TID",    # flake8-tidy-imports
+    "UP032",  # f-string
     "UP006",  # non-pep585-annotation
     "UP007",  # non-pep604-annotation-union
     "UP015",  # redundant-open-modes
