@@ -12,10 +12,10 @@ tools own the ground truth, so every author id and work URL is read from
 OpenAlex -- never invented. A grounding pass drops any citation the tools did
 not actually return before the profile is stored.
 
-``Expert.profile`` schema (JSON, ``schema_version`` 2)::
+``Expert.profile`` schema (JSON, ``schema_version`` 1)::
 
     {
-      "schema_version": 2,
+      "schema_version": 1,
       "built_at": "<ISO 8601>",
       "resolution": {
         "openalex_author_id": str | None,   # null when not confidently resolved

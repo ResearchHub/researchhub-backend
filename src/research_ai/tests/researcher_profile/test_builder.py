@@ -12,7 +12,7 @@ class StoreProfileTests(TestCase):
     @patch("research_ai.services.researcher_profile.builder.build_expert_profile")
     def test_build_and_store_persists_profile(self, mock_build):
         # Arrange
-        profile = {"schema_version": 2, "works": []}
+        profile = {"schema_version": 1, "works": []}
         mock_build.return_value = profile
         expert = Expert.objects.create(email="jane@example.com", first_name="Jane")
         # Act

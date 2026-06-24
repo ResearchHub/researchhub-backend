@@ -24,7 +24,7 @@ from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 1
 _MAX_WORKS = 5  # works kept on the profile after grounding
 _DEFAULT_MAX_ITERATIONS = 12  # tool turns before the agent loop gives up
 

@@ -107,7 +107,7 @@ class RunProfileAgentTests(SimpleTestCase):
         # Act
         profile = run_profile_agent(make_expert(), provider=provider, oa_client=client)
         # Assert
-        self.assertEqual(profile["schema_version"], 2)
+        self.assertEqual(profile["schema_version"], 1)
         self.assertEqual(
             profile["resolution"]["openalex_author_id"], "https://openalex.org/A123"
         )
