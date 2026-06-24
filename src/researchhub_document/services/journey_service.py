@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 
 from django.db import IntegrityError, transaction
+from django.db.models import Exists, OuterRef, Prefetch, QuerySet
 from django.utils import timezone
 
 from purchase.models import Fundraise, GrantApplication
@@ -20,6 +21,7 @@ from researchhub_document.related_models.constants.journey_stage import (
     JOURNEY_STAGE_PROPOSAL,
     JOURNEY_STAGE_REGISTERED_REPORT,
 )
+from user.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +82,41 @@ class JourneyService:
         if not self._is_approved_preregistration(post):
             return None
         return self.get_or_create_for_preregistration(post)
+
+    def list_completed_proposal_candidates(
+        self, user: User
+    ) -> QuerySet[ResearchhubPost]:
+        """Return completed proposal candidates for registered report creation."""
+        completed_fundraises = Fundraise.objects.filter(
+            status=Fundraise.COMPLETED,
+        ).order_by("-created_date", "-id")
+        registered_reports = self.post_model.objects.filter(
+            document_type=REGISTERED_REPORT,
+            journey_id=OuterRef("journey_id"),
+        )
+
+        return (
+            self.post_model.objects.filter(
+                created_by=user,
+                document_type=PREREGISTRATION,
+                journey_id__isnull=False,
+                unified_document__fundraises__status=Fundraise.COMPLETED,
+                unified_document__is_removed=False,
+                unified_document__status=ResearchhubUnifiedDocument.APPROVED,
+            )
+            .annotate(has_registered_report=Exists(registered_reports))
+            .filter(has_registered_report=False)
+            .select_related("journey", "unified_document")
+            .prefetch_related(
+                Prefetch(
+                    "unified_document__fundraises",
+                    queryset=completed_fundraises,
+                    to_attr="completed_fundraises",
+                )
+            )
+            .distinct()
+            .order_by("-created_date", "-id")
+        )
 
     @transaction.atomic
     def include_completed_fundraise_in_journal(
