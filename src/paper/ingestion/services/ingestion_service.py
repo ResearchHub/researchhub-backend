@@ -6,7 +6,7 @@ and handles the saving process with proper validation and error handling.
 """
 
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from django.db import transaction
 
@@ -28,7 +28,7 @@ class PaperIngestionService:
     maps them to Paper model instances, and saves them to the database.
     """
 
-    def __init__(self, mappers: Dict[IngestionSource, BaseMapper]):
+    def __init__(self, mappers: dict[IngestionSource, BaseMapper]):
         """Constructor."""
         self._mappers = mappers
 
@@ -53,9 +53,9 @@ class PaperIngestionService:
     def _create_authors_and_institutions(
         self,
         paper: Paper,
-        record: Dict[str, Any],
+        record: dict[str, Any],
         mapper: BaseMapper,
-    ) -> Tuple[List[Author], List[Institution], List[Authorship]]:
+    ) -> tuple[list[Author], list[Institution], list[Authorship]]:
         """
         Create authors, institutions, and their relationships for a paper.
 
@@ -173,10 +173,10 @@ class PaperIngestionService:
 
     def ingest_papers(
         self,
-        raw_response: List[Dict[str, Any]],
+        raw_response: list[dict[str, Any]],
         source: IngestionSource,
         validate: bool = True,
-    ) -> Tuple[List[Paper], List[Dict[str, Any]]]:
+    ) -> tuple[list[Paper], list[dict[str, Any]]]:
         """
         Process and save papers from raw ingestion client response.
 
@@ -343,7 +343,7 @@ class PaperIngestionService:
 
     def _update_paper(
         self, existing_paper: Paper, new_paper: Paper
-    ) -> Tuple[Paper, bool]:
+    ) -> tuple[Paper, bool]:
         """
         Update an existing paper with new data.
 
@@ -398,7 +398,7 @@ class PaperIngestionService:
 
     def ingest_single_paper(
         self,
-        raw_record: Dict[str, Any],
+        raw_record: dict[str, Any],
         source: IngestionSource,
         validate: bool = True,
     ) -> Paper | None:

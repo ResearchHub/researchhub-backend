@@ -8,7 +8,7 @@ class Command(BaseCommand):
         objects = User.objects.all()
         supports = {}
         for i, user in enumerate(objects):
-            print("{} / {}".format(i, objects.count()))
+            print(f"{i} / {objects.count()}")
             if user.invited_by:
                 if user.invited_by not in supports:
                     supports[user.invited_by] = 1

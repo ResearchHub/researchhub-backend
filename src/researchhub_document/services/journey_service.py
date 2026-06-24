@@ -117,9 +117,7 @@ class JourneyService:
             .first()
         )
 
-    def get_registered_report(
-        self, journey: ResearchJourney
-    ) -> ResearchhubPost | None:
+    def get_registered_report(self, journey: ResearchJourney) -> ResearchhubPost | None:
         """Return the registered report post for the journey, if one exists."""
         self._require_saved_journey(journey)
         return (
@@ -131,9 +129,7 @@ class JourneyService:
             .first()
         )
 
-    def get_latest_stage_post(
-        self, journey: ResearchJourney
-    ) -> ResearchhubPost | None:
+    def get_latest_stage_post(self, journey: ResearchJourney) -> ResearchhubPost | None:
         """Return the latest available post stage in the journey."""
         return self.get_registered_report(journey) or self.get_proposal(journey)
 

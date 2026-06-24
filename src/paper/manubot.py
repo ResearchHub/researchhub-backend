@@ -1,6 +1,6 @@
 import logging
 from functools import cached_property
-from typing import Any, Dict
+from typing import Any
 
 from manubot.cite.citekey import CiteKey
 from manubot.cite.csl_item import CSL_Item
@@ -11,7 +11,7 @@ from manubot.cite.url import (
     get_url_csl_item_zotero,
 )
 
-CSLItem = Dict[str, Any]
+CSLItem = dict[str, Any]
 
 url_retrievers = [
     get_url_csl_item_zotero,

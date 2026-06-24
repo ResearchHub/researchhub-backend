@@ -23,6 +23,4 @@ class Throttle(models.Model):
     updated_date = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return "Locked: {}, ident: {}, User: {}".format(
-            self.locked, self.ident, self.user
-        )
+        return f"Locked: {self.locked}, ident: {self.ident}, User: {self.user}"

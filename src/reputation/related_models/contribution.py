@@ -57,4 +57,4 @@ class Contribution(models.Model):
         indexes = (models.Index(fields=("content_type", "object_id")),)
 
     def __str__(self):
-        return "Contribution: {} - {}".format(self.id, self.contribution_type)
+        return f"Contribution: {self.id} - {self.contribution_type}"

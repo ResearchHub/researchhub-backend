@@ -3,8 +3,6 @@ import logging
 from django.conf import settings
 from openai import OpenAI
 
-from utils import sentry
-
 logger = logging.getLogger(__name__)
 
 OPENAI_EXPERT_FINDER_MODEL = "gpt-5.4-mini"
@@ -63,7 +61,6 @@ class OpenAIExpertFinderService:
                     temperature=temperature,
                 )
             except Exception as e2:
-                sentry.log_error(e2, message="OpenAI expert finder API call failed")
                 logger.exception("OpenAI expert finder failed")
                 raise RuntimeError(f"OpenAI expert finder failed: {e2}") from e2
 

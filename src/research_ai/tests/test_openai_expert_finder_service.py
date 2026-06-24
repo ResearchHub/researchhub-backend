@@ -113,9 +113,9 @@ class OpenAIExpertFinderServiceTests(TestCase):
         self.assertEqual(svc.invoke("s", "u"), "")
 
     @override_settings(OPENAI_API_KEY="sk-test")
-    @patch("research_ai.services.openai_expert_finder_service.sentry.log_error")
+    @patch("research_ai.services.openai_expert_finder_service.logger")
     @patch("research_ai.services.openai_expert_finder_service.OpenAI")
-    def test_invoke_raises_when_both_paths_fail(self, mock_openai_cls, mock_sentry):
+    def test_invoke_raises_when_both_paths_fail(self, mock_openai_cls, mock_logger):
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
         mock_client.responses.create.side_effect = ValueError("responses failed")
@@ -128,4 +128,4 @@ class OpenAIExpertFinderServiceTests(TestCase):
             svc.invoke("s", "u")
         self.assertIn("OpenAI expert finder failed", str(ctx.exception))
         self.assertIsInstance(ctx.exception.__cause__, ConnectionError)
-        mock_sentry.assert_called_once()
+        mock_logger.exception.assert_called_once()

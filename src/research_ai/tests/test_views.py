@@ -23,7 +23,7 @@ class ExpertSearchDetailViewTests(APITestCase):
             status=ExpertSearch.Status.COMPLETED,
             expert_count=2,
         )
-        self.url = "/api/research_ai/expert-finder/searches/{}/".format(self.search.id)
+        self.url = f"/api/research_ai/expert-finder/searches/{self.search.id}/"
 
     def test_get_own_search_returns_200(self):
         self.client.force_authenticate(self.moderator)
@@ -46,7 +46,7 @@ class ExpertSearchDetailViewTests(APITestCase):
         )
         self.client.force_authenticate(self.moderator)
         response = self.client.get(
-            "/api/research_ai/expert-finder/searches/{}/".format(search.id)
+            f"/api/research_ai/expert-finder/searches/{search.id}/"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
@@ -122,7 +122,7 @@ class ExpertSearchProgressStreamViewTests(APITestCase):
             query="Stream test",
             status=ExpertSearch.Status.PENDING,
         )
-        self.url = "/api/research_ai/expert-finder/progress/{}/".format(self.search.id)
+        self.url = f"/api/research_ai/expert-finder/progress/{self.search.id}/"
 
     def test_progress_requires_auth(self):
         response = self.client.get(self.url)
@@ -164,7 +164,7 @@ class ExpertSearchWorkViewTests(APITestCase):
         )
         self.client.force_authenticate(self.moderator)
         response = self.client.get(
-            "/api/research_ai/expert-finder/work/{}/".format(paper.unified_document_id)
+            f"/api/research_ai/expert-finder/work/{paper.unified_document_id}/"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
@@ -185,7 +185,7 @@ class ExpertSearchWorkViewTests(APITestCase):
         )
         self.client.force_authenticate(self.moderator)
         response = self.client.get(
-            "/api/research_ai/expert-finder/work/{}/".format(post.unified_document_id)
+            f"/api/research_ai/expert-finder/work/{post.unified_document_id}/"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
@@ -203,7 +203,7 @@ class ExpertSearchWorkViewTests(APITestCase):
         mock_resolve.return_value = None
         self.client.force_authenticate(self.moderator)
         response = self.client.get(
-            "/api/research_ai/expert-finder/work/{}/".format(paper.unified_document_id)
+            f"/api/research_ai/expert-finder/work/{paper.unified_document_id}/"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
