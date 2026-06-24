@@ -47,7 +47,10 @@ class Action(DefaultModel):
         )
 
     def __str__(self):
-        return f"Action: {self.content_type.app_label}-{self.content_type.model}-{self.object_id}, "
+        return (
+            f"Action: {self.content_type.app_label}-{self.content_type.model}-"
+            f"{self.object_id}, "
+        )
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
