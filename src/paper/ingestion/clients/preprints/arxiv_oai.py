@@ -9,7 +9,7 @@ See: https://info.arxiv.org/help/oa/index.html
 import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Union
+from typing import Any
 
 import requests
 
@@ -42,7 +42,7 @@ def _get_text(element: ET.Element, tag: str) -> str | None:
     return None
 
 
-def _parse_dublin_core(root: ET.Element) -> Dict[str, Any]:
+def _parse_dublin_core(root: ET.Element) -> dict[str, Any]:
     """
     Parse Dublin Core metadata format as fallback.
 
@@ -81,7 +81,7 @@ def _parse_dublin_core(root: ET.Element) -> Dict[str, Any]:
     return entry_data
 
 
-def parse_xml_metadata(raw_xml: str) -> Dict[str, Any]:
+def parse_xml_metadata(raw_xml: str) -> dict[str, Any]:
     """
     Parse raw OAI metadata XML into a dictionary.
 
@@ -112,7 +112,7 @@ def parse_xml_metadata(raw_xml: str) -> Dict[str, Any]:
         ns = _ARXIV_NS if arxiv_elem.tag.startswith(_ARXIV_NS) else _ARXIV_RAW_NS
 
         # Extract basic fields
-        entry_data: Dict[str, Any] = {
+        entry_data: dict[str, Any] = {
             "id": _get_text(arxiv_elem, f"{ns}id"),
             "title": _get_text(arxiv_elem, f"{ns}title"),
             "abstract": _get_text(arxiv_elem, f"{ns}abstract"),
@@ -121,7 +121,7 @@ def parse_xml_metadata(raw_xml: str) -> Dict[str, Any]:
         }
 
         # Extract authors
-        authors: List[Dict[str, str]] = []
+        authors: list[dict[str, str]] = []
         authors_elem = arxiv_elem.find(f"{ns}authors")
         if authors_elem is not None:
             for author_elem in authors_elem.findall(f"{ns}author"):
@@ -221,8 +221,8 @@ class ArXivOAIClient(BaseClient):
         self.session = requests.Session()
 
     def fetch(
-        self, endpoint: str = "", params: Dict[str, Any] | None = None, **kwargs
-    ) -> Union[str, bytes, Dict[str, Any]]:
+        self, endpoint: str = "", params: dict[str, Any] | None = None, **kwargs
+    ) -> str | bytes | dict[str, Any]:
         """
         Fetch data from ArXiv OAI API.
 
@@ -273,9 +273,7 @@ class ArXivOAIClient(BaseClient):
         except requests.RequestException as e:
             raise FetchError(f"Failed to fetch from {url}: {str(e)}")
 
-    def parse(
-        self, raw_data: Union[str, bytes, Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def parse(self, raw_data: str | bytes | dict[str, Any]) -> list[dict[str, Any]]:
         """
         Parse ArXiv OAI XML response and return parsed record data.
 
@@ -352,7 +350,7 @@ class ArXivOAIClient(BaseClient):
         until: datetime | None = None,
         max_results: int | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Fetch recent papers from ArXiv using OAI within date range.
 

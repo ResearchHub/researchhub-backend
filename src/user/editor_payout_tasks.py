@@ -35,9 +35,7 @@ SENIOR_EDITOR_USD_PAY_AMOUNT_PER_MONTH = 2000
 USD_PER_RSC_PRICE_FLOOR = 0.10
 
 MORALIS_LOOKUP_URI = (
-    "https://deep-index.moralis.io/api/v2/erc20/{address}/price".format(
-        address=WEB3_RSC_ADDRESS
-    )
+    f"https://deep-index.moralis.io/api/v2/erc20/{WEB3_RSC_ADDRESS}/price"
 )
 
 

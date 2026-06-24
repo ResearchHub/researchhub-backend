@@ -6,7 +6,7 @@ Maps ArXiv paper records to ResearchHub Paper model fields.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from hub.models import Hub
@@ -44,7 +44,7 @@ class ArXivMapper(BaseMapper):
             ).first()
         return self._preprint_hub
 
-    def validate(self, record: Dict[str, Any]) -> bool:
+    def validate(self, record: dict[str, Any]) -> bool:
         """
         Validate an ArXiv paper record has minimum required fields.
 
@@ -77,7 +77,7 @@ class ArXivMapper(BaseMapper):
 
         return True
 
-    def map_to_paper(self, record: Dict[str, Any]) -> Paper:
+    def map_to_paper(self, record: dict[str, Any]) -> Paper:
         """
         Map ArXiv record to Paper model instance.
 
@@ -180,7 +180,7 @@ class ArXivMapper(BaseMapper):
 
         return f"10.48550/arXiv.{base_id}"
 
-    def _get_best_date(self, record: Dict[str, Any]) -> str | None:
+    def _get_best_date(self, record: dict[str, Any]) -> str | None:
         """
         Get the best available date from the record.
 
@@ -224,8 +224,8 @@ class ArXivMapper(BaseMapper):
             return None
 
     def _extract_authors(
-        self, authors_list: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, authors_list: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Extract authors from ArXiv author list.
 
@@ -263,7 +263,7 @@ class ArXivMapper(BaseMapper):
 
         return authors
 
-    def _parse_author_name(self, full_name: str) -> Dict[str, str]:
+    def _parse_author_name(self, full_name: str) -> dict[str, str]:
         """
         Parse author name into components.
 
@@ -319,7 +319,7 @@ class ArXivMapper(BaseMapper):
             "last_name": parts[-1],
         }
 
-    def map_to_authors(self, record: Dict[str, Any]) -> List[Author]:
+    def map_to_authors(self, record: dict[str, Any]) -> list[Author]:
         """
         Map ArXiv record to author data.
 
@@ -329,7 +329,7 @@ class ArXivMapper(BaseMapper):
         # Return empty list - we don't create authors without ORCID IDs
         return []
 
-    def map_to_institutions(self, record: Dict[str, Any]) -> List[Institution]:
+    def map_to_institutions(self, record: dict[str, Any]) -> list[Institution]:
         """
         Map ArXiv record to institution data.
 
@@ -340,8 +340,8 @@ class ArXivMapper(BaseMapper):
         return []
 
     def map_to_authorships(
-        self, paper: Paper, record: Dict[str, Any]
-    ) -> List[Authorship]:
+        self, paper: Paper, record: dict[str, Any]
+    ) -> list[Authorship]:
         """
         Map ArXiv record to Authorship model instances.
 
@@ -351,7 +351,7 @@ class ArXivMapper(BaseMapper):
         # Return empty list - we don't create authorships without proper author IDs
         return []
 
-    def map_to_hubs(self, record: Dict[str, Any]) -> List[Hub]:
+    def map_to_hubs(self, record: dict[str, Any]) -> list[Hub]:
         """
         Map arXiv record to Hub (tag) model instances.
         """

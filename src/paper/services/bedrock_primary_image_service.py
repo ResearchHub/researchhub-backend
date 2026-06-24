@@ -1,7 +1,6 @@
 import base64
 import logging
 from io import BytesIO
-from typing import List, Tuple
 
 from django.conf import settings
 from PIL import Image
@@ -434,11 +433,11 @@ on other criteria."""
 
     def _select_best_from_batch(
         self,
-        batch_figures: List,
+        batch_figures: list,
         paper_title: str,
         paper_abstract: str,
         batch_number: int | None = None,
-    ) -> Tuple[int | None, float | None]:
+    ) -> tuple[int | None, float | None]:
         """
         Select the best figure from a batch of figures using AWS Bedrock.
 
@@ -626,8 +625,8 @@ on other criteria."""
             return None, None
 
     def select_primary_image(
-        self, paper_title: str, paper_abstract: str, figures: List
-    ) -> Tuple[int | None, float | None]:
+        self, paper_title: str, paper_abstract: str, figures: list
+    ) -> tuple[int | None, float | None]:
         """
         Select primary image from figures using AWS Bedrock with batching support.
 

@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 from django.conf import settings
 
@@ -17,7 +16,7 @@ class SyncClient:
         self.dataset_arn = settings.AWS_PERSONALIZE_DATASET_ARN
         self.tracking_id = settings.AWS_PERSONALIZE_TRACKING_ID
 
-    def put_items(self, items: List[dict]) -> SyncResult:
+    def put_items(self, items: list[dict]) -> SyncResult:
         if not items:
             return {"success": True, "synced": 0, "failed": 0, "errors": []}
 
@@ -44,7 +43,7 @@ class SyncClient:
         }
 
     def put_events(
-        self, user_id: str, session_id: str, events: List[dict]
+        self, user_id: str, session_id: str, events: list[dict]
     ) -> SyncResult:
         if not events:
             return {"success": True, "synced": 0, "failed": 0, "errors": []}

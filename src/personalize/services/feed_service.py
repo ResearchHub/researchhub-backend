@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from django.core.cache import cache
 
@@ -25,7 +25,7 @@ class FeedService:
         hub_id: int | None = None,
         num_results: int | None = None,
         force_refresh: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         # If hub_id is provided, use the per-hub filter
         if hub_id:
             filter_param = "recent-preprints-per-hub"
@@ -47,7 +47,7 @@ class FeedService:
         hub_id: int | None,
         num_results: int | None,
         force_refresh: bool,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if num_results is None:
             num_results = PERSONALIZE_CONFIG.get("num_results", DEFAULT_NUM_RESULTS)
 
@@ -106,7 +106,7 @@ class FeedService:
         self,
         num_results: int | None = None,
         force_refresh: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Get globally trending item IDs from AWS Personalize.
         Results are cached globally (not per-user).
