@@ -9,7 +9,7 @@ See: https://info.arxiv.org/help/oa/index.html
 import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
-from typing import Any, Union
+from typing import Any
 
 import requests
 
@@ -222,7 +222,7 @@ class ArXivOAIClient(BaseClient):
 
     def fetch(
         self, endpoint: str = "", params: dict[str, Any] | None = None, **kwargs
-    ) -> Union[str, bytes, dict[str, Any]]:
+    ) -> str | bytes | dict[str, Any]:
         """
         Fetch data from ArXiv OAI API.
 
@@ -273,9 +273,7 @@ class ArXivOAIClient(BaseClient):
         except requests.RequestException as e:
             raise FetchError(f"Failed to fetch from {url}: {str(e)}")
 
-    def parse(
-        self, raw_data: Union[str, bytes, dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def parse(self, raw_data: str | bytes | dict[str, Any]) -> list[dict[str, Any]]:
         """
         Parse ArXiv OAI XML response and return parsed record data.
 

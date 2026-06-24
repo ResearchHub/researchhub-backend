@@ -7,7 +7,7 @@ Handles communication with ArXiv API endpoints.
 import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
-from typing import Any, Union
+from typing import Any
 
 import requests
 
@@ -154,7 +154,7 @@ class ArXivClient(BaseClient):
 
     def fetch(
         self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
-    ) -> Union[str, bytes, dict[str, Any]]:
+    ) -> str | bytes | dict[str, Any]:
         """
         Fetch data from ArXiv API.
 
@@ -191,9 +191,7 @@ class ArXivClient(BaseClient):
         except requests.RequestException as e:
             raise FetchError(f"Failed to fetch from {url}: {str(e)}")
 
-    def parse(
-        self, raw_data: Union[str, bytes, dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def parse(self, raw_data: str | bytes | dict[str, Any]) -> list[dict[str, Any]]:
         """
         Parse ArXiv Atom XML feed and return parsed entry data.
 

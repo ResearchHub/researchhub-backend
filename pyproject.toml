@@ -91,6 +91,7 @@ extend-select = [
     "T20",    # flake8-print: forbid print statements
     "TID",    # flake8-tidy-imports
     "UP006",  # non-pep585-annotation
+    "UP007",  # non-pep604-annotation-union
     "UP015",  # redundant-open-modes
     "UP017",  # datetime-timezone-utc
     "UP045",  # non-pep604-annotation-optional

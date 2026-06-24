@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Any, Union
+from typing import Any
 from urllib.parse import urlencode
 
 import requests
@@ -72,7 +72,7 @@ class EndaomentService:
         countries: str | None = None,
         count: int = 15,
         offset: int = 0,
-    ) -> Union[list[Any], dict[str, Any]]:
+    ) -> list[Any] | dict[str, Any]:
         """
         Search for nonprofit organizations using the Endaoment API.
 
