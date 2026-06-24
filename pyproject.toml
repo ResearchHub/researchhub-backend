@@ -67,7 +67,7 @@ dev = [
     "pre-commit>=4.6.0",
     "requests-mock>=1.12.1,<2.0.0",
     "responses>=0.26.0",
-    "ruff==0.15.12",
+    "ruff>=0.15.18,<0.16",
     "setuptools>=78.1.1",
     "tblib>=3.2.2",
     "web3[tester]>=7.16.0",
@@ -90,6 +90,9 @@ extend-select = [
     "I",      # isort
     "T20",    # flake8-print: forbid print statements
     "TID",    # flake8-tidy-imports
+    "UP032",  # f-string
+    "UP006",  # non-pep585-annotation
+    "UP007",  # non-pep604-annotation-union
     "UP015",  # redundant-open-modes
     "UP017",  # datetime-timezone-utc
     "UP045",  # non-pep604-annotation-optional

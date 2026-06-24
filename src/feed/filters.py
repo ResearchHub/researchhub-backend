@@ -1,4 +1,4 @@
-from typing import Any, Type, Union
+from typing import Any
 
 from django.db.models import (
     Case,
@@ -41,7 +41,7 @@ class FundOrderingFilter(OrderingFilter):
 
     def _get_model_config(
         self, view: Any
-    ) -> dict[str, Union[Type[Grant], Type[Fundraise], str]]:
+    ) -> dict[str, type[Grant] | type[Fundraise] | str]:
         if getattr(view, "is_grant_view", False):
             return {
                 "model_class": Grant,
@@ -61,7 +61,7 @@ class FundOrderingFilter(OrderingFilter):
         request: Request,
         queryset: QuerySet,
         view: Any,
-        model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]],
+        model_config: dict[str, type[Grant] | type[Fundraise] | str],
     ) -> QuerySet:
         fundraise_status_filter_value = request.query_params.get(
             "fundraise_status", ""
@@ -145,7 +145,7 @@ class FundOrderingFilter(OrderingFilter):
     def _apply_newest_sorting(
         self,
         queryset: QuerySet,
-        model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]],
+        model_config: dict[str, type[Grant] | type[Fundraise] | str],
     ) -> QuerySet:
         model_class = model_config["model_class"]
         open_status = model_config["open_status"]
@@ -201,7 +201,7 @@ class FundOrderingFilter(OrderingFilter):
     def _apply_best_sorting(
         self,
         queryset: QuerySet,
-        model_config: dict[str, Union[Type[Grant], Type[Fundraise], str]],
+        model_config: dict[str, type[Grant] | type[Fundraise] | str],
     ) -> QuerySet:
         """
         Sort by best with conditional logic (for fundraises/proposals only):
@@ -277,7 +277,7 @@ class FundOrderingFilter(OrderingFilter):
         ).order_by("-upvotes", "-created_date")
 
     def _apply_most_applicants_sorting(
-        self, queryset: QuerySet, model_class: Union[Type[Grant], Type[Fundraise]]
+        self, queryset: QuerySet, model_class: type[Grant] | type[Fundraise]
     ) -> QuerySet:
         if model_class == Grant:
             application_lookup = "unified_document__grants__applications"
@@ -296,7 +296,7 @@ class FundOrderingFilter(OrderingFilter):
             ).order_by("-contributor_count", "-created_date")
 
     def _apply_amount_raised_sorting(
-        self, queryset: QuerySet, model_class: Union[Type[Grant], Type[Fundraise]]
+        self, queryset: QuerySet, model_class: type[Grant] | type[Fundraise]
     ) -> QuerySet:
         if model_class == Grant:
             return queryset.annotate(

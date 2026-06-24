@@ -17,7 +17,6 @@ from research_ai.services.invited_experts_service import (
 from research_ai.services.rfp_email_context import get_expert_for_search_by_email
 from researchhub.celery import app
 from user.models import User
-from utils import sentry
 
 logger = logging.getLogger(__name__)
 
@@ -214,11 +213,8 @@ def run_expert_finder_search(
         )
         return result
     except Exception as e:
-        logger.exception("Expert finder failed for search_id=%s: %s", search_id, e)
-        sentry.log_error(
-            e,
-            message="Expert finder task raised unexpectedly",
-            json_data={"search_id": search_id},
+        logger.exception(
+            "Expert finder search task failed", extra={"search_id": search_id}
         )
         err = str(e)[:10000]
         _update_search_progress(
@@ -341,7 +337,6 @@ def _process_one_bulk_email(
         return 1, 0
     except Exception as e:
         logger.warning("Bulk generate failed for email id=%s: %s", email_id, e)
-        sentry.log_error(e, message=f"Bulk generate error for email id={email_id}")
         try:
             rec.status = GeneratedEmail.Status.FAILED
             rec.save(update_fields=["status", "updated_date"])
@@ -400,9 +395,8 @@ def process_bulk_generate_emails_task(
             success += s
             failed += f
         return {"processed": success + failed, "success": success, "failed": failed}
-    except Exception as e:
-        logger.exception("Bulk generate task failed: %s", e)
-        sentry.log_error(e, message="Bulk generate emails task failed")
+    except Exception:
+        logger.exception("Bulk generate task failed")
         _mark_generated_emails_failed(generated_email_ids)
         raise
 
@@ -451,13 +445,12 @@ def send_queued_emails_task(
             ExpertPersist.mark_last_email_sent_at(rec.expert_email or "")
             try:
                 grant_invited_expert_access_for_send(generated_email=rec)
-            except Exception as e:
+            except Exception:
                 # Don't let an access-grant failure mask a successful send.
-                logger.exception("Grant access on send failed id=%s: %s", rec.id, e)
-                sentry.log_error(e, message="Grant access on send failed")
+                logger.exception("Grant access on send failed id=%s", rec.id)
             sent += 1
-        except Exception as e:
-            logger.exception("Send to expert failed id=%s: %s", rec.id, e)
+        except Exception:
+            logger.exception("Send to expert failed id=%s", rec.id)
             GeneratedEmail.objects.filter(id=rec.id).update(
                 status=GeneratedEmail.Status.SEND_FAILED,
                 updated_date=timezone.now(),

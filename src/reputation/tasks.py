@@ -1,7 +1,6 @@
 import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import List
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -369,8 +368,8 @@ def recalculate_rep_all_users():
 
 @app.task
 def find_qualified_users_and_notify(
-    bounty_id: int, target_hubs: List[int], exclude_users: List[int]
-) -> List[Notification]:
+    bounty_id: int, target_hubs: list[int], exclude_users: list[int]
+) -> list[Notification]:
     """
     Find qualified users for bounty and sends them a notification.
     """
@@ -460,7 +459,7 @@ def find_qualified_users_and_notify(
 @app.task
 def find_bounties_for_user_and_notify(user_id) -> Notification | None:
     user = User.objects.get(id=user_id)
-    bounties: List[AnnotatedBounty] = Bounty.find_bounties_for_user(user)
+    bounties: list[AnnotatedBounty] = Bounty.find_bounties_for_user(user)
 
     for bounty in bounties:
         notification = Notification.objects.filter(

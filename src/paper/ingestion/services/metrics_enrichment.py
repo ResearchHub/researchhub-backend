@@ -2,7 +2,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any, Dict, List
+from typing import Any
 
 from django.utils import timezone
 
@@ -19,7 +19,7 @@ class EnrichmentResult:
     """Result of enriching a single paper with metrics."""
 
     status: str  # "success", "not_found", "skipped", "error", or "retryable_error"
-    metrics: Dict[str, Any] | None = None
+    metrics: dict[str, Any] | None = None
     reason: str | None = None
 
 
@@ -59,7 +59,7 @@ class PaperMetricsEnrichmentService:
         self.bluesky_metrics_client = bluesky_metrics_client
         self.x_metrics_client = x_metrics_client
 
-    def get_recent_papers_with_dois(self, days: int) -> List[int]:
+    def get_recent_papers_with_dois(self, days: int) -> list[int]:
         """
         Query papers published in the last N days that have DOIs.
 
@@ -235,7 +235,7 @@ class PaperMetricsEnrichmentService:
             logger.error(error_message)
             return EnrichmentResult(status="error", reason=str(e))
 
-    def _update_paper_metrics(self, paper: Paper, metrics: Dict[str, Any]) -> None:
+    def _update_paper_metrics(self, paper: Paper, metrics: dict[str, Any]) -> None:
         """
         Update paper's external_metadata with metrics while preserving existing metrics.
 

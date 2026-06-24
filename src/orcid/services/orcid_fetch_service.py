@@ -1,5 +1,5 @@
 import logging
-from typing import Callable, Tuple
+from typing import Callable
 
 from allauth.socialaccount.models import SocialAccount, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
@@ -36,7 +36,7 @@ class OrcidFetchService:
         self.process_works_fn = process_works_fn or process_openalex_works
 
     @staticmethod
-    def _normalize_orcid(orcid: str | None) -> Tuple[str | None, str | None]:
+    def _normalize_orcid(orcid: str | None) -> tuple[str | None, str | None]:
         """Normalize ORCID to (full_url, bare_id) format."""
         if not orcid:
             return None, None
@@ -58,7 +58,7 @@ class OrcidFetchService:
         self._sync_author_stats(author)
         return {"papers_processed": linked, "author_id": author_id}
 
-    def _get_author_and_orcid_id(self, author_id: int) -> Tuple[Author, str]:
+    def _get_author_and_orcid_id(self, author_id: int) -> tuple[Author, str]:
         """Get author and ORCID ID, raising if not found or not connected."""
         try:
             author = Author.objects.select_related("user").get(id=author_id)
