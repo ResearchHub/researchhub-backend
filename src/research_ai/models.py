@@ -366,3 +366,101 @@ class EmailTemplate(DefaultModel):
 
     def __str__(self):
         return f"EmailTemplate {self.id} ({self.name})"
+
+
+class ProposalDraft(DefaultModel):
+    """
+    Tracks a headless proposal-drafting job.
+
+    One FK (``search_expert``) resolves both the Expert and, via
+    ``expert_search.unified_document``, the Grant and GRANT post.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING"
+        PROCESSING = "PROCESSING"
+        COMPLETED = "COMPLETED"
+        FAILED = "FAILED"
+
+    class Step(models.TextChoices):
+        QUEUED = "QUEUED"
+        BUILDING_PROFILE = "BUILDING_PROFILE"
+        DRAFTING = "DRAFTING"
+        JUDGING = "JUDGING"
+        REVISING = "REVISING"
+        VERIFYING = "VERIFYING"
+        WRITING_NOTE = "WRITING_NOTE"
+        DONE = "DONE"
+
+    search_expert = models.ForeignKey(
+        "research_ai.SearchExpert",
+        on_delete=models.CASCADE,
+        related_name="proposal_drafts",
+    )
+    created_by = models.ForeignKey(
+        "user.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_research_ai_proposal_drafts",
+        db_comment=(
+            "User who triggered the draft; null for system/automatic runs or if the "
+            "user is later deleted (the job record is kept for diagnostics)."
+        ),
+    )
+    note = models.ForeignKey(
+        "note.Note",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="proposal_drafts",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    step = models.CharField(
+        max_length=32,
+        choices=Step.choices,
+        default=Step.QUEUED,
+        db_index=True,
+    )
+    rounds_used = models.IntegerField(default=0)
+    run_config = models.JSONField(
+        default=dict,
+        blank=True,
+        db_comment=(
+            "Snapshot of the models/config that actually ran: generator model, judge "
+            "panel roster, max_rounds, etc. Recorded for reproducibility since the "
+            "engine's roster is configurable and the loop is non-deterministic."
+        ),
+    )
+    final_scores = models.JSONField(
+        default=dict,
+        blank=True,
+        db_comment="Last panel rollup.",
+    )
+    gate_report = models.JSONField(
+        default=dict,
+        blank=True,
+        db_comment="Programmatic gate results.",
+    )
+    error_message = models.TextField(blank=True)
+    processing_time = models.FloatField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "research_ai_proposal_draft"
+        ordering = ["-created_date"]
+        indexes = [
+            models.Index(fields=["status"], name="research_ai_pd_status"),
+            models.Index(
+                fields=["search_expert", "status"],
+                name="research_ai_pd_search_status",
+            ),
+        ]
+
+    def __str__(self):
+        return f"ProposalDraft {self.id} ({self.status}/{self.step})"
