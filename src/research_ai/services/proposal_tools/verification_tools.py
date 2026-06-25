@@ -6,7 +6,8 @@ from the *resolved* record:
 
 - ``exact``            -- title and authors match the resolved record.
 - ``minor_drift``      -- same paper, but the claim drifted; carries the
-                          corrected record so PR6 can auto-correct from source.
+                          corrected record so the caller can auto-correct from
+                          source.
 - ``major_fabrication`` -- the DOI resolves, but to a clearly different paper
                           (the model attached a real DOI to fabricated metadata,
                           or vice versa).
@@ -14,8 +15,8 @@ from the *resolved* record:
 
 A model-emitted DOI is never trusted as proof of a claim: it is only a lookup
 key, and the title/authors the model attached are checked against what that key
-actually returns. ``dead`` and ``major_fabrication`` are the failures PR6 feeds
-back to revise; ``minor_drift`` is auto-corrected from the resolved record.
+actually returns. ``dead`` and ``major_fabrication`` are the failures fed back to
+revise; ``minor_drift`` is auto-corrected from the resolved record.
 
 This stage is deterministic on purpose: it is the only fully external,
 grounded signal in the otherwise self-referential draft/critique loop.
