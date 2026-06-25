@@ -16,8 +16,9 @@ same ``{"error": ...}`` shape.
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from research_ai.services.agent.providers.base import LLMProvider
