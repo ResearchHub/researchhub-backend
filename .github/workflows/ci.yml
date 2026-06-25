@@ -165,3 +165,16 @@ jobs:
           region: us-west-2
           deployment_package: target/deploy.zip
           wait_for_environment_recovery: 120
+
+      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - Lite Worker
+        uses: einaregilsson/beanstalk-deploy@a67044fa332b06e68985b06d361934c28ab09007 # v23
+        with:
+          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
+          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
+          application_name: backend
+          environment_name: ${{ env.DEPLOY_ENV }}-backend-worker-lite
+          version_label: ${{ env.SHORT_GIT_SHA }}
+          use_existing_version_if_available: true
+          region: us-west-2
+          deployment_package: target/deploy.zip
+          wait_for_environment_recovery: 120
