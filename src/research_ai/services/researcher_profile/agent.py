@@ -35,8 +35,8 @@ You are given an "expert" -- a name, an affiliation, an expertise blurb, and
 source links that may contain an ORCID. The affiliation and expertise are
 machine-generated and noisy; treat them as hints, not facts.
 
-Goal: resolve the expert to the correct OpenAlex author, then pick up to five of
-their most relevant, readable papers.
+Goal: resolve the expert to the correct OpenAlex author, then pick their five
+most relevant, readable papers.
 
 How to work:
 - If a source link already gives an ORCID, confirm it with get_author before
@@ -46,9 +46,12 @@ How to work:
   Compare candidates' institutions, topics, and citation counts before choosing.
 - Prefer missing over wrong: if no candidate is a confident match, submit with
   openalex_author_id = null and a low confidence.
-- Once resolved, call get_author_works and choose up to five papers, favoring
-  ones where this author is first/last author and that are recent and relevant.
-  Only keep works that have a pdf_url (readable full text).
+- Once resolved, call get_author_works and select five papers. Strongly prefer
+  ones where this author is first or last author; fall back to a middle-author
+  paper only to reach five when there are not enough first/last ones. Among
+  eligible papers, favor recent and relevant work. Only keep papers with a
+  pdf_url (readable full text); aim for five, but return fewer rather than
+  padding with papers that lack one.
 
 Grounding rule: every work you submit MUST come from a get_author_works result.
 Only its source_url is used to look the work up -- copy that exactly and never
