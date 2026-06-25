@@ -18,10 +18,10 @@ preserve this mapping when rendering to/from provider formats.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class StopReason(str, Enum):
+class StopReason(StrEnum):
     """Why a single model turn ended (provider stop reasons, normalized)."""
 
     END_TURN = "end_turn"
