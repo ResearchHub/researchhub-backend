@@ -57,7 +57,7 @@ class DispatchTests(SimpleTestCase):
         self.assertEqual(candidate["institutions"], ["Stanford University"])
         self.assertIn("Genomics", candidate["top_topics"])
 
-    def test_get_author_works_records_url_provenance(self):
+    def test_get_author_works_records_work_provenance(self):
         # Arrange
         client = MagicMock()
         client.get_works_typed.return_value = [
@@ -71,10 +71,10 @@ class DispatchTests(SimpleTestCase):
         result, _ = toolset.dispatch(
             "get_author_works", {"openalex_author_id": "https://openalex.org/A123"}
         )
-        # Assert: the returned URLs are remembered for later grounding.
+        # Assert: the full ground-truth record is kept, keyed by source_url.
         url = result["works"][0]["source_url"]
-        self.assertIn(url, provider.returned_source_urls)
-        self.assertIn("https://example.org/lead-paper.pdf", provider.returned_pdf_urls)
+        self.assertIn(url, provider.returned_works)
+        self.assertEqual(provider.returned_works[url]["title"], "Lead Paper")
 
     def test_submit_profile_captures_input_and_stops(self):
         # Arrange
