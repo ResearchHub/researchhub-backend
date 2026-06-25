@@ -1,14 +1,14 @@
-"""Multi-model judge panel for the proposal draft loop.
+"""Judge panel for the proposal draft loop.
 
-A single judge grading its own generator is the textbook self-improvement
-feedback loop -- it converges to the judge's preferences, not to quality. So the
-critique step is a **panel** of models reduced by median (absolute scoring) and
-majority (pairwise), and **at least one judge must differ from the generator**.
-Model diversity comes from Bedrock Converse's multi-model access: the same
-``BedrockProvider`` pointed at a different ``modelId`` (e.g. a non-Anthropic
-Amazon Nova model), so no second provider adapter is needed.
+The critique step scores a draft with a roster of one or more judges, reduced by
+median (absolute scoring) and majority (pairwise). The default roster is a single
+judge on the **generator model itself** (Opus 4.8) -- in practice it critiques
+its own drafts harshly enough to surface real issues. The roster is configurable
+via ``RESEARCH_AI_JUDGE_MODEL_IDS`` for anyone who wants a multi-model,
+cross-family panel; every judge is the same ``BedrockProvider`` pointed at a
+different Converse ``modelId``, so no second provider adapter is needed.
 
-The panel runs two modes off one roster:
+The panel runs two modes off the roster:
 
 - ``score(proposal)`` -- each judge rates the six rubric criteria 1-5; reduced by
   **median** per criterion. Drives the threshold gate (did the draft clear bar).
@@ -30,14 +30,9 @@ from research_ai.services.expert_finder_json import ExpertFinderJson
 
 logger = logging.getLogger(__name__)
 
-# Default generator id, mirrored from the agent core's BedrockProvider default so
-# the panel's self-preference guard compares against the same model.
+# Default generator id, mirrored from the agent core's BedrockProvider default;
+# the default judge roster is this same model.
 _DEFAULT_GENERATOR_MODEL_ID = "us.anthropic.claude-opus-4-8"
-
-# A different-family Bedrock Converse model used to guarantee panel diversity when
-# no explicit roster is configured. Non-Anthropic by design (self-preference
-# guard). Overridable via RESEARCH_AI_JUDGE_MODEL_IDS.
-_DEFAULT_SECOND_JUDGE_MODEL_ID = "us.amazon.nova-pro-v1:0"
 
 _RUBRIC_CRITERIA = ("c1", "c2", "c3", "c4", "c5", "c6")
 _MIN_SCORE = 1
@@ -62,14 +57,9 @@ def _default_generator_id() -> str:
 
 
 def _default_roster_ids(generator_id: str) -> list[str]:
-    """Roster model ids from settings, guaranteeing one differs from the generator."""
+    """Roster model ids from settings; defaults to a single judge on the generator."""
     ids = list(getattr(settings, "RESEARCH_AI_JUDGE_MODEL_IDS", []) or [])
-    if not ids:
-        ids = [generator_id, _DEFAULT_SECOND_JUDGE_MODEL_ID]
-    # Self-preference guard: never a panel of only the generator.
-    if all(model_id == generator_id for model_id in ids):
-        ids.append(_DEFAULT_SECOND_JUDGE_MODEL_ID)
-    return ids
+    return ids or [generator_id]
 
 
 def _coerce_score(raw: object) -> int:
@@ -94,8 +84,8 @@ class ProposalJudgePanel:
     Args:
         providers: Explicit judge providers (one per judge). When omitted, a
             default roster is built lazily from settings. Injected in tests.
-        generator_model_id: The generator's model id, used by the
-            self-preference guard when building the default roster.
+        generator_model_id: The generator's model id; the default roster is a
+            single judge on this model.
         max_tokens / temperature: Inference config for each judge call.
     """
 

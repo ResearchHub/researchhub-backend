@@ -103,17 +103,12 @@ class ProposalJudgePanelTests(SimpleTestCase):
         # Act / Assert
         self.assertEqual(panel.pairwise("draft a", "draft b"), "A")
 
-    def test_default_roster_includes_non_anthropic_judge(self):
+    def test_default_roster_is_single_generator_judge(self):
         # Arrange / Act: default roster from settings (no clients built).
         panel = ProposalJudgePanel(generator_model_id="us.anthropic.claude-opus-4-8")
 
-        # Assert: at least one judge differs from the generator and is non-Anthropic.
-        self.assertTrue(
-            any(model_id != panel._generator_model_id for model_id in panel.model_ids)
-        )
-        self.assertTrue(
-            any("anthropic" not in model_id for model_id in panel.model_ids)
-        )
+        # Assert: the judge defaults to the generator model itself.
+        self.assertEqual(panel.model_ids, ["us.anthropic.claude-opus-4-8"])
 
     def test_judge_tool_score_mode(self):
         # Arrange
