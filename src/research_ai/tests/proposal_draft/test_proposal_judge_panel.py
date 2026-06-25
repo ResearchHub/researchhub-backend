@@ -24,7 +24,7 @@ class _FakeProvider:
         )
 
 
-def _scores(c1, c2, c3, c4, c5, c6, c7=3, gaps=None):
+def _build_scores(c1, c2, c3, c4, c5, c6, c7, gaps=None):
     return {
         "scores": {
             "c1": c1,
@@ -44,13 +44,13 @@ class ProposalJudgePanelTests(SimpleTestCase):
         # Arrange: three judges; per-criterion median is the reduction.
         providers = [
             _FakeProvider(
-                "j1", _scores(5, 4, 3, 2, 1, 5, c7=5, gaps=["tighten scope"])
+                "j1", _build_scores(5, 4, 3, 2, 1, 5, c7=5, gaps=["tighten scope"])
             ),
             _FakeProvider(
-                "j2", _scores(3, 4, 3, 4, 3, 1, c7=1, gaps=["cite a source"])
+                "j2", _build_scores(3, 4, 3, 4, 3, 1, c7=1, gaps=["cite a source"])
             ),
             _FakeProvider(
-                "j3", _scores(1, 4, 5, 4, 5, 3, c7=3, gaps=["tighten scope"])
+                "j3", _build_scores(1, 4, 5, 4, 5, 3, c7=3, gaps=["tighten scope"])
             ),
         ]
         panel = ProposalJudgePanel(providers=providers)
@@ -68,7 +68,7 @@ class ProposalJudgePanelTests(SimpleTestCase):
 
     def test_score_coerces_and_clamps_out_of_range_values(self):
         # Arrange: a lone judge emits junk / out-of-range values (median == value).
-        providers = [_FakeProvider("j1", _scores(9, 0, "x", None, 4, 3))]
+        providers = [_FakeProvider("j1", _build_scores(9, 0, "x", None, 4, 3, c7=3))]
         panel = ProposalJudgePanel(providers=providers)
 
         # Act
@@ -84,7 +84,7 @@ class ProposalJudgePanelTests(SimpleTestCase):
         # Arrange: one judge returns non-JSON; the panel degrades to the rest.
         providers = [
             _FakeProvider("j1", "not json at all"),
-            _FakeProvider("j2", _scores(2, 2, 2, 2, 2, 2, c7=2)),
+            _FakeProvider("j2", _build_scores(2, 2, 2, 2, 2, 2, c7=2)),
         ]
         panel = ProposalJudgePanel(providers=providers)
 
@@ -129,7 +129,7 @@ class ProposalJudgePanelTests(SimpleTestCase):
 
     def test_judge_tool_score_mode(self):
         # Arrange
-        providers = [_FakeProvider("j1", _scores(4, 4, 4, 4, 4, 4))]
+        providers = [_FakeProvider("j1", _build_scores(4, 4, 4, 4, 4, 4, c7=4))]
         tool = build_judge_tool(ProposalJudgePanel(providers=providers))
 
         # Act

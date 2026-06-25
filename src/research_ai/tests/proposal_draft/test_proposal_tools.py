@@ -27,7 +27,7 @@ class _FakeOpenAlex:
         return self._by_doi.get(doi)
 
 
-def _openalex_work(title, authors, *, year=2020, doi="https://doi.org/10.1/x"):
+def _build_openalex_work(title, authors, *, year=2020, doi="https://doi.org/10.1/x"):
     return {
         "display_name": title,
         "publication_year": year,
@@ -147,7 +147,7 @@ class ProposalToolsTestCase(TestCase):
     def test_verify_citations_exact_on_match(self):
         # Arrange
         oa = _FakeOpenAlex(
-            {"10.1/x": _openalex_work("Protein Folding Dynamics", ["Jane Smith"])}
+            {"10.1/x": _build_openalex_work("Protein Folding Dynamics", ["Jane Smith"])}
         )
         tool = ProposalVerificationToolset(oa_client=oa)
 
@@ -173,7 +173,7 @@ class ProposalToolsTestCase(TestCase):
     def test_verify_citations_minor_drift_returns_correction(self):
         # Arrange: same paper, drifted title + author surname intact.
         oa = _FakeOpenAlex(
-            {"10.1/x": _openalex_work("Protein Folding Dynamics", ["Jane Smith"])}
+            {"10.1/x": _build_openalex_work("Protein Folding Dynamics", ["Jane Smith"])}
         )
         tool = ProposalVerificationToolset(oa_client=oa)
 
@@ -200,7 +200,7 @@ class ProposalToolsTestCase(TestCase):
     def test_verify_citations_major_fabrication_on_title_mismatch(self):
         # Arrange: DOI resolves, but to a completely different paper.
         oa = _FakeOpenAlex(
-            {"10.1/x": _openalex_work("Quantum Gravity in 2D", ["Alan Turing"])}
+            {"10.1/x": _build_openalex_work("Quantum Gravity in 2D", ["Alan Turing"])}
         )
         tool = ProposalVerificationToolset(oa_client=oa)
 
