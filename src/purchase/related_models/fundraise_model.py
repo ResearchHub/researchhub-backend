@@ -194,21 +194,20 @@ class Fundraise(DefaultModel):
                 )
             )
 
-        result = []
-        for data in user_data.values():
-            result.append(
-                FundraiseContributorSummary(
-                    user=data["user"],
-                    total_rsc=data["total_rsc"],
-                    total_usd=data["total_usd"],
-                    total_rsc_usd_snapshot=data["total_rsc_usd_snapshot"],
-                    contributions=sorted(
-                        data["contributions"],
-                        key=lambda x: x.date,
-                        reverse=True,
-                    ),
-                )
+        result = [
+            FundraiseContributorSummary(
+                user=data["user"],
+                total_rsc=data["total_rsc"],
+                total_usd=data["total_usd"],
+                total_rsc_usd_snapshot=data["total_rsc_usd_snapshot"],
+                contributions=sorted(
+                    data["contributions"],
+                    key=lambda x: x.date,
+                    reverse=True,
+                ),
             )
+            for data in user_data.values()
+        ]
 
         result = sorted(
             result,

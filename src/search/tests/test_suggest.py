@@ -327,20 +327,17 @@ class SuggestViewTests(TestCase):
     def test_limit_parameter(self, mock_es_execute, mock_openalex):
         """Test that limit parameter restricts the number of results"""
         # Create numerous results
-        openalex_results = []
-
-        # Generate 15 test results
-        for i in range(15):
-            openalex_results.append(
-                {
-                    "external_id": f"10.1234/test.{i}",
-                    "display_name": f"Test Paper {i}",
-                    "hint": f"Author {i}",
-                    "cited_by_count": i,
-                    "id": f"W{i}",
-                    "publication_date": "2023-01-01",
-                }
-            )
+        openalex_results = [
+            {
+                "external_id": f"10.1234/test.{i}",
+                "display_name": f"Test Paper {i}",
+                "hint": f"Author {i}",
+                "cited_by_count": i,
+                "id": f"W{i}",
+                "publication_date": "2023-01-01",
+            }
+            for i in range(15)
+        ]
 
         # Mock OpenAlex response with many results
         mock_openalex.return_value = {"results": openalex_results}
@@ -449,18 +446,17 @@ class SuggestViewTests(TestCase):
     def test_mixed_entity_representation(self, mock_es_execute, mock_openalex):
         """Test that balanced results include various entity types when requested"""
         # Mock OpenAlex response with papers
-        paper_openalex_results = []
-        for i in range(5):
-            paper_openalex_results.append(
-                {
-                    "external_id": f"10.1234/test.{i}",
-                    "display_name": f"Test Paper {i}",
-                    "hint": f"Author {i}",
-                    "cited_by_count": i,
-                    "id": f"W{i}",
-                    "publication_date": "2023-01-01",
-                }
-            )
+        paper_openalex_results = [
+            {
+                "external_id": f"10.1234/test.{i}",
+                "display_name": f"Test Paper {i}",
+                "hint": f"Author {i}",
+                "cited_by_count": i,
+                "id": f"W{i}",
+                "publication_date": "2023-01-01",
+            }
+            for i in range(5)
+        ]
         mock_openalex.return_value = {"results": paper_openalex_results}
 
         # Mock Elasticsearch response with different entity types directly with lists
