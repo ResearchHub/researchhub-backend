@@ -27,19 +27,6 @@ class _FakeOpenAlex:
         return self._by_doi.get(doi)
 
 
-class _FakeCrossref:
-    """Minimal stand-in for ``utils.crossref.Crossref``."""
-
-    def __init__(
-        self, *, title=None, data_message=None, url=None, paper_publish_date=None
-    ):
-        self.title = title
-        self.data_message = data_message or {}
-        self.url = url
-        self.paper_publish_date = paper_publish_date
-        self.doi = None
-
-
 def _openalex_work(title, authors, *, year=2020, doi="https://doi.org/10.1/x"):
     return {
         "display_name": title,
@@ -236,12 +223,10 @@ class ProposalToolsTestCase(TestCase):
         self.assertEqual(result["severity"], "major_fabrication")
         self.assertEqual(out["summary"]["major"], 1)
 
-    def test_verify_citations_dead_on_none(self):
-        # Arrange: neither OpenAlex nor Crossref resolve the DOI.
+    def test_verify_citations_dead_when_openalex_misses(self):
+        # Arrange: OpenAlex does not resolve the DOI.
         oa = _FakeOpenAlex({})
-        tool = ProposalVerificationToolset(
-            oa_client=oa, crossref_factory=lambda doi: _FakeCrossref(title=None)
-        )
+        tool = ProposalVerificationToolset(oa_client=oa)
 
         # Act
         out = tool.verify_citations(
@@ -253,35 +238,3 @@ class ProposalToolsTestCase(TestCase):
         self.assertEqual(result["severity"], "dead")
         self.assertIsNone(result["resolved"])
         self.assertEqual(out["summary"]["dead"], 1)
-
-    def test_verify_citations_falls_back_to_crossref(self):
-        # Arrange: OpenAlex misses, Crossref resolves the record.
-        oa = _FakeOpenAlex({})
-        crossref = _FakeCrossref(
-            title="Protein Folding Dynamics",
-            data_message={"author": [{"given": "Jane", "family": "Smith"}]},
-            url="https://doi.org/10.1/x",
-        )
-        tool = ProposalVerificationToolset(
-            oa_client=oa, crossref_factory=lambda doi: crossref
-        )
-
-        # Act
-        out = tool.verify_citations(
-            {
-                "citations": [
-                    {
-                        "claim_id": "c1",
-                        "doi": "10.1/x",
-                        "title": "Protein Folding Dynamics",
-                        "authors": ["Jane Smith"],
-                    }
-                ]
-            }
-        )
-
-        # Assert
-        self.assertEqual(out["results"][0]["severity"], "exact")
-        self.assertEqual(
-            out["results"][0]["resolved"]["title"], "Protein Folding Dynamics"
-        )

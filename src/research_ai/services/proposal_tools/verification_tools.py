@@ -1,8 +1,8 @@
 """Deterministic citation verification -- the loop's external grounded signal.
 
 The draft agent emits citations; this tool resolves each one against ground
-truth (OpenAlex by DOI, falling back to Crossref) and classifies how far the
-*claimed* metadata drifts from the *resolved* record:
+truth (OpenAlex by DOI) and classifies how far the *claimed* metadata drifts
+from the *resolved* record:
 
 - ``exact``            -- title and authors match the resolved record.
 - ``minor_drift``      -- same paper, but the claim drifted; carries the
@@ -25,7 +25,6 @@ import logging
 from difflib import SequenceMatcher
 
 from research_ai.services.agent import Tool, Toolset
-from utils.crossref import Crossref
 from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
@@ -114,36 +113,16 @@ def _from_openalex(entity: dict) -> dict:
     }
 
 
-def _from_crossref(cr: Crossref) -> dict:
-    authors = []
-    for a in (cr.data_message or {}).get("author") or []:
-        name = " ".join(p for p in [a.get("given"), a.get("family")] if p).strip()
-        if name:
-            authors.append(name)
-    year = cr.paper_publish_date.year if cr.paper_publish_date else None
-    source_url = str(cr.url or "").strip()
-    if not source_url and cr.doi:
-        source_url = f"https://doi.org/{cr.doi}"
-    return {
-        "title": str(cr.title or "").strip(),
-        "authors": authors,
-        "year": year,
-        "source_url": source_url,
-    }
-
-
 class ProposalVerificationToolset:
     """The deterministic ``verify_citations`` tool.
 
     Args:
         oa_client: OpenAlex client (DOI resolution); defaults to a real one.
-        crossref_factory: ``(doi) -> Crossref`` for the fallback lookup; defaults
-            to ``Crossref(id=doi)``. Injected so tests mock both resolvers.
+            Injected so tests mock the resolver.
     """
 
-    def __init__(self, *, oa_client: OpenAlex | None = None, crossref_factory=None):
+    def __init__(self, *, oa_client: OpenAlex | None = None):
         self._oa = oa_client or OpenAlex()
-        self._crossref_factory = crossref_factory or (lambda doi: Crossref(id=doi))
 
     # -- tool construction ------------------------------------------------
 
@@ -227,14 +206,5 @@ class ProposalVerificationToolset:
             entity = self._oa.get_work_by_doi(doi)
         except Exception as exc:  # noqa: BLE001 - resolver miss is not fatal
             logger.info("OpenAlex DOI lookup failed for %r: %s", doi, exc)
-            entity = None
-        if entity:
-            return _from_openalex(entity)
-        try:
-            cr = self._crossref_factory(doi)
-        except Exception as exc:  # noqa: BLE001 - resolver miss is not fatal
-            logger.info("Crossref DOI lookup failed for %r: %s", doi, exc)
-            cr = None
-        if cr is not None and getattr(cr, "title", None):
-            return _from_crossref(cr)
-        return None
+            return None
+        return _from_openalex(entity) if entity else None
