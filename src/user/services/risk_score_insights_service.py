@@ -1,7 +1,7 @@
 """Read-only enrichment for the risk score events API."""
 
 import logging
-from typing import Iterable
+from collections.abc import Iterable
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Max, Min, Model, QuerySet, Sum

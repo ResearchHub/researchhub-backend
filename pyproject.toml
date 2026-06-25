@@ -86,17 +86,12 @@ extend-exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
 extend-select = [
-    "E",      # pycodestyle errors
-    "I",      # isort
-    "T20",    # flake8-print: forbid print statements
-    "TID",    # flake8-tidy-imports
-    "UP032",  # f-string
-    "UP006",  # non-pep585-annotation
-    "UP007",  # non-pep604-annotation-union
-    "UP015",  # redundant-open-modes
-    "UP017",  # datetime-timezone-utc
-    "UP045",  # non-pep604-annotation-optional
-    "W",      # pycodestyle warnings
+    "E",    # pycodestyle errors
+    "I",    # isort
+    "T20",  # flake8-print: forbid print statements
+    "TID",  # flake8-tidy-imports 
+    "UP",   # pyupgrade
+    "W",    # pycodestyle warnings
 ]
 
 [tool.ruff.lint.per-file-ignores]

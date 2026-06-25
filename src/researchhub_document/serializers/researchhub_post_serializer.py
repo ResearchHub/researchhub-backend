@@ -39,7 +39,7 @@ class ResearchhubPostSerializer(
     GenericReactionSerializerMixin,
     ModeratedDocumentStatusSerializerMixin,
 ):
-    class Meta(object):
+    class Meta:
         model = ResearchhubPost
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,

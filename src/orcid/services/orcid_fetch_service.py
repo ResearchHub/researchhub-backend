@@ -1,5 +1,5 @@
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 from allauth.socialaccount.models import SocialAccount, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider

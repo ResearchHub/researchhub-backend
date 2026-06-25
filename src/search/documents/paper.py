@@ -3,7 +3,8 @@ import logging
 import math
 import sys
 import time
-from typing import Any, Iterable, override
+from collections.abc import Iterable
+from typing import Any, override
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet

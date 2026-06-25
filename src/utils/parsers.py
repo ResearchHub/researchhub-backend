@@ -32,7 +32,7 @@ def json_serial(obj, ignore_errors=False):
         return ""
     if ignore_errors:
         return obj
-    raise TypeError("Type %s not serializable" % type(obj))
+    raise TypeError(f"Type {type(obj)} not serializable")
 
 
 def clean_filename(filename):

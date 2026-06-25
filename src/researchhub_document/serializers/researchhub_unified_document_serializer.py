@@ -18,7 +18,7 @@ from utils.sentry import log_error
 
 
 class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = ResearchhubUnifiedDocument
         fields = [
             "access_group",
