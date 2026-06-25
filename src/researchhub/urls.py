@@ -142,6 +142,12 @@ router.register(
 )
 
 router.register(
+    r"research_journey_tracker",
+    researchhub_document_views.ResearchJourneyTrackerViewSet,
+    basename="research_journey_tracker",
+)
+
+router.register(
     r"researchhub_unified_document",
     researchhub_document_views.ResearchhubUnifiedDocumentViewSet,
     basename="researchhub_unified_document",
