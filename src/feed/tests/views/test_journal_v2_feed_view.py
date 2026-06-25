@@ -1,10 +1,12 @@
 from decimal import Decimal
 
+from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from purchase.models import Fundraise
+from reputation.models import Escrow
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
@@ -74,8 +76,64 @@ class JournalV2FeedViewSetTests(APITestCase):
         self.assertNotIn(reported_proposal.id, post_ids)
         self.assertEqual(len(post_ids), 2)
 
+    def test_order_by_amount_raised_uses_proposal_fundraises(self) -> None:
+        """Verify report cards sort by the proposal's amount raised."""
+        # Arrange
+        low_proposal = self.create_completed_proposal(
+            "Low amount proposal",
+            amount_raised=Decimal("25.00"),
+        )
+        low_report = self.create_registered_report(
+            low_proposal,
+            "Low amount report",
+        )
+        high_proposal = self.create_completed_proposal(
+            "High amount proposal",
+            amount_raised=Decimal("250.00"),
+        )
+        high_report = self.create_registered_report(
+            high_proposal,
+            "High amount report",
+        )
+
+        # Act
+        response = self.client.get(self.url, {"ordering": "amount_raised"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = self.get_response_post_ids(response.data)
+        self.assertLess(post_ids.index(high_report.id), post_ids.index(low_report.id))
+
+    def test_order_by_upvotes_uses_latest_stage_scores(self) -> None:
+        """Verify journal cards sort by the visible stage's upvote score."""
+        # Arrange
+        low_proposal = self.create_completed_proposal("Low score proposal")
+        low_report = self.create_registered_report(
+            low_proposal,
+            "Low score report",
+            score=2,
+        )
+        high_proposal = self.create_completed_proposal("High score proposal")
+        high_report = self.create_registered_report(
+            high_proposal,
+            "High score report",
+            score=20,
+        )
+
+        # Act
+        response = self.client.get(self.url, {"ordering": "upvotes"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = self.get_response_post_ids(response.data)
+        self.assertLess(post_ids.index(high_report.id), post_ids.index(low_report.id))
+
     def create_completed_proposal(
-        self, title: str, include_in_journal: bool = True
+        self,
+        title: str,
+        include_in_journal: bool = True,
+        amount_raised: Decimal = Decimal("0.00"),
+        score: int = 0,
     ) -> ResearchhubPost:
         """Create an approved proposal with a completed fundraise and journey."""
         proposal = create_post(
@@ -83,6 +141,8 @@ class JournalV2FeedViewSetTests(APITestCase):
             document_type=PREREGISTRATION,
             title=title,
         )
+        proposal.score = score
+        proposal.save(update_fields=["score"])
         fundraise = Fundraise.objects.create(
             created_by=self.user,
             unified_document=proposal.unified_document,
@@ -90,6 +150,8 @@ class JournalV2FeedViewSetTests(APITestCase):
             goal_currency="USD",
             status=Fundraise.COMPLETED,
         )
+        fundraise.escrow = self.create_fundraise_escrow(fundraise, amount_raised)
+        fundraise.save(update_fields=["escrow"])
 
         if include_in_journal:
             self.service.include_completed_fundraise_in_journal(fundraise)
@@ -100,7 +162,7 @@ class JournalV2FeedViewSetTests(APITestCase):
         return proposal
 
     def create_registered_report(
-        self, proposal: ResearchhubPost, title: str
+        self, proposal: ResearchhubPost, title: str, score: int = 0
     ) -> ResearchhubPost:
         """Create and attach a registered report to a proposal journey."""
         report = create_post(
@@ -108,8 +170,23 @@ class JournalV2FeedViewSetTests(APITestCase):
             document_type=REGISTERED_REPORT,
             title=title,
         )
+        report.score = score
+        report.save(update_fields=["score"])
         self.service.attach_stage(proposal.journey, report)
         return report
+
+    def create_fundraise_escrow(
+        self, fundraise: Fundraise, amount_raised: Decimal
+    ) -> Escrow:
+        """Create the escrow used by fundraise amount-raised sorting."""
+        return Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.FUNDRAISE,
+            amount_holding=amount_raised,
+            amount_paid=Decimal("0.00"),
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=fundraise.id,
+        )
 
     @staticmethod
     def get_response_post_ids(data: dict) -> list[int]:
