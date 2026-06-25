@@ -65,6 +65,14 @@ jobs:
         with:
           src: "./src"
 
+      - name: Check for missing database migrations
+        env:
+          APP_ENV: test
+        working-directory: ./src
+        run: |
+          cp config/ci/* config
+          uv run python manage.py makemigrations --check
+
       - name: Run Tests
         env:
           APP_ENV: test
