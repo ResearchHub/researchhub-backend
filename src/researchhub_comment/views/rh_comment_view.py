@@ -167,6 +167,10 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             return thread_queryset
 
     def get_queryset(self):
+        """
+        Only return comments belonging to the parent object's threads, not the
+        class-level queryset.
+        """
         thread_queryset = self._get_model_object_threads().values_list("id")
         return RhCommentModel.objects.filter(thread__in=thread_queryset)
 
