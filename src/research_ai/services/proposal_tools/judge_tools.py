@@ -47,7 +47,7 @@ def build_judge_tool(panel: ProposalJudgePanel) -> Tool:
         name="judge_proposal",
         description=(
             "Judge a draft proposal with the multi-model panel. mode='score' "
-            "returns median rubric scores (c1..c6), an overall, and gaps; "
+            "returns median rubric scores (c1..c7), an overall, and gaps; "
             "mode='pairwise' returns the winner ('A' or 'B') of proposal vs "
             "candidate_b."
         ),

@@ -24,9 +24,17 @@ class _FakeProvider:
         )
 
 
-def _scores(c1, c2, c3, c4, c5, c6, gaps=None):
+def _scores(c1, c2, c3, c4, c5, c6, c7=3, gaps=None):
     return {
-        "scores": {"c1": c1, "c2": c2, "c3": c3, "c4": c4, "c5": c5, "c6": c6},
+        "scores": {
+            "c1": c1,
+            "c2": c2,
+            "c3": c3,
+            "c4": c4,
+            "c5": c5,
+            "c6": c6,
+            "c7": c7,
+        },
         "gaps": gaps or [],
     }
 
@@ -35,9 +43,15 @@ class ProposalJudgePanelTests(SimpleTestCase):
     def test_score_reduces_each_criterion_by_median(self):
         # Arrange: three judges; per-criterion median is the reduction.
         providers = [
-            _FakeProvider("j1", _scores(5, 4, 3, 2, 1, 5, gaps=["tighten scope"])),
-            _FakeProvider("j2", _scores(3, 4, 3, 4, 3, 1, gaps=["cite a source"])),
-            _FakeProvider("j3", _scores(1, 4, 5, 4, 5, 3, gaps=["tighten scope"])),
+            _FakeProvider(
+                "j1", _scores(5, 4, 3, 2, 1, 5, c7=5, gaps=["tighten scope"])
+            ),
+            _FakeProvider(
+                "j2", _scores(3, 4, 3, 4, 3, 1, c7=1, gaps=["cite a source"])
+            ),
+            _FakeProvider(
+                "j3", _scores(1, 4, 5, 4, 5, 3, c7=3, gaps=["tighten scope"])
+            ),
         ]
         panel = ProposalJudgePanel(providers=providers)
 
@@ -46,9 +60,10 @@ class ProposalJudgePanelTests(SimpleTestCase):
 
         # Assert: median per criterion across the three judges.
         self.assertEqual(
-            result["scores"], {"c1": 3, "c2": 4, "c3": 3, "c4": 4, "c5": 3, "c6": 3}
+            result["scores"],
+            {"c1": 3, "c2": 4, "c3": 3, "c4": 4, "c5": 3, "c6": 3, "c7": 3},
         )
-        self.assertEqual(result["overall"], 3)  # median of [3,4,3,4,3,3]
+        self.assertEqual(result["overall"], 3)  # median of [3,4,3,4,3,3,3]
         self.assertEqual(result["gaps"], ["tighten scope", "cite a source"])
 
     def test_score_coerces_and_clamps_out_of_range_values(self):
@@ -61,14 +76,15 @@ class ProposalJudgePanelTests(SimpleTestCase):
 
         # Assert: 9->5, 0->1, "x"->1, None->1; valid values pass through.
         self.assertEqual(
-            result["scores"], {"c1": 5, "c2": 1, "c3": 1, "c4": 1, "c5": 4, "c6": 3}
+            result["scores"],
+            {"c1": 5, "c2": 1, "c3": 1, "c4": 1, "c5": 4, "c6": 3, "c7": 3},
         )
 
     def test_score_skips_unparseable_judge(self):
         # Arrange: one judge returns non-JSON; the panel degrades to the rest.
         providers = [
             _FakeProvider("j1", "not json at all"),
-            _FakeProvider("j2", _scores(2, 2, 2, 2, 2, 2)),
+            _FakeProvider("j2", _scores(2, 2, 2, 2, 2, 2, c7=2)),
         ]
         panel = ProposalJudgePanel(providers=providers)
 
@@ -77,7 +93,8 @@ class ProposalJudgePanelTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(
-            result["scores"], {"c1": 2, "c2": 2, "c3": 2, "c4": 2, "c5": 2, "c6": 2}
+            result["scores"],
+            {"c1": 2, "c2": 2, "c3": 2, "c4": 2, "c5": 2, "c6": 2, "c7": 2},
         )
 
     def test_pairwise_majority_wins(self):

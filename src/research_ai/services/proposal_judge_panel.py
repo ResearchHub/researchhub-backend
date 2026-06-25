@@ -10,8 +10,10 @@ different Converse ``modelId``, so no second provider adapter is needed.
 
 The panel runs two modes off the roster:
 
-- ``score(proposal)`` -- each judge rates the six rubric criteria 1-5; reduced by
-  **median** per criterion. Drives the threshold gate (did the draft clear bar).
+- ``score(proposal)`` -- each judge rates the seven rubric criteria 1-5; reduced
+  by **median** per criterion. Drives the threshold gate (did the draft clear
+  bar). c7 scores the scientific writing voice, so the revise loop fixes
+  LLM-tell prose, not just substance.
 - ``pairwise(a, b)``  -- each judge picks A vs B; **majority** wins. Drives the
   seed-selection tournament (the more reliable signal).
 
@@ -34,7 +36,7 @@ logger = logging.getLogger(__name__)
 # the default judge roster is this same model.
 _DEFAULT_GENERATOR_MODEL_ID = "us.anthropic.claude-opus-4-8"
 
-_RUBRIC_CRITERIA = ("c1", "c2", "c3", "c4", "c5", "c6")
+_RUBRIC_CRITERIA = ("c1", "c2", "c3", "c4", "c5", "c6", "c7")
 _MIN_SCORE = 1
 _MAX_SCORE = 5
 
@@ -124,7 +126,7 @@ class ProposalJudgePanel:
     def score(self, proposal: str) -> dict:
         """Score ``proposal`` 1-5 on each rubric criterion, reduced by median.
 
-        Returns ``{"scores": {c1..c6}, "overall", "gaps": [...]}``. Judges that
+        Returns ``{"scores": {c1..c7}, "overall", "gaps": [...]}``. Judges that
         fail to return parseable JSON are skipped; the gate degrades rather than
         aborting the run.
         """
