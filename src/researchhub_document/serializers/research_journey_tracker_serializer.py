@@ -3,24 +3,13 @@ from collections.abc import Iterable
 from rest_framework import serializers
 
 from purchase.models import Grant
-from researchhub_document.models import ResearchJourney, ResearchhubPost
+from researchhub_document.models import ResearchhubPost, ResearchJourney
 from researchhub_document.related_models.constants.journey_stage import (
     JOURNEY_STAGE_GRANT,
-    JOURNEY_STAGE_PROPOSAL,
-    JOURNEY_STAGE_REGISTERED_REPORT,
+    JOURNEY_STAGE_LABELS,
+    JOURNEY_TRACKER_STAGES,
 )
 from researchhub_document.services.journey_service import JourneyService
-
-STAGE_LABELS = {
-    JOURNEY_STAGE_GRANT: "Grant",
-    JOURNEY_STAGE_PROPOSAL: "Proposal",
-    JOURNEY_STAGE_REGISTERED_REPORT: "Registered Report",
-}
-TRACKER_STAGES = [
-    JOURNEY_STAGE_GRANT,
-    JOURNEY_STAGE_PROPOSAL,
-    JOURNEY_STAGE_REGISTERED_REPORT,
-]
 
 
 class ResearchJourneyTrackerSerializer(serializers.Serializer):
@@ -49,7 +38,7 @@ class ResearchJourneyTrackerSerializer(serializers.Serializer):
                     latest_stage,
                     visible_post_ids,
                 )
-                for stage in TRACKER_STAGES
+                for stage in JOURNEY_TRACKER_STAGES
             ],
         }
 
@@ -75,7 +64,7 @@ class ResearchJourneyTrackerSerializer(serializers.Serializer):
 
     def get_latest_stage(self, stage_posts: dict[str, ResearchhubPost]) -> str | None:
         """Return the latest available tracker stage."""
-        for stage in reversed(TRACKER_STAGES):
+        for stage in reversed(JOURNEY_TRACKER_STAGES):
             if stage_posts.get(stage) is not None:
                 return stage
         return None
@@ -91,7 +80,7 @@ class ResearchJourneyTrackerSerializer(serializers.Serializer):
         is_visible = post is not None and post.id in visible_post_ids
         return {
             "stage": stage,
-            "label": STAGE_LABELS[stage],
+            "label": JOURNEY_STAGE_LABELS[stage],
             "status": self.get_stage_status(stage, post, latest_stage, is_visible),
             "is_complete": post is not None,
             "is_current": post is not None and stage == latest_stage,

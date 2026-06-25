@@ -2,7 +2,7 @@ from django.db.models import Prefetch, QuerySet
 from rest_framework import mixins, viewsets
 
 from purchase.models import Grant
-from researchhub_document.models import ResearchJourney, ResearchhubPost
+from researchhub_document.models import ResearchhubPost, ResearchJourney
 from researchhub_document.serializers.research_journey_tracker_serializer import (
     ResearchJourneyTrackerSerializer,
 )

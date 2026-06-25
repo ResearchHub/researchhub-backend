@@ -18,16 +18,63 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce
 from django.utils import timezone
-from rest_framework.filters import OrderingFilter
+from rest_framework.filters import BaseFilterBackend, OrderingFilter
 from rest_framework.request import Request
 
 from purchase.models import Fundraise
+from researchhub_document.related_models.constants.document_type import (
+    PREREGISTRATION,
+    REGISTERED_REPORT,
+)
+from researchhub_document.related_models.constants.journey_stage import (
+    JOURNEY_BADGE_FUNDED_PROPOSAL,
+    JOURNEY_BADGE_HAS_RESULTS,
+    JOURNEY_STAGE_PROPOSAL,
+    JOURNEY_STAGE_REGISTERED_REPORT,
+)
 
 PROPOSAL_DOCUMENT_LOOKUP = "journey__preregistration_post__unified_document"
 PROPOSAL_DOCUMENT_ID_OUTER_REF = (
     "journey__preregistration_post__unified_document_id"
 )
 PROPOSAL_FUNDRAISE_LOOKUP = f"{PROPOSAL_DOCUMENT_LOOKUP}__fundraises"
+
+
+class JournalV2StageFilter(BaseFilterBackend):
+    """Filter latest-stage cards in the post-based journal feed."""
+
+    def filter_queryset(
+        self, request: Request, queryset: QuerySet, view: Any
+    ) -> QuerySet:
+        """Apply stage and badge filters to journal v2 cards."""
+        queryset = self.filter_by_stage(request, queryset)
+        return self.filter_by_badge(request, queryset)
+
+    def filter_by_stage(self, request: Request, queryset: QuerySet) -> QuerySet:
+        """Filter journal cards by latest journey stage."""
+        stage = request.query_params.get("stage")
+        if stage == JOURNEY_STAGE_PROPOSAL:
+            return queryset.filter(document_type=PREREGISTRATION)
+        if stage == JOURNEY_STAGE_REGISTERED_REPORT:
+            return queryset.filter(document_type=REGISTERED_REPORT)
+        return queryset
+
+    def filter_by_badge(self, request: Request, queryset: QuerySet) -> QuerySet:
+        """Filter journal cards by card badge."""
+        badge = request.query_params.get("badge")
+        if badge == JOURNEY_BADGE_FUNDED_PROPOSAL:
+            return queryset.filter(document_type=PREREGISTRATION)
+        if badge == JOURNEY_STAGE_REGISTERED_REPORT:
+            return queryset.filter(
+                document_type=REGISTERED_REPORT,
+                has_results=False,
+            )
+        if badge == JOURNEY_BADGE_HAS_RESULTS:
+            return queryset.filter(
+                document_type=REGISTERED_REPORT,
+                has_results=True,
+            )
+        return queryset
 
 
 class JournalV2OrderingFilter(OrderingFilter):

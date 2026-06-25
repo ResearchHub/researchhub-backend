@@ -5,7 +5,7 @@ from rest_framework.test import APITestCase
 
 from purchase.models import Grant, GrantApplication
 from researchhub_document.helpers import create_post
-from researchhub_document.models import ResearchJourney, ResearchhubPost
+from researchhub_document.models import ResearchhubPost, ResearchJourney
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
@@ -15,6 +15,7 @@ from researchhub_document.related_models.constants.journey_stage import (
     JOURNEY_STAGE_GRANT,
     JOURNEY_STAGE_PROPOSAL,
     JOURNEY_STAGE_REGISTERED_REPORT,
+    JOURNEY_TRACKER_STAGES,
 )
 from researchhub_document.services.journey_service import JourneyService
 from user.models import User
@@ -40,16 +41,12 @@ class ResearchJourneyTrackerViewSetTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["latest_stage"], JOURNEY_STAGE_REGISTERED_REPORT)
-        stages = {stage["stage"]: stage for stage in response.data["stages"]}
         self.assertEqual(
-            list(stages.keys()),
-            [
-                JOURNEY_STAGE_GRANT,
-                JOURNEY_STAGE_PROPOSAL,
-                JOURNEY_STAGE_REGISTERED_REPORT,
-            ],
+            response.data["latest_stage"],
+            JOURNEY_STAGE_REGISTERED_REPORT,
         )
+        stages = {stage["stage"]: stage for stage in response.data["stages"]}
+        self.assertEqual(list(stages.keys()), list(JOURNEY_TRACKER_STAGES))
         self.assertEqual(stages[JOURNEY_STAGE_GRANT]["status"], "completed")
         self.assertEqual(
             stages[JOURNEY_STAGE_GRANT]["work"]["detail_url"],

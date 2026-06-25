@@ -25,7 +25,7 @@ from rest_framework.viewsets import ModelViewSet
 from feed.feed_list_dto import (
     serialize_fund_feed_metrics,
 )
-from feed.journal_v2_filters import JournalV2OrderingFilter
+from feed.journal_v2_filters import JournalV2OrderingFilter, JournalV2StageFilter
 from feed.journal_v2_serializers import JournalV2FeedListEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.models import Grant, GrantApplication
@@ -52,7 +52,7 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
     serializer_class = JournalV2FeedListEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
-    filter_backends = [JournalV2OrderingFilter]
+    filter_backends = [JournalV2StageFilter, JournalV2OrderingFilter]
     ordering_fields = ["newest", "best", "upvotes", "most_applicants", "amount_raised"]
     ordering = "best"
 
