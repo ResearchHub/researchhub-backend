@@ -1,9 +1,9 @@
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
-from notification.models import Notification
 from rest_framework.test import APITestCase
 
+from notification.models import Notification
 from purchase.models import Fundraise
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
 from researchhub_comment.constants.rh_comment_thread_references import (

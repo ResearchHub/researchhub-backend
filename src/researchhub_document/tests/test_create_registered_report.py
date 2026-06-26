@@ -1,11 +1,11 @@
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
-from notification.models import Notification
 from rest_framework.test import APITestCase
 
 from hub.tests.helpers import create_hub
 from note.tests.helpers import create_note
+from notification.models import Notification
 from purchase.models import Fundraise
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
