@@ -23,37 +23,58 @@ def build_proposal_system_prompt() -> str:
     return load_template("proposal_draft_system.txt")
 
 
-def _render_profile_summary(profile: dict | None) -> str:
-    """Compact, readable summary of the persisted researcher profile."""
-    profile = profile or {}
-    resolution = profile.get("resolution") or {}
+def _render_resolution_lines(resolution: dict) -> list[str]:
+    """Header lines naming the resolved researcher and their OpenAlex id."""
     lines: list[str] = []
     name = str(resolution.get("display_name") or "").strip()
     if name:
         lines.append(f"Resolved researcher: {name}")
-    if resolution.get("openalex_author_id"):
-        lines.append(f"OpenAlex author id: {resolution['openalex_author_id']}")
+    author_id = resolution.get("openalex_author_id")
+    if author_id:
+        lines.append(f"OpenAlex author id: {author_id}")
+    return lines
 
-    works = [w for w in (profile.get("works") or []) if isinstance(w, dict)]
-    if works:
-        lines.append("Selected works (the real track record to build on):")
-        for work in works[:_MAX_SEED_WORKS]:
-            title = str(work.get("title") or "").strip() or "(untitled)"
-            year = str(work.get("publication_year") or "").strip()
-            url = str(work.get("source_url") or "").strip()
-            suffix = f" ({year})" if year else ""
-            ref = f" -- {url}" if url else ""
-            lines.append(f"- {title}{suffix}{ref}")
-            abstract = str(work.get("abstract") or "").strip()
-            if abstract:
-                if len(abstract) > _MAX_SEED_ABSTRACT_CHARS:
-                    abstract = abstract[:_MAX_SEED_ABSTRACT_CHARS].rstrip() + "..."
-                lines.append(f"    Abstract: {abstract}")
-    else:
-        lines.append(
+
+def _trim_abstract(abstract: str) -> str:
+    """Trim a work abstract to the seed length, keeping it readable at a glance."""
+    if len(abstract) > _MAX_SEED_ABSTRACT_CHARS:
+        return abstract[:_MAX_SEED_ABSTRACT_CHARS].rstrip() + "..."
+    return abstract
+
+
+def _render_work_lines(work: dict) -> list[str]:
+    """Title/year/url line for a single work, plus its trimmed abstract."""
+    title = str(work.get("title") or "").strip() or "(untitled)"
+    year = str(work.get("publication_year") or "").strip()
+    url = str(work.get("source_url") or "").strip()
+    suffix = f" ({year})" if year else ""
+    ref = f" -- {url}" if url else ""
+    lines = [f"- {title}{suffix}{ref}"]
+    abstract = str(work.get("abstract") or "").strip()
+    if abstract:
+        lines.append(f"    Abstract: {_trim_abstract(abstract)}")
+    return lines
+
+
+def _render_works_lines(works: list[dict]) -> list[str]:
+    """The selected-works block, or a prompt to ground them when none are on file."""
+    if not works:
+        return [
             "No works are on file for this researcher; resolve and ground them "
             "with the OpenAlex tools before relying on any track record."
-        )
+        ]
+    lines = ["Selected works (the real track record to build on):"]
+    for work in works[:_MAX_SEED_WORKS]:
+        lines.extend(_render_work_lines(work))
+    return lines
+
+
+def _render_profile_summary(profile: dict | None) -> str:
+    """Compact, readable summary of the persisted researcher profile."""
+    profile = profile or {}
+    works = [w for w in (profile.get("works") or []) if isinstance(w, dict)]
+    lines = _render_resolution_lines(profile.get("resolution") or {})
+    lines.extend(_render_works_lines(works))
     return "\n".join(lines)
 
 
