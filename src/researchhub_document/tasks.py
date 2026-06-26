@@ -4,8 +4,14 @@ from datetime import timedelta
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
-from researchhub.celery import QUEUE_HOT_SCORE, QUEUE_PAPER_MISC, app
-from researchhub_document.models import ResearchhubPost
+from mailing_list.lib import base_email_context, send_email
+from researchhub.celery import (
+    QUEUE_HOT_SCORE,
+    QUEUE_NOTIFICATION,
+    QUEUE_PAPER_MISC,
+    app,
+)
+from researchhub_document.models import ResearchhubPost, ResearchJourney
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
@@ -13,6 +19,72 @@ from utils import sentry
 from utils.doi import DOI
 
 logger = logging.getLogger(__name__)
+
+PROPOSAL_ENTERED_JOURNAL_EMAIL_SUBJECT = (
+    "Your proposal is now in the ResearchHub Journal"
+)
+
+
+def build_proposal_entered_journal_email_context(
+    proposal: ResearchhubPost,
+) -> dict[str, object]:
+    """Build the email context for a proposal entering the journal."""
+    proposal_url = proposal.unified_document.frontend_view_link()
+    author = proposal.created_by
+    author_name = author.first_name or author.full_name() or "there"
+    proposal_title = proposal.title or "your proposal"
+    message = (
+        f"Hello {author_name},\n\n"
+        f'Your funded proposal "{proposal_title}" is now in the ResearchHub Journal.'
+        "\n\nThe next step is to create a Registered Report from your proposal."
+    )
+
+    return {
+        **base_email_context,
+        "action": {
+            "cta_label": "Create Registered Report",
+            "frontend_view_link": proposal_url,
+            "message": message,
+        },
+        "subject": PROPOSAL_ENTERED_JOURNAL_EMAIL_SUBJECT,
+    }
+
+
+@app.task(queue=QUEUE_NOTIFICATION)
+def send_proposal_entered_journal_email(
+    journey_id: int,
+) -> dict[str, list[str]] | None:
+    """Send the author an email when their proposal enters the journal."""
+    journey = (
+        ResearchJourney.objects.filter(id=journey_id)
+        .select_related(
+            "preregistration_post__created_by",
+            "preregistration_post__unified_document",
+        )
+        .first()
+    )
+    if journey is None:
+        logger.warning(
+            "Skipping journal entry email because the journey does not exist.",
+            extra={"journey_id": journey_id},
+        )
+        return None
+    if not journey.is_in_journal:
+        return None
+
+    proposal = journey.preregistration_post
+    if proposal is None or proposal.created_by_id is None:
+        return None
+    if not proposal.created_by.email:
+        return None
+
+    return send_email(
+        [proposal.created_by.email],
+        "general_email_message.txt",
+        PROPOSAL_ENTERED_JOURNAL_EMAIL_SUBJECT,
+        build_proposal_entered_journal_email_context(proposal),
+        html_template="general_email_message.html",
+    )
 
 
 @app.task(queue=QUEUE_PAPER_MISC)

@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from typing import Protocol
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
@@ -23,6 +24,7 @@ from researchhub_document.related_models.constants.journey_stage import (
     JOURNEY_STAGE_PROPOSAL,
     JOURNEY_STAGE_REGISTERED_REPORT,
 )
+from researchhub_document.tasks import send_proposal_entered_journal_email
 from user.models import User
 
 logger = logging.getLogger(__name__)
@@ -36,6 +38,14 @@ class JourneyStage:
     item: ResearchhubPost
 
 
+class DelayedTask(Protocol):
+    """A task-like dependency that can enqueue asynchronous work."""
+
+    def delay(self, *args: object, **kwargs: object) -> object:
+        """Enqueue the task with the provided arguments."""
+        ...
+
+
 class JourneyService:
     """Service for managing the ordered post stages in a research journey."""
 
@@ -45,12 +55,16 @@ class JourneyService:
         post_model: type[ResearchhubPost] | None = None,
         grant_application_model: type[GrantApplication] | None = None,
         notification_model: type[Notification] | None = None,
+        journal_entry_email_task: DelayedTask | None = None,
     ) -> None:
         """Initialize the service with optional model dependencies."""
         self.journey_model = journey_model or ResearchJourney
         self.post_model = post_model or ResearchhubPost
         self.grant_application_model = grant_application_model or GrantApplication
         self.notification_model = notification_model or Notification
+        self.journal_entry_email_task = (
+            journal_entry_email_task or send_proposal_entered_journal_email
+        )
 
     @transaction.atomic
     def get_or_create_for_preregistration(
@@ -179,8 +193,16 @@ class JourneyService:
             journey.save(update_fields=update_fields)
         if should_notify_author:
             self.notify_author_about_journal_entry(journey)
+            self.send_author_journal_entry_email(journey)
 
         return journey
+
+    def send_author_journal_entry_email(self, journey: ResearchJourney) -> None:
+        """Queue the email sent when a proposal enters the journal."""
+        self._require_saved_journey(journey)
+        transaction.on_commit(
+            lambda: self.journal_entry_email_task.delay(journey.id)
+        )
 
     def notify_author_about_journal_entry(
         self, journey: ResearchJourney

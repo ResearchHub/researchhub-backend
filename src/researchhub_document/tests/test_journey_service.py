@@ -1,5 +1,5 @@
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError
@@ -228,6 +228,56 @@ class JourneyServiceTests(TestCase):
             object_id=journey.id,
         )
         self.assertEqual(notifications.count(), 1)
+
+    def test_email_author_when_proposal_enters_journal(self) -> None:
+        """Verify first-time journal inclusion queues the author email."""
+        # Arrange
+        email_task = Mock()
+        service = JourneyService(journal_entry_email_task=email_task)
+        proposal = self._create_post(PREREGISTRATION)
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+            status=Fundraise.COMPLETED,
+        )
+
+        # Act
+        with patch("notification.models.Notification.send_notification"):
+            with self.captureOnCommitCallbacks(execute=True):
+                journey = service.include_completed_fundraise_in_journal(fundraise)
+
+        # Assert
+        email_task.delay.assert_called_once_with(journey.id)
+
+    def test_skip_duplicate_journal_entry_email(self) -> None:
+        """Verify repeated journal inclusion does not queue duplicate email."""
+        # Arrange
+        email_task = Mock()
+        service = JourneyService(journal_entry_email_task=email_task)
+        proposal = self._create_post(PREREGISTRATION)
+        journey = ResearchJourney.objects.create(
+            preregistration_post=proposal,
+            is_in_journal=True,
+            journal_included_date=timezone.now(),
+        )
+        proposal.journey = journey
+        proposal.save(update_fields=["journey"])
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+            status=Fundraise.COMPLETED,
+        )
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            service.include_completed_fundraise_in_journal(fundraise)
+
+        # Assert
+        email_task.delay.assert_not_called()
 
     def test_keep_existing_journal_date(self) -> None:
         """Verify repeated inclusion keeps the original journal date."""
