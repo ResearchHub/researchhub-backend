@@ -4,7 +4,7 @@ from typing import Protocol
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
-from django.db.models import Exists, OuterRef, Prefetch, QuerySet
+from django.db.models import Exists, Model, OuterRef, Prefetch, QuerySet
 from django.utils import timezone
 
 from notification.models import Notification
@@ -213,21 +213,54 @@ class JourneyService:
         if proposal is None or proposal.created_by_id is None:
             return None
 
-        journey_content_type = ContentType.objects.get_for_model(self.journey_model)
-        notification, created = self.notification_model.objects.get_or_create(
+        return self._create_author_notification(
             notification_type=Notification.PROPOSAL_ENTERED_JOURNAL,
-            recipient=proposal.created_by,
-            content_type=journey_content_type,
-            object_id=journey.id,
-            defaults={
-                "action_user": proposal.created_by,
-                "unified_document": proposal.unified_document,
-                "extra": {"journey_id": str(journey.id)},
+            author=proposal.created_by,
+            unified_document=proposal.unified_document,
+            item=journey,
+            extra={"journey_id": str(journey.id)},
+        )
+
+    def notify_author_about_registered_report(
+        self, report: ResearchhubPost
+    ) -> Notification | None:
+        """Notify the author that their registered report was published."""
+        self._require_saved_post(report)
+        if report.document_type != REGISTERED_REPORT or report.created_by_id is None:
+            return None
+
+        return self._create_author_notification(
+            notification_type=Notification.REGISTERED_REPORT_CREATED,
+            author=report.created_by,
+            unified_document=report.unified_document,
+            item=report,
+            extra={
+                "journey_id": str(report.journey_id or ""),
+                "registered_report_id": str(report.id),
             },
         )
-        if created:
-            transaction.on_commit(notification.send_notification)
-        return notification
+
+    def notify_author_about_results(
+        self, report: ResearchhubPost, comment: Model
+    ) -> Notification | None:
+        """Notify the author that results were published for their report."""
+        self._require_saved_post(report)
+        if report.document_type != REGISTERED_REPORT or report.created_by_id is None:
+            return None
+        if comment.pk is None:
+            raise ValueError("Comment must be saved.")
+
+        return self._create_author_notification(
+            notification_type=Notification.REGISTERED_REPORT_RESULTS,
+            author=report.created_by,
+            unified_document=report.unified_document,
+            item=comment,
+            extra={
+                "comment_id": str(comment.pk),
+                "journey_id": str(report.journey_id or ""),
+                "registered_report_id": str(report.id),
+            },
+        )
 
     @transaction.atomic
     def attach_stage(
@@ -382,6 +415,31 @@ class JourneyService:
         registered_report = self.get_registered_report(journey)
         if registered_report is not None and registered_report.id != post.id:
             raise ValueError("Journey already has a registered report.")
+
+    def _create_author_notification(
+        self,
+        *,
+        notification_type: str,
+        author: User,
+        unified_document: ResearchhubUnifiedDocument,
+        item: Model,
+        extra: dict[str, str] | None = None,
+    ) -> Notification:
+        """Create and dispatch a stage notification for a journey author."""
+        notification, created = self.notification_model.objects.get_or_create(
+            notification_type=notification_type,
+            recipient=author,
+            content_type=ContentType.objects.get_for_model(item),
+            object_id=item.pk,
+            defaults={
+                "action_user": author,
+                "unified_document": unified_document,
+                "extra": extra or {},
+            },
+        )
+        if created:
+            transaction.on_commit(notification.send_notification)
+        return notification
 
     def _require_saved_post(self, post: ResearchhubPost | None) -> None:
         """Require a persisted post instance."""
