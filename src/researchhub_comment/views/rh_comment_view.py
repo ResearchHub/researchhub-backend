@@ -1,3 +1,5 @@
+from collections.abc import MutableMapping
+
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Prefetch
@@ -69,6 +71,7 @@ from review.services.review_service import (
     REVIEW_WINDOW_DAYS,
     get_review_availability,
 )
+from user.models import User
 from user.permissions import IsModerator
 from utils.throttles import THROTTLE_CLASSES
 
@@ -336,7 +339,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         return context
 
     def _create_rh_comment(self, request, *args, **kwargs):
-        data = request.data
+        data = request.data.copy()
         user = request.user
         target = None
 
@@ -349,23 +352,17 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     f"every {REVIEW_WINDOW_DAYS} days."
                 )
 
-        # Enforce author-only for author updates
-        if data.get("thread_type") == AUTHOR_UPDATE:
-            target = self._get_model_object()
-            if not getattr(target, "created_by", None) or target.created_by != user:
-                raise PermissionDenied("Only the author can add author updates.")
-
         if data.get("thread_reference") == REGISTERED_REPORT_RESULTS_REFERENCE:
-            if data.get("thread_type") != AUTHOR_UPDATE:
-                raise ValidationError(
-                    "Registered report results must be author updates."
-                )
-            data["comment_type"] = AUTHOR_UPDATE
-            target = target or self._get_model_object()
-            self._validate_registered_report_results_target(target)
+            target = self.prepare_registered_report_results_data(data, user)
+        elif data.get("thread_type") == AUTHOR_UPDATE:
+            target = self._get_model_object()
+            self.validate_author_update_target(target, user)
 
         with transaction.atomic():
-            rh_thread, parent_id = self._retrieve_or_create_thread_from_request(request)
+            rh_thread, parent_id = self._retrieve_or_create_thread_from_request(
+                request,
+                data,
+            )
             data.update(
                 {
                     "created_by": user.id,
@@ -405,7 +402,28 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             ).data
             return Response(serializer_data, status=200)
 
-    def _validate_registered_report_results_target(self, target: object) -> None:
+    def prepare_registered_report_results_data(
+        self, data: MutableMapping[str, object], user: User
+    ) -> object:
+        """Normalize and validate a registered report results update."""
+        target = self._get_model_object()
+        self.validate_author_update_target(target, user)
+        self.validate_registered_report_results_target(target)
+        data.update(
+            {
+                "comment_type": AUTHOR_UPDATE,
+                "thread_type": AUTHOR_UPDATE,
+                "thread_reference": REGISTERED_REPORT_RESULTS_REFERENCE,
+            }
+        )
+        return target
+
+    def validate_author_update_target(self, target: object, user: User) -> None:
+        """Require author updates to be posted by the target's author."""
+        if not getattr(target, "created_by", None) or target.created_by != user:
+            raise PermissionDenied("Only the author can add author updates.")
+
+    def validate_registered_report_results_target(self, target: object) -> None:
         """Require results updates to target an attached registered report."""
         if (
             getattr(target, "document_type", None) != REGISTERED_REPORT
@@ -787,8 +805,13 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         }
         return Permission.objects.create(**data)
 
-    def _retrieve_or_create_thread_from_request(self, request):
-        data = request.data
+    def _retrieve_or_create_thread_from_request(
+        self,
+        request,
+        data: MutableMapping[str, object] | None = None,
+    ) -> tuple[object, int | None]:
+        """Return an existing thread or create one from the request payload."""
+        data = data if data is not None else request.data
         user = request.user
 
         try:
@@ -799,7 +822,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 return thread, parent.id
             else:
                 existing_thread, parent_id = self._get_existing_thread_from_request(
-                    request
+                    request,
+                    data,
                 )
                 if existing_thread is not None:
                     return existing_thread, parent_id
@@ -826,8 +850,13 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         except Exception as error:
             raise Exception(f"Failed to create / retrieve rh_thread: {error}")
 
-    def _get_existing_thread_from_request(self, request):
-        data = request.data
+    def _get_existing_thread_from_request(
+        self,
+        request,
+        data: MutableMapping[str, object] | None = None,
+    ) -> tuple[object | None, int | None]:
+        """Return the parent comment thread when replying to an existing comment."""
+        data = data if data is not None else request.data
         parent_id = data.get("parent_id", None)
 
         if parent_id:

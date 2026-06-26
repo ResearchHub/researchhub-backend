@@ -33,12 +33,14 @@ class AppendRegisteredReportResultsTests(APITestCase):
         self.service = JourneyService()
         self.client.force_authenticate(self.user)
 
-    def test_append_results_creates_author_update(self) -> None:
-        """Verify report results create an author-update comment on the report."""
+    def test_append_notebook_results_creates_author_update(self) -> None:
+        """Verify notebook results create an author-update comment on the report."""
         # Arrange
         report = self._create_registered_report(self.user)
         original_title = report.title
         original_body = report.renderable_text
+        original_version_number = report.version_number
+        original_previous_version = report.prev_version
         payload = self._build_payload()
 
         # Act
@@ -55,6 +57,8 @@ class AppendRegisteredReportResultsTests(APITestCase):
         report.refresh_from_db()
         self.assertEqual(report.title, original_title)
         self.assertEqual(report.renderable_text, original_body)
+        self.assertEqual(report.version_number, original_version_number)
+        self.assertEqual(report.prev_version, original_previous_version)
         self.assertEqual(comment.created_by, self.user)
         self.assertEqual(comment.comment_type, AUTHOR_UPDATE)
         self.assertEqual(comment.comment_content_type, QUILL_EDITOR)
@@ -151,13 +155,13 @@ class AppendRegisteredReportResultsTests(APITestCase):
         """Build a valid registered report results request payload."""
         return {
             "comment_content_json": {
-                "ops": [{"insert": "Registered report results."}],
+                "ops": [
+                    {"insert": "Registered report results from the notebook."},
+                ],
             },
-            "comment_type": AUTHOR_UPDATE,
             "comment_content_type": QUILL_EDITOR,
             "context_title": "Results",
             "thread_reference": REGISTERED_REPORT_RESULTS_REFERENCE,
-            "thread_type": AUTHOR_UPDATE,
         }
 
     def _build_results_url(self, post: ResearchhubPost) -> str:
