@@ -45,6 +45,7 @@ class Notification(models.Model):
     """
     PAPER_CLAIM_PAYOUT = "PAPER_CLAIM_PAYOUT"
     PREREGISTRATION_UPDATE_REMINDER = "PREREGISTRATION_UPDATE_REMINDER"
+    PROPOSAL_ENTERED_JOURNAL = "PROPOSAL_ENTERED_JOURNAL"
     GRANT_APPROVED = "GRANT_APPROVED"
     GRANT_DECLINED = "GRANT_DECLINED"
     CONTENT_APPROVED = "CONTENT_APPROVED"
@@ -74,6 +75,7 @@ class Notification(models.Model):
         (PAPER_CLAIM_PAYOUT, PAPER_CLAIM_PAYOUT),
         (PREREGISTRATION_UPDATE, PREREGISTRATION_UPDATE),
         (PREREGISTRATION_UPDATE_REMINDER, PREREGISTRATION_UPDATE_REMINDER),
+        (PROPOSAL_ENTERED_JOURNAL, PROPOSAL_ENTERED_JOURNAL),
         (GRANT_APPROVED, GRANT_APPROVED),
         (GRANT_DECLINED, GRANT_DECLINED),
         (CONTENT_APPROVED, CONTENT_APPROVED),
@@ -619,6 +621,24 @@ class Notification(models.Model):
                 "value": doc_title,
                 "link": base_url,
                 "extra": '["link"]',
+            },
+        ], base_url
+
+    def _format_proposal_entered_journal(self) -> tuple[list, str | None]:
+        """Format the notification sent when a proposal enters the journal."""
+        document = self.unified_document.get_document()
+        doc_title = self._truncate_title(document.title)
+        base_url = self._create_frontend_doc_link()
+
+        return [
+            {"type": "text", "value": "Your funded proposal "},
+            {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
+            {
+                "type": "text",
+                "value": (
+                    " is now in the ResearchHub Journal. Open it to create a "
+                    "Registered Report."
+                ),
             },
         ], base_url
 

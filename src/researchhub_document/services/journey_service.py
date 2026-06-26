@@ -1,10 +1,12 @@
 import logging
 from dataclasses import dataclass
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
 from django.db.models import Exists, OuterRef, Prefetch, QuerySet
 from django.utils import timezone
 
+from notification.models import Notification
 from purchase.models import Fundraise, GrantApplication
 from researchhub_document.models import (
     ResearchhubPost,
@@ -42,11 +44,13 @@ class JourneyService:
         journey_model: type[ResearchJourney] | None = None,
         post_model: type[ResearchhubPost] | None = None,
         grant_application_model: type[GrantApplication] | None = None,
+        notification_model: type[Notification] | None = None,
     ) -> None:
         """Initialize the service with optional model dependencies."""
         self.journey_model = journey_model or ResearchJourney
         self.post_model = post_model or ResearchhubPost
         self.grant_application_model = grant_application_model or GrantApplication
+        self.notification_model = notification_model or Notification
 
     @transaction.atomic
     def get_or_create_for_preregistration(
@@ -163,6 +167,7 @@ class JourneyService:
             )
             return None
 
+        should_notify_author = not journey.is_in_journal
         update_fields = []
         if not journey.is_in_journal:
             journey.is_in_journal = True
@@ -172,8 +177,35 @@ class JourneyService:
             update_fields.append("journal_included_date")
         if update_fields:
             journey.save(update_fields=update_fields)
+        if should_notify_author:
+            self.notify_author_about_journal_entry(journey)
 
         return journey
+
+    def notify_author_about_journal_entry(
+        self, journey: ResearchJourney
+    ) -> Notification | None:
+        """Notify the proposal author that their journey entered the journal."""
+        self._require_saved_journey(journey)
+        proposal = self.get_proposal(journey)
+        if proposal is None or proposal.created_by_id is None:
+            return None
+
+        journey_content_type = ContentType.objects.get_for_model(self.journey_model)
+        notification, created = self.notification_model.objects.get_or_create(
+            notification_type=Notification.PROPOSAL_ENTERED_JOURNAL,
+            recipient=proposal.created_by,
+            content_type=journey_content_type,
+            object_id=journey.id,
+            defaults={
+                "action_user": proposal.created_by,
+                "unified_document": proposal.unified_document,
+                "extra": {"journey_id": str(journey.id)},
+            },
+        )
+        if created:
+            transaction.on_commit(notification.send_notification)
+        return notification
 
     @transaction.atomic
     def attach_stage(
