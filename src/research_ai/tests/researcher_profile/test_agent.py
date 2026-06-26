@@ -116,6 +116,8 @@ class RunProfileAgentTests(SimpleTestCase):
         self.assertEqual(
             profile["works"][0]["pdf_url"], "https://example.org/lead-paper.pdf"
         )
+        # The work's abstract is materialized from ground truth onto the profile.
+        self.assertEqual(profile["works"][0]["abstract"], "Abstract text")
         self.assertEqual(profile["errors"], [])
 
     def test_drops_ungrounded_work(self):

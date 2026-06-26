@@ -7,9 +7,9 @@ read already-persisted data, so they hold ground truth the agent cannot invent.
 
 Provenance: ``get_researcher_profile`` records each profile work's
 ``source_url``/``pdf_url`` into a shared set so a later citation-grounding stage
-(PR6) can check a model-emitted citation against what the profile actually
-contained. The set is supplied by the caller and shared across the proposal
-toolsets for one run.
+can check a model-emitted citation against what the profile actually contained.
+The set is supplied by the caller and shared across the proposal toolsets for one
+run.
 """
 
 import logging

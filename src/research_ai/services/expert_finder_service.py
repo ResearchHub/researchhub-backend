@@ -4,13 +4,10 @@ from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
 
-import fitz
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator
 
-from paper.tasks.tasks import create_download_url
-from paper.utils import download_pdf_from_url
 from research_ai.constants import (
     EXPERT_FINDER_DEFAULT_STATE,
     MAX_PDF_SIZE_BYTES,
@@ -26,6 +23,12 @@ from research_ai.services.expert_display import ExpertDisplay
 from research_ai.services.expert_finder_json import ExpertFinderJson
 from research_ai.services.expert_persist import ExpertPersist
 from research_ai.services.openai_expert_finder_service import OpenAIExpertFinderService
+from research_ai.services.pdf_text import (
+    extract_text_from_pdf_bytes as _extract_text_from_pdf_bytes,
+)
+from research_ai.services.pdf_text import (
+    get_paper_pdf_bytes as _get_paper_pdf_bytes,
+)
 from research_ai.services.progress_service import ProgressService, TaskType
 from research_ai.services.report_generator_service import (
     expert_to_report_row,
@@ -136,54 +139,6 @@ def get_document_content(unified_doc, input_type: str):
     except Exception:
         pass
     raise ValueError("Post has no content available")
-
-
-def _get_paper_pdf_bytes(paper) -> bytes | None:
-    """
-    Get PDF content for a paper. Prefer paper.file (S3); fall back to pdf_url .
-    """
-
-    if getattr(paper, "file", None) and getattr(paper.file, "url", None):
-        try:
-            pdf_file = download_pdf_from_url(paper.file.url)
-            return pdf_file.read()
-        except Exception as e:
-            logger.warning(
-                "Failed to get PDF from paper.file for paper %s: %s. Trying pdf_url.",
-                getattr(paper, "id", "?"),
-                e,
-            )
-
-    pdf_url = getattr(paper, "pdf_url", None) or getattr(paper, "url", None)
-    if not pdf_url:
-        return None
-    try:
-        url = create_download_url(pdf_url, getattr(paper, "external_source", "") or "")
-        pdf_file = download_pdf_from_url(url)
-        return pdf_file.read()
-    except Exception as e:
-        logger.warning(
-            "Failed to download PDF from pdf_url for paper %s: %s",
-            getattr(paper, "id", "?"),
-            e,
-            exc_info=True,
-        )
-        return None
-
-
-def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
-    """
-    Extract text from PDF bytes using PyMuPDF
-    """
-    try:
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        parts = [page.get_text() for page in doc]
-        doc.close()
-        text = "\n".join(parts)
-        return text[:200000] if len(text) > 200000 else text
-    except Exception as e:
-        logger.warning("Failed to extract text from PDF: %s", e)
-        raise ValueError(f"PDF text extraction failed: {e}") from e
 
 
 def _prompt_expert_count_for_round(remaining: int) -> int:

@@ -155,7 +155,7 @@ class GetDocumentContentTests(TestCase):
 
 
 class ExtractTextFromPdfBytesTests(TestCase):
-    @patch("research_ai.services.expert_finder_service.fitz")
+    @patch("research_ai.services.pdf_text.fitz")
     def test_extract_text_returns_text(self, mock_fitz):
         mock_doc = MagicMock()
         mock_page = MagicMock()
@@ -166,7 +166,7 @@ class ExtractTextFromPdfBytesTests(TestCase):
         self.assertEqual(text, "Page 1 text")
         mock_doc.close.assert_called_once()
 
-    @patch("research_ai.services.expert_finder_service.fitz")
+    @patch("research_ai.services.pdf_text.fitz")
     def test_extract_text_truncates_at_200000(self, mock_fitz):
         mock_doc = MagicMock()
         mock_page = MagicMock()
@@ -178,7 +178,7 @@ class ExtractTextFromPdfBytesTests(TestCase):
         self.assertEqual(text, "a" * 200000)
         mock_doc.close.assert_called_once()
 
-    @patch("research_ai.services.expert_finder_service.fitz")
+    @patch("research_ai.services.pdf_text.fitz")
     def test_extract_text_failure_raises_value_error(self, mock_fitz):
         mock_fitz.open.side_effect = Exception("corrupt pdf")
         with self.assertRaises(ValueError) as ctx:
@@ -188,8 +188,8 @@ class ExtractTextFromPdfBytesTests(TestCase):
 
 
 class GetPaperPdfBytesTests(TestCase):
-    @patch("research_ai.services.expert_finder_service.download_pdf_from_url")
-    @patch("research_ai.services.expert_finder_service.create_download_url")
+    @patch("research_ai.services.pdf_text.download_pdf_from_url")
+    @patch("research_ai.services.pdf_text.create_download_url")
     def test_returns_pdf_from_pdf_url(self, mock_create_url, mock_download):
         paper = MagicMock()
         paper.file = None
@@ -205,7 +205,7 @@ class GetPaperPdfBytesTests(TestCase):
         mock_create_url.assert_called_once_with("https://example.com/paper.pdf", "doi")
         mock_download.assert_called_once_with("https://proxy/paper.pdf")
 
-    @patch("research_ai.services.expert_finder_service.download_pdf_from_url")
+    @patch("research_ai.services.pdf_text.download_pdf_from_url")
     def test_returns_pdf_from_paper_file(self, mock_download):
         paper = MagicMock()
         paper.file = MagicMock()
@@ -218,7 +218,7 @@ class GetPaperPdfBytesTests(TestCase):
         self.assertEqual(result, b"s3 pdf content")
         mock_download.assert_called_once_with("https://s3.example.com/file.pdf")
 
-    @patch("research_ai.services.expert_finder_service.download_pdf_from_url")
+    @patch("research_ai.services.pdf_text.download_pdf_from_url")
     def test_falls_back_to_pdf_url_when_file_fails(self, mock_download):
         paper = MagicMock()
         paper.file = MagicMock()
@@ -230,7 +230,7 @@ class GetPaperPdfBytesTests(TestCase):
         mock_file.read.return_value = b"url pdf content"
         mock_download.side_effect = [Exception("s3 down"), mock_file]
         with patch(
-            "research_ai.services.expert_finder_service.create_download_url",
+            "research_ai.services.pdf_text.create_download_url",
             return_value="https://proxy/paper.pdf",
         ):
             result = _get_paper_pdf_bytes(paper)
