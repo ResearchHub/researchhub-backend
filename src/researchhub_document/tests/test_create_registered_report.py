@@ -33,11 +33,13 @@ class CreateRegisteredReportTests(APITestCase):
         self.service = JourneyService()
         self.client.force_authenticate(self.user)
 
-    def test_create_report_attaches_proposal(self) -> None:
-        """Verify a completed proposal owner can create a registered report."""
+    def test_publish_report_from_notebook_attaches_proposal(self) -> None:
+        """Verify notebook publishing uses the completed proposal path."""
         # Arrange
         proposal = self._create_completed_proposal(self.user)
         note, _ = create_note(self.user, self.organization)
+        note.document_type = REGISTERED_REPORT
+        note.save(update_fields=["document_type"])
         payload = self._build_payload(proposal, note_id=note.id)
 
         # Act
@@ -47,9 +49,11 @@ class CreateRegisteredReportTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         report = ResearchhubPost.objects.get(id=response.data["id"])
         proposal.refresh_from_db()
+        note.refresh_from_db()
         self.assertEqual(report.document_type, REGISTERED_REPORT)
         self.assertEqual(report.created_by, self.user)
         self.assertEqual(report.note_id, note.id)
+        self.assertEqual(note.post, report)
         self.assertEqual(report.journey, proposal.journey)
         self.assertEqual(self.service.get_registered_report(proposal.journey), report)
         self.assertEqual(

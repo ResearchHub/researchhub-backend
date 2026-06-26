@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Mapping
 
 from django.core.files.base import ContentFile
 from django.db import transaction
@@ -207,12 +208,11 @@ class ResearchhubPostViewSet(
                 journey_service = JourneyService()
                 registered_report_proposal = None
                 if document_type == REGISTERED_REPORT:
-                    serializer = RegisteredReportCreateSerializer(data=data)
-                    serializer.is_valid(raise_exception=True)
-                    registered_report_proposal = (
-                        journey_service.get_completed_proposal_candidate(
+                    registered_report_proposal, note_id = (
+                        self.prepare_registered_report_create_context(
+                            data,
                             created_by,
-                            serializer.validated_data["proposal_id"],
+                            journey_service,
                         )
                     )
                     authors = registered_report_proposal.authors.all()
@@ -462,6 +462,21 @@ class ResearchhubPostViewSet(
         except (KeyError, TypeError, ValueError) as exception:
             log_error(exception)
             return Response({"error": str(exception)}, status=400)
+
+    def prepare_registered_report_create_context(
+        self,
+        data: Mapping[str, object],
+        created_by: User,
+        journey_service: JourneyService,
+    ) -> tuple[ResearchhubPost, int | None]:
+        """Return the proposal and notebook id for registered report creation."""
+        serializer = RegisteredReportCreateSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        proposal = journey_service.get_completed_proposal_candidate(
+            created_by,
+            serializer.validated_data["proposal_id"],
+        )
+        return proposal, serializer.validated_data.get("note_id")
 
     def update_existing_researchhub_posts(self, request):
         try:
