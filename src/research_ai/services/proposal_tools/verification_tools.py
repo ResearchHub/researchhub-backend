@@ -188,14 +188,14 @@ class ProposalVerificationToolset:
         if resolved is None:
             return "dead"
         claimed_title = _norm(citation.get("title"))
-        if not claimed_title:
-            # Nothing claimed to contradict; adopt the canonical record.
-            return "minor_drift"
-        similarity = _similarity(claimed_title, _norm(resolved["title"]))
         authors_ok = _authors_match(citation.get("authors") or [], resolved["authors"])
+        if not claimed_title:
+            # No title claimed to contradict; only adopt when authors also match.
+            return "minor_drift" if authors_ok else "major_fabrication"
+        similarity = _similarity(claimed_title, _norm(resolved["title"]))
         if similarity >= _EXACT_TITLE and authors_ok:
             return "exact"
-        if similarity >= _MINOR_TITLE:
+        if similarity >= _MINOR_TITLE and authors_ok:
             return "minor_drift"
         return "major_fabrication"
 

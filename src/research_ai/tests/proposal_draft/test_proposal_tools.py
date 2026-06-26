@@ -223,6 +223,33 @@ class ProposalToolsTestCase(TestCase):
         self.assertEqual(result["severity"], "major_fabrication")
         self.assertEqual(out["summary"]["major"], 1)
 
+    def test_verify_citations_major_fabrication_on_author_mismatch(self):
+        # Arrange: DOI/title resolve, but the claimed author contradicts OpenAlex.
+        oa = _FakeOpenAlex(
+            {"10.1/x": _build_openalex_work("Protein Folding Dynamics", ["Jane Smith"])}
+        )
+        tool = ProposalVerificationToolset(oa_client=oa)
+
+        # Act
+        out = tool.verify_citations(
+            {
+                "citations": [
+                    {
+                        "claim_id": "c1",
+                        "doi": "10.1/x",
+                        "title": "Protein Folding",
+                        "authors": ["Alan Turing"],
+                    }
+                ]
+            }
+        )
+
+        # Assert
+        result = out["results"][0]
+        self.assertEqual(result["severity"], "major_fabrication")
+        self.assertNotIn("correction", result)
+        self.assertEqual(out["summary"]["major"], 1)
+
     def test_verify_citations_dead_when_openalex_misses(self):
         # Arrange: OpenAlex does not resolve the DOI.
         oa = _FakeOpenAlex({})
