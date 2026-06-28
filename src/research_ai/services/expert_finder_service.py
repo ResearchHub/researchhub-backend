@@ -177,9 +177,7 @@ def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
     """
     try:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        parts = []
-        for page in doc:
-            parts.append(page.get_text())
+        parts = [page.get_text() for page in doc]
         doc.close()
         text = "\n".join(parts)
         return text[:200000] if len(text) > 200000 else text

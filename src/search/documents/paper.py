@@ -194,23 +194,18 @@ class PaperDocument(BaseDocument):
         return None
 
     def prepare_raw_authors(self, instance) -> list[dict[str, Any]]:
-        authors = []
         if isinstance(instance.raw_authors, list) is False:
-            return authors
+            return []
 
-        for author in instance.raw_authors:
-            if isinstance(author, dict):
-                authors.append(
-                    {
-                        "first_name": author.get("first_name"),
-                        "last_name": author.get("last_name"),
-                        "full_name": (
-                            f"{author.get('first_name')} {author.get('last_name')}"
-                        ),
-                    }
-                )
-
-        return authors
+        return [
+            {
+                "first_name": author.get("first_name"),
+                "last_name": author.get("last_name"),
+                "full_name": f"{author.get('first_name')} {author.get('last_name')}",
+            }
+            for author in instance.raw_authors
+            if isinstance(author, dict)
+        ]
 
     def prepare_doi_indexing(self, instance) -> str:
         return instance.doi or ""

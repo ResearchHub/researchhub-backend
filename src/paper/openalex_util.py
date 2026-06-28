@@ -88,7 +88,7 @@ def process_openalex_works(works):
 def create_all_paper_tags(papers_to_openalex_data):
     from paper.paper_upload_tasks import create_paper_related_tags
 
-    for paper_id, paper_data in papers_to_openalex_data.items():
+    for paper_data in papers_to_openalex_data.values():
         create_paper_related_tags(
             paper_data["paper"],
             paper_data["openalex_concepts"],
@@ -481,16 +481,16 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
 
     # Process activity by year
     activity_by_year = openalex_author.get("counts_by_year", [])
-    for activity in activity_by_year:
-        contribution_summaries.append(
-            AuthorContributionSummary(
-                source=AuthorContributionSummary.SOURCE_OPENALEX,
-                author=researchhub_author,
-                year=activity.get("year"),
-                works_count=activity.get("works_count"),
-                citation_count=activity.get("cited_by_count"),
-            )
+    contribution_summaries = [
+        AuthorContributionSummary(
+            source=AuthorContributionSummary.SOURCE_OPENALEX,
+            author=researchhub_author,
+            year=activity.get("year"),
+            works_count=activity.get("works_count"),
+            citation_count=activity.get("cited_by_count"),
         )
+        for activity in activity_by_year
+    ]
 
     # Process affiliations
     affiliations = openalex_author.get("affiliations", [])

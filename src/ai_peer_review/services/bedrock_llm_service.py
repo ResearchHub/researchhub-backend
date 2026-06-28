@@ -71,8 +71,5 @@ class BedrockLLMService:
         if not content:
             return ""
 
-        parts: list[str] = []
-        for block in content:
-            if "text" in block:
-                parts.append(block["text"])
+        parts: list[str] = [block["text"] for block in content if "text" in block]
         return "".join(parts)

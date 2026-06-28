@@ -69,9 +69,7 @@ def get_hub_active_contributors(request):
             access_type__in=[ASSISTANT_EDITOR, ASSOCIATE_EDITOR, SENIOR_EDITOR],
             content_type=hub_content_type,
         )
-        target_hub_ids = []
-        for permission in target_permissions:
-            target_hub_ids.append(permission.object_id)
+        target_hub_ids = [permission.object_id for permission in target_permissions]
 
         total_active_contributors = (
             Contribution.objects.filter(

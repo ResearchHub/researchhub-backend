@@ -258,17 +258,15 @@ class Paper(AbstractGenericReactionModel):
 
     @property
     def users_to_notify(self):
-        users = []
-        paper_authors = self.authors.all()
-        for author in paper_authors:
+        return [
+            author.user
+            for author in self.authors.all()
             if (
                 author.user
                 and author.user.emailrecipient.paper_subscription.threads
                 and not author.user.emailrecipient.paper_subscription.none
-            ):
-                users.append(author.user)
-
-        return users
+            )
+        ]
 
     @property
     def hot_score(self):

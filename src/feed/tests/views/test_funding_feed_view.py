@@ -178,9 +178,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
 
         self.assertEqual(response.data["results"][0]["content_type"], "RESEARCHHUBPOST")
 
-        post_ids = []
-        for item in response.data["results"]:
-            post_ids.append(item["content_object"]["id"])
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
 
         self.assertIn(self.post.id, post_ids)
         self.assertIn(self.other_post.id, post_ids)
