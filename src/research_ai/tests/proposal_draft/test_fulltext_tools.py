@@ -22,7 +22,7 @@ class DoiFromSourceUrlTests(unittest.TestCase):
         # Arrange / Act / Assert
         cases = {
             "https://doi.org/10.1/ABC": "10.1/abc",
-            "http://doi.org/10.2/x": "10.2/x",
+            "http://doi.org/10.2/x": "10.2/x",  # NOSONAR - test input, not a request
             "https://dx.doi.org/10.3/y": "10.3/y",
             "doi:10.4/z": "10.4/z",
             "10.5/bare": "10.5/bare",
