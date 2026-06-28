@@ -46,7 +46,7 @@ def _doi_from_source_url(source_url: str) -> str:
     s = str(source_url or "").strip().lower()
     for prefix in (
         "https://doi.org/",
-        "http://doi.org/",
+        "http://doi.org/",  # NOSONAR - prefix match for normalization, not a request
         "https://dx.doi.org/",
         "doi:",
     ):
