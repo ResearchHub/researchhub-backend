@@ -52,7 +52,3 @@ class BuildProposalUserPromptTests(unittest.TestCase):
         # Assert
         self.assertIn("No Abstract Work", prompt)
         self.assertNotIn("Abstract:", prompt)
-
-
-if __name__ == "__main__":
-    unittest.main()
