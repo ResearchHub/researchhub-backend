@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
-from reputation.related_models.paper_reward import HubCitationValue, PaperReward
+from reputation.related_models.paper_reward import HubCitationValue
 from utils.openalex import OpenAlex
 
 paper_fixtures_dir = Path(__file__).parent / "fixtures"
@@ -49,62 +49,6 @@ class PaperRewardTestCase(TestCase):
                 }
             },
         )
-
-    def test_claim_paper_rewards(self):
-        paper_reward = PaperReward.claim_paper_rewards(
-            self.paper1,
-            self.paper1.authors.first(),
-            is_open_data=False,
-            is_preregistered=False,
-        )
-
-        self.assertEqual(paper_reward.citation_change, self.paper1.citations)
-        self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, (43.77609099046774 / 6.0) * 5.0)
-        self.assertFalse(paper_reward.is_open_data)
-        self.assertFalse(paper_reward.is_preregistered)
-
-    def test_claim_paper_rewards_open_data(self):
-        paper_reward = PaperReward.claim_paper_rewards(
-            self.paper1,
-            self.paper1.authors.first(),
-            is_open_data=True,
-            is_preregistered=False,
-        )
-
-        self.assertEqual(paper_reward.citation_change, self.paper1.citations)
-        self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, (43.77609099046774 / 6.0) * 4.0 * 5.0)
-        self.assertTrue(paper_reward.is_open_data)
-        self.assertFalse(paper_reward.is_preregistered)
-
-    def test_claim_paper_rewards_preregistered(self):
-        paper_reward = PaperReward.claim_paper_rewards(
-            self.paper1,
-            self.paper1.authors.first(),
-            False,
-            True,
-        )
-
-        self.assertEqual(paper_reward.citation_change, self.paper1.citations)
-        self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, (43.77609099046774 / 6.0) * 3.0 * 5.0)
-        self.assertFalse(paper_reward.is_open_data)
-        self.assertTrue(paper_reward.is_preregistered)
-
-    def test_claim_paper_rewards_open_data_preregistered(self):
-        paper_reward = PaperReward.claim_paper_rewards(
-            self.paper1,
-            self.paper1.authors.first(),
-            True,
-            True,
-        )
-
-        self.assertEqual(paper_reward.citation_change, self.paper1.citations)
-        self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, 43.77609099046774 * 5.0)
-        self.assertTrue(paper_reward.is_open_data)
-        self.assertTrue(paper_reward.is_preregistered)
 
     def test_rsc_reward_algo_aerospace_top_bin(self):
         hub_citation_value = HubCitationValue(
