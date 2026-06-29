@@ -185,11 +185,39 @@ class JourneyServiceTests(TestCase):
         self.assertEqual(notification.unified_document, proposal.unified_document)
         self.assertEqual(notification.item, journey)
         self.assertEqual(notification.extra["journey_id"], str(journey.id))
+        self.assertEqual(notification.extra["is_private_proposal"], "False")
         self.assertIn("ResearchHub Journal", notification.body[2]["value"])
         self.assertEqual(
             notification.navigation_url,
             proposal.unified_document.frontend_view_link(),
         )
+
+    def test_notify_author_with_private_proposal_clause(self) -> None:
+        """Verify private proposal journal notifications explain public setup."""
+        # Arrange
+        proposal = self._create_post(PREREGISTRATION)
+        proposal.unified_document.is_public = False
+        proposal.unified_document.save(update_fields=["is_public"])
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+            status=Fundraise.COMPLETED,
+        )
+
+        # Act
+        journey = self.service.include_completed_fundraise_in_journal(fundraise)
+
+        # Assert
+        notification = Notification.objects.get(
+            notification_type=Notification.PROPOSAL_ENTERED_JOURNAL,
+            recipient=self.user,
+        )
+        self.assertEqual(notification.item, journey)
+        self.assertEqual(notification.extra["is_private_proposal"], "True")
+        self.assertIn("ready for it to go public", notification.body[2]["value"])
+        self.assertIn("set you up", notification.body[2]["value"])
 
     def test_skip_duplicate_journal_entry_notification(self) -> None:
         """Verify repeated journal inclusion does not duplicate notifications."""

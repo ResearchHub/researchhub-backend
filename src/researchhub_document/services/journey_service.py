@@ -218,7 +218,10 @@ class JourneyService:
             author=proposal.created_by,
             unified_document=proposal.unified_document,
             item=journey,
-            extra={"journey_id": str(journey.id)},
+            extra={
+                "is_private_proposal": str(not proposal.unified_document.is_public),
+                "journey_id": str(journey.id),
+            },
         )
 
     def notify_author_about_registered_report(
