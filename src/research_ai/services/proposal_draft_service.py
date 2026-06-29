@@ -560,6 +560,10 @@ class _ProposalDraftRunner:
         self.draft.final_scores = self.final_scores
         self.draft.gate_report = self.last_gate_report
         self.draft.rounds_used = self.rounds_used
+        # Persist the rejected draft so a failed run is still inspectable: a
+        # FAILED run never writes a Note, so this is the only place its content
+        # survives. ``{}`` when the agent never submitted.
+        self.draft.last_submission = self.submitted or {}
         self.draft.status = ProposalDraft.Status.FAILED
         self.draft.error_message = message
         self.draft.save()
@@ -568,6 +572,7 @@ class _ProposalDraftRunner:
             "proposal_draft_id": self.draft.id,
             "rounds_used": self.rounds_used,
             "gate_report": self.last_gate_report,
+            "last_submission": self.draft.last_submission,
             "error_message": message,
         }
 

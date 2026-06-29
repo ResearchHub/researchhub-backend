@@ -284,6 +284,14 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(result["gate_report"]["panel"]["overall"], 2)
         self.assertEqual(Note.objects.count(), 0)
 
+        # The rejected draft is persisted for inspection even though no Note
+        # was written.
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(
+            draft.last_submission["sections"]["title"], "A Study of Folding"
+        )
+        self.assertEqual(result["last_submission"], draft.last_submission)
+
     # -- exhausting the round budget fails with a gate report -------------
 
     @override_settings(RESEARCH_AI_PROPOSAL_MAX_ROUNDS=2)
@@ -307,4 +315,28 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(draft.status, ProposalDraft.Status.FAILED)
         self.assertEqual(draft.rounds_used, 2)
         self.assertTrue(draft.gate_report)  # populated for diagnosis
+        self.assertEqual(
+            draft.last_submission["sections"]["title"], "A Study of Folding"
+        )
+        self.assertEqual(Note.objects.count(), 0)
+
+    # -- a run that never submits persists an empty last_submission ------
+
+    def test_no_submit_persists_empty_last_submission(self):
+        # Arrange: the agent answers in plain text without ever submitting.
+        provider = _ScriptedProvider([])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: failed for "did not submit", and last_submission is empty.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertIn("did not submit", result["error_message"])
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(draft.last_submission, {})
         self.assertEqual(Note.objects.count(), 0)
