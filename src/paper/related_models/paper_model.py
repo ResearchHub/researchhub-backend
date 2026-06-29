@@ -412,10 +412,6 @@ class Paper(AbstractGenericReactionModel):
             )
 
     @property
-    def paper_rewards(self):
-        return HubCitationValue.calculate_base_claim_rsc_reward(self)
-
-    @property
     def hubs(self):
         """
         Access hubs through the unified document.
