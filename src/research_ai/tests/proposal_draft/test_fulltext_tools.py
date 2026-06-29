@@ -153,7 +153,3 @@ class GetWorkFulltextTests(unittest.TestCase):
         self.assertEqual(first["content_type"], "profile_abstract")
         self.assertIn("error", second)
         self.assertIn("budget", second["error"].lower())
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -447,6 +447,17 @@ class ProposalDraft(DefaultModel):
         blank=True,
         db_comment="Programmatic gate results.",
     )
+    last_submission = models.JSONField(
+        default=dict,
+        blank=True,
+        db_comment=(
+            "The last draft the agent submitted (sections, prosemirror, "
+            "plain_text, citations). On a COMPLETED run the accepted draft also "
+            "lives on the linked Note; this field exists so a FAILED run's "
+            "rejected draft is still inspectable, since it is never written as a "
+            "Note."
+        ),
+    )
     error_message = models.TextField(blank=True)
     processing_time = models.FloatField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
