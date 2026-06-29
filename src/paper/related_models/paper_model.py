@@ -20,7 +20,6 @@ from paper.storage.figure_storage import FigureStorage
 from paper.utils import get_csl_item, populate_pdf_url_from_journal_url
 from purchase.models import Purchase
 from reputation.models import Score, ScoreChange
-from reputation.related_models.paper_reward import HubCitationValue
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.user_model import User
