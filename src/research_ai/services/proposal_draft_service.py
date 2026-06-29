@@ -337,7 +337,7 @@ class _ProposalDraftRunner:
         self.draft.save(update_fields=["status", "run_config", "updated_date"])
 
         self._ensure_profile()
-        self.rfp_context = self.context_toolset._get_rfp_context({})
+        self.rfp_context = self.context_toolset.get_rfp_context()
 
         system_prompt = build_proposal_system_prompt()
         user_prompt = build_proposal_user_prompt(self.expert, self.rfp_context)
