@@ -213,6 +213,8 @@ class WorkTests(unittest.TestCase):
                 "version": "publishedVersion",
             },
             "open_access": {"is_oa": True},
+            # OpenAlex ships abstracts as an inverted index, not plain text.
+            "abstract_inverted_index": {"A": [0], "lead": [1], "result": [2]},
         }
 
         # Act
@@ -226,6 +228,7 @@ class WorkTests(unittest.TestCase):
         self.assertEqual(work.author_position, "first")
         self.assertEqual(work.pdf_url, "https://example.org/lead-paper.pdf")
         self.assertTrue(work.is_oa)
+        self.assertEqual(work.abstract, "A lead result")
 
     def test_from_openalex_falls_back_to_openalex_url_without_doi(self):
         # Arrange: no DOI, and the target author is mid-list under a bare id.
@@ -345,6 +348,7 @@ class WorkTests(unittest.TestCase):
             "first",
             "https://x.org/p.pdf",
             True,
+            "An abstract of the paper.",
         )
 
         # Act / Assert
@@ -358,8 +362,24 @@ class WorkTests(unittest.TestCase):
                 "author_position": "first",
                 "pdf_url": "https://x.org/p.pdf",
                 "is_oa": True,
+                "abstract": "An abstract of the paper.",
             },
         )
+
+    def test_from_openalex_abstract_empty_without_inverted_index(self):
+        # Arrange: a work with no abstract_inverted_index.
+        entity = {
+            "display_name": "No Abstract Paper",
+            "publication_date": "2024-01-01",
+            "doi": "https://doi.org/10.1/na",
+            "id": "https://openalex.org/W5",
+        }
+
+        # Act
+        work = Work.from_openalex(entity)
+
+        # Assert
+        self.assertEqual(work.abstract, "")
 
 
 class AuthorTests(unittest.TestCase):

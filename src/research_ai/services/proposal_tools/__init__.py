@@ -6,16 +6,20 @@ deterministic code owns the gates. This package ships three toolsets plus the
 judge wrapper:
 
 - ``context_tools`` -- read-only RFP/profile grounding (no LLM).
+- ``fulltext_tools`` -- on-demand full-text reads of the researcher's own works.
 - ``verification_tools`` -- deterministic citation verification (the loop's
   external grounded signal).
 - ``judge_tools`` -- a ``Tool`` wrapper over the multi-model judge panel
   (``research_ai.services.proposal_judge_panel``).
 
-Orchestration (PR6) wires these together; this package only builds the tools.
+The draft driver wires these together; this package only builds the tools.
 """
 
 from research_ai.services.proposal_tools.context_tools import (
     ProposalContextToolset,
+)
+from research_ai.services.proposal_tools.fulltext_tools import (
+    ProposalFulltextToolset,
 )
 from research_ai.services.proposal_tools.judge_tools import build_judge_tool
 from research_ai.services.proposal_tools.verification_tools import (
@@ -24,6 +28,7 @@ from research_ai.services.proposal_tools.verification_tools import (
 
 __all__ = [
     "ProposalContextToolset",
+    "ProposalFulltextToolset",
     "ProposalVerificationToolset",
     "build_judge_tool",
 ]

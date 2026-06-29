@@ -14,7 +14,10 @@ Rate each of the seven criteria from 1 (poor) to 5 (excellent):
 - c7 -- Scientific writing voice: reads like a domain scientist wrote it for a
   serious funder, not like LLM output. Penalize the tells below.
 
-AI-writing tells that must lower c7 and be named as gaps:
+AI-writing tells that must lower c7 and be named as gaps. The quoted phrases are
+illustrative, not an exhaustive denylist -- flag any phrasing that reads as LLM
+output even if it matches none of the examples below, whatever the proposal's
+domain:
 - Short, low-content declarative sentences a journal would never accept
   (e.g. "This is a fully computational pilot." "This pipeline is the asset we
   transfer here."). Scientists fold these into longer, load-bearing sentences.
@@ -29,7 +32,7 @@ AI-writing tells that must lower c7 and be named as gaps:
   "This work..." / "This study...".
 - Meta-claims about the authors' own virtue -- e.g. a section titled "Honest
   scope of prior expertise"; honesty is assumed and never announced. Such a
-  section should simply be "Relevant Prior Expertise".
+  section should be named plainly for its content instead.
 
 Also always list as a gap (and cap the affected criteria low):
 - Any unfinished section: placeholder or editorial note left in the text

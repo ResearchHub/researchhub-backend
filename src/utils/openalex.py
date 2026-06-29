@@ -144,6 +144,7 @@ class Work:
     author_position: str | None = None
     pdf_url: str = ""
     is_oa: bool = False
+    abstract: str = ""
 
     @classmethod
     def from_openalex(cls, entity: dict, *, author_id: str | None = None):
@@ -168,6 +169,9 @@ class Work:
             author_position=cls._author_position(entity, author_id),
             pdf_url=cls._published_pdf_url(entity),
             is_oa=bool((entity.get("open_access") or {}).get("is_oa")),
+            abstract=rebuild_sentence_from_inverted_index(
+                entity.get("abstract_inverted_index") or {}
+            ),
         )
 
     @staticmethod
@@ -216,6 +220,7 @@ class Work:
             "author_position": self.author_position,
             "pdf_url": self.pdf_url,
             "is_oa": self.is_oa,
+            "abstract": self.abstract,
         }
 
 

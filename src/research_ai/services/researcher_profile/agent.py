@@ -109,6 +109,7 @@ def _ground_works(works, toolset: OpenAlexToolset) -> tuple[list[dict], list[str
                 "pdf_url": str(record.get("pdf_url") or "").strip(),
                 "author_position": record.get("author_position"),
                 "is_oa": bool(record.get("is_oa")),
+                "abstract": str(record.get("abstract") or "").strip(),
             }
         )
         if len(kept) >= _MAX_WORKS:
