@@ -1,6 +1,5 @@
 import logging
 
-import stripe
 from django.conf import settings
 from rest_framework import status
 from rest_framework.permissions import AllowAny
@@ -9,6 +8,7 @@ from rest_framework.views import APIView
 
 from analytics.amplitude import track_event
 from purchase.services.payment_service import PaymentService
+from purchase.services.stripe_client import get_stripe
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ class StripeWebhookView(APIView):
         payload = request.body
         request_signature = request.headers.get("Stripe-Signature", None)
         webhook_secret = settings.STRIPE_WEBHOOK_SIGNING_SECRET
+        stripe = get_stripe()
 
         try:
             event = stripe.Webhook.construct_event(

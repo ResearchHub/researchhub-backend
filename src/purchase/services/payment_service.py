@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import logging
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import stripe
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
 from django.utils import timezone
@@ -19,6 +20,7 @@ from purchase.related_models.payment_model import (
 from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.rsc_purchase_fee import RscPurchaseFee
+from purchase.services.stripe_client import get_stripe
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
 from reputation.utils import (
@@ -27,6 +29,9 @@ from reputation.utils import (
     deduct_rsc_purchase_fees,
 )
 from user.models import User
+
+if TYPE_CHECKING:
+    import stripe
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +98,7 @@ class PaymentService:
         """
         product_name = self.get_name_for_purpose(purpose)
         unit_amount = APC_AMOUNT_CENTS if purpose == PaymentPurpose.APC else amount
+        stripe = get_stripe()
 
         try:
             session = stripe.checkout.Session.create(
@@ -329,6 +335,8 @@ class PaymentService:
             user = User.objects.get(id=user_id)
             receipt_email = user.email
 
+            stripe = get_stripe()
+
             payment_intent = stripe.PaymentIntent.create(
                 amount=stripe_amount,
                 currency="usd",
@@ -367,6 +375,8 @@ class PaymentService:
         from purchase.services.fundraise_service import FundraiseService
 
         try:
+            stripe = get_stripe()
+
             payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
 
             if payment_intent.status != "succeeded":
