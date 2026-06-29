@@ -4,7 +4,7 @@ from unittest.mock import Mock
 from django.test import TestCase
 from django.utils import timezone
 
-from paper.ingestion.services import PaperMetricsEnrichmentService
+from paper.ingestion.services.metrics_enrichment import PaperMetricsEnrichmentService
 from paper.models import Paper
 
 

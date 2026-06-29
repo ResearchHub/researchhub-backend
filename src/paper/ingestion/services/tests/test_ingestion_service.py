@@ -8,7 +8,7 @@ from django.test import TestCase
 
 from institution.models import Institution
 from paper.ingestion.constants import IngestionSource
-from paper.ingestion.services import PaperIngestionService
+from paper.ingestion.services.ingestion_service import PaperIngestionService
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from user.related_models.author_model import Author
