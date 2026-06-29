@@ -20,7 +20,7 @@ from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from referral.models import ReferralSignup
-from reputation.models import Bounty, Contribution, Distribution, Score, Withdrawal
+from reputation.models import Bounty, Contribution, Distribution, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
@@ -1018,7 +1018,6 @@ class DynamicCoAuthorSerializer(DynamicModelFieldSerializer):
 class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     institutions = SerializerMethodField()
     coauthors = SerializerMethodField()
-    reputation = SerializerMethodField()
     activity_by_year = SerializerMethodField()
     summary_stats = SerializerMethodField()
     achievements = SerializerMethodField()
@@ -1073,30 +1072,6 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             **_context_fields,
         )
         return serializer.data
-
-    def get_reputation(self, author):
-        score = Score.objects.filter(author=author).order_by("-score").first()
-
-        if score is None:
-            return None
-
-        hub = Hub.objects.get(id=score.hub_id)
-
-        return {
-            "hub": {
-                "id": hub.id,
-                "name": hub.name,
-                "slug": hub.slug,
-            },
-            "score": score.score,
-            "percentile": score.percentile,
-            "bins": [
-                [0, 1000],
-                [1000, 10000],
-                [10000, 100000],
-                [100000, 1000000],
-            ],  # FIXME: Replace with bins from algo vars table
-        }
 
     def get_institutions(self, author):
         context = self.context
