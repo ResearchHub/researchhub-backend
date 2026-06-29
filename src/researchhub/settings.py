@@ -15,7 +15,6 @@ import sys
 
 import requests
 import sentry_sdk
-import stripe
 from sentry_sdk.integrations.django import DjangoIntegration
 
 APP_ENV = os.environ.get("APP_ENV") or "development"
@@ -654,8 +653,6 @@ STRIPE_WEBHOOK_SIGNING_SECRET = os.environ.get(
     "STRIPE_WEBHOOK_SIGNING_SECRET", keys.STRIPE_WEBHOOK_SIGNING_SECRET
 )
 
-stripe.api_key = STRIPE_SECRET_KEY
-stripe.api_version = "2024-09-30.acacia"
 
 # Coinbase
 COINBASE_API_KEY_ID = os.environ.get(
