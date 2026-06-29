@@ -4,7 +4,6 @@ from functools import wraps
 from typing import Any
 
 import requests
-from cdp.auth.utils.jwt import JwtOptions, generate_jwt
 from django.conf import settings
 from django.http import JsonResponse
 from rest_framework import status
@@ -142,6 +141,8 @@ class CoinbaseService:
         """
         if not self.api_key_id or not self.api_key_secret:
             raise ValueError("Coinbase API credentials not configured")
+
+        from cdp.auth.utils.jwt import JwtOptions, generate_jwt  # delay until needed
 
         jwt_options = JwtOptions(
             api_key_id=self.api_key_id,
