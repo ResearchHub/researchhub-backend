@@ -36,7 +36,9 @@ def rsc_exchange_rate_record_tasks():
 def get_rsc_price_from_coin_gecko():
     headers = requests.utils.default_headers()
     headers["x-api-key"] = COIN_GECKO_API_KEY
-    request_result = requests.get(COIN_GECKO_LOOKUP_URI(USD), headers=headers)
+    request_result = requests.get(
+        COIN_GECKO_LOOKUP_URI(USD), headers=headers, timeout=10
+    )
     rate = request_result.json()[RSC_COIN_GECKO_ID]["usd"]
     return {"rate": rate, "real_rate": rate, "target_currency": USD}
 
@@ -44,6 +46,8 @@ def get_rsc_price_from_coin_gecko():
 def get_rsc_eth_conversion():
     headers = requests.utils.default_headers()
     headers["x-api-key"] = COIN_GECKO_API_KEY
-    request_result = requests.get(COIN_GECKO_LOOKUP_URI("ETH"), headers=headers)
+    request_result = requests.get(
+        COIN_GECKO_LOOKUP_URI("ETH"), headers=headers, timeout=10
+    )
     rate = request_result.json()[RSC_COIN_GECKO_ID]["eth"]
     return {"rate": rate, "real_rate": rate, "target_currency": USD}

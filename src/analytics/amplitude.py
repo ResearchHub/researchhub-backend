@@ -147,7 +147,7 @@ class Amplitude:
 
     def forward_event(self, hit):
         headers = {"Content-Type": "application/json", "Accept": "*/*"}
-        request = requests.post(self.api_url, data=hit, headers=headers)
+        request = requests.post(self.api_url, data=hit, headers=headers, timeout=10)
         res = request.json()
         if request.status_code != 200:
             logger.error("Failed to send event to Amplitude: %s", res)

@@ -175,7 +175,9 @@ def create_user_organization(sender, instance, created, **kwargs):
         profile_image = instance.author_profile.profile_image
         try:
             if profile_image:
-                request = requests.get(profile_image.url, allow_redirects=False)
+                request = requests.get(
+                    profile_image.url, allow_redirects=False, timeout=10
+                )
                 if request.status_code == 200:
                     profile_image_content = request.content
                     profile_image_file = ContentFile(profile_image_content)
