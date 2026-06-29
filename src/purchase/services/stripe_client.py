@@ -8,7 +8,7 @@ The Strip API version to use for all requests.
 
 def get_stripe():
     """
-    Returns a configured Stripe client instance.
+    Returns the configured Stripe module.
     """
     import stripe  # delay until needed
 
