@@ -5,8 +5,18 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from feed.journal_v2_serializers import (
+    JOURNAL_BADGE_FUNDED_PROPOSAL,
+    JOURNAL_BADGE_HAS_RESULTS,
+    JOURNAL_BADGE_REGISTERED_REPORT,
+)
 from purchase.models import Fundraise
 from reputation.models import Escrow
+from researchhub_comment.constants.rh_comment_thread_references import (
+    REGISTERED_REPORT_RESULTS_REFERENCE,
+)
+from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
+from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
@@ -128,6 +138,48 @@ class JournalV2FeedViewSetTests(APITestCase):
         post_ids = self.get_response_post_ids(response.data)
         self.assertLess(post_ids.index(high_report.id), post_ids.index(low_report.id))
 
+    def test_show_funded_proposal_badge(self) -> None:
+        """Verify proposal cards expose the funded proposal journal badge."""
+        # Arrange
+        proposal = self.create_completed_proposal("Funded proposal badge")
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        content = self.get_response_content(response.data, proposal.id)
+        self.assertEqual(content["journal_badge"], JOURNAL_BADGE_FUNDED_PROPOSAL)
+
+    def test_show_registered_report_badge(self) -> None:
+        """Verify report cards expose the registered report journal badge."""
+        # Arrange
+        proposal = self.create_completed_proposal("Registered report badge")
+        report = self.create_registered_report(proposal, "Report badge")
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        content = self.get_response_content(response.data, report.id)
+        self.assertEqual(content["journal_badge"], JOURNAL_BADGE_REGISTERED_REPORT)
+
+    def test_show_results_badge(self) -> None:
+        """Verify report cards expose the has-results journal badge."""
+        # Arrange
+        proposal = self.create_completed_proposal("Results badge proposal")
+        report = self.create_registered_report(proposal, "Results badge report")
+        self.create_results_update(report)
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        content = self.get_response_content(response.data, report.id)
+        self.assertEqual(content["journal_badge"], JOURNAL_BADGE_HAS_RESULTS)
+
     def create_completed_proposal(
         self,
         title: str,
@@ -188,7 +240,32 @@ class JournalV2FeedViewSetTests(APITestCase):
             object_id=fundraise.id,
         )
 
+    def create_results_update(self, report: ResearchhubPost) -> RhCommentModel:
+        """Create a registered report results update comment."""
+        thread = RhCommentThreadModel.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=report.id,
+            created_by=self.user,
+            thread_reference=REGISTERED_REPORT_RESULTS_REFERENCE,
+            thread_type=AUTHOR_UPDATE,
+        )
+        return RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_type=AUTHOR_UPDATE,
+            comment_content_json={"ops": [{"insert": "Results"}]},
+        )
+
     @staticmethod
     def get_response_post_ids(data: dict) -> list[int]:
         """Return post ids from a paginated journal feed response."""
         return [item["content_object"]["id"] for item in data["results"]]
+
+    @staticmethod
+    def get_response_content(data: dict, post_id: int) -> dict:
+        """Return one post card payload from a paginated journal feed response."""
+        for item in data["results"]:
+            content = item["content_object"]
+            if content["id"] == post_id:
+                return content
+        raise AssertionError(f"Post {post_id} was not returned.")

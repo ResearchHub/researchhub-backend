@@ -5,8 +5,10 @@ This feed renders one card per journal journey. The card is the registered
 report when a journey has one, otherwise it is the funded proposal.
 """
 
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import (
     Count,
+    Exists,
     F,
     IntegerField,
     OuterRef,
@@ -21,14 +23,19 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from feed.feed_list_dto import (
-    FundingFeedListEntrySerializer,
     serialize_fund_feed_metrics,
 )
 from feed.journal_v2_filters import JournalV2OrderingFilter
+from feed.journal_v2_serializers import JournalV2FeedListEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.grant_application_model import approved_proposal_filters
 from reputation.related_models.bounty import Bounty
+from researchhub_comment.constants.rh_comment_thread_references import (
+    REGISTERED_REPORT_RESULTS_REFERENCE,
+)
+from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
     REGISTERED_REPORT,
@@ -42,7 +49,7 @@ from .common import FeedPagination
 class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
     """ViewSet for the post-based ResearchHub journal feed."""
 
-    serializer_class = FundingFeedListEntrySerializer
+    serializer_class = JournalV2FeedListEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
     filter_backends = [JournalV2OrderingFilter]
@@ -90,7 +97,8 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
                     registered_report_id,
                     proposal_id,
                     output_field=IntegerField(),
-                )
+                ),
+                has_results=self._build_results_update_exists(),
             )
             .filter(id=F("latest_stage_id"))
             .order_by("-created_date", "-id")
@@ -168,3 +176,17 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
             )
             .publicly_visible()
         )
+
+    @staticmethod
+    def _build_results_update_exists() -> Exists:
+        """Build a boolean expression for registered report results updates."""
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        results_updates = RhCommentModel.objects.filter(
+            thread__content_type=post_content_type,
+            thread__object_id=OuterRef("id"),
+            thread__thread_reference=REGISTERED_REPORT_RESULTS_REFERENCE,
+            thread__thread_type=AUTHOR_UPDATE,
+            comment_type=AUTHOR_UPDATE,
+            is_removed=False,
+        )
+        return Exists(results_updates)
