@@ -63,7 +63,7 @@ logger = logging.getLogger(__name__)
 # looser ceiling on total tool turns so several tool calls can precede each
 # submit.
 _DEFAULT_MAX_ROUNDS = 8
-_DEFAULT_PANEL_THRESHOLD = 4.0
+_DEFAULT_PANEL_THRESHOLD = 4.5
 _DEFAULT_MAX_ITERATIONS = 40
 _DEFAULT_MAX_TOKENS = 16384
 _DEFAULT_TEMPERATURE = 1.0
