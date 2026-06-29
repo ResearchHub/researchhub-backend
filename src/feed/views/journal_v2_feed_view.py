@@ -24,6 +24,7 @@ from feed.feed_list_dto import (
     FundingFeedListEntrySerializer,
     serialize_fund_feed_metrics,
 )
+from feed.journal_v2_filters import JournalV2OrderingFilter
 from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.grant_application_model import approved_proposal_filters
@@ -44,6 +45,9 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
     serializer_class = FundingFeedListEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
+    filter_backends = [JournalV2OrderingFilter]
+    ordering_fields = ["newest", "best", "upvotes", "most_applicants", "amount_raised"]
+    ordering = "best"
 
     def get_serializer_context(self) -> dict:
         """Return serializer context shared with other feed viewsets."""
