@@ -164,7 +164,6 @@ class AuthorSerializer(ModelSerializer):
     num_posts = SerializerMethodField()
     orcid_id = SerializerMethodField()
     reputation = SerializerMethodField()
-    reputation_v2 = SerializerMethodField()
     total_score = SerializerMethodField()
     university = UniversitySerializer(required=False)
     wallet = SerializerMethodField()
@@ -181,7 +180,6 @@ class AuthorSerializer(ModelSerializer):
             "orcid_id",
             "is_orcid_connected",
             "reputation",
-            "reputation_v2",
             "suspended_status",
             "total_score",
             "university",
@@ -203,30 +201,6 @@ class AuthorSerializer(ModelSerializer):
 
     def get_is_verified(self, obj):
         return obj.is_verified
-
-    def get_reputation_v2(self, author):
-        score = Score.objects.filter(author=author).order_by("-score").first()
-
-        if score is None:
-            return None
-
-        hub = Hub.objects.get(id=score.hub_id)
-
-        return {
-            "hub": {
-                "id": hub.id,
-                "name": hub.name,
-                "slug": hub.slug,
-            },
-            "score": score.score,
-            "percentile": score.percentile,
-            "bins": [
-                [0, 1000],
-                [1000, 10000],
-                [10000, 100000],
-                [100000, 1000000],
-            ],  # FIXME: Replace with bins from algo vars table
-        }
 
     def get_orcid_id(self, author):
         return author.orcid_id
