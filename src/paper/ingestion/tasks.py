@@ -87,14 +87,7 @@ def update_recent_papers_with_github_metrics(days: int = 7):
     """
     logger.info(f"Starting GitHub metrics update for papers (last {days} days)")
 
-    github_metrics_client = _create_github_metrics_client()
-    service = PaperMetricsEnrichmentService(
-        bluesky_metrics_client=None,
-        github_metrics_client=github_metrics_client,
-        x_metrics_client=None,
-    )
-
-    papers = service.get_recent_papers_with_dois(days)
+    papers = PaperMetricsEnrichmentService.get_recent_papers_with_dois(days)
 
     total_papers = len(papers)
     logger.info(f"Found {total_papers} papers to update with GitHub metrics")
@@ -221,13 +214,7 @@ def update_recent_papers_with_bluesky_metrics(days: int = 7):
     """
     logger.info(f"Starting Bluesky metrics update for papers (last {days} days)")
 
-    service = PaperMetricsEnrichmentService(
-        bluesky_metrics_client=BlueskyMetricsClient(),
-        github_metrics_client=None,
-        x_metrics_client=None,
-    )
-
-    papers = service.get_recent_papers_with_dois(days)
+    papers = PaperMetricsEnrichmentService.get_recent_papers_with_dois(days)
 
     total_papers = len(papers)
     logger.info(f"Found {total_papers} papers to update with Bluesky metrics")
@@ -357,13 +344,7 @@ def update_recent_papers_with_x_metrics(days: int = 7):
 
     logger.info(f"Starting X metrics update for papers (last {days} days)")
 
-    service = PaperMetricsEnrichmentService(
-        bluesky_metrics_client=None,
-        github_metrics_client=None,
-        x_metrics_client=XMetricsClient(),
-    )
-
-    papers = service.get_recent_papers_with_dois(days)
+    papers = PaperMetricsEnrichmentService.get_recent_papers_with_dois(days)
 
     total_papers = len(papers)
     logger.info(f"Found {total_papers} papers to update with X metrics")

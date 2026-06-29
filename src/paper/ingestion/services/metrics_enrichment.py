@@ -63,7 +63,8 @@ class PaperMetricsEnrichmentService:
         self.bluesky_metrics_client = bluesky_metrics_client
         self.x_metrics_client = x_metrics_client
 
-    def get_recent_papers_with_dois(self, days: int) -> list[int]:
+    @staticmethod
+    def get_recent_papers_with_dois(days: int) -> list[int]:
         """
         Query papers published in the last N days that have DOIs.
 
