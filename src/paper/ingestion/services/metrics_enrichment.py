@@ -1,15 +1,19 @@
+from __future__ import annotations
+
 import json
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from django.utils import timezone
 
-from paper.ingestion.clients.enrichment.bluesky import BlueskyMetricsClient
-from paper.ingestion.clients.enrichment.github import GithubMetricsClient
-from paper.ingestion.clients.enrichment.x import XMetricsClient
 from paper.models import Paper
+
+if TYPE_CHECKING:
+    from paper.ingestion.clients.enrichment.bluesky import BlueskyMetricsClient
+    from paper.ingestion.clients.enrichment.github import GithubMetricsClient
+    from paper.ingestion.clients.enrichment.x import XMetricsClient
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +47,9 @@ class PaperMetricsEnrichmentService:
 
     def __init__(
         self,
-        bluesky_metrics_client: BlueskyMetricsClient,
-        github_metrics_client: GithubMetricsClient,
-        x_metrics_client: XMetricsClient,
+        bluesky_metrics_client: BlueskyMetricsClient | None = None,
+        github_metrics_client: GithubMetricsClient | None = None,
+        x_metrics_client: XMetricsClient | None = None,
     ):
         """
         Constructor.
