@@ -104,26 +104,3 @@ class PaperReward(models.Model):
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
-
-    @classmethod
-    def claim_paper_rewards(cls, paper, author, is_open_data, is_preregistered):
-        rsc_value = HubCitationValue.calculate_rsc_reward(
-            paper, paper.citations, is_open_data, is_preregistered
-        )
-
-        hub_citation_value = HubCitationValue.get_hub_citation_value(
-            paper.unified_document.get_primary_hub()
-        )
-
-        paper_reward = cls.objects.create(
-            paper=paper,
-            author=author,
-            citation_change=paper.citations,
-            citation_count=paper.citations,
-            hub_citation_value=hub_citation_value,
-            rsc_value=rsc_value,
-            is_open_data=is_open_data,
-            is_preregistered=is_preregistered,
-        )
-
-        return paper_reward
