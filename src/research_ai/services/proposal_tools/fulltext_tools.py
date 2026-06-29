@@ -18,6 +18,7 @@ from research_ai.services.pdf_text import (
     extract_text_from_pdf_bytes,
     get_paper_pdf_bytes,
 )
+from research_ai.services.proposal_tools.doi import strip_doi_prefix
 
 logger = logging.getLogger(__name__)
 
@@ -42,17 +43,14 @@ _INPUT_SCHEMA = {
 
 
 def _doi_from_source_url(source_url: str) -> str:
-    """Bare, lowercased DOI from a source URL (``""`` when it is not a DOI)."""
-    s = str(source_url or "").strip().lower()
-    for prefix in (
-        "https://doi.org/",
-        "http://doi.org/",  # NOSONAR - prefix match for normalization, not a request
-        "https://dx.doi.org/",
-        "doi:",
-    ):
-        if s.startswith(prefix):
-            return s[len(prefix) :]
-    return s if s.startswith("10.") else ""
+    """Bare, lowercased DOI from a source URL (``""`` when it is not a DOI).
+
+    Strips a known DOI/DOI-URL prefix, then keeps the result only when it looks
+    like a DOI (``10.``) -- an OpenAlex work URL or other non-DOI source resolves
+    to ``""`` so the caller skips the by-DOI Paper lookup.
+    """
+    bare = strip_doi_prefix(source_url)
+    return bare if bare.startswith("10.") else ""
 
 
 class ProposalFulltextToolset:

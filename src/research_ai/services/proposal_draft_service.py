@@ -45,6 +45,7 @@ from research_ai.services.proposal_tools import (
     ProposalVerificationToolset,
     build_judge_tool,
 )
+from research_ai.services.proposal_tools.doi import strip_doi_prefix
 from research_ai.services.researcher_profile import build_and_store_expert_profile
 from research_ai.services.researcher_profile.openalex_tools import (
     SUBMIT_PROFILE,
@@ -126,22 +127,6 @@ _SUBMIT_INPUT_SCHEMA = {
 }
 
 
-def _doi_key(value: object) -> str:
-    """Normalize a DOI / DOI-URL to a bare comparable key (lowercased)."""
-    s = str(value or "").strip().lower()
-    if not s:
-        return ""
-    for prefix in (
-        "https://doi.org/",
-        "http://doi.org/",
-        "https://dx.doi.org/",
-        "doi:",
-    ):
-        if s.startswith(prefix):
-            return s[len(prefix) :]
-    return s
-
-
 def _provenance_keys(urls) -> set[str]:
     """Comparable keys for a set of provenance URLs (raw + DOI-normalized)."""
     keys: set[str] = set()
@@ -150,7 +135,7 @@ def _provenance_keys(urls) -> set[str]:
         if not raw:
             continue
         keys.add(raw)
-        keys.add(_doi_key(raw))
+        keys.add(strip_doi_prefix(raw))
     return {k for k in keys if k}
 
 
@@ -161,7 +146,7 @@ def _citation_keys(citation: dict) -> set[str]:
         raw = str(value or "").strip().lower()
         if raw:
             keys.add(raw)
-            keys.add(_doi_key(raw))
+            keys.add(strip_doi_prefix(raw))
     return {k for k in keys if k}
 
 
