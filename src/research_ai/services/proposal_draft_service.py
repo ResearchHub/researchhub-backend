@@ -24,6 +24,7 @@ iteration cap -- the last two end in ``FAILED`` with the final ``gate_report``
 recorded for diagnosis.
 """
 
+import json
 import logging
 import re
 
@@ -716,9 +717,14 @@ class _ProposalDraftRunner:
             title=title,
             unified_document=unified_document,
         )
+        prosemirror = submitted.get("prosemirror")
         NoteContent.objects.create(
             note=note,
-            json=submitted.get("prosemirror"),
+            # Store the ProseMirror doc as a JSON-encoded string, matching the
+            # shape the view path persists (the frontend POSTs ``full_json`` as a
+            # string) and the editor's ``JSON.parse(contentJson)`` expects. A raw
+            # object round-trips as an object and breaks note loading.
+            json=json.dumps(prosemirror) if prosemirror is not None else None,
             plain_text=str(submitted.get("plain_text") or ""),
         )
         note.refresh_from_db()

@@ -7,6 +7,7 @@ exhausts the round budget. All LLM providers and external APIs are mocked at the
 client boundary; no network.
 """
 
+import json
 from datetime import timedelta
 from decimal import Decimal
 
@@ -215,7 +216,10 @@ class ProposalDraftServiceTests(TestCase):
         self.assertIsNone(note.created_by)
         self.assertIsNone(note.organization)
         self.assertIsNotNone(note.latest_version)  # set by the post_save signal
-        self.assertEqual(note.latest_version.json, _prosemirror_doc())
+        # json is stored as a JSON-encoded string (matching the view path and
+        # what the editor's JSON.parse expects), not a raw object.
+        self.assertIsInstance(note.latest_version.json, str)
+        self.assertEqual(json.loads(note.latest_version.json), _prosemirror_doc())
 
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
         self.assertEqual(draft.note_id, note.id)
