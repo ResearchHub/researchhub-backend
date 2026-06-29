@@ -42,6 +42,19 @@ def _build_scores(c1, c2, c3, c4, c5, c6, c7, gaps=None):
 
 
 class ProposalJudgePanelTests(SimpleTestCase):
+    def _first_user_text(self, provider) -> str:
+        """The first judge call's user-message text, with clear assertions.
+
+        Guards each index so a missing call / message / block fails as a
+        readable assertion instead of an opaque ``IndexError``.
+        """
+        self.assertTrue(provider.calls, "provider was never called")
+        messages = provider.calls[0]["messages"]
+        self.assertTrue(messages, "judge call had no messages")
+        content = messages[0].content
+        self.assertTrue(content, "user message had no content blocks")
+        return content[0].text
+
     def test_score_reduces_each_criterion_by_median(self):
         # Arrange: three judges; per-criterion median is the reduction.
         providers = [
@@ -114,7 +127,7 @@ class ProposalJudgePanelTests(SimpleTestCase):
         )
 
         # Assert
-        user_text = provider.calls[0]["messages"][0].content[0].text
+        user_text = self._first_user_text(provider)
         self.assertIn("## Evaluation context", user_text)
         self.assertIn("50000.00", user_text)
         self.assertIn("Grounded Work", user_text)
@@ -196,5 +209,5 @@ class ProposalJudgePanelTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(result["overall"], 4)
-        user_text = provider.calls[0]["messages"][0].content[0].text
+        user_text = self._first_user_text(provider)
         self.assertIn("Focused RFP", user_text)
