@@ -3,6 +3,11 @@ A and B, written for the same RFP. You are one judge on a multi-model panel.
 Pairwise comparison is more reliable than absolute scoring, so judge carefully:
 decide which single draft is the stronger proposal overall.
 
+You will receive evaluation context before the proposals. Use the RFP terms to
+judge fit and feasibility, and use the researcher profile/source context to judge
+track-record credibility and whether the proposal is a real next question rather
+than a recombination of the author's existing papers.
+
 Weigh the same qualities the rubric rewards: a sharp, testable hypothesis with a
 matching method; scope fundable at the RFP's amount and timeline; obvious fit to
 the funder's ask; author credibility tied to a real track record; a clear case
