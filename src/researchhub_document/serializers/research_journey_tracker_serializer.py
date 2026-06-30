@@ -2,7 +2,6 @@ from collections.abc import Iterable
 
 from rest_framework import serializers
 
-from purchase.models import Grant
 from researchhub_document.models import ResearchhubPost, ResearchJourney
 from researchhub_document.related_models.constants.journey_stage import (
     JOURNEY_STAGE_GRANT,
@@ -22,7 +21,10 @@ class ResearchJourneyTrackerSerializer(serializers.Serializer):
 
     def to_representation(self, journey: ResearchJourney) -> dict:
         """Return a stable three-step tracker payload for a journey."""
-        stage_posts = self.get_stage_posts(journey)
+        stage_posts = {
+            stage.stage: stage.item
+            for stage in self.journey_service.get_stages(journey)
+        }
         visible_post_ids = self.get_visible_post_ids(stage_posts.values())
         latest_stage = self.get_latest_stage(stage_posts)
 
@@ -40,15 +42,6 @@ class ResearchJourneyTrackerSerializer(serializers.Serializer):
                 )
                 for stage in JOURNEY_TRACKER_STAGES
             ],
-        }
-
-    def get_stage_posts(
-        self, journey: ResearchJourney
-    ) -> dict[str, ResearchhubPost]:
-        """Return journey posts keyed by tracker stage."""
-        return {
-            stage.stage: stage.item
-            for stage in self.journey_service.get_stages(journey)
         }
 
     def get_visible_post_ids(self, posts: Iterable[ResearchhubPost]) -> set[int]:
@@ -118,7 +111,7 @@ class ResearchJourneyTrackerSerializer(serializers.Serializer):
         self, post: ResearchhubPost
     ) -> dict[str, object] | None:
         """Build the detail pointer for a grant stage."""
-        grant = self.get_grant(post)
+        grant = post.unified_document.grants.first()
         if grant is None:
             return None
         return {
@@ -140,7 +133,3 @@ class ResearchJourneyTrackerSerializer(serializers.Serializer):
             "document_type": post.document_type,
             "detail_url": f"/api/researchhubpost/{post.id}/",
         }
-
-    def get_grant(self, post: ResearchhubPost) -> Grant | None:
-        """Return the grant model for a grant post."""
-        return post.unified_document.grants.first()
