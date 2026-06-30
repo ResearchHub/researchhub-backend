@@ -1,13 +1,15 @@
+import logging
+
 import requests
 
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from utils.sentry import log_error
 
 COIN_GECKO_API_KEY = ""  # currently using free version
 RSC_COIN_GECKO_ID = "researchcoin"
-RECORDED_CURRENCY = USD
+
+logger = logging.getLogger(__name__)
 
 
 def COIN_GECKO_LOOKUP_URI(currency=USD):
@@ -29,8 +31,8 @@ def rsc_exchange_rate_record_tasks():
             target_currency=USD,
         )
         return gecko_result
-    except Exception as error:
-        log_error(error)
+    except Exception:
+        logger.exception("Failed to record RSC exchange rate")
 
 
 def get_rsc_price_from_coin_gecko():
