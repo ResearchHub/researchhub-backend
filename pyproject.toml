@@ -89,6 +89,7 @@ extend-select = [
     "E",     # pycodestyle errors
     "I",     # isort
     "PERF",  # flake8-perf
+    "S113",  # flake8-bandit: request-without-timeout
     "T20",   # flake8-print: forbid print statements
     "TID",   # flake8-tidy-imports 
     "UP",    # pyupgrade
@@ -96,6 +97,8 @@ extend-select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# Ignore security issues in tests:
+"**/tests/**/test*.py" = ["S"]
 # Allow `print`s in management commands:
 "**/management/commands/*.py" = ["T20"]
 

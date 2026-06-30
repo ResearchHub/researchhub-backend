@@ -366,6 +366,7 @@ class Paper(AbstractGenericReactionModel):
         res = requests.get(
             f"https://doi.org/api/handles/{doi}",
             headers=requests.utils.default_headers(),
+            timeout=30,
         )
         if res.status_code >= 200 and res.status_code < 400 and has_doi:
             self.is_removed = False

@@ -144,7 +144,9 @@ def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
 def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
     headers = requests.utils.default_headers()
     headers["x-api-key"] = MORALIS_API_KEY
-    moralis_request_result = requests.get(MORALIS_LOOKUP_URI, headers=headers)
+    moralis_request_result = requests.get(
+        MORALIS_LOOKUP_URI, headers=headers, timeout=30
+    )
 
     real_usd_per_rsc = json.loads(moralis_request_result.text)["usdPrice"]
     payout_usd_per_rsc = (

@@ -99,7 +99,7 @@ def celery_extract_pdf_preview(paper_id, retry=0):
     file_url = file.url
 
     try:
-        res = requests.get(file_url)
+        res = requests.get(file_url, timeout=60)
         doc = fitz.open(stream=res.content, filetype="pdf")
         extracted_figures = Figure.objects.filter(paper=paper)
         for page in doc:
