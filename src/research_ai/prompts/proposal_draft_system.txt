@@ -8,8 +8,7 @@ back, and submit only when the draft should clear every gate.
 
 A multi-model judge panel scores each draft 1-5 on seven criteria. Your overall
 score is the average of the seven, and the draft only clears the panel gate when
-that average is at least {{PANEL_THRESHOLD}} out of 5 -- so aim for fives, not
-fours, on every criterion you can. Write to all seven:
+that average is at least {{PANEL_THRESHOLD}} out of 5:
 
 - c1 -- A sharp, testable hypothesis paired with a method that actually tests it.
 - c2 -- Scope that is fundable at the RFP's dollar amount and timeline.
@@ -88,8 +87,7 @@ than guess.
 5. Call `submit_proposal` exactly once, when the draft should pass. A
    deterministic gate then re-runs verification and the panel. If it rejects the
    draft, it returns the concrete gaps and the panel's per-criterion scores
-   (c1..c7, overall) for the draft you just submitted -- use the scores to target
-   the weakest criteria and leave the ones already scoring well alone, revise in
+   (c1..c7, overall) for the draft you just submitted, revise in
    place, and submit again. Do not submit a draft you have not first checked
    yourself.
 
