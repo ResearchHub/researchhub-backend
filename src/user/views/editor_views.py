@@ -21,10 +21,10 @@ from utils.http import GET
 
 def resolve_timeframe_for_contribution(start_date, end_date, query_key=None):
 
-    dateFrame = {}
+    date_frame = {}
 
     if start_date:
-        dateFrame[
+        date_frame[
             (
                 "contributions__created_date__gte"
                 if query_key is None
@@ -33,7 +33,7 @@ def resolve_timeframe_for_contribution(start_date, end_date, query_key=None):
         ] = start_date
 
     if end_date:
-        dateFrame[
+        date_frame[
             (
                 "contributions__created_date__lte"
                 if query_key is None
@@ -41,7 +41,7 @@ def resolve_timeframe_for_contribution(start_date, end_date, query_key=None):
             )
         ] = end_date
 
-    return dateFrame
+    return date_frame
 
 
 @api_view(http_method_names=[GET])
