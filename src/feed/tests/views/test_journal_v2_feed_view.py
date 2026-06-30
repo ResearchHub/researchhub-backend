@@ -5,11 +5,6 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from feed.journal_v2_serializers import (
-    JOURNAL_BADGE_FUNDED_PROPOSAL,
-    JOURNAL_BADGE_HAS_RESULTS,
-    JOURNAL_BADGE_REGISTERED_REPORT,
-)
 from purchase.models import Fundraise
 from reputation.models import Escrow
 from researchhub_comment.constants.rh_comment_thread_references import (
@@ -22,6 +17,12 @@ from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
     REGISTERED_REPORT,
+)
+from researchhub_document.related_models.constants.journey_stage import (
+    JOURNEY_BADGE_FUNDED_PROPOSAL,
+    JOURNEY_BADGE_HAS_RESULTS,
+    JOURNEY_STAGE_PROPOSAL,
+    JOURNEY_STAGE_REGISTERED_REPORT,
 )
 from researchhub_document.services.journey_service import JourneyService
 from user.tests.helpers import create_random_default_user
@@ -149,7 +150,7 @@ class JournalV2FeedViewSetTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = self.get_response_content(response.data, proposal.id)
-        self.assertEqual(content["journal_badge"], JOURNAL_BADGE_FUNDED_PROPOSAL)
+        self.assertEqual(content["journal_badge"], JOURNEY_BADGE_FUNDED_PROPOSAL)
 
     def test_show_registered_report_badge(self) -> None:
         """Verify report cards expose the registered report journal badge."""
@@ -163,7 +164,7 @@ class JournalV2FeedViewSetTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = self.get_response_content(response.data, report.id)
-        self.assertEqual(content["journal_badge"], JOURNAL_BADGE_REGISTERED_REPORT)
+        self.assertEqual(content["journal_badge"], JOURNEY_STAGE_REGISTERED_REPORT)
 
     def test_show_results_badge(self) -> None:
         """Verify report cards expose the has-results journal badge."""
@@ -178,7 +179,109 @@ class JournalV2FeedViewSetTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = self.get_response_content(response.data, report.id)
-        self.assertEqual(content["journal_badge"], JOURNAL_BADGE_HAS_RESULTS)
+        self.assertEqual(content["journal_badge"], JOURNEY_BADGE_HAS_RESULTS)
+
+    def test_filter_by_proposal_stage(self) -> None:
+        """Verify stage filtering returns proposal-stage journal cards."""
+        # Arrange
+        proposal = self.create_completed_proposal("Proposal stage")
+        reported_proposal = self.create_completed_proposal("Reported proposal")
+        report = self.create_registered_report(reported_proposal, "Report stage")
+
+        # Act
+        response = self.client.get(self.url, {"stage": JOURNEY_STAGE_PROPOSAL})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = self.get_response_post_ids(response.data)
+        self.assertIn(proposal.id, post_ids)
+        self.assertNotIn(reported_proposal.id, post_ids)
+        self.assertNotIn(report.id, post_ids)
+
+    def test_filter_by_registered_report_stage(self) -> None:
+        """Verify stage filtering returns registered report journal cards."""
+        # Arrange
+        proposal = self.create_completed_proposal("Proposal stage")
+        reported_proposal = self.create_completed_proposal("Reported proposal")
+        report = self.create_registered_report(reported_proposal, "Report stage")
+
+        # Act
+        response = self.client.get(
+            self.url,
+            {"stage": JOURNEY_STAGE_REGISTERED_REPORT},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = self.get_response_post_ids(response.data)
+        self.assertIn(report.id, post_ids)
+        self.assertNotIn(proposal.id, post_ids)
+        self.assertNotIn(reported_proposal.id, post_ids)
+
+    def test_filter_by_funded_proposal_badge(self) -> None:
+        """Verify badge filtering returns funded proposal journal cards."""
+        # Arrange
+        proposal = self.create_completed_proposal("Funded proposal badge")
+        reported_proposal = self.create_completed_proposal("Reported proposal")
+        report = self.create_registered_report(reported_proposal, "Report badge")
+
+        # Act
+        response = self.client.get(
+            self.url,
+            {"badge": JOURNEY_BADGE_FUNDED_PROPOSAL},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = self.get_response_post_ids(response.data)
+        self.assertIn(proposal.id, post_ids)
+        self.assertNotIn(reported_proposal.id, post_ids)
+        self.assertNotIn(report.id, post_ids)
+
+    def test_filter_by_registered_report_badge(self) -> None:
+        """Verify badge filtering returns reports without results."""
+        # Arrange
+        proposal = self.create_completed_proposal("Report badge proposal")
+        report = self.create_registered_report(proposal, "Report badge")
+        results_proposal = self.create_completed_proposal("Results badge proposal")
+        results_report = self.create_registered_report(
+            results_proposal,
+            "Results badge",
+        )
+        self.create_results_update(results_report)
+
+        # Act
+        response = self.client.get(
+            self.url,
+            {"badge": JOURNEY_STAGE_REGISTERED_REPORT},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = self.get_response_post_ids(response.data)
+        self.assertIn(report.id, post_ids)
+        self.assertNotIn(results_report.id, post_ids)
+
+    def test_filter_by_results_badge(self) -> None:
+        """Verify badge filtering returns reports with results."""
+        # Arrange
+        proposal = self.create_completed_proposal("Report badge proposal")
+        report = self.create_registered_report(proposal, "Report badge")
+        results_proposal = self.create_completed_proposal("Results badge proposal")
+        results_report = self.create_registered_report(
+            results_proposal,
+            "Results badge",
+        )
+        self.create_results_update(results_report)
+
+        # Act
+        response = self.client.get(self.url, {"badge": JOURNEY_BADGE_HAS_RESULTS})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = self.get_response_post_ids(response.data)
+        self.assertIn(results_report.id, post_ids)
+        self.assertNotIn(report.id, post_ids)
 
     def create_completed_proposal(
         self,
