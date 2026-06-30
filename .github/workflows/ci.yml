@@ -25,10 +25,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.inputs.deploy_env }}
   cancel-in-progress: false
 
-permissions:
-  contents: read
-  id-token: write # required for requesting JWT token from AWS
-
 env:
   STAGING_DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
   PROD_DEPLOY_ROLE_ARN: ${{ vars.PROD_DEPLOY_ROLE_ARN }}
@@ -37,6 +33,8 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: |
       github.event_name == 'workflow_dispatch' ||
       (
@@ -107,6 +105,8 @@ jobs:
   deploy-api:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # required for requesting JWT token from AWS
     env:
       SHORT_GIT_SHA: ${{ needs.build.outputs.short_git_sha }}
 
@@ -159,6 +159,8 @@ jobs:
   deploy-workers:
     needs: [build, deploy-api]
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # required for requesting JWT token from AWS
     strategy:
       fail-fast: false
       matrix:
