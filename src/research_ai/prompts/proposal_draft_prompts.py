@@ -18,9 +18,17 @@ _MAX_SEED_WORKS = 5
 _MAX_SEED_ABSTRACT_CHARS = 600
 
 
-def build_proposal_system_prompt() -> str:
-    """The static system prompt: rubric, voice rules, grounding + iterate contract."""
-    return load_template("proposal_draft_system.txt")
+def build_proposal_system_prompt(panel_threshold: float = 4.5) -> str:
+    """The system prompt: rubric, voice rules, grounding + iterate contract.
+
+    ``panel_threshold`` is substituted into the rubric so the agent drafts toward
+    the same overall bar the gate enforces; pass the runner's configured value so
+    the prompt never drifts from the gate.
+    """
+    threshold = f"{panel_threshold:g}"
+    return load_template("proposal_draft_system.txt").replace(
+        "{{PANEL_THRESHOLD}}", threshold
+    )
 
 
 def _render_resolution_lines(resolution: dict) -> list[str]:

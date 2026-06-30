@@ -11,9 +11,10 @@ different Converse ``modelId``, so no second provider adapter is needed.
 The panel runs two modes off the roster:
 
 - ``score(proposal)`` -- each judge rates the seven rubric criteria 1-5; reduced
-  by **median** per criterion. Drives the threshold gate (did the draft clear
-  bar). c7 scores the scientific writing voice, so the revise loop fixes
-  LLM-tell prose, not just substance.
+  by **median** per criterion, with the **overall** the mean of the seven (a
+  float, so a fractional threshold is meaningful). Drives the threshold gate (did
+  the draft clear bar). c7 scores the scientific writing voice, so the revise
+  loop fixes LLM-tell prose, not just substance.
 - ``pairwise(a, b)``  -- each judge picks A vs B; **majority** wins. Drives the
   seed-selection tournament (the more reliable signal).
 
@@ -79,6 +80,18 @@ def _median_int(values: list[int]) -> int:
     if not values:
         return _MIN_SCORE
     return max(_MIN_SCORE, min(_MAX_SCORE, int(round(statistics.median(values)))))
+
+
+def _mean_float(values: list[int]) -> float:
+    """Mean of 1-5 scores as a float clamped to 1-5 (default 1 when empty).
+
+    The overall uses a mean, not an integer median, so a fractional threshold
+    (e.g. 4.5) is a real, partially-achievable target rather than an unreachable
+    decimal that collapses to "must score a perfect 5".
+    """
+    if not values:
+        return float(_MIN_SCORE)
+    return max(_MIN_SCORE, min(_MAX_SCORE, round(statistics.fmean(values), 2)))
 
 
 def _render_context(context: dict | None) -> str:
@@ -158,7 +171,8 @@ class ProposalJudgePanel:
     # -- public modes -----------------------------------------------------
 
     def score(self, proposal: str, *, context: dict | None = None) -> dict:
-        """Score ``proposal`` 1-5 on each rubric criterion, reduced by median.
+        """Score ``proposal`` 1-5 on each rubric criterion (median per criterion),
+        with the overall the mean of the seven.
 
         Returns ``{"scores": {c1..c7}, "overall", "gaps": [...]}``. Judges that
         fail to return parseable JSON are skipped; the gate degrades rather than
@@ -181,7 +195,7 @@ class ProposalJudgePanel:
                     gaps.append(gap)
 
         scores = {c: _median_int(per_criterion[c]) for c in _RUBRIC_CRITERIA}
-        overall = _median_int(list(scores.values()))
+        overall = _mean_float(list(scores.values()))
         return {"scores": scores, "overall": overall, "gaps": gaps}
 
     def pairwise(self, a: str, b: str, *, context: dict | None = None) -> str:

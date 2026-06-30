@@ -342,7 +342,9 @@ class _ProposalDraftRunner:
         self._ensure_profile()
         self.rfp_context = self.context_toolset.get_rfp_context()
 
-        system_prompt = build_proposal_system_prompt()
+        system_prompt = build_proposal_system_prompt(
+            panel_threshold=self.panel_threshold
+        )
         user_prompt = build_proposal_user_prompt(self.expert, self.rfp_context)
         agent = self._build_agent(system_prompt)
 

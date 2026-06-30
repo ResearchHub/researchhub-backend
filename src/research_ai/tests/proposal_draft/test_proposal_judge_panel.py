@@ -78,7 +78,7 @@ class ProposalJudgePanelTests(SimpleTestCase):
             result["scores"],
             {"c1": 3, "c2": 4, "c3": 3, "c4": 4, "c5": 3, "c6": 3, "c7": 3},
         )
-        self.assertEqual(result["overall"], 3)  # median of [3,4,3,4,3,3,3]
+        self.assertEqual(result["overall"], 3.29)  # mean of [3,4,3,4,3,3,3]
         self.assertEqual(result["gaps"], ["tighten scope", "cite a source"])
 
     def test_score_coerces_and_clamps_out_of_range_values(self):
