@@ -122,13 +122,13 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
     def get_source(self, purchase):
         model_name = purchase.content_type.name
         if model_name == "paper":
-            Paper = purchase.content_type.model_class()
+            Paper = purchase.content_type.model_class()  # noqa: N806
             paper = Paper.objects.get(id=purchase.object_id)
             serializer = BasePaperSerializer(paper, context=self.context)
             data = serializer.data
             return data
         elif model_name == "researchhub post":
-            Post = purchase.content_type.model_class()
+            Post = purchase.content_type.model_class()  # noqa: N806
             post = Post.objects.get(id=purchase.object_id)
             serializer = ResearchhubPostSerializer(post, context=self.context)
             data = serializer.data

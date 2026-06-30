@@ -48,7 +48,7 @@ def editor_daily_payout_task():
         if is_payment_made_today:
             return {"msg": "Editor payout already made today"}
 
-        User = apps.get_model("user.User")
+        User = apps.get_model("user.User")  # noqa: N806
         today = datetime.date.today()
         num_days_this_month = monthrange(today.year, today.month)[1]
         gecko_result = get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month)
