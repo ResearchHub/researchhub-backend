@@ -53,13 +53,6 @@ class BaseTests(TestCase):
             first_name=first_name, last_name=last_name, university=university
         )
 
-    def create_author_without_university(
-        self, user, first_name=author_first_name, last_name=author_last_name
-    ):
-        return Author.objects.create(
-            user=user, first_name=first_name, last_name=last_name
-        )
-
     def create_author_without_user_or_university(
         self, first_name=author_first_name, last_name=author_last_name
     ):
