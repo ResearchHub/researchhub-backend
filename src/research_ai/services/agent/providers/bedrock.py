@@ -107,9 +107,7 @@ class BedrockProvider(LLMProvider):
         kwargs: dict = {
             "modelId": self.model_id,
             "system": system,
-            "messages": self._render_messages(
-                messages, cache_last=self.prompt_caching
-            ),
+            "messages": self._render_messages(messages, cache_last=self.prompt_caching),
             "inferenceConfig": inference_config,
         }
         if rendered_tools and rendered_tools.get("tools"):
@@ -147,8 +145,7 @@ class BedrockProvider(LLMProvider):
         """
         usage = response.get("usage") or {}
         logger.info(
-            "bedrock converse usage: input=%s cache_read=%s cache_write=%s "
-            "output=%s",
+            "bedrock converse usage: input=%s cache_read=%s cache_write=%s output=%s",
             usage.get("inputTokens"),
             usage.get("cacheReadInputTokens"),
             usage.get("cacheWriteInputTokens"),
