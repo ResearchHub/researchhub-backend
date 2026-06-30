@@ -66,14 +66,24 @@ class CompletedProposalCandidateSerializer(ModelSerializer):
         self, post: ResearchhubPost
     ) -> dict[str, int | str] | None:
         """Return the completed fundraise summary for the proposal."""
-        fundraise = self._get_completed_fundraise(post)
-        if fundraise is None:
+        fundraises = getattr(post.unified_document, "completed_fundraises", None)
+        if fundraises is None:
+            completed_fundraise = (
+                post.unified_document.fundraises.filter(
+                    status=Fundraise.COMPLETED,
+                )
+                .order_by("-created_date", "-id")
+                .first()
+            )
+        else:
+            completed_fundraise = fundraises[0] if fundraises else None
+        if completed_fundraise is None:
             return None
         return {
-            "id": fundraise.id,
-            "status": fundraise.status,
-            "goal_amount": str(fundraise.goal_amount),
-            "goal_currency": fundraise.goal_currency,
+            "id": completed_fundraise.id,
+            "status": completed_fundraise.status,
+            "goal_amount": str(completed_fundraise.goal_amount),
+            "goal_currency": completed_fundraise.goal_currency,
         }
 
     def get_image_url(self, post: ResearchhubPost) -> str | None:
@@ -81,20 +91,6 @@ class CompletedProposalCandidateSerializer(ModelSerializer):
         if not post.image:
             return None
         return default_storage.url(post.image)
-
-    def _get_completed_fundraise(self, post: ResearchhubPost) -> Fundraise | None:
-        """Return the newest completed fundraise for the proposal."""
-        fundraises = getattr(post.unified_document, "completed_fundraises", None)
-        if fundraises is not None:
-            return fundraises[0] if fundraises else None
-        return (
-            post.unified_document.fundraises.filter(
-                status=Fundraise.COMPLETED,
-            )
-            .order_by("-created_date", "-id")
-            .first()
-        )
-
 
 class RegisteredReportCreateSerializer(Serializer):
     """Validate a registered report creation request."""
