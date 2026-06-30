@@ -25,24 +25,24 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.inputs.deploy_env }}
   cancel-in-progress: false
 
-permissions:
-  contents: read
-  id-token: write # required for requesting JWT token from AWS
+env:
+  STAGING_DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
+  PROD_DEPLOY_ROLE_ARN: ${{ vars.PROD_DEPLOY_ROLE_ARN }}
+  DEPLOY_ENV: ${{ github.event.inputs.deploy_env || 'staging' }}
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: |
-      github.event_name == 'workflow_dispatch' || 
+      github.event_name == 'workflow_dispatch' ||
       (
-        github.event_name == 'workflow_run' && 
+        github.event_name == 'workflow_run' &&
         github.event.workflow_run.conclusion == 'success'
       )
-
-    env:
-      STAGING_DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
-      PROD_DEPLOY_ROLE_ARN: ${{ vars.PROD_DEPLOY_ROLE_ARN }}
-      DEPLOY_ENV: ${{ github.event.inputs.deploy_env || 'staging' }}
+    outputs:
+      short_git_sha: ${{ steps.git_sha.outputs.short_git_sha }}
 
     steps:
       - name: Workflow details
@@ -57,11 +57,12 @@ jobs:
           ref: ${{ github.event.inputs.git_ref }}
 
       - name: Get Git SHA
+        id: git_sha
         run: |
           GIT_SHA=$(git rev-parse HEAD)
           echo "$GIT_SHA" > src/git_hash.txt
           SHORT_GIT_SHA=${GIT_SHA:0:7}
-          echo "SHORT_GIT_SHA=$SHORT_GIT_SHA" >> "$GITHUB_ENV"
+          echo "short_git_sha=$SHORT_GIT_SHA" >> "$GITHUB_OUTPUT"
           echo "Git SHA: ${SHORT_GIT_SHA}"
 
       - name: Checkout deploy repository
@@ -98,8 +99,23 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: "backend-${{ env.SHORT_GIT_SHA }}"
+          name: "backend-${{ steps.git_sha.outputs.short_git_sha }}"
           path: target/deploy.zip
+
+  deploy-api:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # required for requesting JWT token from AWS
+    env:
+      SHORT_GIT_SHA: ${{ needs.build.outputs.short_git_sha }}
+
+    steps:
+      - name: Download deployment package
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: "backend-${{ env.SHORT_GIT_SHA }}"
+          path: target
 
       - name: Get deploy role ARN
         id: get-role-arn
@@ -140,41 +156,60 @@ jobs:
           deployment_package: target/deploy.zip
           wait_for_environment_recovery: 300
 
-      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - Main Worker
-        uses: einaregilsson/beanstalk-deploy@a67044fa332b06e68985b06d361934c28ab09007 # v23
-        with:
-          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
-          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
-          application_name: backend
-          environment_name: ${{ env.DEPLOY_ENV }}-backend-worker-main
-          version_label: ${{ env.SHORT_GIT_SHA }}
-          use_existing_version_if_available: true
-          region: us-west-2
-          deployment_package: target/deploy.zip
-          wait_for_environment_recovery: 120
+  deploy-workers:
+    needs: [build, deploy-api]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # required for requesting JWT token from AWS
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [main, cermine, lite]
+    env:
+      SHORT_GIT_SHA: ${{ needs.build.outputs.short_git_sha }}
 
-      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - Cermine Worker
-        uses: einaregilsson/beanstalk-deploy@a67044fa332b06e68985b06d361934c28ab09007 # v23
+    steps:
+      - name: Download deployment package
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
-          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
-          application_name: backend
-          environment_name: ${{ env.DEPLOY_ENV }}-backend-worker-cermine
-          version_label: ${{ env.SHORT_GIT_SHA }}
-          use_existing_version_if_available: true
-          region: us-west-2
-          deployment_package: target/deploy.zip
-          wait_for_environment_recovery: 120
+          name: "backend-${{ env.SHORT_GIT_SHA }}"
+          path: target
 
-      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - Lite Worker
+      - name: Get deploy role ARN
+        id: get-role-arn
+        run: |
+          role_arn_name=${DEPLOY_ENV^^}_DEPLOY_ROLE_ARN
+          role_arn=$(eval echo \$$role_arn_name)
+          echo "role_arn=$role_arn" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
+          aws-region: us-east-1
+
+      - name: Assume role
+        id: aws_credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-to-assume: ${{ steps.get-role-arn.outputs.role_arn }}
+          role-session-name: github-actions-beanstalk-session
+          role-chaining: true
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          retry-max-attempts: 3
+          output-credentials: true
+
+      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - ${{ matrix.worker }} Worker
         uses: einaregilsson/beanstalk-deploy@a67044fa332b06e68985b06d361934c28ab09007 # v23
         with:
           aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
           aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
           application_name: backend
-          environment_name: ${{ env.DEPLOY_ENV }}-backend-worker-lite
+          environment_name: ${{ env.DEPLOY_ENV }}-backend-worker-${{ matrix.worker }}
           version_label: ${{ env.SHORT_GIT_SHA }}
           use_existing_version_if_available: true
           region: us-west-2
           deployment_package: target/deploy.zip
-          wait_for_environment_recovery: 120
+          wait_for_environment_recovery: 300
