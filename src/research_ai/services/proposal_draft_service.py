@@ -64,7 +64,10 @@ logger = logging.getLogger(__name__)
 # submit.
 _DEFAULT_MAX_ROUNDS = 8
 _DEFAULT_PANEL_THRESHOLD = 4.5
-_DEFAULT_MAX_ITERATIONS = 40
+# Sized so MAX_ROUNDS (not this cap) is the real limiter: front-loaded research
+# turns plus ~8 revise/judge/verify rounds need well over the old 40, which
+# strangled runs mid-revision (e.g. quitting at round 3 of 8).
+_DEFAULT_MAX_ITERATIONS = 100
 _DEFAULT_MAX_TOKENS = 16384
 _DEFAULT_TEMPERATURE = 1.0
 
@@ -452,7 +455,20 @@ class _ProposalDraftRunner:
                 "gate_report": report,
             }
         self._set_step(ProposalDraft.Step.REVISING)
-        return {"accepted": False, "gaps": report["gaps"]}
+        return self._revise_feedback(report)
+
+    def _revise_feedback(self, report: dict) -> dict:
+        """Rejection payload for the revising agent: the gaps plus the panel's
+        per-criterion scores, so it can target the weak criteria instead of
+        rewriting ones already scoring well (overall is also in the gap text)."""
+        panel = report.get("panel") or {}
+        return {
+            "accepted": False,
+            "gaps": report["gaps"],
+            "scores": panel.get("scores"),
+            "overall": panel.get("overall"),
+            "threshold": panel.get("threshold"),
+        }
 
     def _run_gates(self, submitted: dict) -> tuple[bool, dict]:
         """Run every deterministic gate; return ``(accepted, report)``."""
