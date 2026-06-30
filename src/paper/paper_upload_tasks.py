@@ -52,7 +52,7 @@ logger = get_task_logger(__name__)
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
 def celery_process_paper(self, submission_id):
-    PaperSubmission = apps.get_model("paper.PaperSubmission")
+    PaperSubmission = apps.get_model("paper.PaperSubmission")  # noqa: N806
 
     paper_submission = PaperSubmission.objects.get(id=submission_id)
     paper_submission.set_processing_status()
@@ -168,8 +168,8 @@ def celery_manubot_doi(self, celery_data):
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
 def celery_combine_doi(self, celery_data):
-    Paper = apps.get_model("paper.Paper")
-    PaperSubmission = apps.get_model("paper.PaperSubmission")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
+    PaperSubmission = apps.get_model("paper.PaperSubmission")  # noqa: N806
 
     try:
         dois = []
@@ -304,7 +304,7 @@ def celery_manubot(self, celery_data):
 def celery_unpaywall(self, celery_data):
     paper_data, submission_id = celery_data
 
-    Paper = apps.get_model("paper.Paper")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
 
     try:
         doi = paper_data.get("doi")
@@ -364,7 +364,7 @@ def celery_unpaywall(self, celery_data):
 def celery_crossref(self, celery_data):
     paper_data, submission_id = celery_data
 
-    Paper = apps.get_model("paper.Paper")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
 
     try:
         doi = paper_data.get("doi")
@@ -418,7 +418,7 @@ def celery_crossref(self, celery_data):
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
 def celery_openalex(self, celery_data):
     paper_data, submission_id = celery_data
-    Paper = apps.get_model("paper.Paper")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
 
     try:
         doi = paper_data.get("doi")
@@ -456,7 +456,7 @@ def celery_openalex(self, celery_data):
 def celery_semantic_scholar(self, celery_data):
     paper_data, submission_id = celery_data
 
-    Paper = apps.get_model("paper.Paper")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
 
     try:
         doi = paper_data.get("doi")
@@ -503,7 +503,7 @@ def celery_semantic_scholar(self, celery_data):
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
 def celery_combine_paper_data(self, celery_data):
-    PaperSubmission = apps.get_model("paper.PaperSubmission")
+    PaperSubmission = apps.get_model("paper.PaperSubmission")  # noqa: N806
 
     errors = []
     data = {}
@@ -545,9 +545,9 @@ def celery_create_paper(self, celery_data):
 
     paper_data, submission_id = celery_data
 
-    Paper = apps.get_model("paper.Paper")
-    PaperSubmission = apps.get_model("paper.PaperSubmission")
-    Contribution = apps.get_model("reputation.Contribution")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
+    PaperSubmission = apps.get_model("paper.PaperSubmission")  # noqa: N806
+    Contribution = apps.get_model("reputation.Contribution")  # noqa: N806
 
     paper = None
     try:

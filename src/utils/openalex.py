@@ -644,7 +644,7 @@ class OpenAlex:
         return results[0] if results else None
 
     @classmethod
-    def normalize_dates(self, generic_openalex_object):
+    def normalize_dates(cls, generic_openalex_object):
         """Normalize the dates of an OpenAlex object such that
         they include timezone information"""
 

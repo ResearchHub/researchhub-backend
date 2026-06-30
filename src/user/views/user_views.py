@@ -253,9 +253,9 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
             time_filter = {keyword: datetime(year=2019, month=1, day=1)}
 
         items = []
-        serializerClass = None
+        serializer_class = None
         if leaderboard_type == "papers":
-            serializerClass = DynamicPaperSerializer
+            serializer_class = DynamicPaperSerializer
             if hub_id and hub_id != 0:
                 items = (
                     Paper.objects.exclude(
@@ -289,7 +289,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                 ]
             }
         elif leaderboard_type == "users":
-            serializerClass = UserSerializer
+            serializer_class = UserSerializer
             items = User.objects.filter(
                 is_active=True,
                 is_suspended=False,
@@ -358,13 +358,13 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                         )
                     ).order_by(F("time_rep").desc(nulls_last=True), "-reputation")
         elif leaderboard_type == "authors":
-            serializerClass = AuthorSerializer
+            serializer_class = AuthorSerializer
             items = Author.objects.filter(user__is_suspended=False).order_by(
                 "-author_score"
             )
 
         page = self.paginate_queryset(items)
-        serializer = serializerClass(
+        serializer = serializer_class(
             page, many=True, context=context, **serializer_kwargs
         )
 

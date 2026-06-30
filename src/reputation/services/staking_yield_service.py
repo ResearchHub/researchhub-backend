@@ -352,7 +352,7 @@ class StakingYieldService:
         Raises on any failure (supply fetch, DB errors, etc.) so callers
         can retry.
         """
-        User = get_user_model()
+        User = get_user_model()  # noqa: N806
 
         if accrual_date < STAKING_RELEASE_DATE:
             logger.info(
