@@ -116,31 +116,28 @@ class AuthenticationTests(BaseTests):
 
     def test_signup_with_username(self):
         response = self.valid_signup("test_username")
-        self.assertStatusCode(response, 201)
+        self.assertContains(response, "detail", status_code=201)
 
     def test_signup_without_username(self):
         response = self.valid_signup()
-        self.assertStatusCode(response, 201)
+        self.assertContains(response, "detail", status_code=201)
 
     def test_signup_with_duplicate_email(self):
         self.valid_signup()
-        response2 = self.valid_signup()
+        response = self.valid_signup()
         response_text = "A user is already registered with this e-mail"
-        self.assertContains(response2, response_text, status_code=400)
+        self.assertContains(response, response_text, status_code=400)
 
     def test_signup_with_duplicate_username_and_different_email(self):
         username = "test_username"
         self.valid_signup(username)
-        response2 = self.signup(username, "different@gmail.com", self.valid_password)
-        self.assertStatusCode(response2, 201)
+        response = self.signup(username, "different@gmail.com", self.valid_password)
+        self.assertContains(response, "detail", status_code=201)
 
     def test_signup_with_duplicate_blank_username_and_different_email(self):
         self.valid_signup()
-        response2 = self.signup(None, "different@gmail.com", self.valid_password)
-        self.assertStatusCode(response2, 201)
-
-    def assertStatusCode(self, response, status_code):
-        self.assertContains(response, "detail", status_code=status_code)
+        response = self.signup(None, "different@gmail.com", self.valid_password)
+        self.assertContains(response, "detail", status_code=201)
 
     def valid_signup(self, username=None):
         return self.signup(username, self.valid_email, self.valid_password)
