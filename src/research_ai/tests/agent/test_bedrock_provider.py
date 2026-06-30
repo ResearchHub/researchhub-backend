@@ -197,6 +197,57 @@ class CompleteAndParseTests(SimpleTestCase):
             provider._client.calls[0]["inferenceConfig"]["temperature"], 0.0
         )
 
+    def test_prompt_caching_adds_cache_points_to_system_and_last_message(self):
+        # Arrange
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 10, "cacheReadInputTokens": 5, "outputTokens": 2},
+        }
+        provider = _build_provider([response])
+        provider.prompt_caching = True
+
+        # Act
+        provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=100,
+            temperature=0.0,
+        )
+
+        # Assert: cache point trails both the system prompt and the last message.
+        call = provider._client.calls[0]
+        self.assertEqual(call["system"][-1], {"cachePoint": {"type": "default"}})
+        self.assertEqual(
+            call["messages"][-1]["content"][-1], {"cachePoint": {"type": "default"}}
+        )
+
+    def test_prompt_caching_disabled_emits_no_cache_points(self):
+        # Arrange
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+        }
+        provider = _build_provider([response])
+        provider.prompt_caching = False
+
+        # Act
+        provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=100,
+            temperature=0.0,
+        )
+
+        # Assert: no cache points anywhere.
+        call = provider._client.calls[0]
+        self.assertEqual(call["system"], [{"text": "sys"}])
+        self.assertNotIn(
+            {"cachePoint": {"type": "default"}}, call["messages"][-1]["content"]
+        )
+
     def test_parse_turn_maps_unknown_stop_reason_to_other(self):
         # Arrange
         provider = _build_provider()
