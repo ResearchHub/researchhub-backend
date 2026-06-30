@@ -24,6 +24,7 @@ iteration cap -- the last two end in ``FAILED`` with the final ``gate_report``
 recorded for diagnosis.
 """
 
+import json
 import logging
 import re
 
@@ -62,7 +63,7 @@ logger = logging.getLogger(__name__)
 # looser ceiling on total tool turns so several tool calls can precede each
 # submit.
 _DEFAULT_MAX_ROUNDS = 8
-_DEFAULT_PANEL_THRESHOLD = 4.0
+_DEFAULT_PANEL_THRESHOLD = 4.5
 _DEFAULT_MAX_ITERATIONS = 40
 _DEFAULT_MAX_TOKENS = 16384
 _DEFAULT_TEMPERATURE = 1.0
@@ -71,6 +72,9 @@ _DEFAULT_TEMPERATURE = 1.0
 # catches an empty/stub draft or a runaway, not stylistic length.
 _DEFAULT_MIN_WORDS = 250
 _DEFAULT_MAX_WORDS = 4000
+_DEFAULT_MAX_JUDGE_RFP_CHARS = 6000
+_DEFAULT_MAX_JUDGE_WORKS = 8
+_DEFAULT_MAX_JUDGE_ABSTRACT_CHARS = 1200
 
 # Sections the proposal must carry (keys on the submitted ``sections`` object).
 _REQUIRED_SECTIONS = (
@@ -150,6 +154,96 @@ def _citation_keys(citation: dict) -> set[str]:
     return {k for k in keys if k}
 
 
+def _trim_context_text(value: object, max_chars: int) -> str:
+    """Trim long context strings without cutting mid-word when practical."""
+    text = str(value or "").strip()
+    if len(text) <= max_chars:
+        return text
+    trimmed = text[:max_chars].rsplit(" ", 1)[0].rstrip()
+    return (trimmed or text[:max_chars]).rstrip() + "..."
+
+
+def _compact_rfp_context(rfp_ctx: dict, *, max_chars: int) -> dict:
+    """Small judge-facing RFP context: structured terms plus trimmed call text."""
+    rfp_ctx = rfp_ctx if isinstance(rfp_ctx, dict) else {}
+    out = {
+        "organization": rfp_ctx.get("organization"),
+        "short_title": rfp_ctx.get("short_title"),
+        "amount": rfp_ctx.get("amount"),
+        "currency": rfp_ctx.get("currency"),
+        "end_date": rfp_ctx.get("end_date"),
+    }
+    if rfp_ctx.get("error"):
+        out["error"] = rfp_ctx["error"]
+    rfp_text = _trim_context_text(rfp_ctx.get("rfp_text"), max_chars)
+    if rfp_text:
+        out["rfp_text"] = rfp_text
+    return {k: v for k, v in out.items() if v not in (None, "")}
+
+
+def _compact_profile_context(
+    profile: dict,
+    *,
+    max_works: int,
+    max_abstract_chars: int,
+) -> dict:
+    """Small judge-facing researcher profile for credibility/novelty scoring."""
+    profile = profile if isinstance(profile, dict) else {}
+    raw_resolution = profile.get("resolution")
+    resolution = raw_resolution if isinstance(raw_resolution, dict) else {}
+    works = []
+    for work in profile.get("works") or []:
+        if not isinstance(work, dict):
+            continue
+        compact = {
+            "title": work.get("title"),
+            "publication_year": work.get("publication_year"),
+            "source_url": work.get("source_url"),
+            "author_position": work.get("author_position"),
+            "abstract": _trim_context_text(
+                work.get("abstract"),
+                max_abstract_chars,
+            ),
+        }
+        works.append({k: v for k, v in compact.items() if v not in (None, "")})
+        if len(works) >= max_works:
+            break
+    return {
+        "resolution": {
+            k: v
+            for k, v in resolution.items()
+            if k
+            in (
+                "openalex_author_id",
+                "display_name",
+                "orcid",
+                "confidence",
+                "reasoning",
+            )
+            and v not in (None, "")
+        },
+        "works": works,
+        "errors": profile.get("errors") or [],
+    }
+
+
+def _compact_citations(citations: object) -> list[dict]:
+    """Judge-facing structured citations from a submit/tool-call payload."""
+    out = []
+    for citation in citations or []:
+        if not isinstance(citation, dict):
+            continue
+        compact = {
+            "claim_id": citation.get("claim_id"),
+            "doi": citation.get("doi"),
+            "source_url": citation.get("source_url"),
+            "title": citation.get("title"),
+            "authors": citation.get("authors") or [],
+        }
+        out.append({k: v for k, v in compact.items() if v not in (None, "", [])})
+    return out
+
+
 class _ProposalDraftRunner:
     """One bounded proposal-drafting run against a single ``ProposalDraft``."""
 
@@ -192,6 +286,21 @@ class _ProposalDraftRunner:
         self.max_words = getattr(
             settings, "RESEARCH_AI_PROPOSAL_MAX_WORDS", _DEFAULT_MAX_WORDS
         )
+        self.max_judge_rfp_chars = getattr(
+            settings,
+            "RESEARCH_AI_PROPOSAL_JUDGE_RFP_CHARS",
+            _DEFAULT_MAX_JUDGE_RFP_CHARS,
+        )
+        self.max_judge_works = getattr(
+            settings,
+            "RESEARCH_AI_PROPOSAL_JUDGE_WORKS",
+            _DEFAULT_MAX_JUDGE_WORKS,
+        )
+        self.max_judge_abstract_chars = getattr(
+            settings,
+            "RESEARCH_AI_PROPOSAL_JUDGE_ABSTRACT_CHARS",
+            _DEFAULT_MAX_JUDGE_ABSTRACT_CHARS,
+        )
 
         # Shared across the run: provenance the citation gate grounds against.
         self.provenance: set[str] = set()
@@ -211,6 +320,7 @@ class _ProposalDraftRunner:
         self.submitted: dict | None = None
         self.last_gate_report: dict = {}
         self.final_scores: dict = {}
+        self.rfp_context: dict = {}
 
     # -- public entry -----------------------------------------------------
 
@@ -227,10 +337,10 @@ class _ProposalDraftRunner:
         self.draft.save(update_fields=["status", "run_config", "updated_date"])
 
         self._ensure_profile()
-        rfp_ctx = self.context_toolset._get_rfp_context({})
+        self.rfp_context = self.context_toolset.get_rfp_context()
 
         system_prompt = build_proposal_system_prompt()
-        user_prompt = build_proposal_user_prompt(self.expert, rfp_ctx)
+        user_prompt = build_proposal_user_prompt(self.expert, self.rfp_context)
         agent = self._build_agent(system_prompt)
 
         self._set_step(ProposalDraft.Step.DRAFTING)
@@ -285,7 +395,12 @@ class _ProposalDraftRunner:
             toolset.add(tool)
         for tool in self.verification_toolset.build_tools():
             toolset.add(tool)
-        toolset.add(build_judge_tool(self.panel))
+        toolset.add(
+            build_judge_tool(
+                self.panel,
+                context_provider=self._judge_tool_context,
+            )
+        )
         toolset.add(self._build_submit_tool())
         return toolset
 
@@ -484,7 +599,10 @@ class _ProposalDraftRunner:
 
     def _gate_panel(self, submitted: dict) -> dict:
         proposal_text = str(submitted.get("plain_text") or "")
-        rollup = self.panel.score(proposal_text)
+        rollup = self.panel.score(
+            proposal_text,
+            context=self._judge_context(submitted),
+        )
         overall = rollup.get("overall", 0)
         ok = overall >= self.panel_threshold
         gaps = []
@@ -502,6 +620,27 @@ class _ProposalDraftRunner:
             "threshold": self.panel_threshold,
             "rollup": rollup,
             "gaps": gaps,
+        }
+
+    def _judge_tool_context(self, args: dict) -> dict:
+        """Server-side judge context for the agent-facing ``judge_proposal`` tool."""
+        return self._judge_context({"citations": args.get("citations") or []})
+
+    def _judge_context(self, submitted: dict | None = None) -> dict:
+        """Evidence judges need for RFP fit, budget fit, credibility, and novelty."""
+        submitted = submitted or {}
+        return {
+            "rfp": _compact_rfp_context(
+                self.rfp_context,
+                max_chars=self.max_judge_rfp_chars,
+            ),
+            "researcher_profile": _compact_profile_context(
+                self.expert.profile,
+                max_works=self.max_judge_works,
+                max_abstract_chars=self.max_judge_abstract_chars,
+            ),
+            "citations": _compact_citations(submitted.get("citations")),
+            "grounded_source_urls": sorted(self._grounded_urls()),
         }
 
     def _grounded_urls(self) -> set[str]:
@@ -578,9 +717,14 @@ class _ProposalDraftRunner:
             title=title,
             unified_document=unified_document,
         )
+        prosemirror = submitted.get("prosemirror")
         NoteContent.objects.create(
             note=note,
-            json=submitted.get("prosemirror"),
+            # Store the ProseMirror doc as a JSON-encoded string, matching the
+            # shape the view path persists (the frontend POSTs ``full_json`` as a
+            # string) and the editor's ``JSON.parse(contentJson)`` expects. A raw
+            # object round-trips as an object and breaks note loading.
+            json=json.dumps(prosemirror) if prosemirror is not None else None,
             plain_text=str(submitted.get("plain_text") or ""),
         )
         note.refresh_from_db()

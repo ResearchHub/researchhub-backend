@@ -15,8 +15,10 @@ class _FakeProvider:
     def __init__(self, model_id, payload):
         self.model_id = model_id
         self._text = payload if isinstance(payload, str) else json.dumps(payload)
+        self.calls = []
 
     def complete(self, **_kwargs) -> AssistantTurn:
+        self.calls.append(_kwargs)
         return AssistantTurn(
             text_blocks=[TextBlock(text=self._text)],
             tool_calls=[],
@@ -40,6 +42,19 @@ def _build_scores(c1, c2, c3, c4, c5, c6, c7, gaps=None):
 
 
 class ProposalJudgePanelTests(SimpleTestCase):
+    def _first_user_text(self, provider) -> str:
+        """The first judge call's user-message text, with clear assertions.
+
+        Guards each index so a missing call / message / block fails as a
+        readable assertion instead of an opaque ``IndexError``.
+        """
+        self.assertTrue(provider.calls, "provider was never called")
+        messages = provider.calls[0]["messages"]
+        self.assertTrue(messages, "judge call had no messages")
+        content = messages[0].content
+        self.assertTrue(content, "user message had no content blocks")
+        return content[0].text
+
     def test_score_reduces_each_criterion_by_median(self):
         # Arrange: three judges; per-criterion median is the reduction.
         providers = [
@@ -96,6 +111,26 @@ class ProposalJudgePanelTests(SimpleTestCase):
             result["scores"],
             {"c1": 2, "c2": 2, "c3": 2, "c4": 2, "c5": 2, "c6": 2, "c7": 2},
         )
+
+    def test_score_includes_evaluation_context(self):
+        # Arrange
+        provider = _FakeProvider("j1", _build_scores(4, 4, 4, 4, 4, 4, c7=4))
+        panel = ProposalJudgePanel(providers=[provider])
+
+        # Act
+        panel.score(
+            "draft",
+            context={
+                "rfp": {"amount": "50000.00", "currency": "USD"},
+                "researcher_profile": {"works": [{"title": "Grounded Work"}]},
+            },
+        )
+
+        # Assert
+        user_text = self._first_user_text(provider)
+        self.assertIn("## Evaluation context", user_text)
+        self.assertIn("50000.00", user_text)
+        self.assertIn("Grounded Work", user_text)
 
     def test_pairwise_majority_wins(self):
         # Arrange: A wins 2 of 3.
@@ -160,3 +195,19 @@ class ProposalJudgePanelTests(SimpleTestCase):
 
         # Assert
         self.assertIn("error", result)
+
+    def test_judge_tool_uses_context_provider(self):
+        # Arrange
+        provider = _FakeProvider("j1", _build_scores(4, 4, 4, 4, 4, 4, c7=4))
+        tool = build_judge_tool(
+            ProposalJudgePanel(providers=[provider]),
+            context_provider=lambda _args: {"rfp": {"short_title": "Focused RFP"}},
+        )
+
+        # Act
+        result = tool.handler({"proposal": "draft", "mode": "score"})
+
+        # Assert
+        self.assertEqual(result["overall"], 4)
+        user_text = self._first_user_text(provider)
+        self.assertIn("Focused RFP", user_text)

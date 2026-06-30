@@ -7,6 +7,7 @@ exhausts the round budget. All LLM providers and external APIs are mocked at the
 client boundary; no network.
 """
 
+import json
 from datetime import timedelta
 from decimal import Decimal
 
@@ -47,15 +48,17 @@ class _FakePanel:
         self.model_ids = ["fake-judge"]
         self._overall = overall
         self._gaps = gaps or []
+        self.contexts = []
 
-    def score(self, _proposal):
+    def score(self, _proposal, *, context=None):
+        self.contexts.append(context)
         return {
             "scores": {c: self._overall for c in _CRITERIA},
             "overall": self._overall,
             "gaps": self._gaps,
         }
 
-    def pairwise(self, _a, _b):
+    def pairwise(self, _a, _b, *, context=None):
         return "A"
 
 
@@ -196,12 +199,13 @@ class ProposalDraftServiceTests(TestCase):
     def test_clean_submit_writes_note(self):
         # Arrange: one clean submit; panel clears the threshold; no citations.
         provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+        panel = _FakePanel(overall=5)
 
         # Act
         result = run_proposal_draft(
             self.search_expert.id,
             provider=provider,
-            panel=_FakePanel(overall=5),
+            panel=panel,
             oa_client=_FakeOpenAlex(),
         )
 
@@ -212,7 +216,10 @@ class ProposalDraftServiceTests(TestCase):
         self.assertIsNone(note.created_by)
         self.assertIsNone(note.organization)
         self.assertIsNotNone(note.latest_version)  # set by the post_save signal
-        self.assertEqual(note.latest_version.json, _prosemirror_doc())
+        # json is stored as a JSON-encoded string (matching the view path and
+        # what the editor's JSON.parse expects), not a raw object.
+        self.assertIsInstance(note.latest_version.json, str)
+        self.assertEqual(json.loads(note.latest_version.json), _prosemirror_doc())
 
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
         self.assertEqual(draft.note_id, note.id)
@@ -220,6 +227,14 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(draft.step, ProposalDraft.Step.DONE)
         self.assertEqual(draft.final_scores["overall"], 5)
         self.assertEqual(draft.rounds_used, 1)
+        self.assertEqual(
+            panel.contexts[0]["rfp"]["organization"],
+            "National Science Foundation",
+        )
+        self.assertEqual(
+            panel.contexts[0]["researcher_profile"]["works"][0]["source_url"],
+            "https://doi.org/10.1/a",
+        )
 
     # -- a major_fabrication submit is blocked, gaps fed back -------------
 

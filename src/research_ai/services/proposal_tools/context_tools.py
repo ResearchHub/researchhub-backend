@@ -74,6 +74,10 @@ class ProposalContextToolset:
     # -- handlers ---------------------------------------------------------
 
     def _get_rfp_context(self, _args: dict) -> dict:
+        return self.get_rfp_context()
+
+    def get_rfp_context(self) -> dict:
+        """The funder's RFP terms; ``{"error": ...}`` when none is attached."""
         unified_document = self.search_expert.expert_search.unified_document
         if unified_document is None:
             return {"error": "expert search has no unified document"}

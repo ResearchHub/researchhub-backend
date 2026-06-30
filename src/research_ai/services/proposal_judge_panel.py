@@ -21,6 +21,7 @@ The panel only produces subjective scores. It never sees or touches the
 deterministic programmatic gates -- those stay external to it.
 """
 
+import json
 import logging
 import os
 import statistics
@@ -80,6 +81,39 @@ def _median_int(values: list[int]) -> int:
     return max(_MIN_SCORE, min(_MAX_SCORE, int(round(statistics.median(values)))))
 
 
+def _render_context(context: dict | None) -> str:
+    """Render optional evaluation context for judge prompts."""
+    if not context:
+        return "No external evaluation context was provided."
+    return json.dumps(
+        context,
+        indent=2,
+        sort_keys=True,
+        ensure_ascii=False,
+        default=str,
+    )
+
+
+def _score_user_prompt(proposal: str, context: dict | None) -> str:
+    return (
+        "## Evaluation context\n"
+        f"{_render_context(context)}\n\n"
+        "## Proposal to score\n"
+        f"{proposal}"
+    )
+
+
+def _pairwise_user_prompt(a: str, b: str, context: dict | None) -> str:
+    return (
+        "## Evaluation context\n"
+        f"{_render_context(context)}\n\n"
+        "## Proposal A\n"
+        f"{a}\n\n"
+        "## Proposal B\n"
+        f"{b}"
+    )
+
+
 class ProposalJudgePanel:
     """A roster of Bedrock judges scored by median / majority.
 
@@ -123,7 +157,7 @@ class ProposalJudgePanel:
 
     # -- public modes -----------------------------------------------------
 
-    def score(self, proposal: str) -> dict:
+    def score(self, proposal: str, *, context: dict | None = None) -> dict:
         """Score ``proposal`` 1-5 on each rubric criterion, reduced by median.
 
         Returns ``{"scores": {c1..c7}, "overall", "gaps": [...]}``. Judges that
@@ -131,9 +165,10 @@ class ProposalJudgePanel:
         aborting the run.
         """
         system_prompt = _load_prompt("proposal_draft_critique.txt")
+        user_prompt = _score_user_prompt(proposal, context)
         per_criterion: dict[str, list[int]] = {c: [] for c in _RUBRIC_CRITERIA}
         gaps: list[str] = []
-        for parsed in self._collect(system_prompt, proposal):
+        for parsed in self._collect(system_prompt, user_prompt):
             raw_scores = parsed.get("scores")
             raw_scores = raw_scores if isinstance(raw_scores, dict) else {}
             for criterion in _RUBRIC_CRITERIA:
@@ -149,14 +184,14 @@ class ProposalJudgePanel:
         overall = _median_int(list(scores.values()))
         return {"scores": scores, "overall": overall, "gaps": gaps}
 
-    def pairwise(self, a: str, b: str) -> str:
+    def pairwise(self, a: str, b: str, *, context: dict | None = None) -> str:
         """Each judge picks A vs B; majority wins. Returns ``"A"`` or ``"B"``.
 
         Ties (including an all-unparseable panel) break to ``"A"`` -- the
         incumbent in the tournament's bracket.
         """
         system_prompt = _load_prompt("proposal_pairwise.txt")
-        user_prompt = f"## Proposal A\n{a}\n\n## Proposal B\n{b}"
+        user_prompt = _pairwise_user_prompt(a, b, context)
         a_votes = 0
         b_votes = 0
         for parsed in self._collect(system_prompt, user_prompt):
