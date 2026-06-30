@@ -130,7 +130,7 @@ class ProposalJudgePanel:
         *,
         providers: list[LLMProvider] | None = None,
         generator_model_id: str | None = None,
-        max_tokens: int = 1024,
+        max_tokens: int = 4096,
         temperature: float = 0.0,
     ):
         self._generator_model_id = generator_model_id or _default_generator_id()
