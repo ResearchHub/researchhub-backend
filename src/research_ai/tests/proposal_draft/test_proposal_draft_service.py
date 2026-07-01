@@ -53,7 +53,7 @@ class _FakePanel:
     def score(self, _proposal, *, context=None):
         self.contexts.append(context)
         return {
-            "scores": {c: self._overall for c in _CRITERIA},
+            "scores": dict.fromkeys(_CRITERIA, self._overall),
             "overall": self._overall,
             "gaps": self._gaps,
         }
@@ -75,7 +75,7 @@ class _SequencePanel:
         overall = self._overalls[min(self.calls, len(self._overalls) - 1)]
         self.calls += 1
         return {
-            "scores": {c: overall for c in _CRITERIA},
+            "scores": dict.fromkeys(_CRITERIA, overall),
             "overall": overall,
             "gaps": self._gaps,
         }
