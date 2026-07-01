@@ -378,6 +378,7 @@ class JournalWithSubdomain:
         parts = string.split("?")
         return parts[0]
 
+    @classmethod
     def journal_url_to_pdf_url(cls, journal_url):
         subdomain = cls.get_subdomain(journal_url)
         try:

@@ -196,7 +196,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
         base_url = request.META["HTTP_ORIGIN"]
 
-        emailContext = {
+        email_context = {
             "hub_name": hub.name.capitalize(),
             "link": base_url + f"/hubs/{hub.name}/",
             "opt_out": base_url + "/email/opt-out/",
@@ -214,7 +214,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
             recipients,
             "invite_to_hub_email.txt",
             subject,
-            emailContext,
+            email_context,
             "invite_to_hub_email.html",
         )
 

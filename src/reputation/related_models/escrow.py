@@ -15,13 +15,13 @@ from utils.models import DefaultModel
 def get_current_bounty_fee():
     from reputation.related_models.bounty_fee import BountyFee
 
-    RH_PCT = 0.07
-    DAO_PCT = 0.02
+    rh_pct = 0.07
+    dao_pct = 0.02
 
     bounty_fee = BountyFee.objects.last()
     if bounty_fee:
         return bounty_fee.id
-    bounty_fee = BountyFee.objects.create(rh_pct=RH_PCT, dao_pct=DAO_PCT)
+    bounty_fee = BountyFee.objects.create(rh_pct=rh_pct, dao_pct=dao_pct)
     return bounty_fee.id
 
 

@@ -137,10 +137,8 @@ class SendRSCTest(APITestCase):
         fee_amount = 3  # latest `SupportFee` is 3% RH, 0% DAO as of 2024-01-19
 
         # give the user 10,000 RSC
-        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
-        Balance.objects.create(
-            amount="10000", user=user, content_type=DISTRIBUTION_CONTENT_TYPE
-        )
+        distribution_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(amount="10000", user=user, content_type=distribution_ct)
 
         response = self._post_support_response(
             user, post.id, "researchhubpost", tip_amount

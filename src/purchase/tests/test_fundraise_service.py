@@ -280,10 +280,8 @@ class CloseFundraiseTests(TestCase):
 
     def _give_user_rsc_balance(self, user, amount):
         """Helper method to give a user RSC balance"""
-        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
-        Balance.objects.create(
-            amount=amount, user=user, content_type=DISTRIBUTION_CONTENT_TYPE
-        )
+        distribution_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(amount=amount, user=user, content_type=distribution_ct)
 
     # --- Basic close functionality tests ---
 

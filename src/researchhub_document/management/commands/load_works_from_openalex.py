@@ -12,7 +12,7 @@ from utils.openalex import OpenAlex
 
 
 def process_backfill_batch(queryset):
-    OA = OpenAlex()
+    oa = OpenAlex()
 
     oa_ids = []
     for paper in queryset.iterator():
@@ -22,7 +22,7 @@ def process_backfill_batch(queryset):
 
             oa_ids.append(just_id)
 
-    works, cursor = OA.get_works(openalex_ids=oa_ids)
+    works, _ = oa.get_works(openalex_ids=oa_ids)
     process_openalex_works(works)
 
 
@@ -199,11 +199,11 @@ class Command(BaseCommand):
                 # Update cursor
                 current_id += batch_size
         elif mode == "fetch":
-            OA = OpenAlex()
+            oa = OpenAlex()
 
             if openalex_id:
-                process_openalex_work(OA, openalex_id)
+                process_openalex_work(oa, openalex_id)
             elif openalex_author_id:
-                process_author_batch(OA, openalex_author_id, journal)
+                process_author_batch(oa, openalex_author_id, journal)
             else:
-                process_batch(OA, journal)
+                process_batch(oa, journal)

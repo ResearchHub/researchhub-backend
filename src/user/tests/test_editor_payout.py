@@ -46,9 +46,9 @@ class PayoutTests(APITestCase):
                 user=user,
             )
 
-        self.setUpPayout()
+        self._set_up_payout()
 
-    def setUpPayout(self):
+    def _set_up_payout(self):
         # Setting up static exchange rate for Coin Gecko to simulate payouts
         RscExchangeRate.objects.create(
             price_source=COIN_GECKO,

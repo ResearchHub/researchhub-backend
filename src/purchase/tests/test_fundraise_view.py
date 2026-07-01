@@ -90,10 +90,8 @@ class FundraiseViewTests(APITestCase):
         return self.client.get(f"/api/fundraise/{fundraise_id}/contributions/")
 
     def _give_user_balance(self, user, amount):
-        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
-        Balance.objects.create(
-            amount=amount, user=user, content_type=DISTRIBUTION_CONTENT_TYPE
-        )
+        distribution_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(amount=amount, user=user, content_type=distribution_ct)
 
     # Fundraise tests
 

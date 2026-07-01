@@ -30,7 +30,7 @@ from user.serializers import (
     DynamicAuthorProfileSerializer,
 )
 from user.tasks import invalidate_author_profile_caches
-from user.utils import AuthorClaimException, claim_openalex_author_profile
+from user.utils import AuthorClaimError, claim_openalex_author_profile
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
@@ -194,7 +194,7 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         # Attempt to associate the openalex author id with the RH author
         try:
             claim_openalex_author_profile(author.id, openalex_author_id)
-        except AuthorClaimException:
+        except AuthorClaimError:
             pass
         except Exception:
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
