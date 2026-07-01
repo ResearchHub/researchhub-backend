@@ -43,8 +43,9 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
                 # Add cache entry to prevent duplicate tasks within debounce period
                 cache.set(cache_key, True, timeout=DEBOUNCE_PERIOD)
 
+    @classmethod
     @shared_task(ignore_result=True)
-    def registry_update_task(pk, app_label, model_name):  # noqa: N805
+    def registry_update_task(cls, pk, app_label, model_name):
         try:
             model = apps.get_model(app_label, model_name)
             instance = model.objects.get(pk=pk)
@@ -60,8 +61,9 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
                 model_name,
             )
 
+    @classmethod
     @shared_task(ignore_result=True)
-    def registry_update_related_task(pk, app_label, model_name):  # noqa: N805
+    def registry_update_related_task(cls, pk, app_label, model_name):
         try:
             model = apps.get_model(app_label, model_name)
             instance = model.objects.get(pk=pk)
