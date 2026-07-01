@@ -103,15 +103,9 @@ class CommentOrderingTests(APITestCase):
         self.assertEqual(results[2]["id"], comment3.id)
 
         # Verify dates are actually in ascending order
-        date1 = datetime.fromisoformat(
-            results[0]["created_date"].replace("Z", "+00:00")
-        )
-        date2 = datetime.fromisoformat(
-            results[1]["created_date"].replace("Z", "+00:00")
-        )
-        date3 = datetime.fromisoformat(
-            results[2]["created_date"].replace("Z", "+00:00")
-        )
+        date1 = datetime.fromisoformat(results[0]["created_date"])
+        date2 = datetime.fromisoformat(results[1]["created_date"])
+        date3 = datetime.fromisoformat(results[2]["created_date"])
 
         self.assertLess(date1, date2)
         self.assertLess(date2, date3)
@@ -165,15 +159,9 @@ class CommentOrderingTests(APITestCase):
         self.assertEqual(results[2]["id"], comment1.id)  # Oldest last
 
         # Verify dates are actually in descending order
-        date1 = datetime.fromisoformat(
-            results[0]["created_date"].replace("Z", "+00:00")
-        )
-        date2 = datetime.fromisoformat(
-            results[1]["created_date"].replace("Z", "+00:00")
-        )
-        date3 = datetime.fromisoformat(
-            results[2]["created_date"].replace("Z", "+00:00")
-        )
+        date1 = datetime.fromisoformat(results[0]["created_date"])
+        date2 = datetime.fromisoformat(results[1]["created_date"])
+        date3 = datetime.fromisoformat(results[2]["created_date"])
 
         self.assertGreater(date1, date2)
         self.assertGreater(date2, date3)
@@ -259,12 +247,8 @@ class CommentOrderingTests(APITestCase):
         # Just verify that whatever we get is properly ordered
         if len(results) > 1:
             for i in range(len(results) - 1):
-                date_current = datetime.fromisoformat(
-                    results[i]["created_date"].replace("Z", "+00:00")
-                )
-                date_next = datetime.fromisoformat(
-                    results[i + 1]["created_date"].replace("Z", "+00:00")
-                )
+                date_current = datetime.fromisoformat(results[i]["created_date"])
+                date_next = datetime.fromisoformat(results[i + 1]["created_date"])
                 self.assertLessEqual(
                     date_current,
                     date_next,
