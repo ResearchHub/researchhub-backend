@@ -18,7 +18,7 @@ class HubPermissionsTests(APITestCase):
         self.hub = create_hub()
         self.trouble_maker = create_random_authenticated_user("trouble_maker")
 
-    def test_can_NOT_create_hub_below_minimum_reputation(self):
+    def test_can_not_create_hub_below_minimum_reputation(self):
         user = create_random_authenticated_user_with_reputation(99, 99)
         response = self.get_hub_post_response(user)
         self.assertEqual(response.status_code, 403)
