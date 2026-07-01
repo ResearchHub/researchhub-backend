@@ -6,7 +6,6 @@ from django.test import SimpleTestCase
 
 from research_ai.services.agent.types import AssistantTurn, StopReason, TextBlock
 from research_ai.services.proposal_judge_panel import ProposalJudgePanel
-from research_ai.services.proposal_tools.judge_tools import build_judge_tool
 
 
 class _FakeProvider:
@@ -161,53 +160,3 @@ class ProposalJudgePanelTests(SimpleTestCase):
 
         # Assert: the judge defaults to the generator model itself.
         self.assertEqual(panel.model_ids, ["us.anthropic.claude-opus-4-8"])
-
-    def test_judge_tool_score_mode(self):
-        # Arrange
-        providers = [_FakeProvider("j1", _build_scores(4, 4, 4, 4, 4, 4, c7=4))]
-        tool = build_judge_tool(ProposalJudgePanel(providers=providers))
-
-        # Act
-        result = tool.handler({"proposal": "draft", "mode": "score"})
-
-        # Assert
-        self.assertEqual(result["overall"], 4)
-        self.assertFalse(tool.is_terminal)
-
-    def test_judge_tool_pairwise_mode(self):
-        # Arrange
-        providers = [_FakeProvider("j1", {"winner": "B"})]
-        tool = build_judge_tool(ProposalJudgePanel(providers=providers))
-
-        # Act
-        result = tool.handler({"proposal": "a", "mode": "pairwise", "candidate_b": "b"})
-
-        # Assert
-        self.assertEqual(result["winner"], "B")
-
-    def test_judge_tool_pairwise_requires_candidate_b(self):
-        # Arrange
-        providers = [_FakeProvider("j1", {"winner": "A"})]
-        tool = build_judge_tool(ProposalJudgePanel(providers=providers))
-
-        # Act
-        result = tool.handler({"proposal": "a", "mode": "pairwise"})
-
-        # Assert
-        self.assertIn("error", result)
-
-    def test_judge_tool_uses_context_provider(self):
-        # Arrange
-        provider = _FakeProvider("j1", _build_scores(4, 4, 4, 4, 4, 4, c7=4))
-        tool = build_judge_tool(
-            ProposalJudgePanel(providers=[provider]),
-            context_provider=lambda _args: {"rfp": {"short_title": "Focused RFP"}},
-        )
-
-        # Act
-        result = tool.handler({"proposal": "draft", "mode": "score"})
-
-        # Assert
-        self.assertEqual(result["overall"], 4)
-        user_text = self._first_user_text(provider)
-        self.assertIn("Focused RFP", user_text)

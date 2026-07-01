@@ -48,7 +48,7 @@ from research_ai.services.proposal_tools import (
     ProposalFulltextToolset,
     ProposalVerificationToolset,
     ProposalWebSearchToolset,
-    build_judge_tool,
+    assemble_proposal,
 )
 from research_ai.services.proposal_tools.doi import strip_doi_prefix
 from research_ai.services.researcher_profile import build_and_store_expert_profile
@@ -117,14 +117,6 @@ _SUBMIT_INPUT_SCHEMA = {
                 "scope_timeline",
             ],
         },
-        "prosemirror": {
-            "type": "object",
-            "description": 'ProseMirror doc: {"type": "doc", "content": [...]}.',
-        },
-        "plain_text": {
-            "type": "string",
-            "description": "The full proposal as readable plain text.",
-        },
         "citations": {
             "type": "array",
             "items": {
@@ -139,7 +131,7 @@ _SUBMIT_INPUT_SCHEMA = {
             },
         },
     },
-    "required": ["sections", "prosemirror", "plain_text"],
+    "required": ["sections"],
 }
 
 
@@ -443,12 +435,12 @@ class _ProposalDraftRunner:
             toolset.add(tool)
         for tool in self.verification_toolset.build_tools():
             toolset.add(tool)
-        toolset.add(
-            build_judge_tool(
-                self.panel,
-                context_provider=self._judge_tool_context,
-            )
-        )
+        # No agent-facing judge tool: the panel scores every submit at the gate
+        # (see _gate_panel), which returns richer feedback than a self-judge --
+        # panel scores plus citation/length/scope/section gaps. Letting the agent
+        # peek at the panel before submitting only bought thrash (re-judging
+        # cosmetic edits against a noisy score), so the submit loop IS the
+        # judge-and-iterate loop.
         toolset.add(self._build_submit_tool())
         return toolset
 
@@ -464,10 +456,11 @@ class _ProposalDraftRunner:
             name="submit_proposal",
             description=(
                 "Submit the finished proposal for the deterministic gate. Provide "
-                "sections (title, hypothesis, approach, why_this_team, "
-                "scope_timeline), a ProseMirror `prosemirror` doc, `plain_text`, "
-                "and `citations` (each from a tool result). If the gate rejects "
-                "the draft it returns concrete gaps -- revise and submit again."
+                "`sections` (title, hypothesis, approach, why_this_team, "
+                "scope_timeline) and `citations` (each from a tool result); the "
+                "server builds the readable text and the ProseMirror document from "
+                "your sections, so do not send those. If the gate rejects the "
+                "draft it returns concrete gaps -- revise and submit again."
             ),
             input_schema=_SUBMIT_INPUT_SCHEMA,
             handler=self._handle_submit,
@@ -475,10 +468,26 @@ class _ProposalDraftRunner:
         )
         return self._submit_tool
 
+    def _normalize_submission(self, submitted: dict) -> dict:
+        """Assemble the derived representations from the agent's ``sections``.
+
+        The agent submits only ``sections`` (+ ``citations``); the server owns
+        the readable ``plain_text`` and the ``prosemirror`` doc so the model
+        never re-emits the full proposal in three overlapping formats each
+        round. The gates, per-round persistence, and Note write all read these
+        assembled fields, so we fill them here before anything else runs.
+        """
+        submitted = submitted if isinstance(submitted, dict) else {}
+        plain_text, prosemirror = assemble_proposal(submitted.get("sections"))
+        normalized = dict(submitted)
+        normalized["plain_text"] = plain_text
+        normalized["prosemirror"] = prosemirror
+        return normalized
+
     # -- the gate-before-stop handler ------------------------------------
 
     def _handle_submit(self, args: dict) -> dict:
-        submitted = args or {}
+        submitted = self._normalize_submission(args or {})
         self.rounds_used += 1
         accepted, report = self._run_gates(submitted)
         self.accepted = accepted
@@ -712,16 +721,28 @@ class _ProposalDraftRunner:
             c for c in (submitted.get("citations") or []) if isinstance(c, dict)
         ]
         provenance_keys = _provenance_keys(self._grounded_urls())
-
-        ungrounded = [
-            str(c.get("claim_id") or "?")
-            for c in citations
-            if not (_citation_keys(c) & provenance_keys)
-        ]
         verification = self.verification_toolset.verify_citations(
             {"citations": citations}
         )
         summary = verification.get("summary", {})
+        results_by_id = {r.get("claim_id"): r for r in verification.get("results", [])}
+
+        # A citation is grounded if it was retrieved (its DOI/URL is in the
+        # provenance the OpenAlex/profile tools recorded) OR if verify_citations
+        # resolved its DOI against OpenAlex ground truth to a matching record
+        # (exact / minor_drift). The second path lets the agent cite a real,
+        # verified field-level paper outside the researcher's own works without
+        # re-fetching it through the author tools just to satisfy provenance --
+        # fabrication is still caught below (dead / major_fabrication).
+        ungrounded: list[str] = []
+        for c in citations:
+            if _citation_keys(c) & provenance_keys:
+                continue
+            result = results_by_id.get(c.get("claim_id"))
+            if result and result.get("severity") in ("exact", "minor_drift"):
+                continue
+            ungrounded.append(str(c.get("claim_id") or "?"))
+
         failures = [
             r.get("claim_id")
             for r in verification.get("results", [])
@@ -731,8 +752,9 @@ class _ProposalDraftRunner:
         gaps: list[str] = []
         if ungrounded:
             gaps.append(
-                "These citations are not grounded in any tool result -- remove "
-                f"them or cite a retrieved work: {', '.join(ungrounded)}."
+                "These citations are not grounded in any tool result -- cite a "
+                "retrieved work, verify the DOI with verify_citations, or remove "
+                f"them: {', '.join(ungrounded)}."
             )
         if failures:
             gaps.append(
@@ -790,10 +812,6 @@ class _ProposalDraftRunner:
             "rollup": rollup,
             "gaps": gaps,
         }
-
-    def _judge_tool_context(self, args: dict) -> dict:
-        """Server-side judge context for the agent-facing ``judge_proposal`` tool."""
-        return self._judge_context({"citations": args.get("citations") or []})
 
     def _judge_context(self, submitted: dict | None = None) -> dict:
         """Evidence judges need for RFP fit, budget fit, credibility, and novelty."""

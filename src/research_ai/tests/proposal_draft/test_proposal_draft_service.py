@@ -27,6 +27,7 @@ from research_ai.services.proposal_draft_service import (
     _ProposalDraftRunner,
     run_proposal_draft,
 )
+from research_ai.services.proposal_tools.assembly import assemble_proposal
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT
 from user.tests.helpers import create_random_default_user
@@ -167,35 +168,29 @@ def _submit_turn(payload):
     )
 
 
-def _prosemirror_doc():
+# Filler prose so the assembled plain_text clears the 250-word minimum -- the
+# server now derives plain_text from these sections, so they must carry the words.
+_FILLER = (
+    "We will measure X under Y conditions across biological replicates, "
+    "controlling for Z and reporting effect sizes with confidence intervals. "
+) * 20
+
+
+def _clean_sections(title="A Study of Folding"):
     return {
-        "type": "doc",
-        "content": [
-            {
-                "type": "heading",
-                "attrs": {"level": 1},
-                "content": [{"type": "text", "text": "A Study of Folding"}],
-            },
-            {
-                "type": "paragraph",
-                "content": [{"type": "text", "text": "Body text."}],
-            },
-        ],
+        "title": title,
+        "hypothesis": "We hypothesize that X drives Y in measurable ways.",
+        "approach": "We will measure X under Y conditions. " + _FILLER,
+        "why_this_team": "Jane Smith has published on protein folding.",
+        "scope_timeline": "Over 24 months within the $50,000 budget.",
     }
 
 
 def _clean_payload(citations=None):
+    # The agent submits sections (+ citations) only; the server assembles the
+    # readable text and ProseMirror doc from the sections.
     return {
-        "sections": {
-            "title": "A Study of Folding",
-            "hypothesis": "We hypothesize that X drives Y.",
-            "approach": "We will measure X under Y conditions.",
-            "why_this_team": "Jane Smith has published on protein folding.",
-            "scope_timeline": "Over 24 months within the $50,000 budget.",
-        },
-        "prosemirror": _prosemirror_doc(),
-        # Comfortably above the minimum word count.
-        "plain_text": "alpha beta gamma delta epsilon " * 80,
+        "sections": _clean_sections(),
         "citations": citations or [],
     }
 
@@ -268,9 +263,12 @@ class ProposalDraftServiceTests(TestCase):
         self.assertIsNone(note.organization)
         self.assertIsNotNone(note.latest_version)  # set by the post_save signal
         # json is stored as a JSON-encoded string (matching the view path and
-        # what the editor's JSON.parse expects), not a raw object.
+        # what the editor's JSON.parse expects), not a raw object. The server
+        # assembles the doc + plain text from the submitted sections.
+        expected_plain, expected_doc = assemble_proposal(_clean_sections())
         self.assertIsInstance(note.latest_version.json, str)
-        self.assertEqual(json.loads(note.latest_version.json), _prosemirror_doc())
+        self.assertEqual(json.loads(note.latest_version.json), expected_doc)
+        self.assertEqual(note.latest_version.plain_text, expected_plain)
 
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
         self.assertEqual(draft.note_id, note.id)
@@ -609,3 +607,88 @@ class ProposalDraftServiceTests(TestCase):
         self.assertIn("ended without an accepted proposal", result["error_message"])
         self.assertNotIn("plateau", result["error_message"])
         self.assertEqual(Note.objects.count(), 0)
+
+    # -- a verified citation grounds even outside the researcher's works ---
+
+    def test_verified_citation_grounds_outside_researcher_works(self):
+        # Arrange: a field-level paper NOT in the researcher's works (so not in
+        # provenance), but whose DOI resolves exact against OpenAlex ground truth.
+        citations = [
+            {
+                "claim_id": "field1",
+                "doi": "10.1/ext",
+                "title": "Extracellular Matrix and Remyelination",
+                "authors": ["Alan Turing"],
+            }
+        ]
+        oa = _FakeOpenAlex(
+            {
+                "10.1/ext": {
+                    "display_name": "Extracellular Matrix and Remyelination",
+                    "publication_year": 2021,
+                    "doi": "https://doi.org/10.1/ext",
+                    "id": "https://openalex.org/W7",
+                    "authorships": [{"author": {"display_name": "Alan Turing"}}],
+                }
+            }
+        )
+        provider = _ScriptedProvider([_submit_turn(_clean_payload(citations))])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=oa,
+        )
+
+        # Assert: verify_citations grounds it, so the citation gate passes and the
+        # run is accepted -- no re-fetch through the author tools required.
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.assertTrue(result["gate_report"]["citations"]["ok"])
+        self.assertEqual(result["gate_report"]["citations"]["ungrounded"], [])
+
+    # -- an unretrieved, unverifiable citation is still ungrounded ---------
+
+    def test_unverifiable_citation_is_ungrounded(self):
+        # Arrange: a citation whose DOI does not resolve and is not in provenance.
+        citations = [
+            {"claim_id": "ghost", "doi": "10.1/missing", "title": "Ghost Paper"}
+        ]
+        provider = _ScriptedProvider([_submit_turn(_clean_payload(citations))])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: unretrieved AND unverifiable => ungrounded, submit blocked.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        report = result["gate_report"]
+        self.assertFalse(report["citations"]["ok"])
+        self.assertIn("ghost", report["citations"]["ungrounded"])
+
+    # -- the agent is given no self-judge tool (submit is the only judge) --
+
+    def test_agent_toolset_has_no_judge_tool(self):
+        # Arrange
+        draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            status=ProposalDraft.Status.PENDING,
+            step=ProposalDraft.Step.QUEUED,
+        )
+        runner = _ProposalDraftRunner(
+            self.search_expert, draft, oa_client=_FakeOpenAlex()
+        )
+
+        # Act
+        toolset = runner._compose_toolset()
+
+        # Assert: no agent-facing judge; the panel scores every submit at the
+        # gate. verify_citations (deterministic, cheap) is still available.
+        self.assertNotIn("judge_proposal", toolset.names)
+        self.assertIn("verify_citations", toolset.names)
+        self.assertIn("submit_proposal", toolset.names)
