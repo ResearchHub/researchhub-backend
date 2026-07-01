@@ -256,11 +256,7 @@ class UpvoteInteractionTaskTests(TestCase):
         self.content_type = ContentType.objects.get_for_model(self.post)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.signals.vote_signals.create_upvote_interaction_task")
-    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
-    def test_create_upvote_interaction_task_creates_user_interaction(
-        self, mock_sync_signal, mock_vote_signal
-    ):
+    def test_create_upvote_interaction_task_creates_user_interaction(self):
         vote = Vote.objects.create(
             created_by=self.user,
             content_type=self.content_type,
@@ -283,11 +279,7 @@ class UpvoteInteractionTaskTests(TestCase):
         self.assertFalse(interaction.is_synced_with_personalize)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.signals.vote_signals.create_upvote_interaction_task")
-    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
-    def test_create_upvote_interaction_task_handles_duplicate(
-        self, mock_sync_signal, mock_vote_signal
-    ):
+    def test_create_upvote_interaction_task_handles_duplicate(self):
         vote = Vote.objects.create(
             created_by=self.user,
             content_type=self.content_type,
