@@ -19,11 +19,11 @@ class StakingYieldServiceTest(TestCase):
     def _make_snapshot(self, **kwargs):
         defaults = {
             "accrual_date": STAKING_RELEASE_DATE,
-            "circulating_supply": Decimal("215052673"),
+            "circulating_supply": Decimal(215052673),
         }
         defaults.update(kwargs)
-        defaults.setdefault("total_staked", Decimal("0"))
-        defaults.setdefault("total_weighted_stake", Decimal("0"))
+        defaults.setdefault("total_staked", Decimal(0))
+        defaults.setdefault("total_weighted_stake", Decimal(0))
         snapshot, _ = StakingGlobalSnapshot.objects.update_or_create(
             pk=1, defaults=defaults
         )
@@ -32,10 +32,10 @@ class StakingYieldServiceTest(TestCase):
     def _make_snapshot_with_staking(self, **kwargs):
         """Helper that computes total_staked/total_weighted_stake from
         staked_pct and circulating_supply."""
-        circulating = kwargs.get("circulating_supply", Decimal("215052673"))
-        staked_pct = kwargs.pop("staked_pct", Decimal("10"))
-        avg_multiplier = kwargs.pop("avg_multiplier", Decimal("1"))
-        total_staked = circulating * staked_pct / Decimal("100")
+        circulating = kwargs.get("circulating_supply", Decimal(215052673))
+        staked_pct = kwargs.pop("staked_pct", Decimal(10))
+        avg_multiplier = kwargs.pop("avg_multiplier", Decimal(1))
+        total_staked = circulating * staked_pct / Decimal(100)
         total_weighted_stake = total_staked * avg_multiplier
         kwargs.setdefault("circulating_supply", circulating)
         kwargs["total_staked"] = total_staked
@@ -46,7 +46,7 @@ class StakingYieldServiceTest(TestCase):
         emission = StakingYieldService.compute_total_daily_emission(
             STAKING_RELEASE_DATE - timedelta(days=1)
         )
-        self.assertEqual(emission, Decimal("0"))
+        self.assertEqual(emission, Decimal(0))
 
     def test_daily_emission_decreases_over_time(self):
         day1 = StakingYieldService.compute_total_daily_emission(STAKING_RELEASE_DATE)
@@ -63,22 +63,22 @@ class StakingYieldServiceTest(TestCase):
         accrual = STAKING_RELEASE_DATE
         daily_emission = StakingYieldService.compute_total_daily_emission(accrual)
         daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
-            weighted_stake=Decimal("10000"),
-            total_weighted_stake=Decimal("100000"),
+            weighted_stake=Decimal(10000),
+            total_weighted_stake=Decimal(100000),
             accrual_date=accrual,
         )
-        expected = (daily_emission * Decimal("10000") / Decimal("100000")).quantize(
+        expected = (daily_emission * Decimal(10000) / Decimal(100000)).quantize(
             QUANTIZE_8, rounding=ROUND_DOWN
         )
         self.assertEqual(daily_yield, expected)
 
     def test_compute_daily_yield_from_pool_share_before_release(self):
         daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
-            weighted_stake=Decimal("10000"),
-            total_weighted_stake=Decimal("100000"),
+            weighted_stake=Decimal(10000),
+            total_weighted_stake=Decimal(100000),
             accrual_date=STAKING_RELEASE_DATE - timedelta(days=1),
         )
-        self.assertEqual(daily_yield, Decimal("0"))
+        self.assertEqual(daily_yield, Decimal(0))
 
     @patch(
         "reputation.services.staking_yield_service."
@@ -115,21 +115,21 @@ class StakingYieldServiceTest(TestCase):
 
     def test_compute_daily_yield_from_pool_share_zero_inputs(self):
         result = StakingYieldService.compute_daily_yield_from_pool_share(
-            weighted_stake=Decimal("0"),
-            total_weighted_stake=Decimal("100000"),
+            weighted_stake=Decimal(0),
+            total_weighted_stake=Decimal(100000),
             accrual_date=STAKING_RELEASE_DATE,
         )
-        self.assertEqual(result, Decimal("0"))
+        self.assertEqual(result, Decimal(0))
 
     def test_compute_daily_yield_from_pool_share_rounds_down(self):
         accrual = STAKING_RELEASE_DATE
         daily_emission = StakingYieldService.compute_total_daily_emission(accrual)
         daily_yield = StakingYieldService.compute_daily_yield_from_pool_share(
-            weighted_stake=Decimal("1"),
-            total_weighted_stake=Decimal("3"),
+            weighted_stake=Decimal(1),
+            total_weighted_stake=Decimal(3),
             accrual_date=accrual,
         )
-        expected = (daily_emission / Decimal("3")).quantize(
+        expected = (daily_emission / Decimal(3)).quantize(
             QUANTIZE_8, rounding=ROUND_DOWN
         )
         self.assertEqual(daily_yield, expected)
@@ -268,8 +268,8 @@ class StakingMultiplierCalculationTest(TestCase):
         multiplier_200 = Decimal("1.10000000")
         multiplier_40 = Decimal("1.05000000")
         expected_multiplier = (
-            (Decimal("100") * multiplier_200 + Decimal("50") * multiplier_40)
-            / Decimal("150")
+            (Decimal(100) * multiplier_200 + Decimal(50) * multiplier_40)
+            / Decimal(150)
         ).quantize(QUANTIZE_8, rounding=ROUND_DOWN)
 
         self.assertEqual(position.stake_amount, Decimal("150.00000000"))
@@ -283,7 +283,7 @@ class StakingMultiplierCalculationTest(TestCase):
 
     def test_compute_global_staking_multiplier(self):
         global_multiplier = StakingYieldService.compute_global_staking_multiplier(
-            total_staked=Decimal("150"),
+            total_staked=Decimal(150),
             total_weighted_stake=Decimal("157.50000000"),
         )
 
@@ -294,7 +294,7 @@ class StakingMultiplierCalculationTest(TestCase):
         "RscSupplyService.fetch_circulating_supply"
     )
     def test_create_daily_snapshots_applies_age_based_multiplier(self, mock_supply):
-        mock_supply.return_value = Decimal("220000000")
+        mock_supply.return_value = Decimal(220000000)
         self.user.is_staking_opted_in = True
         self.user.staking_opted_in_date = self._timestamp(days_before_accrual=400)
         self.user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
@@ -326,7 +326,7 @@ class StakingMultiplierCalculationTest(TestCase):
     def test_create_daily_snapshots_equal_multipliers_preserve_stake_share(
         self, mock_supply
     ):
-        mock_supply.return_value = Decimal("220000000")
+        mock_supply.return_value = Decimal(220000000)
         self.user.is_staking_opted_in = True
         self.user.staking_opted_in_date = self._timestamp(days_before_accrual=400)
         self.user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])

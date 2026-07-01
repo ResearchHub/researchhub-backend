@@ -143,7 +143,7 @@ class FundraiseEmailFieldsTests(TestCase):
 
     def test_populated_from_fundraise(self):
         fundraise = MagicMock()
-        fundraise.goal_amount = Decimal("5000")
+        fundraise.goal_amount = Decimal(5000)
         fundraise.get_amount_raised.return_value = 1200.0
         summary = MagicMock()
         summary.total = 7
@@ -161,7 +161,7 @@ class FundraiseEmailFieldsTests(TestCase):
 
     def test_contributor_count_empty_when_total_zero(self):
         fundraise = MagicMock()
-        fundraise.goal_amount = Decimal("100")
+        fundraise.goal_amount = Decimal(100)
         fundraise.get_amount_raised.return_value = 0.0
         summary = MagicMock()
         summary.total = 0

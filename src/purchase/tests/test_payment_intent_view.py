@@ -71,7 +71,7 @@ class PaymentIntentViewTest(APITestCase):
         # Verify the payment service was called correctly
         mock_payment_service.create_payment_intent.assert_called_once_with(
             user_id=self.user.id,
-            rsc_amount=Decimal("100"),
+            rsc_amount=Decimal(100),
             fundraise_id=None,
         )
 
@@ -130,7 +130,7 @@ class PaymentIntentViewTest(APITestCase):
         # Verify the payment service was called with fundraise_id
         mock_payment_service.create_payment_intent.assert_called_once_with(
             user_id=self.user.id,
-            rsc_amount=Decimal("100"),
+            rsc_amount=Decimal(100),
             fundraise_id=self.fundraise.id,
         )
 

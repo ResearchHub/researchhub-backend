@@ -289,28 +289,28 @@ class LeaderboardApiTests(APITestCase):
             leaderboard_type=Leaderboard.EARNER,
             period=Leaderboard.ALL_TIME,
             rank=1,
-            total_amount=Decimal("250"),
+            total_amount=Decimal(250),
         )
         Leaderboard.objects.create(
             user=self.funder1,
             leaderboard_type=Leaderboard.FUNDER,
             period=Leaderboard.ALL_TIME,
             rank=1,
-            total_amount=Decimal("650"),
+            total_amount=Decimal(650),
         )
         Leaderboard.objects.create(
             user=self.reviewer1,
             leaderboard_type=Leaderboard.EARNER,
             period=Leaderboard.SEVEN_DAYS,
             rank=1,
-            total_amount=Decimal("250"),
+            total_amount=Decimal(250),
         )
         Leaderboard.objects.create(
             user=self.funder1,
             leaderboard_type=Leaderboard.FUNDER,
             period=Leaderboard.THIRTY_DAYS,
             rank=1,
-            total_amount=Decimal("650"),
+            total_amount=Decimal(650),
         )
 
     def test_get_reviewers_leaderboard(self):
@@ -415,7 +415,7 @@ class LeaderboardApiTests(APITestCase):
         FundingActivity.objects.create(
             funder=self.bank,
             source_type=FundingActivity.FEE,
-            total_amount=Decimal("999"),
+            total_amount=Decimal(999),
             unified_document=self.paper.unified_document,
             activity_date=timezone.now(),
             source_content_type=ct_user,
@@ -438,14 +438,14 @@ class LeaderboardApiTests(APITestCase):
         fa = FundingActivity.objects.create(
             funder=self.funder1,
             source_type=FundingActivity.TIP_REVIEW,
-            total_amount=Decimal("500"),
+            total_amount=Decimal(500),
             unified_document=self.paper.unified_document,
             activity_date=timezone.now(),
             source_content_type=ct_user,
             source_object_id=8888,
         )
         FundingActivityRecipient.objects.create(
-            activity=fa, recipient_user=self.bank, amount=Decimal("500")
+            activity=fa, recipient_user=self.bank, amount=Decimal(500)
         )
         start_date = (timezone.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         end_date = (timezone.now() + timedelta(days=1)).strftime("%Y-%m-%d")

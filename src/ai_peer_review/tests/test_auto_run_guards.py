@@ -28,7 +28,7 @@ class AutoRunProposalReviewGuardsTests(TestCase):
         self.grant = Grant.objects.create(
             created_by=self.user,
             unified_document=self.ud,
-            amount=Decimal("10000"),
+            amount=Decimal(10000),
             description="Desc",
             status=Grant.OPEN,
         )
@@ -125,7 +125,7 @@ class AutoRunKeyInsightsGuardsTests(TestCase):
         self.grant = Grant.objects.create(
             created_by=self.user,
             unified_document=self.ud,
-            amount=Decimal("10000"),
+            amount=Decimal(10000),
             description="Desc",
             status=Grant.OPEN,
         )

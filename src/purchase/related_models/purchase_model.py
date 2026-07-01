@@ -41,7 +41,7 @@ class PurchaseQuerySet(models.QuerySet):
     def sum(self) -> Decimal:
         """Return sum of RSC amounts as Decimal."""
         return self.annotate(amt=Cast("amount", DECIMAL_FIELD)).aggregate(
-            total=Coalesce(Sum("amt"), Decimal("0"))
+            total=Coalesce(Sum("amt"), Decimal(0))
         )["total"]
 
 

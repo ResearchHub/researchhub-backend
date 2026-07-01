@@ -35,7 +35,7 @@ class TestFundingImpactService(TestCase):
         return Grant.objects.create(
             created_by=creator,
             unified_document=post.unified_document,
-            amount=Decimal("10000"),
+            amount=Decimal(10000),
             status=Grant.OPEN,
         )
 
@@ -46,7 +46,7 @@ class TestFundingImpactService(TestCase):
         fundraise = Fundraise.objects.create(
             created_by=creator,
             unified_document=post.unified_document,
-            goal_amount=Decimal("1000"),
+            goal_amount=Decimal(1000),
             goal_currency="USD",
         )
         GrantApplication.objects.create(

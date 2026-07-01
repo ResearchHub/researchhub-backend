@@ -785,7 +785,7 @@ class PaymentServiceTest(TestCase):
             # Act
             result = self.service.create_payment_intent(
                 user_id=self.user.id,
-                rsc_amount=Decimal("100"),
+                rsc_amount=Decimal(100),
                 fundraise_id=fundraise_id,
             )
 
@@ -813,7 +813,7 @@ class PaymentServiceTest(TestCase):
             # Act
             self.service.create_payment_intent(
                 user_id=self.user.id,
-                rsc_amount=Decimal("100"),
+                rsc_amount=Decimal(100),
                 fundraise_id=None,
             )
 

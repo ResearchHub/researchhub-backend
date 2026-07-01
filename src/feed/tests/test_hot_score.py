@@ -179,9 +179,9 @@ class TestHotScore(AWSMockTestCase):
     def test_bounty_calculation(self):
         """Test hot score calculation with various bounty amounts."""
         # Create bounties for the paper
-        self.create_bounty(Decimal("5"), self.paper)
-        self.create_bounty(Decimal("10"), self.paper)
-        self.create_bounty(Decimal("15"), self.paper)
+        self.create_bounty(Decimal(5), self.paper)
+        self.create_bounty(Decimal(10), self.paper)
+        self.create_bounty(Decimal(15), self.paper)
 
         # Refresh the paper content/metrics to include bounties
         paper_content_type = ContentType.objects.get_for_model(self.paper)

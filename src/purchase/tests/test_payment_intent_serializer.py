@@ -45,7 +45,7 @@ class PaymentIntentSerializerTest(TestCase):
 
         # Assert
         self.assertTrue(serializer.is_valid())
-        self.assertEqual(serializer.validated_data["amount"], Decimal("100"))
+        self.assertEqual(serializer.validated_data["amount"], Decimal(100))
 
     def test_amount_below_minimum(self):
         # Arrange
@@ -104,7 +104,7 @@ class PaymentIntentSerializerTest(TestCase):
 
         # Assert
         self.assertTrue(serializer.is_valid())
-        self.assertEqual(serializer.validated_data["amount"], Decimal("100"))
+        self.assertEqual(serializer.validated_data["amount"], Decimal(100))
         self.assertEqual(serializer.validated_data["fundraise_id"], self.fundraise.id)
 
     def test_fundraise_id_null_is_valid(self):

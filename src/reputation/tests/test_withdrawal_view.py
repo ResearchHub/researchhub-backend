@@ -266,7 +266,7 @@ class WithdrawalViewSetTests(APITestCase):
             token_address="0xtoken",
             from_address="0xfrom",
             to_address="0xabcdef1234567890abcdef1234567890abcdef12",
-            amount=decimal.Decimal("100"),
+            amount=decimal.Decimal(100),
             fee="10",
             paid_status="PENDING",
             transaction_hash="0x1234",
@@ -369,7 +369,7 @@ class WithdrawalViewSetTests(APITestCase):
         )
         self.assertEqual(
             user.get_locked_balance(),
-            WITHDRAWAL_MINIMUM + decimal.Decimal("100"),
+            WITHDRAWAL_MINIMUM + decimal.Decimal(100),
         )
 
     def test_withdrawal_does_not_consume_locked_balance(self):
@@ -440,14 +440,14 @@ class WithdrawalViewSetTests(APITestCase):
         response = self.client.get(self.transaction_fee_url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, decimal.Decimal("10"))
+        self.assertEqual(response.data, decimal.Decimal(10))
 
         # Test with BASE network
         response = self.client.get(f"{self.transaction_fee_url}?network=BASE")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
-            response.data, decimal.Decimal("10")
+            response.data, decimal.Decimal(10)
         )  # Same because we're mocking
 
     def test_check_withdrawal_time_limit_new_user(self):
@@ -537,7 +537,7 @@ class WithdrawalViewSetTests(APITestCase):
 
             # Verify the fee calculation
             self.assertEqual(
-                fee, decimal.Decimal("10")
+                fee, decimal.Decimal(10)
             )  # Based on our mock of eth_to_rsc
 
             # Verify the call to etherscan
@@ -561,7 +561,7 @@ class WithdrawalViewSetTests(APITestCase):
 
             # Verify the fee calculation
             self.assertEqual(
-                fee, decimal.Decimal("10")
+                fee, decimal.Decimal(10)
             )  # Based on our mock of eth_to_rsc
 
             # Verify the call to basescan
@@ -579,7 +579,7 @@ class WithdrawalViewSetTests(APITestCase):
         withdrawal = Withdrawal.objects.create(
             user=user,
             to_address="0xabcdef1234567890abcdef1234567890abcdef12",
-            amount=decimal.Decimal("100"),
+            amount=decimal.Decimal(100),
             paid_status="PAID",
         )
         withdrawal.created_date = timezone.now() - timedelta(
@@ -610,7 +610,7 @@ class WithdrawalViewSetTests(APITestCase):
         withdrawal = Withdrawal.objects.create(
             user=user,
             to_address="0xabcdef1234567890abcdef1234567890abcdef12",
-            amount=decimal.Decimal("100"),
+            amount=decimal.Decimal(100),
             paid_status="PAID",
         )
         withdrawal.created_date = timezone.now() - timedelta(days=15)  # 15 days ago
@@ -637,7 +637,7 @@ class WithdrawalViewSetTests(APITestCase):
         withdrawal = Withdrawal.objects.create(
             user=user,
             to_address="0xabcdef1234567890abcdef1234567890abcdef12",
-            amount=decimal.Decimal("100"),
+            amount=decimal.Decimal(100),
             paid_status="PAID",
         )
 
@@ -709,7 +709,7 @@ class WithdrawalViewSetTests(APITestCase):
             mock.patch.object(
                 WithdrawalViewSet,
                 "calculate_transaction_fee",
-                return_value=decimal.Decimal("700"),
+                return_value=decimal.Decimal(700),
             ),
             mock.patch.object(
                 WithdrawalViewSet,
@@ -764,7 +764,7 @@ class WithdrawalViewSetTests(APITestCase):
     def test_check_withdrawal_meets_minimum_success(self):
         """Test that _check_meets_withdrawal_minimum succeeds with sufficient amount."""
         # Set an amount above the minimum
-        amount = WITHDRAWAL_MINIMUM + decimal.Decimal("10")
+        amount = WITHDRAWAL_MINIMUM + decimal.Decimal(10)
 
         valid, message = self.withdrawal_view._check_meets_withdrawal_minimum(amount)
 
@@ -783,7 +783,7 @@ class WithdrawalViewSetTests(APITestCase):
     def test_check_withdrawal_meets_minimum_failure(self):
         """Test that _check_meets_withdrawal_minimum fails with insufficient amount."""
         # Set an amount below the minimum
-        amount = WITHDRAWAL_MINIMUM - decimal.Decimal("1")
+        amount = WITHDRAWAL_MINIMUM - decimal.Decimal(1)
 
         valid, message = self.withdrawal_view._check_meets_withdrawal_minimum(amount)
 
@@ -792,7 +792,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_check_withdrawal_meets_minimum_zero(self):
         """Test that _check_meets_withdrawal_minimum fails with zero amount."""
-        amount = decimal.Decimal("0")
+        amount = decimal.Decimal(0)
 
         valid, message = self.withdrawal_view._check_meets_withdrawal_minimum(amount)
 
@@ -818,8 +818,8 @@ class WithdrawalViewSetTests(APITestCase):
         user = create_random_authenticated_user("amount_user")
         create_deposit(user, amount="1000.0")
 
-        amount = decimal.Decimal("500")
-        fee = decimal.Decimal("10")
+        amount = decimal.Decimal(500)
+        fee = decimal.Decimal(10)
 
         valid, message, net_amount = self.withdrawal_view._check_withdrawal_amount(
             amount, fee, user
@@ -834,8 +834,8 @@ class WithdrawalViewSetTests(APITestCase):
         user = create_random_authenticated_user("amount_user")
         create_deposit(user, amount="1000.0")
 
-        amount = decimal.Decimal("500")
-        fee = decimal.Decimal("-10")  # Negative fee
+        amount = decimal.Decimal(500)
+        fee = decimal.Decimal(-10)  # Negative fee
 
         valid, message, net_amount = self.withdrawal_view._check_withdrawal_amount(
             amount, fee, user
@@ -850,8 +850,8 @@ class WithdrawalViewSetTests(APITestCase):
         user = create_random_authenticated_user("amount_user")
         create_deposit(user, amount="1000.0")
 
-        amount = decimal.Decimal("5")
-        fee = decimal.Decimal("10")  # Fee > amount
+        amount = decimal.Decimal(5)
+        fee = decimal.Decimal(10)  # Fee > amount
 
         valid, message, net_amount = self.withdrawal_view._check_withdrawal_amount(
             amount, fee, user
@@ -866,8 +866,8 @@ class WithdrawalViewSetTests(APITestCase):
         user = create_random_authenticated_user("amount_user")
         create_deposit(user, amount="100.0")
 
-        amount = decimal.Decimal("500")  # More than the user's balance
-        fee = decimal.Decimal("10")
+        amount = decimal.Decimal(500)  # More than the user's balance
+        fee = decimal.Decimal(10)
 
         valid, message, net_amount = self.withdrawal_view._check_withdrawal_amount(
             amount, fee, user

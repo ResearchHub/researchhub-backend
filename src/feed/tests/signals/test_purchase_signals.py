@@ -312,7 +312,7 @@ class TestPurchaseSignals(AWSMockTestCase):
         fundraise = fundraise_service.create_fundraise_with_escrow(
             user=self.user,
             unified_document=post.unified_document,
-            goal_amount=Decimal("1000"),
+            goal_amount=Decimal(1000),
             goal_currency="USD",
         )
 
@@ -386,7 +386,7 @@ class TestPurchaseSignals(AWSMockTestCase):
         fundraise = fundraise_service.create_fundraise_with_escrow(
             user=self.user,
             unified_document=post.unified_document,
-            goal_amount=Decimal("1000"),
+            goal_amount=Decimal(1000),
             goal_currency="USD",
         )
 
@@ -468,7 +468,7 @@ class TestPurchaseSignals(AWSMockTestCase):
         fundraise = fundraise_service.create_fundraise_with_escrow(
             user=self.user,
             unified_document=post.unified_document,
-            goal_amount=Decimal("1000"),
+            goal_amount=Decimal(1000),
             goal_currency="USD",
         )
 
