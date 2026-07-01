@@ -633,17 +633,21 @@ class Notification(models.Model):
         document = self.unified_document.get_document()
         doc_title = self._truncate_title(document.title)
         base_url = self._create_frontend_doc_link()
+        message = (
+            " is now in the ResearchHub Journal. Open it to create a "
+            "Registered Report."
+        )
+        if self.extra.get("is_private_proposal") == "True":
+            message = (
+                " is now in the ResearchHub Journal. When you are ready for it "
+                "to go public, you can create a Registered Report. Let us know and "
+                "we can help set you up."
+            )
 
         return [
             {"type": "text", "value": "Your funded proposal "},
             {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
-            {
-                "type": "text",
-                "value": (
-                    " is now in the ResearchHub Journal. Open it to create a "
-                    "Registered Report."
-                ),
-            },
+            {"type": "text", "value": message},
         ], base_url
 
     def _format_registered_report_created(self) -> tuple[list, str | None]:

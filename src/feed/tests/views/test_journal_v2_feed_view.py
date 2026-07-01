@@ -54,6 +54,29 @@ class JournalV2FeedViewSetTests(APITestCase):
         self.assertIn(proposal.id, post_ids)
         self.assertNotIn(excluded_proposal.id, post_ids)
 
+    def test_list_excludes_private_proposal_journeys(self) -> None:
+        """Verify the feed excludes journeys whose funded proposal is private."""
+        # Arrange
+        public_proposal = self.create_completed_proposal("Public proposal")
+        private_proposal = self.create_completed_proposal(
+            "Private proposal",
+            is_public=False,
+        )
+        private_report = self.create_registered_report(
+            private_proposal,
+            "Private proposal report",
+        )
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = self.get_response_post_ids(response.data)
+        self.assertIn(public_proposal.id, post_ids)
+        self.assertNotIn(private_proposal.id, post_ids)
+        self.assertNotIn(private_report.id, post_ids)
+
     def test_list_prefers_registered_reports(self) -> None:
         """Verify the feed shows the registered report when a journey has one."""
         # Arrange
@@ -289,6 +312,7 @@ class JournalV2FeedViewSetTests(APITestCase):
         include_in_journal: bool = True,
         amount_raised: Decimal = Decimal("0.00"),
         score: int = 0,
+        is_public: bool = True,
     ) -> ResearchhubPost:
         """Create an approved proposal with a completed fundraise and journey."""
         proposal = create_post(
@@ -296,6 +320,8 @@ class JournalV2FeedViewSetTests(APITestCase):
             document_type=PREREGISTRATION,
             title=title,
         )
+        proposal.unified_document.is_public = is_public
+        proposal.unified_document.save(update_fields=["is_public"])
         proposal.score = score
         proposal.save(update_fields=["score"])
         fundraise = Fundraise.objects.create(

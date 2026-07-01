@@ -23,6 +23,11 @@ logger = logging.getLogger(__name__)
 PROPOSAL_ENTERED_JOURNAL_EMAIL_SUBJECT = (
     "Your proposal is now in the ResearchHub Journal"
 )
+PRIVATE_PROPOSAL_REGISTERED_REPORT_CLAUSE = (
+    "\n\nYour proposal is currently private. When you are ready for it to go "
+    "public, you can create a Registered Report. Let us know and and we can "
+    "help set you up."
+)
 
 
 def build_proposal_entered_journal_email_context(
@@ -38,6 +43,8 @@ def build_proposal_entered_journal_email_context(
         f'Your funded proposal "{proposal_title}" is now in the ResearchHub Journal.'
         "\n\nThe next step is to create a Registered Report from your proposal."
     )
+    if not proposal.unified_document.is_public:
+        message += PRIVATE_PROPOSAL_REGISTERED_REPORT_CLAUSE
 
     return {
         **base_email_context,

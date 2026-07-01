@@ -173,6 +173,7 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
                 document_type__in=[PREREGISTRATION, REGISTERED_REPORT],
                 journey__is_in_journal=True,
                 journey_id__isnull=False,
+                journey__preregistration_post__unified_document__is_public=True,
             )
             .publicly_visible()
         )

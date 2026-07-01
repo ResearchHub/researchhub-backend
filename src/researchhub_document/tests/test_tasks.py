@@ -140,10 +140,31 @@ class SendProposalEnteredJournalEmailTests(TestCase):
             proposal.unified_document.frontend_view_link(),
         )
         self.assertIn(proposal.title, context["action"]["message"])
+        self.assertNotIn("ready for it to go public", context["action"]["message"])
         self.assertEqual(
             mock_send_email.call_args.kwargs["html_template"],
             "general_email_message.html",
         )
+
+    @patch("researchhub_document.tasks.send_email")
+    def test_sends_private_proposal_clause(
+        self, mock_send_email: Mock
+    ) -> None:
+        """Verify private proposal emails explain public setup for reports."""
+        # Arrange
+        proposal = self._create_proposal(is_public=False)
+        journey = self._create_journal_journey(proposal)
+        mock_send_email.return_value = {"success": [self.user.email], "failure": []}
+
+        # Act
+        result = send_proposal_entered_journal_email(journey.id)
+
+        # Assert
+        self.assertEqual(result, mock_send_email.return_value)
+        mock_send_email.assert_called_once()
+        context = mock_send_email.call_args[0][3]
+        self.assertIn("ready for it to go public", context["action"]["message"])
+        self.assertIn("set you up", context["action"]["message"])
 
     @patch("researchhub_document.tasks.send_email")
     def test_skips_email_for_missing_journey(self, mock_send_email: Mock) -> None:
@@ -177,13 +198,16 @@ class SendProposalEnteredJournalEmailTests(TestCase):
         self.assertIsNone(result)
         mock_send_email.assert_not_called()
 
-    def _create_proposal(self) -> ResearchhubPost:
+    def _create_proposal(self, is_public: bool = True) -> ResearchhubPost:
         """Create a preregistration post owned by the email recipient."""
-        return create_post(
+        proposal = create_post(
             title="Journal Email Proposal",
             created_by=self.user,
             document_type="PREREGISTRATION",
         )
+        proposal.unified_document.is_public = is_public
+        proposal.unified_document.save(update_fields=["is_public"])
+        return proposal
 
     def _create_journal_journey(self, proposal: ResearchhubPost) -> ResearchJourney:
         """Create an in-journal journey for the proposal."""
