@@ -494,6 +494,30 @@ class _ProposalDraftRunner:
         self.stopped_on_plateau = plateaued
         self._persist_round()
 
+        # Round-level trace: how the gate ruled and why the loop will (or won't)
+        # keep going -- the counterpart to the per-tool trace in the agent loop.
+        panel = report.get("panel") or {}
+        decision = (
+            "accepted"
+            if accepted
+            else "exhausted"
+            if exhausted
+            else "plateaued"
+            if plateaued
+            else "revising"
+        )
+        logger.info(
+            "submit round %d/%d: %s | panel overall=%s (best=%s, flat=%d) | "
+            "failing gates=[%s]",
+            self.rounds_used,
+            self.max_rounds,
+            decision,
+            panel.get("overall"),
+            self.best_overall,
+            self.rounds_since_improvement,
+            ", ".join(self._failing_gates(report)),
+        )
+
         # End the loop on a clean submit, when no rounds remain to revise, or
         # when the panel score has plateaued below the bar.
         self._submit_tool.is_terminal = accepted or exhausted or plateaued
@@ -606,6 +630,15 @@ class _ProposalDraftRunner:
             "gaps": gaps,
         }
         return accepted, report
+
+    @staticmethod
+    def _failing_gates(report: dict) -> list[str]:
+        """Names of the gates this round did not pass -- for the round trace."""
+        return [
+            name
+            for name in ("sections", "length", "citations", "scope", "panel")
+            if not (report.get(name) or {}).get("ok", True)
+        ]
 
     def _persist_round(self) -> None:
         """Write this round's outcome to the record as soon as the gates run.

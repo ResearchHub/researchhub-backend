@@ -24,6 +24,50 @@ from research_ai.services.agent.types import (
 
 logger = logging.getLogger(__name__)
 
+# Cap on how much of any single value the trace logs, so a large tool input
+# (e.g. a full proposal submission) or result never floods the log.
+_LOG_VALUE_LIMIT = 300
+
+
+def _truncate(text: str, limit: int = _LOG_VALUE_LIMIT) -> str:
+    """Collapse whitespace and cap ``text`` to ``limit`` chars for one-line logs."""
+    text = " ".join(str(text).split())
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+def _compact_args(args) -> str:
+    """One-line, length-capped view of a tool call's input for tracing.
+
+    Strings are truncated, and lists/dicts are shown by size/keys rather than
+    dumped, so the "what was called with" reads at a glance without logging a
+    whole proposal body or works list.
+    """
+    if not isinstance(args, dict):
+        return _truncate(repr(args))
+    parts = []
+    for key, value in args.items():
+        if isinstance(value, str):
+            shown = _truncate(value, 80)
+        elif isinstance(value, (list, tuple)):
+            shown = f"[{len(value)} items]"
+        elif isinstance(value, dict):
+            shown = "{" + ", ".join(map(str, value.keys())) + "}"
+        else:
+            shown = repr(value)
+        parts.append(f"{key}={shown}")
+    return _truncate(", ".join(parts))
+
+
+def _summarize_result(result) -> str:
+    """One-line summary of a tool result: error text, or the dict's shape."""
+    if isinstance(result, dict):
+        if "error" in result:
+            return f"error: {_truncate(result['error'], 120)}"
+        return "{" + ", ".join(map(str, result.keys())) + "}"
+    if isinstance(result, (list, tuple)):
+        return f"[{len(result)} items]"
+    return _truncate(repr(result))
+
 
 @dataclass
 class AgentResult:
@@ -90,6 +134,11 @@ class Agent:
         # ``on_event`` is an unused placeholder for the future streaming hook;
         # it is threaded toward ``complete`` but streaming is not implemented.
         rendered_tools = self.toolset.render_specs(self.provider)
+        logger.info(
+            "agent run start: tools=[%s] max_iterations=%d",
+            ", ".join(self.toolset.names),
+            self.max_iterations,
+        )
 
         for iteration in range(1, self.max_iterations + 1):
             turn = self.provider.complete(
@@ -106,8 +155,14 @@ class Agent:
                 )
             )
 
+            # The assistant's text on a tool-calling turn is its stated reason for
+            # the calls -- log it so the trace shows *why* a tool was picked.
+            if turn.text.strip():
+                logger.info("iter %d reasoning: %s", iteration, _truncate(turn.text))
+
             if not turn.tool_calls and turn.stop_reason == StopReason.END_TURN:
                 # Model answered in plain text without calling a tool: done.
+                logger.info("iter %d end_turn: agent answered in plain text", iteration)
                 return AgentResult(
                     messages=messages,
                     final_text=turn.text,
@@ -123,7 +178,17 @@ class Agent:
             result_blocks: list[ToolResultBlock] = []
             stop = False
             for call in turn.tool_calls:
+                logger.info(
+                    "iter %d -> %s(%s)", iteration, call.name, _compact_args(call.input)
+                )
                 result, tool_stop = self.toolset.dispatch(call.name, call.input)
+                logger.info(
+                    "iter %d <- %s: %s%s",
+                    iteration,
+                    call.name,
+                    _summarize_result(result),
+                    " [terminal]" if tool_stop else "",
+                )
                 stop = stop or tool_stop
                 result_blocks.append(
                     ToolResultBlock(
@@ -135,6 +200,7 @@ class Agent:
             messages.append(Message(role="user", content=result_blocks))
 
             if stop:
+                logger.info("iter %d stop_tool: terminal tool ended the run", iteration)
                 return AgentResult(
                     messages=messages,
                     final_text=turn.text,
@@ -142,4 +208,5 @@ class Agent:
                     iterations=iteration,
                 )
 
+        logger.info("agent hit iteration cap of %d", self.max_iterations)
         raise RuntimeError(f"Agent exceeded {self.max_iterations} iterations")
