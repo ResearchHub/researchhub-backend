@@ -177,15 +177,6 @@ class JourneyServiceTests(TestCase):
         journey = self.service.include_completed_fundraise_in_journal(fundraise)
 
         # Assert
-        # Temporarily disabled until the registered-report launch path is live.
-        self.assertFalse(
-            Notification.objects.filter(
-                notification_type=Notification.PROPOSAL_ENTERED_JOURNAL,
-                recipient=self.user,
-            ).exists()
-        )
-        return
-
         notification = Notification.objects.get(
             notification_type=Notification.PROPOSAL_ENTERED_JOURNAL,
             recipient=self.user,
@@ -286,10 +277,6 @@ class JourneyServiceTests(TestCase):
                 journey = service.include_completed_fundraise_in_journal(fundraise)
 
         # Assert
-        # Temporarily disabled until the registered-report launch path is live.
-        email_task.delay.assert_not_called()
-        return
-
         email_task.delay.assert_called_once_with(journey.id)
 
     def test_skip_duplicate_journal_entry_email(self) -> None:
