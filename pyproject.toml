@@ -88,6 +88,7 @@ extend-exclude = ["*/migrations/*"]
 extend-select = [
     "E",     # pycodestyle errors
     "I",     # isort
+    "N",     # pep8-naming
     "PERF",  # flake8-perf
     "S113",  # flake8-bandit: request-without-timeout
     "T20",   # flake8-print: forbid print statements
