@@ -44,7 +44,7 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
                 cache.set(cache_key, True, timeout=DEBOUNCE_PERIOD)
 
     @shared_task(ignore_result=True)
-    def registry_update_task(pk, app_label, model_name):
+    def registry_update_task(pk, app_label, model_name):  # noqa: N805
         try:
             model = apps.get_model(app_label, model_name)
             instance = model.objects.get(pk=pk)
@@ -61,7 +61,7 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
             )
 
     @shared_task(ignore_result=True)
-    def registry_update_related_task(pk, app_label, model_name):
+    def registry_update_related_task(pk, app_label, model_name):  # noqa: N805
         try:
             model = apps.get_model(app_label, model_name)
             instance = model.objects.get(pk=pk)
