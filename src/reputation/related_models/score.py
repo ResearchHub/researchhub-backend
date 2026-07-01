@@ -406,7 +406,8 @@ class ScoreChange(DefaultModel):
 
         return current_rep - prev_rep
 
-    def calculate_citation_score_v1(citation_count, bins):
+    @classmethod
+    def calculate_citation_score_v1(cls, citation_count, bins):
         rep = 0
         for key, val in bins.items():
             key_tuple = json.loads(key)
@@ -420,7 +421,8 @@ class ScoreChange(DefaultModel):
 
         return rep
 
-    def calculate_citation_score_v2(citation_count, bins, paper_work_type):
+    @classmethod
+    def calculate_citation_score_v2(cls, citation_count, bins, paper_work_type):
         rep = 0
         for key, val in bins.items():
             key_tuple = json.loads(key)
@@ -438,7 +440,8 @@ class ScoreChange(DefaultModel):
 
         return rep
 
-    def vote_change(vote, previous_score_change):
+    @classmethod
+    def vote_change(cls, vote, previous_score_change):
         vote_values = {
             Vote.UPVOTE: 1,
             Vote.DOWNVOTE: -1,
