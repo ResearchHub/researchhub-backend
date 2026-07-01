@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @app.task()
 def celery_create_comment_content_src(comment_id, comment_content):
-    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")
+    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")  # noqa: N806
 
     rh_comment = RhCommentModel.objects.get(id=comment_id)
     thread = rh_comment.thread
