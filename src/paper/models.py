@@ -9,7 +9,6 @@ from paper.related_models.paper_model import (
 from paper.related_models.paper_submission_model import PaperSubmission
 from paper.related_models.paper_version import (
     PaperSeries,
-    PaperSeriesDeclaration,
     PaperVersion,
 )
 
@@ -21,7 +20,6 @@ __all__ = [
     "Paper",
     "PaperFetchLog",
     "PaperSeries",
-    "PaperSeriesDeclaration",
     "PaperSubmission",
     "PaperVersion",
 ]

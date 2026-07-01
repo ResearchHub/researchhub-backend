@@ -43,7 +43,6 @@ from feed.views import (
 )
 from orcid.views import OrcidCallbackView, OrcidConnectView, OrcidFetchView
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
-from paper.views import paper_upload_views
 from purchase.views import (
     CircleWebhookView,
     DepositAddressView,
@@ -323,11 +322,6 @@ urlpatterns = [
         "api/asset/upload/",
         AssetUploadView.as_view(),
         name="asset_upload",
-    ),
-    path(
-        "paper/upload/",
-        paper_upload_views.PaperUploadView.as_view(),
-        name="paper_upload",
     ),
     path("robots.txt", researchhub.views.robots_txt, name="robots_txt"),
     #

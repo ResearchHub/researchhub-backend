@@ -257,15 +257,6 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
                 "url": res.data.get("url"),
             },
         },
-        # ResearchHub paper creation
-        "paper_create_researchhub_paper": {
-            "activity_type": UserActivityTypes.JOURNAL_SUBMISSION,
-            "properties": lambda: {
-                "submission_id": res.data.get("id"),
-                "paper_status": "researchhub_paper",
-                "title": res.data.get("title"),
-            },
-        },
         # Fundraise contributions
         "fundraise_create_contribution": {
             "activity_type": UserActivityTypes.FUND,
