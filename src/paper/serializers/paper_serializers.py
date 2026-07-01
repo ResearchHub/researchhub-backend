@@ -357,16 +357,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         return []
 
 
-class ContributionPaperSerializer(BasePaperSerializer):
-    uploaded_by = None
-    discussion = None
-    first_figure = None
-    first_preview = None
-    bullet_points = None
-    summary = None
-    discussion_users = None
-
-
 class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixin):
     authors = serializers.SerializerMethodField()
     uploaded_date = serializers.ReadOnlyField()
