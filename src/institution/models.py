@@ -121,7 +121,8 @@ class Institution(DefaultModel):
         null=True,
     )
 
-    def upsert_from_openalex(self, oa_institution):
+    @classmethod
+    def upsert_from_openalex(cls, oa_institution):
         has_dates = oa_institution.get("updated_date") and oa_institution.get(
             "created_date"
         )

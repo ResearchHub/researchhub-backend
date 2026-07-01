@@ -128,7 +128,8 @@ class Topic(DefaultModel):
         null=True,
     )
 
-    def upsert_from_openalex(self, oa_topic):
+    @staticmethod
+    def upsert_from_openalex(oa_topic):
         has_dates = oa_topic.get("updated_date") and oa_topic.get("created_date")
 
         # Normalize created, updated dates to format that is compatible with django
@@ -218,11 +219,12 @@ class Topic(DefaultModel):
                 pass
 
             if not hub:
-                hub, created = Hub.objects.create(
+                hub = Hub.objects.create(
                     name=subfield.display_name,
                     subfield=subfield,
                     is_used_for_rep=True,
                 )
+                created = True
 
             if created:
                 logger.info(
