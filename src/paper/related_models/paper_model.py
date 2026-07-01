@@ -429,6 +429,33 @@ class Paper(AbstractGenericReactionModel):
                 self.save()
         return metadata, converted
 
+    def get_image_url(self):
+        try:
+            primary_figure = self.figures.filter(is_primary=True).first()
+            if primary_figure and primary_figure.file:
+                return primary_figure.file.url
+        except Exception:
+            pass
+
+        if not self.unified_document:
+            return None
+
+        journal_hub = self.unified_document.get_journal()
+        if journal_hub and journal_hub.hub_image:
+            try:
+                return journal_hub.hub_image.url
+            except Exception:
+                pass
+
+        primary_hub = self.unified_document.get_primary_hub()
+        if primary_hub and primary_hub.hub_image:
+            try:
+                return primary_hub.hub_image.url
+            except Exception:
+                pass
+
+        return None
+
     def compress_and_linearize_file(self):
         file = self.file
         if not file:

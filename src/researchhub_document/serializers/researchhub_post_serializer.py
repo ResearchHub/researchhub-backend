@@ -1,6 +1,5 @@
 import logging
 
-from django.core.files.storage import default_storage
 from django.db.models import Count
 from rest_framework.serializers import CharField, ModelSerializer, SerializerMethodField
 
@@ -145,10 +144,7 @@ class ResearchhubPostSerializer(
         return UserSerializer(instance.created_by, read_only=True).data
 
     def get_image_url(self, instance):
-        if not instance.image:
-            return None
-
-        return default_storage.url(instance.image)
+        return instance.get_image_url()
 
     def get_is_removed(self, instance):
         unified_document = instance.unified_document
@@ -309,9 +305,7 @@ class ResearchhubPostSerializer(
 
     @staticmethod
     def _get_grant_image(grant_post):
-        if grant_post and grant_post.image:
-            return default_storage.url(grant_post.image)
-        return None
+        return grant_post.get_image_url() if grant_post else None
 
     def get_peer_reviews(self, instance):
         from review.models import Review
@@ -564,7 +558,4 @@ class DynamicPostSerializer(
             return None
 
     def get_image_url(self, post):
-        if not post.image:
-            return None
-
-        return default_storage.url(post.image)
+        return post.get_image_url()

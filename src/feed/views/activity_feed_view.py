@@ -1,12 +1,13 @@
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.db.models import Count, Exists, OuterRef, Prefetch, Q
 from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
-from feed.serializers import FeedEntrySerializer
+from feed.serializers import ActivityFeedEntrySerializer
 from feed.views.common import FeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
 from paper.related_models.paper_model import Paper
+from purchase.models import Fundraise
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
@@ -21,6 +22,9 @@ from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     hidden_comment_ids,
 )
+from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
 
 
@@ -33,8 +37,9 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
       - scope: "grants" returns all activity across every grant and
         every preregistration that applied to any grant.
         "peer_reviews" returns only peer review comments.
-        "financial" returns only fundraise contribution activity
-        across RSC and USD contributions.
+        "financial" returns fundraise contribution activity
+        (RSC and USD contributions), approved grant post
+        feed entries, bounty payouts, and review tips.
       - document_type: PREREGISTRATION, GRANT, etc.
       - grant_id: all activity on a grant and its applied preregistrations
       - funder_id: all activity on OPEN/COMPLETED grants where this user is
@@ -46,7 +51,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     returns only comments across all grant-related documents.
     """
 
-    serializer_class = FeedEntrySerializer
+    serializer_class = ActivityFeedEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
     http_method_names = ["get", "head", "options"]
@@ -65,13 +70,38 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         return response
 
     def get_queryset(self):
-        queryset = FeedEntry.objects.select_related(
-            "content_type",
-            "unified_document",
-            "user",
-            "user__author_profile",
-            "user__userverification",
-        ).order_by("-action_date")
+        queryset = (
+            FeedEntry.objects.select_related(
+                "content_type",
+                "unified_document",
+                "user",
+                "user__author_profile",
+                "user__userverification",
+                "unified_document__paper__uploaded_by__author_profile",
+            )
+            .prefetch_related(
+                Prefetch(
+                    "unified_document__posts",
+                    queryset=ResearchhubPost.objects.select_related(
+                        "created_by__author_profile"
+                    ),
+                ),
+                Prefetch(
+                    "unified_document__grants",
+                    queryset=Grant.objects.annotate(
+                        num_applicants=Count("applications", distinct=True),
+                    ),
+                ),
+                Prefetch(
+                    "unified_document__fundraises",
+                    queryset=Fundraise.objects.select_related(
+                        "created_by__author_profile"
+                    ),
+                ),
+                "unified_document__paper__authors",
+            )
+            .order_by("-action_date")
+        )
 
         # Exclude paper publications
         paper_ct = ContentType.objects.get_for_model(Paper)
@@ -206,15 +236,25 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     @staticmethod
     def _filter_financial_activities(queryset):
         """
-        Return feed entries for fundraise contributions.
+        Return feed entries for fundraise contributions, grant post
+        publications, bounty payouts, and review tips.
         """
         purchase_type = ContentType.objects.get_for_model(Purchase)
         usd_contribution_type = ContentType.objects.get_for_model(
             UsdFundraiseContribution
         )
+        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
+        fa_ct = ContentType.objects.get_for_model(FundingActivity)
         contribution_purchase_ids = Purchase.objects.filter(
             purchase_type=Purchase.FUNDRAISE_CONTRIBUTION
         ).values_list("id", flat=True)
+        financial_funding_activity = FundingActivity.objects.filter(
+            id=OuterRef("object_id"),
+            source_type__in=[
+                FundingActivity.BOUNTY_PAYOUT,
+                FundingActivity.TIP_REVIEW,
+            ],
+        )
 
         return queryset.filter(
             Q(
@@ -222,6 +262,11 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
                 object_id__in=contribution_purchase_ids,
             )
             | Q(content_type=usd_contribution_type)
+            | Q(
+                content_type=post_ct,
+                unified_document__document_type=GRANT,
+            )
+            | (Q(content_type=fa_ct) & Q(Exists(financial_funding_activity)))
         )
 
     @staticmethod

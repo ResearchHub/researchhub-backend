@@ -2,6 +2,7 @@ import logging
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
+from django.core.files.storage import default_storage
 from django.db import models
 from django.db.models import Exists, IntegerField, OuterRef, Q, Sum
 from django.db.models.functions import Cast
@@ -261,6 +262,11 @@ class ResearchhubPost(AbstractGenericReactionModel):
             return "question"
 
         return "post"
+
+    def get_image_url(self):
+        if not self.image:
+            return None
+        return default_storage.url(self.image)
 
     def get_promoted_score(self):
         purchases = self.purchases.filter(

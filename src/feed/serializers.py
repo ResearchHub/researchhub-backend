@@ -2,17 +2,19 @@ import logging
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
-from django.core.files.storage import default_storage
 from rest_framework import serializers
 
 from hub.models import Hub
 from paper.models import Paper
+from purchase.related_models.constants.currency import RSC, USD
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers import DynamicPurchaseSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
+    PAPER,
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -76,6 +78,37 @@ class SimpleAuthorSerializer(serializers.ModelSerializer):
             "headline",
             "user",
         ]
+
+
+def _grant_amount(grant):
+    usd_amount = float(grant.amount)
+    try:
+        rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
+    except Exception:
+        rsc_amount = None
+    return {"usd": usd_amount, "rsc": rsc_amount}
+
+
+class SlimAuthorSerializer(serializers.ModelSerializer):
+    """Minimal author payload without nested user."""
+
+    profile_image = serializers.SerializerMethodField()
+
+    def get_profile_image(self, obj):
+        try:
+            if (
+                hasattr(obj, "profile_image")
+                and obj.profile_image.name
+                and obj.profile_image.url
+            ):
+                return obj.profile_image.url
+        except Exception:
+            pass
+        return None
+
+    class Meta:
+        model = Author
+        fields = ["id", "first_name", "last_name", "profile_image", "headline"]
 
 
 class SimpleHubSerializer(serializers.ModelSerializer):
@@ -295,10 +328,7 @@ class PostSerializer(ContentObjectSerializer):
         return self.get_purchase_data(obj)
 
     def get_image_url(self, obj):
-        if not obj.image:
-            return None
-
-        return default_storage.url(obj.image)
+        return obj.get_image_url()
 
     def get_renderable_text(self, obj):
         text = obj.renderable_text[:255]
@@ -613,6 +643,43 @@ class FundraiseContributionContentSerializer(serializers.Serializer):
         return None
 
 
+class FundingActivityRecipientSerializer(serializers.Serializer):
+    recipient_user = serializers.SerializerMethodField()
+    amount = serializers.DecimalField(max_digits=19, decimal_places=8)
+    amount_usd_cents = serializers.IntegerField()
+
+    def get_recipient_user(self, obj):
+        user = obj.recipient_user
+        if user and hasattr(user, "author_profile") and user.author_profile:
+            return SimpleAuthorSerializer(user.author_profile).data
+        return None
+
+
+class FundingActivityContentSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    source_type = serializers.CharField()
+    total_amount = serializers.DecimalField(max_digits=19, decimal_places=8)
+    total_usd_cents = serializers.IntegerField()
+    activity_date = serializers.DateTimeField()
+    funder = serializers.SerializerMethodField()
+    recipients = serializers.SerializerMethodField()
+
+    def get_funder(self, obj):
+        if (
+            obj.funder
+            and hasattr(obj.funder, "author_profile")
+            and obj.funder.author_profile
+        ):
+            return SimpleAuthorSerializer(obj.funder.author_profile).data
+        return None
+
+    def get_recipients(self, obj):
+        recipients = obj.recipients.select_related(
+            "recipient_user__author_profile"
+        ).all()
+        return FundingActivityRecipientSerializer(recipients, many=True).data
+
+
 class CommentSerializer(serializers.Serializer):
     author = serializers.SerializerMethodField()
     comment_content_json = serializers.JSONField()
@@ -911,6 +978,182 @@ class FeedEntrySerializer(serializers.ModelSerializer):
         return self.context.get("recommendation_id")
 
 
+class RelatedWorkSerializer(serializers.Serializer):
+    """Slim unified-document payload for activity feed related_work."""
+
+    document_type = serializers.CharField()
+    unified_document_id = serializers.IntegerField(source="id")
+    id = serializers.SerializerMethodField()
+    slug = serializers.SerializerMethodField()
+    title = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
+    created_date = serializers.SerializerMethodField()
+    created_by = serializers.SerializerMethodField()
+    authors = serializers.SerializerMethodField()
+    grant = serializers.SerializerMethodField()
+    fundraise = serializers.SerializerMethodField()
+
+    _OPTIONAL_FIELDS = ("authors", "grant", "fundraise")
+
+    @staticmethod
+    def _first_prefetched(relation):
+        items = list(relation.all())
+        return items[0] if items else None
+
+    def _get_content(self, unified_document):
+        if unified_document.document_type == PAPER:
+            return getattr(unified_document, "paper", None)
+        if hasattr(unified_document, "posts"):
+            return self._first_prefetched(unified_document.posts)
+        return None
+
+    def get_id(self, unified_document):
+        content = self._get_content(unified_document)
+        return content.id if content else None
+
+    def get_slug(self, unified_document):
+        content = self._get_content(unified_document)
+        if not content:
+            return None
+        if unified_document.document_type == PAPER:
+            return content.slug or None
+        return content.slug
+
+    def get_title(self, unified_document):
+        content = self._get_content(unified_document)
+        if not content:
+            return None
+        if unified_document.document_type == PAPER:
+            return content.title or content.paper_title
+        return content.title
+
+    def get_image_url(self, unified_document):
+        content = self._get_content(unified_document)
+        return content.get_image_url() if content else None
+
+    def get_created_date(self, unified_document):
+        content = self._get_content(unified_document)
+        return content.created_date if content else None
+
+    def get_created_by(self, unified_document):
+        content = self._get_content(unified_document)
+        if not content:
+            return None
+
+        if unified_document.document_type == PAPER:
+            uploaded_by = content.uploaded_by
+            author_profile = (
+                getattr(uploaded_by, "author_profile", None) if uploaded_by else None
+            )
+        else:
+            author_profile = None
+            if content.created_by:
+                author_profile = getattr(content.created_by, "author_profile", None)
+
+        if not author_profile:
+            return None
+
+        return SlimAuthorSerializer(author_profile).data
+
+    def get_authors(self, unified_document):
+        if unified_document.document_type != PAPER:
+            return None
+
+        paper = getattr(unified_document, "paper", None)
+        if not paper:
+            return None
+
+        authors = paper.authors.all()
+        if not authors:
+            return None
+
+        return SimpleAuthorSerializer(authors, many=True).data
+
+    def get_grant(self, unified_document):
+        if unified_document.document_type != GRANT:
+            return None
+        if not hasattr(unified_document, "grants"):
+            return None
+
+        grant = self._first_prefetched(unified_document.grants)
+        if not grant:
+            return None
+
+        num_applicants = getattr(grant, "num_applicants", None)
+        if num_applicants is None:
+            num_applicants = grant.applications.count()
+
+        return {
+            "status": grant.status,
+            "amount": _grant_amount(grant),
+            "organization": grant.organization,
+            "application_count": num_applicants,
+        }
+
+    def get_fundraise(self, unified_document):
+        if unified_document.document_type != PREREGISTRATION:
+            return None
+        if not hasattr(unified_document, "fundraises"):
+            return None
+
+        fundraise = self._first_prefetched(unified_document.fundraises)
+        if not fundraise:
+            return None
+
+        usd_goal = float(fundraise.goal_amount)
+        try:
+            rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
+        except AttributeError:
+            rsc_goal = None
+
+        return {
+            "status": fundraise.status,
+            "goal_amount": {"usd": usd_goal, "rsc": rsc_goal},
+            "amount_raised": {
+                "usd": fundraise.get_amount_raised(currency=USD),
+                "rsc": fundraise.get_amount_raised(currency=RSC),
+            },
+            "start_date": fundraise.start_date,
+            "end_date": fundraise.end_date,
+        }
+
+    def to_representation(self, unified_document):
+        if self._get_content(unified_document) is None:
+            return None
+
+        data = super().to_representation(unified_document)
+        for field in self._OPTIONAL_FIELDS:
+            if data.get(field) is None:
+                data.pop(field, None)
+        return data
+
+    @classmethod
+    def serialize(cls, unified_document, context=None):
+        if unified_document is None:
+            return None
+
+        if context is not None:
+            cache = context.setdefault("related_work_cache", {})
+            cache_key = unified_document.id
+            if cache_key in cache:
+                return cache[cache_key]
+            result = cls(context=context).to_representation(unified_document)
+            cache[cache_key] = result
+            return result
+
+        return cls(context=context or {}).to_representation(unified_document)
+
+
+class ActivityFeedEntrySerializer(FeedEntrySerializer):
+    related_work = serializers.SerializerMethodField()
+
+    class Meta(FeedEntrySerializer.Meta):
+        fields = FeedEntrySerializer.Meta.fields + ["related_work"]
+
+    def get_related_work(self, obj):
+        return RelatedWorkSerializer.serialize(obj.unified_document, self.context)
+
+
 def serialize_feed_metrics(item, item_content_type):
     """
     Serialize metrics for a feed item based on its content type.
@@ -962,6 +1205,8 @@ def serialize_feed_item(feed_item, item_content_type):
             return CommentSerializer(feed_item).data
         case "purchase" | "usdfundraisecontribution":
             return FundraiseContributionContentSerializer(feed_item).data
+        case "fundingactivity":
+            return FundingActivityContentSerializer(feed_item).data
         case _:
             return None
 
@@ -1030,9 +1275,7 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
     @staticmethod
     def _get_grant_image(grant):
         post = grant.unified_document.posts.first()
-        if post and post.image:
-            return default_storage.url(post.image)
-        return None
+        return post.get_image_url() if post else None
 
 
 class GrantFeedEntrySerializer(FeedEntrySerializer):
@@ -1117,7 +1360,7 @@ class ModeratorFeedEntrySerializer(FeedEntrySerializer):
             "title": post.title,
             "slug": post.slug,
             "type": post.document_type,
-            "image_url": default_storage.url(post.image) if post.image else None,
+            "image_url": post.get_image_url(),
             "renderable_text": renderable_text,
             "unified_document_id": post.unified_document_id,
         }
