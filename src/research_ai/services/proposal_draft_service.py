@@ -353,6 +353,14 @@ class _ProposalDraftRunner:
         self.rounds_since_improvement = 0
         self.stopped_on_plateau = False
 
+        # Snapshot of the highest-scoring round so a FAILED run persists the best
+        # draft the agent reached, not merely the last -- a plateau can stop the
+        # loop on a round that regressed below an earlier peak.
+        self.best_submission: dict | None = None
+        self.best_gate_report: dict = {}
+        self.best_scores: dict = {}
+        self.best_round: int | None = None
+
     # -- public entry -----------------------------------------------------
 
     def run(self) -> dict:
@@ -525,8 +533,20 @@ class _ProposalDraftRunner:
         if self.best_overall is None or overall > self.best_overall:
             self.best_overall = overall
             self.rounds_since_improvement = 0
+            self._capture_best(report)
         else:
             self.rounds_since_improvement += 1
+
+    def _capture_best(self, report: dict) -> None:
+        """Snapshot the current round as the best-so-far submission.
+
+        Called only when this round set a new ``best_overall``. Each round builds
+        fresh ``submitted``/``report``/``final_scores`` dicts, so storing
+        references (not copies) is safe -- they are never mutated in place."""
+        self.best_submission = self.submitted
+        self.best_gate_report = report
+        self.best_scores = self.final_scores
+        self.best_round = self.rounds_used
 
     def _panel_plateaued(self, report: dict) -> bool:
         """The panel is the blocker and its overall has stopped improving."""
@@ -792,13 +812,23 @@ class _ProposalDraftRunner:
 
     def _fail(self) -> dict:
         message = self._failure_message()
-        self.draft.final_scores = self.final_scores
-        self.draft.gate_report = self.last_gate_report
         self.draft.rounds_used = self.rounds_used
         # Persist the rejected draft so a failed run is still inspectable: a
         # FAILED run never writes a Note, so this is the only place its content
-        # survives. ``{}`` when the agent never submitted.
-        self.draft.last_submission = self.submitted or {}
+        # survives. Keep the BEST-scoring round, not merely the last -- a plateau
+        # can stop the loop on a round that regressed below an earlier peak. The
+        # gate report and scores are kept from the same round so the persisted
+        # draft and its evaluation stay consistent. Fall back to the last
+        # submission (``{}`` when the agent never submitted) if no round produced
+        # a scored panel to rank.
+        if self.best_submission is not None:
+            self.draft.last_submission = self.best_submission
+            self.draft.gate_report = self.best_gate_report
+            self.draft.final_scores = self.best_scores
+        else:
+            self.draft.last_submission = self.submitted or {}
+            self.draft.gate_report = self.last_gate_report
+            self.draft.final_scores = self.final_scores
         self.draft.status = ProposalDraft.Status.FAILED
         self.draft.error_message = message
         self.draft.save()
@@ -806,7 +836,7 @@ class _ProposalDraftRunner:
             "status": ProposalDraft.Status.FAILED,
             "proposal_draft_id": self.draft.id,
             "rounds_used": self.rounds_used,
-            "gate_report": self.last_gate_report,
+            "gate_report": self.draft.gate_report,
             "last_submission": self.draft.last_submission,
             "error_message": message,
         }

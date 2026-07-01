@@ -133,6 +133,32 @@ class _AlwaysSubmitProvider:
         )
 
 
+class _SequenceSubmitProvider:
+    """Submits a distinct payload per round (the last payload repeats)."""
+
+    def __init__(self, payloads):
+        self._payloads = list(payloads)
+        self.call_count = 0
+
+    def render_tools(self, _tools):
+        return {"tools": []}
+
+    def complete(self, **_kwargs):
+        payload = self._payloads[min(self.call_count, len(self._payloads) - 1)]
+        self.call_count += 1
+        return AssistantTurn(
+            text_blocks=[],
+            tool_calls=[
+                ToolUseBlock(
+                    id=f"submit-{self.call_count}",
+                    name="submit_proposal",
+                    input=payload,
+                )
+            ],
+            stop_reason=StopReason.TOOL_USE,
+        )
+
+
 def _submit_turn(payload):
     return AssistantTurn(
         text_blocks=[],
@@ -498,6 +524,44 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
         self.assertEqual(provider.call_count, 6)
         self.assertIn("plateau", result["error_message"])
+
+    # -- a failed run persists the best draft, not the last ----------------
+
+    @override_settings(
+        RESEARCH_AI_PROPOSAL_MAX_ROUNDS=8,
+        RESEARCH_AI_PROPOSAL_PLATEAU_PATIENCE=3,
+    )
+    def test_failed_run_persists_best_scoring_draft_not_last(self):
+        # Arrange: round 1 scores the peak (4), then the score regresses to 3 and
+        # flatlines, so the plateau guard stops the loop on a round whose draft is
+        # worse than the peak. Each round submits a differently-titled payload so
+        # the persisted draft is identifiable.
+        peak = _clean_payload()
+        peak["sections"]["title"] = "Peak Draft"
+        regressed = _clean_payload()
+        regressed["sections"]["title"] = "Regressed Draft"
+        provider = _SequenceSubmitProvider([peak, regressed])
+        panel = _SequencePanel([4, 3])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+        )
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+
+        # Assert: plateau-stopped after the regression, but the persisted draft,
+        # gate report, and scores are the round-1 peak -- not the worse final
+        # round -- and the result dict mirrors what was persisted.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertIn("plateau", result["error_message"])
+        self.assertEqual(draft.last_submission["sections"]["title"], "Peak Draft")
+        self.assertEqual(draft.gate_report["panel"]["overall"], 4)
+        self.assertEqual(draft.final_scores["overall"], 4)
+        self.assertEqual(result["last_submission"], draft.last_submission)
+        self.assertEqual(result["gate_report"], draft.gate_report)
 
     # -- hitting the core iteration cap is a distinct, recorded failure ---
 
