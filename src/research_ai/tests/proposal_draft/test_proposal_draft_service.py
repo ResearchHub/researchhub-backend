@@ -62,6 +62,28 @@ class _FakePanel:
         return "A"
 
 
+class _SequencePanel:
+    """Panel whose overall walks a fixed sequence (the last value repeats)."""
+
+    def __init__(self, overalls, gaps=None):
+        self.model_ids = ["fake-judge"]
+        self._overalls = list(overalls)
+        self._gaps = gaps or ["raise overall quality"]
+        self.calls = 0
+
+    def score(self, _proposal, *, context=None):
+        overall = self._overalls[min(self.calls, len(self._overalls) - 1)]
+        self.calls += 1
+        return {
+            "scores": {c: overall for c in _CRITERIA},
+            "overall": overall,
+            "gaps": self._gaps,
+        }
+
+    def pairwise(self, _a, _b, *, context=None):
+        return "A"
+
+
 class _ScriptedProvider:
     """Returns queued ``AssistantTurn``s, then ends the turn in plain text."""
 
@@ -392,4 +414,105 @@ class ProposalDraftServiceTests(TestCase):
         self.assertIn("did not submit", result["error_message"])
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
         self.assertEqual(draft.last_submission, {})
+
+    # -- a flat panel score below the bar stops the loop early ------------
+
+    @override_settings(
+        RESEARCH_AI_PROPOSAL_MAX_ROUNDS=8,
+        RESEARCH_AI_PROPOSAL_PLATEAU_PATIENCE=3,
+    )
+    def test_panel_plateau_stops_early_before_round_budget(self):
+        # Arrange: every submit scores a constant 2 (below the bar) -- no round
+        # improves on the first, so the plateau guard, not the 8-round budget,
+        # ends the run.
+        provider = _AlwaysSubmitProvider(_clean_payload())
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=2),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: stopped at round 4 (round 1 sets the best, then patience=3
+        # flat rounds), well short of the 8-round budget, with the plateau named
+        # in the failure message.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertEqual(provider.call_count, 4)
+        self.assertIn("plateau", result["error_message"])
+        self.assertEqual(Note.objects.count(), 0)
+
+    # -- an improving panel resets the plateau counter, run keeps going ---
+
+    @override_settings(
+        RESEARCH_AI_PROPOSAL_MAX_ROUNDS=10,
+        RESEARCH_AI_PROPOSAL_PLATEAU_PATIENCE=3,
+    )
+    def test_improving_panel_is_not_cut_short_by_plateau(self):
+        # Arrange: the score climbs 2 -> 3 -> 4 then flatlines. The early gains
+        # reset the counter, so the run runs past round 4 and only plateaus once
+        # the score has been flat for three rounds (rounds 4, 5, 6).
+        provider = _AlwaysSubmitProvider(_clean_payload())
+        panel = _SequencePanel([2, 3, 4])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: it did not stop at round 4; the early gains reset the counter
+        # so it ran to round 6, then plateaued.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertEqual(provider.call_count, 6)
+        self.assertIn("plateau", result["error_message"])
+
+    # -- hitting the core iteration cap is a distinct, recorded failure ---
+
+    @override_settings(
+        RESEARCH_AI_PROPOSAL_MAX_ROUNDS=10,
+        RESEARCH_AI_PROPOSAL_MAX_ITERATIONS=3,
+        RESEARCH_AI_PROPOSAL_PLATEAU_PATIENCE=5,
+    )
+    def test_iteration_cap_failure_is_distinct_and_recorded(self):
+        # Arrange: submits forever against a failing panel, but the iteration cap
+        # (3) bites before the round budget (10) or the plateau patience (5).
+        provider = _AlwaysSubmitProvider(_clean_payload())
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=2),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: the failure names the iteration cap (not the generic message).
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertIn("iteration cap", result["error_message"])
+        self.assertIn("3-iteration", result["error_message"])
+
+    # -- a plain-text give-up gets its own distinct failure message -------
+
+    def test_giveup_failure_records_distinct_message(self):
+        # Arrange: one below-bar submit, then the model answers in plain text
+        # (gives up) rather than submitting again.
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=2),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: distinct "ended without an accepted proposal" message (not an
+        # iteration cap or plateau).
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertIn("ended without an accepted proposal", result["error_message"])
+        self.assertNotIn("plateau", result["error_message"])
         self.assertEqual(Note.objects.count(), 0)
