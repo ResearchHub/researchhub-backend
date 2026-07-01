@@ -192,8 +192,8 @@ class JourneyService:
         if update_fields:
             journey.save(update_fields=update_fields)
         if should_notify_author:
-            self.notify_author_about_journal_entry(journey)
-            self.send_author_journal_entry_email(journey)
+            logger.debug("Proposal entered journal notification is temporarily disabled.")
+            # self.notify_author_about_journal_entry(journey)
 
         return journey
 
