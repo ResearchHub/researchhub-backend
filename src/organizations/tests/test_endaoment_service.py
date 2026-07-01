@@ -5,7 +5,7 @@ from requests.exceptions import HTTPError, RequestException
 
 from organizations.services.endaoment_service import (
     UNKNOWN_NONPROFIT_NAME,
-    EndaomentOrgNotFound,
+    EndaomentOrgNotFoundError,
     EndaomentService,
     base_wallet_from_org,
     nonprofit_fields_from_org,
@@ -198,7 +198,7 @@ class EndaomentServiceTests(TestCase):
         mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
 
-        with self.assertRaises(EndaomentOrgNotFound):
+        with self.assertRaises(EndaomentOrgNotFoundError):
             self.service.verify_nonprofit_org(
                 "844661797",
                 "75f9643f-3927-49a2-8f3f-19f232d654c8",

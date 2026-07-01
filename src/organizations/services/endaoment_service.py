@@ -15,7 +15,7 @@ class EndaomentServiceError(Exception):
     """Raised when the Endaoment API cannot be reached or returns an error."""
 
 
-class EndaomentOrgNotFound(Exception):
+class EndaomentOrgNotFoundError(Exception):
     """Raised when no Endaoment org matches the provided EIN and org id."""
 
 
@@ -167,4 +167,4 @@ class EndaomentService:
         if match is not None:
             return match
 
-        raise EndaomentOrgNotFound()
+        raise EndaomentOrgNotFoundError()

@@ -29,7 +29,7 @@ def download_pdf(paper_id, retry=0):
     if retry > 3:
         return
 
-    Paper = apps.get_model("paper.Paper")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
     paper = Paper.objects.get(id=paper_id)
 
     pdf_url = paper.pdf_url or paper.url
