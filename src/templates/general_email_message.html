@@ -1,39 +1,48 @@
 {% load inlinecss %}
 {% load l10n %}
 <html>
-    <head>
-        <meta charset="UTF-8">
-        <title></title>
-        <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
-    </head>
-    {% inlinecss "notification_email.css" %}
-    <body>
-      <div class="email-container">
-        <div class="email-header">
-          <img class="img-logo" src="{{ assets_base_url }}/email_assets/ResearchHubLogo.png" />
-          <div class="header">
-            {{ subject }}
-          </div>
+  <head>
+    <meta charset="UTF-8">
+    <title></title>
+    <link
+      href="https://fonts.googleapis.com/css?family=Roboto&display=swap"
+      rel="stylesheet"
+    >
+  </head>
+  {% inlinecss "notification_email.css" %}
+  <body>
+    <div class="email-container">
+      <div class="email-header">
+        <img
+          class="img-logo"
+          src="{{ assets_base_url }}/email_assets/ResearchHubLogo.png"
+        />
+        <div class="header">
+          {{ subject }}
         </div>
-          <div class="content">
-            <div class="body" style="white-space: pre-line;">
-              {{ action.message }}
-            </div>
-            {% if action.frontend_view_link %}
-              <div class="hubtags-list">
-                <a class="button-label" href="{{ action.frontend_view_link }}">
-                  View
-                </a>
-              </div>
-            {% endif %}
-            <div class="divider">
-              <div class="line"></div>
-            </div>
-          </div>
-      <div class="footer">
-        <a href="{{opt_out}}">Unsubscribe or change how frequently I get updated</a>
       </div>
-    </body>
+      <div class="content">
+        <div class="body" style="white-space: pre-line;">
+          {{ action.message }}
+        </div>
+        {% if action.frontend_view_link %}
+          <div class="hubtags-list">
+            <a class="button-label" href="{{ action.frontend_view_link }}">
+              {{ action.cta_label|default:"View" }}
+            </a>
+          </div>
+        {% endif %}
+        <div class="divider">
+          <div class="line"></div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <a href="{{ opt_out }}">
+        Unsubscribe or change how frequently I get updated
+      </a>
+    </div>
+  </body>
 </html>
 
 {% endinlinecss %}

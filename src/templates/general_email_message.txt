@@ -1,0 +1,11 @@
+{{ subject }}
+
+{{ action.message }}
+
+{% if action.frontend_view_link %}
+{{ action.cta_label|default:"View" }}:
+{{ action.frontend_view_link }}
+{% endif %}
+
+Unsubscribe or change how frequently you get updated:
+{{ opt_out }}
