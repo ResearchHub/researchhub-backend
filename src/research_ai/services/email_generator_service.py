@@ -319,7 +319,7 @@ def _generate_with_llm(
     sig_source = _build_llm_sender_signature_data(user)
     normalized = _normalize_signature_dict(sig_source)
     text = _strip_markdown(raw)
-    text = _strip_existing_signature(text, normalized if normalized else None)
+    text = _strip_existing_signature(text, normalized or None)
     text = _replace_placeholders(text, normalized)
     if normalized:
         sig = _build_signature_block(normalized)

@@ -258,7 +258,7 @@ class GrantFeedPostSerializer(serializers.Serializer):
             "type": post.document_type,
             "image_url": self._get_image_url(post),
             "unified_document_id": (
-                post.unified_document_id if post.unified_document_id else None
+                post.unified_document_id or None
             ),
             "grant": None,
         }
@@ -328,7 +328,7 @@ class FundingFeedPostSerializer(serializers.Serializer):
             "image_url": self._get_image_url(post),
             "institution": getattr(post, "institution", None),
             "unified_document_id": (
-                post.unified_document_id if post.unified_document_id else None
+                post.unified_document_id or None
             ),
             "authors": [],
             "reviews": [],

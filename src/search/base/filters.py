@@ -323,7 +323,7 @@ class SuggesterFilterBackend(BaseSearchFilterBackend):
             field_value = request.query_params.get(field_param, "")
 
             # Use field-specific value if provided, otherwise use general suggest query
-            query_value = field_value if field_value else suggest_query
+            query_value = field_value or suggest_query
 
             if not query_value:
                 continue

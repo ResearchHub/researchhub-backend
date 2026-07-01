@@ -434,7 +434,7 @@ def send_queued_emails_task(
                 rec.email_subject,
                 rec.email_body,
                 reply_to=reply_to_list or None,
-                cc=cc_list if cc_list else None,
+                cc=cc_list or None,
                 from_email=from_email,
             )
             GeneratedEmail.objects.filter(id=rec.id).update(

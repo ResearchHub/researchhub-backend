@@ -184,7 +184,7 @@ class PaperDocument(BaseDocument):
                 )
 
         return (
-            result if result else [{"input": [str(instance.id)], "weight": base_weight}]
+            result or [{"input": [str(instance.id)], "weight": base_weight}]
         )
 
     def prepare_paper_publish_date(self, instance):

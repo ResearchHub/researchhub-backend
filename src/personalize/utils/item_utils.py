@@ -28,4 +28,4 @@ def prepare_text_for_personalize(text: str | None) -> str | None:
     if len(text) > MAX_TEXT_LENGTH:
         text = text[:MAX_TEXT_LENGTH]
 
-    return text if text else None
+    return text or None

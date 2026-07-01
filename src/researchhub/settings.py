@@ -669,7 +669,7 @@ OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", keys.OPENSEARCH_HOST)
 
 OPENSEARCH_DSL = {
     "default": {
-        "hosts": OPENSEARCH_HOST if OPENSEARCH_HOST else "http://localhost:9200",
+        "hosts": OPENSEARCH_HOST or "http://localhost:9200",
         "pool_maxsize": 20,
         "timeout": 30,
     },
