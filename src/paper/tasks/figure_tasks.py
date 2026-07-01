@@ -341,7 +341,7 @@ def create_pdf_screenshot(paper, skip_feed_refresh_extraction_check=False) -> bo
     Returns:
         True if preview was created successfully, False otherwise
     """
-    Figure = apps.get_model("paper.Figure")
+    Figure = apps.get_model("paper.Figure")  # noqa: N806
 
     try:
         file = paper.file
@@ -540,7 +540,7 @@ def select_primary_image(
 
             from feed.tasks import refresh_feed_entries_for_objects
 
-            Paper = apps.get_model("paper.Paper")
+            Paper = apps.get_model("paper.Paper")  # noqa: N806
             paper_content_type = ContentType.objects.get_for_model(Paper)
             refresh_feed_entries_for_objects.delay(
                 paper.id,

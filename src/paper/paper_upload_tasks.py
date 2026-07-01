@@ -220,7 +220,7 @@ def celery_combine_doi(self, celery_data):
 def celery_manubot(self, celery_data):
     paper_data, submission_id = celery_data
 
-    Paper = apps.get_model("paper.Paper")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
 
     try:
         doi = paper_data.get("doi")
@@ -771,7 +771,7 @@ def celery_handle_paper_processing_errors(request, exc, traceback):
         logger.error("Paper processing failed", exc_info=exc)
 
         extra_metadata = {}
-        PaperSubmission = apps.get_model("paper.PaperSubmission")
+        PaperSubmission = apps.get_model("paper.PaperSubmission")  # noqa: N806
         celery_args = request.args
         _, submission_id = celery_args
         paper_submission = PaperSubmission.objects.get(id=submission_id)
