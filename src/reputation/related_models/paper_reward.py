@@ -55,7 +55,7 @@ class HubCitationValue(models.Model):
                 break
 
         rsc_reward_with_multipliers = 10 ** (
-            math.log(citation_change, 10) * hub_citation_variables["slope"]
+            math.log10(citation_change) * hub_citation_variables["slope"]
             + hub_citation_variables["intercept"]
         )
 

@@ -151,7 +151,7 @@ class PaperDocument(BaseDocument):
         base_weight = 1
         hot_score_v2 = self.prepare_hot_score_v2(instance)
         if hot_score_v2 > 0:
-            base_weight = max(1, int(math.log(hot_score_v2, 10) * 10))
+            base_weight = max(1, int(math.log10(hot_score_v2) * 10))
 
         result = []
 

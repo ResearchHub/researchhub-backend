@@ -463,7 +463,7 @@ class PaperDocumentTests(TestCase):
         # Weight should be calculated from hot_score_v2
         primary = result[0]
         # hot_score_v2=1000, log10(1000)=3, so weight should be max(1, 3*10) = 30
-        expected_weight = max(1, int(math.log(1000, 10) * 10))
+        expected_weight = max(1, int(math.log10(1000) * 10))
         self.assertEqual(primary["weight"], expected_weight)
 
     def test_prepare_suggestion_phrases_without_hot_score(self):
