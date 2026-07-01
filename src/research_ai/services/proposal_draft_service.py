@@ -441,6 +441,7 @@ class _ProposalDraftRunner:
         self.accepted = accepted
         self.submitted = submitted
         self.last_gate_report = report
+        self._persist_round()
 
         exhausted = self.rounds_used >= self.max_rounds
         # End the loop on a clean submit, or when no rounds remain to revise.
@@ -511,6 +512,29 @@ class _ProposalDraftRunner:
             "gaps": gaps,
         }
         return accepted, report
+
+    def _persist_round(self) -> None:
+        """Write this round's outcome to the record as soon as the gates run.
+
+        Terminal ``_complete``/``_fail`` still write the authoritative final
+        state, but persisting per round means an in-flight run -- or one that
+        hangs or dies mid-loop before reaching a terminal path -- is inspectable
+        with the latest submission, scores, and gate report rather than the
+        zeroed defaults.
+        """
+        self.draft.rounds_used = self.rounds_used
+        self.draft.final_scores = self.final_scores
+        self.draft.gate_report = self.last_gate_report
+        self.draft.last_submission = self.submitted or {}
+        self.draft.save(
+            update_fields=[
+                "rounds_used",
+                "final_scores",
+                "gate_report",
+                "last_submission",
+                "updated_date",
+            ]
+        )
 
     # -- individual gates -------------------------------------------------
 

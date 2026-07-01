@@ -335,6 +335,44 @@ class ProposalDraftServiceTests(TestCase):
         )
         self.assertEqual(Note.objects.count(), 0)
 
+    # -- each round is persisted before the loop reaches a terminal path --
+
+    @override_settings(RESEARCH_AI_PROPOSAL_MAX_ROUNDS=2)
+    def test_round_state_persists_before_terminal(self):
+        # Arrange: the panel always rejects so the loop runs a full round before
+        # it exhausts the budget. A provider that snapshots the DB row on each
+        # turn lets us prove round 1 was written before the terminal _fail.
+        snapshots = []
+        search_expert_id = self.search_expert.id
+
+        class _SnapshottingProvider(_AlwaysSubmitProvider):
+            def complete(self, **kwargs):
+                draft = ProposalDraft.objects.filter(
+                    search_expert_id=search_expert_id
+                ).first()
+                if draft is not None:
+                    snapshots.append((draft.rounds_used, dict(draft.last_submission)))
+                return super().complete(**kwargs)
+
+        provider = _SnapshottingProvider(_clean_payload())
+
+        # Act
+        run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=2),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: entering round 2, round 1's submission and count are already
+        # on the row -- not the zeroed defaults that would show pre-persist.
+        self.assertGreaterEqual(len(snapshots), 2)
+        rounds_after_first, submission_after_first = snapshots[1]
+        self.assertEqual(rounds_after_first, 1)
+        self.assertEqual(
+            submission_after_first["sections"]["title"], "A Study of Folding"
+        )
+
     # -- a run that never submits persists an empty last_submission ------
 
     def test_no_submit_persists_empty_last_submission(self):
