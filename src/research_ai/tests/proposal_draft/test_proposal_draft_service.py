@@ -503,11 +503,12 @@ class ProposalDraftServiceTests(TestCase):
         RESEARCH_AI_PROPOSAL_PLATEAU_PATIENCE=3,
     )
     def test_improving_panel_is_not_cut_short_by_plateau(self):
-        # Arrange: the score climbs 2 -> 3 -> 4 then flatlines. The early gains
-        # reset the counter, so the run runs past round 4 and only plateaus once
-        # the score has been flat for three rounds (rounds 4, 5, 6).
+        # Arrange: the score climbs 1 -> 2 -> 3 (all below the 4.0 bar) then
+        # flatlines. The early gains reset the counter, so the run runs past
+        # round 4 and only plateaus once the score has been flat for three rounds
+        # (rounds 4, 5, 6).
         provider = _AlwaysSubmitProvider(_clean_payload())
-        panel = _SequencePanel([2, 3, 4])
+        panel = _SequencePanel([1, 2, 3])
 
         # Act
         result = run_proposal_draft(
@@ -530,16 +531,16 @@ class ProposalDraftServiceTests(TestCase):
         RESEARCH_AI_PROPOSAL_PLATEAU_PATIENCE=3,
     )
     def test_failed_run_persists_best_scoring_draft_not_last(self):
-        # Arrange: round 1 scores the peak (4), then the score regresses to 3 and
-        # flatlines, so the plateau guard stops the loop on a round whose draft is
-        # worse than the peak. Each round submits a differently-titled payload so
-        # the persisted draft is identifiable.
+        # Arrange: round 1 scores the peak (3, below the 4.0 bar), then the score
+        # regresses to 2 and flatlines, so the plateau guard stops the loop on a
+        # round whose draft is worse than the peak. Each round submits a
+        # differently-titled payload so the persisted draft is identifiable.
         peak = _clean_payload()
         peak["sections"]["title"] = "Peak Draft"
         regressed = _clean_payload()
         regressed["sections"]["title"] = "Regressed Draft"
         provider = _SequenceSubmitProvider([peak, regressed])
-        panel = _SequencePanel([4, 3])
+        panel = _SequencePanel([3, 2])
 
         # Act
         result = run_proposal_draft(
@@ -556,8 +557,8 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
         self.assertIn("plateau", result["error_message"])
         self.assertEqual(draft.last_submission["sections"]["title"], "Peak Draft")
-        self.assertEqual(draft.gate_report["panel"]["overall"], 4)
-        self.assertEqual(draft.final_scores["overall"], 4)
+        self.assertEqual(draft.gate_report["panel"]["overall"], 3)
+        self.assertEqual(draft.final_scores["overall"], 3)
         self.assertEqual(result["last_submission"], draft.last_submission)
         self.assertEqual(result["gate_report"], draft.gate_report)
 

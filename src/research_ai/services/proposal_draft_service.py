@@ -67,7 +67,7 @@ logger = logging.getLogger(__name__)
 # looser ceiling on total tool turns so several tool calls can precede each
 # submit.
 _DEFAULT_MAX_ROUNDS = 8
-_DEFAULT_PANEL_THRESHOLD = 4.5
+_DEFAULT_PANEL_THRESHOLD = 4.0
 # Stop revising early once the panel is the blocker and its overall has not
 # improved for this many consecutive rounds: a deterministic single-judge panel
 # returns a near-constant score for a near-constant draft, so grinding the round
