@@ -61,15 +61,11 @@ logger = logging.getLogger(__name__)
 
 class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
     authors = serializers.SerializerMethodField()
-    boost_amount = serializers.SerializerMethodField()
-    bullet_points = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
     pdf_copyright_allows_display = serializers.SerializerMethodField()
-    first_figure = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
-    promoted = serializers.SerializerMethodField()
     score = serializers.ReadOnlyField()
     unified_document = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
@@ -153,29 +149,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             context=self.context,
         )
         return serializer.data
-
-    def get_bullet_points(self, paper):
-        return None
-
-    def get_first_figure(self, paper):
-        try:
-            if len(paper.figure_list) > 0:
-                figure = paper.figure_list[0]
-                return FigureSerializer(figure).data
-        except AttributeError:
-            # Priority: is_primary > preview > first figure
-            primary_figure = paper.figures.filter(is_primary=True).first()
-            if primary_figure:
-                return FigureSerializer(primary_figure).data
-
-            preview = paper.figures.filter(figure_type=Figure.PREVIEW).first()
-            if preview:
-                return FigureSerializer(preview).data
-
-            figure = paper.figures.filter(figure_type=Figure.FIGURE).first()
-            if figure:
-                return FigureSerializer(figure).data
-        return None
 
     def get_first_preview(self, paper):
         # If we don't show the PDFs on the paper page, we shouldn't have previews either
@@ -264,12 +237,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         )
 
         return serializer.data
-
-    def get_promoted(self, paper):
-        return paper.get_promoted_score()
-
-    def get_boost_amount(self, paper):
-        return paper.get_boost_amount()
 
     def get_pdf_copyright_allows_display(self, paper):
         return pdf_copyright_allows_display(paper)
@@ -363,16 +330,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
                 paper.unified_document.hubs.all(), many=True
             ).data
         return []
-
-
-class ContributionPaperSerializer(BasePaperSerializer):
-    uploaded_by = None
-    discussion = None
-    first_figure = None
-    first_preview = None
-    bullet_points = None
-    summary = None
-    discussion_users = None
 
 
 class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixin):

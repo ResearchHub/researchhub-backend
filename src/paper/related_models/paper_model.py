@@ -290,20 +290,6 @@ class Paper(AbstractGenericReactionModel):
     def get_hub_names(self):
         return ",".join(self.hubs.values_list("name", flat=True))
 
-    def get_promoted_score(paper):
-        purchases = paper.purchases.filter(
-            paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
-        )
-        if purchases.exists():
-            base_score = paper.score
-            boost_amount = (
-                purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
-                .aggregate(sum=Sum("amount_as_int"))
-                .get("sum", 0)
-            )
-            return base_score + boost_amount
-        return False
-
     def get_discussion_count(self):
         from paper.services.paper_version_service import PaperService
 

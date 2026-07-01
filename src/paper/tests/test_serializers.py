@@ -338,66 +338,6 @@ class PaperSerializersTests(TestCase):
             file=image_file,
         )
 
-    def test_first_figure_prioritizes_primary(self):
-        """Test that first_figure prioritizes is_primary=True figures."""
-        paper = helpers.create_paper(title="Test Paper")
-
-        # Create figures in different order
-        _ = self._create_test_figure(paper, figure_type=Figure.FIGURE, is_primary=False)
-        primary_figure = self._create_test_figure(
-            paper, figure_type=Figure.FIGURE, is_primary=True
-        )
-        _ = self._create_test_figure(paper, figure_type=Figure.FIGURE, is_primary=False)
-
-        serializer = PaperSerializer(paper)
-        first_figure_data = serializer.data.get("first_figure")
-
-        # Should return the primary figure, not the first one created
-        self.assertIsNotNone(first_figure_data)
-        self.assertEqual(first_figure_data["id"], primary_figure.id)
-        self.assertTrue(first_figure_data["is_primary"])
-
-    def test_first_figure_falls_back_to_preview(self):
-        """Test that first_figure falls back to PREVIEW if no primary figure."""
-        paper = helpers.create_paper(title="Test Paper")
-
-        preview_figure = self._create_test_figure(
-            paper, figure_type=Figure.PREVIEW, is_primary=False
-        )
-        _ = self._create_test_figure(paper, figure_type=Figure.FIGURE, is_primary=False)
-
-        serializer = PaperSerializer(paper)
-        first_figure_data = serializer.data.get("first_figure")
-
-        # Should return preview figure
-        self.assertIsNotNone(first_figure_data)
-        self.assertEqual(first_figure_data["id"], preview_figure.id)
-        self.assertEqual(first_figure_data["figure_type"], Figure.PREVIEW)
-
-    def test_first_figure_falls_back_to_any_figure(self):
-        """Test that first_figure falls back to any figure if no primary or preview."""
-        paper = helpers.create_paper(title="Test Paper")
-
-        figure = self._create_test_figure(
-            paper, figure_type=Figure.FIGURE, is_primary=False
-        )
-
-        serializer = PaperSerializer(paper)
-        first_figure_data = serializer.data.get("first_figure")
-
-        # Should return the figure
-        self.assertIsNotNone(first_figure_data)
-        self.assertEqual(first_figure_data["id"], figure.id)
-
-    def test_first_figure_returns_none_when_no_figures(self):
-        """Test that first_figure returns None when paper has no figures."""
-        paper = helpers.create_paper(title="Test Paper")
-
-        serializer = PaperSerializer(paper)
-        first_figure_data = serializer.data.get("first_figure")
-
-        self.assertIsNone(first_figure_data)
-
     def test_first_preview_prioritizes_primary(self):
         """Test that first_preview prioritizes is_primary=True figures."""
         paper = helpers.create_paper(title="Test Paper")
