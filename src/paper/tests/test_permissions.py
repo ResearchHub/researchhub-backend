@@ -12,8 +12,7 @@ from .helpers import create_paper
 
 class PaperPermissionsIntegrationTests(APITestCase):
     def setUp(self):
-        SEED = "paper"
-        self.random_generator = random.Random(SEED)
+        self.random_generator = random.Random("paper")
         self.base_url = "/api/paper/"
         self.paper = create_paper()
         self.flag_reason = "Inappropriate"
@@ -33,7 +32,7 @@ class PaperPermissionsIntegrationTests(APITestCase):
         response = self.get_patch_response(user, self.paper)
         self.assertEqual(response.status_code, 200)
 
-    def test_can_NOT_update_paper_below_minimum_reputation(self):
+    def test_can_not_update_paper_below_minimum_reputation(self):
         user = self.create_user_with_reputation(0)
         response = self.get_patch_response(user, self.paper)
         self.assertEqual(response.status_code, 403)
