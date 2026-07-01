@@ -11,6 +11,8 @@ judge wrapper:
   external grounded signal).
 - ``judge_tools`` -- a ``Tool`` wrapper over the multi-model judge panel
   (``research_ai.services.proposal_judge_panel``).
+- ``judge_context`` -- pure compaction helpers that assemble the evidence
+  bundle judges score against.
 
 The draft driver wires these together; this package only builds the tools.
 """
@@ -21,6 +23,7 @@ from research_ai.services.proposal_tools.context_tools import (
 from research_ai.services.proposal_tools.fulltext_tools import (
     ProposalFulltextToolset,
 )
+from research_ai.services.proposal_tools.judge_context import build_judge_context
 from research_ai.services.proposal_tools.judge_tools import build_judge_tool
 from research_ai.services.proposal_tools.verification_tools import (
     ProposalVerificationToolset,
@@ -30,5 +33,6 @@ __all__ = [
     "ProposalContextToolset",
     "ProposalFulltextToolset",
     "ProposalVerificationToolset",
+    "build_judge_context",
     "build_judge_tool",
 ]
