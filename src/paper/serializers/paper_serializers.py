@@ -69,7 +69,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
     first_figure = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
-    promoted = serializers.SerializerMethodField()
     score = serializers.ReadOnlyField()
     unified_document = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
@@ -264,9 +263,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         )
 
         return serializer.data
-
-    def get_promoted(self, paper):
-        return paper.get_promoted_score()
 
     def get_boost_amount(self, paper):
         return paper.get_boost_amount()
