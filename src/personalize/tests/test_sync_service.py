@@ -19,8 +19,7 @@ User = get_user_model()
 
 
 class SyncServiceTests(TestCase):
-    @patch("personalize.services.sync_service.SyncClient")
-    def test_sync_item_by_id_syncs_recent_paper(self, MockSyncClient):
+    def test_sync_item_by_id_syncs_recent_paper(self):
         """Recent papers (within 60 days) should be synced."""
         mock_client = Mock()
         mock_client.put_items.return_value = {
@@ -42,8 +41,7 @@ class SyncServiceTests(TestCase):
         self.assertEqual(result["success"], True)
         self.assertEqual(result["synced"], 1)
 
-    @patch("personalize.services.sync_service.SyncClient")
-    def test_sync_item_by_id_skips_old_paper(self, MockSyncClient):
+    def test_sync_item_by_id_skips_old_paper(self):
         """Papers older than 60 days should be skipped."""
         mock_client = Mock()
 
@@ -60,8 +58,7 @@ class SyncServiceTests(TestCase):
         self.assertEqual(result["synced"], 0)
         self.assertEqual(result["skipped"], 1)
 
-    @patch("personalize.services.sync_service.SyncClient")
-    def test_sync_item_by_id_always_syncs_posts(self, MockSyncClient):
+    def test_sync_item_by_id_always_syncs_posts(self):
         """Posts should always be synced regardless of date."""
         mock_client = Mock()
         mock_client.put_items.return_value = {
@@ -83,8 +80,7 @@ class SyncServiceTests(TestCase):
         self.assertEqual(result["success"], True)
         self.assertEqual(result["synced"], 1)
 
-    @patch("personalize.services.sync_service.SyncClient")
-    def test_sync_item_by_id_includes_hub_data(self, MockSyncClient):
+    def test_sync_item_by_id_includes_hub_data(self):
         """Synced items should include hub IDs in the properties."""
         mock_client = Mock()
         mock_client.put_items.return_value = {
