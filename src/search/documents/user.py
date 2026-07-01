@@ -92,8 +92,8 @@ class UserDocument(BaseDocument):
 
     # Used specifically for "autocomplete" style suggest feature
     def prepare_full_name_suggest(self, instance) -> dict[str, Any]:
-        MAX_INPUTS = 10
-        VERIFIED_USER_WEIGHT_BONUS = 500
+        max_inputs = 10
+        verified_user_weight_bonus = 500
 
         # Get names with fallback to user model
         try:
@@ -148,9 +148,9 @@ class UserDocument(BaseDocument):
         self._add_words_with_normalized(first_parts + last_parts, add_unique)
 
         weight = instance.reputation + (
-            VERIFIED_USER_WEIGHT_BONUS if instance.is_verified else 0
+            verified_user_weight_bonus if instance.is_verified else 0
         )
-        return {"input": inputs[:MAX_INPUTS], "weight": weight}
+        return {"input": inputs[:max_inputs], "weight": weight}
 
     def _add_words_with_normalized(self, words, add_unique):
         """Add words and their normalized versions, avoiding duplicates"""
