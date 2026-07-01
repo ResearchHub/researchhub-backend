@@ -18,7 +18,7 @@ class PaperPermissionsIntegrationTests(APITestCase):
         self.paper = create_paper()
         self.flag_reason = "Inappropriate"
 
-    def test_can_NOT_post_paper_below_minimum_reputation(self):
+    def test_can_not_post_paper_below_minimum_reputation(self):
         user = self.create_user_with_reputation(-1)
         response = self.get_paper_submission_response(user)
         self.assertEqual(response.status_code, 403)

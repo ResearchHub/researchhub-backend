@@ -66,7 +66,7 @@ class EthereumLibTests(TestCase):
             "researchhub-web3-keystore": {"SecretString": "mock_keystore"},
             "researchhub-web3-keystore-password": {"SecretString": "mock_password"},
         }
-        mock_client.get_secret_value.side_effect = lambda SecretId: secrets[SecretId]
+        mock_client.get_secret_value.side_effect = lambda secret_id: secrets[secret_id]
 
         # Set up the ethereum mock on the provider
         mock_eth = Mock()
@@ -80,8 +80,8 @@ class EthereumLibTests(TestCase):
         mock_create_client.assert_called_once_with("secretsmanager")
         mock_client.get_secret_value.assert_has_calls(
             [
-                call(SecretId="researchhub-web3-keystore"),
-                call(SecretId="researchhub-web3-keystore-password"),
+                call(secret_id="researchhub-web3-keystore"),
+                call(secret_id="researchhub-web3-keystore-password"),
             ]
         )
         mock_eth.eth.account.decrypt.assert_called_with(

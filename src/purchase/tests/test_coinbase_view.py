@@ -20,14 +20,14 @@ class TestCoinbaseViewSet(TestCase):
         self.url = "/api/payment/coinbase/create-onramp/"
 
     @patch("purchase.views.coinbase_view.CoinbaseService")
-    def test_generate_onramp_url_success(self, MockCoinbaseService):
+    def test_generate_onramp_url_success(self, coinbase_service_mock):
         """Test successful onramp URL generation."""
         # Mock the service
         mock_service = Mock()
         mock_service.generate_onramp_url.return_value = (
             "https://pay.coinbase.com/buy/select-asset?sessionToken=test_token"
         )
-        MockCoinbaseService.return_value = mock_service
+        coinbase_service_mock.return_value = mock_service
 
         request_data = {
             "assets": ["ETH", "USDC"],
@@ -61,13 +61,13 @@ class TestCoinbaseViewSet(TestCase):
         )
 
     @patch("purchase.views.coinbase_view.CoinbaseService")
-    def test_generate_onramp_url_minimal(self, MockCoinbaseService):
+    def test_generate_onramp_url_minimal(self, coinbase_service_mock):
         """Test onramp URL generation with minimal required data."""
         mock_service = Mock()
         mock_service.generate_onramp_url.return_value = (
             "https://pay.coinbase.com/buy/select-asset?sessionToken=test_token"
         )
-        MockCoinbaseService.return_value = mock_service
+        coinbase_service_mock.return_value = mock_service
 
         request_data = {}
 
@@ -108,13 +108,13 @@ class TestCoinbaseViewSet(TestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     @patch("purchase.views.coinbase_view.CoinbaseService")
-    def test_generate_onramp_url_service_error(self, MockCoinbaseService):
+    def test_generate_onramp_url_service_error(self, coinbase_service_mock):
         """Test handling of service errors."""
         mock_service = Mock()
         mock_service.generate_onramp_url.side_effect = ValueError(
             "Coinbase API credentials not configured"
         )
-        MockCoinbaseService.return_value = mock_service
+        coinbase_service_mock.return_value = mock_service
 
         response = self.client.post(
             self.url,
@@ -131,11 +131,11 @@ class TestCoinbaseViewSet(TestCase):
         )
 
     @patch("purchase.views.coinbase_view.CoinbaseService")
-    def test_generate_onramp_url_unexpected_error(self, MockCoinbaseService):
+    def test_generate_onramp_url_unexpected_error(self, coinbase_service_mock):
         """Test handling of unexpected errors."""
         mock_service = Mock()
         mock_service.generate_onramp_url.side_effect = Exception("Unexpected error")
-        MockCoinbaseService.return_value = mock_service
+        coinbase_service_mock.return_value = mock_service
 
         response = self.client.post(
             self.url,

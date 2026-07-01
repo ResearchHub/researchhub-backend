@@ -126,7 +126,7 @@ class OrganizationTests(APITestCase):
         )
         self.assertEqual(response.data["user_count"], 3)
 
-    def test_admin_of_org_B_cannot_update_details_of_org_A(self):
+    def test_admin_of_org_b_cannot_update_details_of_org_a(self):
         self.client.force_authenticate(self.org_b_admin)
 
         # Update name of ORG A
@@ -140,7 +140,7 @@ class OrganizationTests(APITestCase):
         response = self.client.get(f"/api/organization/{self.org_a['id']}/")
         self.assertNotEqual(response.data["name"], "updated name")
 
-    def test_admin_of_org_B_cannot_invite_users_in_org_A(self):
+    def test_admin_of_org_b_cannot_invite_users_in_org_a(self):
         self.client.force_authenticate(self.org_b_admin)
 
         # Org B Admin tries to invite user to org A
@@ -158,7 +158,7 @@ class OrganizationTests(APITestCase):
         )
         self.assertEqual(response.data["user_count"], 2)
 
-    def test_admin_of_org_B_cannot_create_notes_in_org_A(self):
+    def test_admin_of_org_a_cannot_create_notes_in_org_a(self):
         self.client.force_authenticate(self.org_b_admin)
 
         # Update name of ORG A
