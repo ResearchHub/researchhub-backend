@@ -61,7 +61,6 @@ logger = logging.getLogger(__name__)
 
 class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
     authors = serializers.SerializerMethodField()
-    boost_amount = serializers.SerializerMethodField()
     bullet_points = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
@@ -263,9 +262,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         )
 
         return serializer.data
-
-    def get_boost_amount(self, paper):
-        return paper.get_boost_amount()
 
     def get_pdf_copyright_allows_display(self, paper):
         return pdf_copyright_allows_display(paper)
