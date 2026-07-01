@@ -19,9 +19,12 @@ The division of labour is the whole point of the agentic design:
   ``stop=False`` so it revises in place.
 
 Bounded termination: the loop stops when a submit clears the gates, when
-``MAX_ROUNDS`` submit attempts are spent, or when the core agent hits its
-iteration cap -- the last two end in ``FAILED`` with the final ``gate_report``
-recorded for diagnosis.
+``MAX_ROUNDS`` submit attempts are spent, when the panel score plateaus below
+the bar (no improvement for ``PLATEAU_PATIENCE`` rounds -- grinding a flat
+single-judge score buys nothing), or when the core agent hits its iteration cap.
+All non-accepting exits end in ``FAILED`` with the final ``gate_report`` and a
+specific ``error_message`` naming which bound tripped (iteration cap vs.
+give-up vs. plateau vs. round budget).
 """
 
 import json
@@ -64,6 +67,11 @@ logger = logging.getLogger(__name__)
 # submit.
 _DEFAULT_MAX_ROUNDS = 8
 _DEFAULT_PANEL_THRESHOLD = 4.5
+# Stop revising early once the panel is the blocker and its overall has not
+# improved for this many consecutive rounds: a deterministic single-judge panel
+# returns a near-constant score for a near-constant draft, so grinding the round
+# (and iteration) budget against a flat score below the bar buys nothing.
+_DEFAULT_PLATEAU_PATIENCE = 3
 # Sized so MAX_ROUNDS (not this cap) is the real limiter: front-loaded research
 # turns plus ~8 revise/judge/verify rounds need well over the old 40, which
 # strangled runs mid-revision (e.g. quitting at round 3 of 8).
@@ -277,6 +285,11 @@ class _ProposalDraftRunner:
         self.max_iterations = getattr(
             settings, "RESEARCH_AI_PROPOSAL_MAX_ITERATIONS", _DEFAULT_MAX_ITERATIONS
         )
+        self.plateau_patience = getattr(
+            settings,
+            "RESEARCH_AI_PROPOSAL_PLATEAU_PATIENCE",
+            _DEFAULT_PLATEAU_PATIENCE,
+        )
         self.max_tokens = getattr(
             settings, "RESEARCH_AI_PROPOSAL_MAX_TOKENS", _DEFAULT_MAX_TOKENS
         )
@@ -325,6 +338,15 @@ class _ProposalDraftRunner:
         self.final_scores: dict = {}
         self.rfp_context: dict = {}
 
+        # How the core agent terminated (filled after ``agent.run`` returns/raises)
+        # and the panel-score plateau tracking -- both feed the specific failure
+        # message a FAILED run records.
+        self.agent_stop_reason: str | None = None
+        self.agent_iterations: int | None = None
+        self.best_overall: float | None = None
+        self.rounds_since_improvement = 0
+        self.stopped_on_plateau = False
+
     # -- public entry -----------------------------------------------------
 
     def run(self) -> dict:
@@ -350,10 +372,15 @@ class _ProposalDraftRunner:
 
         self._set_step(ProposalDraft.Step.DRAFTING)
         try:
-            agent.run(user_prompt)
+            result = agent.run(user_prompt)
+            self.agent_stop_reason = result.stop_reason
+            self.agent_iterations = result.iterations
         except RuntimeError as exc:
             # Core iteration cap hit, or a provider error after a partial run.
             logger.warning("proposal draft agent stopped early: %s", exc)
+            self.agent_stop_reason, self.agent_iterations = _classify_agent_error(
+                str(exc), self.max_iterations
+            )
 
         if self.accepted and self.submitted is not None:
             return self._complete()
@@ -441,10 +468,19 @@ class _ProposalDraftRunner:
         self.accepted = accepted
         self.submitted = submitted
         self.last_gate_report = report
+        self._track_plateau(report)
 
         exhausted = self.rounds_used >= self.max_rounds
-        # End the loop on a clean submit, or when no rounds remain to revise.
-        self._submit_tool.is_terminal = accepted or exhausted
+        # Cut a run short only when the panel is the blocker and its score has
+        # stopped improving; a passing panel held up by a mechanical gate is
+        # still worth revising, and the round budget takes precedence anyway.
+        plateaued = not accepted and not exhausted and self._panel_plateaued(report)
+        self.stopped_on_plateau = plateaued
+        self._persist_round()
+
+        # End the loop on a clean submit, when no rounds remain to revise, or
+        # when the panel score has plateaued below the bar.
+        self._submit_tool.is_terminal = accepted or exhausted or plateaued
 
         if accepted:
             self._set_step(ProposalDraft.Step.WRITING_NOTE)
@@ -456,8 +492,39 @@ class _ProposalDraftRunner:
                 "gaps": report["gaps"],
                 "gate_report": report,
             }
+        if plateaued:
+            return {
+                "accepted": False,
+                "stopped": "plateau",
+                "gaps": report["gaps"],
+                "gate_report": report,
+            }
         self._set_step(ProposalDraft.Step.REVISING)
         return self._revise_feedback(report)
+
+    def _track_plateau(self, report: dict) -> None:
+        """Update the panel-score plateau counters from this round's rollup.
+
+        ``best_overall`` is the highest overall seen; ``rounds_since_improvement``
+        counts consecutive rounds that failed to beat it. The overall is a mean of
+        seven integer criteria, so the smallest real gain is ~0.14 and an unchanged
+        draft scores bit-identically: a plain ``>`` needs no epsilon guard."""
+        panel = report.get("panel") or {}
+        overall = panel.get("overall")
+        if not isinstance(overall, (int, float)):
+            return
+        overall = float(overall)
+        if self.best_overall is None or overall > self.best_overall:
+            self.best_overall = overall
+            self.rounds_since_improvement = 0
+        else:
+            self.rounds_since_improvement += 1
+
+    def _panel_plateaued(self, report: dict) -> bool:
+        """The panel is the blocker and its overall has stopped improving."""
+        if (report.get("panel") or {}).get("ok"):
+            return False
+        return self.rounds_since_improvement >= self.plateau_patience
 
     def _revise_feedback(self, report: dict) -> dict:
         """Rejection payload for the revising agent: the gaps plus the panel's
@@ -511,6 +578,29 @@ class _ProposalDraftRunner:
             "gaps": gaps,
         }
         return accepted, report
+
+    def _persist_round(self) -> None:
+        """Write this round's outcome to the record as soon as the gates run.
+
+        Terminal ``_complete``/``_fail`` still write the authoritative final
+        state, but persisting per round means an in-flight run -- or one that
+        hangs or dies mid-loop before reaching a terminal path -- is inspectable
+        with the latest submission, scores, and gate report rather than the
+        zeroed defaults.
+        """
+        self.draft.rounds_used = self.rounds_used
+        self.draft.final_scores = self.final_scores
+        self.draft.gate_report = self.last_gate_report
+        self.draft.last_submission = self.submitted or {}
+        self.draft.save(
+            update_fields=[
+                "rounds_used",
+                "final_scores",
+                "gate_report",
+                "last_submission",
+                "updated_date",
+            ]
+        )
 
     # -- individual gates -------------------------------------------------
 
@@ -693,12 +783,7 @@ class _ProposalDraftRunner:
         }
 
     def _fail(self) -> dict:
-        if self.submitted is None:
-            message = "agent did not submit a proposal"
-        elif self.rounds_used >= self.max_rounds:
-            message = f"gates not cleared within {self.max_rounds} rounds"
-        else:
-            message = "agent ended without an accepted proposal"
+        message = self._failure_message()
         self.draft.final_scores = self.final_scores
         self.draft.gate_report = self.last_gate_report
         self.draft.rounds_used = self.rounds_used
@@ -717,6 +802,33 @@ class _ProposalDraftRunner:
             "last_submission": self.draft.last_submission,
             "error_message": message,
         }
+
+    def _failure_message(self) -> str:
+        """A specific reason the run failed, distinguishing the paths that used
+        to collapse to one opaque string (iteration cap vs. give-up vs. plateau
+        vs. round budget)."""
+        if self.submitted is None:
+            return "agent did not submit a proposal"
+        if self.stopped_on_plateau:
+            return (
+                f"panel score plateaued at {self.best_overall} for "
+                f"{self.rounds_since_improvement} rounds below the "
+                f"{self.panel_threshold} bar; stopped after {self.rounds_used} "
+                f"of {self.max_rounds} rounds"
+            )
+        if self.rounds_used >= self.max_rounds:
+            return f"gates not cleared within {self.max_rounds} rounds"
+        if self.agent_stop_reason == "iteration_cap":
+            return (
+                f"agent hit the {self.max_iterations}-iteration cap after "
+                f"{self.rounds_used} of {self.max_rounds} rounds; raise "
+                "RESEARCH_AI_PROPOSAL_MAX_ITERATIONS or reduce per-round tool use"
+            )
+        if self.agent_stop_reason == "provider_error":
+            return f"agent stopped on a provider error after {self.rounds_used} rounds"
+        return (
+            f"agent ended without an accepted proposal after {self.rounds_used} rounds"
+        )
 
     @transaction.atomic
     def _write_note(self, submitted: dict) -> Note:
@@ -769,6 +881,18 @@ class _ProposalDraftRunner:
             )
         except Exception:  # noqa: BLE001 - progress must not break the run
             logger.debug("proposal draft progress callback failed", exc_info=True)
+
+
+def _classify_agent_error(message: str, max_iterations: int) -> tuple[str, int | None]:
+    """Map a core-agent ``RuntimeError`` to a ``(stop_reason, iterations)`` pair.
+
+    The loop raises ``"Agent exceeded N iterations"`` at the cap and
+    ``"Provider stopped ..."`` on a provider anomaly; only the former pins the
+    iteration count (it is exactly the cap)."""
+    lowered = message.lower()
+    if "exceeded" in lowered and "iteration" in lowered:
+        return "iteration_cap", max_iterations
+    return "provider_error", None
 
 
 def _needs_profile(profile) -> bool:
