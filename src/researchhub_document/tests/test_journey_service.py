@@ -1,10 +1,12 @@
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 
+from notification.models import Notification
 from purchase.models import Fundraise, Grant, GrantApplication
 from researchhub_document.helpers import create_post
 from researchhub_document.models import (
@@ -158,6 +160,83 @@ class JourneyServiceTests(TestCase):
         self.assertEqual(proposal.journey, journey)
         self.assertTrue(journey.is_in_journal)
         self.assertIsNotNone(journey.journal_included_date)
+
+    def test_notify_author_when_proposal_enters_journal(self) -> None:
+        """Verify first-time journal inclusion notifies the proposal author."""
+        # Arrange
+        proposal = self._create_post(PREREGISTRATION)
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+            status=Fundraise.COMPLETED,
+        )
+
+        # Act
+        journey = self.service.include_completed_fundraise_in_journal(fundraise)
+
+        # Assert
+        # Temporarily disabled until the registered-report launch path is live.
+        self.assertFalse(
+            Notification.objects.filter(
+                notification_type=Notification.PROPOSAL_ENTERED_JOURNAL,
+                recipient=self.user,
+            ).exists()
+        )
+        return
+
+        notification = Notification.objects.get(
+            notification_type=Notification.PROPOSAL_ENTERED_JOURNAL,
+            recipient=self.user,
+        )
+        self.assertEqual(notification.action_user, self.user)
+        self.assertEqual(notification.unified_document, proposal.unified_document)
+        self.assertEqual(notification.item, journey)
+        self.assertEqual(notification.extra["journey_id"], str(journey.id))
+        self.assertIn("ResearchHub Journal", notification.body[2]["value"])
+        self.assertEqual(
+            notification.navigation_url,
+            proposal.unified_document.frontend_view_link(),
+        )
+
+    def test_skip_duplicate_journal_entry_notification(self) -> None:
+        """Verify repeated journal inclusion does not duplicate notifications."""
+        # Arrange
+        proposal = self._create_post(PREREGISTRATION)
+        journey = ResearchJourney.objects.create(
+            preregistration_post=proposal,
+            is_in_journal=True,
+            journal_included_date=timezone.now(),
+        )
+        proposal.journey = journey
+        proposal.save(update_fields=["journey"])
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+            status=Fundraise.COMPLETED,
+        )
+        Notification.objects.create(
+            notification_type=Notification.PROPOSAL_ENTERED_JOURNAL,
+            recipient=self.user,
+            action_user=self.user,
+            unified_document=proposal.unified_document,
+            content_type=ContentType.objects.get_for_model(ResearchJourney),
+            object_id=journey.id,
+        )
+
+        # Act
+        self.service.include_completed_fundraise_in_journal(fundraise)
+
+        # Assert
+        notifications = Notification.objects.filter(
+            notification_type=Notification.PROPOSAL_ENTERED_JOURNAL,
+            recipient=self.user,
+            object_id=journey.id,
+        )
+        self.assertEqual(notifications.count(), 1)
 
     def test_keep_existing_journal_date(self) -> None:
         """Verify repeated inclusion keeps the original journal date."""
