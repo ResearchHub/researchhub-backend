@@ -61,7 +61,6 @@ logger = logging.getLogger(__name__)
 
 class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
     authors = serializers.SerializerMethodField()
-    bullet_points = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
     pdf_copyright_allows_display = serializers.SerializerMethodField()
@@ -151,9 +150,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             context=self.context,
         )
         return serializer.data
-
-    def get_bullet_points(self, paper):
-        return None
 
     def get_first_figure(self, paper):
         try:
