@@ -7,7 +7,7 @@ from rest_framework.test import APITestCase
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from organizations.services.endaoment_service import (
-    EndaomentOrgNotFound,
+    EndaomentOrgNotFoundError,
     EndaomentService,
     base_chain_id,
 )
@@ -184,7 +184,7 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
     def test_create_nonprofit_not_found_on_endaoment(self):
         """Test rejection when Endaoment has no matching org."""
         self.mock_endaoment_service.verify_nonprofit_org.side_effect = (
-            EndaomentOrgNotFound()
+            EndaomentOrgNotFoundError()
         )
         data = {
             "ein": "987654321",
