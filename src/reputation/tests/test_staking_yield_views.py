@@ -86,12 +86,8 @@ class StakingYieldDetailsTest(StakingYieldViewSetTestBase):
         self.assertAlmostEqual(float(data["apy"]), expected_apy, places=4)
 
     def test_aggregates_across_multiple_days(self):
-        self._create_snapshot_with_yield(
-            date(2026, 4, 15), Decimal(5000), Decimal(100)
-        )
-        self._create_snapshot_with_yield(
-            date(2026, 4, 16), Decimal(6000), Decimal(150)
-        )
+        self._create_snapshot_with_yield(date(2026, 4, 15), Decimal(5000), Decimal(100))
+        self._create_snapshot_with_yield(date(2026, 4, 16), Decimal(6000), Decimal(150))
 
         resp = self.client.get("/api/staking_yield/details/")
         data = resp.data
@@ -101,9 +97,7 @@ class StakingYieldDetailsTest(StakingYieldViewSetTestBase):
         self.assertEqual(data["latest_accrual_date"], "2026-04-16")
 
     def test_user_isolation(self):
-        self._create_snapshot_with_yield(
-            date(2026, 4, 15), Decimal(5000), Decimal(100)
-        )
+        self._create_snapshot_with_yield(date(2026, 4, 15), Decimal(5000), Decimal(100))
 
         other_user = create_random_default_user("other")
         other_client = APIClient()
@@ -270,15 +264,9 @@ class StakingYieldEarnedSinceTest(StakingYieldViewSetTestBase):
         self.assertEqual(resp.status_code, 400)
 
     def test_filters_by_date(self):
-        self._create_snapshot_with_yield(
-            date(2026, 4, 14), Decimal(5000), Decimal(50)
-        )
-        self._create_snapshot_with_yield(
-            date(2026, 4, 15), Decimal(5000), Decimal(100)
-        )
-        self._create_snapshot_with_yield(
-            date(2026, 4, 16), Decimal(5000), Decimal(150)
-        )
+        self._create_snapshot_with_yield(date(2026, 4, 14), Decimal(5000), Decimal(50))
+        self._create_snapshot_with_yield(date(2026, 4, 15), Decimal(5000), Decimal(100))
+        self._create_snapshot_with_yield(date(2026, 4, 16), Decimal(5000), Decimal(150))
 
         resp = self.client.get("/api/staking_yield/earned_since/?date=2026-04-15")
         self.assertEqual(resp.status_code, 200)
@@ -287,9 +275,7 @@ class StakingYieldEarnedSinceTest(StakingYieldViewSetTestBase):
         self.assertEqual(resp.data["since_date"], "2026-04-15")
 
     def test_future_date_returns_zero(self):
-        self._create_snapshot_with_yield(
-            date(2026, 4, 15), Decimal(5000), Decimal(100)
-        )
+        self._create_snapshot_with_yield(date(2026, 4, 15), Decimal(5000), Decimal(100))
 
         future = date.today() + timedelta(days=365)
         resp = self.client.get(
@@ -299,9 +285,7 @@ class StakingYieldEarnedSinceTest(StakingYieldViewSetTestBase):
         self.assertEqual(Decimal(resp.data["yield_earned"]), Decimal(0))
 
     def test_user_isolation(self):
-        self._create_snapshot_with_yield(
-            date(2026, 4, 15), Decimal(5000), Decimal(100)
-        )
+        self._create_snapshot_with_yield(date(2026, 4, 15), Decimal(5000), Decimal(100))
 
         other_user = create_random_default_user("other2")
         other_client = APIClient()

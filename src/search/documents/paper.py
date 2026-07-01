@@ -183,9 +183,7 @@ class PaperDocument(BaseDocument):
                     }
                 )
 
-        return (
-            result or [{"input": [str(instance.id)], "weight": base_weight}]
-        )
+        return result or [{"input": [str(instance.id)], "weight": base_weight}]
 
     def prepare_paper_publish_date(self, instance):
         """Convert datetime to date for OpenSearch indexing."""

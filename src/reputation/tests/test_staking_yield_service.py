@@ -268,8 +268,7 @@ class StakingMultiplierCalculationTest(TestCase):
         multiplier_200 = Decimal("1.10000000")
         multiplier_40 = Decimal("1.05000000")
         expected_multiplier = (
-            (Decimal(100) * multiplier_200 + Decimal(50) * multiplier_40)
-            / Decimal(150)
+            (Decimal(100) * multiplier_200 + Decimal(50) * multiplier_40) / Decimal(150)
         ).quantize(QUANTIZE_8, rounding=ROUND_DOWN)
 
         self.assertEqual(position.stake_amount, Decimal("150.00000000"))

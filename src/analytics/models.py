@@ -110,9 +110,7 @@ class UserInteractions(DefaultModel):
         ]
 
     def __str__(self):
-        user_identifier = (
-            self.user_id or f"external_user_id:{self.external_user_id}"
-        )
+        user_identifier = self.user_id or f"external_user_id:{self.external_user_id}"
         return (
             f"UserInteraction: {user_identifier} - {self.event} - "
             f"{self.unified_document_id}"
