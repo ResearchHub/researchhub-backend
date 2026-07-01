@@ -12,8 +12,7 @@ from .helpers import build_hub_data, create_hub
 
 class HubPermissionsTests(APITestCase):
     def setUp(self):
-        SEED = "discussion"
-        self.random_generator = random.Random(SEED)
+        self.random_generator = random.Random("discussion")
         self.base_url = "/api/"
         self.user = create_random_authenticated_user("hub_permissions")
         self.hub = create_hub()
