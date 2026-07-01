@@ -87,6 +87,7 @@ extend-exclude = ["*/migrations/*"]
 [tool.ruff.lint]
 extend-select = [
     "E",     # pycodestyle errors
+    "FURB",  # refurb
     "I",     # isort
     "PERF",  # flake8-perf
     "S113",  # flake8-bandit: request-without-timeout
