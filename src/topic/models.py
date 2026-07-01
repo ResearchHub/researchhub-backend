@@ -128,7 +128,7 @@ class Topic(DefaultModel):
         null=True,
     )
 
-    def upsert_from_openalex(oa_topic):
+    def upsert_from_openalex(self, oa_topic):
         has_dates = oa_topic.get("updated_date") and oa_topic.get("created_date")
 
         # Normalize created, updated dates to format that is compatible with django
