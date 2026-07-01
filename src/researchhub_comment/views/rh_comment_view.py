@@ -63,6 +63,7 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_TOTAL_AMOUNT,
     SORT_DISCUSSED,
 )
+from researchhub_document.services.journey_service import JourneyService
 from review.services.review_service import (
     MAX_REVIEWS_PER_WINDOW,
     REVIEW_WINDOW_DAYS,
@@ -377,6 +378,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
 
             unified_document = rh_comment.unified_document
             self.add_upvote(user, rh_comment)
+            if data.get("thread_reference") == REGISTERED_REPORT_RESULTS_REFERENCE:
+                JourneyService().notify_author_about_results(target, rh_comment)
             self._create_mention_notifications_from_request(request, rh_comment.id)
             create_contribution.apply_async(
                 (

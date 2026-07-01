@@ -1,7 +1,9 @@
 from decimal import Decimal
+from unittest.mock import Mock, patch
 
 from rest_framework.test import APITestCase
 
+from notification.models import Notification
 from purchase.models import Fundraise
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
 from researchhub_comment.constants.rh_comment_thread_references import (
@@ -64,6 +66,34 @@ class AppendRegisteredReportResultsTests(APITestCase):
             thread.thread_reference,
             REGISTERED_REPORT_RESULTS_REFERENCE,
         )
+
+    @patch("notification.models.Notification.send_notification")
+    def test_notify_author_when_results_are_published(
+        self, _mock_send: Mock
+    ) -> None:
+        """Verify publishing results notifies the registered report owner."""
+        # Arrange
+        report = self._create_registered_report(self.user)
+        payload = self._build_payload()
+
+        # Act
+        response = self.client.post(
+            self._build_results_url(report),
+            payload,
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        comment = RhCommentModel.objects.get(id=response.data["id"])
+        notification = Notification.objects.get(
+            notification_type=Notification.REGISTERED_REPORT_RESULTS,
+            recipient=self.user,
+        )
+        self.assertEqual(notification.action_user, self.user)
+        self.assertEqual(notification.unified_document, report.unified_document)
+        self.assertEqual(notification.item, comment)
+        self.assertIn("Results", notification.body[0]["value"])
 
     def test_reject_moderator_for_other_owner(self) -> None:
         """Verify moderators cannot append results to another user's report."""

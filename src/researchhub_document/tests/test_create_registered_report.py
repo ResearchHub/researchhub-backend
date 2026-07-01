@@ -1,9 +1,11 @@
 from decimal import Decimal
+from unittest.mock import Mock, patch
 
 from rest_framework.test import APITestCase
 
 from hub.tests.helpers import create_hub
 from note.tests.helpers import create_note
+from notification.models import Notification
 from purchase.models import Fundraise
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
@@ -60,6 +62,30 @@ class CreateRegisteredReportTests(APITestCase):
             report.unified_document.hubs.all(),
             proposal.unified_document.hubs.all(),
         )
+
+    @patch("notification.models.Notification.send_notification")
+    def test_notify_author_when_report_is_created(
+        self, _mock_send: Mock
+    ) -> None:
+        """Verify registered report creation notifies the proposal owner."""
+        # Arrange
+        proposal = self._create_completed_proposal(self.user)
+        payload = self._build_payload(proposal)
+
+        # Act
+        response = self.client.post(self.create_url, payload, format="json")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        report = ResearchhubPost.objects.get(id=response.data["id"])
+        notification = Notification.objects.get(
+            notification_type=Notification.REGISTERED_REPORT_CREATED,
+            recipient=self.user,
+        )
+        self.assertEqual(notification.action_user, self.user)
+        self.assertEqual(notification.unified_document, report.unified_document)
+        self.assertEqual(notification.item, report)
+        self.assertIn("Add results", notification.body[2]["value"])
 
     def test_reject_moderator_for_other_owner(self) -> None:
         """Verify moderators cannot create reports for another user's proposal."""

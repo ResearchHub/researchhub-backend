@@ -46,6 +46,8 @@ class Notification(models.Model):
     PAPER_CLAIM_PAYOUT = "PAPER_CLAIM_PAYOUT"
     PREREGISTRATION_UPDATE_REMINDER = "PREREGISTRATION_UPDATE_REMINDER"
     PROPOSAL_ENTERED_JOURNAL = "PROPOSAL_ENTERED_JOURNAL"
+    REGISTERED_REPORT_CREATED = "REGISTERED_REPORT_CREATED"
+    REGISTERED_REPORT_RESULTS = "REGISTERED_REPORT_RESULTS"
     GRANT_APPROVED = "GRANT_APPROVED"
     GRANT_DECLINED = "GRANT_DECLINED"
     CONTENT_APPROVED = "CONTENT_APPROVED"
@@ -76,6 +78,8 @@ class Notification(models.Model):
         (PREREGISTRATION_UPDATE, PREREGISTRATION_UPDATE),
         (PREREGISTRATION_UPDATE_REMINDER, PREREGISTRATION_UPDATE_REMINDER),
         (PROPOSAL_ENTERED_JOURNAL, PROPOSAL_ENTERED_JOURNAL),
+        (REGISTERED_REPORT_CREATED, REGISTERED_REPORT_CREATED),
+        (REGISTERED_REPORT_RESULTS, REGISTERED_REPORT_RESULTS),
         (GRANT_APPROVED, GRANT_APPROVED),
         (GRANT_DECLINED, GRANT_DECLINED),
         (CONTENT_APPROVED, CONTENT_APPROVED),
@@ -641,6 +645,36 @@ class Notification(models.Model):
                 ),
             },
         ], base_url
+
+    def _format_registered_report_created(self) -> tuple[list, str | None]:
+        """Format the notification sent when a registered report is created."""
+        document = self.unified_document.get_document()
+        doc_title = self._truncate_title(document.title)
+        base_url = self._create_frontend_doc_link()
+
+        return [
+            {"type": "text", "value": "Your Registered Report "},
+            {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
+            {"type": "text", "value": " has been published. Add results when ready."},
+        ], base_url
+
+    def _format_registered_report_results(self) -> tuple[list, str | None]:
+        """Format the notification sent when registered report results publish."""
+        document = self.unified_document.get_document()
+        doc_title = self._truncate_title(document.title)
+        base_url = self._create_frontend_doc_link()
+        results_url = f"{base_url}#comments"
+
+        return [
+            {"type": "text", "value": "Results were published for "},
+            {
+                "type": "link",
+                "value": doc_title,
+                "link": results_url,
+                "extra": '["link"]',
+            },
+            {"type": "text", "value": "."},
+        ], results_url
 
     def _format_grant_approved(self) -> tuple[list, str | None]:
         return self._format_reviewed("grant", "has been approved and is now open.")

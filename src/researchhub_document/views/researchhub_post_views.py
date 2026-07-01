@@ -283,6 +283,7 @@ class ResearchhubPostViewSet(
                         registered_report_proposal.journey,
                         rh_post,
                     )
+                    journey_service.notify_author_about_registered_report(rh_post)
 
                 fundraise = None
                 if goal_amount := data.get("fundraise_goal_amount"):
