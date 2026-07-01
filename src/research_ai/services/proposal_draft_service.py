@@ -72,9 +72,6 @@ _DEFAULT_PANEL_THRESHOLD = 4.5
 # returns a near-constant score for a near-constant draft, so grinding the round
 # (and iteration) budget against a flat score below the bar buys nothing.
 _DEFAULT_PLATEAU_PATIENCE = 3
-# Smallest overall gain that counts as improvement (one criterion moving a point
-# shifts the seven-criterion mean by ~0.14, so this clears float noise only).
-_PLATEAU_EPSILON = 0.05
 # Sized so MAX_ROUNDS (not this cap) is the real limiter: front-loaded research
 # turns plus ~8 revise/judge/verify rounds need well over the old 40, which
 # strangled runs mid-revision (e.g. quitting at round 3 of 8).
@@ -509,14 +506,15 @@ class _ProposalDraftRunner:
         """Update the panel-score plateau counters from this round's rollup.
 
         ``best_overall`` is the highest overall seen; ``rounds_since_improvement``
-        counts consecutive rounds that failed to beat it by more than a small
-        epsilon (real one-criterion moves clear it; float noise does not)."""
+        counts consecutive rounds that failed to beat it. The overall is a mean of
+        seven integer criteria, so the smallest real gain is ~0.14 and an unchanged
+        draft scores bit-identically: a plain ``>`` needs no epsilon guard."""
         panel = report.get("panel") or {}
         overall = panel.get("overall")
         if not isinstance(overall, (int, float)):
             return
         overall = float(overall)
-        if self.best_overall is None or overall > self.best_overall + _PLATEAU_EPSILON:
+        if self.best_overall is None or overall > self.best_overall:
             self.best_overall = overall
             self.rounds_since_improvement = 0
         else:
