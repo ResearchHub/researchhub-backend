@@ -115,9 +115,7 @@ def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
         return None
 
     gecko_payout_usd_per_rsc = (
-        recent_coin_gecko_rate.real_rate
-        if recent_coin_gecko_rate.real_rate > USD_PER_RSC_PRICE_FLOOR
-        else USD_PER_RSC_PRICE_FLOOR
+        max(USD_PER_RSC_PRICE_FLOOR, recent_coin_gecko_rate.real_rate)
     )
 
     return {
@@ -150,9 +148,7 @@ def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
 
     real_usd_per_rsc = json.loads(moralis_request_result.text)["usdPrice"]
     payout_usd_per_rsc = (
-        real_usd_per_rsc
-        if real_usd_per_rsc > USD_PER_RSC_PRICE_FLOOR
-        else USD_PER_RSC_PRICE_FLOOR
+        max(USD_PER_RSC_PRICE_FLOOR, real_usd_per_rsc)
     )
 
     result = {
