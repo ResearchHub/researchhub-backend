@@ -55,9 +55,9 @@ class Command(BaseCommand):
             if distributed_editors.get(editor.email):
                 continue
             else:
-                AMOUNT = 90909.1
+                amount = 90909.1
                 distributor = Distributor(
-                    dist("EDITOR_PAYOUT", AMOUNT, False), editor, None, time.time()
+                    dist("EDITOR_PAYOUT", amount, False), editor, None, time.time()
                 )
 
                 df2 = {
