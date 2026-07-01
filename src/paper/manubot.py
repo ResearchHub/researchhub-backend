@@ -39,7 +39,7 @@ def get_url_csl_item(url: str) -> CSLItem:
     raise Exception(f"all get_url_csl_item methods failed for {url}")
 
 
-class RHHandler_URL(Handler):
+class RHHandlerURL(Handler):
     standard_prefix = "url"
 
     prefixes = [
@@ -67,7 +67,7 @@ class RHCiteKey(CiteKey):
     def csl_item(self):
         handler = self.handler
         if isinstance(handler, Handler_URL):
-            handler = RHHandler_URL(prefix_lower="url")
+            handler = RHHandlerURL(prefix_lower="url")
         csl_item = handler.get_csl_item(self)
         if not isinstance(csl_item, CSL_Item):
             csl_item = CSL_Item(csl_item)
