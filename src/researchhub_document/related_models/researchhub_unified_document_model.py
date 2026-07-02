@@ -19,7 +19,6 @@ from hub.models import Hub
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_access_group.models import Permission
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-from researchhub_document.hot_score_mixin import HotScoreMixin
 from researchhub_document.related_models.constants.document_type import (
     BOUNTY,
     DISCUSSION,
@@ -37,7 +36,7 @@ from utils.models import DefaultModel, ModeratedDocumentMixin, SoftDeletableMode
 
 
 class ResearchhubUnifiedDocument(
-    ModeratedDocumentMixin, SoftDeletableModel, HotScoreMixin, DefaultModel
+    ModeratedDocumentMixin, SoftDeletableModel, DefaultModel
 ):
     document_type = models.CharField(
         choices=DOCUMENT_TYPES,
