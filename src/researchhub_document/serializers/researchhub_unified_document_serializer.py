@@ -31,7 +31,6 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
             "hubs",
             "is_removed",
             "score",
-            "hot_score",
         ]
         read_only_fields = [
             "access_group",
@@ -46,7 +45,6 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
             "paper",
             "posts",
             "score",
-            "hot_score",
         ]
 
     access_group = SerializerMethodField(method_name="get_access_group")
