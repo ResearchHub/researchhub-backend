@@ -447,7 +447,7 @@ class ScienceMag(JournalWithSubdomain):
     pdf_identifier = pdf_url_suffix
 
 
-class JPET_ASPET(JournalWithSubdomain):
+class JPETASPET(JournalWithSubdomain):
     host = "aspetjournals.org"
     journal_url_split_on = "jpet.aspetjournals.org/content/"
     pdf_url_split_on_partial = "jpet.aspetjournals.org/content/"
@@ -465,7 +465,7 @@ journal_hosts = [
     Cell.host,
     PNAS.host,
     Lancet.host,
-    JPET_ASPET.host,
+    JPETASPET.host,
     ScienceDirect.host,
     AAAS.host,
 ]
@@ -479,7 +479,7 @@ pdf_identifiers = [
     PLOS.pdf_identifier,
     PNAS.pdf_identifier,
     Lancet.pdf_identifier,
-    JPET_ASPET.pdf_identifier,
+    JPETASPET.pdf_identifier,
     ScienceDirect.pdf_identifier,
 ]
 
@@ -492,7 +492,7 @@ journal_hosts_and_pdf_identifiers = [
     (PLOS.host, PLOS.pdf_identifier),
     (PNAS.host, PNAS.pdf_identifier),
     (Lancet.host, Lancet.pdf_identifier),
-    (JPET_ASPET.host, JPET_ASPET.pdf_identifier),
+    (JPETASPET.host, JPETASPET.pdf_identifier),
     (ScienceDirect.host, ScienceDirect.pdf_identifier),
 ]
 
@@ -509,7 +509,7 @@ journal_pdf_to_url = {
     AAAS.host: AAAS.pdf_url_to_journal_url,
     # Sites with subdomains
     ScienceMag.host: ScienceMag().pdf_url_to_journal_url,
-    JPET_ASPET.host: JPET_ASPET().pdf_url_to_journal_url,
+    JPETASPET.host: JPETASPET().pdf_url_to_journal_url,
 }
 
 journal_url_to_pdf = {
@@ -525,5 +525,5 @@ journal_url_to_pdf = {
     AAAS.host: AAAS.journal_url_to_pdf_url,
     # Sites with subdomains
     ScienceMag.host: ScienceMag().journal_url_to_pdf_url,
-    JPET_ASPET.host: JPET_ASPET().journal_url_to_pdf_url,
+    JPETASPET.host: JPETASPET().journal_url_to_pdf_url,
 }

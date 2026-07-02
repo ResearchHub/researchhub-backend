@@ -16,6 +16,9 @@ from paper.ingestion.exceptions import FetchError, TimeoutError
 
 logger = logging.getLogger(__name__)
 
+ATOM_NS = "{http://www.w3.org/2005/Atom}"
+ARXIV_NS = "{http://arxiv.org/schemas/atom}"
+
 
 def parse_xml_entry(raw_xml: str) -> dict[str, Any]:
     """
@@ -27,8 +30,6 @@ def parse_xml_entry(raw_xml: str) -> dict[str, Any]:
     Returns:
         Dictionary with parsed fields
     """
-    ATOM_NS = "{http://www.w3.org/2005/Atom}"
-    ARXIV_NS = "{http://arxiv.org/schemas/atom}"
 
     try:
         root = ET.fromstring(raw_xml)

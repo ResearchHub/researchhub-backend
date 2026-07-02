@@ -311,7 +311,7 @@ class BedrockPrimaryImageServiceTests(TestCase):
         ]
 
         # Mock responses for batches using Converse API format
-        def mock_converse(modelId, system, messages, toolConfig, inferenceConfig):
+        def mock_converse(modelId, system, messages, toolConfig, inferenceConfig):  # noqa: N803
             selected_index = 0
             # Create scores for all figures in the batch
             # Each figure has image + text, so divide by 2
