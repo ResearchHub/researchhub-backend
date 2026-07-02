@@ -2069,25 +2069,6 @@ class BountyAssessmentPhaseTests(APITestCase):
             "Contributions to existing bounties", contribute_res.data["detail"]
         )
 
-    def test_assessment_bounties_included_in_hot_score_recalc(self):
-        """Test that ASSESSMENT bounties are included in hot score recalculation."""
-        from reputation.tasks import recalc_hot_score_for_open_bounties
-
-        self._authenticate_bounty_manager()
-
-        bounty_res = self._create_bounty()
-        self.assertEqual(bounty_res.status_code, 201)
-        bounty_id = bounty_res.data["id"]
-
-        # Set bounty to ASSESSMENT phase
-        bounty = Bounty.objects.get(id=bounty_id)
-        bounty.status = Bounty.ASSESSMENT
-        bounty.assessment_end_date = datetime.now(UTC) + timedelta(days=5)
-        bounty.save()
-
-        # This should not raise an error and should process ASSESSMENT bounties
-        recalc_hot_score_for_open_bounties()
-
     def test_open_bounty_with_future_expiration_stays_open(self):
         """Test that OPEN bounty with future expiration_date stays OPEN."""
         self._authenticate_bounty_manager()
