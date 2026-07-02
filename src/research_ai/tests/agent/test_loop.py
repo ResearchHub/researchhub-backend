@@ -2,6 +2,11 @@
 
 from django.test import SimpleTestCase
 
+from research_ai.services.agent.errors import (
+    IncompleteTurnError,
+    IterationLimitError,
+    ProviderError,
+)
 from research_ai.services.agent.loop import Agent
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool, Toolset
@@ -138,9 +143,13 @@ class AgentLoopTests(SimpleTestCase):
         )
         agent = _build_agent(provider, _build_toolset())
 
-        # Act / Assert
-        with self.assertRaisesRegex(RuntimeError, "max_tokens"):
+        # Act / Assert: typed error naming the stop reason, transcript attached.
+        with self.assertRaisesRegex(IncompleteTurnError, "max_tokens") as ctx:
             agent.run("hi")
+        self.assertEqual(ctx.exception.stop_reason, "max_tokens")
+        self.assertEqual(ctx.exception.iterations, 1)
+        # The partial assistant turn is on the transcript, not lost.
+        self.assertEqual(ctx.exception.messages[-1].role, "assistant")
 
     def test_exceeding_max_iterations_raises(self):
         # Arrange: the model never stops calling tools.
@@ -149,9 +158,32 @@ class AgentLoopTests(SimpleTestCase):
         )
         agent = _build_agent(provider, _build_toolset(), max_iterations=3)
 
-        # Act / Assert
-        with self.assertRaises(RuntimeError):
+        # Act / Assert: typed error carrying the cap and the full transcript.
+        with self.assertRaises(IterationLimitError) as ctx:
             agent.run("loop forever")
+        self.assertEqual(ctx.exception.iterations, 3)
+        # user + 3x(assistant turn + tool results) = 7 messages accumulated.
+        self.assertEqual(len(ctx.exception.messages), 7)
+
+    def test_provider_exception_is_wrapped_with_transcript(self):
+        # Arrange: one good tool turn, then the provider dies mid-run on an
+        # exception outside the typed contract.
+        class ExplodingProvider(FakeProvider):
+            def complete(self, **kwargs):
+                if not self._turns:
+                    raise ValueError("socket closed")
+                return super().complete(**kwargs)
+
+        provider = ExplodingProvider([_build_tool_turn("t1", "search", {})])
+        agent = _build_agent(provider, _build_toolset())
+
+        # Act / Assert: wrapped as ProviderError, chained, transcript attached.
+        with self.assertRaisesRegex(ProviderError, "socket closed") as ctx:
+            agent.run("hi")
+        self.assertIsInstance(ctx.exception.__cause__, ValueError)
+        self.assertEqual(ctx.exception.iterations, 1)
+        # user turn + assistant tool turn + tool results survived the failure.
+        self.assertEqual(len(ctx.exception.messages), 3)
 
     def test_continue_conversation_resumes_from_prefilled_list(self):
         # Arrange: an existing conversation to resume.

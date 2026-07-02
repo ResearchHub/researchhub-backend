@@ -11,6 +11,7 @@ from typing import Any
 
 from django.conf import settings
 
+from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
@@ -117,7 +118,7 @@ class BedrockProvider(LLMProvider):
             response = self._client.converse(**kwargs)
         except Exception as e:
             logger.exception("Bedrock complete failed")
-            raise RuntimeError(f"Bedrock complete failed: {e}") from e
+            raise ProviderError(f"Bedrock complete failed: {e}") from e
 
         self._log_usage(response)
         return self._parse_turn(response)
@@ -176,7 +177,7 @@ class BedrockProvider(LLMProvider):
     def _parse_turn(self, response: dict) -> AssistantTurn:
         message = (response.get("output") or {}).get("message")
         if not message:
-            raise RuntimeError("Invalid Bedrock response: missing output message")
+            raise ProviderError("Invalid Bedrock response: missing output message")
 
         text_blocks: list[TextBlock] = []
         tool_calls: list[ToolUseBlock] = []
