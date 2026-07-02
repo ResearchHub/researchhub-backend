@@ -184,6 +184,12 @@ class _ProposalDraftRunner:
         self.agent_stop_reason: str | None = None
         self.agent_iterations: int | None = None
         self.agent_error: str | None = None
+
+        # Infrastructure failures the submit handler contains: a crashed gate
+        # check or an empty judge panel ends the run with its real cause
+        # instead of letting the model revise against a broken referee.
+        self.gate_crash: str | None = None
+        self.panel_unavailable = False
         self.best_overall: float | None = None
         self.rounds_since_improvement = 0
         self.stopped_on_plateau = False
@@ -342,11 +348,33 @@ class _ProposalDraftRunner:
     def _handle_submit(self, args: dict) -> dict:
         submitted = args or {}
         self.rounds_used += 1
-        accepted, report = self.gates.run(submitted, round_number=self.rounds_used)
-        self.accepted = accepted
         self.submitted = submitted
+        try:
+            accepted, report = self.gates.run(submitted, round_number=self.rounds_used)
+        except Exception as exc:  # noqa: BLE001 - a broken gate must end the run
+            # Contained here because ``Toolset.dispatch`` would otherwise hand
+            # the crash back to the model as a retryable tool error, and it
+            # would burn the remaining rounds revising against a broken
+            # referee -- with the run then mis-blamed on the iteration cap.
+            logger.exception("proposal draft gate check crashed")
+            self.gate_crash = str(exc) or type(exc).__name__
+            self._persist_round()
+            self._submit_tool.is_terminal = True
+            return {"accepted": False, "stopped": "gate_error"}
+        self.accepted = accepted
         self.last_gate_report = report
         self.final_scores = (report.get("panel") or {}).get("rollup", {})
+        if (report.get("panel") or {}).get("unavailable"):
+            # An empty panel is an infrastructure failure, not a verdict --
+            # same containment as a crashed gate.
+            self.panel_unavailable = True
+            self._persist_round()
+            self._submit_tool.is_terminal = True
+            return {
+                "accepted": False,
+                "stopped": "panel_unavailable",
+                "gate_report": report,
+            }
         self._track_plateau(report)
 
         exhausted = self.rounds_used >= self.config.max_rounds
@@ -538,6 +566,13 @@ class _ProposalDraftRunner:
         """A specific reason the run failed, distinguishing the paths that used
         to collapse to one opaque string (iteration cap vs. give-up vs. plateau
         vs. round budget vs. the ways the core agent can die mid-run)."""
+        if self.gate_crash:
+            return f"gate check crashed on round {self.rounds_used}: {self.gate_crash}"
+        if self.panel_unavailable:
+            return (
+                "judge panel unavailable (no judge returned a score) on round "
+                f"{self.rounds_used}"
+            )
         if self.submitted is None and self.agent_stop_reason in (
             "incomplete_turn",
             "provider_error",

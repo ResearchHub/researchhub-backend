@@ -106,11 +106,28 @@ class ProposalJudgePanelTests(SimpleTestCase):
         # Act
         result = panel.score("draft")
 
-        # Assert
+        # Assert: degraded to the one parseable judge, and the rollup says so.
         self.assertEqual(
             result["scores"],
             {"c1": 2, "c2": 2, "c3": 2, "c4": 2, "c5": 2, "c6": 2, "c7": 2},
         )
+        self.assertEqual(result["judges_reporting"], 1)
+
+    def test_score_with_no_reporting_judges_says_so(self):
+        # Arrange: every judge fails to produce parseable JSON.
+        providers = [
+            _FakeProvider("j1", "not json at all"),
+            _FakeProvider("j2", "also not json"),
+        ]
+        panel = ProposalJudgePanel(providers=providers)
+
+        # Act
+        result = panel.score("draft")
+
+        # Assert: the default 1s are flagged as no verdict at all, so callers
+        # can tell an infrastructure failure from a low score.
+        self.assertEqual(result["judges_reporting"], 0)
+        self.assertEqual(result["overall"], 1.0)
 
     def test_score_includes_evaluation_context(self):
         # Arrange
