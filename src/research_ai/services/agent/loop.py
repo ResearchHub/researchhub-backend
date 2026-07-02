@@ -13,6 +13,12 @@ multi-turn chat needs.
 import logging
 from dataclasses import dataclass
 
+from research_ai.services.agent.errors import (
+    AgentRunError,
+    IncompleteTurnError,
+    IterationLimitError,
+    ProviderError,
+)
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Toolset
 from research_ai.services.agent.types import (
@@ -92,13 +98,28 @@ class Agent:
         rendered_tools = self.toolset.render_specs(self.provider)
 
         for iteration in range(1, self.max_iterations + 1):
-            turn = self.provider.complete(
-                system_prompt=self.system_prompt,
-                messages=messages,
-                rendered_tools=rendered_tools,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature,
-            )
+            try:
+                turn = self.provider.complete(
+                    system_prompt=self.system_prompt,
+                    messages=messages,
+                    rendered_tools=rendered_tools,
+                    max_tokens=self.max_tokens,
+                    temperature=self.temperature,
+                )
+            except AgentRunError as exc:
+                # Attach the transcript so the failure is inspectable and the
+                # conversation resumable via ``continue_conversation``.
+                exc.messages = messages
+                exc.iterations = iteration - 1
+                raise
+            except Exception as exc:
+                # A provider that leaks a foreign exception still surfaces as
+                # the typed contract, transcript attached.
+                raise ProviderError(
+                    f"Provider failed to complete a turn: {exc}",
+                    messages=messages,
+                    iterations=iteration - 1,
+                ) from exc
             messages.append(
                 Message(
                     role="assistant",
@@ -115,9 +136,12 @@ class Agent:
                     iterations=iteration,
                 )
             if not turn.tool_calls:
-                raise RuntimeError(
+                raise IncompleteTurnError(
                     "Provider stopped without completing the agent run: "
-                    f"{turn.stop_reason.value}"
+                    f"{turn.stop_reason.value}",
+                    stop_reason=turn.stop_reason.value,
+                    messages=messages,
+                    iterations=iteration,
                 )
 
             result_blocks: list[ToolResultBlock] = []
@@ -142,4 +166,8 @@ class Agent:
                     iterations=iteration,
                 )
 
-        raise RuntimeError(f"Agent exceeded {self.max_iterations} iterations")
+        raise IterationLimitError(
+            f"Agent exceeded {self.max_iterations} iterations",
+            messages=messages,
+            iterations=self.max_iterations,
+        )

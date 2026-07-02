@@ -10,6 +10,7 @@ client boundary; no network.
 import json
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -608,3 +609,121 @@ class ProposalDraftServiceTests(TestCase):
         self.assertIn("ended without an accepted proposal", result["error_message"])
         self.assertNotIn("plateau", result["error_message"])
         self.assertEqual(Note.objects.count(), 0)
+
+    # -- a provider that dies mid-run fails with the cause in the message --
+
+    def test_provider_error_fails_with_cause_in_message(self):
+        # Arrange: the provider dies on its first call (throttle, network, ...).
+        class _ExplodingProvider:
+            def render_tools(self, _tools):
+                return {"tools": []}
+
+            def complete(self, **_kwargs):
+                raise ValueError("throttled by bedrock")
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=_ExplodingProvider(),
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: FAILED (not stuck PROCESSING), with the provider detail --
+        # not the "did not submit" give-up message.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertIn("provider error", result["error_message"])
+        self.assertIn("throttled by bedrock", result["error_message"])
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(draft.status, ProposalDraft.Status.FAILED)
+
+    # -- a truncated/filtered turn names its stop reason -------------------
+
+    def test_incomplete_turn_failure_names_stop_reason(self):
+        # Arrange: the model's only turn is text truncated by max_tokens --
+        # neither an answer nor a tool call.
+        provider = _ScriptedProvider(
+            [
+                AssistantTurn(
+                    text_blocks=[TextBlock(text="partial draft...")],
+                    tool_calls=[],
+                    stop_reason=StopReason.MAX_TOKENS,
+                )
+            ]
+        )
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: the actionable stop reason, not a generic provider error.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertIn("max_tokens", result["error_message"])
+
+    # -- an unexpected crash still lands the record in FAILED --------------
+
+    def test_unexpected_crash_marks_failed_not_processing(self):
+        # Arrange: a clean accepted submit, but the Note write blows up after
+        # the loop -- the path that used to leave the draft stuck PROCESSING.
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        with patch(
+            "research_ai.services.proposal_draft.runner.write_proposal_note",
+            side_effect=RuntimeError("db connection lost"),
+        ):
+            result = run_proposal_draft(
+                self.search_expert.id,
+                provider=provider,
+                panel=_FakePanel(overall=5),
+                oa_client=_FakeOpenAlex(),
+            )
+
+        # Assert: FAILED with the unexpected error recorded, and the accepted
+        # submission still persisted for inspection.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertIn("unexpected error", result["error_message"])
+        self.assertIn("db connection lost", result["error_message"])
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(draft.status, ProposalDraft.Status.FAILED)
+        self.assertEqual(
+            draft.last_submission["sections"]["title"], "A Study of Folding"
+        )
+
+    # -- no grant to draft against fails fast, before any model call ------
+
+    def test_missing_grant_fails_fast_without_model_calls(self):
+        # Arrange: an expert search whose unified document carries no Grant.
+        grantless_post = create_post(
+            created_by=self.user,
+            document_type=GRANT,
+            renderable_text="A grant post with no Grant row attached.",
+        )
+        grantless_search = ExpertSearch.objects.create(
+            created_by=self.user,
+            unified_document=grantless_post.unified_document,
+            query="protein folding",
+        )
+        search_expert = SearchExpert.objects.create(
+            expert_search=grantless_search,
+            expert=self.expert,
+        )
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        result = run_proposal_draft(
+            search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: failed naming the missing grant, and the model was never
+        # called -- the run cannot succeed, so no tokens are spent.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertIn("no grant", result["error_message"])
+        self.assertEqual(provider.call_count, 0)
