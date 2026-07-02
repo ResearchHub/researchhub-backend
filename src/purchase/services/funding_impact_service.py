@@ -141,7 +141,7 @@ class FundingImpactService:
             .for_fundraises(fundraise_ids)
             .annotate(amount_decimal=Cast("amount", DECIMAL_FIELD))
             .values("object_id")
-            .annotate(total=Coalesce(Sum("amount_decimal"), Decimal("0")))
+            .annotate(total=Coalesce(Sum("amount_decimal"), Decimal(0)))
             .values_list("object_id", "total")
         )
 
@@ -179,7 +179,7 @@ class FundingImpactService:
                 amount_decimal=Cast("amount", DECIMAL_FIELD),
             )
             .values("month", "user_id")
-            .annotate(total=Coalesce(Sum("amount_decimal"), Decimal("0")))
+            .annotate(total=Coalesce(Sum("amount_decimal"), Decimal(0)))
         )
 
         usd_monthly = (

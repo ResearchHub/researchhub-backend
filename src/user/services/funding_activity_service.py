@@ -148,9 +148,9 @@ class FundingActivityService:
             recipient.amount_usd_cents = usd_cents
 
         if rate is None:
-            activity.total_amount = Decimal("0")
+            activity.total_amount = Decimal(0)
             for recipient in recipients_data:
-                recipient.amount = Decimal("0")
+                recipient.amount = Decimal(0)
             return
 
         calculated_rsc = cls._usd_cents_to_rsc(usd_cents, rate)
@@ -436,7 +436,7 @@ class FundingActivityService:
         activity = FundingActivity(
             funder_id=contribution.user_id,
             source_type=FundingActivity.USD_FUNDRAISE_PAYOUT,
-            total_amount=Decimal("0"),
+            total_amount=Decimal(0),
             unified_document_id=fundraise.unified_document_id,
             activity_date=contribution.created_date,
             source_content_type=cls._get_content_type(UsdFundraiseContribution),
@@ -447,7 +447,7 @@ class FundingActivityService:
             recipients.append(
                 FundingActivityRecipient(
                     recipient_user=recipient_user,
-                    amount=Decimal("0"),
+                    amount=Decimal(0),
                 )
             )
         rate = cls._get_historical_rsc_usd_rate(contribution.created_date)

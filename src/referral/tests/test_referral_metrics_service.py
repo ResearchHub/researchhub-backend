@@ -237,14 +237,14 @@ class ReferralMetricsServiceTest(TestCase):
         Distribution.objects.create(
             recipient=self.referrer,
             distribution_type="REFERRAL_BONUS",
-            amount=Decimal("100"),
+            amount=Decimal(100),
             distributed_status=Distribution.DISTRIBUTED,
         )
 
         Distribution.objects.create(
             recipient=referred_user,
             distribution_type="REFERRAL_BONUS",
-            amount=Decimal("50"),
+            amount=Decimal(50),
             distributed_status=Distribution.DISTRIBUTED,
         )
 

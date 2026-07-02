@@ -380,7 +380,7 @@ class CloseFundraiseTests(TestCase):
         contributor = create_random_authenticated_user("fundraise_contributor")
         self._give_user_rsc_balance(contributor, 1000)
 
-        contribution_amount = Decimal("100")
+        contribution_amount = Decimal(100)
         purchase, error = self.fundraise_service.create_rsc_contribution(
             contributor, self.fundraise, contribution_amount, use_credits=False
         )
@@ -420,8 +420,8 @@ class CloseFundraiseTests(TestCase):
         contributor = create_random_authenticated_user("multi_contrib")
         self._give_user_rsc_balance(contributor, 5000)
 
-        amt1 = Decimal("100")
-        amt2 = Decimal("200")
+        amt1 = Decimal(100)
+        amt2 = Decimal(200)
 
         _, err1 = self.fundraise_service.create_rsc_contribution(
             contributor, self.fundraise, amt1, use_credits=False
@@ -537,7 +537,7 @@ class CloseFundraiseTests(TestCase):
 
         # Create contribution of 100 RSC via the service (use_credits=True)
         purchase, error = self.fundraise_service.create_rsc_contribution(
-            contributor, self.fundraise, Decimal("100")
+            contributor, self.fundraise, Decimal(100)
         )
         self.assertIsNone(error)
 
@@ -563,7 +563,7 @@ class CloseFundraiseTests(TestCase):
         self.assertTrue(result)
 
         # Contributor's locked balance is fully restored
-        self.assertEqual(contributor.get_locked_balance(), Decimal("200"))
+        self.assertEqual(contributor.get_locked_balance(), Decimal(200))
 
     def test_close_fundraise_all_unlocked_stays_unlocked(self):
         """
@@ -577,7 +577,7 @@ class CloseFundraiseTests(TestCase):
         self._give_user_rsc_balance(contributor, 1000)
 
         _, error = self.fundraise_service.create_rsc_contribution(
-            contributor, self.fundraise, Decimal("100"), use_credits=False
+            contributor, self.fundraise, Decimal(100), use_credits=False
         )
         self.assertIsNone(error)
 
@@ -594,7 +594,7 @@ class CloseFundraiseTests(TestCase):
         self.assertFalse(locked_refunds.exists())
 
         # Locked balance should be 0
-        self.assertEqual(contributor.get_locked_balance(), Decimal("0"))
+        self.assertEqual(contributor.get_locked_balance(), Decimal(0))
 
     # --- use_credits toggle tests ---
 
@@ -616,7 +616,7 @@ class CloseFundraiseTests(TestCase):
         )
 
         purchase, error = self.fundraise_service.create_rsc_contribution(
-            contributor, self.fundraise, Decimal("100"), use_credits=True
+            contributor, self.fundraise, Decimal(100), use_credits=True
         )
         self.assertIsNone(error)
 
@@ -629,7 +629,7 @@ class CloseFundraiseTests(TestCase):
             ).exists()
         )
         # Unlocked balance is untouched.
-        self.assertEqual(contributor.get_available_balance(), Decimal("500"))
+        self.assertEqual(contributor.get_available_balance(), Decimal(500))
 
     def test_create_rsc_contribution_use_credits_true_insufficient_credits(self):
         """
@@ -648,12 +648,12 @@ class CloseFundraiseTests(TestCase):
         )
 
         purchase, error = self.fundraise_service.create_rsc_contribution(
-            contributor, self.fundraise, Decimal("100"), use_credits=True
+            contributor, self.fundraise, Decimal(100), use_credits=True
         )
         self.assertIsNone(purchase)
         self.assertEqual(error, "Insufficient funding credits")
         # Funding credits are untouched.
-        self.assertEqual(contributor.get_locked_balance(), Decimal("50"))
+        self.assertEqual(contributor.get_locked_balance(), Decimal(50))
 
     def test_create_rsc_contribution_use_credits_false_skips_locked_balance(self):
         """
@@ -673,7 +673,7 @@ class CloseFundraiseTests(TestCase):
         )
 
         purchase, error = self.fundraise_service.create_rsc_contribution(
-            contributor, self.fundraise, Decimal("100"), use_credits=False
+            contributor, self.fundraise, Decimal(100), use_credits=False
         )
         self.assertIsNone(error)
 
@@ -686,7 +686,7 @@ class CloseFundraiseTests(TestCase):
             ).exists()
         )
         # Locked balance is untouched.
-        self.assertEqual(contributor.get_locked_balance(), Decimal("50"))
+        self.assertEqual(contributor.get_locked_balance(), Decimal(50))
 
     def test_create_rsc_contribution_use_credits_false_insufficient_unlocked(self):
         """
@@ -704,7 +704,7 @@ class CloseFundraiseTests(TestCase):
         )
 
         purchase, error = self.fundraise_service.create_rsc_contribution(
-            contributor, self.fundraise, Decimal("100"), use_credits=False
+            contributor, self.fundraise, Decimal(100), use_credits=False
         )
         self.assertIsNone(purchase)
         self.assertEqual(error, "Insufficient balance")
@@ -715,11 +715,11 @@ class CloseFundraiseTests(TestCase):
         self._give_user_rsc_balance(contributor, 100)
 
         purchase, error = self.fundraise_service.create_contribution(
-            contributor, self.fundraise, Decimal("1"), currency=RSC, use_credits=False
+            contributor, self.fundraise, Decimal(1), currency=RSC, use_credits=False
         )
 
         self.assertIsNone(error)
-        self.assertEqual(Decimal(purchase.amount), Decimal("1"))
+        self.assertEqual(Decimal(purchase.amount), Decimal(1))
 
     def test_create_contribution_rejects_rsc_below_minimum(self):
         contributor = create_random_authenticated_user("tiny_contributor")
@@ -932,7 +932,7 @@ class ExportUsdContributionsTests(TestCase):
         self.fundraise = self.service.create_fundraise_with_escrow(
             user=self.creator,
             unified_document=self.post.unified_document,
-            goal_amount=Decimal("1000"),
+            goal_amount=Decimal(1000),
             goal_currency="USD",
             status=Fundraise.OPEN,
         )
@@ -1002,7 +1002,7 @@ class ExportUsdContributionsTests(TestCase):
         row = rows[0]
         self.assertEqual(row[0], self.fundraise.id)
         self.assertEqual(row[1], Fundraise.OPEN)
-        self.assertEqual(row[2], Decimal("1000"))
+        self.assertEqual(row[2], Decimal(1000))
         self.assertEqual(row[3], self.post.title)
         self.assertEqual(row[4], "Export Nonprofit")
         self.assertEqual(row[6], "Jane Doe")

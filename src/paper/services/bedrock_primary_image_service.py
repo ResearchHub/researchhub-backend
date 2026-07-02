@@ -734,7 +734,7 @@ on other criteria."""
                 logger.warning(
                     "Final selection failed, using highest scoring batch winner"
                 )
-                best_winner = max(batch_winners, key=lambda x: x[1] if x[1] else 0)
+                best_winner = max(batch_winners, key=lambda x: x[1] or 0)
                 winner_figure, winner_score = best_winner
                 return winner_figure.id, winner_score
 

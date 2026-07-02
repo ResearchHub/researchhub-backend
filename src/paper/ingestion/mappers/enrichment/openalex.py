@@ -405,7 +405,7 @@ class OpenAlexMapper(BaseMapper):
                     display_name=institution_info.get("display_name", ""),
                     ror_id=ror_id,
                     country_code=institution_info.get("country_code"),
-                    openalex_id=openalex_id if openalex_id else "",
+                    openalex_id=openalex_id or "",
                     type=institution_info.get("type", ""),
                 )
 

@@ -24,9 +24,9 @@ QUANTIZE_8 = Decimal("0.00000001")
 
 # Halving schedule constants
 STAKING_RELEASE_DATE = date(2026, 4, 11)
-INITIAL_YEARLY_EMISSION = Decimal("9500000")
+INITIAL_YEARLY_EMISSION = Decimal(9500000)
 HALVING_PERIOD_DAYS = 64 * 365  # 64 years in days
-BASE_STAKING_MULTIPLIER = Decimal("1")
+BASE_STAKING_MULTIPLIER = Decimal(1)
 STAKING_MULTIPLIER_30_DAY = Decimal("1.05")
 STAKING_MULTIPLIER_180_DAY = Decimal("1.1")
 STAKING_MULTIPLIER_365_DAY = Decimal("1.25")
@@ -60,7 +60,7 @@ class StakingYieldService:
     @staticmethod
     def compute_weighted_stake(stake, multiplier):
         if stake <= 0 or multiplier <= 0:
-            return Decimal("0")
+            return Decimal(0)
 
         raw = stake * multiplier
         return raw.quantize(QUANTIZE_8, rounding=ROUND_DOWN)
@@ -118,7 +118,7 @@ class StakingYieldService:
             if opt_in_date is not None:
                 effective_start_date = max(effective_start_date, opt_in_date)
             grouped_amounts[effective_start_date] = (
-                grouped_amounts.get(effective_start_date, Decimal("0")) + lot.amount
+                grouped_amounts.get(effective_start_date, Decimal(0)) + lot.amount
             )
 
         details = []
@@ -164,13 +164,13 @@ class StakingYieldService:
     def calculate_staking_position(lots, opt_in_date, accrual_date):
         if not lots:
             return StakingPosition(
-                stake_amount=Decimal("0"),
-                multiplier=Decimal("0"),
-                weighted_stake=Decimal("0"),
+                stake_amount=Decimal(0),
+                multiplier=Decimal(0),
+                weighted_stake=Decimal(0),
             )
 
-        stake_amount = Decimal("0")
-        raw_weighted_stake = Decimal("0")
+        stake_amount = Decimal(0)
+        raw_weighted_stake = Decimal(0)
 
         for lot in lots:
             effective_start_date = lot.created_date
@@ -186,9 +186,9 @@ class StakingYieldService:
 
         if stake_amount <= 0:
             return StakingPosition(
-                stake_amount=Decimal("0"),
-                multiplier=Decimal("0"),
-                weighted_stake=Decimal("0"),
+                stake_amount=Decimal(0),
+                multiplier=Decimal(0),
+                weighted_stake=Decimal(0),
             )
 
         stake_amount = stake_amount.quantize(QUANTIZE_8, rounding=ROUND_DOWN)
@@ -207,7 +207,7 @@ class StakingYieldService:
     @staticmethod
     def compute_global_staking_multiplier(total_staked, total_weighted_stake):
         if total_staked <= 0 or total_weighted_stake <= 0:
-            return Decimal("0")
+            return Decimal(0)
 
         return (total_weighted_stake / total_staked).quantize(
             QUANTIZE_8, rounding=ROUND_DOWN
@@ -298,11 +298,11 @@ class StakingYieldService:
 
         days_since_release = (accrual_date - STAKING_RELEASE_DATE).days
         if days_since_release < 0:
-            return Decimal("0")
+            return Decimal(0)
 
         exponent = days_since_release / HALVING_PERIOD_DAYS
         divisor = Decimal(str(math.pow(2, exponent)))
-        return ((INITIAL_YEARLY_EMISSION / Decimal("365")) / divisor).quantize(
+        return ((INITIAL_YEARLY_EMISSION / Decimal(365)) / divisor).quantize(
             QUANTIZE_8, rounding=ROUND_DOWN
         )
 
@@ -314,11 +314,11 @@ class StakingYieldService:
     ):
         """Compute quantized daily yield from the user's share of daily emission."""
         if weighted_stake <= 0 or total_weighted_stake <= 0:
-            return Decimal("0")
+            return Decimal(0)
 
         daily_emission = StakingYieldService.compute_total_daily_emission(accrual_date)
         if daily_emission <= 0:
-            return Decimal("0")
+            return Decimal(0)
 
         raw = daily_emission * (weighted_stake / total_weighted_stake)
         return raw.quantize(QUANTIZE_8, rounding=ROUND_DOWN)
@@ -378,8 +378,8 @@ class StakingYieldService:
             probable_spammer=False,
         ).iterator()
 
-        total_staked = Decimal("0")
-        total_weighted_stake = Decimal("0")
+        total_staked = Decimal(0)
+        total_weighted_stake = Decimal(0)
         position_rows = []
 
         for user in eligible_users:

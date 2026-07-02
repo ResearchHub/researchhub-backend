@@ -96,14 +96,14 @@ class ReferralMetricsAPITest(TestCase):
         self.distribution1 = Distribution.objects.create(
             recipient=self.referrer,
             distribution_type="REFERRAL_BONUS",
-            amount=Decimal("100"),  # 10% of referred user's contribution
+            amount=Decimal(100),  # 10% of referred user's contribution
             distributed_status=Distribution.DISTRIBUTED,
         )
 
         self.distribution2 = Distribution.objects.create(
             recipient=self.referred_user1,
             distribution_type="REFERRAL_BONUS",
-            amount=Decimal("100"),
+            amount=Decimal(100),
             distributed_status=Distribution.DISTRIBUTED,
         )
 

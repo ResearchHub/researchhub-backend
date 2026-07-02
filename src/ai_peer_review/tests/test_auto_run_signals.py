@@ -33,7 +33,7 @@ class AutoRunGrantApplicationSignalTests(TestCase):
         grant = Grant.objects.create(
             created_by=owner,
             unified_document=grant_post.unified_document,
-            amount=Decimal("5000"),
+            amount=Decimal(5000),
             description="Grant description here.",
             status=Grant.OPEN,
         )

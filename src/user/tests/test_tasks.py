@@ -404,7 +404,7 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         grant = Grant.objects.create(
             created_by=self.user,
             unified_document=grant_unified_doc,
-            amount=Decimal("10000"),
+            amount=Decimal(10000),
             organization="Test Org",
             description="Test grant",
             status=Grant.OPEN,
@@ -450,13 +450,13 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         escrow = Escrow.objects.create(
             created_by=self.user,
             hold_type=Escrow.BOUNTY,
-            amount_holding=Decimal("100"),
+            amount_holding=Decimal(100),
             content_type=ContentType.objects.get_for_model(RhCommentModel),
             object_id=other_comment.id,
         )
         bounty = Bounty.objects.create(
             created_by=self.user,
-            amount=Decimal("100"),
+            amount=Decimal(100),
             status=Bounty.OPEN,
             bounty_type=Bounty.Type.ANSWER,
             item_content_type=ContentType.objects.get_for_model(RhCommentModel),
@@ -472,7 +472,7 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         bounty.refresh_from_db()
         escrow.refresh_from_db()
         self.assertEqual(bounty.status, Bounty.CANCELLED)
-        self.assertEqual(escrow.amount_holding, Decimal("0"))
+        self.assertEqual(escrow.amount_holding, Decimal(0))
 
     @patch("purchase.services.fundraise_service.User.objects.get_revenue_account")
     def test_suspend_closes_fundraises_and_refunds_escrow(self, mock_revenue_account):
@@ -493,7 +493,7 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         escrow = Escrow.objects.create(
             created_by=self.user,
             hold_type=Escrow.FUNDRAISE,
-            amount_holding=Decimal("100"),
+            amount_holding=Decimal(100),
             content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
             object_id=prereg_unified_doc.id,
         )
@@ -502,7 +502,7 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
             unified_document=prereg_unified_doc,
             escrow=escrow,
             status=Fundraise.OPEN,
-            goal_amount=Decimal("1000"),
+            goal_amount=Decimal(1000),
         )
 
         Purchase.objects.create(

@@ -8,13 +8,13 @@ from utils.models import DefaultModel
 class StakingGlobalSnapshot(DefaultModel):
     accrual_date = models.DateField(unique=True)
     circulating_supply = models.DecimalField(
-        max_digits=19, decimal_places=8, default=Decimal("0")
+        max_digits=19, decimal_places=8, default=Decimal(0)
     )
     total_staked = models.DecimalField(
-        max_digits=19, decimal_places=8, default=Decimal("0")
+        max_digits=19, decimal_places=8, default=Decimal(0)
     )
     total_weighted_stake = models.DecimalField(
-        max_digits=19, decimal_places=8, default=Decimal("0")
+        max_digits=19, decimal_places=8, default=Decimal(0)
     )
 
     class Meta:

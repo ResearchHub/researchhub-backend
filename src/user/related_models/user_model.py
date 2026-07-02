@@ -271,7 +271,7 @@ class User(AbstractUser):
 
         Negative balance rows consume the most recent positive rows first.
         """
-        remaining_debits = Decimal("0")
+        remaining_debits = Decimal(0)
         lots = []
         balance_rows = (
             self.get_balance_qs()
@@ -294,7 +294,7 @@ class User(AbstractUser):
                 continue
 
             remaining_amount = amount - remaining_debits
-            remaining_debits = Decimal("0")
+            remaining_debits = Decimal(0)
 
             if remaining_amount <= 0:
                 continue

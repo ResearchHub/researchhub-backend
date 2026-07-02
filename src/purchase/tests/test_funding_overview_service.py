@@ -36,7 +36,7 @@ class TestFundingOverviewService(TestCase):
         grant = Grant.objects.create(
             created_by=funder,
             unified_document=grant_post.unified_document,
-            amount=Decimal("1000"),
+            amount=Decimal(1000),
             status=Grant.OPEN,
         )
 
@@ -44,7 +44,7 @@ class TestFundingOverviewService(TestCase):
         fundraise = Fundraise.objects.create(
             created_by=applicant,
             unified_document=proposal_post.unified_document,
-            goal_amount=Decimal("1000"),
+            goal_amount=Decimal(1000),
             goal_currency="USD",
         )
 
@@ -247,7 +247,7 @@ class TestFundingOverviewService(TestCase):
         grant = Grant.objects.create(
             created_by=self.user,
             unified_document=grant_post.unified_document,
-            amount=Decimal("2000"),
+            amount=Decimal(2000),
             status=Grant.OPEN,
         )
 
@@ -255,7 +255,7 @@ class TestFundingOverviewService(TestCase):
         fr1 = Fundraise.objects.create(
             created_by=applicant1,
             unified_document=proposal1.unified_document,
-            goal_amount=Decimal("500"),
+            goal_amount=Decimal(500),
             goal_currency="USD",
         )
         GrantApplication.objects.create(
@@ -269,7 +269,7 @@ class TestFundingOverviewService(TestCase):
         fr2 = Fundraise.objects.create(
             created_by=applicant2,
             unified_document=proposal2.unified_document,
-            goal_amount=Decimal("500"),
+            goal_amount=Decimal(500),
             goal_currency="USD",
         )
         GrantApplication.objects.create(
@@ -348,14 +348,14 @@ class TestFundingOverviewService(TestCase):
         grant1 = Grant.objects.create(
             created_by=self.user,
             unified_document=grant_post1.unified_document,
-            amount=Decimal("1000"),
+            amount=Decimal(1000),
             status=Grant.OPEN,
         )
         grant_post2 = create_post(created_by=self.user, document_type=GRANT_DOC_TYPE)
         grant2 = Grant.objects.create(
             created_by=self.user,
             unified_document=grant_post2.unified_document,
-            amount=Decimal("1000"),
+            amount=Decimal(1000),
             status=Grant.OPEN,
         )
 
@@ -363,7 +363,7 @@ class TestFundingOverviewService(TestCase):
         fundraise = Fundraise.objects.create(
             created_by=applicant,
             unified_document=proposal_post.unified_document,
-            goal_amount=Decimal("500"),
+            goal_amount=Decimal(500),
             goal_currency="USD",
         )
 

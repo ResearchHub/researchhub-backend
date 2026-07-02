@@ -233,12 +233,12 @@ class FundingActivityServiceTests(TestCase):
             )
         self.assertIsNotNone(activity)
         self.assertEqual(activity.source_type, FundingActivity.FUNDRAISE_PAYOUT)
-        self.assertEqual(activity.total_amount, Decimal("100"))
+        self.assertEqual(activity.total_amount, Decimal(100))
         self.assertEqual(activity.funder_id, self.user.id)
         recipients = list(activity.recipients.all())
         self.assertEqual(len(recipients), 1)
         self.assertEqual(recipients[0].recipient_user_id, self.other_user.id)
-        self.assertEqual(recipients[0].amount, Decimal("100"))
+        self.assertEqual(recipients[0].amount, Decimal(100))
 
     @override_settings(ENDAOMENT_ACCOUNT_ID=888888)
     def test_create_fundraise_payout_skips_recipient_for_endaoment(self):
@@ -286,7 +286,7 @@ class FundingActivityServiceTests(TestCase):
         # Assert
         self.assertIsNotNone(activity)
         self.assertEqual(activity.funder_id, self.user.id)
-        self.assertEqual(activity.total_amount, Decimal("100"))
+        self.assertEqual(activity.total_amount, Decimal(100))
         self.assertEqual(activity.recipients.count(), 0)
 
     def test_fundraise_payout_total_amount_full_when_user_used_locked_and_regular(
@@ -343,13 +343,13 @@ class FundingActivityServiceTests(TestCase):
         self.assertIsNotNone(activity)
         self.assertEqual(
             activity.total_amount,
-            Decimal("100"),
+            Decimal(100),
             "Full 100% of contribution must be recorded as total_amount",
         )
         self.assertEqual(activity.recipients.count(), 1)
         self.assertEqual(
             activity.recipients.first().amount,
-            Decimal("100"),
+            Decimal(100),
             "Recipient amount must be full 100",
         )
 
@@ -358,7 +358,7 @@ class FundingActivityServiceTests(TestCase):
         dist = Distribution.objects.create(
             giver=self.user,
             recipient=None,
-            amount=Decimal("10"),
+            amount=Decimal(10),
             distribution_type="BOUNTY_RH_FEE",
         )
         activity = FundingActivityService.create_funding_activity(
@@ -366,7 +366,7 @@ class FundingActivityServiceTests(TestCase):
         )
         self.assertIsNotNone(activity)
         self.assertEqual(activity.source_type, FundingActivity.FEE)
-        self.assertEqual(activity.total_amount, Decimal("10"))
+        self.assertEqual(activity.total_amount, Decimal(10))
         self.assertEqual(activity.funder_id, self.user.id)
         self.assertEqual(activity.recipients.count(), 0)
 
@@ -374,7 +374,7 @@ class FundingActivityServiceTests(TestCase):
         """get_fees returns Distribution with fee types."""
         Distribution.objects.create(
             giver=self.user,
-            amount=Decimal("5"),
+            amount=Decimal(5),
             distribution_type="BOUNTY_RH_FEE",
         )
         qs = FundingActivityService.get_fees()
@@ -387,7 +387,7 @@ class FundingActivityServiceTests(TestCase):
         dist = Distribution.objects.create(
             giver=bank_user,
             recipient=None,
-            amount=Decimal("10"),
+            amount=Decimal(10),
             distribution_type="BOUNTY_RH_FEE",
         )
         activity = FundingActivityService.create_funding_activity(
@@ -405,7 +405,7 @@ class FundingActivityServiceTests(TestCase):
         dist = Distribution.objects.create(
             giver=foundation_user,
             recipient=None,
-            amount=Decimal("10"),
+            amount=Decimal(10),
             distribution_type="BOUNTY_RH_FEE",
         )
         activity = FundingActivityService.create_funding_activity(
@@ -427,9 +427,9 @@ class FundingActivityServiceTests(TestCase):
         now = timezone.now()
         for i, (source_type, amount) in enumerate(
             [
-                (FundingActivity.FUNDRAISE_PAYOUT, Decimal("200")),
-                (FundingActivity.TIP_DOCUMENT, Decimal("100")),
-                (FundingActivity.FEE, Decimal("50")),
+                (FundingActivity.FUNDRAISE_PAYOUT, Decimal(200)),
+                (FundingActivity.TIP_DOCUMENT, Decimal(100)),
+                (FundingActivity.FEE, Decimal(50)),
             ],
             start=1,
         ):
@@ -442,7 +442,7 @@ class FundingActivityServiceTests(TestCase):
                 source_content_type=ct_user,
                 source_object_id=i,
             )
-        self.assertEqual(get_funder_total_amount(self.user.id), Decimal("350"))
+        self.assertEqual(get_funder_total_amount(self.user.id), Decimal(350))
 
     def _create_completed_fundraise(self):
         uni_doc = ResearchhubUnifiedDocument.objects.create(
@@ -536,10 +536,10 @@ class FundingActivityServiceTests(TestCase):
         # Assert — $100 at rate 0.5 → 200 RSC
         self.assertEqual(activity.source_type, FundingActivity.USD_FUNDRAISE_PAYOUT)
         self.assertEqual(activity.total_usd_cents, 10000)
-        self.assertEqual(activity.total_amount, Decimal("200"))
+        self.assertEqual(activity.total_amount, Decimal(200))
         recipient = activity.recipients.get()
         self.assertEqual(recipient.amount_usd_cents, 10000)
-        self.assertEqual(recipient.amount, Decimal("200"))
+        self.assertEqual(recipient.amount, Decimal(200))
 
     def test_usd_fundraise_payout_skips_refunded_contribution(self):
         """Refunded USD contributions do not create FundingActivity."""
@@ -611,10 +611,10 @@ class FundingActivityDualAmountsTests(TestCase):
             )
 
         # Assert
-        self.assertEqual(activity.total_amount, Decimal("100"))
+        self.assertEqual(activity.total_amount, Decimal(100))
         self.assertEqual(activity.total_usd_cents, 5000)
         recipient = activity.recipients.get()
-        self.assertEqual(recipient.amount, Decimal("100"))
+        self.assertEqual(recipient.amount, Decimal(100))
         self.assertEqual(recipient.amount_usd_cents, 5000)
 
     def test_tip_review_sets_usd_cents_from_historical_rate(self):
@@ -641,14 +641,14 @@ class FundingActivityDualAmountsTests(TestCase):
             object_id=comment.id,
             purchase_type=Purchase.BOOST,
             paid_status=Purchase.PAID,
-            amount=Decimal("30"),
+            amount=Decimal(30),
             purchase_method=Purchase.OFF_CHAIN,
         )
         ct_purchase = ContentType.objects.get_for_model(Purchase)
         distribution = Distribution.objects.create(
             giver=self.funder,
             recipient=self.recipient,
-            amount=Decimal("30"),
+            amount=Decimal(30),
             distribution_type="PURCHASE",
             proof_item_content_type=ct_purchase,
             proof_item_object_id=proof_purchase.id,
@@ -660,7 +660,7 @@ class FundingActivityDualAmountsTests(TestCase):
         )
 
         # Assert
-        self.assertEqual(activity.total_amount, Decimal("30"))
+        self.assertEqual(activity.total_amount, Decimal(30))
         self.assertEqual(activity.total_usd_cents, 1500)
         self.assertEqual(activity.recipients.get().amount_usd_cents, 1500)
 
@@ -678,6 +678,6 @@ class FundingActivityDualAmountsTests(TestCase):
             )
 
         # Assert
-        self.assertEqual(activity.total_amount, Decimal("100"))
+        self.assertEqual(activity.total_amount, Decimal(100))
         self.assertEqual(activity.total_usd_cents, 0)
         self.assertEqual(activity.recipients.get().amount_usd_cents, 0)

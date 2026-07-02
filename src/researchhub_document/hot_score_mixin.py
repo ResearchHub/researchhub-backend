@@ -72,7 +72,7 @@ class HotScoreMixin:
         try:
             doc = self.get_document()
             boost = doc.get_boost_amount()
-            boost_score = math.log(boost + 1, 10)
+            boost_score = math.log10(boost + 1)
         except Exception:
             logger.exception("Error calculating boost score")
 
@@ -205,8 +205,8 @@ class HotScoreMixin:
         time_score = self._get_time_score(relevant_date)
 
         time_score_with_magnitude = self._c(doc_vote_net_score) * time_score
-        doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 2)
-        discussion_vote_score = math.log(doc.discussion_count + 1, 2) + math.log(
+        doc_vote_score = math.log2(abs(doc_vote_net_score) + 1)
+        discussion_vote_score = math.log2(doc.discussion_count + 1) + math.log(
             max(0, total_comment_vote_score) + 1, 3
         )
 

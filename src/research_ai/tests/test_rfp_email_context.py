@@ -70,7 +70,7 @@ class BuildRfpContextTests(TestCase):
         grant.unified_document_id = None
         grant.short_title = "Test"
         grant.description = "Desc"
-        grant.amount = Decimal("5000")
+        grant.amount = Decimal(5000)
         grant.end_date = None
         result = build_rfp_context(grant)
         self.assertEqual(result["amount"], "$5K")
@@ -86,7 +86,7 @@ class BuildRfpContextTests(TestCase):
         grant.unified_document_id = None
         grant.short_title = ""
         grant.description = ""
-        grant.amount = Decimal("2000000")
+        grant.amount = Decimal(2000000)
         grant.end_date = None
         result = build_rfp_context(grant)
         self.assertEqual(result["amount"], "$2M")
