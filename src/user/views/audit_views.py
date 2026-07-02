@@ -22,7 +22,6 @@ from user.filters import AUTO_PAYMENT_TYPES, AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
-from utils import sentry
 from utils.models import SoftDeletableModel
 
 logger = logging.getLogger(__name__)
@@ -401,8 +400,10 @@ class AuditViewSet(viewsets.GenericViewSet):
                         send_email=data.get("send_email", True),
                         verdict=verdict,
                     )
-                except Exception as e:
-                    sentry.log_error(e, message="Content Removal notification not sent")
+                except Exception:
+                    logger.exception(
+                        "Failed to send notification for verdict %s", verdict.id
+                    )
 
             return Response(
                 {},
