@@ -6,7 +6,11 @@ from django.test import TestCase
 
 from purchase.models import Grant, GrantApplication
 from researchhub_document.helpers import create_post
-from researchhub_document.models import ResearchhubPost, ResearchJourney
+from researchhub_document.models import (
+    ResearchhubPost,
+    ResearchhubUnifiedDocument,
+    ResearchJourney,
+)
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     GRANT,
@@ -83,6 +87,64 @@ class JourneyServiceTests(TestCase):
         # Act / Assert
         with self.assertRaises(ValueError):
             self.service.get_or_create_for_preregistration(post)
+
+    def test_ensure_approved_preregistration_has_journey_creates_journey(
+        self,
+    ) -> None:
+        """Verify approved preregistrations receive a journey anchor."""
+        # Arrange
+        proposal = self._create_post(PREREGISTRATION)
+
+        # Act
+        journey = self.service.ensure_approved_preregistration_has_journey(proposal)
+
+        # Assert
+        proposal.refresh_from_db()
+        self.assertEqual(journey.preregistration_post, proposal)
+        self.assertEqual(proposal.journey, journey)
+
+    def test_ensure_approved_preregistration_has_journey_is_idempotent(
+        self,
+    ) -> None:
+        """Verify approved preregistration journey creation is idempotent."""
+        # Arrange
+        proposal = self._create_post(PREREGISTRATION)
+
+        # Act
+        first = self.service.ensure_approved_preregistration_has_journey(proposal)
+        second = self.service.ensure_approved_preregistration_has_journey(proposal)
+
+        # Assert
+        self.assertEqual(first, second)
+        self.assertEqual(ResearchJourney.objects.count(), 1)
+
+    def test_ensure_pending_preregistration_skips_journey(
+        self,
+    ) -> None:
+        """Verify pending preregistrations do not receive a journey anchor."""
+        # Arrange
+        proposal = self._create_post(PREREGISTRATION)
+        proposal.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        proposal.unified_document.save(update_fields=["status"])
+
+        # Act
+        journey = self.service.ensure_approved_preregistration_has_journey(proposal)
+
+        # Assert
+        self.assertIsNone(journey)
+        self.assertFalse(ResearchJourney.objects.exists())
+
+    def test_ensure_approved_discussion_skips_journey(self) -> None:
+        """Verify approved non-preregistration posts do not receive a journey."""
+        # Arrange
+        post = self._create_post(DISCUSSION)
+
+        # Act
+        journey = self.service.ensure_approved_preregistration_has_journey(post)
+
+        # Assert
+        self.assertIsNone(journey)
+        self.assertFalse(ResearchJourney.objects.exists())
 
     def test_attach_stage_attaches_registered_report(self) -> None:
         """Verify registered reports attach to journeys with proposals."""

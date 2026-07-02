@@ -3,7 +3,11 @@ from dataclasses import dataclass
 from django.db import IntegrityError, transaction
 
 from purchase.models import GrantApplication
-from researchhub_document.models import ResearchhubPost, ResearchJourney
+from researchhub_document.models import (
+    ResearchhubPost,
+    ResearchhubUnifiedDocument,
+    ResearchJourney,
+)
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
     REGISTERED_REPORT,
@@ -64,6 +68,14 @@ class JourneyService:
 
         self.attach_stage(journey, post)
         return journey
+
+    def ensure_approved_preregistration_has_journey(
+        self, post: ResearchhubPost
+    ) -> ResearchJourney | None:
+        """Create a journey for an approved preregistration, if needed."""
+        if not self._is_approved_preregistration(post):
+            return None
+        return self.get_or_create_for_preregistration(post)
 
     @transaction.atomic
     def attach_stage(
@@ -163,6 +175,13 @@ class JourneyService:
             )
             .order_by("id")
             .first()
+        )
+
+    def _is_approved_preregistration(self, post: ResearchhubPost) -> bool:
+        """Return whether the post is an approved preregistration."""
+        return (
+            post.document_type == PREREGISTRATION
+            and post.unified_document.status == ResearchhubUnifiedDocument.APPROVED
         )
 
     def _ensure_proposal_slot(

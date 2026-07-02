@@ -13,6 +13,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.journey_service import JourneyService
 from user.related_models.user_model import User
 from user.services.moderation import (
     create_removal_verdict,
@@ -37,8 +38,10 @@ class ContentModerationService:
     the ``handle_unified_document_removed`` signal.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, journey_service: JourneyService | None = None) -> None:
+        """Initialize moderation dependencies."""
         self._grant_service = GrantModerationService()
+        self._journey_service = journey_service or JourneyService()
 
     def approve_content(
         self, content: ModerationTarget, moderator: User
@@ -52,6 +55,10 @@ class ContentModerationService:
 
         with transaction.atomic():
             self._mark_reviewed(content, moderator, ResearchhubUnifiedDocument.APPROVED)
+            if isinstance(content, ResearchhubPost):
+                self._journey_service.ensure_approved_preregistration_has_journey(
+                    content
+                )
             self._publish(content)
             self._notify(content, moderator, Notification.CONTENT_APPROVED)
 
