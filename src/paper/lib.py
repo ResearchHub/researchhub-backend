@@ -1,8 +1,12 @@
-import utils.sentry as sentry
+import logging
+
 from utils.http import check_url_contains_pdf
 
 # TODO: Create classes of url patterns to generalize this even further esp for
 # subdomains.
+
+
+logger = logging.getLogger(__name__)
 
 
 class Journal:
@@ -48,8 +52,10 @@ class Arxiv(Journal):
             uid = cls.remove_query(uid)
             pdf_url = f"{cls.pdf_url_base}{uid}{cls.pdf_url_suffix}"
             return pdf_url
-        except Exception as e:
-            sentry.log_error(e, message=journal_url)
+        except Exception:
+            logger.exception(
+                "Error converting journal URL to PDF URL for arXiv: %s", journal_url
+            )
             return None
 
     @classmethod
@@ -60,8 +66,10 @@ class Arxiv(Journal):
             uid = uid_parts[0]
             uid = cls.remove_query(uid)
             return f"{cls.journal_url_base}{uid}"
-        except Exception as e:
-            sentry.log_error(e, message=pdf_url)
+        except Exception:
+            logger.exception(
+                "Error converting PDF URL to journal URL for arXiv: %s", pdf_url
+            )
             return None
 
 
@@ -82,8 +90,10 @@ class Biorxiv(Journal):
             uid = cls.remove_query(uid)
             pdf_url = f"{cls.pdf_url_base}{uid}{cls.pdf_url_suffix}"
             return pdf_url
-        except Exception as e:
-            sentry.log_error(e, message=journal_url)
+        except Exception:
+            logger.exception(
+                "Error converting journal URL to PDF URL for BioRxiv: %s", journal_url
+            )
             return None
 
     @classmethod
@@ -93,8 +103,10 @@ class Biorxiv(Journal):
             uid_parts = cls.remove_query(parts[1]).split(cls.pdf_url_suffix)
             uid = uid_parts[0]
             return f"{cls.journal_url_base}{uid}"
-        except Exception as e:
-            sentry.log_error(e, message=pdf_url)
+        except Exception:
+            logger.exception(
+                "Error converting PDF URL to journal URL for BioRxiv: %s", pdf_url
+            )
             return None
 
 
@@ -118,8 +130,10 @@ class Nature(Journal):
             if check_url_contains_pdf(pdf_url):
                 return pdf_url
             return None
-        except Exception as e:
-            sentry.log_error(e, message=journal_url)
+        except Exception:
+            logger.exception(
+                "Error converting journal URL to PDF URL for Nature: %s", journal_url
+            )
             return None
 
     @classmethod
@@ -129,8 +143,10 @@ class Nature(Journal):
             uid_parts = cls.remove_query(parts[1]).split(cls.pdf_url_suffix)
             uid = uid_parts[0]
             return f"{cls.journal_url_base}{uid}"
-        except Exception as e:
-            sentry.log_error(e, message=pdf_url)
+        except Exception:
+            logger.exception(
+                "Error converting PDF URL to journal URL for Nature: %s", pdf_url
+            )
             return None
 
 
@@ -151,8 +167,10 @@ class JNeurosci(Journal):
             uid = cls.remove_query(uid)
             pdf_url = f"{cls.pdf_url_base}{uid}{cls.pdf_url_suffix}"
             return pdf_url
-        except Exception as e:
-            sentry.log_error(e, message=journal_url)
+        except Exception:
+            logger.exception(
+                "Error converting journal URL to PDF URL for JNeurosci: %s", journal_url
+            )
             return None
 
     @classmethod
@@ -163,8 +181,10 @@ class JNeurosci(Journal):
             uid = uid_parts[0].split(cls.pdf_url_split_on)[1]
             journal_url = f"{cls.journal_url_base}{uid}"
             return journal_url
-        except Exception as e:
-            sentry.log_error(e, message=pdf_url)
+        except Exception:
+            logger.exception(
+                "Error converting PDF URL to journal URL for JNeurosci: %s", pdf_url
+            )
             return None
 
 
@@ -181,8 +201,10 @@ class Cell(Journal):
             uid = cls.remove_query(uid)
             pdf_url = f"{cls.pdf_url_base}{uid}"
             return pdf_url
-        except Exception as e:
-            sentry.log_error(e, message=journal_url)
+        except Exception:
+            logger.exception(
+                "Error converting journal URL to PDF URL for Cell: %s", journal_url
+            )
             return None
 
     @classmethod
@@ -192,8 +214,10 @@ class Cell(Journal):
         try:
             journal_url = f"{cls.journal_url_base}{uid}"
             return journal_url
-        except Exception as e:
-            sentry.log_error(e, message=pdf_url)
+        except Exception:
+            logger.exception(
+                "Error converting PDF URL to journal URL for Cell: %s", pdf_url
+            )
             return None
 
 
@@ -214,8 +238,10 @@ class PLOS(Journal):
             uid = cls.remove_query(uid)
             pdf_url = f"{cls.pdf_url_base}{uid}{cls.pdf_url_suffix}"
             return pdf_url
-        except Exception as e:
-            sentry.log_error(e, message=journal_url)
+        except Exception:
+            logger.exception(
+                "Error converting journal URL to PDF URL for PLOS: %s", journal_url
+            )
             return None
 
     @classmethod
@@ -226,8 +252,10 @@ class PLOS(Journal):
             uid = uid_parts[0]
             journal_url = f"{cls.journal_url_base}{uid}"
             return journal_url
-        except Exception as e:
-            sentry.log_error(e, message=pdf_url)
+        except Exception:
+            logger.exception(
+                "Error converting PDF URL to journal URL for PLOS: %s", pdf_url
+            )
             return None
 
 
@@ -248,8 +276,10 @@ class PNAS(Journal):
             uid = cls.remove_query(uid)
             pdf_url = f"{cls.pdf_url_base}{uid}{cls.pdf_url_suffix}"
             return pdf_url
-        except Exception as e:
-            sentry.log_error(e, message=journal_url)
+        except Exception:
+            logger.exception(
+                "Error converting journal URL to PDF URL for PNAS: %s", journal_url
+            )
             return None
 
     @classmethod
@@ -260,8 +290,10 @@ class PNAS(Journal):
             uid = uid_parts[0]
             journal_url = f"{cls.journal_url_base}{uid}"
             return journal_url
-        except Exception as e:
-            sentry.log_error(e, message=pdf_url)
+        except Exception:
+            logger.exception(
+                "Error converting PDF URL to journal URL for PNAS: %s", pdf_url
+            )
             return None
 
 
@@ -284,8 +316,10 @@ class Lancet(Journal):
             uid = cls.remove_query(uid)
             pdf_url = f"{cls.pdf_url_base}{uid}"
             return pdf_url
-        except Exception as e:
-            sentry.log_error(e, message=journal_url)
+        except Exception:
+            logger.exception(
+                "Error converting journal URL to PDF URL for Lancet: %s", journal_url
+            )
             return None
 
     @classmethod
@@ -295,8 +329,10 @@ class Lancet(Journal):
             uid = cls.remove_query(parts[1])
             journal_url = f"{cls.journal_url_base}{uid}{cls.journal_url_suffix}"
             return journal_url
-        except Exception as e:
-            sentry.log_error(e, message=pdf_url)
+        except Exception:
+            logger.exception(
+                "Error converting PDF URL to journal URL for Lancet: %s", pdf_url
+            )
             return None
 
 
@@ -313,8 +349,10 @@ class AAAS(Journal):
         try:
             pdf_url = f"{parts[0]}{cls.journal_url_split_on}/pdf{without_query_params}{cls.pdf_url_suffix}"  # noqa: E501
             return pdf_url
-        except Exception as e:
-            sentry.log_error(e, message=journal_url)
+        except Exception:
+            logger.exception(
+                "Error converting journal URL to PDF URL for AAAS: %s", journal_url
+            )
             return None
 
     @classmethod
@@ -325,8 +363,10 @@ class AAAS(Journal):
             uid = uid_parts[1]
             uid = cls.remove_query(uid)
             return f"{cls.journal_url_base}{uid}"
-        except Exception as e:
-            sentry.log_error(e, message=pdf_url)
+        except Exception:
+            logger.exception(
+                "Error converting PDF URL to journal URL for AAAS: %s", pdf_url
+            )
             return None
 
 
@@ -343,8 +383,11 @@ class ScienceDirect(Journal):
         try:
             pdf_url = f"{without_query_params}{cls.pdf_url_suffix}"
             return pdf_url
-        except Exception as e:
-            sentry.log_error(e, message=journal_url)
+        except Exception:
+            logger.exception(
+                "Error converting journal URL to PDF URL for ScienceDirect: %s",
+                journal_url,
+            )
             return None
 
     @classmethod
@@ -355,8 +398,10 @@ class ScienceDirect(Journal):
             uid = uid_parts[0]
             uid = cls.remove_query(uid)
             return f"{cls.journal_url_base}{uid}"
-        except Exception as e:
-            sentry.log_error(e, message=pdf_url)
+        except Exception:
+            logger.exception(
+                "Error converting PDF URL to journal URL for ScienceDirect: %s", pdf_url
+            )
             return None
 
 
@@ -393,8 +438,12 @@ class JournalWithSubdomain:
             pdf_url_base = cls.build_pdf_url_base(subdomain, sub_key)
             pdf_url = f"{pdf_url_base}{uid}{cls.pdf_url_suffix}"
             return pdf_url
-        except Exception as e:
-            sentry.log_error(e, message=journal_url)
+        except Exception:
+            logger.exception(
+                "Error converting journal URL to PDF URL for %s: %s",
+                cls.__name__,
+                journal_url,
+            )
             return None
 
     @classmethod
@@ -413,8 +462,12 @@ class JournalWithSubdomain:
             journal_url_base = cls.build_journal_url_base(subdomain)
             journal_url = f"{journal_url_base}{uid}"
             return journal_url
-        except Exception as e:
-            sentry.log_error(e, message=pdf_url)
+        except Exception:
+            logger.exception(
+                "Error converting PDF URL to journal URL for %s: %s",
+                cls.__name__,
+                pdf_url,
+            )
             return None
 
     @classmethod

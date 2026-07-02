@@ -18,7 +18,6 @@ from paper.ingestion.mappers import MapperFactory
 from paper.ingestion.services.ingestion_service import PaperIngestionService
 from paper.models import PaperFetchLog
 from researchhub.celery import QUEUE_PULL_PAPERS, app
-from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
 
@@ -119,8 +118,7 @@ class PaperIngestionPipeline:
                         "message": str(e),
                     }
                 )
-                logger.error(f"Pipeline error for [{source}]: {e}")
-                log_error(e, message=f"Pipeline error for [{source}]")
+                logger.exception("Pipeline error for %s", source)
                 # Log failure
                 if create_fetch_log:
                     self._log_fetch(source, status, success=False)
@@ -154,7 +152,7 @@ class PaperIngestionPipeline:
                     "message": str(e),
                 }
             )
-            logger.error(f"Failed to fetch papers from {source}: {e}")
+            logger.exception("Failed to fetch papers from %s", source)
             raise
 
         return papers
@@ -293,9 +291,8 @@ def fetch_papers_from_source(
 
         return results[source].to_dict()
 
-    except Exception as e:
-        logger.error(f"Failed to fetch papers from {source}: {e}")
-        log_error(e, message=f"Failed to fetch papers from {source}")
+    except Exception:
+        logger.exception("Failed to fetch papers from %s", source)
         raise  # Let Celery handle the retry
 
 

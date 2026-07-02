@@ -5,7 +5,6 @@ from io import BytesIO
 from django.conf import settings
 from PIL import Image
 
-from utils import sentry
 from utils.aws import create_client
 
 logger = logging.getLogger(__name__)
@@ -619,9 +618,8 @@ on other criteria."""
 
             return selected_figure.id, best_score
 
-        except Exception as e:
-            sentry.log_error(e, message=f"Bedrock API call failed for {batch_label}")
-            logger.exception(f"Exception details for {batch_label}")
+        except Exception:
+            logger.exception("Bedrock API call failed for %s", batch_label)
             return None, None
 
     def select_primary_image(
