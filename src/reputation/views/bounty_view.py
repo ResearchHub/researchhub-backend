@@ -1,4 +1,5 @@
 import decimal
+import logging
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -53,7 +54,8 @@ from researchhub_document.related_models.constants.document_type import (
 from user.models import User
 from user.permissions import IsModerator
 from utils.permissions import PostOnly
-from utils.sentry import log_error
+
+logger = logging.getLogger(__name__)
 
 
 def _open_bounty_exists_on_item(item_content_type, item_object_id):
@@ -68,8 +70,8 @@ def _open_bounty_exists_on_item(item_content_type, item_object_id):
 def _create_bounty_checks(user, amount, item_content_type, bypass_user_balance=False):
     try:
         amount = decimal.Decimal(amount)
-    except Exception as e:
-        log_error(e)
+    except Exception:
+        logger.exception("Invalid amount %s", amount)
         return Response({"detail": "Invalid amount"}, status=400)
 
     user_balance = user.get_balance()
@@ -379,8 +381,8 @@ class BountyViewSet(viewsets.ModelViewSet):
 
                 try:
                     decimal_amount = decimal.Decimal(str(amount))
-                except Exception as e:
-                    log_error(e)
+                except Exception:
+                    logger.exception("Invalid amount %s for solution", amount)
                     return Response(
                         {"detail": f"Invalid amount: {amount}"},
                         status=status.HTTP_400_BAD_REQUEST,
@@ -476,7 +478,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                         f"Bounty (id: {bounty.id}) payment failed for recipient "
                         f"(id: {solution_created_by.id}) amount {decimal_amount}"
                     )
-                    log_error(error_msg)
+                    logger.exception(error_msg)
                     raise Exception("Bounty not paid to recipient")
 
                 # Payment successful: Update status, amount, and save the BountySolution
