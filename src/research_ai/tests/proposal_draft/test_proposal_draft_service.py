@@ -727,3 +727,69 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
         self.assertIn("no grant", result["error_message"])
         self.assertEqual(provider.call_count, 0)
+
+    # -- a crashed gate check ends the run naming the crash ---------------
+
+    def test_gate_crash_fails_run_with_cause_not_iteration_cap(self):
+        # Arrange: the panel (gate infrastructure) raises. Without containment
+        # the crash would go back to the model as a retryable tool error and
+        # the run would grind to a misleading iteration-cap failure.
+        class _ExplodingPanel:
+            model_ids = ["fake-judge"]
+
+            def score(self, _proposal, *, context=None):
+                raise ValueError("judge context exploded")
+
+        provider = _AlwaysSubmitProvider(_clean_payload())
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_ExplodingPanel(),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: terminal on the first crash with the real cause, and the
+        # crashed round's submission is still persisted for inspection.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertIn("gate check crashed", result["error_message"])
+        self.assertIn("judge context exploded", result["error_message"])
+        self.assertEqual(provider.call_count, 1)
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(
+            draft.last_submission["sections"]["title"], "A Study of Folding"
+        )
+
+    # -- an empty judge panel is an infrastructure failure, not a 1.0 ------
+
+    def test_empty_judge_panel_fails_run_as_unavailable(self):
+        # Arrange: the panel runs but no judge returns a score, so its rollup
+        # carries only empty-input default 1s and judges_reporting=0.
+        class _EmptyPanel:
+            model_ids = ["fake-judge"]
+
+            def score(self, _proposal, *, context=None):
+                return {
+                    "scores": dict.fromkeys(_CRITERIA, 1),
+                    "overall": 1.0,
+                    "gaps": [],
+                    "judges_reporting": 0,
+                }
+
+        provider = _AlwaysSubmitProvider(_clean_payload())
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_EmptyPanel(),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: failed as "panel unavailable" after one round -- not scored
+        # as 1.0 quality, not ground down to a plateau or round budget.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertIn("judge panel unavailable", result["error_message"])
+        self.assertNotIn("plateau", result["error_message"])
+        self.assertEqual(provider.call_count, 1)

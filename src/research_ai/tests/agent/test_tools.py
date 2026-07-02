@@ -42,6 +42,21 @@ class ToolsetDispatchTests(SimpleTestCase):
         self.assertEqual(result, {"error": "kaboom"})
         self.assertFalse(stop)
 
+    def test_handler_exception_with_empty_message_uses_class_name(self):
+        # Arrange: some exceptions str() to "" -- the model must still see a
+        # non-empty error.
+        def boom(input):
+            raise ValueError()
+
+        toolset = Toolset([Tool("explode", "explode", {"type": "object"}, boom)])
+
+        # Act
+        result, stop = toolset.dispatch("explode", {})
+
+        # Assert
+        self.assertEqual(result, {"error": "ValueError"})
+        self.assertFalse(stop)
+
     def test_terminal_tool_signals_stop(self):
         # Arrange
         toolset = Toolset([_build_ok_tool("submit", is_terminal=True)])
