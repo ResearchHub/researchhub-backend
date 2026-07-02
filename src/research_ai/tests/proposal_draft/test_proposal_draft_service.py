@@ -249,6 +249,7 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(draft.step, ProposalDraft.Step.DONE)
         self.assertEqual(draft.final_scores["overall"], 5)
         self.assertEqual(draft.rounds_used, 1)
+        self.assertTrue(panel.contexts)  # panel was scored at least once
         self.assertEqual(
             panel.contexts[0]["rfp"]["organization"],
             "National Science Foundation",
