@@ -37,7 +37,6 @@ class ProposalRunState:
         # records. ``agent_error`` carries the detail (provider error text,
         # truncation stop reason) for that message.
         self.agent_stop_reason: str | None = None
-        self.agent_iterations: int | None = None
         self.agent_error: str | None = None
 
         # Infrastructure failures the submit handler contains: a crashed gate
@@ -57,7 +56,6 @@ class ProposalRunState:
         self.best_submission: dict | None = None
         self.best_gate_report: dict = {}
         self.best_scores: dict = {}
-        self.best_round: int | None = None
 
     # -- per-round updates --------------------------------------------------
 
@@ -99,7 +97,6 @@ class ProposalRunState:
         self.best_submission = self.submitted
         self.best_gate_report = report
         self.best_scores = self.final_scores
-        self.best_round = self.rounds_used
 
     def panel_plateaued(self, report: dict) -> bool:
         """The panel is the blocker and its overall has stopped improving."""
@@ -116,12 +113,10 @@ class ProposalRunState:
     def record_agent_result(self, result) -> None:
         """Capture how a cleanly-returning core agent stopped."""
         self.agent_stop_reason = result.stop_reason
-        self.agent_iterations = result.iterations
 
     def record_agent_error(self, exc: AgentRunError) -> None:
         """Classify a core-agent failure by type into the fields
-        ``failure_message`` reads (stop reason, iterations, detail)."""
-        self.agent_iterations = exc.iterations
+        ``failure_message`` reads (stop reason, detail)."""
         if isinstance(exc, IterationLimitError):
             self.agent_stop_reason = "iteration_cap"
         elif isinstance(exc, IncompleteTurnError):
