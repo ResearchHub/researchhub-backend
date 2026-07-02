@@ -10,7 +10,6 @@ from hub.models import Hub
 from personalize.config.settings import PERSONALIZE_CONFIG
 from personalize.services.feed_service import DEFAULT_NUM_RESULTS
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
-from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
 
@@ -127,13 +126,10 @@ class FeedFilteringBackend(BaseFilterBackend):
                 trending_ids, queryset, view
             )
 
-        except Exception as e:
-            log_error(
-                e,
-                message="AWS Personalize trending failed, falling back to hot_score_v2",
-                json_data={"feed_view": "popular", "ordering": "aws_trending"},
+        except Exception:
+            logger.exception(
+                "Personalize trending failed, falling back to hot_score_v2"
             )
-            logger.error(f"Trending feed error: {e}")
             view._feed_source = "rh-popular"
             return queryset
 
