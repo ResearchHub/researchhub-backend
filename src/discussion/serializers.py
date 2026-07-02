@@ -133,12 +133,10 @@ class DynamicVoteSerializer(DynamicModelFieldSerializer):
 
 class GenericReactionSerializerMixin:
     EXPOSABLE_FIELDS = [
-        "promoted",
         "score",
         "user_flag",
     ]
     READ_ONLY_FIELDS = [
-        "promoted",
         "score",
         "user_flag",
     ]
@@ -177,20 +175,10 @@ class GenericReactionSerializerMixin:
                     pass
         return flag
 
-    def get_promoted(self, obj):
-        if self.context.get("exclude_promoted_score", False):
-            return None
-        try:
-            return obj.get_promoted_score()
-        except Exception as e:
-            log_error(e)
-            return None
-
 
 class GenericReactionSerializer(GenericReactionSerializerMixin, ModelSerializer):
     class Meta:
         abstract = True
 
-    promoted = SerializerMethodField()
     user_flag = SerializerMethodField()
     user_vote = SerializerMethodField()
