@@ -51,6 +51,7 @@ from research_ai.services.proposal_tools import (
     ProposalContextToolset,
     ProposalFulltextToolset,
     ProposalVerificationToolset,
+    ProposalWebSearchToolset,
     build_judge_tool,
 )
 from research_ai.services.proposal_tools.judge_context import build_judge_context
@@ -121,6 +122,7 @@ class _ProposalDraftRunner:
         provider=None,
         panel: ProposalJudgePanel | None = None,
         oa_client: OpenAlex | None = None,
+        web_search_client=None,
         config: ProposalDraftConfig | None = None,
     ):
         self.search_expert = search_expert
@@ -129,6 +131,7 @@ class _ProposalDraftRunner:
         self.progress_callback = progress_callback
         self.provider = provider
         self.oa_client = oa_client or OpenAlex()
+        self.web_search_client = web_search_client
         self.panel = panel or ProposalJudgePanel()
         self.config = config or ProposalDraftConfig.from_settings()
 
@@ -142,6 +145,9 @@ class _ProposalDraftRunner:
         )
         self.fulltext_toolset = ProposalFulltextToolset(search_expert)
         self.openalex_toolset = OpenAlexToolset(client=self.oa_client)
+        # Its own provenance -- deliberately NOT self.provenance -- so web results
+        # ground the prose but can never satisfy the citation gate.
+        self.web_search_toolset = ProposalWebSearchToolset(client=web_search_client)
         self._submit_tool: Tool | None = None
 
         self.gates = ProposalGateRunner(
@@ -247,6 +253,8 @@ class _ProposalDraftRunner:
         for tool in self.context_toolset.build_tools():
             toolset.add(tool)
         for tool in self.fulltext_toolset.build_tools():
+            toolset.add(tool)
+        for tool in self.web_search_toolset.build_tools():
             toolset.add(tool)
         for tool in self.verification_toolset.build_tools():
             toolset.add(tool)
@@ -533,6 +541,7 @@ def run_proposal_draft(
     provider=None,
     panel: ProposalJudgePanel | None = None,
     oa_client: OpenAlex | None = None,
+    web_search_client=None,
 ) -> dict:
     """Run a headless proposal-drafting job for one ``SearchExpert``.
 
@@ -541,9 +550,9 @@ def run_proposal_draft(
     stop, and writes the verified proposal as a ``Note``. Returns a result dict
     carrying the final status, the gate report, and (on success) the note id.
 
-    ``provider`` / ``panel`` / ``oa_client`` are injectable for tests; in
-    production they default to the real Bedrock provider, judge panel, and
-    OpenAlex client.
+    ``provider`` / ``panel`` / ``oa_client`` / ``web_search_client`` are
+    injectable for tests; in production they default to the real Bedrock
+    provider, judge panel, OpenAlex client, and Brave web-search client.
     """
     search_expert = SearchExpert.objects.select_related(
         "expert", "expert_search", "expert_search__unified_document"
@@ -560,5 +569,6 @@ def run_proposal_draft(
         provider=provider,
         panel=panel,
         oa_client=oa_client,
+        web_search_client=web_search_client,
     )
     return runner.run()

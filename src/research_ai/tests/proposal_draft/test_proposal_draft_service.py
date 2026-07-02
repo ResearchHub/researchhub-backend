@@ -24,6 +24,7 @@ from research_ai.services.agent.types import (
     ToolUseBlock,
 )
 from research_ai.services.proposal_draft import run_proposal_draft
+from research_ai.services.proposal_draft.runner import _ProposalDraftRunner
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT
 from user.tests.helpers import create_random_default_user
@@ -415,6 +416,32 @@ class ProposalDraftServiceTests(TestCase):
         self.assertIn("did not submit", result["error_message"])
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
         self.assertEqual(draft.last_submission, {})
+
+    # -- the web_search tool is composed into the agent toolset ----------
+
+    def test_web_search_tool_is_wired_into_the_agent(self):
+        # Arrange: a runner with an injected web-search client.
+        draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            status=ProposalDraft.Status.PENDING,
+            step=ProposalDraft.Step.QUEUED,
+        )
+        sentinel = object()
+        runner = _ProposalDraftRunner(
+            self.search_expert,
+            draft,
+            oa_client=_FakeOpenAlex(),
+            web_search_client=sentinel,
+        )
+
+        # Act
+        toolset = runner._compose_toolset()
+
+        # Assert: the tool is exposed to the agent, and the injected client is
+        # used, with its own provenance kept separate from citation grounding.
+        self.assertIn("web_search", toolset.names)
+        self.assertIs(runner.web_search_toolset._client, sentinel)
+        self.assertIsNot(runner.web_search_toolset.provenance, runner.provenance)
 
     # -- a flat panel score below the bar stops the loop early ------------
 
