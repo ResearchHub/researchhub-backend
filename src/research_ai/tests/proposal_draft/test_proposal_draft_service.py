@@ -23,7 +23,7 @@ from research_ai.services.agent.types import (
     TextBlock,
     ToolUseBlock,
 )
-from research_ai.services.proposal_draft_service import run_proposal_draft
+from research_ai.services.proposal_draft import run_proposal_draft
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT
 from user.tests.helpers import create_random_default_user
@@ -249,6 +249,7 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(draft.step, ProposalDraft.Step.DONE)
         self.assertEqual(draft.final_scores["overall"], 5)
         self.assertEqual(draft.rounds_used, 1)
+        self.assertTrue(panel.contexts)  # panel was scored at least once
         self.assertEqual(
             panel.contexts[0]["rfp"]["organization"],
             "National Science Foundation",
