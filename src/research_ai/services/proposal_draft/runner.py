@@ -29,15 +29,17 @@ safety net converts any unexpected exception to the same ``FAILED`` shape --
 no run ends with the record still saying ``PROCESSING``.
 
 The pieces live beside this module: ``config`` (the settings-backed knobs),
-``gates`` (the deterministic accept/reject checks), and ``note_writer`` (the
-headless ``Note`` write). Judge-facing context compaction lives with the other
-tool code in ``research_ai.services.proposal_tools.judge_context``.
+``gates`` (the deterministic accept/reject checks), ``run_state`` (the loop
+bookkeeping and failure-reason taxonomy), ``draft_recorder`` (every
+``ProposalDraft`` write and progress emission), ``toolset`` (the submit tool
+and toolset composition), and ``note_writer`` (the headless ``Note`` write).
+Judge-facing context compaction lives with the other tool code in
+``research_ai.services.proposal_tools.judge_context``.
 """
 
 import logging
 
 from django.conf import settings
-from django.utils import timezone
 
 from research_ai.models import ProposalDraft, SearchExpert
 from research_ai.prompts.proposal_draft_prompts import (
@@ -48,76 +50,31 @@ from research_ai.services.agent import (
     AgentRunError,
     AgentService,
     BedrockProvider,
-    IncompleteTurnError,
-    IterationLimitError,
     Tool,
     Toolset,
 )
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
+from research_ai.services.proposal_draft.draft_recorder import DraftRecorder
 from research_ai.services.proposal_draft.gates import ProposalGateRunner
 from research_ai.services.proposal_draft.note_writer import write_proposal_note
+from research_ai.services.proposal_draft.run_state import ProposalRunState
+from research_ai.services.proposal_draft.toolset import (
+    build_submit_tool,
+    compose_proposal_toolset,
+)
 from research_ai.services.proposal_judge_panel import ProposalJudgePanel
 from research_ai.services.proposal_tools import (
     ProposalContextToolset,
     ProposalFulltextToolset,
     ProposalVerificationToolset,
     ProposalWebSearchToolset,
-    build_judge_tool,
 )
 from research_ai.services.proposal_tools.judge_context import build_judge_context
 from research_ai.services.researcher_profile import build_and_store_expert_profile
-from research_ai.services.researcher_profile.openalex_tools import (
-    SUBMIT_PROFILE,
-    OpenAlexToolset,
-)
+from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
 from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
-
-_SUBMIT_INPUT_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "sections": {
-            "type": "object",
-            "properties": {
-                "title": {"type": "string"},
-                "hypothesis": {"type": "string"},
-                "approach": {"type": "string"},
-                "why_this_team": {"type": "string"},
-                "scope_timeline": {"type": "string"},
-            },
-            "required": [
-                "title",
-                "hypothesis",
-                "approach",
-                "why_this_team",
-                "scope_timeline",
-            ],
-        },
-        "prosemirror": {
-            "type": "object",
-            "description": 'ProseMirror doc: {"type": "doc", "content": [...]}.',
-        },
-        "plain_text": {
-            "type": "string",
-            "description": "The full proposal as readable plain text.",
-        },
-        "citations": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "claim_id": {"type": "string"},
-                    "doi": {"type": "string"},
-                    "title": {"type": "string"},
-                    "authors": {"type": "array", "items": {"type": "string"}},
-                },
-                "required": ["claim_id"],
-            },
-        },
-    },
-    "required": ["sections", "prosemirror", "plain_text"],
-}
 
 
 class _ProposalDraftRunner:
@@ -137,13 +94,16 @@ class _ProposalDraftRunner:
     ):
         self.search_expert = search_expert
         self.expert = search_expert.expert
-        self.draft = draft
-        self.progress_callback = progress_callback
         self.provider = provider
         self.oa_client = oa_client or OpenAlex()
         self.web_search_client = web_search_client
         self.panel = panel or ProposalJudgePanel()
         self.config = config or ProposalDraftConfig.from_settings()
+
+        self.state = ProposalRunState(self.config)
+        self.recorder = DraftRecorder(
+            draft, self.state, progress_callback=progress_callback
+        )
 
         # Shared across the run: provenance the citation gate grounds against.
         self.provenance: set[str] = set()
@@ -166,55 +126,24 @@ class _ProposalDraftRunner:
             verification_toolset=self.verification_toolset,
             judge_context=self._judge_context,
             grounded_urls=self._grounded_urls,
-            on_step=self._set_step,
+            on_step=self.recorder.set_step,
         )
 
-        # Loop state captured by the submit handler / gate runner.
-        self.rounds_used = 0
-        self.accepted = False
-        self.submitted: dict | None = None
-        self.last_gate_report: dict = {}
-        self.final_scores: dict = {}
         self.rfp_context: dict = {}
-
-        # How the core agent terminated (filled after ``agent.run`` returns/raises)
-        # and the panel-score plateau tracking -- both feed the specific failure
-        # message a FAILED run records. ``agent_error`` carries the detail
-        # (provider error text, truncation stop reason) for that message.
-        self.agent_stop_reason: str | None = None
-        self.agent_iterations: int | None = None
-        self.agent_error: str | None = None
-
-        # Infrastructure failures the submit handler contains: a crashed gate
-        # check or an empty judge panel ends the run with its real cause
-        # instead of letting the model revise against a broken referee.
-        self.gate_crash: str | None = None
-        self.panel_unavailable = False
-        self.best_overall: float | None = None
-        self.rounds_since_improvement = 0
-        self.stopped_on_plateau = False
-
-        # Snapshot of the highest-scoring round so a FAILED run persists the best
-        # draft the agent reached, not merely the last -- a plateau can stop the
-        # loop on a round that regressed below an earlier peak.
-        self.best_submission: dict | None = None
-        self.best_gate_report: dict = {}
-        self.best_scores: dict = {}
-        self.best_round: int | None = None
 
     # -- public entry -----------------------------------------------------
 
     def run(self) -> dict:
-        self.draft.status = ProposalDraft.Status.PROCESSING
-        self.draft.run_config = {
-            "generator_model_id": getattr(self.provider, "model_id", None)
-            or getattr(settings, "RESEARCH_AI_GENERATOR_MODEL_ID", None),
-            "judge_roster": list(self.panel.model_ids),
-            "max_rounds": self.config.max_rounds,
-            "panel_threshold": self.config.panel_threshold,
-            "max_iterations": self.config.max_iterations,
-        }
-        self.draft.save(update_fields=["status", "run_config", "updated_date"])
+        self.recorder.mark_processing(
+            {
+                "generator_model_id": getattr(self.provider, "model_id", None)
+                or getattr(settings, "RESEARCH_AI_GENERATOR_MODEL_ID", None),
+                "judge_roster": list(self.panel.model_ids),
+                "max_rounds": self.config.max_rounds,
+                "panel_threshold": self.config.panel_threshold,
+                "max_iterations": self.config.max_iterations,
+            }
+        )
         try:
             return self._run()
         except Exception as exc:  # noqa: BLE001 - no run may end still PROCESSING
@@ -240,33 +169,19 @@ class _ProposalDraftRunner:
         user_prompt = build_proposal_user_prompt(self.expert, self.rfp_context)
         agent = self._build_agent(system_prompt)
 
-        self._set_step(ProposalDraft.Step.DRAFTING)
+        self.recorder.set_step(ProposalDraft.Step.DRAFTING)
         try:
             result = agent.run(user_prompt)
-            self.agent_stop_reason = result.stop_reason
-            self.agent_iterations = result.iterations
+            self.state.record_agent_result(result)
         except AgentRunError as exc:
             # Core iteration cap hit, a truncated/filtered turn, or a provider
             # error after a partial run.
             logger.warning("proposal draft agent stopped early: %s", exc)
-            self._record_agent_error(exc)
+            self.state.record_agent_error(exc)
 
-        if self.accepted and self.submitted is not None:
+        if self.state.accepted and self.state.submitted is not None:
             return self._complete()
         return self._fail()
-
-    def _record_agent_error(self, exc: AgentRunError) -> None:
-        """Classify a core-agent failure by type into the loop-state fields
-        ``_failure_message`` reads (stop reason, iterations, detail)."""
-        self.agent_iterations = exc.iterations
-        if isinstance(exc, IterationLimitError):
-            self.agent_stop_reason = "iteration_cap"
-        elif isinstance(exc, IncompleteTurnError):
-            self.agent_stop_reason = "incomplete_turn"
-            self.agent_error = exc.stop_reason
-        else:
-            self.agent_stop_reason = "provider_error"
-            self.agent_error = str(exc)
 
     # -- setup ------------------------------------------------------------
 
@@ -274,7 +189,7 @@ class _ProposalDraftRunner:
         """Build + persist the researcher profile when it is missing/stale."""
         if not _needs_profile(self.expert.profile):
             return
-        self._set_step(ProposalDraft.Step.BUILDING_PROFILE)
+        self.recorder.set_step(ProposalDraft.Step.BUILDING_PROFILE)
         try:
             build_and_store_expert_profile(
                 self.expert, provider=self.provider, oa_client=self.oa_client
@@ -295,102 +210,65 @@ class _ProposalDraftRunner:
         )
 
     def _compose_toolset(self) -> Toolset:
-        """OpenAlex + context + verification + judge + terminal submit, one set."""
-        toolset = Toolset()
-        # OpenAlex tools, minus that toolset's own terminal submit_profile -- the
-        # proposal agent has its own terminal tool.
-        for tool in self.openalex_toolset.build_tools():
-            if tool.name == SUBMIT_PROFILE:
-                continue
-            toolset.add(tool)
-        for tool in self.context_toolset.build_tools():
-            toolset.add(tool)
-        for tool in self.fulltext_toolset.build_tools():
-            toolset.add(tool)
-        for tool in self.web_search_toolset.build_tools():
-            toolset.add(tool)
-        for tool in self.verification_toolset.build_tools():
-            toolset.add(tool)
-        toolset.add(
-            build_judge_tool(
-                self.panel,
-                context_provider=self._judge_tool_context,
-            )
+        self._submit_tool = build_submit_tool(self._handle_submit)
+        return compose_proposal_toolset(
+            openalex_toolset=self.openalex_toolset,
+            context_toolset=self.context_toolset,
+            fulltext_toolset=self.fulltext_toolset,
+            web_search_toolset=self.web_search_toolset,
+            verification_toolset=self.verification_toolset,
+            panel=self.panel,
+            judge_context_provider=self._judge_tool_context,
+            submit_tool=self._submit_tool,
         )
-        toolset.add(self._build_submit_tool())
-        return toolset
-
-    def _build_submit_tool(self) -> Tool:
-        """The terminal ``submit_proposal`` tool, gated by the driver.
-
-        Terminality is decided per call: the gates run inside the handler, and
-        the tool only ends the loop when the draft is accepted or the round
-        budget is spent. While rounds remain, a rejected submit returns its gaps
-        with the tool non-terminal so the agent revises and submits again.
-        """
-        self._submit_tool = Tool(
-            name="submit_proposal",
-            description=(
-                "Submit the finished proposal for the deterministic gate. Provide "
-                "sections (title, hypothesis, approach, why_this_team, "
-                "scope_timeline), a ProseMirror `prosemirror` doc, `plain_text`, "
-                "and `citations` (each from a tool result). If the gate rejects "
-                "the draft it returns concrete gaps -- revise and submit again."
-            ),
-            input_schema=_SUBMIT_INPUT_SCHEMA,
-            handler=self._handle_submit,
-            is_terminal=False,
-        )
-        return self._submit_tool
 
     # -- the gate-before-stop handler ------------------------------------
 
     def _handle_submit(self, args: dict) -> dict:
-        submitted = args or {}
-        self.rounds_used += 1
-        self.submitted = submitted
+        state = self.state
+        state.begin_round(args or {})
         try:
-            accepted, report = self.gates.run(submitted, round_number=self.rounds_used)
+            accepted, report = self.gates.run(
+                state.submitted, round_number=state.rounds_used
+            )
         except Exception as exc:  # noqa: BLE001 - a broken gate must end the run
             # Contained here because ``Toolset.dispatch`` would otherwise hand
             # the crash back to the model as a retryable tool error, and it
             # would burn the remaining rounds revising against a broken
             # referee -- with the run then mis-blamed on the iteration cap.
             logger.exception("proposal draft gate check crashed")
-            self.gate_crash = str(exc) or type(exc).__name__
-            self._persist_round()
+            state.gate_crash = str(exc) or type(exc).__name__
+            self.recorder.persist_round()
             self._submit_tool.is_terminal = True
             return {"accepted": False, "stopped": "gate_error"}
-        self.accepted = accepted
-        self.last_gate_report = report
-        self.final_scores = (report.get("panel") or {}).get("rollup", {})
+        state.record_gate_result(accepted, report)
         if (report.get("panel") or {}).get("unavailable"):
             # An empty panel is an infrastructure failure, not a verdict --
             # same containment as a crashed gate.
-            self.panel_unavailable = True
-            self._persist_round()
+            state.panel_unavailable = True
+            self.recorder.persist_round()
             self._submit_tool.is_terminal = True
             return {
                 "accepted": False,
                 "stopped": "panel_unavailable",
                 "gate_report": report,
             }
-        self._track_plateau(report)
+        state.track_plateau(report)
 
-        exhausted = self.rounds_used >= self.config.max_rounds
+        exhausted = state.rounds_exhausted
         # Cut a run short only when the panel is the blocker and its score has
         # stopped improving; a passing panel held up by a mechanical gate is
         # still worth revising, and the round budget takes precedence anyway.
-        plateaued = not accepted and not exhausted and self._panel_plateaued(report)
-        self.stopped_on_plateau = plateaued
-        self._persist_round()
+        plateaued = not accepted and not exhausted and state.panel_plateaued(report)
+        state.stopped_on_plateau = plateaued
+        self.recorder.persist_round()
 
         # End the loop on a clean submit, when no rounds remain to revise, or
         # when the panel score has plateaued below the bar.
         self._submit_tool.is_terminal = accepted or exhausted or plateaued
 
         if accepted:
-            self._set_step(ProposalDraft.Step.WRITING_NOTE)
+            self.recorder.set_step(ProposalDraft.Step.WRITING_NOTE)
             return {"accepted": True, "gate_report": report}
         if exhausted:
             return {
@@ -406,44 +284,8 @@ class _ProposalDraftRunner:
                 "gaps": report["gaps"],
                 "gate_report": report,
             }
-        self._set_step(ProposalDraft.Step.REVISING)
+        self.recorder.set_step(ProposalDraft.Step.REVISING)
         return self._revise_feedback(report)
-
-    def _track_plateau(self, report: dict) -> None:
-        """Update the panel-score plateau counters from this round's rollup.
-
-        ``best_overall`` is the highest overall seen; ``rounds_since_improvement``
-        counts consecutive rounds that failed to beat it. The overall is a mean of
-        seven integer criteria, so the smallest real gain is ~0.14 and an unchanged
-        draft scores bit-identically: a plain ``>`` needs no epsilon guard."""
-        panel = report.get("panel") or {}
-        overall = panel.get("overall")
-        if not isinstance(overall, (int, float)):
-            return
-        overall = float(overall)
-        if self.best_overall is None or overall > self.best_overall:
-            self.best_overall = overall
-            self.rounds_since_improvement = 0
-            self._capture_best(report)
-        else:
-            self.rounds_since_improvement += 1
-
-    def _capture_best(self, report: dict) -> None:
-        """Snapshot the current round as the best-so-far submission.
-
-        Called only when this round set a new ``best_overall``. Each round builds
-        fresh ``submitted``/``report``/``final_scores`` dicts, so storing
-        references (not copies) is safe -- they are never mutated in place."""
-        self.best_submission = self.submitted
-        self.best_gate_report = report
-        self.best_scores = self.final_scores
-        self.best_round = self.rounds_used
-
-    def _panel_plateaued(self, report: dict) -> bool:
-        """The panel is the blocker and its overall has stopped improving."""
-        if (report.get("panel") or {}).get("ok"):
-            return False
-        return self.rounds_since_improvement >= self.config.plateau_patience
 
     def _revise_feedback(self, report: dict) -> dict:
         """Rejection payload for the revising agent: the gaps plus the panel's
@@ -457,29 +299,6 @@ class _ProposalDraftRunner:
             "overall": panel.get("overall"),
             "threshold": panel.get("threshold"),
         }
-
-    def _persist_round(self) -> None:
-        """Write this round's outcome to the record as soon as the gates run.
-
-        Terminal ``_complete``/``_fail`` still write the authoritative final
-        state, but persisting per round means an in-flight run -- or one that
-        hangs or dies mid-loop before reaching a terminal path -- is inspectable
-        with the latest submission, scores, and gate report rather than the
-        zeroed defaults.
-        """
-        self.draft.rounds_used = self.rounds_used
-        self.draft.final_scores = self.final_scores
-        self.draft.gate_report = self.last_gate_report
-        self.draft.last_submission = self.submitted or {}
-        self.draft.save(
-            update_fields=[
-                "rounds_used",
-                "final_scores",
-                "gate_report",
-                "last_submission",
-                "updated_date",
-            ]
-        )
 
     # -- judge context ------------------------------------------------------
 
@@ -512,130 +331,11 @@ class _ProposalDraftRunner:
     # -- terminal outcomes ------------------------------------------------
 
     def _complete(self) -> dict:
-        note = write_proposal_note(self.submitted)
-        self.draft.note = note
-        self.draft.final_scores = self.final_scores
-        self.draft.gate_report = self.last_gate_report
-        self.draft.rounds_used = self.rounds_used
-        self.draft.status = ProposalDraft.Status.COMPLETED
-        self.draft.step = ProposalDraft.Step.DONE
-        self.draft.completed_at = timezone.now()
-        self.draft.save()
-        self._emit_progress(ProposalDraft.Step.DONE)
-        return {
-            "status": ProposalDraft.Status.COMPLETED,
-            "proposal_draft_id": self.draft.id,
-            "note_id": note.id,
-            "rounds_used": self.rounds_used,
-            "final_scores": self.final_scores,
-            "gate_report": self.last_gate_report,
-        }
+        note = write_proposal_note(self.state.submitted)
+        return self.recorder.complete(note)
 
     def _fail(self, message: str | None = None) -> dict:
-        message = message or self._failure_message()
-        self.draft.rounds_used = self.rounds_used
-        # Persist the rejected draft so a failed run is still inspectable: a
-        # FAILED run never writes a Note, so this is the only place its content
-        # survives. Keep the BEST-scoring round, not merely the last -- a plateau
-        # can stop the loop on a round that regressed below an earlier peak. The
-        # gate report and scores are kept from the same round so the persisted
-        # draft and its evaluation stay consistent. Fall back to the last
-        # submission (``{}`` when the agent never submitted) if no round produced
-        # a scored panel to rank.
-        if self.best_submission is not None:
-            self.draft.last_submission = self.best_submission
-            self.draft.gate_report = self.best_gate_report
-            self.draft.final_scores = self.best_scores
-        else:
-            self.draft.last_submission = self.submitted or {}
-            self.draft.gate_report = self.last_gate_report
-            self.draft.final_scores = self.final_scores
-        self.draft.status = ProposalDraft.Status.FAILED
-        self.draft.error_message = message
-        self.draft.save()
-        return {
-            "status": ProposalDraft.Status.FAILED,
-            "proposal_draft_id": self.draft.id,
-            "rounds_used": self.rounds_used,
-            "gate_report": self.draft.gate_report,
-            "last_submission": self.draft.last_submission,
-            "error_message": message,
-        }
-
-    def _failure_message(self) -> str:
-        """A specific reason the run failed, distinguishing the paths that used
-        to collapse to one opaque string (iteration cap vs. give-up vs. plateau
-        vs. round budget vs. the ways the core agent can die mid-run)."""
-        if self.gate_crash:
-            return f"gate check crashed on round {self.rounds_used}: {self.gate_crash}"
-        if self.panel_unavailable:
-            return (
-                "judge panel unavailable (no judge returned a score) on round "
-                f"{self.rounds_used}"
-            )
-        if self.submitted is None and self.agent_stop_reason in (
-            "incomplete_turn",
-            "provider_error",
-        ):
-            # The agent died before ever submitting; name the real cause, not
-            # a give-up.
-            return self._agent_stop_message()
-        if self.submitted is None:
-            return "agent did not submit a proposal"
-        if self.stopped_on_plateau:
-            return (
-                f"panel score plateaued at {self.best_overall} for "
-                f"{self.rounds_since_improvement} rounds below the "
-                f"{self.config.panel_threshold} bar; stopped after "
-                f"{self.rounds_used} of {self.config.max_rounds} rounds"
-            )
-        if self.rounds_used >= self.config.max_rounds:
-            return f"gates not cleared within {self.config.max_rounds} rounds"
-        if self.agent_stop_reason == "iteration_cap":
-            return (
-                f"agent hit the {self.config.max_iterations}-iteration cap after "
-                f"{self.rounds_used} of {self.config.max_rounds} rounds; raise "
-                "RESEARCH_AI_PROPOSAL_MAX_ITERATIONS or reduce per-round tool use"
-            )
-        if self.agent_stop_reason in ("incomplete_turn", "provider_error"):
-            return self._agent_stop_message()
-        return (
-            f"agent ended without an accepted proposal after {self.rounds_used} rounds"
-        )
-
-    def _agent_stop_message(self) -> str:
-        """Name how the core agent died mid-run, with the actionable detail."""
-        if self.agent_stop_reason == "incomplete_turn":
-            return (
-                f"model stopped mid-run ({self.agent_error}) after "
-                f"{self.rounds_used} rounds"
-            )
-        return (
-            f"agent stopped on a provider error after {self.rounds_used} rounds: "
-            f"{self.agent_error}"
-        )
-
-    # -- progress ---------------------------------------------------------
-
-    def _set_step(self, step: str) -> None:
-        if self.draft.step != step:
-            self.draft.step = step
-            self.draft.save(update_fields=["step", "updated_date"])
-        self._emit_progress(step)
-
-    def _emit_progress(self, step: str) -> None:
-        if self.progress_callback is None:
-            return
-        try:
-            self.progress_callback(
-                {
-                    "step": step,
-                    "status": self.draft.status,
-                    "rounds_used": self.rounds_used,
-                }
-            )
-        except Exception:  # noqa: BLE001 - progress must not break the run
-            logger.debug("proposal draft progress callback failed", exc_info=True)
+        return self.recorder.fail(message or self.state.failure_message())
 
 
 def _needs_profile(profile) -> bool:
