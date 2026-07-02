@@ -889,6 +889,12 @@ TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)
 # OpenAlex API
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", keys.OPENALEX_KEY)
 
+# Brave Search API (research_ai proposal-draft web search). Optional: when unset,
+# the web_search tool is inert and the agent grounds in profile/OpenAlex only.
+BRAVE_SEARCH_API_KEY = os.environ.get(
+    "BRAVE_SEARCH_API_KEY", getattr(keys, "BRAVE_SEARCH_API_KEY", "")
+)
+
 # Endaoment API
 ENDAOMENT_API_URL = f"https://api{'' if PRODUCTION else '.dev'}.endaoment.org"
 ENDAOMENT_AUTH_URL = f"https://auth{'' if PRODUCTION else '.dev'}.endaoment.org"
