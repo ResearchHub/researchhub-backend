@@ -14,7 +14,6 @@ from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
 from user.serializers import DynamicUserSerializer, DynamicVerdictSerializer
 from utils.http import get_user_from_request
-from utils.sentry import log_error
 
 ORDERING_SCORE_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
     "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
