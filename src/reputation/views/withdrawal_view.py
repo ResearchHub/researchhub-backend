@@ -35,7 +35,6 @@ from reputation.serializers import WithdrawalSerializer
 from user.related_models.user_model import User
 from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer
-from utils import sentry
 from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer
 from utils.throttles import THROTTLE_CLASSES
 
@@ -185,7 +184,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 serialized = WithdrawalSerializer(withdrawal)
                 return Response(serialized.data, status=201)
             except Exception as e:
-                sentry.log_error(e)
+                logger.exception("Failed to create withdrawal for user %s", user.id)
                 return Response(str(e), status=400)
         else:
             logger.error(f"Invalid withdrawal: {message}")

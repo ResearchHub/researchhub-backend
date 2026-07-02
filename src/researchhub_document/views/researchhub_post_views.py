@@ -42,7 +42,6 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.models import User
 from user.services.risk_score_service import RiskScoreService
-from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
 
 logger = logging.getLogger(__name__)
@@ -400,9 +399,9 @@ class ResearchhubPostViewSet(
 
         except serializers.ValidationError as e:
             return Response({"error": e.detail}, status=400)
-        except (KeyError, TypeError) as exception:
-            log_error(exception)
-            return Response({"error": str(exception)}, status=400)
+        except (KeyError, TypeError) as e:
+            logger.exception("Failed to create researchhub post")
+            return Response({"error": str(e)}, status=400)
 
     def update_existing_researchhub_posts(self, request):
         try:
@@ -594,7 +593,7 @@ class ResearchhubPostViewSet(
             return Response(response_data, status=200)
 
         except (KeyError, TypeError) as exception:
-            log_error(exception)
+            logger.exception("Failed to update researchhub post")
             return Response({"error": str(exception)}, status=400)
 
     def create_access_group(self, request):
