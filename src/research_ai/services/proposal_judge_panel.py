@@ -174,15 +174,19 @@ class ProposalJudgePanel:
         """Score ``proposal`` 1-5 on each rubric criterion (median per criterion),
         with the overall the mean of the seven.
 
-        Returns ``{"scores": {c1..c7}, "overall", "gaps": [...]}``. Judges that
-        fail to return parseable JSON are skipped; the gate degrades rather than
-        aborting the run.
+        Returns ``{"scores": {c1..c7}, "overall", "gaps": [...],
+        "judges_reporting": n}``. Judges that fail to return parseable JSON are
+        skipped; the gate degrades rather than aborting the run.
+        ``judges_reporting`` tells the caller how many judges actually scored --
+        with zero, the 1s in ``scores`` are empty-input defaults, not a verdict,
+        and must not be read as one.
         """
         system_prompt = _load_prompt("proposal_draft_critique.txt")
         user_prompt = _score_user_prompt(proposal, context)
         per_criterion: dict[str, list[int]] = {c: [] for c in _RUBRIC_CRITERIA}
         gaps: list[str] = []
-        for parsed in self._collect(system_prompt, user_prompt):
+        parsed_results = self._collect(system_prompt, user_prompt)
+        for parsed in parsed_results:
             raw_scores = parsed.get("scores")
             raw_scores = raw_scores if isinstance(raw_scores, dict) else {}
             for criterion in _RUBRIC_CRITERIA:
@@ -196,7 +200,12 @@ class ProposalJudgePanel:
 
         scores = {c: _median_int(per_criterion[c]) for c in _RUBRIC_CRITERIA}
         overall = _mean_float(list(scores.values()))
-        return {"scores": scores, "overall": overall, "gaps": gaps}
+        return {
+            "scores": scores,
+            "overall": overall,
+            "gaps": gaps,
+            "judges_reporting": len(parsed_results),
+        }
 
     def pairwise(self, a: str, b: str, *, context: dict | None = None) -> str:
         """Each judge picks A vs B; majority wins. Returns ``"A"`` or ``"B"``.

@@ -233,6 +233,20 @@ class ProposalGateRunner:
             proposal_text,
             context=self.judge_context(submitted),
         )
+        if rollup.get("judges_reporting") == 0:
+            # No judge returned a score: an infrastructure failure, not a
+            # quality verdict. Do not present the rollup's empty-input default
+            # scores as an evaluation -- ``overall: None`` also keeps the
+            # runner's plateau tracker from counting this round.
+            return {
+                "ok": False,
+                "unavailable": True,
+                "overall": None,
+                "scores": None,
+                "threshold": self.config.panel_threshold,
+                "rollup": rollup,
+                "gaps": ["The judge panel returned no scores (judge failure)."],
+            }
         overall = rollup.get("overall", 0)
         ok = overall >= self.config.panel_threshold
         gaps = []

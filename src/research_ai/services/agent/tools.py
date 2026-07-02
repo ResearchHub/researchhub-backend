@@ -92,8 +92,11 @@ class Toolset:
         try:
             result = tool.handler(input or {})
         except Exception as exc:  # noqa: BLE001 - tool errors go back to the model
-            logger.info("tool %r failed: %s", name, exc)
-            return {"error": str(exc)}, False
+            # A leaked exception is a bug in a handler (they promise not to
+            # raise): keep the traceback, and never hand the model an empty
+            # error string (some exceptions str() to "").
+            logger.warning("tool %r failed", name, exc_info=True)
+            return {"error": str(exc) or type(exc).__name__}, False
         is_error = isinstance(result, dict) and "error" in result
         return result, tool.is_terminal and not is_error
 

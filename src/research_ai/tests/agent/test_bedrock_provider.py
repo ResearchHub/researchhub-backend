@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from django.test import SimpleTestCase
 
+from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.providers.bedrock import BedrockProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
@@ -267,7 +268,7 @@ class CompleteAndParseTests(SimpleTestCase):
         provider = _build_provider([{"stopReason": "end_turn"}])
 
         # Act / Assert
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ProviderError):
             provider.complete(
                 system_prompt="sys",
                 messages=[Message(role="user", content=[TextBlock(text="hi")])],
@@ -275,3 +276,22 @@ class CompleteAndParseTests(SimpleTestCase):
                 max_tokens=100,
                 temperature=0.0,
             )
+
+    def test_converse_exception_raises_provider_error(self):
+        # Arrange: the boto3 client dies (throttling, network, etc.).
+        class ExplodingClient:
+            def converse(self, **kwargs):
+                raise ValueError("ThrottlingException")
+
+        provider = BedrockProvider(client=ExplodingClient(), model_id="test-model")
+
+        # Act / Assert: typed, chained to the original client error.
+        with self.assertRaisesRegex(ProviderError, "ThrottlingException") as ctx:
+            provider.complete(
+                system_prompt="sys",
+                messages=[Message(role="user", content=[TextBlock(text="hi")])],
+                rendered_tools={"tools": []},
+                max_tokens=100,
+                temperature=0.0,
+            )
+        self.assertIsInstance(ctx.exception.__cause__, ValueError)
