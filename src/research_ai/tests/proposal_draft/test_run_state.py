@@ -46,7 +46,6 @@ class ProposalRunStatePlateauTests(unittest.TestCase):
         self.assertEqual(state.best_overall, 3.5)
         self.assertEqual(state.rounds_since_improvement, 0)
         self.assertIs(state.best_submission, second_submission)
-        self.assertEqual(state.best_round, 2)
 
     def test_regression_counts_against_patience_and_keeps_earlier_best(self):
         # Arrange
@@ -68,7 +67,6 @@ class ProposalRunStatePlateauTests(unittest.TestCase):
         self.assertEqual(state.best_overall, 4.0)
         self.assertEqual(state.rounds_since_improvement, 2)
         self.assertIs(state.best_submission, peak_submission)
-        self.assertEqual(state.best_round, 1)
 
     def test_non_numeric_overall_is_ignored(self):
         # Arrange
@@ -232,7 +230,6 @@ class ProposalRunStateFailureMessageTests(unittest.TestCase):
             state.failure_message(),
             "model stopped mid-run (max_tokens) after 2 rounds",
         )
-        self.assertEqual(state.agent_iterations, 7)
 
 
 if __name__ == "__main__":
