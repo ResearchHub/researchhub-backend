@@ -9,7 +9,6 @@ from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
-from utils import sentry
 from utils.doi import DOI
 
 logger = logging.getLogger(__name__)
@@ -73,5 +72,7 @@ def recalc_hot_score_task(instance_content_type_id, instance_id):
             # Recalculate and save hot score on the unified document
             hot_score, _ = uni_doc.calculate_hot_score(should_save=True)
 
-    except Exception as error:
-        sentry.log_error(error)
+    except Exception:
+        logger.exception(
+            "Failed to recalculate hot score for %s with ID %s", model_name, instance_id
+        )
