@@ -223,7 +223,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "rhc_dcs_get_children": {
                 "_exclude_fields": (
                     "comment_content_src",
-                    "promoted",
                     "user_flag",
                 ),
                 "_select_related_fields": (
@@ -369,7 +368,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 rh_comment,
                 context=context,
                 _exclude_fields=(
-                    "promoted",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -455,7 +453,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 rh_comment,
                 context=context,
                 _exclude_fields=(
-                    "promoted",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -525,7 +522,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 many=True,
                 context=context,
                 _exclude_fields=(
-                    "promoted",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -537,7 +533,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             many=True,
             context=context,
             _exclude_fields=(
-                "promoted",
                 "user_flag",
                 "reviews",
                 "comment_content_src",
@@ -567,7 +562,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             instance,
             context=context,
             _exclude_fields=(
-                "promoted",
                 "user_flag",
                 "comment_content_src",
             ),
@@ -595,7 +589,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 comment,
                 context=context,
                 _exclude_fields=(
-                    "promoted",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -637,7 +630,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 comment,
                 context=context,
                 _exclude_fields=(
-                    "promoted",
                     "user_flag",
                     "comment_content_src",
                 ),
