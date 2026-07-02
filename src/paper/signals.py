@@ -1,3 +1,5 @@
+import logging
+
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
@@ -9,10 +11,11 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
 )
-from utils.sentry import log_error
 
 from .models import Paper
 from .related_models.paper_version import PaperVersion
+
+logger = logging.getLogger(__name__)
 
 
 @receiver(post_save, sender=Paper, dispatch_uid="add_paper_slug")
@@ -45,8 +48,10 @@ def add_unified_doc(created, instance, **kwargs):
                 unified_doc.hubs.add(*instance.hubs.all())
                 instance.unified_document = unified_doc
                 instance.save()
-            except Exception as e:
-                log_error("EXCPETION (add_unified_doc): ", e)
+            except Exception:
+                logger.exception(
+                    "Failed to create unified document for paper %s", instance.id
+                )
 
 
 @receiver(
@@ -81,11 +86,10 @@ def update_paper_journal_status(sender, instance, created, **kwargs):
                 paper.unified_document.save()
 
             except PaperVersion.DoesNotExist:
-                log_error(
-                    Exception(f"No PaperVersion found for paper {paper_id}"),
-                    f"No PaperVersion found for paper {paper_id}, "
-                    f"skipping journal update",
+                logger.exception(
+                    "No version found for paper %s, skipping journal update",
+                    paper_id,
                 )
 
-    except Exception as e:
-        log_error(e, message="Error updating paper journal status")
+    except Exception:
+        logger.exception("Error updating paper journal status")
