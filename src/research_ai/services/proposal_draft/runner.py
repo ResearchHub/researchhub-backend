@@ -24,7 +24,9 @@ the bar (no improvement for ``plateau_patience`` rounds -- grinding a flat
 single-judge score buys nothing), or when the core agent hits its iteration
 cap. All non-accepting exits end in ``FAILED`` with the final ``gate_report``
 and a specific ``error_message`` naming which bound tripped (iteration cap vs.
-give-up vs. plateau vs. round budget).
+give-up vs. plateau vs. round budget vs. a provider failure). A terminal
+safety net converts any unexpected exception to the same ``FAILED`` shape --
+no run ends with the record still saying ``PROCESSING``.
 
 The pieces live beside this module: ``config`` (the settings-backed knobs),
 ``gates`` (the deterministic accept/reject checks), and ``note_writer`` (the
@@ -42,7 +44,15 @@ from research_ai.prompts.proposal_draft_prompts import (
     build_proposal_system_prompt,
     build_proposal_user_prompt,
 )
-from research_ai.services.agent import AgentService, BedrockProvider, Tool, Toolset
+from research_ai.services.agent import (
+    AgentRunError,
+    AgentService,
+    BedrockProvider,
+    IncompleteTurnError,
+    IterationLimitError,
+    Tool,
+    Toolset,
+)
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_draft.gates import ProposalGateRunner
 from research_ai.services.proposal_draft.note_writer import write_proposal_note
@@ -169,9 +179,11 @@ class _ProposalDraftRunner:
 
         # How the core agent terminated (filled after ``agent.run`` returns/raises)
         # and the panel-score plateau tracking -- both feed the specific failure
-        # message a FAILED run records.
+        # message a FAILED run records. ``agent_error`` carries the detail
+        # (provider error text, truncation stop reason) for that message.
         self.agent_stop_reason: str | None = None
         self.agent_iterations: int | None = None
+        self.agent_error: str | None = None
         self.best_overall: float | None = None
         self.rounds_since_improvement = 0
         self.stopped_on_plateau = False
@@ -197,9 +209,24 @@ class _ProposalDraftRunner:
             "max_iterations": self.config.max_iterations,
         }
         self.draft.save(update_fields=["status", "run_config", "updated_date"])
+        try:
+            return self._run()
+        except Exception as exc:  # noqa: BLE001 - no run may end still PROCESSING
+            # The terminal safety net: whatever escapes the run body (a note
+            # write after an accepted submit, a DB error, a bug) still lands
+            # the record in FAILED with a real message, never a stuck
+            # PROCESSING with no explanation.
+            logger.exception("proposal draft run crashed")
+            return self._fail(f"unexpected error: {exc}")
+
+    def _run(self) -> dict:
+        # Fail before the (expensive) profile build when there is no RFP to
+        # draft against -- the run could never succeed.
+        self.rfp_context = self.context_toolset.get_rfp_context()
+        if "error" in self.rfp_context:
+            return self._fail(f"cannot draft: {self.rfp_context['error']}")
 
         self._ensure_profile()
-        self.rfp_context = self.context_toolset.get_rfp_context()
 
         system_prompt = build_proposal_system_prompt(
             panel_threshold=self.config.panel_threshold
@@ -212,16 +239,28 @@ class _ProposalDraftRunner:
             result = agent.run(user_prompt)
             self.agent_stop_reason = result.stop_reason
             self.agent_iterations = result.iterations
-        except RuntimeError as exc:
-            # Core iteration cap hit, or a provider error after a partial run.
+        except AgentRunError as exc:
+            # Core iteration cap hit, a truncated/filtered turn, or a provider
+            # error after a partial run.
             logger.warning("proposal draft agent stopped early: %s", exc)
-            self.agent_stop_reason, self.agent_iterations = _classify_agent_error(
-                str(exc), self.config.max_iterations
-            )
+            self._record_agent_error(exc)
 
         if self.accepted and self.submitted is not None:
             return self._complete()
         return self._fail()
+
+    def _record_agent_error(self, exc: AgentRunError) -> None:
+        """Classify a core-agent failure by type into the loop-state fields
+        ``_failure_message`` reads (stop reason, iterations, detail)."""
+        self.agent_iterations = exc.iterations
+        if isinstance(exc, IterationLimitError):
+            self.agent_stop_reason = "iteration_cap"
+        elif isinstance(exc, IncompleteTurnError):
+            self.agent_stop_reason = "incomplete_turn"
+            self.agent_error = exc.stop_reason
+        else:
+            self.agent_stop_reason = "provider_error"
+            self.agent_error = str(exc)
 
     # -- setup ------------------------------------------------------------
 
@@ -464,8 +503,8 @@ class _ProposalDraftRunner:
             "gate_report": self.last_gate_report,
         }
 
-    def _fail(self) -> dict:
-        message = self._failure_message()
+    def _fail(self, message: str | None = None) -> dict:
+        message = message or self._failure_message()
         self.draft.rounds_used = self.rounds_used
         # Persist the rejected draft so a failed run is still inspectable: a
         # FAILED run never writes a Note, so this is the only place its content
@@ -498,7 +537,14 @@ class _ProposalDraftRunner:
     def _failure_message(self) -> str:
         """A specific reason the run failed, distinguishing the paths that used
         to collapse to one opaque string (iteration cap vs. give-up vs. plateau
-        vs. round budget)."""
+        vs. round budget vs. the ways the core agent can die mid-run)."""
+        if self.submitted is None and self.agent_stop_reason in (
+            "incomplete_turn",
+            "provider_error",
+        ):
+            # The agent died before ever submitting; name the real cause, not
+            # a give-up.
+            return self._agent_stop_message()
         if self.submitted is None:
             return "agent did not submit a proposal"
         if self.stopped_on_plateau:
@@ -516,10 +562,22 @@ class _ProposalDraftRunner:
                 f"{self.rounds_used} of {self.config.max_rounds} rounds; raise "
                 "RESEARCH_AI_PROPOSAL_MAX_ITERATIONS or reduce per-round tool use"
             )
-        if self.agent_stop_reason == "provider_error":
-            return f"agent stopped on a provider error after {self.rounds_used} rounds"
+        if self.agent_stop_reason in ("incomplete_turn", "provider_error"):
+            return self._agent_stop_message()
         return (
             f"agent ended without an accepted proposal after {self.rounds_used} rounds"
+        )
+
+    def _agent_stop_message(self) -> str:
+        """Name how the core agent died mid-run, with the actionable detail."""
+        if self.agent_stop_reason == "incomplete_turn":
+            return (
+                f"model stopped mid-run ({self.agent_error}) after "
+                f"{self.rounds_used} rounds"
+            )
+        return (
+            f"agent stopped on a provider error after {self.rounds_used} rounds: "
+            f"{self.agent_error}"
         )
 
     # -- progress ---------------------------------------------------------
@@ -543,18 +601,6 @@ class _ProposalDraftRunner:
             )
         except Exception:  # noqa: BLE001 - progress must not break the run
             logger.debug("proposal draft progress callback failed", exc_info=True)
-
-
-def _classify_agent_error(message: str, max_iterations: int) -> tuple[str, int | None]:
-    """Map a core-agent ``RuntimeError`` to a ``(stop_reason, iterations)`` pair.
-
-    The loop raises ``"Agent exceeded N iterations"`` at the cap and
-    ``"Provider stopped ..."`` on a provider anomaly; only the former pins the
-    iteration count (it is exactly the cap)."""
-    lowered = message.lower()
-    if "exceeded" in lowered and "iteration" in lowered:
-        return "iteration_cap", max_iterations
-    return "provider_error", None
 
 
 def _needs_profile(profile) -> bool:
