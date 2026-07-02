@@ -92,34 +92,52 @@ class Agent:
         ]
         return self._drive(messages, on_event=on_event)
 
+    def _complete_turn(self, messages, rendered_tools, iteration):
+        try:
+            return self.provider.complete(
+                system_prompt=self.system_prompt,
+                messages=messages,
+                rendered_tools=rendered_tools,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+            )
+        except AgentRunError as exc:
+            # Attach the transcript so the failure is inspectable and the
+            # conversation resumable via ``continue_conversation``.
+            exc.messages = messages
+            exc.iterations = iteration - 1
+            raise
+        except Exception as exc:
+            # A provider that leaks a foreign exception still surfaces as
+            # the typed contract, transcript attached.
+            raise ProviderError(
+                f"Provider failed to complete a turn: {exc}",
+                messages=messages,
+                iterations=iteration - 1,
+            ) from exc
+
+    def _dispatch_tool_calls(self, tool_calls) -> tuple[list[ToolResultBlock], bool]:
+        result_blocks: list[ToolResultBlock] = []
+        stop = False
+        for call in tool_calls:
+            result, tool_stop = self.toolset.dispatch(call.name, call.input)
+            stop = stop or tool_stop
+            result_blocks.append(
+                ToolResultBlock(
+                    tool_use_id=call.id,
+                    content=result,
+                    is_error=isinstance(result, dict) and "error" in result,
+                )
+            )
+        return result_blocks, stop
+
     def _drive(self, messages: list[Message], *, on_event=None) -> AgentResult:
         # ``on_event`` is an unused placeholder for the future streaming hook;
         # it is threaded toward ``complete`` but streaming is not implemented.
         rendered_tools = self.toolset.render_specs(self.provider)
 
         for iteration in range(1, self.max_iterations + 1):
-            try:
-                turn = self.provider.complete(
-                    system_prompt=self.system_prompt,
-                    messages=messages,
-                    rendered_tools=rendered_tools,
-                    max_tokens=self.max_tokens,
-                    temperature=self.temperature,
-                )
-            except AgentRunError as exc:
-                # Attach the transcript so the failure is inspectable and the
-                # conversation resumable via ``continue_conversation``.
-                exc.messages = messages
-                exc.iterations = iteration - 1
-                raise
-            except Exception as exc:
-                # A provider that leaks a foreign exception still surfaces as
-                # the typed contract, transcript attached.
-                raise ProviderError(
-                    f"Provider failed to complete a turn: {exc}",
-                    messages=messages,
-                    iterations=iteration - 1,
-                ) from exc
+            turn = self._complete_turn(messages, rendered_tools, iteration)
             messages.append(
                 Message(
                     role="assistant",
@@ -144,18 +162,7 @@ class Agent:
                     iterations=iteration,
                 )
 
-            result_blocks: list[ToolResultBlock] = []
-            stop = False
-            for call in turn.tool_calls:
-                result, tool_stop = self.toolset.dispatch(call.name, call.input)
-                stop = stop or tool_stop
-                result_blocks.append(
-                    ToolResultBlock(
-                        tool_use_id=call.id,
-                        content=result,
-                        is_error=isinstance(result, dict) and "error" in result,
-                    )
-                )
+            result_blocks, stop = self._dispatch_tool_calls(turn.tool_calls)
             messages.append(Message(role="user", content=result_blocks))
 
             if stop:
