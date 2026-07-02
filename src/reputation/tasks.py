@@ -490,14 +490,6 @@ def find_bounties_for_user_and_notify(user_id) -> Notification | None:
             return notification
 
 
-@app.task
-def recalc_hot_score_for_open_bounties():
-    open_bounties = Bounty.objects.filter(status__in=(Bounty.OPEN, Bounty.ASSESSMENT))
-
-    for bounty in open_bounties:
-        bounty.unified_document.calculate_hot_score(should_save=True)
-
-
 @app.task(queue=QUEUE_PURCHASES)
 def burn_revenue_rsc(network="BASE"):
     """
