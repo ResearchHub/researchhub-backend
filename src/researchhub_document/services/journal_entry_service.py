@@ -44,9 +44,7 @@ class JournalEntryService:
         self.user_model = user_model or User
 
     @transaction.atomic
-    def accept_journal_entry(
-        self, user: User, user_id: int, fundraise_id: int
-    ) -> Note:
+    def accept_journal_entry(self, user: User, user_id: int, fundraise_id: int) -> Note:
         """Create an unpublished registered report note for a completed fundraise."""
         self._validate_user_id(user, user_id)
         fundraise = self._get_fundraise(fundraise_id)
@@ -55,9 +53,7 @@ class JournalEntryService:
         self._validate_funded_fundraise(fundraise)
 
         proposal = self._get_fundraise_proposal(fundraise, user)
-        journey = self.journey_service.include_completed_fundraise_in_journal(
-            fundraise
-        )
+        journey = self.journey_service.include_completed_fundraise_in_journal(fundraise)
         if journey is None:
             raise ValueError("Fundraise proposal is not eligible for the journal.")
         if self.journey_service.has_registered_report(journey):
@@ -72,9 +68,7 @@ class JournalEntryService:
         proposal = self._get_user_proposal(user, proposal_id)
         fundraise = self._get_completed_fundraise(proposal)
         self._validate_funded_fundraise(fundraise)
-        journey = self.journey_service.include_completed_fundraise_in_journal(
-            fundraise
-        )
+        journey = self.journey_service.include_completed_fundraise_in_journal(fundraise)
         if journey is None:
             raise ValueError("Proposal is not eligible for a registered report.")
         if self.journey_service.has_registered_report(journey):
@@ -83,15 +77,12 @@ class JournalEntryService:
 
     def get_registered_report_note(self, user: User, note_id: int) -> Note:
         """Return the user's unpublished registered report note."""
-        note = (
-            self.note_model.objects.filter(
-                created_by=user,
-                document_type=REGISTERED_REPORT,
-                id=note_id,
-                unified_document__is_removed=False,
-            )
-            .first()
-        )
+        note = self.note_model.objects.filter(
+            created_by=user,
+            document_type=REGISTERED_REPORT,
+            id=note_id,
+            unified_document__is_removed=False,
+        ).first()
         if note is None:
             raise ValueError("Registered report note not found.")
         if hasattr(note, "post"):
