@@ -1,8 +1,11 @@
+import logging
+
 from django.core.management.base import BaseCommand
 
 from tag.models import Concept
 from utils.openalex import OpenAlex
-from utils.sentry import log_error
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -33,5 +36,5 @@ class Command(BaseCommand):
                     "openalex_updated_date": concept["updated_date"],
                 }
                 Concept.create_or_update(data)
-            except Exception as e:
-                log_error(e)
+            except Exception:
+                logger.exception("Error creating or updating concept: %s", concept)
