@@ -1,8 +1,10 @@
+import logging
 from dataclasses import dataclass
 
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
-from purchase.models import GrantApplication
+from purchase.models import Fundraise, GrantApplication
 from researchhub_document.models import (
     ResearchhubPost,
     ResearchhubUnifiedDocument,
@@ -18,6 +20,8 @@ from researchhub_document.related_models.constants.journey_stage import (
     JOURNEY_STAGE_PROPOSAL,
     JOURNEY_STAGE_REGISTERED_REPORT,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -76,6 +80,52 @@ class JourneyService:
         if not self._is_approved_preregistration(post):
             return None
         return self.get_or_create_for_preregistration(post)
+
+    @transaction.atomic
+    def include_completed_fundraise_in_journal(
+        self, fundraise: Fundraise
+    ) -> ResearchJourney | None:
+        """Include a completed fundraise's proposal journey in the journal."""
+        # This service can be called defensively; non-completed fundraises are
+        # expected no-ops, not data integrity issues.
+        if fundraise.status != Fundraise.COMPLETED:
+            return None
+
+        proposal = self._get_preregistration_for_fundraise(fundraise)
+        if proposal is None:
+            logger.warning(
+                "Completed fundraise has no preregistration post.",
+                extra={
+                    "fundraise_id": fundraise.id,
+                    "unified_document_id": fundraise.unified_document_id,
+                },
+            )
+            return None
+
+        journey = self.ensure_approved_preregistration_has_journey(proposal)
+        if journey is None:
+            logger.warning(
+                "Completed fundraise preregistration was not eligible for a journey.",
+                extra={
+                    "fundraise_id": fundraise.id,
+                    "proposal_id": proposal.id,
+                    "unified_document_id": fundraise.unified_document_id,
+                    "status": proposal.unified_document.status,
+                },
+            )
+            return None
+
+        update_fields = []
+        if not journey.is_in_journal:
+            journey.is_in_journal = True
+            update_fields.append("is_in_journal")
+        if journey.journal_included_date is None:
+            journey.journal_included_date = timezone.now()
+            update_fields.append("journal_included_date")
+        if update_fields:
+            journey.save(update_fields=update_fields)
+
+        return journey
 
     @transaction.atomic
     def attach_stage(
@@ -172,6 +222,19 @@ class JourneyService:
         return (
             self.post_model.objects.filter(
                 unified_document=application.grant.unified_document,
+            )
+            .order_by("id")
+            .first()
+        )
+
+    def _get_preregistration_for_fundraise(
+        self, fundraise: Fundraise
+    ) -> ResearchhubPost | None:
+        """Return the preregistration post funded by the fundraise."""
+        return (
+            self.post_model.objects.filter(
+                document_type=PREREGISTRATION,
+                unified_document_id=fundraise.unified_document_id,
             )
             .order_by("id")
             .first()

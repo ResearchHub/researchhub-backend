@@ -33,6 +33,7 @@ from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.journey_service import JourneyService
 from user.models import User
 
 USD_CONTRIBUTION_CSV_HEADERS = [
@@ -63,11 +64,13 @@ class FundraiseService:
 
     def __init__(
         self,
-        referral_bonus_service: ReferralBonusService = None,
-        endaoment_service: EndaomentService = None,
-    ):
+        referral_bonus_service: ReferralBonusService | None = None,
+        endaoment_service: EndaomentService | None = None,
+        journey_service: JourneyService | None = None,
+    ) -> None:
         self.referral_bonus_service = referral_bonus_service or ReferralBonusService()
         self.endaoment_service = endaoment_service or EndaomentService()
+        self.journey_service = journey_service or JourneyService()
 
     def validate_fundraise_for_contribution(
         self, fundraise: Fundraise, user: User, check_self_contribution: bool = True
@@ -490,6 +493,7 @@ class FundraiseService:
 
             fundraise.status = Fundraise.COMPLETED
             fundraise.save()
+            self.journey_service.include_completed_fundraise_in_journal(fundraise)
 
         # Process referral bonuses (outside transaction to not block payout on failure)
         try:
