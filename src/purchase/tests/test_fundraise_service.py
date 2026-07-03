@@ -325,7 +325,7 @@ class CloseFundraiseTests(TestCase):
             referral_bonus_service=referral_bonus_service,
             journey_service=journey_service,
         )
-        self.fundraise.escrow.amount_holding = Decimal("100")
+        self.fundraise.escrow.amount_holding = Decimal(100)
         self.fundraise.escrow.save(update_fields=["amount_holding"])
 
         # Act
