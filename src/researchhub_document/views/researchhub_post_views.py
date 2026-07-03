@@ -163,9 +163,7 @@ class ResearchhubPostViewSet(
             "hubs": hub_data,
         }
 
-    def get_registered_report_authors(
-        self, proposal: ResearchhubPost
-    ) -> list[Author]:
+    def get_registered_report_authors(self, proposal: ResearchhubPost) -> list[Author]:
         """Return proposal authors for registered report defaults."""
         authors = list(proposal.authors.all())
         if authors:
