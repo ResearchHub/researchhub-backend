@@ -1,10 +1,13 @@
 from decimal import Decimal
 
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
 from hub.tests.helpers import create_hub
+from note.models import Note
 from note.tests.helpers import create_note
 from purchase.models import Fundraise
+from reputation.models import Escrow
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
@@ -35,7 +38,7 @@ class CreateRegisteredReportTests(APITestCase):
         """Verify a completed proposal owner can create a registered report."""
         # Arrange
         proposal = self._create_completed_proposal(self.user)
-        note, _ = create_note(self.user, self.organization)
+        note = self._create_registered_report_note()
         payload = self._build_payload(proposal, note_id=note.id)
 
         # Act
@@ -59,6 +62,22 @@ class CreateRegisteredReportTests(APITestCase):
         self.assertCountEqual(
             report.unified_document.hubs.all(),
             proposal.unified_document.hubs.all(),
+        )
+
+    def test_reject_generic_note(self) -> None:
+        """Verify reports must publish from registered report notes."""
+        # Arrange
+        proposal = self._create_completed_proposal(self.user)
+        note, _ = create_note(self.user, self.organization)
+        payload = self._build_payload(proposal, note_id=note.id)
+
+        # Act
+        response = self.client.post(self.create_url, payload, format="json")
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(
+            ResearchhubPost.objects.filter(document_type=REGISTERED_REPORT).exists()
         )
 
     def test_reject_moderator_for_other_owner(self) -> None:
@@ -156,6 +175,13 @@ class CreateRegisteredReportTests(APITestCase):
         payload.update(overrides)
         return payload
 
+    def _create_registered_report_note(self) -> Note:
+        """Create a registered report note draft."""
+        note, _ = create_note(self.user, self.organization)
+        note.document_type = REGISTERED_REPORT
+        note.save(update_fields=["document_type"])
+        return note
+
     def _create_completed_proposal(self, user: User) -> ResearchhubPost:
         """Create an approved proposal with a completed fundraise."""
         proposal = self._create_proposal(user)
@@ -166,6 +192,14 @@ class CreateRegisteredReportTests(APITestCase):
             goal_currency="USD",
             status=Fundraise.COMPLETED,
         )
+        fundraise.escrow = Escrow.objects.create(
+            created_by=user,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=fundraise.id,
+            hold_type=Escrow.FUNDRAISE,
+            amount_holding=Decimal(100),
+        )
+        fundraise.save(update_fields=["escrow"])
         self.service.include_completed_fundraise_in_journal(fundraise)
         proposal.refresh_from_db()
         return proposal

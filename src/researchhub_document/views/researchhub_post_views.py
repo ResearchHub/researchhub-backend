@@ -17,6 +17,7 @@ from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from hub.models import Hub
+from note.serializers import NoteSerializer
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
@@ -40,10 +41,11 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.serializers.researchhub_post_serializer import (
-    CompletedProposalCandidateSerializer,
-    RegisteredReportCreateSerializer,
+    JournalEntryAcceptSerializer,
+    RegisteredReportPublishSerializer,
     ResearchhubPostSerializer,
 )
+from researchhub_document.services.journal_entry_service import JournalEntryService
 from researchhub_document.services.journey_service import JourneyService
 from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.models import User
@@ -86,20 +88,30 @@ class ResearchhubPostViewSet(
 
     @action(
         detail=False,
-        methods=["get"],
+        methods=["post"],
         permission_classes=[IsAuthenticated],
-        url_name="list-completed-proposals",
-        url_path="list-completed-proposals",
+        url_name="accept-journal-entry",
+        url_path="accept_journal_entry",
     )
-    def list_completed_proposals(self, request: Request) -> Response:
-        """Return completed proposals that can receive a registered report."""
-        proposals = JourneyService().list_completed_proposal_candidates(request.user)
-        serializer = CompletedProposalCandidateSerializer(
-            proposals,
-            context={"request": request},
-            many=True,
-        )
-        return Response(serializer.data)
+    def accept_journal_entry(self, request: Request) -> Response:
+        """Create a registered report note draft for a completed fundraise."""
+        data = request.query_params.dict()
+        data.update(request.data)
+        serializer = JournalEntryAcceptSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            note = JournalEntryService().accept_journal_entry(
+                request.user,
+                serializer.validated_data["user_id"],
+                serializer.validated_data["fundraise_id"],
+            )
+        except ValueError as error:
+            return Response({"error": str(error)}, status=400)
+
+        response_data = NoteSerializer(note, context={"request": request}).data
+        response_data["fundraise_id"] = serializer.validated_data["fundraise_id"]
+        return Response(response_data, status=200)
 
     def validate_post_content(
         self, title: object, renderable_text: object
@@ -206,10 +218,17 @@ class ResearchhubPostViewSet(
                 journey_service = JourneyService()
                 registered_report_proposal = None
                 if document_type == REGISTERED_REPORT:
-                    serializer = RegisteredReportCreateSerializer(data=data)
+                    serializer = RegisteredReportPublishSerializer(data=data)
                     serializer.is_valid(raise_exception=True)
+                    journal_entry_service = JournalEntryService(
+                        journey_service=journey_service
+                    )
+                    journal_entry_service.get_registered_report_note(
+                        created_by,
+                        serializer.validated_data["note_id"],
+                    )
                     registered_report_proposal = (
-                        journey_service.get_completed_proposal_candidate(
+                        journal_entry_service.get_registered_report_proposal(
                             created_by,
                             serializer.validated_data["proposal_id"],
                         )
@@ -457,6 +476,8 @@ class ResearchhubPostViewSet(
 
         except serializers.ValidationError as e:
             return Response({"error": e.detail}, status=400)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=400)
         except (KeyError, TypeError) as e:
             logger.exception("Failed to create researchhub post")
             return Response({"error": str(e)}, status=400)
