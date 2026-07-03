@@ -98,7 +98,6 @@ class ResearchhubPostSerializer(
         ]
 
     # GenericReactionSerializerMixin
-    promoted = SerializerMethodField()
     boost_amount = SerializerMethodField()
     user_flag = SerializerMethodField()
 
@@ -355,9 +354,6 @@ class ResearchhubPostSerializer(
             },
         )
         return serializer.data
-
-    def get_promoted_score(self, instance):
-        return instance.get_promoted_score()
 
     def get_boost_amount(self, instance):
         return instance.get_boost_amount()
