@@ -217,7 +217,7 @@ class ArXivMapper(BaseMapper):
 
         try:
             # Parse ISO format and extract date part
-            dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(date_str)
             return dt.strftime("%Y-%m-%d")
         except (ValueError, TypeError):
             logger.warning(f"Invalid date format: {date_str}")

@@ -1,11 +1,16 @@
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
 from django.conf import settings
-from xdk import Client
 
 from paper.ingestion.clients.base import RateLimiter
 
 from .x_bot_accounts import X_BOT_ACCOUNTS
+
+if TYPE_CHECKING:
+    from xdk import Client
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +89,7 @@ class XClient:
     def __init__(
         self,
         bearer_token: str | None = None,
-        client=None,
+        client: Client | None = None,
         rate_limit: float = DEFAULT_RATE_LIMIT,
     ):
         """
@@ -118,6 +123,8 @@ class XClient:
             )
 
         if self._client is None:
+            from xdk import Client  # delay until needed
+
             self._client = Client(bearer_token=self.bearer_token)
 
     def search_posts(self, query: str, max_results: int = 10) -> dict | None:

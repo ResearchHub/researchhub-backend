@@ -43,7 +43,7 @@ jobs:
 
     steps:
       - name: Check out sources
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
@@ -64,6 +64,14 @@ jobs:
         uses: astral-sh/ruff-action@0ce1b0bf8b818ef400413f810f8a11cdbda0034b # v4.0.0
         with:
           src: "./src"
+
+      - name: Check for missing database migrations
+        env:
+          APP_ENV: test
+        working-directory: ./src
+        run: |
+          cp config/ci/* config
+          uv run python manage.py makemigrations --check
 
       - name: Run Tests
         env:

@@ -39,9 +39,9 @@ class SendRSCTest(APITestCase):
         tip_amount = 100
 
         # give the user 10,000 RSC
-        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
+        distribution_ct = ContentType.objects.get(model="distribution")
         Balance.objects.create(
-            amount="10000", user=purchaser, content_type=DISTRIBUTION_CONTENT_TYPE
+            amount="10000", user=purchaser, content_type=distribution_ct
         )
 
         response = self._post_support_response(
@@ -62,9 +62,9 @@ class SendRSCTest(APITestCase):
         tip_amount = 100
 
         # give the user 10,000 RSC
-        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
+        distribution_ct = ContentType.objects.get(model="distribution")
         Balance.objects.create(
-            amount="10000", user=purchaser, content_type=DISTRIBUTION_CONTENT_TYPE
+            amount="10000", user=purchaser, content_type=distribution_ct
         )
 
         response = self._post_support_response(
@@ -121,10 +121,8 @@ class SendRSCTest(APITestCase):
         amount = 10
 
         # give the user 10,000 RSC
-        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
-        Balance.objects.create(
-            amount="10000", user=user, content_type=DISTRIBUTION_CONTENT_TYPE
-        )
+        distribution_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(amount="10000", user=user, content_type=distribution_ct)
 
         response = self._post_support_response(user, paper.id, "paper", amount)
         self.assertEqual(response.status_code, 400)
@@ -139,10 +137,8 @@ class SendRSCTest(APITestCase):
         fee_amount = 3  # latest `SupportFee` is 3% RH, 0% DAO as of 2024-01-19
 
         # give the user 10,000 RSC
-        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
-        Balance.objects.create(
-            amount="10000", user=user, content_type=DISTRIBUTION_CONTENT_TYPE
-        )
+        distribution_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(amount="10000", user=user, content_type=distribution_ct)
 
         response = self._post_support_response(
             user, post.id, "researchhubpost", tip_amount
@@ -186,10 +182,8 @@ class SendRSCTest(APITestCase):
         fee_amount = 3
 
         # give the user 10,000 RSC
-        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
-        Balance.objects.create(
-            amount="10000", user=user, content_type=DISTRIBUTION_CONTENT_TYPE
-        )
+        distribution_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(amount="10000", user=user, content_type=distribution_ct)
 
         response = self._post_support_response(
             user, comment.id, "rhcommentmodel", tip_amount
@@ -243,9 +237,9 @@ class SendRSCTest(APITestCase):
         post = create_post(created_by=poster)
         tip_amount = 100
 
-        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
+        distribution_ct = ContentType.objects.get(model="distribution")
         Balance.objects.create(
-            amount="10000", user=purchaser, content_type=DISTRIBUTION_CONTENT_TYPE
+            amount="10000", user=purchaser, content_type=distribution_ct
         )
 
         self.client.force_authenticate(purchaser)
@@ -263,9 +257,7 @@ class SendRSCTest(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Purchase.objects.filter(user=purchaser).count(), 0)
         self.assertEqual(
-            Balance.objects.filter(
-                user=poster, content_type=DISTRIBUTION_CONTENT_TYPE
-            ).count(),
+            Balance.objects.filter(user=poster, content_type=distribution_ct).count(),
             0,
         )
 
@@ -279,10 +271,8 @@ class SendRSCTest(APITestCase):
         user.save()
 
         # give the user 10,000 RSC
-        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
-        Balance.objects.create(
-            amount="10000", user=user, content_type=DISTRIBUTION_CONTENT_TYPE
-        )
+        distribution_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(amount="10000", user=user, content_type=distribution_ct)
 
         response = self._post_support_response(user, post.id, "researchhubpost", 100)
 
@@ -296,8 +286,6 @@ class SendRSCTest(APITestCase):
             0,
         )
         self.assertEqual(
-            Balance.objects.filter(
-                user=poster, content_type=ContentType.objects.get(model="distribution")
-            ).count(),
+            Balance.objects.filter(user=poster, content_type=distribution_ct).count(),
             0,
         )

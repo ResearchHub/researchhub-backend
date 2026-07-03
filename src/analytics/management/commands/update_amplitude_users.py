@@ -23,7 +23,7 @@ class Command(BaseCommand):
         event_data = {"api_key": AMPLITUDE_API_KEY, "events": events}
         data = json.dumps(event_data)
         headers = {"Content-Type": "application/json", "Accept": "*/*"}
-        request = requests.post(API_URL, data=data, headers=headers)
+        request = requests.post(API_URL, data=data, headers=headers, timeout=10)
         res = request.json()
         if request.status_code != 200:
             res = request.json()

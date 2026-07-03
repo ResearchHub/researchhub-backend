@@ -17,13 +17,13 @@ class StakingUserSnapshot(DefaultModel):
         related_name="staking_user_snapshots",
     )
     stake_amount = models.DecimalField(
-        max_digits=19, decimal_places=8, default=Decimal("0")
+        max_digits=19, decimal_places=8, default=Decimal(0)
     )
     multiplier = models.DecimalField(
-        max_digits=19, decimal_places=8, default=Decimal("1")
+        max_digits=19, decimal_places=8, default=Decimal(1)
     )
     weighted_stake = models.DecimalField(
-        max_digits=19, decimal_places=8, default=Decimal("0")
+        max_digits=19, decimal_places=8, default=Decimal(0)
     )
 
     class Meta:

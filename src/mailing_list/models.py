@@ -88,7 +88,7 @@ class EmailRecipient(models.Model):
             self.comment_subscription = CommentSubscription.objects.create()
         if self.reply_subscription is None:
             self.reply_subscription = ReplySubscription.objects.create()
-        return super(EmailRecipient, self).save(*args, **kwargs)
+        return super().save(*args, **kwargs)
 
     def bounced(self):
         self.bounced_date = timezone.now()

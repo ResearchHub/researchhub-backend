@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core.files.base import ContentFile
 from django.test import TestCase
 
 from hub.models import Hub
@@ -202,6 +203,32 @@ class ModelTests(TestCase):
 
         # Assert
         self.assertEqual(slug, post.slug)
+
+    def test_get_full_markdown_reads_grant_body_from_discussion_src(self):
+        """GRANT (and other post types) store their body in discussion_src."""
+        # Arrange
+        post = create_post(created_by=self.user, document_type="GRANT")
+        post.discussion_src.save(
+            "grant.md", ContentFile(b"# RFP\nFull call for proposals")
+        )
+
+        # Act
+        markdown = post.get_full_markdown()
+
+        # Assert
+        self.assertEqual(markdown, "# RFP\nFull call for proposals")
+
+    def test_get_full_markdown_reads_discussion_body(self):
+        """DISCUSSION posts still read from discussion_src."""
+        # Arrange
+        post = create_post(created_by=self.user, document_type="DISCUSSION")
+        post.discussion_src.save("discussion.md", ContentFile(b"Discussion body"))
+
+        # Act
+        markdown = post.get_full_markdown()
+
+        # Assert
+        self.assertEqual(markdown, "Discussion body")
 
 
 class ResearchhubPostStatusTests(TestCase):

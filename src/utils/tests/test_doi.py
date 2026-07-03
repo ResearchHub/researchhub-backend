@@ -117,6 +117,7 @@ class TestDOI(unittest.TestCase):
                     "login_passwd": (None, settings.CROSSREF_LOGIN_PASSWORD),
                     "fname": ("crossref.xml", "<test>xml</test>"),
                 },
+                timeout=30,
             )
 
     def test_register_doi_multiple_authors(self):

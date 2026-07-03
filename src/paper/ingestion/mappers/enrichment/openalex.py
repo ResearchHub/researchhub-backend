@@ -405,7 +405,7 @@ class OpenAlexMapper(BaseMapper):
                     display_name=institution_info.get("display_name", ""),
                     ror_id=ror_id,
                     country_code=institution_info.get("country_code"),
-                    openalex_id=openalex_id if openalex_id else "",
+                    openalex_id=openalex_id or "",
                     type=institution_info.get("type", ""),
                 )
 
@@ -475,17 +475,12 @@ class OpenAlexMapper(BaseMapper):
         """
         Map OpenAlex work record to Hub instances.
         """
-        hubs = []
-        topics = record.get("topics", [])
-
-        for topic in topics:
-            hubs.append(
-                Hub(
-                    name=topic.get("display_name", ""),
-                )
+        return [
+            Hub(
+                name=topic.get("display_name", ""),
             )
-
-        return hubs
+            for topic in record.get("topics", [])
+        ]
 
     def _extract_license_info(self, record: dict[str, Any]) -> dict[str, Any]:
         """

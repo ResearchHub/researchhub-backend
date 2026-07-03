@@ -456,8 +456,7 @@ class Command(BaseCommand):
                     f.write(f"  Subscriber Count: {hub.subscriber_count}\n")
                     f.write(f"  Created: {hub.created_date}\n")
                     f.write("  Issues:\n")
-                    for issue in issues:
-                        f.write(f"    • {issue}\n")
+                    f.writelines(f"    • {issue}\n" for issue in issues)
                     f.write("\n")
 
             # Hub IDs for easy removal

@@ -113,8 +113,7 @@ class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
             fields = [param.strip() for param in params.split(",")]
             for field in fields:
                 order_param = field
-                if order_param.startswith("-"):
-                    order_param = order_param[1:]
+                order_param = order_param.removeprefix("-")
                 if order_param in view.order_fields:
                     valid_fields.append(field)
 

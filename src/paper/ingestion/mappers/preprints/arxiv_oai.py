@@ -199,7 +199,7 @@ class ArXivOAIMapper(BaseMapper):
         try:
             # Handle ISO format with time
             if "T" in date_str:
-                dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+                dt = datetime.fromisoformat(date_str)
                 return dt.strftime("%Y-%m-%d")
             # Handle simple date format (YYYY-MM-DD)
             elif len(date_str) >= 10:

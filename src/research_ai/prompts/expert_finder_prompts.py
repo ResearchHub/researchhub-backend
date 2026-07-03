@@ -1,5 +1,3 @@
-import os
-
 from research_ai.constants import (
     EXPERT_FINDER_DEFAULT_STATE,
     ExpertiseLevel,
@@ -7,6 +5,7 @@ from research_ai.constants import (
     Region,
     get_choice_label,
 )
+from research_ai.prompts._loader import load_template
 
 # Descriptions for prompt building; keys are choice values from constants.
 EXPERTISE_DESCRIPTIONS: dict[str, str] = {
@@ -31,17 +30,6 @@ GENDER_DESCRIPTIONS: dict[str, str] = {
     Gender.FEMALE: "Focus on female-identifying experts and researchers in your recommendations.",  # noqa: E501
     Gender.ALL_GENDERS: "Include experts and researchers of all genders in your recommendations.",  # noqa: E501
 }
-
-_PROMPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-_template_cache: dict[str, str] = {}
-
-
-def _load_template(name: str) -> str:
-    if name not in _template_cache:
-        path = os.path.join(_PROMPTS_DIR, name)
-        with open(path, encoding="utf-8") as f:
-            _template_cache[name] = f.read()
-    return _template_cache[name]
 
 
 def build_excluded_experts_instruction(excluded_expert_names: list[str]) -> str:
@@ -138,7 +126,7 @@ def build_system_prompt(
         excluded_expert_names or []
     )
 
-    template = _load_template("expert_finder_system.txt")
+    template = load_template("expert_finder_system.txt")
     expertise_level_display = _expertise_levels_display(expertise_level)
     region_label = get_choice_label(region_filter, Region)
     return template.format(
@@ -184,7 +172,7 @@ def build_user_prompt(
     )
     additional_context_section = format_additional_context_section(additional_context)
     if is_pdf:
-        template = _load_template("expert_finder_user_pdf.txt")
+        template = load_template("expert_finder_user_pdf.txt")
         return template.format(
             query=query,
             expert_count=expert_count,
@@ -192,7 +180,7 @@ def build_user_prompt(
             region_text=region_text,
             additional_context_section=additional_context_section,
         )
-    template = _load_template("expert_finder_user_query.txt")
+    template = load_template("expert_finder_user_query.txt")
     return template.format(
         query=query,
         expert_count=expert_count,

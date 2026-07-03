@@ -69,7 +69,7 @@ jobs:
           - 9200:9200
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
@@ -88,7 +88,7 @@ jobs:
           uv run python manage.py collectstatic --noinput
           uv run python manage.py opensearch index rebuild --force
 
-      - uses: anthropics/claude-code-action@806af32823ef69c8ef357086c573a902af641307 # v1.0.151
+      - uses: anthropics/claude-code-action@6c0083bb7289c31716797a039b6367b3079cc46e # v1.0.162
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           additional_permissions: |

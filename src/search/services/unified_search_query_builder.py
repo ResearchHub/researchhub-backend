@@ -137,40 +137,34 @@ class DocumentQueryBuilder:
             self.query, self.MAX_QUERY_WORDS_FOR_AUTHOR_TITLE_COMBO
         )
 
-        author_fields = []
-        title_fields = []
-        for field in self.AUTHOR_FIELDS:
-            author_fields.append(field.get_boosted_name())
-        for field in self.TITLE_FIELDS:
-            title_fields.append(field.get_boosted_name())
+        author_fields = [field.get_boosted_name() for field in self.AUTHOR_FIELDS]
+        title_fields = [field.get_boosted_name() for field in self.TITLE_FIELDS]
 
-        author_queries = []
-        for field in self.AUTHOR_FIELDS:
-            author_queries.append(
-                Q(
-                    "match",
-                    **{
-                        field.name: {
-                            "query": truncated_query,
-                            "operator": "or",
-                        }
-                    },
-                )
+        author_queries = [
+            Q(
+                "match",
+                **{
+                    field.name: {
+                        "query": truncated_query,
+                        "operator": "or",
+                    }
+                },
             )
+            for field in self.AUTHOR_FIELDS
+        ]
 
-        title_queries = []
-        for field in self.TITLE_FIELDS:
-            title_queries.append(
-                Q(
-                    "match",
-                    **{
-                        field.name: {
-                            "query": truncated_query,
-                            "operator": "or",
-                        }
-                    },
-                )
+        title_queries = [
+            Q(
+                "match",
+                **{
+                    field.name: {
+                        "query": truncated_query,
+                        "operator": "or",
+                    }
+                },
             )
+            for field in self.TITLE_FIELDS
+        ]
 
         if author_queries and title_queries:
             author_match = Q("bool", should=author_queries, minimum_should_match=1)
@@ -225,22 +219,21 @@ class DocumentQueryBuilder:
     def add_prefix_strategy(
         self, fields: list[FieldConfig], max_expansions: int = 20
     ) -> "DocumentQueryBuilder":
-        queries = []
         prefix_boost = self.STRATEGY_BOOSTS[("prefix", "all")]
-        for field in fields:
-            if "prefix" in (field.query_types or []):
-                queries.append(
-                    Q(
-                        "match_phrase_prefix",
-                        **{
-                            field.name: {
-                                "query": self.query,
-                                "max_expansions": max_expansions,
-                                "boost": field.boost * prefix_boost,
-                            }
-                        },
-                    )
-                )
+        queries = [
+            Q(
+                "match_phrase_prefix",
+                **{
+                    field.name: {
+                        "query": self.query,
+                        "max_expansions": max_expansions,
+                        "boost": field.boost * prefix_boost,
+                    }
+                },
+            )
+            for field in fields
+            if "prefix" in (field.query_types or [])
+        ]
 
         if queries:
             prefix_query = Q("dis_max", queries=queries, tie_breaker=0.1)
@@ -328,9 +321,7 @@ class DocumentQueryBuilder:
         return self
 
     def add_author_name_strategy(self) -> "DocumentQueryBuilder":
-        author_fields = []
-        for field in self.AUTHOR_FIELDS:
-            author_fields.append(field.get_boosted_name())
+        author_fields = [field.get_boosted_name() for field in self.AUTHOR_FIELDS]
 
         if author_fields:
             author_query = Q(
@@ -398,9 +389,9 @@ class DocumentQueryBuilder:
         return self
 
     def add_cross_field_fallback_strategy(self) -> "DocumentQueryBuilder":
-        all_fields = []
-        for field in self.AUTHOR_FIELDS + self.TITLE_FIELDS:
-            all_fields.append(field.get_boosted_name())
+        all_fields = [
+            field.get_boosted_name() for field in self.AUTHOR_FIELDS + self.TITLE_FIELDS
+        ]
 
         fallback_query = Q(
             "multi_match",

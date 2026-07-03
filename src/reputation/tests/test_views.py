@@ -393,7 +393,7 @@ class ReputationViewsTests(APITestCase):
 
             self.assertEqual(response.status_code, 201)
 
-    def test_user_can_NOT_withdraw_with_switch_on(self):
+    def test_user_can_not_withdraw_with_switch_on(self):
         moderator = user = create_random_authenticated_user("moderator", moderator=True)
         # Withdrawals are on
         LogEntry.objects.create(
