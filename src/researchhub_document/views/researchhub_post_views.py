@@ -17,6 +17,7 @@ from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from hub.models import Hub
+from hub.serializers import SimpleHubSerializer
 from note.serializers import NoteSerializer
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
@@ -48,7 +49,8 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 from researchhub_document.services.journal_entry_service import JournalEntryService
 from researchhub_document.services.journey_service import JourneyService
 from user.content_moderation_mixin import ContentModerationActionsMixin
-from user.models import User
+from user.models import Author, User
+from user.serializers import AuthorSerializer
 from user.services.risk_score_service import RiskScoreService
 from utils.throttles import THROTTLE_CLASSES
 
@@ -95,8 +97,10 @@ class ResearchhubPostViewSet(
     )
     def accept_journal_entry(self, request: Request) -> Response:
         """Create a registered report note draft for a completed fundraise."""
-        data = request.query_params.dict()
-        data.update(request.data)
+        try:
+            data = self.build_journal_entry_accept_data(request)
+        except ValueError as error:
+            return Response({"error": str(error)}, status=400)
         serializer = JournalEntryAcceptSerializer(data=data)
         serializer.is_valid(raise_exception=True)
 
@@ -115,7 +119,60 @@ class ResearchhubPostViewSet(
         response_data["fundraise_id"] = accepted_entry.fundraise.id
         response_data["journey_id"] = accepted_entry.journey.id
         response_data["proposal_id"] = accepted_entry.proposal.id
+        response_data["registered_report_prefill"] = (
+            self.build_registered_report_prefill(accepted_entry.proposal)
+        )
         return Response(response_data, status=200)
+
+    def build_journal_entry_accept_data(self, request: Request) -> dict[str, object]:
+        """Build accept data and reject conflicting query/body ids."""
+        data = request.query_params.dict()
+        for field in ("fundraise_id", "user_id"):
+            body_value = request.data.get(field)
+            query_value = data.get(field)
+            if body_value is None:
+                continue
+            if query_value is not None and str(query_value) != str(body_value):
+                raise ValueError(f"{field} does not match the request query.")
+            data[field] = body_value
+        return data
+
+    def build_registered_report_prefill(
+        self, proposal: ResearchhubPost
+    ) -> dict[str, object]:
+        """Build editable registered report defaults from a proposal."""
+        authors = self.get_registered_report_authors(proposal)
+        hubs = proposal.unified_document.hubs.all()
+        hub_ids = list(hubs.values_list("id", flat=True))
+        hub_data = SimpleHubSerializer(
+            hubs,
+            context={"request": self.request},
+            many=True,
+        ).data
+        return {
+            "author_ids": [author.id for author in authors],
+            "authors": AuthorSerializer(
+                authors,
+                context={"request": self.request},
+                many=True,
+            ).data,
+            "image": proposal.image,
+            "preview_img": proposal.preview_img,
+            "proposal_id": proposal.id,
+            "hub_ids": hub_ids,
+            "hubs": hub_data,
+        }
+
+    def get_registered_report_authors(
+        self, proposal: ResearchhubPost
+    ) -> list[Author]:
+        """Return proposal authors for registered report defaults."""
+        authors = list(proposal.authors.all())
+        if authors:
+            return authors
+        if proposal.created_by is not None:
+            return [proposal.created_by.author_profile]
+        return []
 
     def validate_post_content(
         self, title: object, renderable_text: object
@@ -201,6 +258,8 @@ class ResearchhubPostViewSet(
         note_id = data.get("note_id", None)
         document_type = data.get("document_type")
         editor_type = data.get("editor_type")
+        image = data.get("image")
+        preview_img = data.get("preview_img")
         title = data.get("title", "")
         renderable_text = data.get("renderable_text", "")
         grant_amount = data.get("grant_amount")
@@ -237,7 +296,14 @@ class ResearchhubPostViewSet(
                             serializer.validated_data["proposal_id"],
                         )
                     )
-                    authors = registered_report_proposal.authors.all()
+                    if not authors:
+                        authors = self.get_registered_report_authors(
+                            registered_report_proposal
+                        )
+                    if image is None:
+                        image = registered_report_proposal.image
+                    if preview_img is None:
+                        preview_img = registered_report_proposal.preview_img
 
                 risk_score_service = RiskScoreService()
 
@@ -287,10 +353,10 @@ class ResearchhubPostViewSet(
                     document_type=document_type,
                     slug=slug,
                     editor_type=CK_EDITOR if editor_type is None else editor_type,
-                    image=data.get("image"),
+                    image=image,
                     note_id=note_id,
                     prev_version=None,
-                    preview_img=data.get("preview_img"),
+                    preview_img=preview_img,
                     renderable_text=data.get("renderable_text"),
                     title=title,
                     bounty_type=data.get("bounty_type"),

@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -17,6 +18,10 @@ from researchhub_document.related_models.constants.document_type import (
     NOTE,
     PREREGISTRATION,
     REGISTERED_REPORT,
+)
+from researchhub_document.registered_report_note_metadata import (
+    add_registered_report_prefill_metadata,
+    parse_note_json,
 )
 from researchhub_document.services.journey_service import JourneyService
 from user.models import User
@@ -233,10 +238,63 @@ class JournalEntryService:
         self._create_private_permissions(user, unified_document)
         self.note_content_model.objects.create(
             note=note,
-            plain_text=proposal.renderable_text or "",
+            json=self._get_proposal_note_json(proposal),
+            plain_text=self._get_proposal_note_plain_text(proposal),
         )
         note.refresh_from_db()
         return note
+
+    def _get_proposal_note_plain_text(self, proposal: ResearchhubPost) -> str:
+        """Return the proposal note plain text, falling back to post text."""
+        if proposal.note_id is not None and proposal.note.latest_version is not None:
+            source_text = proposal.note.latest_version.plain_text
+            if source_text is not None:
+                return source_text
+        return proposal.renderable_text or ""
+
+    def _get_proposal_note_json(self, proposal: ResearchhubPost) -> str:
+        """Return proposal notebook JSON with registered report metadata."""
+        document = None
+        if proposal.note_id is not None and proposal.note.latest_version is not None:
+            document = parse_note_json(proposal.note.latest_version.json)
+        if document is None:
+            document = self._build_note_json(proposal.renderable_text or "")
+        document = add_registered_report_prefill_metadata(
+            document,
+            self._build_registered_report_prefill(proposal),
+        )
+        return json.dumps(document)
+
+    def _build_registered_report_prefill(
+        self, proposal: ResearchhubPost
+    ) -> dict[str, object]:
+        """Build registered report metadata to persist on a draft note."""
+        author_ids = list(proposal.authors.values_list("id", flat=True))
+        if not author_ids and proposal.created_by is not None:
+            author_ids = [proposal.created_by.author_profile.id]
+        return {
+            "author_ids": author_ids,
+            "image": proposal.image,
+            "preview_img": proposal.preview_img,
+            "proposal_id": proposal.id,
+        }
+
+    def _build_note_json(self, text: str) -> dict[str, object]:
+        """Build a ProseMirror document for the current notebook editor."""
+        paragraphs = text.splitlines() or [""]
+        return {
+            "type": "doc",
+            "content": [
+                self._build_paragraph_json(paragraph) for paragraph in paragraphs
+            ],
+        }
+
+    def _build_paragraph_json(self, text: str) -> dict[str, object]:
+        """Build a ProseMirror paragraph node."""
+        paragraph: dict[str, object] = {"type": "paragraph"}
+        if text:
+            paragraph["content"] = [{"type": "text", "text": text}]
+        return paragraph
 
     def _create_private_permissions(
         self, user: User, unified_document: ResearchhubUnifiedDocument

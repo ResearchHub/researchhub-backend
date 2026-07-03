@@ -5,6 +5,7 @@ from django.db.models import Count
 from rest_framework.serializers import (
     CharField,
     IntegerField,
+    ListField,
     ModelSerializer,
     Serializer,
     SerializerMethodField,
@@ -55,6 +56,7 @@ class RegisteredReportPublishSerializer(Serializer):
     title = CharField()
     renderable_text = CharField()
     full_src = CharField()
+    authors = ListField(child=IntegerField(), required=False)
     editor_type = CharField(required=False, allow_blank=True, allow_null=True)
     image = CharField(required=False, allow_blank=True, allow_null=True)
     preview_img = CharField(required=False, allow_blank=True, allow_null=True)

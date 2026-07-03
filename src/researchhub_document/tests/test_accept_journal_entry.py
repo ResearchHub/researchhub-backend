@@ -1,10 +1,12 @@
+import json
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
 from hub.tests.helpers import create_hub
-from note.models import Note
+from note.models import Note, NoteContent
+from note.tests.helpers import create_note
 from purchase.models import Fundraise
 from reputation.models import Escrow
 from researchhub_access_group.constants import ADMIN, NO_ACCESS
@@ -14,6 +16,9 @@ from researchhub_document.related_models.constants.document_type import (
     NOTE,
     PREREGISTRATION,
     REGISTERED_REPORT,
+)
+from researchhub_document.registered_report_note_metadata import (
+    REGISTERED_REPORT_PREFILL_ATTR,
 )
 from researchhub_document.services.journey_service import JourneyService
 from user.models import User
@@ -50,6 +55,27 @@ class AcceptJournalEntryTests(APITestCase):
         self.assertEqual(note.document_type, REGISTERED_REPORT)
         self.assertEqual(note.unified_document.document_type, NOTE)
         self.assertEqual(note.latest_version.plain_text, proposal.renderable_text)
+        self.assertIsInstance(note.latest_version.json, str)
+        note_json = json.loads(note.latest_version.json)
+        self.assertEqual(note_json["type"], "doc")
+        self.assertEqual(
+            note_json["content"],
+            [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": proposal.renderable_text,
+                        }
+                    ],
+                }
+            ],
+        )
+        self.assertEqual(
+            note_json["attrs"][REGISTERED_REPORT_PREFILL_ATTR]["proposal_id"],
+            proposal.id,
+        )
         self.assertEqual(response.data["access"], "PRIVATE")
         self.assertEqual(response.data["fundraise_id"], fundraise.id)
         self.assertEqual(response.data["journey_id"], proposal.journey_id)
@@ -62,7 +88,108 @@ class AcceptJournalEntryTests(APITestCase):
             note.unified_document.hubs.all(),
             proposal.unified_document.hubs.all(),
         )
+        self.assertEqual(
+            response.data["registered_report_prefill"]["author_ids"],
+            [self.user.author_profile.id],
+        )
+        self.assertEqual(
+            response.data["registered_report_prefill"]["hub_ids"],
+            [self.hub.id],
+        )
+        self.assertEqual(
+            response.data["registered_report_prefill"]["preview_img"],
+            proposal.preview_img,
+        )
+        self.assertEqual(
+            response.data["registered_report_prefill"]["proposal_id"],
+            proposal.id,
+        )
+        note_response = self.client.get(f"/api/note/{note.id}/")
+        self.assertEqual(note_response.status_code, 200)
+        self.assertEqual(
+            note_response.data["registered_report_prefill"]["author_ids"],
+            [self.user.author_profile.id],
+        )
+        self.assertEqual(
+            note_response.data["registered_report_prefill"]["hub_ids"],
+            [self.hub.id],
+        )
+        self.assertEqual(
+            note_response.data["registered_report_prefill"]["preview_img"],
+            proposal.preview_img,
+        )
+        self.assertEqual(
+            note_response.data["registered_report_prefill"]["proposal_id"],
+            proposal.id,
+        )
         self.assertTrue(proposal.journey.is_in_journal)
+
+    def test_accept_journal_entry_preserves_proposal_note_json(self) -> None:
+        """Verify accepting a journal entry copies the proposal notebook content."""
+        # Arrange
+        proposal = self._create_proposal(self.user)
+        source_note, _ = create_note(self.user, self.user.organization)
+        formatted_json = json.dumps(
+            {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "heading",
+                        "attrs": {"level": 2},
+                        "content": [{"type": "text", "text": "Abstract"}],
+                    },
+                    {
+                        "type": "bulletList",
+                        "content": [
+                            {
+                                "type": "listItem",
+                                "content": [
+                                    {
+                                        "type": "paragraph",
+                                        "content": [
+                                            {
+                                                "type": "text",
+                                                "text": "Preserve formatting.",
+                                            }
+                                        ],
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                ],
+            }
+        )
+        NoteContent.objects.create(
+            note=source_note,
+            json=formatted_json,
+            plain_text="Abstract\nPreserve formatting.",
+        )
+        source_note.refresh_from_db()
+        proposal.note = source_note
+        proposal.save(update_fields=["note"])
+        fundraise = self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
+
+        # Act
+        response = self.client.post(
+            self._build_accept_url(self.user.id, fundraise.id),
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        note = Note.objects.get(id=response.data["id"])
+        note_json = json.loads(note.latest_version.json)
+        formatted_data = json.loads(formatted_json)
+        self.assertEqual(note_json["type"], formatted_data["type"])
+        self.assertEqual(note_json["content"], formatted_data["content"])
+        self.assertEqual(
+            note_json["attrs"][REGISTERED_REPORT_PREFILL_ATTR]["proposal_id"],
+            proposal.id,
+        )
+        self.assertEqual(
+            note.latest_version.plain_text,
+            "Abstract\nPreserve formatting.",
+        )
 
     def test_accept_journal_entry_creates_private_permissions(self) -> None:
         """Verify accepting a journal entry creates private note permissions."""
@@ -148,6 +275,39 @@ class AcceptJournalEntryTests(APITestCase):
             0,
         )
 
+    def test_accept_journal_entry_rejects_conflicting_fundraise_ids(self) -> None:
+        """Verify the body cannot override the requested fundraise id."""
+        # Arrange
+        proposal = self._create_proposal(self.user)
+        requested_fundraise = self._create_fundraise(
+            proposal,
+            Fundraise.COMPLETED,
+            Decimal(100),
+        )
+        body_fundraise = self._create_fundraise(
+            proposal,
+            Fundraise.COMPLETED,
+            Decimal(100),
+        )
+
+        # Act
+        response = self.client.post(
+            self._build_accept_url(self.user.id, requested_fundraise.id),
+            {"fundraise_id": body_fundraise.id, "user_id": self.user.id},
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data["error"],
+            "fundraise_id does not match the request query.",
+        )
+        self.assertEqual(
+            Note.objects.filter(document_type=REGISTERED_REPORT).count(),
+            0,
+        )
+
     def test_accept_journal_entry_rejects_reported_fundraise(self) -> None:
         """Verify fundraises with registered reports cannot create another note."""
         # Arrange
@@ -206,6 +366,9 @@ class AcceptJournalEntryTests(APITestCase):
             title=f"{user.username} proposal title",
         )
         proposal.unified_document.hubs.add(self.hub)
+        proposal.authors.add(user.author_profile)
+        proposal.preview_img = "https://example.com/proposal-preview.png"
+        proposal.save(update_fields=["preview_img"])
         return proposal
 
     def _create_fundraise(

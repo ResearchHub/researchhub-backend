@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from django.db.models import Q
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
+from hub.serializers import SimpleHubSerializer
 from note.models import Note, NoteContent
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
@@ -13,8 +14,16 @@ from researchhub_access_group.constants import (
     SHARED,
     WORKSPACE,
 )
+from researchhub_document.related_models.constants.document_type import (
+    REGISTERED_REPORT,
+)
+from researchhub_document.registered_report_note_metadata import (
+    get_registered_report_prefill_metadata,
+)
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
+from user.models import Author
 from user.serializers import (
+    AuthorSerializer,
     DynamicOrganizationSerializer,
     DynamicUserSerializer,
     OrganizationSerializer,
@@ -51,6 +60,7 @@ class NoteSerializer(ModelSerializer):
     latest_version = NoteContentSerializer()
     organization = OrganizationSerializer()
     post = SerializerMethodField()
+    registered_report_prefill = SerializerMethodField()
     unified_document = SerializerMethodField()
 
     class Meta:
@@ -162,6 +172,10 @@ class NoteSerializer(ModelSerializer):
         )
         return serializer.data
 
+    def get_registered_report_prefill(self, note) -> dict[str, object] | None:
+        """Return registered report draft metadata for notebook editing."""
+        return build_registered_report_prefill(note, self.context)
+
     def get_unified_document(self, note):
         serializer = DynamicUnifiedDocumentSerializer(
             note.unified_document, _include_fields=["id", "is_removed"]
@@ -176,6 +190,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
     notes = SerializerMethodField()
     organization = SerializerMethodField()
     post = SerializerMethodField()
+    registered_report_prefill = SerializerMethodField()
     unified_document = SerializerMethodField()
 
     class Meta:
@@ -318,6 +333,10 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
+    def get_registered_report_prefill(self, note) -> dict[str, object] | None:
+        """Return registered report draft metadata for notebook editing."""
+        return build_registered_report_prefill(note, self.context)
+
     def get_unified_document(self, note):
         context = self.context
         _context_fields = context.get("nte_dns_get_unified_document", {})
@@ -325,3 +344,61 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
             note.unified_document, context=context, **_context_fields
         )
         return serializer.data
+
+
+def build_registered_report_prefill(
+    note: Note, context: dict
+) -> dict[str, object] | None:
+    """Build editable registered report defaults from stored note data."""
+    if note.document_type != REGISTERED_REPORT or hasattr(note, "post"):
+        return None
+
+    latest_version = getattr(note, "latest_version", None)
+    metadata = {}
+    if latest_version is not None:
+        metadata = get_registered_report_prefill_metadata(latest_version.json)
+
+    author_ids = get_registered_report_author_ids(metadata)
+    authors = get_registered_report_authors(author_ids)
+    if not authors and note.created_by is not None:
+        authors = [note.created_by.author_profile]
+        author_ids = [note.created_by.author_profile.id]
+    hubs = note.unified_document.hubs.all()
+    hub_ids = list(hubs.values_list("id", flat=True))
+    hub_data = SimpleHubSerializer(hubs, context=context, many=True).data
+
+    return {
+        "author_ids": author_ids,
+        "authors": AuthorSerializer(
+            authors,
+            context=context,
+            many=True,
+        ).data,
+        "image": metadata.get("image"),
+        "preview_img": metadata.get("preview_img"),
+        "proposal_id": metadata.get("proposal_id"),
+        "hub_ids": hub_ids,
+        "hubs": hub_data,
+    }
+
+
+def get_registered_report_author_ids(metadata: dict[str, object]) -> list[int]:
+    """Return valid author ids from registered report metadata."""
+    raw_author_ids = metadata.get("author_ids")
+    if not isinstance(raw_author_ids, list):
+        return []
+    author_ids = []
+    for author_id in raw_author_ids:
+        if isinstance(author_id, int):
+            author_ids.append(author_id)
+    return author_ids
+
+
+def get_registered_report_authors(author_ids: list[int]) -> list[Author]:
+    """Return authors in the same order as registered report metadata."""
+    authors_by_id = Author.objects.in_bulk(author_ids)
+    return [
+        authors_by_id[author_id]
+        for author_id in author_ids
+        if author_id in authors_by_id
+    ]

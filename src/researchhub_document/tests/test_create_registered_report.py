@@ -63,6 +63,32 @@ class CreateRegisteredReportTests(APITestCase):
             report.unified_document.hubs.all(),
             proposal.unified_document.hubs.all(),
         )
+        self.assertEqual(report.image, proposal.image)
+        self.assertEqual(report.preview_img, proposal.preview_img)
+
+    def test_create_report_uses_edited_metadata(self) -> None:
+        """Verify publishing uses edited registered report authors and image."""
+        # Arrange
+        proposal = self._create_completed_proposal(self.user)
+        note = self._create_registered_report_note()
+        payload = self._build_payload(
+            proposal,
+            authors=[self.user.author_profile.id, self.moderator.author_profile.id],
+            note_id=note.id,
+            preview_img="https://example.com/edited-preview.png",
+        )
+
+        # Act
+        response = self.client.post(self.create_url, payload, format="json")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        report = ResearchhubPost.objects.get(id=response.data["id"])
+        self.assertCountEqual(
+            report.authors.all(),
+            [self.user.author_profile, self.moderator.author_profile],
+        )
+        self.assertEqual(report.preview_img, "https://example.com/edited-preview.png")
 
     def test_reject_generic_note(self) -> None:
         """Verify reports must publish from registered report notes."""
@@ -227,4 +253,7 @@ class CreateRegisteredReportTests(APITestCase):
         )
         proposal.authors.add(user.author_profile)
         proposal.unified_document.hubs.add(self.hub)
+        proposal.image = "proposal-cover-image-key"
+        proposal.preview_img = "https://example.com/proposal-preview.png"
+        proposal.save(update_fields=["image", "preview_img"])
         return proposal
