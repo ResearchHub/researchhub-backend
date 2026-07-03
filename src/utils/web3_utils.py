@@ -1,7 +1,9 @@
+import logging
+
 from django.conf import settings
 from web3 import Web3
 
-from utils.sentry import log_error
+logger = logging.getLogger(__name__)
 
 
 class Web3Provider:
@@ -26,8 +28,8 @@ class Web3Provider:
             else:
                 cls._ethereum = Web3(Web3.HTTPProvider(settings.WEB3_PROVIDER_URL))
                 cls._base = Web3(Web3.HTTPProvider(settings.WEB3_BASE_PROVIDER_URL))
-        except Exception as e:
-            log_error(e)
+        except Exception:
+            logger.exception("Error initializing Web3 providers")
             cls._ethereum = None
             cls._base = None
 
