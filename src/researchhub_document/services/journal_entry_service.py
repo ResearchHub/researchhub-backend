@@ -14,14 +14,14 @@ from researchhub_document.models import (
     ResearchhubUnifiedDocument,
     ResearchJourney,
 )
+from researchhub_document.registered_report_note_metadata import (
+    add_registered_report_prefill_metadata,
+    parse_note_json,
+)
 from researchhub_document.related_models.constants.document_type import (
     NOTE,
     PREREGISTRATION,
     REGISTERED_REPORT,
-)
-from researchhub_document.registered_report_note_metadata import (
-    add_registered_report_prefill_metadata,
-    parse_note_json,
 )
 from researchhub_document.services.journey_service import JourneyService
 from user.models import User

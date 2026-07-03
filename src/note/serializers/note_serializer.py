@@ -14,11 +14,11 @@ from researchhub_access_group.constants import (
     SHARED,
     WORKSPACE,
 )
-from researchhub_document.related_models.constants.document_type import (
-    REGISTERED_REPORT,
-)
 from researchhub_document.registered_report_note_metadata import (
     get_registered_report_prefill_metadata,
+)
+from researchhub_document.related_models.constants.document_type import (
+    REGISTERED_REPORT,
 )
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.models import Author
@@ -387,11 +387,7 @@ def get_registered_report_author_ids(metadata: dict[str, object]) -> list[int]:
     raw_author_ids = metadata.get("author_ids")
     if not isinstance(raw_author_ids, list):
         return []
-    author_ids = []
-    for author_id in raw_author_ids:
-        if isinstance(author_id, int):
-            author_ids.append(author_id)
-    return author_ids
+    return [author_id for author_id in raw_author_ids if isinstance(author_id, int)]
 
 
 def get_registered_report_authors(author_ids: list[int]) -> list[Author]:

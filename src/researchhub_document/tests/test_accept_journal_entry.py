@@ -12,13 +12,13 @@ from reputation.models import Escrow
 from researchhub_access_group.constants import ADMIN, NO_ACCESS
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubPost
+from researchhub_document.registered_report_note_metadata import (
+    REGISTERED_REPORT_PREFILL_ATTR,
+)
 from researchhub_document.related_models.constants.document_type import (
     NOTE,
     PREREGISTRATION,
     REGISTERED_REPORT,
-)
-from researchhub_document.registered_report_note_metadata import (
-    REGISTERED_REPORT_PREFILL_ATTR,
 )
 from researchhub_document.services.journey_service import JourneyService
 from user.models import User
