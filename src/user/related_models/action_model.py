@@ -160,7 +160,7 @@ class Action(DefaultModel):
 
     @property
     def doc_summary(self):
-        SUMMARY_MAX_LEN = 256
+        summary_max_len = 256
         summary = ""
         try:
             item = self.item
@@ -175,8 +175,8 @@ class Action(DefaultModel):
             return ""
 
         # Checks if summary exists and if it's longer than 256 chars
-        if isinstance(summary, str) and len(summary) > SUMMARY_MAX_LEN:
-            summary = f"{summary[:SUMMARY_MAX_LEN]} ..."
+        if isinstance(summary, str) and len(summary) > summary_max_len:
+            summary = f"{summary[:summary_max_len]} ..."
         return summary
 
     @property

@@ -208,5 +208,7 @@ class DOI:
             "login_passwd": (None, settings.CROSSREF_LOGIN_PASSWORD),
             "fname": ("crossref.xml", crossref_xml),
         }
-        crossref_response = requests.post(settings.CROSSREF_API_URL, files=files)
+        crossref_response = requests.post(
+            settings.CROSSREF_API_URL, files=files, timeout=30
+        )
         return crossref_response

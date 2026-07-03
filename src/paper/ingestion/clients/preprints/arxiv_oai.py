@@ -63,11 +63,11 @@ def _parse_dublin_core(root: ET.Element) -> dict[str, Any]:
     }
 
     # Extract authors from creator fields
-    authors = []
-    for creator_elem in dc_elem.findall(f"{_DC_NS}creator"):
-        if creator_elem.text:
-            authors.append({"name": creator_elem.text.strip()})
-    entry_data["authors"] = authors
+    entry_data["authors"] = [
+        {"name": creator_elem.text.strip()}
+        for creator_elem in dc_elem.findall(f"{_DC_NS}creator")
+        if creator_elem.text
+    ]
 
     # Extract identifier (may contain arXiv ID)
     identifier = _get_text(dc_elem, f"{_DC_NS}identifier")

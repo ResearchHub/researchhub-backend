@@ -66,7 +66,7 @@ class EthereumLibTests(TestCase):
             "researchhub-web3-keystore": {"SecretString": "mock_keystore"},
             "researchhub-web3-keystore-password": {"SecretString": "mock_password"},
         }
-        mock_client.get_secret_value.side_effect = lambda SecretId: secrets[SecretId]
+        mock_client.get_secret_value.side_effect = lambda SecretId: secrets[SecretId]  # noqa: N803
 
         # Set up the ethereum mock on the provider
         mock_eth = Mock()

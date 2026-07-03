@@ -94,6 +94,9 @@ before writing it.
 - Use `AWSMockTransactionTestCase` when the code under test relies on `transaction.on_commit()`.
 - Test behavior, not implementation details.
 - Add Arrange/Act/Assert (AAA) comment markers to tests.
+- Prefer `patch.object()` when patching on classes already imported into the test module.
+  Use string-based `patch("module.path.symbol")` when the test needs to replace the exact 
+  symbol that the code under test imports or accesses at runtime.
 
 ## CI Reference
 CI runs from `src/` and performs:

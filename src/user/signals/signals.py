@@ -1,3 +1,5 @@
+import logging
+
 import requests
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
@@ -17,7 +19,8 @@ from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.constants.organization_constants import PERSONAL
 from user.models import Action, Author, Organization, User
-from utils.sentry import log_error
+
+logger = logging.getLogger(__name__)
 
 
 @receiver(pre_save, sender=Organization, dispatch_uid="add_organization_slug")
@@ -113,8 +116,8 @@ def send_discussion_email_notification(instance, sender, action):
                         context,
                         html_template="notification_email.html",
                     )
-            except Exception as e:
-                log_error(e)
+            except Exception:
+                logger.exception("Failed to send discussion email notification")
 
 
 @receiver(post_delete, sender=Paper, dispatch_uid="paper_delete_action")
@@ -175,7 +178,9 @@ def create_user_organization(sender, instance, created, **kwargs):
         profile_image = instance.author_profile.profile_image
         try:
             if profile_image:
-                request = requests.get(profile_image.url, allow_redirects=False)
+                request = requests.get(
+                    profile_image.url, allow_redirects=False, timeout=10
+                )
                 if request.status_code == 200:
                     profile_image_content = request.content
                     profile_image_file = ContentFile(profile_image_content)
@@ -184,5 +189,7 @@ def create_user_organization(sender, instance, created, **kwargs):
                         profile_image_file,
                         save=True,
                     )
-        except Exception as e:
-            log_error(e)
+        except Exception:
+            logger.exception(
+                "Failed to attach profile image to user org %s", instance.id
+            )

@@ -669,7 +669,7 @@ OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", keys.OPENSEARCH_HOST)
 
 OPENSEARCH_DSL = {
     "default": {
-        "hosts": OPENSEARCH_HOST if OPENSEARCH_HOST else "http://localhost:9200",
+        "hosts": OPENSEARCH_HOST or "http://localhost:9200",
         "pool_maxsize": 20,
         "timeout": 30,
     },
@@ -888,6 +888,12 @@ TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)
 
 # OpenAlex API
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", keys.OPENALEX_KEY)
+
+# Brave Search API (research_ai proposal-draft web search). Optional: when unset,
+# the web_search tool is inert and the agent grounds in profile/OpenAlex only.
+BRAVE_SEARCH_API_KEY = os.environ.get(
+    "BRAVE_SEARCH_API_KEY", getattr(keys, "BRAVE_SEARCH_API_KEY", "")
+)
 
 # Endaoment API
 ENDAOMENT_API_URL = f"https://api{'' if PRODUCTION else '.dev'}.endaoment.org"

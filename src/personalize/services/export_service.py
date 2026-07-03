@@ -1,6 +1,6 @@
 import csv
 import time
-from typing import Callable, Iterator
+from collections.abc import Callable, Iterator
 
 from django.db import connection, reset_queries
 from django.db.models import QuerySet

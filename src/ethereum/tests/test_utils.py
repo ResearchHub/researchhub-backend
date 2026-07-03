@@ -48,7 +48,7 @@ class EthereumUtilsTests(TestCase):
         result_n = self.get_result(n)
         self.assertEqual(result_n, 11010000000000000000)
 
-    def test_decimal_to_token_amount_does_NOT_round(self):
+    def test_decimal_to_token_amount_does_not_round(self):
         o = "111.5"
         result_o = self.get_result(o)
         self.assertEqual(result_o, 111500000000000000000)

@@ -1,6 +1,6 @@
 import logging
+from collections.abc import Callable
 from datetime import timedelta
-from typing import Callable
 
 from allauth.socialaccount.models import SocialAccount, SocialApp, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider

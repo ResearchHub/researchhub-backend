@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from django.test import SimpleTestCase
 
+from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.providers.bedrock import BedrockProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
@@ -147,6 +148,107 @@ class CompleteAndParseTests(SimpleTestCase):
         # toolConfig was forwarded because tools were present.
         self.assertIn("toolConfig", provider._client.calls[0])
 
+    def test_omits_temperature_for_models_that_reject_sampling_params(self):
+        # Arrange: Opus 4.8 rejects `temperature` with a 400.
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+        }
+        provider = BedrockProvider(
+            client=FakeConverseClient([response]),
+            model_id="us.anthropic.claude-opus-4-8",
+        )
+
+        # Act
+        provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=100,
+            temperature=0.0,
+        )
+
+        # Assert: temperature is not forwarded; maxTokens still is.
+        inference_config = provider._client.calls[0]["inferenceConfig"]
+        self.assertNotIn("temperature", inference_config)
+        self.assertEqual(inference_config["maxTokens"], 100)
+
+    def test_includes_temperature_for_models_that_accept_it(self):
+        # Arrange: a sampling-friendly model (e.g. Sonnet/Haiku) keeps temperature.
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+        }
+        provider = BedrockProvider(
+            client=FakeConverseClient([response]),
+            model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        )
+
+        # Act
+        provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=100,
+            temperature=0.0,
+        )
+
+        # Assert
+        self.assertEqual(
+            provider._client.calls[0]["inferenceConfig"]["temperature"], 0.0
+        )
+
+    def test_prompt_caching_adds_cache_points_to_system_and_last_message(self):
+        # Arrange
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 10, "cacheReadInputTokens": 5, "outputTokens": 2},
+        }
+        provider = _build_provider([response])
+        provider.prompt_caching = True
+
+        # Act
+        provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=100,
+            temperature=0.0,
+        )
+
+        # Assert: cache point trails both the system prompt and the last message.
+        call = provider._client.calls[0]
+        self.assertEqual(call["system"][-1], {"cachePoint": {"type": "default"}})
+        self.assertEqual(
+            call["messages"][-1]["content"][-1], {"cachePoint": {"type": "default"}}
+        )
+
+    def test_prompt_caching_disabled_emits_no_cache_points(self):
+        # Arrange
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+        }
+        provider = _build_provider([response])
+        provider.prompt_caching = False
+
+        # Act
+        provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=100,
+            temperature=0.0,
+        )
+
+        # Assert: no cache points anywhere.
+        call = provider._client.calls[0]
+        self.assertEqual(call["system"], [{"text": "sys"}])
+        self.assertNotIn(
+            {"cachePoint": {"type": "default"}}, call["messages"][-1]["content"]
+        )
+
     def test_parse_turn_maps_unknown_stop_reason_to_other(self):
         # Arrange
         provider = _build_provider()
@@ -166,7 +268,7 @@ class CompleteAndParseTests(SimpleTestCase):
         provider = _build_provider([{"stopReason": "end_turn"}])
 
         # Act / Assert
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ProviderError):
             provider.complete(
                 system_prompt="sys",
                 messages=[Message(role="user", content=[TextBlock(text="hi")])],
@@ -174,3 +276,22 @@ class CompleteAndParseTests(SimpleTestCase):
                 max_tokens=100,
                 temperature=0.0,
             )
+
+    def test_converse_exception_raises_provider_error(self):
+        # Arrange: the boto3 client dies (throttling, network, etc.).
+        class ExplodingClient:
+            def converse(self, **kwargs):
+                raise ValueError("ThrottlingException")
+
+        provider = BedrockProvider(client=ExplodingClient(), model_id="test-model")
+
+        # Act / Assert: typed, chained to the original client error.
+        with self.assertRaisesRegex(ProviderError, "ThrottlingException") as ctx:
+            provider.complete(
+                system_prompt="sys",
+                messages=[Message(role="user", content=[TextBlock(text="hi")])],
+                rendered_tools={"tools": []},
+                max_tokens=100,
+                temperature=0.0,
+            )
+        self.assertIsInstance(ctx.exception.__cause__, ValueError)

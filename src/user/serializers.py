@@ -299,9 +299,7 @@ class AuthorSerializer(ModelSerializer):
             ),
             content_type=hub_content_type,
         )
-        target_hub_ids = []
-        for permission in target_permissions:
-            target_hub_ids.append(permission.object_id)
+        target_hub_ids = [target.object_id for target in target_permissions]
         return SimpleHubSerializer(
             Hub.objects.filter(id__in=target_hub_ids), many=True
         ).data

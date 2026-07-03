@@ -12,7 +12,7 @@ from personalize.tests.helpers import (
 
 
 class ApiItemMappingTests(TestCase):
-    def test_api_format_has_itemId_and_properties(self):
+    def test_api_format_has_item_id_and_properties(self):
         paper = create_prefetched_paper(title="Test Paper")
         mapper = ItemMapper()
         batch_data = create_batch_data()
@@ -48,7 +48,7 @@ class ApiItemMappingTests(TestCase):
         properties = json.loads(result["properties"])
         self.assertIsInstance(properties, dict)
 
-    def test_api_keys_are_camelCase(self):
+    def test_api_keys_are_camel_case(self):
         paper = create_prefetched_paper(title="Test Paper")
         mapper = ItemMapper()
         batch_data = create_batch_data()
@@ -108,7 +108,7 @@ class ApiItemMappingTests(TestCase):
         self.assertIsInstance(properties["hasActiveBounty"], str)
         self.assertIsInstance(properties["bountyHasSolutions"], str)
 
-    def test_api_excludes_ITEM_ID_from_properties(self):
+    def test_api_excludes_item_id_from_properties(self):
         paper = create_prefetched_paper(title="Test Paper")
         mapper = ItemMapper()
         batch_data = create_batch_data()

@@ -21,6 +21,7 @@ def captcha_verify(request):
             "secret": settings.RECAPTCHA_SECRET_KEY,
             "response": request.data.get("response"),
         },
+        timeout=10,
     )
     status = verify_request.status_code
     req_json = verify_request.json()

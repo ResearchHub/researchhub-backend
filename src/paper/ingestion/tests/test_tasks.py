@@ -466,11 +466,11 @@ class GithubMetricsTasksTests(TestCase):
         )
         self.assertIn("github_mentions", self.paper_recent.external_metadata["metrics"])
 
-    @patch("paper.ingestion.tasks.sentry")
+    @patch("paper.ingestion.tasks.logger")
     @patch("paper.ingestion.tasks.PaperMetricsEnrichmentService")
     @patch("paper.ingestion.tasks._create_github_metrics_client")
     def test_enrich_paper_handles_service_error(
-        self, mock_create_client, mock_service_class, mock_sentry
+        self, mock_create_client, mock_service_class, mock_logger
     ):
         """
         Test error handling when service returns an error status.
@@ -492,7 +492,7 @@ class GithubMetricsTasksTests(TestCase):
         self.assertEqual(result["status"], "error")
         self.assertEqual(result["paper_id"], self.paper_recent.id)
         self.assertIn("reason", result)
-        self.assertTrue(mock_sentry.log_error.called)
+        self.assertTrue(mock_logger.error.called)
 
 
 class BlueskyMetricsTasksTests(TestCase):
@@ -668,11 +668,11 @@ class BlueskyMetricsTasksTests(TestCase):
         )
         self.assertIn("bluesky", self.paper_recent.external_metadata["metrics"])
 
-    @patch("paper.ingestion.tasks.sentry")
+    @patch("paper.ingestion.tasks.logger")
     @patch("paper.ingestion.tasks.PaperMetricsEnrichmentService")
     @patch("paper.ingestion.tasks.BlueskyMetricsClient")
     def test_enrich_paper_handles_service_error_with_max_retries(
-        self, mock_metrics_client_class, mock_service_class, mock_sentry
+        self, mock_metrics_client_class, mock_service_class, mock_logger
     ):
         """
         Test error handling when max retries are exceeded.
@@ -697,7 +697,7 @@ class BlueskyMetricsTasksTests(TestCase):
         self.assertEqual(result["status"], "error")
         self.assertEqual(result["paper_id"], self.paper_recent.id)
         self.assertIn("reason", result)
-        self.assertTrue(mock_sentry.log_error.called)
+        self.assertTrue(mock_logger.error.called)
 
 
 @override_settings(X_BEARER_TOKEN="test_token")
@@ -915,14 +915,14 @@ class XMetricsTasksTests(TestCase):
         )
         self.assertIn("x", self.paper_recent.external_metadata["metrics"])
 
-    @patch("paper.ingestion.tasks.sentry")
+    @patch("paper.ingestion.tasks.logger")
     @patch("paper.ingestion.tasks.PaperMetricsEnrichmentService")
     @patch("paper.ingestion.tasks.XMetricsClient")
-    def test_enrich_paper_handles_service_error_logs_to_sentry(
-        self, mock_metrics_client_class, mock_service_class, mock_sentry
+    def test_enrich_paper_handles_service_error_logs_error(
+        self, mock_metrics_client_class, mock_service_class, mock_logger
     ):
         """
-        Test that error status logs to sentry.
+        Test that error status logs an error.
         """
         # Arrange
 
@@ -940,7 +940,7 @@ class XMetricsTasksTests(TestCase):
         self.assertEqual(result["status"], "error")
         self.assertEqual(result["paper_id"], self.paper_recent.id)
         self.assertIn("reason", result)
-        self.assertTrue(mock_sentry.log_error.called)
+        self.assertTrue(mock_logger.error.called)
 
     @patch("paper.ingestion.tasks.cache")
     @patch("paper.ingestion.tasks.PaperMetricsEnrichmentService")

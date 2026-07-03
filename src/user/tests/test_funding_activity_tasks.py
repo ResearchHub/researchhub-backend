@@ -18,21 +18,21 @@ class CreateFundingActivityTaskTests(TestCase):
         dist = Distribution.objects.create(
             giver=self.funder,
             recipient=None,
-            amount=Decimal("10"),
+            amount=Decimal(10),
             distribution_type="BOUNTY_RH_FEE",
         )
         create_funding_activity_task(FundingActivity.FEE, dist.pk)
         self.assertEqual(FundingActivity.objects.count(), 1)
         activity = FundingActivity.objects.get()
         self.assertEqual(activity.source_type, FundingActivity.FEE)
-        self.assertEqual(activity.total_amount, Decimal("10"))
+        self.assertEqual(activity.total_amount, Decimal(10))
         self.assertEqual(activity.funder_id, self.funder.id)
 
     def test_task_idempotent_for_same_source(self):
         """Calling the task twice for the same source does not duplicate activity."""
         dist = Distribution.objects.create(
             giver=self.funder,
-            amount=Decimal("5"),
+            amount=Decimal(5),
             distribution_type="SUPPORT_RH_FEE",
         )
         create_funding_activity_task(FundingActivity.FEE, dist.pk)
@@ -48,7 +48,7 @@ class CreateFundingActivityTaskTests(TestCase):
         """Task returns without raising when source_type is unknown."""
         dist = Distribution.objects.create(
             giver=self.funder,
-            amount=Decimal("1"),
+            amount=Decimal(1),
             distribution_type="BOUNTY_RH_FEE",
         )
         create_funding_activity_task("UNKNOWN_TYPE", dist.pk)

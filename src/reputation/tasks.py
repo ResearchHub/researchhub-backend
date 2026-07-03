@@ -377,7 +377,7 @@ def find_qualified_users_and_notify(
     from django.db.models.functions import Coalesce
 
     # Minimum reputation score required to notify a user
-    MIN_REP_SCORE_REQUIRED_TO_NOTIFY = 100
+    min_rep_score_required_to_notify = 100
 
     bounty = Bounty.objects.select_related("unified_document").get(id=bounty_id)
 
@@ -419,8 +419,8 @@ def find_qualified_users_and_notify(
             ),
         )
         .filter(
-            max_hub_score__gte=MIN_REP_SCORE_REQUIRED_TO_NOTIFY
-        )  # Ensure we only get authors with score > MIN_REP_SCORE_REQUIRED_TO_NOTIFY
+            max_hub_score__gte=min_rep_score_required_to_notify
+        )  # Ensure we only get authors with score > min_rep_score_required_to_notify
         .order_by("-max_hub_score")
     )
 

@@ -228,7 +228,7 @@ def reinstate_user_task(user_id):
 
 
 def get_latest_actions(cursor):
-    Action = apps.get_model("user.Action")
+    Action = apps.get_model("user.Action")  # noqa: N806
     actions = Action.objects.all().order_by("-id")[cursor:]
     next_cursor = cursor + len(actions)
     return actions, next_cursor

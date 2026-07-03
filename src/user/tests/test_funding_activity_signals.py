@@ -252,7 +252,7 @@ class FundingActivitySignalsTests(TestCase):
             escrow=escrow,
         )
         rec = EscrowRecipients.objects.create(
-            escrow=escrow, user=self.recipient, amount=Decimal("25")
+            escrow=escrow, user=self.recipient, amount=Decimal(25)
         )
         escrow.status = Escrow.PAID
         escrow.save()
@@ -289,14 +289,14 @@ class FundingActivitySignalsTests(TestCase):
             object_id=comment.id,
             purchase_type=Purchase.BOOST,
             paid_status=Purchase.PAID,
-            amount=Decimal("20"),
+            amount=Decimal(20),
             purchase_method=Purchase.OFF_CHAIN,
         )
         ct_purchase = ContentType.objects.get_for_model(Purchase)
         dist = Distribution.objects.create(
             giver=self.funder,
             recipient=self.recipient,
-            amount=Decimal("20"),
+            amount=Decimal(20),
             distribution_type="PURCHASE",
             proof_item_content_type=ct_purchase,
             proof_item_object_id=proof_purchase.id,
@@ -313,7 +313,7 @@ class FundingActivitySignalsTests(TestCase):
         mock_transaction.on_commit = lambda func: func()
         dist = Distribution.objects.create(
             giver=self.funder,
-            amount=Decimal("5"),
+            amount=Decimal(5),
             distribution_type="BOUNTY_DAO_FEE",
         )
         mock_task.delay.assert_called_once_with(
@@ -326,15 +326,15 @@ class FundingActivitySignalsTests(TestCase):
         """When Distribution is updated (not created), task is not scheduled."""
         dist = Distribution.objects.create(
             giver=self.funder,
-            amount=Decimal("5"),
+            amount=Decimal(5),
             distribution_type="BOUNTY_RH_FEE",
         )
         mock_task.reset_mock()
-        dist.amount = Decimal("10")
+        dist.amount = Decimal(10)
         dist.save()
         mock_task.delay.assert_not_called()
         mock_task.reset_mock()
-        dist.amount = Decimal("10")
+        dist.amount = Decimal(10)
         dist.save()
         mock_task.delay.assert_not_called()
 
@@ -374,7 +374,7 @@ class FundingActivitySignalsTests(TestCase):
                 escrow=escrow,
             )
             rec = EscrowRecipients.objects.create(
-                escrow=escrow, user=self.recipient, amount=Decimal("25")
+                escrow=escrow, user=self.recipient, amount=Decimal(25)
             )
             initial_count = FundingActivity.objects.filter(
                 source_type=FundingActivity.BOUNTY_PAYOUT
@@ -395,7 +395,7 @@ class FundingActivitySignalsTests(TestCase):
         )
         activity = activities.get()
         self.assertEqual(activity.funder_id, self.funder.id)
-        self.assertEqual(activity.total_amount, Decimal("25"))
+        self.assertEqual(activity.total_amount, Decimal(25))
         recipients = FundingActivityRecipient.objects.filter(activity=activity)
         self.assertEqual(
             recipients.count(),
@@ -471,7 +471,7 @@ class FundingActivitySignalsTests(TestCase):
         )
         activity = activities.get()
         self.assertEqual(activity.funder_id, self.funder.id)
-        self.assertEqual(activity.total_amount, Decimal("100"))
+        self.assertEqual(activity.total_amount, Decimal(100))
         recipients = FundingActivityRecipient.objects.filter(activity=activity)
         self.assertEqual(
             recipients.count(),
@@ -539,9 +539,9 @@ class FundingActivitySignalsTests(TestCase):
         activity = activities.get()
         self.assertEqual(activity.funder_id, self.funder.id)
         self.assertEqual(activity.total_usd_cents, 10000)
-        self.assertEqual(activity.total_amount, Decimal("200"))
+        self.assertEqual(activity.total_amount, Decimal(200))
         recipients = FundingActivityRecipient.objects.filter(activity=activity)
         self.assertEqual(recipients.count(), 1)
         self.assertEqual(recipients.get().recipient_user_id, self.recipient.id)
         self.assertEqual(recipients.get().amount_usd_cents, 10000)
-        self.assertEqual(recipients.get().amount, Decimal("200"))
+        self.assertEqual(recipients.get().amount, Decimal(200))

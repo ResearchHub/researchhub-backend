@@ -196,7 +196,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
         base_url = request.META["HTTP_ORIGIN"]
 
-        emailContext = {
+        email_context = {
             "hub_name": hub.name.capitalize(),
             "link": base_url + f"/hubs/{hub.name}/",
             "opt_out": base_url + "/email/opt-out/",
@@ -214,7 +214,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
             recipients,
             "invite_to_hub_email.txt",
             subject,
-            emailContext,
+            email_context,
             "invite_to_hub_email.html",
         )
 
@@ -468,7 +468,6 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
     def _build_subcategory_mapping(self):
         """Build mapping of subcategory slug -> category slug from all sources."""
 
-        mapping = {}
         all_mappings = [
             ARXIV_MAPPINGS,
             BIORXIV_MAPPINGS,
@@ -476,9 +475,11 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
             MEDRXIV_MAPPINGS,
         ]
 
-        for source in all_mappings:
-            for category_slug, subcategory_slug in source.values():
-                if category_slug and subcategory_slug:
-                    mapping[subcategory_slug] = category_slug
+        mapping = {
+            subcategory_slug: category_slug
+            for source in all_mappings
+            for category_slug, subcategory_slug in source.values()
+            if category_slug and subcategory_slug
+        }
 
         return mapping

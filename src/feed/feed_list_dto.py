@@ -101,9 +101,9 @@ def serialize_fund_feed_metrics(item, item_content_type):
 
 def _serialize_slim_bounty(bounty):
     """Minimal bounty payload for funding feed action badges."""
-    contributions = []
-    for child in bounty.children.all():
-        contributions.append(BountyContributionSerializer(child).data)
+    contributions = [
+        BountyContributionSerializer(child).data for child in bounty.children.all()
+    ]
 
     created_by = None
     if bounty.created_by_id:
@@ -257,9 +257,7 @@ class GrantFeedPostSerializer(serializers.Serializer):
             "title": post.title,
             "type": post.document_type,
             "image_url": self._get_image_url(post),
-            "unified_document_id": (
-                post.unified_document_id if post.unified_document_id else None
-            ),
+            "unified_document_id": (post.unified_document_id or None),
             "grant": None,
         }
 
@@ -295,13 +293,10 @@ def _serialize_slim_fundraise(fundraise, context):
 
     contributor_fields = context.get("pch_dfs_get_contributors", {})
     aggregated = fundraise.get_contributors_summary()
-    top = []
-    for entry in aggregated.top:
-        top.append(
-            DynamicUserSerializer(
-                entry.user, context=context, **contributor_fields
-            ).data
-        )
+    top = [
+        DynamicUserSerializer(entry.user, context=context, **contributor_fields).data
+        for entry in aggregated.top
+    ]
 
     return {
         "id": fundraise.id,
@@ -330,9 +325,7 @@ class FundingFeedPostSerializer(serializers.Serializer):
             "type": post.document_type,
             "image_url": self._get_image_url(post),
             "institution": getattr(post, "institution", None),
-            "unified_document_id": (
-                post.unified_document_id if post.unified_document_id else None
-            ),
+            "unified_document_id": (post.unified_document_id or None),
             "authors": [],
             "reviews": [],
             "fundraise": None,

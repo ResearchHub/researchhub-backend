@@ -115,9 +115,7 @@ class OpenAlexClient(BaseClient):
 
         results = raw_data.get("results", [])
 
-        papers = []
-        for result in results:
-            papers.append({"raw_data": result, "source": "openalex"})
+        papers = [{"raw_data": result, "source": "openalex"} for result in results]
 
         return papers
 
