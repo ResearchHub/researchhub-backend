@@ -8,7 +8,11 @@ from note.models import Note, NoteContent
 from purchase.models import Fundraise
 from researchhub_access_group.constants import ADMIN, NO_ACCESS
 from researchhub_access_group.models import Permission
-from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
+from researchhub_document.models import (
+    ResearchhubPost,
+    ResearchhubUnifiedDocument,
+    ResearchJourney,
+)
 from researchhub_document.related_models.constants.document_type import (
     NOTE,
     PREREGISTRATION,
@@ -23,6 +27,7 @@ class AcceptedJournalEntry:
     """A journal entry acceptance result."""
 
     fundraise: Fundraise
+    journey: ResearchJourney
     note: Note
     proposal: ResearchhubPost
 
@@ -74,6 +79,7 @@ class JournalEntryService:
         note = self._create_registered_report_note(user, proposal)
         return AcceptedJournalEntry(
             fundraise=fundraise,
+            journey=journey,
             note=note,
             proposal=proposal,
         )

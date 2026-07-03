@@ -113,7 +113,7 @@ class ResearchhubPostViewSet(
             accepted_entry.note, context={"request": request}
         ).data
         response_data["fundraise_id"] = accepted_entry.fundraise.id
-        response_data["journey_id"] = accepted_entry.proposal.journey_id
+        response_data["journey_id"] = accepted_entry.journey.id
         response_data["proposal_id"] = accepted_entry.proposal.id
         return Response(response_data, status=200)
 
