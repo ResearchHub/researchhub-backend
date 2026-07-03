@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
@@ -15,6 +16,15 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.services.journey_service import JourneyService
 from user.models import User
+
+
+@dataclass(frozen=True)
+class AcceptedJournalEntry:
+    """A journal entry acceptance result."""
+
+    fundraise: Fundraise
+    note: Note
+    proposal: ResearchhubPost
 
 
 class JournalEntryService:
@@ -44,7 +54,9 @@ class JournalEntryService:
         self.user_model = user_model or User
 
     @transaction.atomic
-    def accept_journal_entry(self, user: User, user_id: int, fundraise_id: int) -> Note:
+    def accept_journal_entry(
+        self, user: User, user_id: int, fundraise_id: int
+    ) -> AcceptedJournalEntry:
         """Create an unpublished registered report note for a completed fundraise."""
         self._validate_user_id(user, user_id)
         fundraise = self._get_fundraise(fundraise_id)
@@ -59,7 +71,12 @@ class JournalEntryService:
         if self.journey_service.has_registered_report(journey):
             raise ValueError("Fundraise already has a registered report.")
 
-        return self._create_registered_report_note(user, proposal)
+        note = self._create_registered_report_note(user, proposal)
+        return AcceptedJournalEntry(
+            fundraise=fundraise,
+            note=note,
+            proposal=proposal,
+        )
 
     def get_registered_report_proposal(
         self, user: User, proposal_id: int

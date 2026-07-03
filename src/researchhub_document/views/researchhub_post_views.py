@@ -101,7 +101,7 @@ class ResearchhubPostViewSet(
         serializer.is_valid(raise_exception=True)
 
         try:
-            note = JournalEntryService().accept_journal_entry(
+            accepted_entry = JournalEntryService().accept_journal_entry(
                 request.user,
                 serializer.validated_data["user_id"],
                 serializer.validated_data["fundraise_id"],
@@ -109,8 +109,12 @@ class ResearchhubPostViewSet(
         except ValueError as error:
             return Response({"error": str(error)}, status=400)
 
-        response_data = NoteSerializer(note, context={"request": request}).data
-        response_data["fundraise_id"] = serializer.validated_data["fundraise_id"]
+        response_data = NoteSerializer(
+            accepted_entry.note, context={"request": request}
+        ).data
+        response_data["fundraise_id"] = accepted_entry.fundraise.id
+        response_data["journey_id"] = accepted_entry.proposal.journey_id
+        response_data["proposal_id"] = accepted_entry.proposal.id
         return Response(response_data, status=200)
 
     def validate_post_content(

@@ -52,6 +52,8 @@ class AcceptJournalEntryTests(APITestCase):
         self.assertEqual(note.latest_version.plain_text, proposal.renderable_text)
         self.assertEqual(response.data["access"], "PRIVATE")
         self.assertEqual(response.data["fundraise_id"], fundraise.id)
+        self.assertEqual(response.data["journey_id"], proposal.journey_id)
+        self.assertEqual(response.data["proposal_id"], proposal.id)
         self.assertIsNone(response.data["post"])
         self.assertFalse(
             ResearchhubPost.objects.filter(document_type=REGISTERED_REPORT).exists()
