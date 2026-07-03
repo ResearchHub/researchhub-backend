@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
@@ -32,7 +34,8 @@ from researchhub_document.related_models.constants.document_type import (
 from user.models import User
 from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed
-from utils.sentry import log_error
+
+logger = logging.getLogger(__name__)
 
 
 def censor(item):
@@ -91,10 +94,10 @@ class ReactionViewActionMixin:
                 status=status.HTTP_409_CONFLICT,
             )
         except Exception as e:
-            log_error(e)
+            logger.exception("Failed to create flag for item %s", item.id)
             return Response(
                 {
-                    "detail": e,
+                    "detail": str(e),
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
@@ -108,6 +111,7 @@ class ReactionViewActionMixin:
             flag.delete()
             return Response(serialized.data, status=200)
         except Exception as e:
+            logger.exception("Failed to delete flag for item %s", item.id)
             return Response(f"Failed to delete flag: {e}", status=400)
 
     @action(
@@ -446,8 +450,8 @@ def update_or_create_vote(request, user, item, vote_type):
         # If we're in the biorxiv review hub, we want all papers with 10 upvotes
         # to get an automatic peer review
         create_automated_bounty(item)
-    except Exception as e:
-        log_error(e)
+    except Exception:
+        logger.exception("Failed to create automated bounty for item %s", item.id)
 
     if vote is not None:
         vote.vote_type = vote_type

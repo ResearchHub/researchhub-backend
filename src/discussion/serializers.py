@@ -1,3 +1,5 @@
+import logging
+
 import rest_framework.serializers as serializers
 from django.db.models import Count, Q
 from rest_framework.serializers import (
@@ -14,6 +16,8 @@ from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
 from user.serializers import DynamicUserSerializer, DynamicVerdictSerializer
 from utils.http import get_user_from_request
+
+logger = logging.getLogger(__name__)
 
 ORDERING_SCORE_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
     "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
