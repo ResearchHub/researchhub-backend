@@ -1,18 +1,5 @@
-import os
-
 from research_ai.constants import EMAIL_TEMPLATE_PROMPT_FILES
-
-_PROMPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-_email_template_cache: dict[str, str] = {}
-
-
-def _load_email_template(name: str) -> str:
-    """Load a prompt template from the prompts directory. Results are cached."""
-    if name not in _email_template_cache:
-        path = os.path.join(_PROMPTS_DIR, name)
-        with open(path, encoding="utf-8") as f:
-            _email_template_cache[name] = f.read()
-    return _email_template_cache[name]
+from research_ai.prompts._loader import load_template
 
 
 def build_email_prompt(
@@ -36,8 +23,8 @@ def build_email_prompt(
         (from DB); empty when unknown. Used only for LLM generation, not fixed
         templates.
     """
-    base_rules = _load_email_template("email_base_rules.txt").strip()
-    common_raw = _load_email_template("email_common_instructions.txt")
+    base_rules = load_template("email_base_rules.txt").strip()
+    common_raw = load_template("email_common_instructions.txt")
     common = common_raw.format(base_rules=base_rules)
 
     sender_info = f"""Expert Name: {expert_name or "N/A"}
@@ -56,7 +43,7 @@ Sender (who is writing this email):
 {document_context.strip()}"""
 
     filename = EMAIL_TEMPLATE_PROMPT_FILES.get(template, "email_default.txt")
-    body_tpl = _load_email_template(filename)
+    body_tpl = load_template(filename)
 
     kwargs = {
         "sender_info": sender_info,

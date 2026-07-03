@@ -119,7 +119,7 @@ class Hub(models.Model):
 
     def save(self, *args, **kwargs):
         self.slugify()
-        return super(Hub, self).save(*args, **kwargs)
+        return super().save(*args, **kwargs)
 
     def get_subscriber_count(self):
         return self.subscriber_count

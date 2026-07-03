@@ -87,7 +87,6 @@ class TestWalletService(TestCase):
     @patch("reputation.services.wallet.execute_erc20_transfer")
     @patch("reputation.services.wallet.get_private_key")
     @patch("reputation.services.wallet.logger")
-    @patch("reputation.services.wallet.log_error")
     @override_settings(
         WEB3_BASE_RSC_ADDRESS="0x1234567890123456789012345678901234567890",
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
@@ -95,7 +94,6 @@ class TestWalletService(TestCase):
     )
     def test_burn_revenue_rsc_success(
         self,
-        mock_log_error,
         mock_logger,
         mock_get_private_key,
         mock_execute_transfer,
@@ -149,8 +147,8 @@ class TestWalletService(TestCase):
         )
 
     @patch("reputation.services.wallet.User.objects.get_community_revenue_account")
-    @patch("reputation.services.wallet.log_error")
-    def test_burn_revenue_rsc_exception(self, mock_log_error, mock_get_revenue_account):
+    @patch("reputation.services.wallet.logger")
+    def test_burn_revenue_rsc_exception(self, mock_logger, mock_get_revenue_account):
         """Test RSC burning when an exception occurs."""
         # Arrange
         mock_get_revenue_account.side_effect = Exception("Database error")
@@ -158,7 +156,7 @@ class TestWalletService(TestCase):
         # Act & Assert
         with self.assertRaises(Exception):
             WalletService.burn_revenue_rsc("BASE")
-        mock_log_error.assert_called()
+        mock_logger.exception.assert_called()
 
     @patch("reputation.services.wallet.Distribution")
     @patch("reputation.services.wallet.Distributor")
@@ -231,7 +229,7 @@ class TestWalletService(TestCase):
     @patch("reputation.services.wallet.web3_provider")
     @patch("reputation.services.wallet.get_gas_estimate")
     @patch("reputation.services.wallet.get_private_key")
-    @patch("reputation.services.wallet.log_error")
+    @patch("reputation.services.wallet.logger")
     @override_settings(
         WEB3_BASE_RSC_ADDRESS="0x1234567890123456789012345678901234567890",
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
@@ -239,7 +237,7 @@ class TestWalletService(TestCase):
     )
     def test_burn_tokens_from_hot_wallet_insufficient_eth(
         self,
-        mock_log_error,
+        mock_logger,
         mock_get_private_key,
         mock_gas_estimate,
         mock_web3_provider,
@@ -265,7 +263,7 @@ class TestWalletService(TestCase):
             WalletService._burn_tokens_from_hot_wallet(amount, "BASE")
 
         self.assertIn("Insufficient ETH in hot wallet", str(context.exception))
-        mock_log_error.assert_called()
+        mock_logger.exception.assert_called()
 
         # Verify API call was made for gas price
         self.mock_requests_get.assert_called_once()
@@ -273,7 +271,7 @@ class TestWalletService(TestCase):
     @patch("reputation.services.wallet.web3_provider")
     @patch("reputation.services.wallet.get_gas_estimate")
     @patch("reputation.services.wallet.get_private_key")
-    @patch("reputation.services.wallet.log_error")
+    @patch("reputation.services.wallet.logger")
     @override_settings(
         WEB3_BASE_RSC_ADDRESS="0x1234567890123456789012345678901234567890",
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
@@ -281,7 +279,7 @@ class TestWalletService(TestCase):
     )
     def test_burn_tokens_from_hot_wallet_api_failure(
         self,
-        mock_log_error,
+        mock_logger,
         mock_get_private_key,
         mock_gas_estimate,
         mock_web3_provider,
@@ -300,7 +298,7 @@ class TestWalletService(TestCase):
         # Act & Assert
         with self.assertRaises(Exception):
             WalletService._burn_tokens_from_hot_wallet(amount, "BASE")
-        mock_log_error.assert_called()
+        mock_logger.exception.assert_called()
 
     @patch("reputation.services.wallet.web3_provider")
     @patch("reputation.services.wallet.get_gas_estimate")
@@ -388,7 +386,7 @@ class TestWalletService(TestCase):
     @patch("reputation.services.wallet.web3_provider")
     @patch("reputation.services.wallet.get_gas_estimate")
     @patch("reputation.services.wallet.get_private_key")
-    @patch("reputation.services.wallet.log_error")
+    @patch("reputation.services.wallet.logger")
     @override_settings(
         WEB3_BASE_RSC_ADDRESS="0x1234567890123456789012345678901234567890",
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
@@ -396,7 +394,7 @@ class TestWalletService(TestCase):
     )
     def test_burn_tokens_from_hot_wallet_invalid_api_response(
         self,
-        mock_log_error,
+        mock_logger,
         mock_get_private_key,
         mock_gas_estimate,
         mock_web3_provider,
@@ -417,7 +415,7 @@ class TestWalletService(TestCase):
         # Act & Assert
         with self.assertRaises(Exception):
             WalletService._burn_tokens_from_hot_wallet(amount, "BASE")
-        mock_log_error.assert_called()
+        mock_logger.exception.assert_called()
 
     def test_dead_address_constant(self):
         """Test that DEAD_ADDRESS constant is correctly defined."""

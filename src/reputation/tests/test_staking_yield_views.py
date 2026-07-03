@@ -28,7 +28,7 @@ class StakingYieldViewSetTestBase(APITestCase):
     def _create_snapshot_with_yield(self, accrual_date, stake, yield_amount):
         global_snapshot = StakingGlobalSnapshot.objects.create(
             accrual_date=accrual_date,
-            circulating_supply=Decimal("215052673"),
+            circulating_supply=Decimal(215052673),
             total_staked=stake,
             total_weighted_stake=stake,
         )
@@ -36,7 +36,7 @@ class StakingYieldViewSetTestBase(APITestCase):
             global_snapshot=global_snapshot,
             user=self.user,
             stake_amount=stake,
-            multiplier=Decimal("1"),
+            multiplier=Decimal(1),
             weighted_stake=stake,
         )
         StakingYieldRecord.objects.create(
@@ -58,26 +58,26 @@ class StakingYieldDetailsTest(StakingYieldViewSetTestBase):
         data = resp.data
         self.assertTrue(data["is_staking_opted_in"])
         self.assertIsNotNone(data["staking_opted_in_date"])
-        self.assertEqual(Decimal(data["current_stake"]), Decimal("0"))
-        self.assertEqual(Decimal(data["current_multiplier"]), Decimal("0"))
-        self.assertEqual(Decimal(data["current_weighted_stake"]), Decimal("0"))
-        self.assertEqual(Decimal(data["total_yield_earned"]), Decimal("0"))
+        self.assertEqual(Decimal(data["current_stake"]), Decimal(0))
+        self.assertEqual(Decimal(data["current_multiplier"]), Decimal(0))
+        self.assertEqual(Decimal(data["current_weighted_stake"]), Decimal(0))
+        self.assertEqual(Decimal(data["total_yield_earned"]), Decimal(0))
         self.assertIsNone(data["latest_accrual_date"])
-        self.assertEqual(Decimal(data["apy"]), Decimal("0"))
+        self.assertEqual(Decimal(data["apy"]), Decimal(0))
         self.assertEqual(list(data["balance_lots"]), [])
 
     def test_returns_correct_details(self):
         accrual = date(2026, 4, 15)
-        total_staked = Decimal("10000000")
-        self._create_snapshot_with_yield(accrual, total_staked, Decimal("100"))
+        total_staked = Decimal(10000000)
+        self._create_snapshot_with_yield(accrual, total_staked, Decimal(100))
 
         resp = self.client.get("/api/staking_yield/details/")
         self.assertEqual(resp.status_code, 200)
         data = resp.data
         self.assertEqual(Decimal(data["current_stake"]), total_staked)
-        self.assertEqual(Decimal(data["current_multiplier"]), Decimal("1"))
+        self.assertEqual(Decimal(data["current_multiplier"]), Decimal(1))
         self.assertEqual(Decimal(data["current_weighted_stake"]), total_staked)
-        self.assertEqual(Decimal(data["total_yield_earned"]), Decimal("100"))
+        self.assertEqual(Decimal(data["total_yield_earned"]), Decimal(100))
         self.assertEqual(data["latest_accrual_date"], "2026-04-15")
 
         # APY should reflect the global snapshot for this accrual date
@@ -86,24 +86,18 @@ class StakingYieldDetailsTest(StakingYieldViewSetTestBase):
         self.assertAlmostEqual(float(data["apy"]), expected_apy, places=4)
 
     def test_aggregates_across_multiple_days(self):
-        self._create_snapshot_with_yield(
-            date(2026, 4, 15), Decimal("5000"), Decimal("100")
-        )
-        self._create_snapshot_with_yield(
-            date(2026, 4, 16), Decimal("6000"), Decimal("150")
-        )
+        self._create_snapshot_with_yield(date(2026, 4, 15), Decimal(5000), Decimal(100))
+        self._create_snapshot_with_yield(date(2026, 4, 16), Decimal(6000), Decimal(150))
 
         resp = self.client.get("/api/staking_yield/details/")
         data = resp.data
-        self.assertEqual(Decimal(data["total_yield_earned"]), Decimal("250"))
+        self.assertEqual(Decimal(data["total_yield_earned"]), Decimal(250))
         # Latest snapshot should be the most recent date
-        self.assertEqual(Decimal(data["current_stake"]), Decimal("6000"))
+        self.assertEqual(Decimal(data["current_stake"]), Decimal(6000))
         self.assertEqual(data["latest_accrual_date"], "2026-04-16")
 
     def test_user_isolation(self):
-        self._create_snapshot_with_yield(
-            date(2026, 4, 15), Decimal("5000"), Decimal("100")
-        )
+        self._create_snapshot_with_yield(date(2026, 4, 15), Decimal(5000), Decimal(100))
 
         other_user = create_random_default_user("other")
         other_client = APIClient()
@@ -111,7 +105,7 @@ class StakingYieldDetailsTest(StakingYieldViewSetTestBase):
 
         resp = other_client.get("/api/staking_yield/details/")
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(Decimal(resp.data["total_yield_earned"]), Decimal("0"))
+        self.assertEqual(Decimal(resp.data["total_yield_earned"]), Decimal(0))
 
 
 class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
@@ -155,9 +149,9 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
         lots = resp.data["balance_lots"]
         self.assertEqual(len(lots), 1)
         lot = lots[0]
-        self.assertEqual(Decimal(lot["amount"]), Decimal("100"))
+        self.assertEqual(Decimal(lot["amount"]), Decimal(100))
         self.assertEqual(lot["age_days"], 10)
-        self.assertEqual(Decimal(lot["current_multiplier"]), Decimal("1"))
+        self.assertEqual(Decimal(lot["current_multiplier"]), Decimal(1))
         self.assertEqual(Decimal(lot["next_multiplier"]), Decimal("1.05"))
         self.assertEqual(lot["days_until_next_multiplier"], 20)
         self.assertEqual(lot["next_multiplier_date"], "2026-06-21")
@@ -193,7 +187,7 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
         lot = resp.data["balance_lots"][0]
         self.assertEqual(lot["effective_start_date"], "2026-05-15")
         self.assertEqual(lot["age_days"], 17)
-        self.assertEqual(Decimal(lot["current_multiplier"]), Decimal("1"))
+        self.assertEqual(Decimal(lot["current_multiplier"]), Decimal(1))
 
     def test_multiple_lots_returned(self):
         self._create_balance("100", created_offset_days=5)
@@ -204,7 +198,7 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
         lots = resp.data["balance_lots"]
         self.assertEqual(len(lots), 2)
         amounts = sorted(Decimal(lot["amount"]) for lot in lots)
-        self.assertEqual(amounts, [Decimal("100"), Decimal("200")])
+        self.assertEqual(amounts, [Decimal(100), Decimal(200)])
 
     def test_lots_with_same_effective_start_date_are_grouped(self):
         # Two pre-opt-in deposits collapse onto the opt-in date, plus two
@@ -223,11 +217,11 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
         by_start = {lot["effective_start_date"]: lot for lot in lots}
 
         pre_opt_in = by_start["2026-05-15"]
-        self.assertEqual(Decimal(pre_opt_in["amount"]), Decimal("300"))
+        self.assertEqual(Decimal(pre_opt_in["amount"]), Decimal(300))
         self.assertEqual(pre_opt_in["age_days"], 17)
 
         post_opt_in = by_start["2026-05-22"]
-        self.assertEqual(Decimal(post_opt_in["amount"]), Decimal("75"))
+        self.assertEqual(Decimal(post_opt_in["amount"]), Decimal(75))
         self.assertEqual(post_opt_in["age_days"], 10)
 
     def test_projected_overall_multiplier_weights_all_lots(self):
@@ -243,14 +237,14 @@ class StakingYieldDetailsBalanceLotsTest(StakingYieldViewSetTestBase):
         # On lot A's transition date (+5 days): A at 30d=1.05, B at 175d=1.05
         # Weighted: (100 * 1.05 + 300 * 1.05) / 400 = 1.05
         self.assertEqual(
-            Decimal(lots[Decimal("100")]["projected_overall_multiplier"]),
+            Decimal(lots[Decimal(100)]["projected_overall_multiplier"]),
             Decimal("1.05"),
         )
 
         # On lot B's transition date (+10 days): A at 35d=1.05, B at 180d=1.1
         # Weighted: (100 * 1.05 + 300 * 1.1) / 400 = 1.0875
         self.assertEqual(
-            Decimal(lots[Decimal("300")]["projected_overall_multiplier"]),
+            Decimal(lots[Decimal(300)]["projected_overall_multiplier"]),
             Decimal("1.0875"),
         )
 
@@ -270,38 +264,28 @@ class StakingYieldEarnedSinceTest(StakingYieldViewSetTestBase):
         self.assertEqual(resp.status_code, 400)
 
     def test_filters_by_date(self):
-        self._create_snapshot_with_yield(
-            date(2026, 4, 14), Decimal("5000"), Decimal("50")
-        )
-        self._create_snapshot_with_yield(
-            date(2026, 4, 15), Decimal("5000"), Decimal("100")
-        )
-        self._create_snapshot_with_yield(
-            date(2026, 4, 16), Decimal("5000"), Decimal("150")
-        )
+        self._create_snapshot_with_yield(date(2026, 4, 14), Decimal(5000), Decimal(50))
+        self._create_snapshot_with_yield(date(2026, 4, 15), Decimal(5000), Decimal(100))
+        self._create_snapshot_with_yield(date(2026, 4, 16), Decimal(5000), Decimal(150))
 
         resp = self.client.get("/api/staking_yield/earned_since/?date=2026-04-15")
         self.assertEqual(resp.status_code, 200)
         # Should include 4/15 and 4/16 but not 4/14
-        self.assertEqual(Decimal(resp.data["yield_earned"]), Decimal("250"))
+        self.assertEqual(Decimal(resp.data["yield_earned"]), Decimal(250))
         self.assertEqual(resp.data["since_date"], "2026-04-15")
 
     def test_future_date_returns_zero(self):
-        self._create_snapshot_with_yield(
-            date(2026, 4, 15), Decimal("5000"), Decimal("100")
-        )
+        self._create_snapshot_with_yield(date(2026, 4, 15), Decimal(5000), Decimal(100))
 
         future = date.today() + timedelta(days=365)
         resp = self.client.get(
             f"/api/staking_yield/earned_since/?date={future.isoformat()}"
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(Decimal(resp.data["yield_earned"]), Decimal("0"))
+        self.assertEqual(Decimal(resp.data["yield_earned"]), Decimal(0))
 
     def test_user_isolation(self):
-        self._create_snapshot_with_yield(
-            date(2026, 4, 15), Decimal("5000"), Decimal("100")
-        )
+        self._create_snapshot_with_yield(date(2026, 4, 15), Decimal(5000), Decimal(100))
 
         other_user = create_random_default_user("other2")
         other_client = APIClient()
@@ -309,7 +293,7 @@ class StakingYieldEarnedSinceTest(StakingYieldViewSetTestBase):
 
         resp = other_client.get("/api/staking_yield/earned_since/?date=2026-04-01")
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(Decimal(resp.data["yield_earned"]), Decimal("0"))
+        self.assertEqual(Decimal(resp.data["yield_earned"]), Decimal(0))
 
 
 class StakingPublicStatsTestBase(APITestCase):
@@ -323,8 +307,8 @@ class StakingPublicStatsTestBase(APITestCase):
     def _create_global_snapshot(
         self,
         accrual_date,
-        total_staked=Decimal("0"),
-        circulating_supply=Decimal("215052673"),
+        total_staked=Decimal(0),
+        circulating_supply=Decimal(215052673),
         weighted_stake=None,
     ):
         return StakingGlobalSnapshot.objects.create(
@@ -342,7 +326,7 @@ class StakingPublicStatsTestBase(APITestCase):
             global_snapshot=snapshot,
             user=user,
             stake_amount=Decimal(stake),
-            multiplier=Decimal("1"),
+            multiplier=Decimal(1),
             weighted_stake=Decimal(stake),
         )
 
@@ -375,10 +359,10 @@ class StakingStatsEndpointTest(StakingPublicStatsTestBase):
         self.assertEqual(float(data["apy"]), 0.0)
         self.assertEqual(float(data["apy_30d_avg"]), 0.0)
         self.assertEqual(int(data["holders"]), 0)
-        self.assertEqual(Decimal(data["total_staked_rsc"]), Decimal("0"))
+        self.assertEqual(Decimal(data["total_staked_rsc"]), Decimal(0))
         self.assertIsNone(data["total_value_locked_usd"])
         self.assertEqual(float(data["pct_of_supply_staked"]), 0.0)
-        self.assertEqual(Decimal(data["issued_today_rsc"]), Decimal("0"))
+        self.assertEqual(Decimal(data["issued_today_rsc"]), Decimal(0))
         self.assertIsNone(data["issued_today_usd"])
 
     def test_apy_30d_avg_over_multiple_snapshots(self):
@@ -386,9 +370,9 @@ class StakingStatsEndpointTest(StakingPublicStatsTestBase):
         # Average should be the mean of the three APY values.
         for i, (d, stake) in enumerate(
             [
-                (date(2026, 4, 15), Decimal("1000000")),
-                (date(2026, 4, 16), Decimal("2000000")),
-                (date(2026, 4, 17), Decimal("4000000")),
+                (date(2026, 4, 15), Decimal(1000000)),
+                (date(2026, 4, 16), Decimal(2000000)),
+                (date(2026, 4, 17), Decimal(4000000)),
             ]
         ):
             snap = self._create_global_snapshot(d, total_staked=stake)
@@ -404,9 +388,9 @@ class StakingStatsEndpointTest(StakingPublicStatsTestBase):
 
     def test_tvl_uses_latest_usd_rate(self):
         snap = self._create_global_snapshot(
-            date(2026, 4, 20), total_staked=Decimal("1000")
+            date(2026, 4, 20), total_staked=Decimal(1000)
         )
-        self._add_user_snapshot(snap, Decimal("1000"), label="solo")
+        self._add_user_snapshot(snap, Decimal(1000), label="solo")
         self._create_usd_rate(Decimal("0.50"), on_date=date(2026, 4, 20))
 
         resp = self.client.get("/api/staking_yield/stats/")
@@ -417,8 +401,8 @@ class StakingStatsEndpointTest(StakingPublicStatsTestBase):
 
     def test_issued_today_matches_daily_emission(self):
         accrual_date = date(2026, 4, 20)
-        snap = self._create_global_snapshot(accrual_date, total_staked=Decimal("1000"))
-        self._add_user_snapshot(snap, Decimal("1000"), label="solo")
+        snap = self._create_global_snapshot(accrual_date, total_staked=Decimal(1000))
+        self._add_user_snapshot(snap, Decimal(1000), label="solo")
         self._create_usd_rate(Decimal("0.50"), on_date=accrual_date)
 
         expected_rsc = StakingYieldService.compute_total_daily_emission(accrual_date)
@@ -430,9 +414,9 @@ class StakingStatsEndpointTest(StakingPublicStatsTestBase):
 
     def test_issued_today_usd_is_null_without_rate(self):
         snap = self._create_global_snapshot(
-            date(2026, 4, 20), total_staked=Decimal("1000")
+            date(2026, 4, 20), total_staked=Decimal(1000)
         )
-        self._add_user_snapshot(snap, Decimal("1000"), label="solo")
+        self._add_user_snapshot(snap, Decimal(1000), label="solo")
 
         resp = self.client.get("/api/staking_yield/stats/")
         self.assertIsNone(resp.data["issued_today_usd"])
@@ -455,8 +439,8 @@ class StakingHistoryEndpointTest(StakingPublicStatsTestBase):
 
     def test_results_ascending_by_date(self):
         for d in [date(2026, 4, 17), date(2026, 4, 15), date(2026, 4, 16)]:
-            snap = self._create_global_snapshot(d, total_staked=Decimal("1000"))
-            self._add_user_snapshot(snap, Decimal("1000"), label=str(d))
+            snap = self._create_global_snapshot(d, total_staked=Decimal(1000))
+            self._add_user_snapshot(snap, Decimal(1000), label=str(d))
 
         resp = self.client.get("/api/staking_yield/history/?range=all")
         dates = [row["accrual_date"] for row in resp.data["results"]]
@@ -468,8 +452,8 @@ class StakingHistoryEndpointTest(StakingPublicStatsTestBase):
         recent = today - timedelta(days=3)
 
         for d in [old, recent]:
-            snap = self._create_global_snapshot(d, total_staked=Decimal("1000"))
-            self._add_user_snapshot(snap, Decimal("1000"), label=str(d))
+            snap = self._create_global_snapshot(d, total_staked=Decimal(1000))
+            self._add_user_snapshot(snap, Decimal(1000), label=str(d))
 
         resp = self.client.get("/api/staking_yield/history/?range=7d")
         dates = [row["accrual_date"] for row in resp.data["results"]]
@@ -478,9 +462,9 @@ class StakingHistoryEndpointTest(StakingPublicStatsTestBase):
     def test_default_range_is_90d(self):
         today = date.today()
         snap = self._create_global_snapshot(
-            today - timedelta(days=2), total_staked=Decimal("1000")
+            today - timedelta(days=2), total_staked=Decimal(1000)
         )
-        self._add_user_snapshot(snap, Decimal("1000"), label="recent")
+        self._add_user_snapshot(snap, Decimal(1000), label="recent")
 
         resp = self.client.get("/api/staking_yield/history/")
         self.assertEqual(resp.data["range"], "90d")
@@ -489,10 +473,10 @@ class StakingHistoryEndpointTest(StakingPublicStatsTestBase):
     def test_per_day_usd_pricing(self):
         d1 = date(2026, 4, 15)
         d2 = date(2026, 4, 16)
-        snap1 = self._create_global_snapshot(d1, total_staked=Decimal("1000"))
-        self._add_user_snapshot(snap1, Decimal("1000"), label="a")
-        snap2 = self._create_global_snapshot(d2, total_staked=Decimal("1000"))
-        self._add_user_snapshot(snap2, Decimal("1000"), label="b")
+        snap1 = self._create_global_snapshot(d1, total_staked=Decimal(1000))
+        self._add_user_snapshot(snap1, Decimal(1000), label="a")
+        snap2 = self._create_global_snapshot(d2, total_staked=Decimal(1000))
+        self._add_user_snapshot(snap2, Decimal(1000), label="b")
 
         self._create_usd_rate(Decimal("0.40"), on_date=d1)
         self._create_usd_rate(Decimal("0.60"), on_date=d2)
@@ -508,18 +492,18 @@ class StakingHistoryEndpointTest(StakingPublicStatsTestBase):
 
     def test_tvl_null_when_no_rate_exists(self):
         snap = self._create_global_snapshot(
-            date(2026, 4, 15), total_staked=Decimal("1000")
+            date(2026, 4, 15), total_staked=Decimal(1000)
         )
-        self._add_user_snapshot(snap, Decimal("1000"), label="solo")
+        self._add_user_snapshot(snap, Decimal(1000), label="solo")
 
         resp = self.client.get("/api/staking_yield/history/?range=all")
         self.assertIsNone(resp.data["results"][0]["total_value_locked_usd"])
 
     def test_unknown_query_params_dont_bust_cache(self):
         snap = self._create_global_snapshot(
-            date(2026, 4, 15), total_staked=Decimal("1000")
+            date(2026, 4, 15), total_staked=Decimal(1000)
         )
-        self._add_user_snapshot(snap, Decimal("1000"), label="solo")
+        self._add_user_snapshot(snap, Decimal(1000), label="solo")
 
         # Prime the cache with a vanilla request.
         first = self.client.get("/api/staking_yield/history/?range=all")
@@ -529,7 +513,7 @@ class StakingHistoryEndpointTest(StakingPublicStatsTestBase):
         # DB-backed build_history call. Mutating snapshot data after the cache
         # is primed proves the second response came from cache.
         StakingGlobalSnapshot.objects.filter(pk=snap.pk).update(
-            total_staked=Decimal("99999999")
+            total_staked=Decimal(99999999)
         )
 
         nonced = self.client.get(
@@ -540,17 +524,17 @@ class StakingHistoryEndpointTest(StakingPublicStatsTestBase):
 
     def test_holders_per_day(self):
         snap1 = self._create_global_snapshot(
-            date(2026, 4, 15), total_staked=Decimal("100")
+            date(2026, 4, 15), total_staked=Decimal(100)
         )
-        self._add_user_snapshot(snap1, Decimal("100"), label="d1u1")
+        self._add_user_snapshot(snap1, Decimal(100), label="d1u1")
 
         snap2 = self._create_global_snapshot(
-            date(2026, 4, 16), total_staked=Decimal("300")
+            date(2026, 4, 16), total_staked=Decimal(300)
         )
-        self._add_user_snapshot(snap2, Decimal("100"), label="d2u1")
-        self._add_user_snapshot(snap2, Decimal("200"), label="d2u2")
+        self._add_user_snapshot(snap2, Decimal(100), label="d2u1")
+        self._add_user_snapshot(snap2, Decimal(200), label="d2u2")
         # zero-stake snapshot row should not count as a holder
-        self._add_user_snapshot(snap2, Decimal("0"), label="d2u3")
+        self._add_user_snapshot(snap2, Decimal(0), label="d2u3")
 
         resp = self.client.get("/api/staking_yield/history/?range=all")
         rows = {row["accrual_date"]: row for row in resp.data["results"]}

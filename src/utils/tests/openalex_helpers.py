@@ -40,4 +40,6 @@ def create_oa_work(
         "authorships": [{"author": {"id": author_id}, "author_position": position}],
         "primary_location": {"pdf_url": pdf_url, "version": version},
         "open_access": {"is_oa": is_oa},
+        # OpenAlex ships abstracts as an inverted index; rebuilds to "Abstract text".
+        "abstract_inverted_index": {"Abstract": [0], "text": [1]},
     }

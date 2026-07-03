@@ -38,27 +38,20 @@ def normalize_openalex_id(value: str | None) -> str:
 
 
 _ORCID_RE = re.compile(r"(\d{4}-\d{4}-\d{4}-\d{3}[\dxX])")
-_OPENALEX_AUTHOR_RE = re.compile(r"openalex\.org/(A\d+)", re.IGNORECASE)
 
 
-def scholarly_ids_from_urls(urls) -> tuple[str | None, str | None]:
-    """Mine an ORCID and/or OpenAlex author id from a list of URLs.
+def orcid_from_urls(urls) -> str | None:
+    """Mine an ORCID from a list of URLs, or ``None`` when absent.
 
-    Returns ``(orcid, openalex_author_id)``, each ``None`` when absent. ORCID is
-    only ever a lookup key into OpenAlex's ``/authors`` endpoint here.
+    The ORCID is only ever a lookup key into OpenAlex's ``/authors`` endpoint
+    here.
     """
-    orcid: str | None = None
-    oa_id: str | None = None
     for url in urls or []:
-        if orcid is None and "orcid.org" in url.lower():
+        if "orcid.org" in url.lower():
             m = _ORCID_RE.search(url)
             if m:
-                orcid = m.group(1).upper()
-        if oa_id is None:
-            m = _OPENALEX_AUTHOR_RE.search(url)
-            if m:
-                oa_id = m.group(1)
-    return orcid, oa_id
+                return m.group(1).upper()
+    return None
 
 
 def author_institution_names(entity: dict) -> list[str]:
@@ -151,6 +144,7 @@ class Work:
     author_position: str | None = None
     pdf_url: str = ""
     is_oa: bool = False
+    abstract: str = ""
 
     @classmethod
     def from_openalex(cls, entity: dict, *, author_id: str | None = None):
@@ -175,6 +169,9 @@ class Work:
             author_position=cls._author_position(entity, author_id),
             pdf_url=cls._published_pdf_url(entity),
             is_oa=bool((entity.get("open_access") or {}).get("is_oa")),
+            abstract=rebuild_sentence_from_inverted_index(
+                entity.get("abstract_inverted_index") or {}
+            ),
         )
 
     @staticmethod
@@ -223,6 +220,7 @@ class Work:
             "author_position": self.author_position,
             "pdf_url": self.pdf_url,
             "is_oa": self.is_oa,
+            "abstract": self.abstract,
         }
 
 
@@ -646,7 +644,7 @@ class OpenAlex:
         return results[0] if results else None
 
     @classmethod
-    def normalize_dates(self, generic_openalex_object):
+    def normalize_dates(cls, generic_openalex_object):
         """Normalize the dates of an OpenAlex object such that
         they include timezone information"""
 

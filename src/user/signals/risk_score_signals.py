@@ -1,6 +1,6 @@
 import logging
+from collections.abc import Callable
 from functools import lru_cache
-from typing import Callable
 
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.contenttypes.models import ContentType

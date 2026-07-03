@@ -1,9 +1,14 @@
-import logging
+from __future__ import annotations
 
-from atproto import Client
+import logging
+from typing import TYPE_CHECKING
+
 from django.conf import settings
 
 from paper.ingestion.clients.base import RateLimiter
+
+if TYPE_CHECKING:
+    from atproto import Client
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +56,13 @@ class BlueskyClient:
         self.username = username or getattr(settings, "BLUESKY_USERNAME", "")
         self.password = password or getattr(settings, "BLUESKY_PASSWORD", "")
         self.rate_limiter = RateLimiter(rate_limit)
-        self.client = client or Client()
+
+        if client is None:
+            from atproto import Client  # delay until needed
+
+            client = Client()
+
+        self.client = client
         self.authenticated = False
         self._authenticate()
 
@@ -121,7 +132,10 @@ class BlueskyMetricsClient:
             bluesky_client: Bluesky API client.
                 If None, creates a BlueskyClient (which is a singleton).
         """
-        self.bluesky_client = bluesky_client or BlueskyClient()
+        if bluesky_client is None:
+            bluesky_client = BlueskyClient()
+
+        self.bluesky_client = bluesky_client
 
     def get_metrics(
         self, terms: list[str], limit: int = BlueskyClient.MAX_SEARCH_RESULTS

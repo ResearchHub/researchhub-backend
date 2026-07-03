@@ -3,7 +3,8 @@ import logging
 import math
 import sys
 import time
-from typing import Any, Iterable, override
+from collections.abc import Iterable
+from typing import Any, override
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
@@ -150,7 +151,7 @@ class PaperDocument(BaseDocument):
         base_weight = 1
         hot_score_v2 = self.prepare_hot_score_v2(instance)
         if hot_score_v2 > 0:
-            base_weight = max(1, int(math.log(hot_score_v2, 10) * 10))
+            base_weight = max(1, int(math.log10(hot_score_v2) * 10))
 
         result = []
 
@@ -182,9 +183,7 @@ class PaperDocument(BaseDocument):
                     }
                 )
 
-        return (
-            result if result else [{"input": [str(instance.id)], "weight": base_weight}]
-        )
+        return result or [{"input": [str(instance.id)], "weight": base_weight}]
 
     def prepare_paper_publish_date(self, instance):
         """Convert datetime to date for OpenSearch indexing."""
@@ -193,23 +192,18 @@ class PaperDocument(BaseDocument):
         return None
 
     def prepare_raw_authors(self, instance) -> list[dict[str, Any]]:
-        authors = []
         if isinstance(instance.raw_authors, list) is False:
-            return authors
+            return []
 
-        for author in instance.raw_authors:
-            if isinstance(author, dict):
-                authors.append(
-                    {
-                        "first_name": author.get("first_name"),
-                        "last_name": author.get("last_name"),
-                        "full_name": (
-                            f"{author.get('first_name')} {author.get('last_name')}"
-                        ),
-                    }
-                )
-
-        return authors
+        return [
+            {
+                "first_name": author.get("first_name"),
+                "last_name": author.get("last_name"),
+                "full_name": f"{author.get('first_name')} {author.get('last_name')}",
+            }
+            for author in instance.raw_authors
+            if isinstance(author, dict)
+        ]
 
     def prepare_doi_indexing(self, instance) -> str:
         return instance.doi or ""

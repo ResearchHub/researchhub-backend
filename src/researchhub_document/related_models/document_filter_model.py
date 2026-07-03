@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime, timedelta
 
 from django.db import models
@@ -27,7 +28,8 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_UPVOTED,
 )
 from utils.models import DefaultModel
-from utils.sentry import log_error
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentFilter(DefaultModel):
@@ -148,8 +150,11 @@ class DocumentFilter(DefaultModel):
         for update in updates:
             try:
                 update(unified_document, document, update_fields)
-            except Exception as e:
-                log_error(e)
+            except Exception:
+                logger.exception(
+                    "Failed to update document filter model for document %s",
+                    document.id,
+                )
 
         self.save(update_fields=update_fields)
 

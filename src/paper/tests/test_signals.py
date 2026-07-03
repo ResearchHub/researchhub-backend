@@ -120,7 +120,7 @@ class UpdatePaperJournalStatusSignalTest(TransactionTestCase):
         PaperVersion.objects.filter(paper=self.paper).delete()
 
         # Create a payment for the paper
-        with patch("paper.signals.log_error") as mock_log_error:
+        with patch("paper.signals.logger") as mock_logger:
             with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123"):
                 Payment.objects.create(
                     amount=1000,
@@ -133,9 +133,10 @@ class UpdatePaperJournalStatusSignalTest(TransactionTestCase):
                 )
 
             # Verify an error was logged
-            mock_log_error.assert_called_once()
-            error_msg = mock_log_error.call_args[0][1]
-            self.assertIn(f"No PaperVersion found for paper {self.paper.id}", error_msg)
+            mock_logger.exception.assert_called_once()
+            log_args = mock_logger.exception.call_args[0]
+            self.assertIn("No version found for paper", log_args[0])
+            self.assertEqual(log_args[1], self.paper.id)
 
     def test_update_existing_paper_version(self):
         """Test updating an existing paper version."""

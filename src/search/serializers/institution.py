@@ -4,7 +4,7 @@ from institution.models import Institution
 
 
 class InstitutionDocumentSerializer(serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = Institution
         fields = [
             "id",

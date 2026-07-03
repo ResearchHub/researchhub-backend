@@ -16,7 +16,6 @@ from reputation.distributions import Distribution
 from reputation.distributor import Distributor
 from reputation.lib import contract_abi, get_gas_price_wei
 from user.models import User
-from utils.sentry import log_error
 from utils.web3_utils import web3_provider
 
 logger = logging.getLogger(__name__)
@@ -70,8 +69,8 @@ class WalletService:
 
             return tx_hash
 
-        except Exception as e:
-            log_error(e, f"Failed to burn revenue RSC on {network}")
+        except Exception:
+            logger.exception("Failed to burn revenue RSC on %s", network)
             raise
 
     @staticmethod
@@ -124,7 +123,7 @@ class WalletService:
                     f"Insufficient ETH in hot wallet. Need ~{estimated_cost_eth} ETH, "
                     f"have {eth_balance_eth} ETH"
                 )
-                log_error(Exception(error_msg), error_msg)
+                logger.error(error_msg)
                 raise Exception(error_msg)
 
             # Execute the transfer to dead address
@@ -145,19 +144,19 @@ class WalletService:
 
                 if receipt.status == 0:  # Transaction failed
                     error_msg = f"Transaction {tx_hash} failed on-chain"
-                    log_error(Exception(error_msg), error_msg)
+                    logger.error(error_msg)
                     raise Exception(error_msg)
 
-                logger.info(f"Transaction {tx_hash} confirmed successfully")
+                logger.info("Transaction %s confirmed successfully", tx_hash)
                 return tx_hash
 
             except Exception as receipt_error:
                 error_msg = (
                     f"Failed to get transaction receipt for {tx_hash}: {receipt_error}"
                 )
-                log_error(Exception(error_msg), error_msg)
+                logger.error(error_msg)
                 raise Exception(error_msg)
 
-        except Exception as e:
-            log_error(e, f"Failed to burn {amount} RSC from hot wallet")
+        except Exception:
+            logger.exception("Failed to burn %s RSC from hot wallet", amount)
             raise

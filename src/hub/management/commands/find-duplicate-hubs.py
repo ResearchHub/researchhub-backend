@@ -426,8 +426,7 @@ class Command(BaseCommand):
                     f.write(f"# Generated: {self._get_timestamp()}\n")
                     f.write(f"# Total: {len(duplicate_hub_ids)} hubs\n")
                     f.write("\n")
-                    for hub_id in sorted(duplicate_hub_ids):
-                        f.write(f"{hub_id}\n")
+                    f.writelines(f"{hub_id}\n" for hub_id in sorted(duplicate_hub_ids))
 
                 self.stdout.write("")
                 self.stdout.write(

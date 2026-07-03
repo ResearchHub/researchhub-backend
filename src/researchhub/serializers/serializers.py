@@ -33,7 +33,7 @@ class DynamicModelFieldSerializer(serializers.ModelSerializer):
         # Don't pass the '_prefetch_related_fields' arg up to the superclass
         _prefetch_related_fields = kwargs.pop("_prefetch_related_fields", None)
 
-        super(DynamicModelFieldSerializer, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         if _include_fields is not None and _include_fields != "__all__":
             # Drop any fields that are not specified in the `_include_fields` argument.

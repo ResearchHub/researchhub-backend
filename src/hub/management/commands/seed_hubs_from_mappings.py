@@ -72,7 +72,7 @@ class Command(BaseCommand):
         for source_name, mappings in mappings_to_process.items():
             self.stdout.write(f"\nProcessing {source_name} mappings...")
 
-            for external_category, hub_slugs in mappings.items():
+            for hub_slugs in mappings.values():
                 # Process all hub slugs in the mapping with position-based namespace
                 for position, hub_slug in enumerate(hub_slugs):
                     if hub_slug:  # Skip None/empty values

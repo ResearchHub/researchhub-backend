@@ -28,5 +28,5 @@ class TokenAuthMiddleware(BaseMiddleware):
         return await super().__call__(scope, receive, send)
 
 
-def TokenAuthMiddlewareStack(inner):
+def TokenAuthMiddlewareStack(inner):  # noqa: N802
     return TokenAuthMiddleware(AuthMiddlewareStack(inner))

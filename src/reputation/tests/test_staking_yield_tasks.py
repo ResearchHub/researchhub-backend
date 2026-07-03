@@ -37,13 +37,13 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         "RscSupplyService.fetch_circulating_supply"
     )
     def test_creates_new_snapshot(self, mock_supply):
-        mock_supply.return_value = Decimal("220000000")
+        mock_supply.return_value = Decimal(220000000)
         result = create_daily_staking_snapshots()
 
         self.assertTrue(result)
         latest = StakingGlobalSnapshot.load()
         self.assertEqual(latest.accrual_date, self._expected_accrual_date())
-        self.assertEqual(latest.circulating_supply, Decimal("220000000"))
+        self.assertEqual(latest.circulating_supply, Decimal(220000000))
         self.assertEqual(StakingGlobalSnapshot.objects.count(), 1)
 
     @patch(
@@ -51,7 +51,7 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         "RscSupplyService.fetch_circulating_supply"
     )
     def test_creates_snapshot_with_staking_stats(self, mock_supply):
-        mock_supply.return_value = Decimal("100000")
+        mock_supply.return_value = Decimal(100000)
 
         user = create_random_default_user("staker1")
         user.is_staking_opted_in = True
@@ -60,22 +60,22 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
 
         create_daily_staking_snapshots()
         latest = StakingGlobalSnapshot.load()
-        self.assertEqual(latest.total_staked, Decimal("5000"))
-        self.assertEqual(latest.total_weighted_stake, Decimal("5000"))
+        self.assertEqual(latest.total_staked, Decimal(5000))
+        self.assertEqual(latest.total_weighted_stake, Decimal(5000))
 
         user_snapshot = StakingUserSnapshot.objects.get(
             global_snapshot=latest,
             user=user,
         )
-        self.assertEqual(user_snapshot.stake_amount, Decimal("5000"))
-        self.assertEqual(user_snapshot.weighted_stake, Decimal("5000"))
+        self.assertEqual(user_snapshot.stake_amount, Decimal(5000))
+        self.assertEqual(user_snapshot.weighted_stake, Decimal(5000))
 
     @patch(
         "reputation.services.rsc_supply_service."
         "RscSupplyService.fetch_circulating_supply"
     )
     def test_excludes_ineligible_users_from_stats(self, mock_supply):
-        mock_supply.return_value = Decimal("100000")
+        mock_supply.return_value = Decimal(100000)
 
         user = create_random_default_user("nonstaker")
         user.is_staking_opted_in = False
@@ -90,7 +90,7 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
 
         create_daily_staking_snapshots()
         latest = StakingGlobalSnapshot.load()
-        self.assertEqual(latest.total_staked, Decimal("0"))
+        self.assertEqual(latest.total_staked, Decimal(0))
         self.assertEqual(latest.user_snapshots.count(), 0)
 
     @patch(
@@ -98,7 +98,7 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         "RscSupplyService.fetch_circulating_supply"
     )
     def test_snapshot_is_idempotent_per_accrual_date(self, mock_supply):
-        mock_supply.return_value = Decimal("220000000")
+        mock_supply.return_value = Decimal(220000000)
 
         create_daily_staking_snapshots()
         create_daily_staking_snapshots()
@@ -113,7 +113,7 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         "RscSupplyService.fetch_circulating_supply"
     )
     def test_creates_first_snapshot_without_seed_row(self, mock_supply):
-        mock_supply.return_value = Decimal("220000000")
+        mock_supply.return_value = Decimal(220000000)
         result = create_daily_staking_snapshots()
 
         self.assertTrue(result)
@@ -177,30 +177,30 @@ class DistributeStakingYieldTaskTest(TestCase):
         create_deposit(self.user, amount="10000")
         self.global_snapshot = StakingGlobalSnapshot.objects.create(
             accrual_date=self.accrual_date,
-            circulating_supply=Decimal("215052673"),
-            total_staked=Decimal("10000"),
-            total_weighted_stake=Decimal("10000"),
+            circulating_supply=Decimal(215052673),
+            total_staked=Decimal(10000),
+            total_weighted_stake=Decimal(10000),
         )
         self.user_snapshot = StakingUserSnapshot.objects.create(
             global_snapshot=self.global_snapshot,
             user=self.user,
-            stake_amount=Decimal("10000"),
-            multiplier=Decimal("1"),
-            weighted_stake=Decimal("10000"),
+            stake_amount=Decimal(10000),
+            multiplier=Decimal(1),
+            weighted_stake=Decimal(10000),
         )
 
     def test_distributes_yield(self):
         distribute_staking_yield()
 
         yield_record = StakingYieldRecord.objects.get(user_snapshot=self.user_snapshot)
-        self.assertGreater(yield_record.yield_amount, Decimal("0"))
+        self.assertGreater(yield_record.yield_amount, Decimal(0))
         self.assertIsNotNone(yield_record.distribution)
         self.assertEqual(
             yield_record.user_snapshot.global_snapshot,
             self.global_snapshot,
         )
         self.assertEqual(yield_record.user_snapshot, self.user_snapshot)
-        self.assertEqual(yield_record.user_snapshot.stake_amount, Decimal("10000"))
+        self.assertEqual(yield_record.user_snapshot.stake_amount, Decimal(10000))
 
         dist = yield_record.distribution
         self.assertEqual(dist.distribution_type, "STAKING_YIELD")
@@ -235,8 +235,8 @@ class DistributeStakingYieldTaskTest(TestCase):
 
         distribute_staking_yield()
         yield_record = StakingYieldRecord.objects.get(user_snapshot=self.user_snapshot)
-        self.assertEqual(yield_record.user_snapshot.stake_amount, Decimal("10000"))
-        self.assertGreater(yield_record.yield_amount, Decimal("0"))
+        self.assertEqual(yield_record.user_snapshot.stake_amount, Decimal(10000))
+        self.assertGreater(yield_record.yield_amount, Decimal(0))
 
     def test_skips_currently_suspended_user(self):
         self.user.is_suspended = True
@@ -253,16 +253,16 @@ class DistributeStakingYieldTaskTest(TestCase):
         create_deposit(user2, amount="30000")
 
         # Update global snapshot to reflect both users' stakes.
-        self.global_snapshot.total_staked = Decimal("40000")
-        self.global_snapshot.total_weighted_stake = Decimal("40000")
+        self.global_snapshot.total_staked = Decimal(40000)
+        self.global_snapshot.total_weighted_stake = Decimal(40000)
         self.global_snapshot.save()
 
         user2_snapshot = StakingUserSnapshot.objects.create(
             global_snapshot=self.global_snapshot,
             user=user2,
-            stake_amount=Decimal("30000"),
-            multiplier=Decimal("1"),
-            weighted_stake=Decimal("30000"),
+            stake_amount=Decimal(30000),
+            multiplier=Decimal(1),
+            weighted_stake=Decimal(30000),
         )
 
         distribute_staking_yield()
@@ -271,17 +271,17 @@ class DistributeStakingYieldTaskTest(TestCase):
         rec2 = StakingYieldRecord.objects.get(user_snapshot=user2_snapshot)
 
         # user1 has 10k/40k = 25%, user2 has 30k/40k = 75%
-        self.assertGreater(rec1.yield_amount, Decimal("0"))
-        self.assertGreater(rec2.yield_amount, Decimal("0"))
+        self.assertGreater(rec1.yield_amount, Decimal(0))
+        self.assertGreater(rec2.yield_amount, Decimal(0))
 
         expected_daily = StakingYieldService.compute_total_daily_emission(
             self.accrual_date
         )
         expected1 = StakingYieldService.compute_daily_yield_from_pool_share(
-            Decimal("10000"), Decimal("40000"), self.accrual_date
+            Decimal(10000), Decimal(40000), self.accrual_date
         )
         expected2 = StakingYieldService.compute_daily_yield_from_pool_share(
-            Decimal("30000"), Decimal("40000"), self.accrual_date
+            Decimal(30000), Decimal(40000), self.accrual_date
         )
 
         self.assertEqual(rec1.yield_amount, expected1)
@@ -298,7 +298,7 @@ class DistributeStakingYieldTaskTest(TestCase):
     def test_rolls_back_distribution_if_yield_record_save_fails(self):
         yield_record = StakingYieldRecord.objects.create(
             user_snapshot=self.user_snapshot,
-            yield_amount=Decimal("0"),
+            yield_amount=Decimal(0),
         )
 
         with patch.object(

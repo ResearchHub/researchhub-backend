@@ -45,7 +45,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **kwargs):
-        OA = OpenAlex()
+        oa = OpenAlex()
         papers = Paper.objects.all()
 
         if kwargs["id"]:
@@ -85,7 +85,7 @@ class Command(BaseCommand):
 
         for paper in papers:
             try:
-                work = OA.get_data_from_doi(paper.doi)
+                work = oa.get_data_from_doi(paper.doi)
                 process_openalex_works([work])
             except Exception as e:
                 print(f"Error processing paper {paper.id}: {e}")

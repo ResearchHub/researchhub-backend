@@ -453,7 +453,7 @@ class ResearchhubUnifiedDocument(
         """
         comments = self.get_all_comments()
         total = comments.aggregate(total_score=Sum("score"))["total_score"]
-        return total if total else 0
+        return total or 0
 
     def get_comment_tip_sum(self):
         """

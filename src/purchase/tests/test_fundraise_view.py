@@ -90,10 +90,8 @@ class FundraiseViewTests(APITestCase):
         return self.client.get(f"/api/fundraise/{fundraise_id}/contributions/")
 
     def _give_user_balance(self, user, amount):
-        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
-        Balance.objects.create(
-            amount=amount, user=user, content_type=DISTRIBUTION_CONTENT_TYPE
-        )
+        distribution_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(amount=amount, user=user, content_type=distribution_ct)
 
     # Fundraise tests
 
@@ -599,7 +597,7 @@ class FundraiseViewTests(APITestCase):
         # Check that both users received the correct bonus amount
 
         service = ReferralBonusService()
-        expected_bonus = Decimal("200") * (service.bonus_percentage / 100)
+        expected_bonus = Decimal(200) * (service.bonus_percentage / 100)
 
         referrer_distribution = Distribution.objects.filter(
             recipient=referrer,

@@ -79,7 +79,7 @@ class FeedService:
     def _build_cache_key(
         self, user_id: int, filter_param: str | None, hub_id: int | None = None
     ) -> str:
-        filter_value = filter_param if filter_param else "none"
+        filter_value = filter_param or "none"
         hub_value = f":hub-is-{hub_id}" if hub_id else ""
         return f"personalized_ids:user-is-{user_id}:filter-is-{filter_value}{hub_value}"
 

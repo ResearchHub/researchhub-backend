@@ -14,6 +14,7 @@ class TaskType(Enum):
     """Supported task types for progress tracking."""
 
     EXPERTS = "experts"
+    PROPOSALS = "proposals"
 
 
 def _get_redis_url() -> str:

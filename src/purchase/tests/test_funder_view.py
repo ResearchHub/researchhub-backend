@@ -105,7 +105,7 @@ class FunderViewTests(APITestCase):
         Grant.objects.create(
             created_by=self.user,
             unified_document=grant_post.unified_document,
-            amount=Decimal("10000"),
+            amount=Decimal(10000),
             status=Grant.OPEN,
         )
 
@@ -122,7 +122,7 @@ class FunderViewTests(APITestCase):
         Grant.objects.create(
             created_by=grant_owner,
             unified_document=grant_post.unified_document,
-            amount=Decimal("10000"),
+            amount=Decimal(10000),
             status=Grant.OPEN,
         )
         self.client.force_authenticate(self.user)
@@ -139,7 +139,7 @@ class FunderViewTests(APITestCase):
         Grant.objects.create(
             created_by=grant_owner,
             unified_document=grant_post.unified_document,
-            amount=Decimal("10000"),
+            amount=Decimal(10000),
             status=Grant.OPEN,
         )
         self.client.force_authenticate(other_user)
