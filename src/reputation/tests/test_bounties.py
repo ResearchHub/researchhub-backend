@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.db.models import Sum
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -799,6 +800,100 @@ class BountyViewTests(APITestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data["results"]), 2)
 
+    def _create_open_bounty(self, item, amount=100):
+        """Create an open bounty on ``item`` and return its unified document."""
+        self._authenticate_bounty_manager()
+        res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": amount,
+                "item_content_type": item._meta.model_name,
+                "item_object_id": item.id,
+            },
+        )
+        self.assertEqual(res.status_code, 201)
+        return Bounty.objects.get(id=res.data["id"]).unified_document
+
+    def test_list_excludes_bounties_on_private_documents(self):
+        # Arrange
+        unified_document = self._create_open_bounty(self.comment)
+        unified_document.is_public = False
+        unified_document.save(update_fields=["is_public"])
+        self.client.force_authenticate(None)
+
+        # Act
+        res = self.client.get("/api/bounty/")
+
+        # Assert
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data["results"]), 0)
+
+    def test_list_excludes_bounties_on_removed_documents(self):
+        # Arrange
+        unified_document = self._create_open_bounty(self.comment)
+        unified_document.is_removed = True
+        unified_document.save(update_fields=["is_removed"])
+        self.client.force_authenticate(None)
+
+        # Act
+        res = self.client.get("/api/bounty/")
+
+        # Assert
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data["results"]), 0)
+
+    def test_list_excludes_bounties_on_documents_pending_moderation(self):
+        # Arrange
+        unified_document = self._create_open_bounty(self.comment)
+        unified_document.status = ResearchhubUnifiedDocument.PENDING
+        unified_document.save(update_fields=["status"])
+        self.client.force_authenticate(None)
+
+        # Act
+        res = self.client.get("/api/bounty/")
+
+        # Assert
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data["results"]), 0)
+
+    def test_personalized_list_excludes_bounties_on_private_documents(self):
+        # Arrange
+        unified_document = self._create_open_bounty(self.comment)
+        unified_document.is_public = False
+        unified_document.save(update_fields=["is_public"])
+        self.client.force_authenticate(self.user_2)
+
+        # Act
+        res = self.client.get("/api/bounty/?sort=personalized")
+
+        # Assert
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data["results"]), 0)
+
+    def test_moderator_can_cancel_bounty_on_removed_document(self):
+        # Arrange
+        self._authenticate_bounty_manager()
+        create_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+        self.assertEqual(create_res.status_code, 201)
+        unified_document = Bounty.objects.get(id=create_res.data["id"]).unified_document
+        unified_document.is_removed = True
+        unified_document.save(update_fields=["is_removed"])
+
+        # Act
+        cancel_res = self.client.post(
+            f"/api/bounty/{create_res.data['id']}/cancel_bounty/",
+        )
+
+        # Assert
+        self.assertEqual(cancel_res.status_code, 200)
+
     def test_filter_official_account_bounties(self):
         self._authenticate_bounty_manager()
 
@@ -1476,6 +1571,29 @@ class BountyViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         hub_ids = [hub["id"] for hub in response.data]
         self.assertNotIn(unused_hub.id, hub_ids)
+
+    def test_hubs_endpoint_excludes_hubs_whose_only_bounty_document_is_hidden(self):
+        """A hub must not be revealed when its only open bounty sits on a
+        private, removed, or unmoderated document."""
+        # Arrange
+        hidden_hub = create_hub(
+            name="Hidden Bounty Hub", namespace=Hub.Namespace.SUBCATEGORY
+        )
+        paper = create_paper()
+        paper.unified_document.hubs.add(hidden_hub)
+        comment = create_rh_comment(created_by=self.user, paper=paper)
+        self._create_open_bounty(comment)
+        paper.unified_document.is_public = False
+        paper.unified_document.save(update_fields=["is_public"])
+        cache.delete("bounty-hubs")
+
+        # Act
+        response = self.client.get("/api/bounty/hubs/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        hub_ids = [hub["id"] for hub in response.data]
+        self.assertNotIn(hidden_hub.id, hub_ids)
 
     def test_bounty_remains_open_after_partial_award(self):
         """Test that bounty remains open when partially awarded"""
