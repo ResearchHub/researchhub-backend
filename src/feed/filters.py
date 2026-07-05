@@ -1,12 +1,14 @@
 from typing import Any
 
 from django.db.models import (
+    Avg,
     Case,
     Count,
     DateTimeField,
     DecimalField,
     Exists,
     F,
+    FloatField,
     IntegerField,
     OuterRef,
     Q,
@@ -24,6 +26,9 @@ from rest_framework.request import Request
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_application_model import approved_proposal_filters
 from purchase.related_models.grant_model import Grant
+from researchhub_document.related_models.constants.document_type import (
+    REGISTERED_REPORT,
+)
 
 
 class FundOrderingFilter(OrderingFilter):
@@ -321,3 +326,118 @@ class FundOrderingFilter(OrderingFilter):
                     output_field=DecimalField(max_digits=19, decimal_places=10),
                 )
             ).order_by("-amount_raised", "-created_date")
+
+
+class JournalFeedOrderingFilter(FundOrderingFilter):
+    """Order journal cards by stage first, then the requested feed ranking."""
+
+    peer_review_score_ordering = "peer_review_score"
+
+    def filter_queryset(
+        self, request: Request, queryset: QuerySet, view: Any
+    ) -> QuerySet:
+        """Apply journal feed sorting without funding feed end-date filtering."""
+        model_config = self._get_model_config(view)
+        return self._apply_custom_sorting(queryset, model_config, request, view)
+
+    def get_ordering(
+        self, request: Request, queryset: QuerySet, view: Any
+    ) -> list[str]:
+        """Return allowed journal ordering, falling back to best."""
+        ordering_param = request.query_params.get(self.ordering_param, "")
+        default_ordering = "best"
+
+        if ordering_param:
+            fields = [field.strip() for field in ordering_param.split(",")]
+            if fields:
+                field = fields[0]
+                field_name = field.lstrip("-")
+                custom_fields = [
+                    "newest",
+                    "best",
+                    self.peer_review_score_ordering,
+                ]
+                if field_name in custom_fields:
+                    return [field]
+        return [default_ordering]
+
+    def _apply_custom_sorting(
+        self, queryset: QuerySet, model_config: dict, request: Request, view: Any
+    ) -> QuerySet:
+        """Apply journal-specific sorting based on the requested order."""
+        ordering_list = self.get_ordering(request, queryset, view)
+        ordering = ordering_list[0].lstrip("-") if ordering_list else "best"
+
+        if ordering == "newest":
+            return self._apply_newest_sorting(queryset, model_config)
+        if ordering == "best":
+            return self._apply_best_sorting(queryset, model_config)
+        if ordering == self.peer_review_score_ordering:
+            return self._apply_peer_review_score_sorting(queryset)
+        return self._apply_best_sorting(queryset, model_config)
+
+    def _apply_newest_sorting(
+        self,
+        queryset: QuerySet,
+        model_config: dict[str, type[Grant] | type[Fundraise] | str],
+    ) -> QuerySet:
+        """Sort each journal stage by newest post first."""
+        return self._order_by_stage(queryset, "-created_date")
+
+    def _apply_best_sorting(
+        self,
+        queryset: QuerySet,
+        model_config: dict[str, type[Grant] | type[Fundraise] | str],
+    ) -> QuerySet:
+        """Sort each journal stage by source proposal peer review score."""
+        return self._apply_peer_review_score_sorting(queryset)
+
+    def _apply_peer_review_score_sorting(self, queryset: QuerySet) -> QuerySet:
+        """Sort each journal stage by source proposal average peer review score."""
+        proposal_reviews = "unified_document__reviews"
+        report_reviews = "journey__preregistration_post__unified_document__reviews"
+        queryset = queryset.annotate(
+            proposal_review_score=Avg(
+                f"{proposal_reviews}__score",
+                filter=Q(
+                    **{
+                        f"{proposal_reviews}__is_removed": False,
+                    }
+                ),
+            ),
+            report_review_score=Avg(
+                f"{report_reviews}__score",
+                filter=Q(
+                    **{
+                        f"{report_reviews}__is_removed": False,
+                    }
+                ),
+            ),
+        ).annotate(
+            peer_review_score=Coalesce(
+                Case(
+                    When(
+                        document_type=REGISTERED_REPORT,
+                        then=F("report_review_score"),
+                    ),
+                    default=F("proposal_review_score"),
+                    output_field=FloatField(),
+                ),
+                0.0,
+                output_field=FloatField(),
+            )
+        )
+        return self._order_by_stage(queryset, "-peer_review_score", "-created_date")
+
+    def _order_by_stage(self, queryset: QuerySet, *fields: str) -> QuerySet:
+        """Put registered reports before completed proposals, then sort fields."""
+        return queryset.annotate(
+            journal_stage_priority=Case(
+                When(
+                    document_type=REGISTERED_REPORT,
+                    then=Value(0),
+                ),
+                default=Value(1),
+                output_field=IntegerField(),
+            )
+        ).order_by("journal_stage_priority", *fields)

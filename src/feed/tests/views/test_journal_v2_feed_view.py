@@ -1,0 +1,264 @@
+from decimal import Decimal
+from typing import Any
+from unittest.mock import patch
+
+from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.test import APIClient
+
+from feed.feed_list_dto import (
+    JOURNAL_STATE_COMPLETED_PROPOSAL,
+    JOURNAL_STATE_REGISTERED_REPORT,
+)
+from purchase.models import Fundraise
+from purchase.related_models.constants.currency import USD
+from reputation.models import Escrow
+from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
+from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
+from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from researchhub_document.helpers import create_post
+from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+    REGISTERED_REPORT,
+)
+from researchhub_document.services.journey_service import JourneyService
+from review.models import Review
+from user.tests.helpers import create_random_default_user
+from utils.test_helpers import AWSMockTestCase
+
+
+class JournalV2FeedViewSetTests(AWSMockTestCase):
+    def setUp(self) -> None:
+        """Create users and a client for journal feed tests."""
+        super().setUp()
+        self.user = create_random_default_user("journal_v2_owner")
+        self.reviewer = create_random_default_user("journal_v2_reviewer")
+        self.service = JourneyService()
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_list_returns_registered_reports_before_completed_proposals(
+        self, mock_usd_to_rsc: Any
+    ) -> None:
+        """Verify the journal feed groups reports before completed proposals."""
+        # Arrange
+        mock_usd_to_rsc.return_value = 100
+        proposal_with_report = self.create_completed_proposal("Proposal With Report")
+        grant_post = self.attach_grant_post_to_journey(proposal_with_report)
+        registered_report = self.create_registered_report(proposal_with_report)
+        completed_proposal = self.create_completed_proposal("Completed Proposal")
+        self.create_proposal_review(proposal_with_report, score=8)
+
+        ResearchhubPost.objects.filter(id=registered_report.id).update(
+            created_date=timezone.now() - timezone.timedelta(days=2)
+        )
+        ResearchhubPost.objects.filter(id=completed_proposal.id).update(
+            created_date=timezone.now()
+        )
+
+        # Act
+        response = self.client.get("/api/journal_v2_feed/?ordering=newest")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data["results"]
+        post_ids = [entry["content_object"]["id"] for entry in results]
+        self.assertEqual(post_ids, [registered_report.id, completed_proposal.id])
+        self.assertNotIn(proposal_with_report.id, post_ids)
+
+        report_card = results[0]["content_object"]
+        self.assertEqual(report_card["type"], REGISTERED_REPORT)
+        self.assertEqual(report_card["journal_state"], JOURNAL_STATE_REGISTERED_REPORT)
+        self.assertEqual(report_card["proposal"]["id"], proposal_with_report.id)
+        self.assertNotIn("review_metrics", results[0]["metrics"])
+        self.assertEqual(report_card["fundraise"]["status"], Fundraise.COMPLETED)
+        self.assertEqual(
+            results[0]["post_ids"],
+            {
+                "grant_post_id": grant_post.id,
+                "proposal_post_id": proposal_with_report.id,
+            },
+        )
+        self.assertEqual(
+            results[1]["post_ids"],
+            {
+                "grant_post_id": None,
+                "proposal_post_id": completed_proposal.id,
+            },
+        )
+        self.assertNotIn("associated_grants", results[0])
+        self.assertNotIn("is_nonprofit", results[0])
+        self.assertNotIn("nonprofit", results[0])
+
+        proposal_card = results[1]["content_object"]
+        self.assertEqual(proposal_card["type"], PREREGISTRATION)
+        self.assertEqual(
+            proposal_card["journal_state"], JOURNAL_STATE_COMPLETED_PROPOSAL
+        )
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_list_excludes_journeys_outside_the_journal(
+        self, mock_usd_to_rsc: Any
+    ) -> None:
+        """Verify proposals must be journal-included before appearing."""
+        # Arrange
+        mock_usd_to_rsc.return_value = 100
+        included_proposal = self.create_completed_proposal("Included Proposal")
+        excluded_proposal = create_post(
+            title="Excluded Proposal",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+        )
+        self.service.get_or_create_for_preregistration(excluded_proposal)
+
+        # Act
+        response = self.client.get("/api/journal_v2_feed/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [entry["content_object"]["id"] for entry in response.data["results"]]
+        self.assertIn(included_proposal.id, post_ids)
+        self.assertNotIn(excluded_proposal.id, post_ids)
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_list_excludes_private_completed_proposals_but_keeps_reports(
+        self, mock_usd_to_rsc: Any
+    ) -> None:
+        """Verify private proposals are hidden unless shown as reports."""
+        # Arrange
+        mock_usd_to_rsc.return_value = 100
+        private_proposal = self.create_completed_proposal("Private Proposal")
+        self.make_proposal_private(private_proposal)
+        private_report_proposal = self.create_completed_proposal(
+            "Private Report Proposal"
+        )
+        self.make_proposal_private(private_report_proposal)
+        registered_report = self.create_registered_report(private_report_proposal)
+
+        # Act
+        response = self.client.get("/api/journal_v2_feed/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [entry["content_object"]["id"] for entry in response.data["results"]]
+        self.assertNotIn(private_proposal.id, post_ids)
+        self.assertNotIn(private_report_proposal.id, post_ids)
+        self.assertIn(registered_report.id, post_ids)
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_list_orders_by_average_peer_review_score(
+        self, mock_usd_to_rsc: Any
+    ) -> None:
+        """Verify journal sorting can use source proposal review averages."""
+        # Arrange
+        mock_usd_to_rsc.return_value = 100
+        lower_scored_proposal = self.create_completed_proposal("Lower Score")
+        higher_scored_proposal = self.create_completed_proposal("Higher Score")
+        self.create_proposal_review(lower_scored_proposal, score=3)
+        self.create_proposal_review(higher_scored_proposal, score=9)
+        ResearchhubPost.objects.filter(id=lower_scored_proposal.id).update(
+            created_date=timezone.now()
+        )
+        ResearchhubPost.objects.filter(id=higher_scored_proposal.id).update(
+            created_date=timezone.now() - timezone.timedelta(days=2)
+        )
+
+        # Act
+        response = self.client.get("/api/journal_v2_feed/?ordering=peer_review_score")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [entry["content_object"]["id"] for entry in response.data["results"]]
+        self.assertLess(
+            post_ids.index(higher_scored_proposal.id),
+            post_ids.index(lower_scored_proposal.id),
+        )
+
+    def create_completed_proposal(self, title: str) -> ResearchhubPost:
+        """Create a completed proposal that is included in the journal."""
+        proposal = create_post(
+            title=title,
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+        )
+        fundraise = self.create_completed_fundraise(proposal)
+        self.service.get_or_create_for_preregistration(proposal)
+        self.service.include_completed_fundraise_in_journal(fundraise)
+        proposal.refresh_from_db()
+        return proposal
+
+    def make_proposal_private(self, proposal: ResearchhubPost) -> None:
+        """Make a proposal private after it enters the journal."""
+        proposal.unified_document.is_public = False
+        proposal.unified_document.save(update_fields=["is_public"])
+
+    def create_completed_fundraise(self, proposal: ResearchhubPost) -> Fundraise:
+        """Create a completed fundraise for a proposal."""
+        escrow = Escrow.objects.create(
+            amount_holding=Decimal("0.00"),
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=proposal.unified_document_id,
+        )
+        return Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=proposal.unified_document,
+            escrow=escrow,
+            status=Fundraise.COMPLETED,
+            goal_amount=Decimal("100.00"),
+            goal_currency=USD,
+        )
+
+    def attach_grant_post_to_journey(
+        self, proposal: ResearchhubPost
+    ) -> ResearchhubPost:
+        """Attach a grant post to a proposal journey."""
+        grant_post = create_post(
+            title=f"Grant for {proposal.title}",
+            created_by=self.user,
+            document_type=GRANT,
+        )
+        proposal.journey.grant_post = grant_post
+        proposal.journey.save(update_fields=["grant_post"])
+        return grant_post
+
+    def create_registered_report(self, proposal: ResearchhubPost) -> ResearchhubPost:
+        """Create a registered report attached to a proposal journey."""
+        report = create_post(
+            title=f"Registered Report for {proposal.title}",
+            created_by=self.user,
+            document_type=REGISTERED_REPORT,
+        )
+        self.service.attach_stage(proposal.journey, report)
+        return report
+
+    def create_proposal_review(self, proposal: ResearchhubPost, score: int) -> Review:
+        """Create a peer review on a proposal."""
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+        thread = RhCommentThreadModel.objects.create(
+            created_by=self.reviewer,
+            content_type=post_content_type,
+            object_id=proposal.id,
+            thread_type=PEER_REVIEW,
+        )
+        comment = RhCommentModel.objects.create(
+            created_by=self.reviewer,
+            thread=thread,
+            comment_type=PEER_REVIEW,
+            comment_content_json={"ops": [{"insert": "Strong proposal."}]},
+            comment_content_type=QUILL_EDITOR,
+        )
+        return Review.objects.create(
+            created_by=self.reviewer,
+            content_type=comment_content_type,
+            object_id=comment.id,
+            unified_document=proposal.unified_document,
+            score=score,
+            is_assessed=False,
+        )
