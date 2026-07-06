@@ -30,7 +30,7 @@ class TestMatchBoolPrefixQueryConstruction(unittest.TestCase):
             "minimum_should_match": "2<70%",
             "fuzziness": "AUTO",
         }
-        query = Q("match_bool_prefix", **{"paper_title": query_params})
+        query = Q("match_bool_prefix", paper_title=query_params)
         query_dict = query.to_dict()
 
         # Verify structure
