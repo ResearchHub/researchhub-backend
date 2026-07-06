@@ -740,6 +740,7 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "opened_at",
             "open_count",
             "bounced_at",
+            "complained_at",
             "created_at",
             "updated_at",
         ]
@@ -750,6 +751,7 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "opened_at",
             "open_count",
             "bounced_at",
+            "complained_at",
         ]
 
     def get_created_by(self, obj):
