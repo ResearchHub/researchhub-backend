@@ -639,13 +639,13 @@ class CommentInteractionTaskTests(TestCase):
     def test_create_comment_interaction_task_logs_mapper_logs_exceptions(
         self, mock_map, mock_log_exception
     ):
-        """Test that task catches mapper exceptions and logs them to Sentry."""
+        """Test that task catches mapper exceptions and logs them."""
         comment = self._create_comment()
 
         # Make mapper raise an exception
         mock_map.side_effect = Exception("Mapper failed unexpectedly")
 
-        # Task should catch exception, log to Sentry, and re-raise
+        # Task should catch exception, log, and re-raise
         with self.assertRaises(Exception) as context:
             create_comment_interaction_task(comment.id)
 
