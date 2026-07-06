@@ -55,7 +55,10 @@ from research_ai.services.agent import (
 )
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_draft.draft_recorder import DraftRecorder
-from research_ai.services.proposal_draft.gates import ProposalGateRunner
+from research_ai.services.proposal_draft.gates import (
+    ProposalGateRunner,
+    failing_gates,
+)
 from research_ai.services.proposal_draft.note_writer import write_proposal_note
 from research_ai.services.proposal_draft.run_state import ProposalRunState
 from research_ai.services.proposal_draft.toolset import (
@@ -236,7 +239,11 @@ class _ProposalDraftRunner:
             # the crash back to the model as a retryable tool error, and it
             # would burn the remaining rounds revising against a broken
             # referee -- with the run then mis-blamed on the iteration cap.
-            logger.exception("proposal draft gate check crashed")
+            logger.exception(
+                "submit round %d/%d: gate check crashed",
+                state.rounds_used,
+                self.config.max_rounds,
+            )
             state.gate_crash = str(exc) or type(exc).__name__
             self.recorder.persist_round()
             self._submit_tool.is_terminal = True
@@ -248,6 +255,11 @@ class _ProposalDraftRunner:
             state.panel_unavailable = True
             self.recorder.persist_round()
             self._submit_tool.is_terminal = True
+            logger.info(
+                "submit round %d/%d: stopped, judge panel unavailable",
+                state.rounds_used,
+                self.config.max_rounds,
+            )
             return {
                 "accepted": False,
                 "stopped": "panel_unavailable",
@@ -284,7 +296,7 @@ class _ProposalDraftRunner:
             panel.get("overall"),
             state.best_overall,
             state.rounds_since_improvement,
-            ", ".join(_failing_gates(report)),
+            ", ".join(failing_gates(report)),
         )
 
         # End the loop on a clean submit, when no rounds remain to revise, or
@@ -360,15 +372,6 @@ class _ProposalDraftRunner:
 
     def _fail(self, message: str | None = None) -> dict:
         return self.recorder.fail(message or self.state.failure_message())
-
-
-def _failing_gates(report: dict) -> list[str]:
-    """Names of the gates this round did not pass -- for the round trace."""
-    return [
-        name
-        for name in ("sections", "length", "citations", "scope", "panel")
-        if not (report.get(name) or {}).get("ok", True)
-    ]
 
 
 def _needs_profile(profile) -> bool:
