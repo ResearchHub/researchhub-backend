@@ -67,10 +67,7 @@ class AWSMockMixin:
         )
         self.mock_boto3_client = self.aws_patcher.start()
 
-    def tearDown(self):
-        if hasattr(self, "aws_patcher"):
-            self.aws_patcher.stop()
-        super().tearDown()
+        self.addCleanup(self.aws_patcher.stop)
 
 
 # Convenience classes for common use cases
