@@ -15,8 +15,7 @@ class Command(BaseCommand):
                 else:
                     supports[user.invited_by] += 1
 
-        sorted_support = {
-            k: v
-            for k, v in sorted(supports.items(), key=lambda item: item[1], reverse=True)
-        }
+        sorted_support = dict(
+            sorted(supports.items(), key=lambda item: item[1], reverse=True)
+        )
         print(sorted_support)
