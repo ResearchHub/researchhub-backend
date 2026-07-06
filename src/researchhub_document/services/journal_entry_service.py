@@ -42,26 +42,10 @@ class JournalEntryService:
 
     def __init__(
         self,
-        fundraise_model: type[Fundraise] | None = None,
         journey_service: JourneyService | None = None,
-        note_model: type[Note] | None = None,
-        note_content_model: type[NoteContent] | None = None,
-        permission_model: type[Permission] | None = None,
-        post_model: type[ResearchhubPost] | None = None,
-        unified_document_model: type[ResearchhubUnifiedDocument] | None = None,
-        user_model: type[User] | None = None,
     ) -> None:
         """Initialize the service with optional dependencies."""
-        self.fundraise_model = fundraise_model or Fundraise
         self.journey_service = journey_service or JourneyService()
-        self.note_model = note_model or Note
-        self.note_content_model = note_content_model or NoteContent
-        self.permission_model = permission_model or Permission
-        self.post_model = post_model or ResearchhubPost
-        self.unified_document_model = (
-            unified_document_model or ResearchhubUnifiedDocument
-        )
-        self.user_model = user_model or User
 
     @transaction.atomic
     def accept_journal_entry(
@@ -105,7 +89,7 @@ class JournalEntryService:
 
     def get_registered_report_note(self, user: User, note_id: int) -> Note:
         """Return the user's unpublished registered report note."""
-        note = self.note_model.objects.filter(
+        note = Note.objects.filter(
             created_by=user,
             document_type=REGISTERED_REPORT,
             id=note_id,
@@ -121,14 +105,14 @@ class JournalEntryService:
         """Validate that the requested user is real and matches the requester."""
         if user.id == user_id:
             return
-        if not self.user_model.objects.filter(id=user_id).exists():
+        if not User.objects.filter(id=user_id).exists():
             raise ValueError("User not found.")
         raise ValueError("Authenticated user cannot accept another user's entry.")
 
     def _get_fundraise(self, fundraise_id: int) -> Fundraise:
         """Return the requested fundraise or raise a validation error."""
         fundraise = (
-            self.fundraise_model.objects.select_related(
+            Fundraise.objects.select_related(
                 "created_by",
                 "escrow",
                 "unified_document",
@@ -175,7 +159,7 @@ class JournalEntryService:
     ) -> ResearchhubPost:
         """Return the proposal owned by the user for the fundraise."""
         proposal = (
-            self.post_model.objects.select_related("journey", "unified_document")
+            ResearchhubPost.objects.select_related("journey", "unified_document")
             .filter(
                 created_by=user,
                 document_type=PREREGISTRATION,
@@ -191,7 +175,7 @@ class JournalEntryService:
     def _get_user_proposal(self, user: User, proposal_id: int) -> ResearchhubPost:
         """Return the user's approved proposal or raise a validation error."""
         proposal = (
-            self.post_model.objects.select_related("journey", "unified_document")
+            ResearchhubPost.objects.select_related("journey", "unified_document")
             .filter(
                 created_by=user,
                 document_type=PREREGISTRATION,
@@ -208,7 +192,7 @@ class JournalEntryService:
     def _get_completed_fundraise(self, proposal: ResearchhubPost) -> Fundraise:
         """Return the newest completed fundraise for a proposal."""
         fundraise = (
-            self.fundraise_model.objects.select_related("escrow", "unified_document")
+            Fundraise.objects.select_related("escrow", "unified_document")
             .filter(
                 status=Fundraise.COMPLETED,
                 unified_document=proposal.unified_document,
@@ -224,11 +208,11 @@ class JournalEntryService:
         self, user: User, proposal: ResearchhubPost
     ) -> Note:
         """Create a private registered report note from a proposal."""
-        unified_document = self.unified_document_model.objects.create(
+        unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type=NOTE,
         )
         unified_document.hubs.set(proposal.unified_document.hubs.all())
-        note = self.note_model.objects.create(
+        note = Note.objects.create(
             created_by=user,
             document_type=REGISTERED_REPORT,
             organization=user.organization,
@@ -236,7 +220,7 @@ class JournalEntryService:
             unified_document=unified_document,
         )
         self._create_private_permissions(user, unified_document)
-        self.note_content_model.objects.create(
+        NoteContent.objects.create(
             note=note,
             json=self._get_proposal_note_json(proposal),
             plain_text=self._get_proposal_note_plain_text(proposal),
@@ -301,13 +285,13 @@ class JournalEntryService:
     ) -> None:
         """Grant the user private admin access to a note document."""
         content_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
-        self.permission_model.objects.create(
+        Permission.objects.create(
             access_type=ADMIN,
             content_type=content_type,
             object_id=unified_document.id,
             user=user,
         )
-        self.permission_model.objects.create(
+        Permission.objects.create(
             access_type=NO_ACCESS,
             content_type=content_type,
             object_id=unified_document.id,
