@@ -4,10 +4,17 @@ from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 
-from research_ai.models import Expert, ExpertSearch, GeneratedEmail
+from research_ai.models import (
+    Expert,
+    ExpertSearch,
+    GeneratedEmail,
+    ProposalDraft,
+    SearchExpert,
+)
 from research_ai.tasks import (
     _update_search_progress,
     process_bulk_generate_emails_task,
+    run_proposal_draft_task,
     send_queued_emails_task,
 )
 from user.tests.helpers import create_random_authenticated_user
@@ -305,3 +312,58 @@ class SendQueuedEmailsTaskTests(TestCase):
         self.assertIsNotNone(ex.last_email_sent_at)
         if before:
             self.assertGreaterEqual(ex.last_email_sent_at, before)
+
+
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+class RunProposalDraftTaskTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("draft_user")
+        self.expert = Expert.objects.create(email="draft-expert@example.edu")
+        self.expert_search = ExpertSearch.objects.create(
+            created_by=self.user,
+            query="protein folding",
+        )
+        self.search_expert = SearchExpert.objects.create(
+            expert_search=self.expert_search,
+            expert=self.expert,
+        )
+        self.draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.user,
+        )
+
+    @patch("research_ai.tasks.run_proposal_draft")
+    def test_runs_service(self, mock_run):
+        # Arrange
+        mock_run.return_value = {
+            "status": ProposalDraft.Status.COMPLETED,
+            "proposal_draft_id": self.draft.id,
+        }
+
+        # Act
+        result = run_proposal_draft_task.apply(args=[self.draft.id]).get()
+
+        # Assert
+        mock_run.assert_called_once_with(self.search_expert.id, draft_id=self.draft.id)
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.draft.refresh_from_db()
+        self.assertIsNotNone(self.draft.processing_time)
+
+    @patch("research_ai.tasks.run_proposal_draft")
+    def test_unexpected_error_marks_draft_failed(self, mock_run):
+        # Arrange
+        mock_run.side_effect = SearchExpert.DoesNotExist("SearchExpert gone")
+
+        # Act & Assert
+        with self.assertRaises(SearchExpert.DoesNotExist):
+            run_proposal_draft_task.apply(args=[self.draft.id]).get()
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.status, ProposalDraft.Status.FAILED)
+        self.assertIn("SearchExpert gone", self.draft.error_message)
+
+    def test_missing_draft_returns_not_found(self):
+        # Act
+        result = run_proposal_draft_task.apply(args=[999999]).get()
+
+        # Assert
+        self.assertEqual(result, {"status": "not_found", "draft_id": 999999})

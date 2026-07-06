@@ -287,6 +287,33 @@ class ProposalDraftServiceTests(TestCase):
             "https://doi.org/10.1/a",
         )
 
+    def test_run_with_pre_created_draft_reuses_row(self):
+        # Arrange
+        draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.user,
+            status=ProposalDraft.Status.PENDING,
+            step=ProposalDraft.Step.QUEUED,
+        )
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+        panel = _FakePanel(overall=5)
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            draft_id=draft.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert
+        self.assertEqual(result["proposal_draft_id"], draft.id)
+        self.assertEqual(ProposalDraft.objects.count(), 1)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.COMPLETED)
+        self.assertEqual(draft.created_by, self.user)
+
     # -- a major_fabrication submit is blocked, gaps fed back -------------
 
     def test_major_fabrication_submit_is_blocked_and_loop_continues(self):
