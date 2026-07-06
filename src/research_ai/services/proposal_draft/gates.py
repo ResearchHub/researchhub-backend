@@ -16,6 +16,16 @@ from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_tools import ProposalVerificationToolset
 from research_ai.services.proposal_tools.doi import strip_doi_prefix
 
+# The gates in the order they run; also the report keys their results live
+# under (``ProposalGateRunner.run`` builds the report from this order).
+GATE_NAMES = ("sections", "length", "citations", "scope", "panel")
+
+
+def failing_gates(report: dict) -> list[str]:
+    """Names of the gates ``report`` shows as failed (a missing gate passes)."""
+    return [name for name in GATE_NAMES if not (report.get(name) or {}).get("ok", True)]
+
+
 # Sections the proposal must carry (keys on the submitted ``sections`` object).
 _REQUIRED_SECTIONS = (
     ("title", "title"),
@@ -90,36 +100,29 @@ class ProposalGateRunner:
         self.on_step(ProposalDraft.Step.VERIFYING)
         sections = submitted.get("sections")
         sections = sections if isinstance(sections, dict) else {}
-        gaps: list[str] = []
 
-        section_check = self._gate_sections(sections, submitted)
-        length_check = self._gate_length(submitted)
-        citation_check = self._gate_citations(submitted)
-        scope_check = self._gate_scope(sections)
-
+        checks = {
+            "sections": self._gate_sections(sections, submitted),
+            "length": self._gate_length(submitted),
+            "citations": self._gate_citations(submitted),
+            "scope": self._gate_scope(sections),
+        }
         self.on_step(ProposalDraft.Step.JUDGING)
-        panel_check = self._gate_panel(submitted)
+        checks["panel"] = self._gate_panel(submitted)
 
-        for check in (
-            section_check,
-            length_check,
-            citation_check,
-            scope_check,
-            panel_check,
-        ):
-            if not check["ok"]:
-                gaps.extend(check.get("gaps", []))
+        gaps = [
+            gap
+            for name in GATE_NAMES
+            if not checks[name]["ok"]
+            for gap in checks[name].get("gaps", [])
+        ]
 
         accepted = not gaps
         report = {
             "accepted": accepted,
             "round": round_number,
             "rounds_used": round_number,
-            "sections": section_check,
-            "length": length_check,
-            "citations": citation_check,
-            "scope": scope_check,
-            "panel": panel_check,
+            **checks,
             "gaps": gaps,
         }
         return accepted, report
