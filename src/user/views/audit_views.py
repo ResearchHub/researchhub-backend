@@ -341,7 +341,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         try:
             flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
             for flag in flags:
-                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
+                available_reasons = [r[0] for r in FLAG_REASON_CHOICES]
                 verdict_choice = NOT_SPECIFIED
                 if data.get("verdict_choice") in available_reasons:
                     verdict_choice = f"NOT_{data.get('verdict_choice')}"
@@ -378,7 +378,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         with transaction.atomic():
             flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
             for flag in flags.iterator():
-                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
+                available_reasons = [r[0] for r in FLAG_REASON_CHOICES]
                 verdict_choice = NOT_SPECIFIED
                 if data.get("verdict_choice") in available_reasons:
                     verdict_choice = data.get("verdict_choice")
@@ -427,7 +427,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                 ):
                     continue
 
-                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
+                available_reasons = [r[0] for r in FLAG_REASON_CHOICES]
                 verdict_choice = NOT_SPECIFIED
                 if data.get("verdict_choice") in available_reasons:
                     verdict_choice = data.get("verdict_choice")
