@@ -525,7 +525,7 @@ def select_primary_image(
             else:
                 logger.warning(f"Failed to create preview for paper {paper_id}")
                 return False
-        elif selected_figure_id:
+        else:
             # Update is_primary flags
             Figure.objects.filter(paper=paper).update(is_primary=False)
             Figure.objects.filter(id=selected_figure_id).update(is_primary=True)
@@ -553,9 +553,6 @@ def select_primary_image(
                 },
             )
             return True
-        else:
-            logger.warning("No figure selected for paper", extra={"paper_id": paper_id})
-            return False
 
     except Exception:
         if retry < 2:  # Retry on failure
