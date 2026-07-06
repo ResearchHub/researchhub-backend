@@ -526,7 +526,7 @@ class SuggestViewTests(TestCase):
             self.client.get = original_get
 
         # Check that we have results from all entity types
-        entity_types = set(result.get("entity_type") for result in response.data)
+        entity_types = {result.get("entity_type") for result in response.data}
         self.assertEqual(
             len(entity_types), 3, "Expected results from all three entity types"
         )
