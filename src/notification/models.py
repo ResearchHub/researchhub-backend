@@ -548,7 +548,7 @@ class Notification(models.Model):
         if amount:
             try:
                 amount = round(float(amount), 2)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 amount = None
 
         amount_text = (

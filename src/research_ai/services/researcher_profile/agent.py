@@ -122,7 +122,7 @@ def _resolution(submitted: dict) -> dict:
     raw = raw or {}
     try:
         confidence = round(float(raw.get("confidence") or 0.0), 3)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         confidence = 0.0
     return {
         "openalex_author_id": raw.get("openalex_author_id") or None,

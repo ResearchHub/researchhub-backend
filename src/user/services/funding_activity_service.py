@@ -366,7 +366,7 @@ class FundingActivityService:
             return None
         try:
             recipient_user = fundraise.get_recipient()
-        except (ValueError, User.DoesNotExist):
+        except ValueError, User.DoesNotExist:
             logger.warning(
                 "Skipping fundraise payout FundingActivity for purchase_id=%s: "
                 "get_recipient failed",
@@ -424,7 +424,7 @@ class FundingActivityService:
             return None
         try:
             recipient_user = fundraise.get_recipient()
-        except (ValueError, User.DoesNotExist):
+        except ValueError, User.DoesNotExist:
             logger.warning(
                 "Skipping USD fundraise payout FundingActivity for "
                 "contribution_id=%s: get_recipient failed",

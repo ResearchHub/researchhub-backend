@@ -92,7 +92,7 @@ class ProgressService:
                 try:
                     data = json.loads(message.get("data") or "{}")
                     yield data
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     continue
         finally:
             try:

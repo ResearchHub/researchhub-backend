@@ -70,7 +70,7 @@ def _coerce_score(raw: object) -> int:
     """Coerce one criterion value to an int clamped to 1-5 (default 1)."""
     try:
         value = int(round(float(raw)))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return _MIN_SCORE
     return max(_MIN_SCORE, min(_MAX_SCORE, value))
 

@@ -52,7 +52,7 @@ class ElasticsearchSerializer(serializers.Serializer):
                     data[field.field_name] = field.to_representation(attribute)
                 else:
                     data[field.field_name] = None
-            except (AttributeError, Exception):
+            except AttributeError, Exception:
                 # If we can't get the attribute, skip this field
                 continue
 

@@ -86,7 +86,7 @@ class ReactionViewActionMixin:
             _, flag_data = create_flag(user, item, reason, reason_choice, reason_memo)
 
             return Response(flag_data, status=201)
-        except (IntegrityError, ValidationError):
+        except IntegrityError, ValidationError:
             return Response(
                 {
                     "msg": "Already flagged",

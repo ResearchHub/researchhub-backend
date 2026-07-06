@@ -244,7 +244,7 @@ def proposal_overall_numeric_to_review_score(
         return 1.0
     try:
         n = int(overall_score_numeric)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 1.0
     if n < 1:
         return 1.0

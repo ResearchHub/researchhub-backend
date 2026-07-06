@@ -54,7 +54,7 @@ class GrantCreateSerializer(serializers.ModelSerializer):
             amount = Decimal(data["amount"])
             if amount <= 0:
                 raise serializers.ValidationError("amount must be greater than 0")
-        except (TypeError, ValueError, InvalidOperation):
+        except TypeError, ValueError, InvalidOperation:
             raise serializers.ValidationError("Invalid amount")
 
         # Validate currency

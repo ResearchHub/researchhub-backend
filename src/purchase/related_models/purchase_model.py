@@ -144,7 +144,7 @@ class Purchase(PaidStatusModelMixin):
                         "amount", flat=True
                     )
                     previous_boost_time += sum(map(float, previous_boost_amounts))
-        except (AttributeError, ContentType.DoesNotExist):
+        except AttributeError, ContentType.DoesNotExist:
             # continue with previous_boost_time = 0
             pass
 

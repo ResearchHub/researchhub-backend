@@ -30,7 +30,7 @@ def check_file_is_url(file):
     if type(file) is str:
         try:
             URLValidator()(file)
-        except (ValidationError, Exception):
+        except ValidationError, Exception:
             return False
         else:
             return True
@@ -144,7 +144,7 @@ def get_pdf_location_for_csl_item(csl_item):
         return get_location_for_unsupported_pdf(csl_item)
     try:
         upw = Unpaywall.from_csl_item(csl_item)
-    except (ValueError, requests.RequestException):
+    except ValueError, requests.RequestException:
         return None
     oa_location = upw.best_openly_licensed_pdf or upw.best_pdf
     return oa_location

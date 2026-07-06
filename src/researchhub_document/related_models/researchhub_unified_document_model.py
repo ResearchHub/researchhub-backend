@@ -479,7 +479,7 @@ class ResearchhubUnifiedDocument(
         if tips:
             try:
                 return float(tips)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 return 0
         return 0
 

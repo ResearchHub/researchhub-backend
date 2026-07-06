@@ -331,7 +331,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         raw_duration = request.data.get("duration_days")
         try:
             duration_days = int(raw_duration)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return Response(
                 {"message": "duration_days must be a positive integer"}, status=400
             )

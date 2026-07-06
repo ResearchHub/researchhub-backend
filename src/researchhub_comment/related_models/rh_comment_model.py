@@ -150,7 +150,7 @@ class RhCommentModel(
                 if isinstance(self.comment_content_json, str)
                 else self.comment_content_json
             )
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             # Return empty string if json cannot be parsed
             return ""
 

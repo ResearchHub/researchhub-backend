@@ -143,7 +143,7 @@ class FundraiseService:
             # USD contributions use cents
             try:
                 amount_cents = int(amount)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 return None, "Invalid amount"
 
             # Check if amount is within limits

@@ -37,7 +37,7 @@ class DepositAddressView(APIView):
                     "address": result.address,
                 }
             )
-        except (CircleWalletFrozenError, CircleWalletCreationError):
+        except CircleWalletFrozenError, CircleWalletCreationError:
             logger.exception(
                 "Circle wallet creation failed for user %s", request.user.id
             )

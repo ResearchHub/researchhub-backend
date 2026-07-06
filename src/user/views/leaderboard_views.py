@@ -125,7 +125,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                 error_msg = f"Date range exceeds {max_days} days"
                 return False, Response({"error": error_msg}, status=400)
             return True, None
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return False, Response(
                 {"error": "Invalid date format. Use ISO format (YYYY-MM-DD)."},
                 status=400,

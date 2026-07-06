@@ -47,7 +47,7 @@ def _format_amount_raised(amount_usd: float | None) -> str:
         if n >= 1_000:
             return f"${n // 1_000}K"
         return f"${n}"
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return f"${amount_usd:.0f}" if amount_usd else ""
 
 

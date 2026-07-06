@@ -76,7 +76,7 @@ class TemplateDetailView(APIView):
     def _get_template(self, request, template_id):
         try:
             tid = int(template_id)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return None, Response(
                 {"detail": "Invalid template ID."},
                 status=status.HTTP_400_BAD_REQUEST,

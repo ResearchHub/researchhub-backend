@@ -60,7 +60,7 @@ class PersonaWebhookView(APIView):
         for key in keys:
             try:
                 data = data[key]
-            except (TypeError, KeyError):
+            except TypeError, KeyError:
                 return default
         return data
 

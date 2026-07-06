@@ -65,12 +65,12 @@ class NonprofitOrgViewSet(viewsets.ViewSet):
 
         try:
             count = int(request.query_params.get("count", 15))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             count = 15
 
         try:
             offset = int(request.query_params.get("offset", 0))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             offset = 0
 
         result = self.endaoment_service.search_nonprofit_orgs(

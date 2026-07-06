@@ -209,7 +209,7 @@ class ResearchhubPostViewSet(
                 if grant_id and document_type == PREREGISTRATION:
                     try:
                         target_grant = Grant.objects.get(id=grant_id)
-                    except (Grant.DoesNotExist, ValueError, TypeError):
+                    except Grant.DoesNotExist, ValueError, TypeError:
                         raise serializers.ValidationError("Grant not found")
                     if not target_grant.is_active():
                         raise serializers.ValidationError(
@@ -660,5 +660,5 @@ class ResearchhubPostViewSet(
             uni_doc.hubs.add(*hubs)
             uni_doc.save()
             return uni_doc
-        except (KeyError, TypeError):
+        except KeyError, TypeError:
             logger.exception("Error creating unified document")

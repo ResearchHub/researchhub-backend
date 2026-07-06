@@ -40,7 +40,7 @@ class FundraiseCreateSerializer(serializers.ModelSerializer):
             goal_amount = Decimal(data["goal_amount"])
             if goal_amount <= 0:
                 raise serializers.ValidationError("goal_amount must be greater than 0")
-        except (TypeError, ValueError, InvalidOperation):
+        except TypeError, ValueError, InvalidOperation:
             raise serializers.ValidationError("Invalid goal_amount")
 
         # Validate currency

@@ -100,5 +100,5 @@ class PaperService:
             paper = self.paper_model.objects.get(id=paper_id)
             paper_version = self.paper_version_model.objects.get(paper=paper)
             return paper_version.original_paper is not None
-        except (self.paper_model.DoesNotExist, self.paper_version_model.DoesNotExist):
+        except self.paper_model.DoesNotExist, self.paper_version_model.DoesNotExist:
             return False
