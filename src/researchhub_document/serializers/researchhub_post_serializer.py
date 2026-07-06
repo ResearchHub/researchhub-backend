@@ -5,7 +5,9 @@ from django.db.models import Count
 from rest_framework.serializers import (
     CharField,
     IntegerField,
+    ListField,
     ModelSerializer,
+    Serializer,
     SerializerMethodField,
 )
 
@@ -17,7 +19,7 @@ from discussion.serializers import (
     GenericReactionSerializerMixin,
 )
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
-from purchase.models import Fundraise, GrantApplication, Purchase
+from purchase.models import GrantApplication, Purchase
 from researchhub.serializers import (
     DynamicModelFieldSerializer,
     ModeratedDocumentStatusSerializerMixin,
@@ -39,60 +41,25 @@ from utils.http import get_user_from_request
 logger = logging.getLogger(__name__)
 
 
-class CompletedProposalCandidateSerializer(ModelSerializer):
-    """Serialize a completed proposal that can receive a registered report."""
+class JournalEntryAcceptSerializer(Serializer):
+    """Validate a journal entry acceptance request."""
 
-    completed_fundraise = SerializerMethodField()
-    image_url = SerializerMethodField()
-    journey_id = IntegerField(read_only=True)
-    unified_document_id = IntegerField(read_only=True)
+    fundraise_id = IntegerField()
+    user_id = IntegerField()
 
-    class Meta:
-        model = ResearchhubPost
-        fields = [
-            "id",
-            "title",
-            "slug",
-            "created_date",
-            "document_type",
-            "image_url",
-            "unified_document_id",
-            "journey_id",
-            "completed_fundraise",
-        ]
 
-    def get_completed_fundraise(
-        self, post: ResearchhubPost
-    ) -> dict[str, int | str] | None:
-        """Return the completed fundraise summary for the proposal."""
-        fundraise = self._get_completed_fundraise(post)
-        if fundraise is None:
-            return None
-        return {
-            "id": fundraise.id,
-            "status": fundraise.status,
-            "goal_amount": str(fundraise.goal_amount),
-            "goal_currency": fundraise.goal_currency,
-        }
+class RegisteredReportPublishSerializer(Serializer):
+    """Validate a registered report publish request."""
 
-    def get_image_url(self, post: ResearchhubPost) -> str | None:
-        """Return the proposal image URL, if one exists."""
-        if not post.image:
-            return None
-        return default_storage.url(post.image)
-
-    def _get_completed_fundraise(self, post: ResearchhubPost) -> Fundraise | None:
-        """Return the newest completed fundraise for the proposal."""
-        fundraises = getattr(post.unified_document, "completed_fundraises", None)
-        if fundraises is not None:
-            return fundraises[0] if fundraises else None
-        return (
-            post.unified_document.fundraises.filter(
-                status=Fundraise.COMPLETED,
-            )
-            .order_by("-created_date", "-id")
-            .first()
-        )
+    note_id = IntegerField()
+    proposal_id = IntegerField()
+    title = CharField()
+    renderable_text = CharField()
+    full_src = CharField()
+    authors = ListField(child=IntegerField(), required=False)
+    editor_type = CharField(required=False, allow_blank=True, allow_null=True)
+    image = CharField(required=False, allow_blank=True, allow_null=True)
+    preview_img = CharField(required=False, allow_blank=True, allow_null=True)
 
 
 class ResearchhubPostSerializer(

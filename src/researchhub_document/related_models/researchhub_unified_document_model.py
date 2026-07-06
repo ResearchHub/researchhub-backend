@@ -30,6 +30,7 @@ from researchhub_document.related_models.constants.document_type import (
     POSTS,
     PREREGISTRATION,
     QUESTION,
+    REGISTERED_REPORT,
 )
 from researchhub_document.related_models.document_filter_model import DocumentFilter
 from user.models import Author
@@ -291,6 +292,8 @@ class ResearchhubUnifiedDocument(
         elif self.document_type == BOUNTY:
             return self.posts.first()
         elif self.document_type == PREREGISTRATION:
+            return self.posts.first()
+        elif self.document_type == REGISTERED_REPORT:
             return self.posts.first()
         elif self.document_type == GRANT:
             return self.posts.first()
