@@ -330,24 +330,21 @@ class ExpertFinderService:
             *,
             current_step: str,
             store_full_response_error: str | None = None,
-            sentry_exception: BaseException | None = None,
-            sentry_extra: dict[str, Any] | None = None,
+            exc: BaseException | None = None,
+            extra: dict[str, Any] | None = None,
         ) -> dict[str, Any]:
             payload: dict[str, Any] = {
                 "search_id": search_id,
                 "current_step": current_step,
             }
-            if sentry_extra:
-                payload.update(sentry_extra)
+            if extra:
+                payload.update(extra)
             logger.error(
                 "Expert finder failed: %s payload=%s",
                 current_step,
                 payload,
-                exc_info=(
-                    sentry_exception
-                    if sentry_exception is not None
-                    else RuntimeError(current_step)
-                ),
+                exc_info=(exc if exc is not None else RuntimeError(current_step)),
+                extra=extra,
             )
             clear_expert_search_links(expert_search_id)
             err = (store_full_response_error or msg)[:MAX_ERROR_MESSAGE_LENGTH]
@@ -462,8 +459,8 @@ class ExpertFinderService:
                             response_text[:MAX_ERROR_MESSAGE_LENGTH]
                         )
                         or str(e)[:MAX_ERROR_MESSAGE_LENGTH],
-                        sentry_exception=e,
-                        sentry_extra={
+                        exc=e,
+                        extra={
                             "round_num": round_num,
                             "prompt_expert_count": prompt_expert_count,
                             "target_expert_count": target_expert_count,
@@ -477,8 +474,8 @@ class ExpertFinderService:
                     return fail_return(
                         f"Invalid expert JSON structure: {e}"[:2000],
                         current_step="Expert output validation failed",
-                        sentry_exception=e,
-                        sentry_extra={
+                        exc=e,
+                        extra={
                             "round_num": round_num,
                             "prompt_expert_count": prompt_expert_count,
                         },
@@ -536,7 +533,7 @@ class ExpertFinderService:
                     store_full_response_error=(
                         llm_err[:MAX_ERROR_MESSAGE_LENGTH] or umsg
                     ),
-                    sentry_extra={
+                    extra={
                         "target_expert_count": target_expert_count,
                         "llm_response_length": len(llm_err),
                     },
@@ -554,7 +551,7 @@ class ExpertFinderService:
                 return fail_return(
                     f"Saving experts failed: {e}"[:2000],
                     current_step="Persist failed",
-                    sentry_exception=e,
+                    exc=e,
                 )
             data_persisted = True
 

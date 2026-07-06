@@ -634,35 +634,31 @@ class CommentInteractionTaskTests(TestCase):
             map_from_comment(mock_comment)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.tasks.log_error")
+    @patch("personalize.tasks.logger.exception")
     @patch("personalize.tasks.map_from_comment")
-    def test_create_comment_interaction_task_logs_mapper_exceptions_to_sentry(
-        self, mock_map, mock_log_error
+    def test_create_comment_interaction_task_logs_mapper_logs_exceptions(
+        self, mock_map, mock_log_exception
     ):
-        """Test that task catches mapper exceptions and logs them to Sentry."""
+        """Test that task catches mapper exceptions and logs them."""
         comment = self._create_comment()
 
         # Make mapper raise an exception
         mock_map.side_effect = Exception("Mapper failed unexpectedly")
 
-        # Task should catch exception, log to Sentry, and re-raise
+        # Task should catch exception, log, and re-raise
         with self.assertRaises(Exception) as context:
             create_comment_interaction_task(comment.id)
 
         # Verify the exception message
         self.assertIn("Mapper failed unexpectedly", str(context.exception))
 
-        # Verify log_error was called to log to Sentry
-        mock_log_error.assert_called_once()
-        call_args = mock_log_error.call_args
+        # Verify logger.exception was called to log the exception
+        mock_log_exception.assert_called_once()
+        call_args = mock_log_exception.call_args
 
         # First argument should be the exception
-        self.assertIsInstance(call_args[0][0], Exception)
-        self.assertIn("Mapper failed unexpectedly", str(call_args[0][0]))
-
-        # Should have a message keyword argument with comment_id
-        self.assertIn("message", call_args[1])
-        self.assertIn(str(comment.id), call_args[1]["message"])
+        self.assertIsInstance(call_args[0][0], str)
+        self.assertIn("Failed creating interaction for comment", call_args[0][0])
 
         # No UserInteraction should have been created
         interactions = UserInteractions.objects.filter(object_id=comment.id)

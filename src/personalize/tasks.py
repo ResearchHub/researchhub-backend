@@ -11,7 +11,6 @@ from personalize.services.sync_service import SyncService
 from researchhub.celery import QUEUE_PAPER_MISC, app
 from researchhub_comment.models import RhCommentModel
 from user_lists.models import ListItem
-from utils.sentry import log_error
 
 logger = get_task_logger(__name__)
 
@@ -90,8 +89,8 @@ def create_comment_interaction_task(comment_id):
             object_id=interaction.object_id,
             defaults={"event_timestamp": interaction.event_timestamp},
         )
-    except Exception as e:
-        log_error(e, message=f"Failed creating interaction for comment {comment_id}")
+    except Exception:
+        logger.exception("Failed creating interaction for comment %s:", comment_id)
         raise
 
 
@@ -113,8 +112,8 @@ def create_list_item_interaction_task(list_item_id):
             object_id=interaction.object_id,
             defaults={"event_timestamp": interaction.event_timestamp},
         )
-    except Exception as e:
-        logger.error(f"Failed creating interaction for list item {list_item_id}: {e}")
+    except Exception:
+        logger.exception("Failed creating interaction for list item %s:", list_item_id)
         raise
 
 
