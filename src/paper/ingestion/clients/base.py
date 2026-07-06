@@ -76,7 +76,6 @@ class BaseClient(ABC):
         Must be implemented by each source client.
         Should handle authentication and return raw response.
         """
-        pass
 
     @abstractmethod
     def parse(
@@ -89,7 +88,6 @@ class BaseClient(ABC):
         Must be implemented by each source client.
         This should return minimally processed data.
         """
-        pass
 
     def fetch_with_rate_limit(
         self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
@@ -144,4 +142,3 @@ class BaseClient(ABC):
         **kwargs,
     ) -> list[dict[str, Any]]:
         """Fetch recent papers within date range."""
-        pass

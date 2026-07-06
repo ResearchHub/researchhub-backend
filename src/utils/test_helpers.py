@@ -77,10 +77,6 @@ class AWSMockMixin:
 class AWSMockTestCase(AWSMockMixin, TestCase):
     """TestCase with AWS mocking. For most tests."""
 
-    pass
-
 
 class AWSMockTransactionTestCase(AWSMockMixin, TransactionTestCase):
     """TransactionTestCase with AWS mocking. For tests needing on_commit hooks."""
-
-    pass
