@@ -2,8 +2,8 @@
 
 Each tool is built to the agent-core ``Tool`` contract (``research_ai.services
 .agent``): tools own ground truth and provenance, the agent owns judgment, and
-deterministic code owns the gates. This package ships three toolsets plus the
-judge wrapper:
+deterministic code owns the gates. This package ships the toolsets plus the
+sections assembler:
 
 - ``context_tools`` -- read-only RFP/profile grounding (no LLM).
 - ``fulltext_tools`` -- on-demand full-text reads of the researcher's own works.
@@ -11,14 +11,18 @@ judge wrapper:
   researcher's papers (grounds prose, not citations).
 - ``verification_tools`` -- deterministic citation verification (the loop's
   external grounded signal).
-- ``judge_tools`` -- a ``Tool`` wrapper over the multi-model judge panel
-  (``research_ai.services.proposal_judge_panel``).
+- ``assembly`` -- build the readable text + ProseMirror doc from the submitted
+  sections (the panel scores every submit at the gate, not via an agent tool).
 - ``judge_context`` -- pure compaction helpers that assemble the evidence
   bundle judges score against.
 
 The draft driver wires these together; this package only builds the tools.
 """
 
+from research_ai.services.proposal_tools.assembly import (
+    PROPOSAL_SECTIONS,
+    assemble_proposal,
+)
 from research_ai.services.proposal_tools.context_tools import (
     ProposalContextToolset,
 )
@@ -26,7 +30,6 @@ from research_ai.services.proposal_tools.fulltext_tools import (
     ProposalFulltextToolset,
 )
 from research_ai.services.proposal_tools.judge_context import build_judge_context
-from research_ai.services.proposal_tools.judge_tools import build_judge_tool
 from research_ai.services.proposal_tools.verification_tools import (
     ProposalVerificationToolset,
 )
@@ -35,10 +38,11 @@ from research_ai.services.proposal_tools.web_search_tools import (
 )
 
 __all__ = [
+    "PROPOSAL_SECTIONS",
     "ProposalContextToolset",
     "ProposalFulltextToolset",
     "ProposalVerificationToolset",
     "ProposalWebSearchToolset",
+    "assemble_proposal",
     "build_judge_context",
-    "build_judge_tool",
 ]

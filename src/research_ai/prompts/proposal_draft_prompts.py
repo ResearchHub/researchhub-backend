@@ -124,6 +124,6 @@ def build_proposal_user_prompt(expert, rfp_ctx: dict | None) -> str:
         "## RFP\n"
         f"{rfp_summary}\n\n"
         "Begin by confirming the RFP and profile with the tools, then draft, "
-        "judge, verify, revise, and submit per your instructions. The structured "
+        "verify, submit, and revise per your instructions. The structured "
         "payload you submit must follow the submit_proposal contract exactly."
     )

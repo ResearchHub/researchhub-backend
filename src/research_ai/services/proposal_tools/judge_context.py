@@ -5,8 +5,7 @@ grant's terms, the researcher's real record, and the draft's citations -- but
 compacted, so the rubric prompt is not swamped by full call text or full
 abstracts. These are pure data-shaping helpers: the draft runner supplies the
 raw context and the size caps, and ``build_judge_context`` assembles the
-evidence bundle both the ``judge_proposal`` tool and the panel gate pass to
-``ProposalJudgePanel``.
+evidence bundle the panel gate passes to ``ProposalJudgePanel``.
 """
 
 

@@ -68,6 +68,7 @@ from research_ai.services.proposal_tools import (
     ProposalFulltextToolset,
     ProposalVerificationToolset,
     ProposalWebSearchToolset,
+    assemble_proposal,
 )
 from research_ai.services.proposal_tools.judge_context import build_judge_context
 from research_ai.services.researcher_profile import build_and_store_expert_profile
@@ -217,16 +218,30 @@ class _ProposalDraftRunner:
             fulltext_toolset=self.fulltext_toolset,
             web_search_toolset=self.web_search_toolset,
             verification_toolset=self.verification_toolset,
-            panel=self.panel,
-            judge_context_provider=self._judge_tool_context,
             submit_tool=self._submit_tool,
         )
+
+    def _normalize_submission(self, submitted: dict) -> dict:
+        """Assemble the derived representations from the agent's ``sections``.
+
+        The agent submits only ``sections`` (+ ``citations``); the server owns
+        the readable ``plain_text`` and the ``prosemirror`` doc so the model
+        never re-emits the full proposal in three overlapping formats each
+        round. The gates, per-round persistence, and Note write all read these
+        assembled fields, so we fill them here before anything else runs.
+        """
+        submitted = submitted if isinstance(submitted, dict) else {}
+        plain_text, prosemirror = assemble_proposal(submitted.get("sections"))
+        normalized = dict(submitted)
+        normalized["plain_text"] = plain_text
+        normalized["prosemirror"] = prosemirror
+        return normalized
 
     # -- the gate-before-stop handler ------------------------------------
 
     def _handle_submit(self, args: dict) -> dict:
         state = self.state
-        state.begin_round(args or {})
+        state.begin_round(self._normalize_submission(args or {}))
         try:
             accepted, report = self.gates.run(
                 state.submitted, round_number=state.rounds_used
@@ -301,10 +316,6 @@ class _ProposalDraftRunner:
         }
 
     # -- judge context ------------------------------------------------------
-
-    def _judge_tool_context(self, args: dict) -> dict:
-        """Server-side judge context for the agent-facing ``judge_proposal`` tool."""
-        return self._judge_context({"citations": args.get("citations") or []})
 
     def _judge_context(self, submitted: dict | None = None) -> dict:
         """Evidence judges need for RFP fit, budget fit, credibility, and novelty."""
