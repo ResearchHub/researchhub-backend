@@ -86,7 +86,7 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
         )
 
         queryset = (
-            self.build_journal_stage_queryset()
+            self._build_journal_stage_queryset()
             .annotate(has_registered_report=Exists(registered_report_for_journey))
             .filter(
                 Q(document_type=REGISTERED_REPORT)
@@ -98,7 +98,7 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
         )
         return queryset
 
-    def build_journal_stage_queryset(self) -> QuerySet:
+    def _build_journal_stage_queryset(self) -> QuerySet:
         """Build the base queryset for public journal stages."""
         completed_source_fundraise = Fundraise.objects.filter(
             unified_document_id=OuterRef(
