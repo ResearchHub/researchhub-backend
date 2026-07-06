@@ -11,12 +11,17 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import Organization
 from user.tests.helpers import make_user_verified
 
-unified_doc_content_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
-organization_content_type = ContentType.objects.get_for_model(Organization)
-
 
 class NoteTests(APITestCase):
+    organization_content_type = None
+    unified_doc_content_type = None
+
     def setUp(self):
+        self.unified_doc_content_type = ContentType.objects.get_for_model(
+            ResearchhubUnifiedDocument
+        )
+        self.organization_content_type = ContentType.objects.get_for_model(Organization)
+
         # Create + auth user
         username = "test@researchhub_test.com"
         password = uuid.uuid4().hex
@@ -94,7 +99,7 @@ class NoteTests(APITestCase):
 
         Permission.objects.create(
             access_type="MEMBER",
-            content_type=organization_content_type,
+            content_type=self.organization_content_type,
             object_id=self.org["id"],
             user=member_user,
         )
@@ -128,7 +133,7 @@ class NoteTests(APITestCase):
 
         Permission.objects.create(
             access_type="VIEWER",
-            content_type=unified_doc_content_type,
+            content_type=self.unified_doc_content_type,
             object_id=note["unified_document"]["id"],
             user=viewer_user,
         )
@@ -218,7 +223,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         Permission.objects.create(
             access_type="EDITOR",
-            content_type=unified_doc_content_type,
+            content_type=self.unified_doc_content_type,
             object_id=note["unified_document"]["id"],
             user=editor_user,
         )
@@ -259,7 +264,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         Permission.objects.create(
             access_type="EDITOR",
-            content_type=unified_doc_content_type,
+            content_type=self.unified_doc_content_type,
             object_id=note["unified_document"]["id"],
             user=editor_user,
         )
@@ -311,7 +316,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         Permission.objects.create(
             access_type="VIEWER",
-            content_type=unified_doc_content_type,
+            content_type=self.unified_doc_content_type,
             object_id=note["unified_document"]["id"],
             user=viewer_user,
         )
@@ -368,7 +373,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         Permission.objects.create(
             access_type="VIEWER",
-            content_type=unified_doc_content_type,
+            content_type=self.unified_doc_content_type,
             object_id=note["unified_document"]["id"],
             user=invited_viewer,
         )
@@ -409,7 +414,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         Permission.objects.create(
             access_type="ADMIN",
-            content_type=unified_doc_content_type,
+            content_type=self.unified_doc_content_type,
             object_id=note["unified_document"]["id"],
             user=invited_note_admin,
         )
@@ -453,7 +458,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         Permission.objects.create(
             access_type="ADMIN",
-            content_type=unified_doc_content_type,
+            content_type=self.unified_doc_content_type,
             object_id=note["unified_document"]["id"],
             user=invited_note_admin,
         )
@@ -583,7 +588,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         Permission.objects.create(
             access_type="VIEWER",
-            content_type=unified_doc_content_type,
+            content_type=self.unified_doc_content_type,
             object_id=note["unified_document"]["id"],
             user=viewer_user,
         )
@@ -591,7 +596,7 @@ class NoteTests(APITestCase):
         # Upgrade user to org member
         Permission.objects.create(
             access_type="MEMBER",
-            content_type=organization_content_type,
+            content_type=self.organization_content_type,
             object_id=self.org["id"],
             user=viewer_user,
         )
@@ -628,7 +633,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         Permission.objects.create(
             access_type="ADMIN",
-            content_type=unified_doc_content_type,
+            content_type=self.unified_doc_content_type,
             object_id=note["unified_document"]["id"],
             user=admin_user,
         )
@@ -667,7 +672,7 @@ class NoteTests(APITestCase):
         # Add permission to user
         Permission.objects.create(
             access_type="EDITOR",
-            content_type=unified_doc_content_type,
+            content_type=self.unified_doc_content_type,
             object_id=note["unified_document"]["id"],
             user=editor_user,
         )
@@ -701,7 +706,7 @@ class NoteTests(APITestCase):
         # Add second user
         Permission.objects.create(
             access_type="MEMBER",
-            content_type=organization_content_type,
+            content_type=self.organization_content_type,
             object_id=self.org["id"],
             user=member_user,
         )
@@ -736,7 +741,7 @@ class NoteTests(APITestCase):
         # Add user
         Permission.objects.create(
             access_type="MEMBER",
-            content_type=organization_content_type,
+            content_type=self.organization_content_type,
             object_id=self.org["id"],
             user=member_user,
         )
