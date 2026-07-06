@@ -15,6 +15,7 @@ from research_ai.models import (
     Expert,
     ExpertSearch,
     GeneratedEmail,
+    ProposalDraft,
     SearchExpert,
 )
 from research_ai.services.expert_display import ExpertDisplay
@@ -824,3 +825,36 @@ class EmailTemplateUpdateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255, required=False, allow_blank=False)
     email_subject = serializers.CharField(required=False, allow_blank=True)
     email_body = serializers.CharField(required=False, allow_blank=True)
+
+
+class ProposalDraftCreateSerializer(serializers.Serializer):
+    """
+    Request body for enqueueing a proposal-drafting job.
+    """
+
+    search_expert_id = serializers.IntegerField(min_value=1)
+
+
+class ProposalDraftSerializer(serializers.ModelSerializer):
+    """
+    Read-only job status/result payload for a `ProposalDraft`.
+    """
+
+    class Meta:
+        model = ProposalDraft
+        fields = [
+            "id",
+            "search_expert",
+            "created_by",
+            "note",
+            "status",
+            "step",
+            "rounds_used",
+            "final_scores",
+            "gate_report",
+            "error_message",
+            "processing_time",
+            "created_date",
+            "completed_at",
+        ]
+        read_only_fields = fields
