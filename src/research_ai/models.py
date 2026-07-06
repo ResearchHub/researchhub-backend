@@ -256,6 +256,7 @@ class GeneratedEmail(DefaultModel):
 
     class Status(models.TextChoices):
         BOUNCED = "bounced", "bounced"
+        COMPLAINED = "complained", "complained"
         DRAFT = "draft", "draft"
         SENT = "sent", "sent"
         PROCESSING = "processing", "processing"
@@ -318,6 +319,11 @@ class GeneratedEmail(DefaultModel):
         null=True,
         blank=True,
         db_comment="Timestamp of bounce email event.",
+    )
+    complained_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_comment="Timestamp of complaint (spam report) email event.",
     )
 
     class Meta:
