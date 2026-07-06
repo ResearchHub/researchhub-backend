@@ -847,6 +847,9 @@ if STAGING or PRODUCTION:
 
 # Killswitch Variables
 SERIALIZER_SWITCH = os.environ.get("SERIALIZER_SWITCH", True)
+EXPERT_FINDER_OUTREACH_ENABLED = (
+    os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
+)
 
 # Crossref
 CROSSREF_DOI_RSC_FEE = 5
