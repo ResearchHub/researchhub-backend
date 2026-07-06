@@ -192,7 +192,7 @@ class ProposalRunStateFailureMessageTests(unittest.TestCase):
         # Act & Assert
         self.assertEqual(
             state.failure_message(),
-            "panel score plateaued at 3.5 for 2 rounds below the 4.5 bar; "
+            "panel score plateaued at 3.5 for 2 rounds below the 4.0 bar; "
             "stopped after 3 of 4 rounds",
         )
 

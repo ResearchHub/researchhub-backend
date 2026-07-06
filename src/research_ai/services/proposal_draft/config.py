@@ -39,7 +39,7 @@ class ProposalDraftConfig:
     max_rounds: int = 8
     max_iterations: int = 100
 
-    panel_threshold: float = 4.5
+    panel_threshold: float = 4.0
     # Stop revising early once the panel is the blocker and its overall has not
     # improved for this many consecutive rounds: a deterministic single-judge
     # panel returns a near-constant score for a near-constant draft, so

@@ -2,13 +2,11 @@
 
 Builds the terminal ``submit_proposal`` tool and assembles the full toolset
 the agent runs with (OpenAlex + context + fulltext + web + verification +
-judge + submit). The submit handler and the judge-context provider stay with the
-runner -- they close over run state; this module owns only the static schema
-and the wiring.
+submit). The submit handler stays with the runner -- it closes over run state;
+this module owns only the static schema and the wiring.
 """
 
 from research_ai.services.agent import Tool, Toolset
-from research_ai.services.proposal_tools import build_judge_tool
 from research_ai.services.researcher_profile.openalex_tools import SUBMIT_PROFILE
 
 SUBMIT_INPUT_SCHEMA = {
@@ -31,14 +29,6 @@ SUBMIT_INPUT_SCHEMA = {
                 "scope_timeline",
             ],
         },
-        "prosemirror": {
-            "type": "object",
-            "description": 'ProseMirror doc: {"type": "doc", "content": [...]}.',
-        },
-        "plain_text": {
-            "type": "string",
-            "description": "The full proposal as readable plain text.",
-        },
         "citations": {
             "type": "array",
             "items": {
@@ -53,7 +43,7 @@ SUBMIT_INPUT_SCHEMA = {
             },
         },
     },
-    "required": ["sections", "prosemirror", "plain_text"],
+    "required": ["sections"],
 }
 
 
@@ -70,10 +60,11 @@ def build_submit_tool(handler) -> Tool:
         name="submit_proposal",
         description=(
             "Submit the finished proposal for the deterministic gate. Provide "
-            "sections (title, hypothesis, approach, why_this_team, "
-            "scope_timeline), a ProseMirror `prosemirror` doc, `plain_text`, "
-            "and `citations` (each from a tool result). If the gate rejects "
-            "the draft it returns concrete gaps -- revise and submit again."
+            "`sections` (title, hypothesis, approach, why_this_team, "
+            "scope_timeline) and `citations` (each from a tool result); the "
+            "server assembles the final document from your sections. If the "
+            "gate rejects the draft it returns concrete gaps -- revise and "
+            "submit again."
         ),
         input_schema=SUBMIT_INPUT_SCHEMA,
         handler=handler,
@@ -88,11 +79,9 @@ def compose_proposal_toolset(
     fulltext_toolset,
     web_search_toolset,
     verification_toolset,
-    panel,
-    judge_context_provider,
     submit_tool: Tool,
 ) -> Toolset:
-    """OpenAlex + context + fulltext + web + verification + judge + submit."""
+    """OpenAlex + context + fulltext + web + verification + submit."""
     toolset = Toolset()
     # OpenAlex tools, minus that toolset's own terminal submit_profile -- the
     # proposal agent has its own terminal tool.
@@ -108,6 +97,6 @@ def compose_proposal_toolset(
         toolset.add(tool)
     for tool in verification_toolset.build_tools():
         toolset.add(tool)
-    toolset.add(build_judge_tool(panel, context_provider=judge_context_provider))
+
     toolset.add(submit_tool)
     return toolset

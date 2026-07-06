@@ -176,16 +176,28 @@ class ProposalGateRunner:
             c for c in (submitted.get("citations") or []) if isinstance(c, dict)
         ]
         provenance_keys = _provenance_keys(self.grounded_urls())
-
-        ungrounded = [
-            str(c.get("claim_id") or "?")
-            for c in citations
-            if not (_citation_keys(c) & provenance_keys)
-        ]
         verification = self.verification_toolset.verify_citations(
             {"citations": citations}
         )
         summary = verification.get("summary", {})
+        results_by_id = {r.get("claim_id"): r for r in verification.get("results", [])}
+
+        # A citation is grounded if it was retrieved (its DOI/URL is in the
+        # provenance the OpenAlex/profile tools recorded) OR if verify_citations
+        # resolved its DOI against OpenAlex ground truth to a matching record
+        # (exact / minor_drift). The second path lets the agent cite a real,
+        # verified field-level paper outside the researcher's own works without
+        # re-fetching it through the author tools just to satisfy provenance --
+        # fabrication is still caught below (dead / major_fabrication).
+        ungrounded: list[str] = []
+        for c in citations:
+            if _citation_keys(c) & provenance_keys:
+                continue
+            result = results_by_id.get(c.get("claim_id"))
+            if result and result.get("severity") in ("exact", "minor_drift"):
+                continue
+            ungrounded.append(str(c.get("claim_id") or "?"))
+
         failures = [
             r.get("claim_id")
             for r in verification.get("results", [])
@@ -195,8 +207,9 @@ class ProposalGateRunner:
         gaps: list[str] = []
         if ungrounded:
             gaps.append(
-                "These citations are not grounded in any tool result -- remove "
-                f"them or cite a retrieved work: {', '.join(ungrounded)}."
+                "These citations are not grounded in any tool result -- cite a "
+                "retrieved work, verify the DOI with verify_citations, or remove "
+                f"them: {', '.join(ungrounded)}."
             )
         if failures:
             gaps.append(
