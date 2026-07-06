@@ -3,5 +3,3 @@
 
 class EventProcessingError(Exception):
     """Raised when an event cannot be processed."""
-
-    pass

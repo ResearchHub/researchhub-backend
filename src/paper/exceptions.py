@@ -1,8 +1,6 @@
 class Error(Exception):
     """Base class for exceptions in this module."""
 
-    pass
-
 
 class PaperSerializerError(Error):
     """Raised for errors related to `paper` serializers.

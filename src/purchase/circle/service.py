@@ -161,8 +161,6 @@ NETWORK_TO_RSC_ADDRESS = {
 class CircleZeroBalanceError(Exception):
     """Raised when a sweep is attempted on a wallet with zero balance."""
 
-    pass
-
 
 @dataclass
 class DepositAddressResult:

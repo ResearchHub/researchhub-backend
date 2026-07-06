@@ -44,7 +44,6 @@ class DistributionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Distribution
         fields = "__all__"
-        fields = "__all__"
 
 
 class DynamicDistributionSerializer(DynamicModelFieldSerializer):
