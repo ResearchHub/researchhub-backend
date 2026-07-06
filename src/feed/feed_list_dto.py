@@ -441,8 +441,7 @@ class JournalFeedPostSerializer(FundingFeedPostSerializer):
     def serialize_proposal_reviews(self, proposal: ResearchhubPost) -> list[dict]:
         """Serialize assessed reviews from the source proposal."""
         if not (
-            proposal.unified_document
-            and hasattr(proposal.unified_document, "reviews")
+            proposal.unified_document and hasattr(proposal.unified_document, "reviews")
         ):
             return []
         reviews = proposal.unified_document.reviews.all()
