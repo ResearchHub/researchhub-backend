@@ -3,7 +3,7 @@ name = "researchhub"
 version = "0.1.0"
 description = "ResearchHub Backend"
 readme = "README.md"
-requires-python = ">=3.13,<3.14"
+requires-python = ">=3.14,<3.15"
 authors = [{ name = "ResearchHub", email = "dev@researchhub.com" }]
 dependencies = [
     "arxiv>=1.4.8,<2.0.0",
@@ -79,7 +79,7 @@ parallel = true
 omit = ["*/setup-uv-cache/*"]
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py314"
 line-length = 88
 src = ["src"]
 extend-exclude = ["*/migrations/*"]
