@@ -230,7 +230,3 @@ class ProposalRunStateFailureMessageTests(unittest.TestCase):
             state.failure_message(),
             "model stopped mid-run (max_tokens) after 2 rounds",
         )
-
-
-if __name__ == "__main__":
-    unittest.main()
