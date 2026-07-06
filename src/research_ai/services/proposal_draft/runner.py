@@ -348,6 +348,7 @@ def _needs_profile(profile) -> bool:
 def run_proposal_draft(
     search_expert_id,
     *,
+    draft_id=None,
     progress_callback=None,
     provider=None,
     panel: ProposalJudgePanel | None = None,
@@ -356,10 +357,12 @@ def run_proposal_draft(
 ) -> dict:
     """Run a headless proposal-drafting job for one ``SearchExpert``.
 
-    Creates a ``ProposalDraft``, builds the agent, runs the bounded
-    draft -> critique -> verify -> revise loop with a deterministic gate before
-    stop, and writes the verified proposal as a ``Note``. Returns a result dict
-    carrying the final status, the gate report, and (on success) the note id.
+    Creates a ``ProposalDraft`` (or, when ``draft_id`` is given, resumes a
+    pre-created ``PENDING`` record), builds the agent, runs the bounded draft
+    -> critique -> verify -> revise loop with a deterministic gate before stop,
+    and writes the verified proposal as a ``Note``.
+    Returns a result dict carrying the final status, the gate report, and (on success)
+    the note id.
 
     ``provider`` / ``panel`` / ``oa_client`` / ``web_search_client`` are
     injectable for tests; in production they default to the real Bedrock
@@ -368,11 +371,14 @@ def run_proposal_draft(
     search_expert = SearchExpert.objects.select_related(
         "expert", "expert_search", "expert_search__unified_document"
     ).get(id=search_expert_id)
-    draft = ProposalDraft.objects.create(
-        search_expert=search_expert,
-        status=ProposalDraft.Status.PENDING,
-        step=ProposalDraft.Step.QUEUED,
-    )
+    if draft_id is not None:
+        draft = ProposalDraft.objects.get(id=draft_id)
+    else:
+        draft = ProposalDraft.objects.create(
+            search_expert=search_expert,
+            status=ProposalDraft.Status.PENDING,
+            step=ProposalDraft.Step.QUEUED,
+        )
     runner = _ProposalDraftRunner(
         search_expert,
         draft,
