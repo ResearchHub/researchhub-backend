@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
+from invite.related_models.note_invitation import NoteInvitation
 from note.models import Note
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
@@ -1532,4 +1533,211 @@ class NoteTests(APITestCase):
         self.assertEqual(application["applicant"]["id"], applicant.author_profile.id)
         self.assertEqual(
             application["preregistration_post_id"], preregistration_response.data["id"]
+        )
+
+
+class AccessibleNoteTests(APITestCase):
+    organization_ct = None
+
+    def setUp(self):
+        self.organization_ct = ContentType.objects.get_for_model(Organization)
+
+        username = "test@researchhub_test.com"
+        password = uuid.uuid4().hex
+        self.user = get_user_model().objects.create_user(
+            username=username, password=password, email=username, moderator=True
+        )
+        make_user_verified(self.user)
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post("/api/organization/", {"name": "some org"})
+        self.org = response.data
+
+        RscExchangeRate.objects.create(rate=4.99014625)
+
+    def test_accessible_notes_returns_all_notes_user_can_access(self):
+        # Arrange
+        own_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "PRIVATE",
+                "organization_slug": self.org["slug"],
+                "title": "Own private note",
+            },
+        )
+        self.assertEqual(own_response.status_code, 200)
+
+        org_member = get_user_model().objects.create_user(
+            username="org-member@researchhub.com",
+            password=uuid.uuid4().hex,
+            email="org-member@researchhub.com",
+        )
+        Permission.objects.create(
+            access_type="MEMBER",
+            content_type=self.organization_ct,
+            object_id=self.org["id"],
+            user=org_member,
+        )
+        self.client.force_authenticate(org_member)
+        org_note_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Workspace note from member",
+            },
+        )
+        self.assertEqual(org_note_response.status_code, 200)
+
+        inviter = get_user_model().objects.create_user(
+            username="inviter@researchhub.com",
+            password=uuid.uuid4().hex,
+            email="inviter@researchhub.com",
+        )
+        self.client.force_authenticate(inviter)
+        invited_note_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "PRIVATE",
+                "organization_slug": inviter.organization.slug,
+                "title": "Accepted invite note",
+            },
+        )
+        self.assertEqual(invited_note_response.status_code, 200)
+        invite = NoteInvitation.create(
+            expiration_time=1440,
+            recipient=None,
+            recipient_email=self.user.email,
+            inviter_id=inviter.id,
+            note_id=invited_note_response.data["id"],
+            invite_type="EDITOR",
+        )
+
+        unrelated_user = get_user_model().objects.create_user(
+            username="unrelated@researchhub.com",
+            password=uuid.uuid4().hex,
+            email="unrelated@researchhub.com",
+        )
+        self.client.force_authenticate(unrelated_user)
+        unrelated_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "PRIVATE",
+                "organization_slug": unrelated_user.organization.slug,
+                "title": "Unrelated note",
+            },
+        )
+        self.assertEqual(unrelated_response.status_code, 200)
+
+        self.client.force_authenticate(self.user)
+        accept_response = self.client.post(
+            f"/api/invite/note/{invite.key}/accept_invite/"
+        )
+        self.assertEqual(accept_response.status_code, 200)
+        removed_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "PRIVATE",
+                "organization_slug": self.org["slug"],
+                "title": "Removed note",
+            },
+        )
+        self.assertEqual(removed_response.status_code, 200)
+        delete_response = self.client.post(
+            f"/api/note/{removed_response.data['id']}/delete/"
+        )
+        self.assertEqual(delete_response.status_code, 200)
+
+        # Act
+        response = self.client.get("/api/note/accessible/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        titles = {note["title"] for note in response.data["results"]}
+        self.assertEqual(
+            titles,
+            {
+                "Accepted invite note",
+                "Own private note",
+                "Workspace note from member",
+            },
+        )
+        self.assertNotIn("Unrelated note", titles)
+        self.assertNotIn("Removed note", titles)
+        self.assertNotIn("latest_version", response.data["results"][0])
+
+    def test_accessible_notes_supports_status_and_type_filters(self):
+        # Arrange
+        draft_grant_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Draft grant",
+                "document_type": "GRANT",
+            },
+        )
+        self.assertEqual(draft_grant_response.status_code, 200)
+
+        published_grant_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Published grant",
+                "document_type": "GRANT",
+            },
+        )
+        self.assertEqual(published_grant_response.status_code, 200)
+
+        draft_preregistration_response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Draft preregistration",
+                "document_type": "PREREGISTRATION",
+            },
+        )
+        self.assertEqual(draft_preregistration_response.status_code, 200)
+
+        post_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": self.user.id,
+                "full_src": "Grant post content",
+                "is_public": True,
+                "note_id": published_grant_response.data["id"],
+                "renderable_text": (
+                    "Grant post content that is sufficiently long for validation"
+                ),
+                "title": "Grant post title that is sufficiently long",
+                "hubs": [],
+                "grant_amount": 50000,
+                "grant_currency": "USD",
+                "grant_organization": "Test Foundation",
+                "grant_description": "Test grant description",
+            },
+        )
+        self.assertEqual(post_response.status_code, 200)
+
+        # Act
+        draft_response = self.client.get(
+            "/api/note/accessible/?status=DRAFT&type=GRANT"
+        )
+        published_response = self.client.get(
+            "/api/note/accessible/?status=PUBLISHED&type=GRANT"
+        )
+
+        # Assert
+        self.assertEqual(draft_response.status_code, 200)
+        self.assertEqual(draft_response.data["count"], 1)
+        self.assertEqual(draft_response.data["results"][0]["title"], "Draft grant")
+        self.assertEqual(draft_response.data["results"][0]["document_type"], "GRANT")
+
+        self.assertEqual(published_response.status_code, 200)
+        self.assertEqual(published_response.data["count"], 1)
+        self.assertEqual(
+            published_response.data["results"][0]["title"], "Published grant"
         )
