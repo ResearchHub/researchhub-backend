@@ -300,6 +300,15 @@ wheels = [
 ]
 
 [[package]]
+name = "bytecode"
+version = "0.18.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/27/8f/7d12c539869a5cbd801d550b86cc0f030ecaeb12f57f8b3ff19f2d2a184c/bytecode-0.18.1.tar.gz", hash = "sha256:d9564f1565fe1ae6a1173e544ef43a85f093e83997ef45af65d0d250eb48d7a1", size = 104631, upload-time = "2026-06-03T14:17:59.115Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d9/ef/6a629424ec08adc3819ddfd7ec0a710361eaa29d1e5fffb4e02f074be5c9/bytecode-0.18.1-py3-none-any.whl", hash = "sha256:9535bfdd665260b2888ec4121569e3ca5106965a7fedbb6de6ba1bafebc5c7d7", size = 42868, upload-time = "2026-06-03T14:17:57.654Z" },
+]
+
+[[package]]
 name = "cached-property"
 version = "2.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -805,6 +814,29 @@ wheels = [
 ]
 
 [[package]]
+name = "ddtrace"
+version = "4.10.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "bytecode" },
+    { name = "envier" },
+    { name = "opentelemetry-api" },
+    { name = "wrapt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/27/46/f31581cf727547b815d4f85782e9363e4b870ca2f8611c29aa7124488470/ddtrace-4.10.7.tar.gz", hash = "sha256:64f8d69757c3a188bed4d788455db20420b5d966aeee618f171d48ea04cbed93", size = 2343789, upload-time = "2026-07-06T20:31:02.284Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8f/9a/06df25bbc9e42d813da19a1f8d46e0f7d932aec9683ae92ce11c14aef36f/ddtrace-4.10.7-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:5fc02259c85feeaf47737f8eeb75a2b667694a530d7a3835cc36993f1ab4115d", size = 6977089, upload-time = "2026-07-06T20:29:44.806Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/c2/251df2a04468b55e6a062d28b0dbeffa7f224dbc02332331a38d4bf7bef9/ddtrace-4.10.7-cp313-cp313-macosx_14_0_x86_64.whl", hash = "sha256:9b41bf06434a4e2f4e40d00dda8c41f4a53fb7ef294458b4db06bcbd48925680", size = 7302408, upload-time = "2026-07-06T20:29:47.101Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/30/b7e42bc70d893a7686a806aef9a72beb2ec5253c92ae78bcc2a2a898c764/ddtrace-4.10.7-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:75b91046350e785e11384c4b21bf2f0594fff6d1611c50c6e5d75b99661d578d", size = 8411650, upload-time = "2026-07-06T20:29:49.733Z" },
+    { url = "https://files.pythonhosted.org/packages/38/d0/78e71d227af4f60480bd2c4376e534df1df66a5e599bb8a7a33d7de556ea/ddtrace-4.10.7-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:a174e2bed0d3026ae7e8079816993b526f3cafbaae37a5aecfba1eec0b770e37", size = 8632202, upload-time = "2026-07-06T20:29:52.711Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/c1/964526f66f29e620bd0d53da023ed48a34bb43d730c2af74d6c3c6bc8be4/ddtrace-4.10.7-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:dc5fa369475ce325ba79731769ef4191ee0f01e58406361b8c66564d038712b0", size = 9420811, upload-time = "2026-07-06T20:29:55.495Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/1b/a5eced70823dfffea18ce4186b054d276631956872748de6ea16a3250bef/ddtrace-4.10.7-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:03bc531cec2f6dee5d5d78d62d5c0998c3994d1213971ecf513c0563a68464dc", size = 9687835, upload-time = "2026-07-06T20:29:58.389Z" },
+    { url = "https://files.pythonhosted.org/packages/49/f4/6c69e32e662224300d077be41c41667c3032018b2793d61276cb4d0791f5/ddtrace-4.10.7-cp313-cp313-win32.whl", hash = "sha256:e66759422cfcc8b9bbf7ac32a59e4898890c5026784dd55584225aab6f731bbe", size = 5587351, upload-time = "2026-07-06T20:30:01.251Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/74/9944e6c4c1d52e90608996a55f6d6e94cb6714a33fe98e6d785c165f3f07/ddtrace-4.10.7-cp313-cp313-win_amd64.whl", hash = "sha256:9368805b8c0836cd196ce49129cca714a87530ae5614df30a75801600a4dbf07", size = 6160449, upload-time = "2026-07-06T20:30:03.728Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/15/10ff5271aa0298d04f562cc4d77f7f2c506bbc0869315a01346375c614a1/ddtrace-4.10.7-cp313-cp313-win_arm64.whl", hash = "sha256:38ea23684fa1ee35a90271e1718a8064f34a5052c4ec089e1d0d253cfab91dd4", size = 5840205, upload-time = "2026-07-06T20:30:06.349Z" },
+]
+
+[[package]]
 name = "distlib"
 version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1091,6 +1123,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/de/88/e53713207ac16cd8814d0ee912ca0969348daa26036d402bda7b2782ce2e/elastic_apm-6.24.0.tar.gz", hash = "sha256:9572e4b456d85474374cd137e6a1503d449f2cd363cd89220c50d03d386c36cd", size = 170168, upload-time = "2025-08-12T07:40:52.728Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/69/c9/f05b8bd83025b0578ec5a5b52a5f5366290e36a2c104fc9046c00bcbbef7/elastic_apm-6.24.0-py2.py3-none-any.whl", hash = "sha256:db6bc5bb15b592bc14810aacf0eba11ace9d908d8c132fc760457686b34a033b", size = 352469, upload-time = "2025-08-12T07:40:50.498Z" },
+]
+
+[[package]]
+name = "envier"
+version = "0.6.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/19/e7/4fe4d3f6e21213cea9bcddc36ba60e6ae4003035f9ce8055e6a9f0322ddb/envier-0.6.1.tar.gz", hash = "sha256:3309a01bb3d8850c9e7a31a5166d5a836846db2faecb79b9cb32654dd50ca9f9", size = 10063, upload-time = "2024-10-22T09:56:47.226Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/56/e9/30493b1cc967f7c07869de4b2ab3929151a58e6bb04495015554d24b61db/envier-0.6.1-py3-none-any.whl", hash = "sha256:73609040a76be48bbcb97074d9969666484aa0de706183a6e9ef773156a8a6a9", size = 10638, upload-time = "2024-10-22T09:56:45.968Z" },
 ]
 
 [[package]]
@@ -1897,6 +1938,18 @@ wheels = [
 ]
 
 [[package]]
+name = "opentelemetry-api"
+version = "1.43.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ae/cc/e4c9584181f86494df0f6bdec1a4f3280c50db44704dc2a407e994fc87bb/opentelemetry_api-1.43.0.tar.gz", hash = "sha256:107d0d03857ea8fc7c5fcbbbd83f800c281f0d560553d61c1d675fccfd1761c1", size = 73476, upload-time = "2026-06-24T15:19:55.323Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/17/83/6dba32b85f31868400440dc7ad2ca1eab94cbbf3a7b0459ed39f8311a9e2/opentelemetry_api-1.43.0-py3-none-any.whl", hash = "sha256:20acf45e9b21851926835292e4045d290acade1edd2ff3de86d2f069687ba1fd", size = 61912, upload-time = "2026-06-24T15:19:35.434Z" },
+]
+
+[[package]]
 name = "packaging"
 version = "25.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2615,6 +2668,7 @@ dependencies = [
     { name = "circle-developer-controlled-wallets" },
     { name = "cloudscraper" },
     { name = "daphne" },
+    { name = "ddtrace" },
     { name = "dj-rest-auth", extra = ["with-mfa", "with-social"] },
     { name = "django" },
     { name = "django-allauth" },
@@ -2684,6 +2738,7 @@ requires-dist = [
     { name = "circle-developer-controlled-wallets", specifier = ">=9.2.0,<10.0.0" },
     { name = "cloudscraper", specifier = ">=1.2.60,<2.0.0" },
     { name = "daphne", specifier = ">=4.1.2,<5.0.0" },
+    { name = "ddtrace", specifier = ">=4.10.6" },
     { name = "dj-rest-auth", extras = ["with-mfa", "with-social"], specifier = ">=7.0.2,<8.0.0" },
     { name = "django", specifier = "==5.2.15" },
     { name = "django-allauth", specifier = ">=65.13.0,<66.0.0" },

@@ -8,3 +8,6 @@ class ResearchAIConfig(AppConfig):
 
     def ready(self):
         import research_ai.signals  # noqa: F401
+        from research_ai.services.agent.observability import enable_llm_observability
+
+        enable_llm_observability()

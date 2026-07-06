@@ -28,8 +28,13 @@ class AgentService:
         max_tokens: int = 4096,
         temperature: float = 0.0,
         max_iterations: int | None = None,
+        name: str = "agent",
     ) -> Agent:
-        """Build an ``Agent`` for ``toolset`` with the injected provider."""
+        """Build an ``Agent`` for ``toolset`` with the injected provider.
+
+        ``name`` labels the run's root span in LLM Observability; give each
+        distinct agent (proposal drafter, profile builder, ...) its own.
+        """
         return Agent(
             self._provider,
             toolset,
@@ -39,4 +44,5 @@ class AgentService:
             ),
             max_tokens=max_tokens,
             temperature=temperature,
+            name=name,
         )

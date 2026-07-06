@@ -59,6 +59,7 @@ dependencies = [
     "stripe>=11.2.0,<12.0.0",
     "web3>=7.16.0",
     "xdk>=0.4.5",
+    "ddtrace>=4.10.6",
 ]
 
 [dependency-groups]

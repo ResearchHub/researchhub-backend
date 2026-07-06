@@ -211,6 +211,7 @@ class _ProposalDraftRunner:
             system_prompt=system_prompt,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
+            name="proposal_draft",
         )
 
     def _compose_toolset(self) -> Toolset:

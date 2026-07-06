@@ -151,7 +151,9 @@ def run_profile_agent(
         settings, "RESEARCH_AI_AGENT_MAX_ITERATIONS", _DEFAULT_MAX_ITERATIONS
     )
     agent = AgentService(provider=provider, max_iterations=max_iterations).create_agent(
-        toolset.as_toolset(), system_prompt=_SYSTEM_PROMPT
+        toolset.as_toolset(),
+        system_prompt=_SYSTEM_PROMPT,
+        name="researcher_profile",
     )
 
     try:

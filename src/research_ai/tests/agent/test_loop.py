@@ -1,7 +1,10 @@
 """Unit tests for the Agent loop, driven by a fake provider (no Django/AWS)."""
 
+from unittest import mock
+
 from django.test import SimpleTestCase
 
+from research_ai.services.agent import observability
 from research_ai.services.agent.errors import (
     IncompleteTurnError,
     IterationLimitError,
@@ -202,3 +205,73 @@ class AgentLoopTests(SimpleTestCase):
         self.assertEqual(provider.calls[0][:2], history)
         self.assertEqual(provider.calls[0][2].content[0].text, "follow up")
         self.assertEqual(result.final_text, "second answer")
+
+
+class AgentLoopObservabilityTests(SimpleTestCase):
+    """The loop emits agent/tool spans when LLM Observability is active."""
+
+    def _run_with_active_llmobs(self):
+        """Run a two-turn agent (search tool, then text answer) with a fake SDK."""
+        llmobs = mock.MagicMock()
+        provider = FakeProvider(
+            [
+                _build_tool_turn("t1", "search", {"q": "jane"}),
+                _build_text_turn("all done"),
+            ]
+        )
+        agent = _build_agent(provider, _build_toolset())
+        with (
+            mock.patch.object(observability, "_enabled", True),
+            mock.patch.object(observability, "LLMObs", llmobs),
+        ):
+            agent.run("find jane")
+        return llmobs
+
+    def test_run_is_wrapped_in_agent_span(self):
+        # Arrange / Act
+        llmobs = self._run_with_active_llmobs()
+
+        # Assert: one root agent span named after the agent, annotated with the
+        # user prompt on entry and the final text + run stats on exit.
+        llmobs.agent.assert_called_once_with(name="agent")
+        annotations = [kwargs for _, kwargs in llmobs.annotate.call_args_list]
+        self.assertEqual(annotations[0]["input_data"], "find jane")
+        self.assertEqual(annotations[-1]["output_data"], "all done")
+        self.assertEqual(
+            annotations[-1]["metadata"], {"stop_reason": "end_turn", "iterations": 2}
+        )
+
+    def test_each_tool_dispatch_gets_a_tool_span(self):
+        # Arrange / Act
+        llmobs = self._run_with_active_llmobs()
+
+        # Assert: the single search call produced one tool span carrying the
+        # tool input and its result.
+        llmobs.tool.assert_called_once_with(name="search")
+        annotations = [kwargs for _, kwargs in llmobs.annotate.call_args_list]
+        self.assertEqual(annotations[1]["input_data"], {"q": "jane"})
+        self.assertEqual(annotations[2]["output_data"], {"ok": True})
+
+    def test_custom_agent_name_labels_the_span(self):
+        # Arrange
+        llmobs = mock.MagicMock()
+        provider = FakeProvider([_build_text_turn("done")])
+        agent = Agent(
+            provider,
+            _build_toolset(),
+            system_prompt="sys",
+            max_iterations=3,
+            max_tokens=4096,
+            temperature=0.0,
+            name="proposal_draft",
+        )
+
+        # Act
+        with (
+            mock.patch.object(observability, "_enabled", True),
+            mock.patch.object(observability, "LLMObs", llmobs),
+        ):
+            agent.run("hi")
+
+        # Assert
+        llmobs.agent.assert_called_once_with(name="proposal_draft")

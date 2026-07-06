@@ -13,6 +13,7 @@ multi-turn chat needs.
 import logging
 from dataclasses import dataclass
 
+from research_ai.services.agent import observability
 from research_ai.services.agent.errors import (
     AgentRunError,
     IncompleteTurnError,
@@ -106,6 +107,7 @@ class Agent:
         max_iterations: int,
         max_tokens: int,
         temperature: float,
+        name: str = "agent",
     ):
         self.provider = provider
         self.toolset = toolset
@@ -113,6 +115,7 @@ class Agent:
         self.max_iterations = max_iterations
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.name = name
 
     def run(self, user_prompt: str, *, on_event=None) -> AgentResult:
         """Drive a fresh conversation from ``user_prompt`` to completion."""
@@ -169,7 +172,10 @@ class Agent:
             logger.info(
                 "iter %d -> %s(%s)", iteration, call.name, _compact_args(call.input)
             )
-            result, tool_stop = self.toolset.dispatch(call.name, call.input)
+            with observability.tool_span(call.name) as span:
+                observability.annotate(span, input_data=call.input)
+                result, tool_stop = self.toolset.dispatch(call.name, call.input)
+                observability.annotate(span, output_data=result)
             logger.info(
                 "iter %d <- %s: %s%s",
                 iteration,
@@ -188,6 +194,22 @@ class Agent:
         return result_blocks, stop
 
     def _drive(self, messages: list[Message], *, on_event=None) -> AgentResult:
+        # An exception escaping the span context manager marks the span as
+        # errored in Datadog, so failures need no annotation of their own.
+        with observability.agent_span(self.name) as span:
+            observability.annotate(span, input_data=_latest_user_text(messages))
+            result = self._drive_loop(messages, on_event=on_event)
+            observability.annotate(
+                span,
+                output_data=result.final_text,
+                metadata={
+                    "stop_reason": result.stop_reason,
+                    "iterations": result.iterations,
+                },
+            )
+            return result
+
+    def _drive_loop(self, messages: list[Message], *, on_event=None) -> AgentResult:
         # ``on_event`` is an unused placeholder for the future streaming hook;
         # it is threaded toward ``complete`` but streaming is not implemented.
         rendered_tools = self.toolset.render_specs(self.provider)
@@ -247,3 +269,14 @@ class Agent:
             messages=messages,
             iterations=self.max_iterations,
         )
+
+
+def _latest_user_text(messages: list[Message]) -> str:
+    """The text of the newest user turn, for annotating the agent span."""
+    for message in reversed(messages):
+        if message.role != "user":
+            continue
+        return "\n".join(
+            block.text for block in message.content if isinstance(block, TextBlock)
+        )
+    return ""
