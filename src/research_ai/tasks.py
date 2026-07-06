@@ -4,7 +4,7 @@ from functools import partial
 from django.utils import timezone
 
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
-from research_ai.models import ExpertSearch, GeneratedEmail
+from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft
 from research_ai.services import expert_finder_service as expert_finder_service_mod
 from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.email_sending_service import send_plain_email
@@ -14,6 +14,7 @@ from research_ai.services.invited_experts_service import (
     grant_invited_expert_access_for_send,
     link_experts_for_new_user,
 )
+from research_ai.services.proposal_draft import run_proposal_draft
 from research_ai.services.rfp_email_context import get_expert_for_search_by_email
 from researchhub.celery import app
 from user.models import User
@@ -228,6 +229,41 @@ def run_expert_finder_search(
             error_message=err,
         )
         raise
+
+
+@app.task
+def run_proposal_draft_task(draft_id: int):
+    """
+    Background task to run one headless proposal-drafting job.
+    """
+    try:
+        draft = ProposalDraft.objects.get(id=draft_id)
+    except ProposalDraft.DoesNotExist:
+        logger.warning("Proposal draft not found", extra={"draft_id": draft_id})
+        return {"status": "not_found", "draft_id": draft_id}
+
+    logger.info("Starting proposal draft", extra={"draft_id": draft_id})
+    start_time = timezone.now()
+    try:
+        result = run_proposal_draft(draft.search_expert_id, draft_id=draft.id)
+    except Exception as e:
+        logger.exception("Proposal draft task failed", extra={"draft_id": draft_id})
+        ProposalDraft.objects.filter(id=draft_id).update(
+            status=ProposalDraft.Status.FAILED,
+            error_message=str(e)[:10000],
+        )
+        raise
+    processing_time = (timezone.now() - start_time).total_seconds()
+    ProposalDraft.objects.filter(id=draft_id).update(processing_time=processing_time)
+    logger.info(
+        "Proposal draft finished",
+        extra={
+            "draft_id": draft_id,
+            "status": result.get("status"),
+            "processing_time": processing_time,
+        },
+    )
+    return result
 
 
 def _normalize_template_for_bulk(template: str | None) -> tuple[str | None, str | None]:
