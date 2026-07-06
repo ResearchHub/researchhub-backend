@@ -164,12 +164,9 @@ class Institution(DefaultModel):
             "h_index": oa_institution.get("summary_stats", {}).get("h_index"),
             "i10_index": oa_institution.get("summary_stats", {}).get("i10_index"),
             "works_count": oa_institution.get("works_count"),
-            "associated_institutions": list(
-                map(
-                    lambda obj: obj["id"],
-                    oa_institution.get("associated_institutions", []),
-                )
-            ),
+            "associated_institutions": [
+                obj["id"] for obj in oa_institution.get("associated_institutions", [])
+            ],
             "display_name_alternatives": oa_institution.get(
                 "display_name_alternatives", []
             ),

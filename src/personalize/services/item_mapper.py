@@ -114,7 +114,7 @@ class ItemMapper:
         review_count_data: dict,
     ) -> dict[str, str | None]:
         # Initialize row with default values from constants
-        row = {field: default for field, default in FIELD_DEFAULTS.items()}
+        row = dict(FIELD_DEFAULTS)
 
         # Get the concrete document from prefetched data (avoids N+1 queries)
         if prefetched_doc.document_type == "PAPER":

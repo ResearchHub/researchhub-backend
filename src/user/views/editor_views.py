@@ -148,11 +148,11 @@ def get_editors_by_contributions(request):
     )
 
     qs_key = "contributions__contribution_type"
-    comment_query = Q(**dict([(qs_key, Contribution.COMMENTER)])) & timeframe_query
+    comment_query = Q(**{qs_key: Contribution.COMMENTER}) & timeframe_query
 
-    submission_query = Q(**dict([(qs_key, Contribution.SUBMITTER)])) & timeframe_query
+    submission_query = Q(**{qs_key: Contribution.SUBMITTER}) & timeframe_query
 
-    support_query = Q(**dict([(qs_key, Contribution.SUPPORTER)])) & timeframe_query
+    support_query = Q(**{qs_key: Contribution.SUPPORTER}) & timeframe_query
 
     hub_id = request.GET.get("hub_id", None)
     if hub_id is not None:

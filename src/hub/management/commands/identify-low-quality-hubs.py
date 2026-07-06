@@ -61,9 +61,9 @@ class Command(BaseCommand):
         # Parse which checks to run
         checks_arg = options.get("checks")
         if checks_arg:
-            self.checks_to_run = set(
+            self.checks_to_run = {
                 check.strip() for check in checks_arg.split(",") if check.strip()
-            )
+            }
             available_checks = {
                 "test",
                 "numeric_suffix",

@@ -245,9 +245,9 @@ class Command(BaseCommand):
         # Parse steps argument
         steps_arg = options.get("steps")
         if steps_arg:
-            self.steps_to_run = set(
+            self.steps_to_run = {
                 step.strip() for step in steps_arg.split(",") if step.strip()
-            )
+            }
             # Validate steps
             invalid_steps = self.steps_to_run - set(self.AVAILABLE_STEPS)
             if invalid_steps:
@@ -455,9 +455,9 @@ class Command(BaseCommand):
 
         # Add additional skip slugs
         if skip_slugs_arg:
-            additional_skip_slugs = set(
+            additional_skip_slugs = {
                 slug.strip() for slug in skip_slugs_arg.split(",") if slug.strip()
-            )
+            }
             self.slugs_to_skip |= additional_skip_slugs
             self.stdout.write(
                 self.style.WARNING(
