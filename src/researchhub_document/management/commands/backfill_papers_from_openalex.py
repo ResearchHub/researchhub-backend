@@ -58,7 +58,7 @@ class Command(BaseCommand):
             content_type = ContentType.objects.get_for_model(Paper)
             all_threads = RhCommentThreadModel.objects.filter(content_type=content_type)
             paper_ids_of_commentors = list(
-                set([thread.object_id for thread in all_threads])
+                {thread.object_id for thread in all_threads}
             )
 
             # Next, get all papers associated with users who verified their identity
