@@ -76,11 +76,11 @@ class ExternalCategoryMapperTestCase(TestCase):
         ]
 
         # All should return the same hubs
-        base_result = set(h.name for h in results[0])
+        base_result = {h.name for h in results[0]}
         for i in range(1, len(results)):
             self.assertEqual(
                 base_result,
-                set(h.name for h in results[i]),
+                {h.name for h in results[i]},
                 (
                     f"Variation '{variations[i]}' should map to same hubs as"
                     f" '{variations[0]}'",

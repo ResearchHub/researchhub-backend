@@ -86,11 +86,13 @@ extend-exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
 extend-select = [
+    "C4",    # flake8-comprehensions
     "E",     # pycodestyle errors
     "FURB",  # refurb
     "I",     # isort
     "N",     # pep8-naming
     "PERF",  # flake8-perf
+    "PIE",   # flake8-pie
     "S113",  # flake8-bandit: request-without-timeout
     "T20",   # flake8-print: forbid print statements
     "TID",   # flake8-tidy-imports 

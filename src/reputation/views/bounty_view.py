@@ -51,6 +51,9 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.models import User
 from user.permissions import IsModerator
 from utils.permissions import PostOnly
@@ -652,6 +655,18 @@ class BountyViewSet(viewsets.ModelViewSet):
         if only_parent_bounties:
             applied_filters &= Q(parent__isnull=True)
 
+        # Public discovery surfaces must not leak bounties whose underlying
+        # document is private, soft-removed, or not cleared by moderation.
+        # Detail actions (approve/cancel) go through get_object -> this method
+        # too, and moderators still need to reach bounties on hidden documents
+        # there, so only the list-style actions are restricted.
+        if self.action in ("list", "get_bounties"):
+            applied_filters &= Q(
+                unified_document__is_public=True,
+                unified_document__is_removed=False,
+                unified_document__status=ResearchhubUnifiedDocument.APPROVED,
+            )
+
         # Only return bounties within specific hubs
         if hub_ids:
             applied_filters &= Q(unified_document__hubs__id__in=hub_ids)
@@ -798,9 +813,7 @@ class BountyViewSet(viewsets.ModelViewSet):
         permission_classes=[AllowAny],
     )
     def get_bounties(self, request):
-        qs = self.filter_queryset(self.get_queryset()).filter(
-            parent__isnull=True, unified_document__is_removed=False
-        )
+        qs = self.filter_queryset(self.get_queryset()).filter(parent__isnull=True)
         qs = self._prioritize_preregistration_bounties(qs).order_by(
             "preregistration_first", "-created_date"
         )[:10]
@@ -841,10 +854,16 @@ class BountyViewSet(viewsets.ModelViewSet):
         if cache_hit:
             return Response(cache_hit, status=200)
 
-        # Fetch hubs linked to OPEN bounties via their unified documents
+        # Fetch hubs linked to OPEN bounties via their unified documents.
+        # The document conditions share the filter() call with the bounty
+        # condition on purpose: they must hold on the same document, so a hub
+        # whose only open bounty sits on a hidden document is not revealed.
         hub_data = list(
             Hub.objects.filter(
                 related_documents__related_bounties__status=Bounty.OPEN,
+                related_documents__is_public=True,
+                related_documents__is_removed=False,
+                related_documents__status=ResearchhubUnifiedDocument.APPROVED,
                 is_removed=False,
                 namespace=Hub.Namespace.SUBCATEGORY,
             )

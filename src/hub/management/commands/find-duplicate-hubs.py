@@ -122,9 +122,9 @@ class Command(BaseCommand):
                     )
                 )
 
-            self.steps_to_run = set(
+            self.steps_to_run = {
                 step.strip() for step in steps_arg.split(",") if step.strip()
-            )
+            }
             # Validate steps
             invalid_steps = self.steps_to_run - set(self.AVAILABLE_STEPS)
             if invalid_steps:

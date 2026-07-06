@@ -34,7 +34,6 @@ class BaseMapper(ABC):
 
         Returns True if valid, False if should be skipped.
         """
-        pass
 
     @abstractmethod
     def map_to_paper(self, record: dict[str, Any]) -> Paper:
@@ -44,7 +43,6 @@ class BaseMapper(ABC):
         Must be implemented by each mapper.
         Returns Paper instance (not saved to database).
         """
-        pass
 
     @abstractmethod
     def map_to_authors(self, record: dict[str, Any]) -> list[Author]:
@@ -55,7 +53,6 @@ class BaseMapper(ABC):
         Note: Only creates authors with proper identifiers (e.g., ORCID)
         to enable deduplication.
         """
-        pass
 
     @abstractmethod
     def map_to_institutions(self, record: dict[str, Any]) -> list[Institution]:
@@ -66,7 +63,6 @@ class BaseMapper(ABC):
         Note: Only creates institutions with proper identifiers (e.g., ROR ID)
         to enable deduplication.
         """
-        pass
 
     @abstractmethod
     def map_to_authorships(
@@ -83,7 +79,6 @@ class BaseMapper(ABC):
             List of Authorship instances (not saved to database).
             These connect authors to the paper with position and institution data.
         """
-        pass
 
     @abstractmethod
     def map_to_hubs(self, record: dict[str, Any]) -> list[Hub]:
@@ -94,7 +89,6 @@ class BaseMapper(ABC):
             paper: The Paper instance to create tags for
             record: Source record containing tag data
         """
-        pass
 
     def map_batch(
         self, records: list[dict[str, Any]], validate: bool = True

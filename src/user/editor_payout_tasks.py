@@ -96,7 +96,6 @@ def editor_daily_payout_task():
 
             except Exception:
                 logger.exception("Failed to distribute payout to editor %s", editor.id)
-                pass
 
         return result
     except Exception:

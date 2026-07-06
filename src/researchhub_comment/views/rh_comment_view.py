@@ -94,9 +94,12 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         RESEARCHHUB_POST: "researchhubpost",
         HYPOTHESIS: "hypothesis",
     }
-    _ALLOWED_UPDATE_FIELDS = set(
-        ["comment_content_type", "comment_content_json", "context_title", "mentions"]
-    )
+    _ALLOWED_UPDATE_FIELDS = {
+        "comment_content_type",
+        "comment_content_json",
+        "context_title",
+        "mentions",
+    }
 
     def dispatch(self, request, *args, **kwargs):
         """Initialize service dependencies for better testability."""

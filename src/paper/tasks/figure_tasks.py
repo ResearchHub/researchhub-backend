@@ -19,7 +19,6 @@ from paper.services.figure_extraction_service import FigureExtractionService
 from paper.tasks.tasks import create_download_url
 from paper.utils import download_pdf_from_url, get_cache_key
 from researchhub.celery import QUEUE_PAPER_MISC, app
-from utils import sentry
 
 logger = get_task_logger(__name__)
 
@@ -68,9 +67,8 @@ def generate_thumbnail_for_figure(figure) -> bool:
         logger.info(f"Generated thumbnail for figure {figure.id}")
         return True
 
-    except Exception as e:
-        logger.error(f"Error generating thumbnail for figure {figure.id}: {e}")
-        sentry.log_error(e)
+    except Exception:
+        logger.exception("Error generating thumbnail for figure %s", figure.id)
         return False
 
 
@@ -120,8 +118,8 @@ def celery_extract_pdf_preview(paper_id, retry=0):
                     figure_type=Figure.PREVIEW,
                     thumbnail=None,
                 )
-    except Exception as e:
-        sentry.log_error(e)
+    except Exception:
+        logger.exception("Error extracting PDF preview for paper %s", paper_id)
     finally:
         cache_key = get_cache_key("figure", paper_id)
         cache.delete(cache_key)
@@ -267,9 +265,8 @@ def extract_pdf_figures(
 
         return True
 
-    except Exception as e:
-        logger.error(f"Error extracting figures for paper {paper_id}: {e}")
-        sentry.log_error(e)
+    except Exception:
+        logger.exception("Error extracting figures for paper %s", paper_id)
 
         # Retry on failure
         if retry < 2:
@@ -439,9 +436,8 @@ def create_pdf_screenshot(paper, skip_feed_refresh_extraction_check=False) -> bo
         )
         return True
 
-    except Exception as e:
-        logger.error(f"Error creating preview for paper {paper.id}: {e}")
-        sentry.log_error(e)
+    except Exception:
+        logger.exception("Error creating preview for paper %s", paper.id)
         return False
 
 
@@ -529,7 +525,7 @@ def select_primary_image(
             else:
                 logger.warning(f"Failed to create preview for paper {paper_id}")
                 return False
-        elif selected_figure_id:
+        else:
             # Update is_primary flags
             Figure.objects.filter(paper=paper).update(is_primary=False)
             Figure.objects.filter(id=selected_figure_id).update(is_primary=True)
@@ -549,24 +545,29 @@ def select_primary_image(
             )
 
             logger.info(
-                f"Selected primary image {selected_figure_id} "
-                f"(score: {best_score}%) for paper {paper_id}"
+                "Selected primary image for paper",
+                extra={
+                    "selected_figure_id": selected_figure_id,
+                    "best_score": best_score,
+                    "paper_id": paper_id,
+                },
             )
             return True
-        else:
-            logger.warning(f"No figure selected for paper {paper_id}")
-            return False
 
-    except Exception as e:
-        logger.error(f"Error selecting primary image for paper {paper_id}: {e}")
-        sentry.log_error(e)
-
-        # Retry on failure
-        if retry < 2:
+    except Exception:
+        if retry < 2:  # Retry on failure
+            logger.warning(
+                "Error selecting primary image for paper, retrying...",
+                extra={"paper_id": paper_id, "retry": retry},
+            )
             select_primary_image.apply_async(
                 (paper.id, retry + 1),
                 priority=5,
                 countdown=60 * (retry + 1),
+            )
+        else:
+            logger.exception(
+                "Error selecting primary image for paper", extra={"paper_id": paper_id}
             )
 
         return False
