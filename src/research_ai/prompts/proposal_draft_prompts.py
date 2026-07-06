@@ -18,7 +18,7 @@ _MAX_SEED_WORKS = 5
 _MAX_SEED_ABSTRACT_CHARS = 600
 
 
-def build_proposal_system_prompt(panel_threshold: float = 4.5) -> str:
+def build_proposal_system_prompt(panel_threshold: float = 4.0) -> str:
     """The system prompt: rubric, voice rules, grounding + iterate contract.
 
     ``panel_threshold`` is substituted into the rubric so the agent drafts toward
