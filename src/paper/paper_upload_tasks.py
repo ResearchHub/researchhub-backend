@@ -715,7 +715,7 @@ def _get_or_create_journal_hub(external_source: str) -> Hub:
     """
     journal_hub = None
 
-    if external_source in OPENALEX_SOURCES_TO_JOURNAL_HUBS.keys():
+    if external_source in OPENALEX_SOURCES_TO_JOURNAL_HUBS:
         journal_hub = _get_journal_hub(
             OPENALEX_SOURCES_TO_JOURNAL_HUBS[external_source]
         )
