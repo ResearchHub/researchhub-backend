@@ -3,9 +3,9 @@ import json
 import logging
 
 import requests
+from django.core.serializers.json import DjangoJSONEncoder
 
 from researchhub.settings import AMPLITUDE_API_KEY, DEVELOPMENT
-from utils.parsers import json_serial
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class Amplitude:
             "api_key": self.api_key,
             "events": [data],
         }
-        hit = json.dumps(hit, default=json_serial)
+        hit = json.dumps(hit, cls=DjangoJSONEncoder)
         return self.forward_event(hit)
 
     def _track_revenue_event(
@@ -107,7 +107,7 @@ class Amplitude:
             "api_key": self.api_key,
             "events": [data],
         }
-        hit = json.dumps(hit, default=json_serial)
+        hit = json.dumps(hit, cls=DjangoJSONEncoder)
         return self.forward_event(hit)
 
     def _track_user_activity_event(
@@ -142,7 +142,7 @@ class Amplitude:
             "api_key": self.api_key,
             "events": [data],
         }
-        hit = json.dumps(hit, default=json_serial)
+        hit = json.dumps(hit, cls=DjangoJSONEncoder)
         return self.forward_event(hit)
 
     def forward_event(self, hit):
