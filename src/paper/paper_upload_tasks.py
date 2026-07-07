@@ -194,7 +194,7 @@ def celery_combine_doi(self, celery_data):
             for error in errors:
                 logger.warning("DOI lookup error: %s", error)
             self.request.args = (celery_data, submission_id)
-            raise DOINotFoundError()
+            raise DOINotFoundError
 
         paper_submission.set_processing_doi_status()
         doi_paper_check = Paper.objects.filter(doi__iexact=doi)

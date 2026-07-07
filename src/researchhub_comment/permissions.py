@@ -71,7 +71,7 @@ class ThreadViewingPermissions(BasePermission):
             perm = obj.thread.permissions.filter(organization__isnull=False).first()
             if perm and perm.organization and not perm.organization.org_has_user(user):
                 # Hide existence from unauthorised users
-                raise NotFound()
+                raise NotFound
             return True
 
         # Private visibility: user must be explicitly on permission list (org null)
@@ -93,7 +93,7 @@ class ThreadViewingPermissions(BasePermission):
             comment_author_ok = user == getattr(obj, "created_by", None)
 
             if not (perm_ok or author_ok or comment_author_ok):
-                raise NotFound()
+                raise NotFound
             return True
 
         # Private visibility: user must be explicitly on permission list (org null)

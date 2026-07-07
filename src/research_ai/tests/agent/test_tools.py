@@ -46,7 +46,7 @@ class ToolsetDispatchTests(SimpleTestCase):
         # Arrange: some exceptions str() to "" -- the model must still see a
         # non-empty error.
         def boom(input):
-            raise ValueError()
+            raise ValueError
 
         toolset = Toolset([Tool("explode", "explode", {"type": "object"}, boom)])
 

@@ -167,4 +167,4 @@ class EndaomentService:
         if match is not None:
             return match
 
-        raise EndaomentOrgNotFoundError()
+        raise EndaomentOrgNotFoundError
