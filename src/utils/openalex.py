@@ -289,14 +289,14 @@ class OpenAlex:
         if oa is None:
             oa = {}
 
-        url = primary_location.get("landing_page_url", None)
+        url = primary_location.get("landing_page_url")
 
         title = normalize("NFKD", work.get("title", "") or "").strip()
         raw_authors = work.get("authorships", [])
         concepts = work.get("concepts", [])
         topics = work.get("topics", [])
 
-        pdf_license = primary_location.get("license", None)
+        pdf_license = primary_location.get("license")
         if pdf_license is None:
             pdf_license = work.get("license", None)
 
@@ -312,14 +312,14 @@ class OpenAlex:
             "title": title,
             "paper_title": title,
             "paper_publish_date": work.get("publication_date", None),
-            "is_open_access": oa.get("is_oa", None),
-            "oa_status": oa.get("oa_status", None),
-            "pdf_license": primary_location.get("license", None),
+            "is_open_access": oa.get("is_oa"),
+            "oa_status": oa.get("oa_status"),
+            "pdf_license": primary_location.get("license"),
             "pdf_license_url": url,
             "retrieved_from_external_source": True,
-            "external_source": source.get("display_name", None)
-            or source.get("name", None)
-            or source.get("publisher", None),
+            "external_source": source.get("display_name")
+            or source.get("name")
+            or source.get("publisher"),
             "citations": work.get("cited_by_count", 0),
             "open_alex_raw_json": work,
             "openalex_id": work.get("id", None),
