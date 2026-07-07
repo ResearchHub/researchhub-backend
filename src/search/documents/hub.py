@@ -2,7 +2,7 @@ import logging
 import re
 from typing import Any, override
 
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 from opensearchpy import analyzer, token_filter
@@ -51,12 +51,21 @@ class HubDocument(BaseDocument):
         ]
 
     @override
-    def get_queryset(self, filter_=None, exclude=None, count=None) -> QuerySet:
-        return (
+    def get_queryset(
+        self,
+        filter_: Q | None = None,
+        exclude: Q | None = None,
+        count: int = None,
+        alias: str = None,
+    ) -> QuerySet:
+        qs = (
             super()
-            .get_queryset(filter_=filter_, exclude=exclude, count=count)
+            .get_queryset(filter_=filter_, exclude=exclude, alias=alias)
             .exclude(namespace="journal")
         )
+        if count is not None:
+            qs = qs[:count]
+        return qs
 
     # Used specifically for "autocomplete" style suggest feature
     def prepare_name_suggest(self, instance) -> dict[str, Any]:

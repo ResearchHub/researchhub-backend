@@ -1,14 +1,14 @@
-import io
 import logging
 import math
 import sys
 import time
 from collections.abc import Iterable
-from typing import Any, override
+from typing import Any, TextIO, override
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.enums import CommandAction
 from django_opensearch_dsl.registries import registry
 
 from feed.models import FeedEntry
@@ -68,14 +68,15 @@ class PaperDocument(BaseDocument):
         self,
         filter_: Q | None = None,
         exclude: Q | None = None,
-        count: int = None,  # type: ignore[override]
+        count: int = None,
+        alias: str = None,
     ) -> QuerySet:
         """
         Override get_queryset to include prefetching of relationsships.
         """
-        return (
+        qs = (
             super()
-            .get_queryset(filter_=filter_, exclude=exclude, count=count)
+            .get_queryset(filter_=filter_, exclude=exclude, alias=alias)
             .select_related(
                 "unified_document",
             )
@@ -83,6 +84,9 @@ class PaperDocument(BaseDocument):
                 "unified_document__hubs",
             )
         )
+        if count is not None:
+            qs = qs[:count]
+        return qs
 
     @override
     def should_index_object(self, obj) -> bool:  # type: ignore[override]
@@ -254,16 +258,22 @@ class PaperDocument(BaseDocument):
         verbose: bool = False,
         filter_: Q | None = None,
         exclude: Q | None = None,
+        alias: str = None,
         count: int = None,
-        action: str = "Index",
-        stdout: io.FileIO = sys.stdout,
+        action: CommandAction = CommandAction.INDEX,
+        stdout: TextIO = sys.stdout,
     ) -> Iterable:
         """
         Divide the queryset into chunks. Overwrite django_opensearch_dsl default
         because it uses offsets instead of filtering by greater than pk.
         """
         chunk_size = self.django.queryset_pagination
-        qs = self.get_queryset(filter_=filter_, exclude=exclude, count=count)
+        qs = self.get_queryset(
+            filter_=filter_,
+            exclude=exclude,
+            count=count,
+            alias=alias,
+        )
         qs = qs.order_by("pk") if not qs.query.is_sliced else qs
         count = qs.count()
         model = self.django.model.__name__
