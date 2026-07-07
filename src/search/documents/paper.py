@@ -68,8 +68,8 @@ class PaperDocument(BaseDocument):
         self,
         filter_: Q | None = None,
         exclude: Q | None = None,
-        count: int = None,  # type: ignore[override]
-        alias=None,
+        count: int = None,
+        alias: str = None,
     ) -> QuerySet:
         """
         Override get_queryset to include prefetching of relationsships.

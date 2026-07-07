@@ -55,8 +55,8 @@ class JournalDocument(BaseDocument):
         self,
         filter_: Q | None = None,
         exclude: Q | None = None,
-        count: int = None,  # type: ignore[override]
-        alias=None,
+        count: int = None,
+        alias: str = None,
     ) -> QuerySet:
         qs = (
             super()
