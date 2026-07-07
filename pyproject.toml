@@ -96,6 +96,7 @@ extend-select = [
     "RSE",   # flake8-raise
     "S113",  # flake8-bandit: request-without-timeout
     "SIM105",  # flake8-simplify
+    "SIM118",  # flake8-simplify
     "SIM910",  # flake8-simplify
     "T20",   # flake8-print: forbid print statements
     "TID",   # flake8-tidy-imports 
