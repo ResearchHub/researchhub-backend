@@ -21,12 +21,12 @@ class NoteConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         if "user" not in self.scope:
             self.close(code=401)
-            raise StopConsumer()
+            raise StopConsumer
 
         user = self.scope["user"]
         if user.is_anonymous:
             self.close(code=401)
-            raise StopConsumer()
+            raise StopConsumer
         else:
             kwargs = self.scope["url_route"]["kwargs"]
             organization_slug = kwargs["organization_slug"]
@@ -34,7 +34,7 @@ class NoteConsumer(AsyncWebsocketConsumer):
             org_has_user = await check_org_has_user(user, organization_slug)
             if not org_has_user:
                 self.close(code=401)
-                raise StopConsumer()
+                raise StopConsumer
 
             room = f"{organization_slug}_notebook"
             self.room_group_name = room
@@ -48,7 +48,7 @@ class NoteConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_discard(
                 self.room_group_name, self.channel_name
             )
-        raise StopConsumer()
+        raise StopConsumer
 
     async def send_note_notification(self, event):
         data = event["data"]
