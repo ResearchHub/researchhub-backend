@@ -29,6 +29,8 @@ shape and length checks.
 
 import re
 
+from research_ai.services.proposal_tools.doi import doi_url
+
 
 def _split_paragraphs(text: object) -> list[str]:
     """Split a section body into paragraphs on blank lines."""
@@ -55,16 +57,6 @@ def valid_aims(aims: object) -> list[dict]:
     return valid
 
 
-def _doi_url(doi: object) -> str:
-    """A citation's DOI as a resolvable URL (bare DOIs get the doi.org prefix)."""
-    raw = str(doi or "").strip()
-    if not raw:
-        return ""
-    if raw.startswith(("http://", "https://")):
-        return raw
-    return f"https://doi.org/{raw}"
-
-
 def _reference_line(citation: object) -> str:
     """One rendered reference: ``Authors. Title. <doi-url>`` (blank parts dropped)."""
     if not isinstance(citation, dict):
@@ -77,7 +69,7 @@ def _reference_line(citation: object) -> str:
         for part in (
             author_text,
             str(citation.get("title") or "").strip(),
-            _doi_url(citation.get("doi")),
+            doi_url(citation.get("doi")),
         )
         if part
     ]

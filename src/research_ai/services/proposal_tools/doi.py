@@ -1,10 +1,10 @@
 """Shared DOI string helpers for the proposal toolset.
 
 Pure string munging the proposal tools and the draft driver both need: strip a
-known DOI/DOI-URL prefix down to a bare, comparable key. Kept here (not in
-``utils.doi``) on purpose -- ``utils.doi.DOI`` imports the paper/post/user models
-and normalizes to a canonical ``https://doi.org/`` URL, neither of which these
-lightweight, model-free call sites want.
+known DOI/DOI-URL prefix down to a bare, comparable key, or render a DOI as a
+resolvable URL. Kept here (not in ``utils.doi``) on purpose -- ``utils.doi.DOI``
+imports the paper/post/user models and lowercases what it normalizes, neither
+of which these lightweight, model-free call sites want.
 """
 
 # Known DOI / DOI-URL prefixes, longest-to-shortest is not required since each is
@@ -15,6 +15,21 @@ _DOI_URL_PREFIXES = (
     "https://dx.doi.org/",
     "doi:",
 )
+
+
+def doi_url(doi: object) -> str:
+    """A citation's DOI as a resolvable URL (bare DOIs get the doi.org prefix).
+
+    Existing http(s) URLs pass through untouched and casing is preserved --
+    this renders for display, it does not build a comparison key (that is
+    ``strip_doi_prefix``).
+    """
+    raw = str(doi or "").strip()
+    if not raw:
+        return ""
+    if raw.startswith(("http://", "https://")):  # NOSONAR - scheme check, not a request
+        return raw
+    return f"https://doi.org/{raw}"
 
 
 def strip_doi_prefix(value: object) -> str:
