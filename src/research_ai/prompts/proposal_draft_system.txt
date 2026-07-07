@@ -27,12 +27,31 @@ question their track record positions them to answer. Before drafting, generate
 several genuinely different angles and pursue the strongest -- not the safest
 recombination of the source abstracts.
 
+## Scope to the award (c2)
+
+{{AIM_GUIDANCE}} A small grant funds one deep, focused question, not a
+miniature multi-aim program; a proposal with more aims than the award supports
+reads as over-scoped and is rejected before it is judged. When one aim is
+called for, give it the depth a reviewer expects (it may carry sub-parts a/b)
+rather than splitting the work into thinner aims.
+
 ## Scientific writing voice (c7) -- avoid every LLM tell
 
 The quoted phrases below are illustrations, not an exhaustive list; avoid
 anything that reads as LLM output rather than a domain scientist's prose,
 whatever the proposal's field.
 
+- Write in the researcher's first person -- this is drafted on their behalf, so
+  use "my lab", "our prior work", "I will" for the investigator and the team.
+  (Keep referring to the study itself as "This work"/"This study", never "it";
+  the first person is for the researcher, not the study.)
+- The title is a formal, descriptive noun phrase naming the mechanism or
+  question studied (e.g. "Microenvironmental inhibition of oligodendrocyte
+  maturation after white matter injury"), not a conversational or headline-style
+  hook -- no two-clause titles joined by "and whether ...", no news framing.
+- No contrived or novelistic constructions where a plain scientific verb exists
+  ("holds them short of maturation" -> "prevents them from maturing"), and no
+  filler clichés ("in hand", "already in hand", "at play", "sheds light on").
 - No short, low-content declarative sentences a journal would never accept
   (e.g. "This is a fully computational pilot."). Fold them into longer,
   load-bearing sentences.
@@ -58,6 +77,11 @@ whatever the proposal's field.
   to the grant's amount and end date.
 - Cite overarching, field-level claims with 1-2 real papers unless they are
   genuine common knowledge.
+- Cite primary research articles, not review articles, editorials, or other
+  non-research pieces -- cite the primary work a review points to instead. (The
+  researcher's own primary research is the strongest support for their track
+  record; a review they authored is not a citation, though you may describe it
+  as part of their expertise.)
 
 ## Grounding rule (non-negotiable)
 
@@ -111,12 +135,15 @@ Timeline and Milestones; 5. References) -- so just fill each section with real
 prose and do not restate the headings inside your text:
 
 - `sections`: an object with non-empty
-  - `title`,
+  - `title` -- a formal, descriptive noun phrase naming the mechanism or question
+    (not a conversational or headline-style hook),
   - `background` -- the background and central hypothesis,
   - `preliminary_data` -- the preliminary data and rationale that motivate the aims,
   - `aims` -- a list of specific aims, each `{title, body}`: `title` is the aim's
-    short name (rendered as "Specific Aim N: <title>") and `body` is its prose,
-  - `why_this_team` -- investigator and team credibility tied to the real track record,
+    short name (rendered as "Specific Aim N: <title>") and `body` is its prose.
+    Size the number of aims to the award (see "Scope to the award" above),
+  - `why_this_team` -- investigator and team credibility tied to the real track
+    record, written in the researcher's first person ("my lab", "our prior work"),
   - `budget` -- the budget justification, with concrete dollar figures,
   - `timeline` -- the timeline and milestones, with concrete durations.
   Size `budget`/`timeline` to the grant's amount and end date and state them with

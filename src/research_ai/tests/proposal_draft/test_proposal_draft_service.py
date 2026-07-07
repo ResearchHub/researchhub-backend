@@ -390,6 +390,35 @@ class ProposalDraftServiceTests(TestCase):
         )
         self.assertEqual(result["last_submission"], draft.last_submission)
 
+    # -- too many aims for the award size is blocked ----------------------
+
+    def test_over_scoped_aims_are_blocked(self):
+        # Arrange: the $50k award funds at most two aims, but the draft has three.
+        sections = _clean_sections()
+        sections["aims"] = [
+            {"title": f"Aim {i}", "body": "We will measure X. " + _FILLER}
+            for i in range(1, 4)
+        ]
+        payload = {"sections": sections, "citations": []}
+        provider = _ScriptedProvider([_submit_turn(payload)])
+
+        # Act: the panel would pass (overall 5), so scope is the only blocker.
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: blocked on scope, the loop revised, and no Note was written.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertGreaterEqual(provider.call_count, 2)
+        scope = result["gate_report"]["scope"]
+        self.assertFalse(scope["ok"])
+        self.assertEqual(scope["max_aims"], 2)
+        self.assertEqual(scope["aims"], 3)
+        self.assertEqual(Note.objects.count(), 0)
+
     # -- exhausting the round budget fails with a gate report -------------
 
     @override_settings(RESEARCH_AI_PROPOSAL_MAX_ROUNDS=2)

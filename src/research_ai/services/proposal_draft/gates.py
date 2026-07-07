@@ -13,6 +13,7 @@ from collections.abc import Callable
 
 from research_ai.models import ProposalDraft
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
+from research_ai.services.proposal_draft.scope import max_aims_for_budget
 from research_ai.services.proposal_tools import ProposalVerificationToolset, valid_aims
 from research_ai.services.proposal_tools.doi import strip_doi_prefix
 
@@ -75,8 +76,9 @@ class ProposalGateRunner:
     """Runs every deterministic gate over one submitted draft.
 
     ``judge_context`` supplies the evidence bundle for the panel gate,
-    ``grounded_urls`` the provenance set citations must ground against, and
-    ``on_step`` (optional) receives ``ProposalDraft.Step`` transitions as the
+    ``grounded_urls`` the provenance set citations must ground against,
+    ``award_context`` the RFP terms the scope gate sizes the aim count against,
+    and ``on_step`` (optional) receives ``ProposalDraft.Step`` transitions as the
     gates progress -- the runner wires it to progress persistence.
     """
 
@@ -88,6 +90,7 @@ class ProposalGateRunner:
         verification_toolset: ProposalVerificationToolset,
         judge_context: Callable[[dict], dict],
         grounded_urls: Callable[[], set[str]],
+        award_context: Callable[[], dict] | None = None,
         on_step: Callable[[str], None] | None = None,
     ):
         self.config = config
@@ -95,6 +98,7 @@ class ProposalGateRunner:
         self.verification_toolset = verification_toolset
         self.judge_context = judge_context
         self.grounded_urls = grounded_urls
+        self.award_context = award_context or dict
         self.on_step = on_step or (lambda step: None)
 
     def run(self, submitted: dict, *, round_number: int) -> tuple[bool, dict]:
@@ -236,7 +240,9 @@ class ProposalGateRunner:
         We cannot deterministically judge whether a plan fits a budget -- the
         panel's c2 does that -- but we can require the budget and timeline
         sections to commit to concrete numbers (a duration or dollar figure)
-        rather than hand-wave the fit.
+        and cap the number of specific aims to what the award size funds: a
+        reviewer flagged a three-aim draft as far too heavy for a small grant,
+        so an over-scoped draft (more aims than the award supports) fails here.
         """
         text = f"{sections.get('budget') or ''} {sections.get('timeline') or ''}"
         has_number = bool(re.search(r"\d", text))
@@ -246,7 +252,26 @@ class ProposalGateRunner:
                 "State the budget and timeline concretely (dollar amount and "
                 "duration) in the budget and timeline sections."
             )
-        return {"ok": has_number, "has_number": has_number, "gaps": gaps}
+
+        award = self.award_context() or {}
+        max_aims = max_aims_for_budget(award.get("amount"), award.get("currency"))
+        aim_count = len(valid_aims(sections.get("aims")))
+        over_scoped = max_aims is not None and aim_count > max_aims
+        if over_scoped:
+            aim_word = "specific aim" if max_aims == 1 else "specific aims"
+            gaps.append(
+                f"This award ({award.get('amount')} {award.get('currency')}) "
+                f"funds at most {max_aims} {aim_word}, but the draft has "
+                f"{aim_count}. Consolidate to {max_aims} and deepen the work "
+                "rather than spreading it across more aims."
+            )
+        return {
+            "ok": has_number and not over_scoped,
+            "has_number": has_number,
+            "max_aims": max_aims,
+            "aims": aim_count,
+            "gaps": gaps,
+        }
 
     def _gate_panel(self, submitted: dict) -> dict:
         proposal_text = str(submitted.get("plain_text") or "")

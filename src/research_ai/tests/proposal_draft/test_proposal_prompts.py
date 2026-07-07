@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from research_ai.prompts.proposal_draft_prompts import (
     _MAX_SEED_ABSTRACT_CHARS,
+    build_proposal_system_prompt,
     build_proposal_user_prompt,
 )
 
@@ -52,3 +53,25 @@ class BuildProposalUserPromptTests(unittest.TestCase):
         # Assert
         self.assertIn("No Abstract Work", prompt)
         self.assertNotIn("Abstract:", prompt)
+
+
+class BuildProposalSystemPromptTests(unittest.TestCase):
+    def test_award_sizes_the_aim_guidance_and_replaces_placeholder(self):
+        # Arrange / Act: a small USD award.
+        prompt = build_proposal_system_prompt(
+            panel_threshold=4.0, award={"amount": "5000", "currency": "USD"}
+        )
+
+        # Assert: the concrete cap is stated and no template placeholder leaks.
+        self.assertIn("$5,000", prompt)
+        self.assertIn("one specific aim", prompt)
+        self.assertNotIn("{{AIM_GUIDANCE}}", prompt)
+        self.assertNotIn("{{PANEL_THRESHOLD}}", prompt)
+
+    def test_missing_award_falls_back_to_general_rule(self):
+        # Arrange / Act: no award supplied.
+        prompt = build_proposal_system_prompt()
+
+        # Assert: the general aim rule appears, placeholder still replaced.
+        self.assertIn("Size the number of specific aims", prompt)
+        self.assertNotIn("{{AIM_GUIDANCE}}", prompt)
