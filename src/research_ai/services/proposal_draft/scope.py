@@ -54,7 +54,7 @@ def max_aims_for_budget(amount: object, currency: object = "USD") -> int | None:
     return _MIN_AIMS
 
 
-def _format_award(amount: object, currency: object) -> str:
+def format_award(amount: object, currency: object) -> str:
     """Human-readable award amount, e.g. ``$5,000`` for a USD grant."""
     value = _usd_amount(amount, currency)
     if value is not None:
@@ -68,6 +68,6 @@ def aim_scope_guidance(amount: object, currency: object = "USD") -> str:
     if max_aims is None:
         return "Size the number of specific aims to the award. " + _AIM_RULE
     return (
-        f"This RFP awards {_format_award(amount, currency)}, which funds at "
+        f"This RFP awards {format_award(amount, currency)}, which funds at "
         f"most {_AIM_WORDS[max_aims]}."
     )

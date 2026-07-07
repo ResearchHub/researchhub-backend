@@ -417,6 +417,8 @@ class ProposalDraftServiceTests(TestCase):
         self.assertFalse(scope["ok"])
         self.assertEqual(scope["max_aims"], 2)
         self.assertEqual(scope["aims"], 3)
+        # The rejection names the award in the same format the prompt uses.
+        self.assertIn("This award ($50,000) funds at most 2", scope["gaps"][0])
         self.assertEqual(Note.objects.count(), 0)
 
     # -- exhausting the round budget fails with a gate report -------------
@@ -894,6 +896,57 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
         self.assertTrue(result["gate_report"]["citations"]["ok"])
         self.assertEqual(result["gate_report"]["citations"]["ungrounded"], [])
+
+    # -- a minor_drift citation renders the resolved record, not the claim --
+
+    def test_minor_drift_citation_is_corrected_in_rendered_references(self):
+        # Arrange: the claimed title/authors drift from what the DOI resolves
+        # to (same paper), so the verifier classifies it minor_drift and the
+        # gate must adopt the resolved record before the References render.
+        citations = [
+            {
+                "claim_id": "drift1",
+                "doi": "10.1/drift",
+                "title": "Extracellular Matrix and Remyelination",
+                "authors": ["A. Turing"],
+            }
+        ]
+        oa = _FakeOpenAlex(
+            {
+                "10.1/drift": {
+                    "display_name": (
+                        "The Extracellular Matrix and Remyelination in CNS Disease"
+                    ),
+                    "publication_year": 2021,
+                    "doi": "https://doi.org/10.1/drift",
+                    "id": "https://openalex.org/W7",
+                    "authorships": [{"author": {"display_name": "Alan M. Turing"}}],
+                }
+            }
+        )
+        provider = _ScriptedProvider([_submit_turn(_clean_payload(citations))])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=oa,
+        )
+
+        # Assert: accepted (minor_drift passes the gate), the correction is
+        # reported, and the Note's References carry the resolved title/authors
+        # instead of what the model typed.
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.assertEqual(result["gate_report"]["citations"]["corrected"], ["drift1"])
+        note = Note.objects.get(id=result["note_id"])
+        plain_text = note.latest_version.plain_text
+        self.assertIn(
+            "Alan M. Turing. The Extracellular Matrix and Remyelination in "
+            "CNS Disease. https://doi.org/10.1/drift",
+            plain_text,
+        )
+        self.assertNotIn("A. Turing. Extracellular Matrix", plain_text)
 
     # -- an unretrieved, unverifiable citation is still ungrounded ---------
 

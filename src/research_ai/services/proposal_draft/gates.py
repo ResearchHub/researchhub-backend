@@ -13,8 +13,12 @@ from collections.abc import Callable
 
 from research_ai.models import ProposalDraft
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
-from research_ai.services.proposal_draft.scope import max_aims_for_budget
-from research_ai.services.proposal_tools import ProposalVerificationToolset, valid_aims
+from research_ai.services.proposal_draft.scope import format_award, max_aims_for_budget
+from research_ai.services.proposal_tools import (
+    ProposalVerificationToolset,
+    assemble_proposal,
+    valid_aims,
+)
 from research_ai.services.proposal_tools.doi import strip_doi_prefix
 
 # The gates in the order they run; also the report keys their results live
@@ -102,15 +106,30 @@ class ProposalGateRunner:
         self.on_step = on_step or (lambda step: None)
 
     def run(self, submitted: dict, *, round_number: int) -> tuple[bool, dict]:
-        """Run every deterministic gate; return ``(accepted, report)``."""
+        """Run every deterministic gate; return ``(accepted, report)``.
+
+        ``minor_drift`` citations are corrected in place from their resolved
+        records, and the assembled ``plain_text``/``prosemirror`` re-derived,
+        so the rendered References -- and what the length gate, panel, and any
+        later persistence see -- carry the ground-truth metadata.
+        """
         self.on_step(ProposalDraft.Step.VERIFYING)
         sections = submitted.get("sections")
         sections = sections if isinstance(sections, dict) else {}
 
+        sections_check = self._gate_sections(sections, submitted)
+        citations_check = self._gate_citations(submitted)
+        if citations_check["corrected"]:
+            plain_text, prosemirror = assemble_proposal(
+                submitted.get("sections"), submitted.get("citations")
+            )
+            submitted["plain_text"] = plain_text
+            submitted["prosemirror"] = prosemirror
+
         checks = {
-            "sections": self._gate_sections(sections, submitted),
+            "sections": sections_check,
             "length": self._gate_length(submitted),
-            "citations": self._gate_citations(submitted),
+            "citations": citations_check,
             "scope": self._gate_scope(sections),
         }
         self.on_step(ProposalDraft.Step.JUDGING)
@@ -191,6 +210,19 @@ class ProposalGateRunner:
         summary = verification.get("summary", {})
         results_by_id = {r.get("claim_id"): r for r in verification.get("results", [])}
 
+        # Adopt the verifier's minor_drift corrections: the DOI resolved to the
+        # same paper but the claimed title/authors drifted, so the resolved
+        # record -- not the model's typing -- is what the References render.
+        # The citation dicts are the submitted ones, so this corrects the draft.
+        corrected: list[str] = []
+        for c in citations:
+            correction = (results_by_id.get(c.get("claim_id")) or {}).get("correction")
+            if not correction:
+                continue
+            c["title"] = correction["title"]
+            c["authors"] = correction["authors"]
+            corrected.append(str(c.get("claim_id") or "?"))
+
         # A citation is grounded if it was retrieved (its DOI/URL is in the
         # provenance the OpenAlex/profile tools recorded) OR if verify_citations
         # resolved its DOI against OpenAlex ground truth to a matching record
@@ -230,6 +262,7 @@ class ProposalGateRunner:
             "ok": ok,
             "ungrounded": ungrounded,
             "failures": failures,
+            "corrected": corrected,
             "summary": summary,
             "gaps": gaps,
         }
@@ -259,8 +292,9 @@ class ProposalGateRunner:
         over_scoped = max_aims is not None and aim_count > max_aims
         if over_scoped:
             aim_word = "specific aim" if max_aims == 1 else "specific aims"
+            award_text = format_award(award.get("amount"), award.get("currency"))
             gaps.append(
-                f"This award ({award.get('amount')} {award.get('currency')}) "
+                f"This award ({award_text}) "
                 f"funds at most {max_aims} {aim_word}, but the draft has "
                 f"{aim_count}. Consolidate to {max_aims} and deepen the work "
                 "rather than spreading it across more aims."
