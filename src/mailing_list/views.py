@@ -1,6 +1,7 @@
 import json
 import logging
 
+import requests
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets
 from rest_framework.decorators import (
@@ -24,7 +25,7 @@ from mailing_list.models import (
     ThreadSubscription,
 )
 from mailing_list.serializers import EmailRecipientSerializer
-from utils.http import PATCH, POST, http_request
+from utils.http import PATCH, POST
 from utils.parsers import PlainTextParser
 
 logger = logging.getLogger(__name__)
@@ -171,7 +172,7 @@ def email_notifications(request):
 
     if data_type == "SubscriptionConfirmation":
         url = data["SubscribeURL"]
-        resp = http_request("GET", url)
+        resp = requests.get(url, timeout=30)
         if resp.status_code != 200:
             logger.exception("Failed to subscribe to SNS. Response: %s", resp.text)
 
