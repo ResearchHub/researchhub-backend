@@ -61,7 +61,6 @@ whatever the proposal's field.
   ("No claim of new wet-lab data is made."). State the plan plainly.
 - Do not state the obvious with hedge words -- do not call a hypothesis
   "testable" or "falsifiable" when rigor is already assumed.
-- Refer to the work as "This work" / "This study", never "it" ("It generates...").
 - No self-praising or virtue-signalling section names ("Honest scope of prior
   expertise"); name the section plainly for its content.
 - Leave no placeholders, editorial notes, TODOs, or "[needs source]" markers in
@@ -73,8 +72,8 @@ whatever the proposal's field.
   data, or capabilities the profile does not support; if the project needs a
   capability the team lacks, state a concrete plan to acquire or collaborate for
   it rather than papering over the gap.
-- Directly answer the RFP: address what the funder asked for, and size the scope
-  to the grant's amount and end date.
+- Directly answer the RFP: address what the funder asked for (scope sizing is
+  covered under "Scope to the award" above).
 - Cite overarching, field-level claims with 1-2 real papers unless they are
   genuine common knowledge.
 - Cite primary research articles, not review articles, editorials, or other
@@ -135,8 +134,7 @@ Timeline and Milestones; 5. References) -- so just fill each section with real
 prose and do not restate the headings inside your text:
 
 - `sections`: an object with non-empty
-  - `title` -- a formal, descriptive noun phrase naming the mechanism or question
-    (not a conversational or headline-style hook),
+  - `title` -- a formal, descriptive noun phrase (see the title rule under c7),
   - `background` -- the background and central hypothesis,
   - `preliminary_data` -- the preliminary data and rationale that motivate the aims,
   - `aims` -- a list of specific aims, each `{title, body}`: `title` is the aim's
