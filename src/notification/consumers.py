@@ -2,8 +2,7 @@ import json
 
 from channels.exceptions import StopConsumer
 from channels.generic.websocket import AsyncWebsocketConsumer
-
-from utils.parsers import json_serial
+from django.core.serializers.json import DjangoJSONEncoder
 
 
 class NotificationConsumer(AsyncWebsocketConsumer):
@@ -36,4 +35,4 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         notification_type = event["notification_type"]
         event_data = event["data"]
         data = {"notification_type": notification_type, "data": event_data}
-        await self.send(text_data=json.dumps(data, default=json_serial))
+        await self.send(text_data=json.dumps(data, cls=DjangoJSONEncoder))
