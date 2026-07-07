@@ -18,6 +18,7 @@ from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
+from note.models import Note, NoteContent
 from note.serializers import NoteSerializer
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
@@ -41,6 +42,9 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
 from researchhub_document.related_models.constants.editor_type import CK_EDITOR
+from researchhub_document.serializers.registered_report_work_serializer import (
+    RegisteredReportWorkSerializer,
+)
 from researchhub_document.serializers.researchhub_post_serializer import (
     JournalEntryAcceptSerializer,
     RegisteredReportPublishSerializer,
@@ -87,6 +91,29 @@ class ResearchhubPostViewSet(
 
     def update(self, request, *args, **kwargs):
         return self.upsert_researchhub_posts(request)
+
+    @action(
+        detail=True,
+        methods=["get"],
+        url_name="registered-report-work",
+        url_path="registered_report_work",
+    )
+    def registered_report_work(
+        self, request: Request, pk: int | None = None
+    ) -> Response:
+        """Return registered report work-page data and tracker links."""
+        post = self.get_object()
+        if post.document_type != REGISTERED_REPORT:
+            return Response(
+                {"error": "Registered report work data requires a registered report."},
+                status=400,
+            )
+
+        serializer = RegisteredReportWorkSerializer(
+            post,
+            context={"request": request},
+        )
+        return Response(serializer.data, status=200)
 
     @action(
         detail=False,
@@ -284,15 +311,23 @@ class ResearchhubPostViewSet(
                     journal_entry_service = JournalEntryService(
                         journey_service=journey_service
                     )
-                    journal_entry_service.get_registered_report_note(
-                        created_by,
-                        serializer.validated_data["note_id"],
+                    registered_report_note = (
+                        journal_entry_service.get_registered_report_note(
+                            created_by,
+                            serializer.validated_data["note_id"],
+                        )
                     )
                     registered_report_proposal = (
                         journal_entry_service.get_registered_report_proposal(
                             created_by,
                             serializer.validated_data["proposal_id"],
                         )
+                    )
+                    note_id = serializer.validated_data["note_id"]
+                    self.create_registered_report_note_version(
+                        registered_report_note,
+                        serializer.validated_data["renderable_text"],
+                        serializer.validated_data.get("full_json"),
                     )
                     if not authors:
                         authors = self.get_registered_report_authors(
@@ -549,6 +584,19 @@ class ResearchhubPostViewSet(
         except (KeyError, TypeError) as e:
             logger.exception("Failed to create researchhub post")
             return Response({"error": str(e)}, status=400)
+
+    def create_registered_report_note_version(
+        self, note: Note, renderable_text: str, full_json: object | None
+    ) -> None:
+        """Persist the published registered report editor JSON on its note."""
+        if full_json is None:
+            return
+
+        NoteContent.objects.create(
+            note=note,
+            plain_text=renderable_text,
+            json=full_json,
+        )
 
     def update_existing_researchhub_posts(self, request):
         try:
