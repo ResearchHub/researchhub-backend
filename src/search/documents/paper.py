@@ -1,14 +1,14 @@
-import io
 import logging
 import math
 import sys
 import time
 from collections.abc import Iterable
-from typing import Any, override
+from typing import Any, TextIO, override
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.enums import CommandAction
 from django_opensearch_dsl.registries import registry
 
 from feed.models import FeedEntry
@@ -258,10 +258,10 @@ class PaperDocument(BaseDocument):
         verbose: bool = False,
         filter_: Q | None = None,
         exclude: Q | None = None,
-        alias=None,
+        alias: str = None,
         count: int = None,
-        action: str = "Index",
-        stdout: io.FileIO = sys.stdout,
+        action: CommandAction = CommandAction.INDEX,
+        stdout: TextIO = sys.stdout,
     ) -> Iterable:
         """
         Divide the queryset into chunks. Overwrite django_opensearch_dsl default
