@@ -10,7 +10,29 @@ from mailing_list.models import (
     ReplySubscription,
     ThreadSubscription,
 )
-from utils.serializers import get_model_serializer
+
+
+def _get_model_serializer(model_arg):
+    class GenericSerializer(serializers.ModelSerializer):
+        class Meta:
+            model = model_arg
+            fields = "__all__"
+
+    return GenericSerializer
+
+
+_SUBSCRIPTION_SERIALIZERS = {
+    model: _get_model_serializer(model)
+    for model in (
+        BountyDigestSubscription,
+        CommentSubscription,
+        DigestSubscription,
+        HubSubscription,
+        PaperSubscription,
+        ReplySubscription,
+        ThreadSubscription,
+    )
+}
 
 
 class EmailRecipientSerializer(serializers.ModelSerializer):
@@ -69,9 +91,8 @@ class EmailRecipientSerializer(serializers.ModelSerializer):
         return self._get_subscription(ReplySubscription, obj)
 
     def _get_subscription(self, model, obj):
-        serializer = get_model_serializer(model)
         try:
             subscription = model.objects.get(email_recipient=obj)
-            return serializer(subscription).data
+            return _SUBSCRIPTION_SERIALIZERS[model](subscription).data
         except model.DoesNotExist:
             return None
