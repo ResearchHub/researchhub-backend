@@ -25,7 +25,6 @@ from mailing_list.models import (
     ThreadSubscription,
 )
 from mailing_list.serializers import EmailRecipientSerializer
-from utils.http import PATCH, POST
 from utils.parsers import PlainTextParser
 
 logger = logging.getLogger(__name__)
@@ -73,7 +72,7 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         else:
             return EmailRecipient.objects.filter(user=user)
 
-    @action(detail=True, methods=[PATCH], permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=["PATCH"], permission_classes=[IsAuthenticated])
     def subscriptions(self, request, pk=None):
         email_recipient = self.get_object()
 
@@ -123,7 +122,7 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
 
         model.objects.update_or_create(id=sub_id, defaults=data)
 
-    @action(detail=False, methods=[POST], permission_classes=[AllowAny])
+    @action(detail=False, methods=["POST"], permission_classes=[AllowAny])
     def update_or_create_email_preference(self, request):
         """Enables anonymous users to unsubscribe."""
 
@@ -153,7 +152,7 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         return Response("success", status=status)
 
 
-@api_view([POST])
+@api_view(["POST"])
 @permission_classes(())  # Override default permission classes
 @parser_classes([PlainTextParser])
 @csrf_exempt

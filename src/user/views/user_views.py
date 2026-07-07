@@ -46,7 +46,6 @@ from user.serializers import (
 from user.services.earning_overview_service import EarningOverviewService
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.views.follow_view_mixins import FollowViewActionMixin
-from utils.http import POST, RequestMethods
 
 
 class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
@@ -138,7 +137,11 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         user.save(update_fields=["clicked_on_balance_date"])
         return Response({"data": "ok"}, status=200)
 
-    @action(detail=False, methods=[POST], permission_classes=[IsAuthenticated, Censor])
+    @action(
+        detail=False,
+        methods=["POST"],
+        permission_classes=[IsAuthenticated, Censor],
+    )
     def censor(self, request, pk=None):
         author_id = request.data.get("authorId")
         user_to_censor = User.objects.get(author_profile__id=author_id)
@@ -151,7 +154,9 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         return Response({"message": "User is Censored"}, status=200)
 
     @action(
-        detail=False, methods=[POST], permission_classes=[UserIsEditor | IsModerator]
+        detail=False,
+        methods=["POST"],
+        permission_classes=[UserIsEditor | IsModerator],
     )
     def mark_probable_spammer(self, request, pk=None):
         author_id = request.data.get("authorId")
@@ -176,7 +181,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=[RequestMethods.POST],
+        methods=["POST"],
         permission_classes=[RequestorIsOwnUser],
     )
     def set_should_display_rsc_balance(self, request, pk=None):
@@ -200,7 +205,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
     @method_decorator(cache_page(60 * 60 * 6))
     @action(
         detail=False,
-        methods=[RequestMethods.GET],
+        methods=["GET"],
     )
     def leaderboard(self, request):
         """
@@ -370,7 +375,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
         return self.get_paginated_response(serializer.data)
 
-    @action(detail=True, methods=[RequestMethods.GET], permission_classes=[AllowAny])
+    @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
     def bounties(self, request, pk=None):
         user = self.get_object()
         bounties = user.bounties.all().order_by("-created_date")
@@ -394,7 +399,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         response = self.get_paginated_response(serializer.data)
         return response
 
-    @action(detail=True, methods=[RequestMethods.GET], permission_classes=[AllowAny])
+    @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
     def awarded_bounties(self, request, pk=None):
         user = self.get_object()
         solutions = user.solutions.all().order_by("-created_date")
@@ -446,7 +451,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=[RequestMethods.PATCH],
+        methods=["PATCH"],
     )
     def has_seen_first_coin_modal(self, request):
         user = request.user
@@ -457,7 +462,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=[RequestMethods.PATCH],
+        methods=["PATCH"],
     )
     def has_seen_orcid_connect_modal(self, request):
         user = request.user
@@ -468,7 +473,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=[RequestMethods.PATCH],
+        methods=["PATCH"],
     )
     def has_completed_onboarding(self, request):
         user = request.user
@@ -480,7 +485,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=[RequestMethods.PATCH],
+        methods=["PATCH"],
     )
     def set_staking_opted_in(self, request):
         user = request.user
@@ -498,7 +503,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=[RequestMethods.POST],
+        methods=["POST"],
         permission_classes=[IsAuthenticated, Censor],
     )
     def reinstate(self, request):
