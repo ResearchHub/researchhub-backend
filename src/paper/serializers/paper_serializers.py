@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 import re
@@ -131,10 +132,8 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             data (dict)
         """
         file = None
-        try:
+        with contextlib.suppress(KeyError):
             file = data.pop("file")
-        except KeyError:
-            pass
 
         data = data.copy()
         data["file"] = file
@@ -594,10 +593,7 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
             headers=requests.utils.default_headers(),
             timeout=30,
         )
-        if res.status_code >= 200 and res.status_code < 400 and has_doi:
-            return True
-        else:
-            return False
+        return res.status_code >= 200 and res.status_code < 400 and has_doi
 
     def get_authors(self, paper):
         serializer = AuthorSerializer(

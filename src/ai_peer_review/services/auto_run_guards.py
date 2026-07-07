@@ -1,3 +1,5 @@
+import contextlib
+
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
@@ -35,10 +37,8 @@ class AutoRunGuardsService:
 
     @staticmethod
     def _decr_daily_count(cache_key: str) -> None:
-        try:
+        with contextlib.suppress(ValueError):
             cache.decr(cache_key)
-        except ValueError:
-            pass
 
     @staticmethod
     def has_assessed_comment_on_proposal_post(
