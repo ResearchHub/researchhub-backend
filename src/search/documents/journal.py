@@ -58,11 +58,14 @@ class JournalDocument(BaseDocument):
         count: int = None,  # type: ignore[override]
         alias=None,
     ) -> QuerySet:
-        return (
+        qs = (
             super()
-            .get_queryset(filter_=filter_, exclude=exclude, count=count, alias=alias)
+            .get_queryset(filter_=filter_, exclude=exclude, alias=alias)
             .filter(namespace="journal")
         )
+        if count is not None:
+            qs = qs[:count]
+        return qs
 
     # Used specifically for "autocomplete" style suggest feature
     def prepare_name_suggest(self, instance) -> dict[str, Any]:

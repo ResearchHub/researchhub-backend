@@ -74,9 +74,9 @@ class PaperDocument(BaseDocument):
         """
         Override get_queryset to include prefetching of relationsships.
         """
-        return (
+        qs = (
             super()
-            .get_queryset(filter_=filter_, exclude=exclude, count=count, alias=alias)
+            .get_queryset(filter_=filter_, exclude=exclude, alias=alias)
             .select_related(
                 "unified_document",
             )
@@ -84,6 +84,9 @@ class PaperDocument(BaseDocument):
                 "unified_document__hubs",
             )
         )
+        if count is not None:
+            qs = qs[:count]
+        return qs
 
     @override
     def should_index_object(self, obj) -> bool:  # type: ignore[override]

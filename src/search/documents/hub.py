@@ -58,11 +58,14 @@ class HubDocument(BaseDocument):
         count=None,
         alias=None,
     ) -> QuerySet:
-        return (
+        qs = (
             super()
-            .get_queryset(filter_=filter_, exclude=exclude, count=count, alias=alias)
+            .get_queryset(filter_=filter_, exclude=exclude, alias=alias)
             .exclude(namespace="journal")
         )
+        if count is not None:
+            qs = qs[:count]
+        return qs
 
     # Used specifically for "autocomplete" style suggest feature
     def prepare_name_suggest(self, instance) -> dict[str, Any]:
