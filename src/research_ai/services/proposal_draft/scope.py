@@ -16,10 +16,11 @@ _MIN_AIMS = 1
 
 _AIM_WORDS = {1: "one specific aim", 2: "two specific aims", 3: "three specific aims"}
 
-# The general rule, stated once so the prompt guidance and this module agree.
+# Prose fallback for an unknown award, when the agent must size the aims
+# itself; the sub-parts a/b allowance lives in the system prompt template.
 _AIM_RULE = (
-    "An award under $50k funds one focused specific aim (which may carry "
-    "sub-parts a/b), $50k-$100k funds two, and above $100k funds three."
+    "An award under $50k funds one focused specific aim, $50k-$100k funds "
+    "two, and above $100k funds three."
 )
 
 
@@ -67,7 +68,6 @@ def aim_scope_guidance(amount: object, currency: object = "USD") -> str:
     if max_aims is None:
         return "Size the number of specific aims to the award. " + _AIM_RULE
     return (
-        f"This RFP awards {_format_award(amount, currency)}, which funds at most "
-        f"{_AIM_WORDS[max_aims]}. Do not pad the proposal with extra aims; "
-        "consolidate and deepen the work rather than spreading it thin. " + _AIM_RULE
+        f"This RFP awards {_format_award(amount, currency)}, which funds at "
+        f"most {_AIM_WORDS[max_aims]}."
     )
