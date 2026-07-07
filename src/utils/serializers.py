@@ -2,13 +2,7 @@ from rest_framework.serializers import (
     CurrentUserDefault,
     HiddenField,
     ModelSerializer,
-    Serializer,
 )
-
-
-class EmptySerializer(Serializer):
-    class Meta:
-        model = None
 
 
 def get_model_serializer(model_arg):
