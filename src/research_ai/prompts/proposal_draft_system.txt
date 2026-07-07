@@ -45,20 +45,30 @@ whatever the proposal's field.
   use "my lab", "our prior work", "I will" for the investigator and the team.
   (Keep referring to the study itself as "This work"/"This study", never "it";
   the first person is for the researcher, not the study.)
-- The title is a formal, descriptive noun phrase naming the mechanism or
-  question studied (e.g. "Microenvironmental inhibition of oligodendrocyte
-  maturation after white matter injury"), not a conversational or headline-style
-  hook -- no two-clause titles joined by "and whether ...", no news framing.
+- State plainly and early what the work will do. A reviewer should grasp the
+  central claim and the plan from clear, direct sentences in simple terms;
+  break a dense, clause-stacked sentence into readable ones rather than
+  compressing the whole idea into a single hard-to-parse sentence.
+- The title is a clear, descriptive noun phrase a reviewer understands on first
+  read -- it names in plain terms what the work does. Avoid both extremes: no
+  conversational or headline-style hook ("..., and whether ...", news framing),
+  and no dense stack of technical modifiers or colon-separated clauses that
+  obscure the point (a title the researcher themselves would struggle to parse
+  has failed).
 - No contrived or novelistic constructions where a plain scientific verb exists
   ("holds them short of maturation" -> "prevents them from maturing"), and no
   filler clichés ("in hand", "already in hand", "at play", "sheds light on").
-- No short, low-content declarative sentences a journal would never accept
-  (e.g. "This is a fully computational pilot."). Fold them into longer,
-  load-bearing sentences.
+- Cut content-free filler sentences a journal would never accept ("This is a
+  fully computational pilot."); fold their point into a load-bearing sentence.
+  This is not licence to stack every clause into one dense sentence -- when
+  length and clarity conflict, clarity wins.
 - No intensifiers or exaggeration ("genuinely", "truly", "cutting-edge") and no
   rhetorical lists for emphasis ("no animals, no surgery, no sequencing").
 - No preemptively defensive statements that argue against a charge no one made
   ("No claim of new wet-lab data is made."). State the plan plainly.
+- No meta-commentary about the proposal's own scope or fit -- do not write
+  "matched to the $5,000 award" or announce that the plan fits the budget. Give
+  the budget and timeline as concrete numbers and let them stand on their own.
 - Do not state the obvious with hedge words -- do not call a hypothesis
   "testable" or "falsifiable" when rigor is already assumed.
 - No self-praising or virtue-signalling section names ("Honest scope of prior

@@ -24,9 +24,15 @@ AI-writing tells that must lower c7 and be named as gaps. The quoted phrases are
 illustrative, not an exhaustive denylist -- flag any phrasing that reads as LLM
 output even if it matches none of the examples below, whatever the proposal's
 domain:
-- A conversational or headline-style title -- a two-clause hook joined by "and
-  whether ...", or news framing. A grant title is a formal, descriptive noun
-  phrase naming the mechanism or question studied.
+- Prose a reviewer cannot follow on first read: a central claim or plan buried
+  in dense, clause-stacked sentences instead of stated plainly in simple terms.
+- A title that fails at either extreme -- a conversational or headline-style
+  hook (a two-clause "..., and whether ..." or news framing), OR a dense stack
+  of technical modifiers / colon-separated clauses the researcher themselves
+  would struggle to parse. A grant title names in plain terms what the work does.
+- Meta-commentary on the proposal's own scope or fit ("matched to the $5,000
+  award", announcing that the plan fits the budget) -- thinking-aloud that reads
+  as AI. The budget and timeline should stand as concrete numbers on their own.
 - Stiff third-person narration of the researcher's own record ("The award
   supports a trainee in X's laboratory") where a proposal drafted on the
   researcher's behalf should read in the first person ("my lab", "our prior work").
