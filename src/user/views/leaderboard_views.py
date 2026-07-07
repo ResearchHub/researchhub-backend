@@ -19,7 +19,6 @@ from user.related_models.funding_activity_model import (
 from user.related_models.leaderboard_model import Leaderboard
 from user.serializers import DynamicUserSerializer
 from user.services.funding_activity_service import get_leaderboard_excluded_user_ids
-from utils.http import RequestMethods
 
 # Maximum allowed date range (in days) when querying leaderboard by start_date/end_date.
 MAX_DATE_RANGE_DAYS = 60
@@ -276,7 +275,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=[RequestMethods.GET],
+        methods=["GET"],
         permission_classes=[IsAuthenticated],
         url_path="me",
     )
@@ -374,7 +373,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         return self.get_paginated_response(data)
 
     @method_decorator(cache_page(60 * 60 * 6))
-    @action(detail=False, methods=[RequestMethods.GET])
+    @action(detail=False, methods=["GET"])
     def overview(self, request):
         """Returns top 5 users for each category (reviewers and funders), all-time."""
         reviewer_entries = (
@@ -415,7 +414,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         )
 
     @method_decorator(cache_page(60 * 60 * 6))
-    @action(detail=False, methods=[RequestMethods.GET])
+    @action(detail=False, methods=["GET"])
     def reviewers(self, request):
         """Returns top reviewers for a given time period"""
         period_str = request.GET.get("period")
@@ -501,7 +500,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         return self.get_paginated_response(data)
 
     @method_decorator(cache_page(60 * 60 * 6))
-    @action(detail=False, methods=[RequestMethods.GET])
+    @action(detail=False, methods=["GET"])
     def funders(self, request):
         """Returns top funders for a given time period"""
         period_str = request.GET.get("period")

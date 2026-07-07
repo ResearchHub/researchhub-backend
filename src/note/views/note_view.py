@@ -40,7 +40,6 @@ from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import NOTE
 from user.models import Organization, User
-from utils.http import RequestMethods
 
 
 class NoteViewSet(ModelViewSet):
@@ -527,7 +526,7 @@ class NoteContentViewSet(ModelViewSet):
 
     def get_object(self):
         request_method = self.request.method
-        if request_method == RequestMethods.POST:
+        if request_method == "POST":
             queryset = Note.objects.all()
         else:
             queryset = self.filter_queryset(self.get_queryset())
@@ -544,7 +543,7 @@ class NoteContentViewSet(ModelViewSet):
         filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
         obj = get_object_or_404(queryset, **filter_kwargs)
 
-        if request_method != RequestMethods.POST:
+        if request_method != "POST":
             self.check_object_permissions(self.request, obj.note)
         else:
             self.check_object_permissions(self.request, obj)

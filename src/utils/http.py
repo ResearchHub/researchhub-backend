@@ -4,23 +4,6 @@ import time
 import cloudscraper
 import requests
 
-# TODO: Use contstants instead of class
-GET = "GET"
-HEAD = "HEAD"
-POST = "POST"
-PATCH = "PATCH"
-PUT = "PUT"
-DELETE = "DELETE"
-
-
-class RequestMethods:
-    GET = "GET"
-    HEAD = "HEAD"
-    POST = "POST"
-    PATCH = "PATCH"
-    PUT = "PUT"
-    DELETE = "DELETE"
-
 
 def get_user_from_request(ctx):
     request = ctx.get("request")

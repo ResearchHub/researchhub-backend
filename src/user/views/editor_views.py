@@ -16,7 +16,6 @@ from researchhub_access_group.constants import (
 )
 from user.related_models.user_model import User
 from user.serializers import EditorContributionSerializer
-from utils.http import GET
 
 
 def resolve_timeframe_for_contribution(start_date, end_date, query_key=None):
@@ -44,7 +43,7 @@ def resolve_timeframe_for_contribution(start_date, end_date, query_key=None):
     return date_frame
 
 
-@api_view(http_method_names=[GET])
+@api_view(http_method_names=["GET"])
 @permission_classes([AllowAny])
 def get_hub_active_contributors(request):
     user_ids = request.GET.get("userIds", "").split(",")
@@ -116,7 +115,7 @@ def get_hub_active_contributors(request):
     )
 
 
-@api_view(http_method_names=[GET])
+@api_view(http_method_names=["GET"])
 @permission_classes([AllowAny])
 def get_editors_by_contributions(request):
     editor_qs = User.objects.filter(

@@ -1,7 +1,5 @@
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
-from utils.http import RequestMethods
-
 
 class ReadOnly(BasePermission):
     def has_permission(self, request, view):
@@ -24,22 +22,20 @@ class CreateOrUpdateIfAllowed(BasePermission):
 
 class CreateOrReadOnly(BasePermission):
     def has_permission(self, request, view):
-        return (request.method in SAFE_METHODS) or (
-            request.method == RequestMethods.POST
-        )
+        return (request.method in SAFE_METHODS) or (request.method == "POST")
 
 
 class PostOnly(BasePermission):
     def has_permission(self, request, view):
-        return request.method == RequestMethods.POST
+        return request.method == "POST"
 
 
 class CreateOrUpdateOrReadOnly(BasePermission):
     def has_permission(self, request, view):
         return (
             (request.method in SAFE_METHODS)
-            or (request.method == RequestMethods.POST)
-            or (request.method == RequestMethods.PATCH)
+            or (request.method == "POST")
+            or (request.method == "PATCH")
         )
 
 

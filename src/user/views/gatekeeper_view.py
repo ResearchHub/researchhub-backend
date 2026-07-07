@@ -8,7 +8,6 @@ from rest_framework.viewsets import ModelViewSet
 from hub.permissions import IsModerator
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.serializers import GatekeeperSerializer
-from utils.http import GET
 
 
 class GatekeeperViewSet(ModelViewSet):
@@ -16,7 +15,7 @@ class GatekeeperViewSet(ModelViewSet):
     queryset = Gatekeeper.objects.all()
     serializer_class = GatekeeperSerializer
 
-    @action(detail=False, methods=[GET], permission_classes=[AllowAny])
+    @action(detail=False, methods=["GET"], permission_classes=[AllowAny])
     def check_current_user(self, request, pk=None):
         curr_user = request.user
 
