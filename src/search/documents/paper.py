@@ -69,13 +69,14 @@ class PaperDocument(BaseDocument):
         filter_: Q | None = None,
         exclude: Q | None = None,
         count: int = None,  # type: ignore[override]
+        alias=None,
     ) -> QuerySet:
         """
         Override get_queryset to include prefetching of relationsships.
         """
         return (
             super()
-            .get_queryset(filter_=filter_, exclude=exclude, count=count)
+            .get_queryset(filter_=filter_, exclude=exclude, count=count, alias=alias)
             .select_related(
                 "unified_document",
             )
@@ -254,6 +255,7 @@ class PaperDocument(BaseDocument):
         verbose: bool = False,
         filter_: Q | None = None,
         exclude: Q | None = None,
+        alias=None,
         count: int = None,
         action: str = "Index",
         stdout: io.FileIO = sys.stdout,
@@ -263,7 +265,12 @@ class PaperDocument(BaseDocument):
         because it uses offsets instead of filtering by greater than pk.
         """
         chunk_size = self.django.queryset_pagination
-        qs = self.get_queryset(filter_=filter_, exclude=exclude, count=count)
+        qs = self.get_queryset(
+            filter_=filter_,
+            exclude=exclude,
+            count=count,
+            alias=alias,
+        )
         qs = qs.order_by("pk") if not qs.query.is_sliced else qs
         count = qs.count()
         model = self.django.model.__name__

@@ -56,10 +56,11 @@ class JournalDocument(BaseDocument):
         filter_: Q | None = None,
         exclude: Q | None = None,
         count: int = None,  # type: ignore[override]
+        alias=None,
     ) -> QuerySet:
         return (
             super()
-            .get_queryset(filter_=filter_, exclude=exclude, count=count)
+            .get_queryset(filter_=filter_, exclude=exclude, count=count, alias=alias)
             .filter(namespace="journal")
         )
 

@@ -51,10 +51,16 @@ class HubDocument(BaseDocument):
         ]
 
     @override
-    def get_queryset(self, filter_=None, exclude=None, count=None) -> QuerySet:
+    def get_queryset(
+        self,
+        filter_=None,
+        exclude=None,
+        count=None,
+        alias=None,
+    ) -> QuerySet:
         return (
             super()
-            .get_queryset(filter_=filter_, exclude=exclude, count=count)
+            .get_queryset(filter_=filter_, exclude=exclude, count=count, alias=alias)
             .exclude(namespace="journal")
         )
 
