@@ -234,7 +234,9 @@ class _ProposalDraftRunner:
         assembled fields, so we fill them here before anything else runs.
         """
         submitted = submitted if isinstance(submitted, dict) else {}
-        plain_text, prosemirror = assemble_proposal(submitted.get("sections"))
+        plain_text, prosemirror = assemble_proposal(
+            submitted.get("sections"), submitted.get("citations")
+        )
         normalized = dict(submitted)
         normalized["plain_text"] = plain_text
         normalized["prosemirror"] = prosemirror

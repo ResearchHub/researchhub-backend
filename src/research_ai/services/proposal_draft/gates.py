@@ -13,7 +13,7 @@ from collections.abc import Callable
 
 from research_ai.models import ProposalDraft
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
-from research_ai.services.proposal_tools import ProposalVerificationToolset
+from research_ai.services.proposal_tools import ProposalVerificationToolset, valid_aims
 from research_ai.services.proposal_tools.doi import strip_doi_prefix
 
 # The gates in the order they run; also the report keys their results live
@@ -26,13 +26,15 @@ def failing_gates(report: dict) -> list[str]:
     return [name for name in GATE_NAMES if not (report.get(name) or {}).get("ok", True)]
 
 
-# Sections the proposal must carry (keys on the submitted ``sections`` object).
+# Text sections the proposal must carry (keys on the submitted ``sections``
+# object). ``aims`` is a list and is checked separately in ``_gate_sections``.
 _REQUIRED_SECTIONS = (
     ("title", "title"),
-    ("hypothesis", "hypothesis / aim"),
-    ("approach", "approach / methods"),
-    ("why_this_team", "why this team"),
-    ("scope_timeline", "scope & timeline"),
+    ("background", "background & hypothesis"),
+    ("preliminary_data", "preliminary data & rationale"),
+    ("why_this_team", "investigator & team qualifications"),
+    ("budget", "budget justification"),
+    ("timeline", "timeline & milestones"),
 )
 
 
@@ -135,6 +137,9 @@ class ProposalGateRunner:
             for key, label in _REQUIRED_SECTIONS
             if not str(sections.get(key) or "").strip()
         ]
+        # ``aims`` is a list of {title, body}; require at least one complete aim.
+        if not valid_aims(sections.get("aims")):
+            missing.append("specific aims")
         prosemirror_ok = _prosemirror_ok(submitted.get("prosemirror"))
         gaps = [f"Add a non-empty '{label}' section." for label in missing]
         if not prosemirror_ok:
@@ -229,17 +234,17 @@ class ProposalGateRunner:
         """Light, honest scope check.
 
         We cannot deterministically judge whether a plan fits a budget -- the
-        panel's c2 does that -- but we can require the scope & timeline section
-        to commit to concrete numbers (a duration or dollar figure) rather than
-        hand-wave the fit.
+        panel's c2 does that -- but we can require the budget and timeline
+        sections to commit to concrete numbers (a duration or dollar figure)
+        rather than hand-wave the fit.
         """
-        text = str(sections.get("scope_timeline") or "")
+        text = f"{sections.get('budget') or ''} {sections.get('timeline') or ''}"
         has_number = bool(re.search(r"\d", text))
         gaps = []
         if not has_number:
             gaps.append(
                 "State the budget and timeline concretely (dollar amount and "
-                "duration) in the scope & timeline section."
+                "duration) in the budget and timeline sections."
             )
         return {"ok": has_number, "has_number": has_number, "gaps": gaps}
 

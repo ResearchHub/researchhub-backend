@@ -178,10 +178,17 @@ _FILLER = (
 def _clean_sections(title="A Study of Folding"):
     return {
         "title": title,
-        "hypothesis": "We hypothesize that X drives Y in measurable ways.",
-        "approach": "We will measure X under Y conditions. " + _FILLER,
+        "background": "We hypothesize that X drives Y in measurable ways.",
+        "preliminary_data": "Pilot work shows the trend. " + _FILLER,
+        "aims": [
+            {
+                "title": "Measure X",
+                "body": "We will measure X under Y conditions. " + _FILLER,
+            }
+        ],
         "why_this_team": "Jane Smith has published on protein folding.",
-        "scope_timeline": "Over 24 months within the $50,000 budget.",
+        "budget": "The $50,000 award covers compute and storage.",
+        "timeline": "The plan runs 24 months with monthly milestones.",
     }
 
 

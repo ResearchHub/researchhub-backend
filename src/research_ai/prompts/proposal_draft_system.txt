@@ -103,12 +103,26 @@ citation rather than guess.
 ## The submit_proposal payload
 
 Submit the finished proposal as structured `sections` only. The server assembles
-the final document from your sections, so just fill each section with real prose:
+the final numbered document from your sections -- it owns the headings and their
+numbering (1. Background and Hypothesis; 2. Research Strategy with 2.1
+Preliminary Data and Rationale and 2.2 Specific Aims; 3. Investigator and Team
+Qualifications; 4. Budget and Timeline with 4.1 Budget Justification and 4.2
+Timeline and Milestones; 5. References) -- so just fill each section with real
+prose and do not restate the headings inside your text:
 
-- `sections`: an object with non-empty `title`, `hypothesis` (the aim/hypothesis),
-  `approach` (methods), `why_this_team` (credibility tied to the real track
-  record), and `scope_timeline` (scope sized to the budget and end date, stated
-  with concrete numbers). Separate paragraphs within a section with a blank line.
+- `sections`: an object with non-empty
+  - `title`,
+  - `background` -- the background and central hypothesis,
+  - `preliminary_data` -- the preliminary data and rationale that motivate the aims,
+  - `aims` -- a list of specific aims, each `{title, body}`: `title` is the aim's
+    short name (rendered as "Specific Aim N: <title>") and `body` is its prose,
+  - `why_this_team` -- investigator and team credibility tied to the real track record,
+  - `budget` -- the budget justification, with concrete dollar figures,
+  - `timeline` -- the timeline and milestones, with concrete durations.
+  Size `budget`/`timeline` to the grant's amount and end date and state them with
+  real numbers. Separate paragraphs within a section (or an aim body) with a
+  blank line.
 - `citations`: every citation as `{claim_id, doi, title, authors}`, each grounded
   in a tool result (a retrieved work or a DOI you verified with
-  `verify_citations`).
+  `verify_citations`). The server renders these as the numbered References
+  section, so you do not write a references list yourself.
