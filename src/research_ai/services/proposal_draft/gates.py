@@ -66,6 +66,49 @@ def _citation_keys(citation: dict) -> set[str]:
     return {k for k in keys if k}
 
 
+def _apply_corrections(citations: list[dict], results_by_id: dict) -> list[str]:
+    """Adopt the verifier's minor_drift corrections; return the corrected ids.
+
+    The DOI resolved to the same paper but the claimed title/authors drifted,
+    so the resolved record -- not the model's typing -- is what the References
+    render. The citation dicts are the submitted ones, so this corrects the
+    draft in place.
+    """
+    corrected: list[str] = []
+    for c in citations:
+        correction = (results_by_id.get(c.get("claim_id")) or {}).get("correction")
+        if not correction:
+            continue
+        c["title"] = correction["title"]
+        c["authors"] = correction["authors"]
+        corrected.append(str(c.get("claim_id") or "?"))
+    return corrected
+
+
+def _ungrounded_citations(
+    citations: list[dict], provenance_keys: set[str], results_by_id: dict
+) -> list[str]:
+    """Claim ids of citations no tool result grounds.
+
+    A citation is grounded if it was retrieved (its DOI/URL is in the
+    provenance the OpenAlex/profile tools recorded) OR if verify_citations
+    resolved its DOI against OpenAlex ground truth to a matching record
+    (exact / minor_drift). The second path lets the agent cite a real,
+    verified field-level paper outside the researcher's own works without
+    re-fetching it through the author tools just to satisfy provenance --
+    fabrication is still caught separately (dead / major_fabrication).
+    """
+    ungrounded: list[str] = []
+    for c in citations:
+        if _citation_keys(c) & provenance_keys:
+            continue
+        result = results_by_id.get(c.get("claim_id"))
+        if result and result.get("severity") in ("exact", "minor_drift"):
+            continue
+        ungrounded.append(str(c.get("claim_id") or "?"))
+    return ungrounded
+
+
 def _prosemirror_ok(doc) -> bool:
     """Minimal ProseMirror shape check: a doc node with non-empty content."""
     return (
@@ -210,34 +253,8 @@ class ProposalGateRunner:
         summary = verification.get("summary", {})
         results_by_id = {r.get("claim_id"): r for r in verification.get("results", [])}
 
-        # Adopt the verifier's minor_drift corrections: the DOI resolved to the
-        # same paper but the claimed title/authors drifted, so the resolved
-        # record -- not the model's typing -- is what the References render.
-        # The citation dicts are the submitted ones, so this corrects the draft.
-        corrected: list[str] = []
-        for c in citations:
-            correction = (results_by_id.get(c.get("claim_id")) or {}).get("correction")
-            if not correction:
-                continue
-            c["title"] = correction["title"]
-            c["authors"] = correction["authors"]
-            corrected.append(str(c.get("claim_id") or "?"))
-
-        # A citation is grounded if it was retrieved (its DOI/URL is in the
-        # provenance the OpenAlex/profile tools recorded) OR if verify_citations
-        # resolved its DOI against OpenAlex ground truth to a matching record
-        # (exact / minor_drift). The second path lets the agent cite a real,
-        # verified field-level paper outside the researcher's own works without
-        # re-fetching it through the author tools just to satisfy provenance --
-        # fabrication is still caught below (dead / major_fabrication).
-        ungrounded: list[str] = []
-        for c in citations:
-            if _citation_keys(c) & provenance_keys:
-                continue
-            result = results_by_id.get(c.get("claim_id"))
-            if result and result.get("severity") in ("exact", "minor_drift"):
-                continue
-            ungrounded.append(str(c.get("claim_id") or "?"))
+        corrected = _apply_corrections(citations, results_by_id)
+        ungrounded = _ungrounded_citations(citations, provenance_keys, results_by_id)
 
         failures = [
             r.get("claim_id")

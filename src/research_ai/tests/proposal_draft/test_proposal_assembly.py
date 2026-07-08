@@ -33,7 +33,7 @@ class AssembleProposalTests(unittest.TestCase):
         sections = _full_sections()
 
         # Act
-        plain_text, doc = assemble_proposal(sections)
+        _plain, doc = assemble_proposal(sections)
 
         # Assert: H1 title, numbered H2 top-level sections in order.
         self.assertEqual(doc["type"], "doc")
