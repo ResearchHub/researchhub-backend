@@ -9,6 +9,7 @@ from research_ai.services.agent.types import (
     TextBlock,
     ToolResultBlock,
     ToolUseBlock,
+    TurnUsage,
     deserialize_messages,
     serialize_messages,
 )
@@ -78,3 +79,23 @@ class TypesTests(SimpleTestCase):
 
         # Act / Assert
         self.assertEqual(turn.text, "hello")
+
+    def test_assistant_turn_carries_usage_and_latency(self):
+        # Arrange
+        usage = TurnUsage(
+            input_tokens=1,
+            output_tokens=2,
+            cache_read_tokens=3,
+            cache_write_tokens=4,
+        )
+        turn = AssistantTurn(
+            text_blocks=[],
+            tool_calls=[],
+            stop_reason=StopReason.END_TURN,
+            usage=usage,
+            latency_ms=50,
+        )
+
+        # Act / Assert
+        self.assertEqual(turn.usage, usage)
+        self.assertEqual(turn.latency_ms, 50)

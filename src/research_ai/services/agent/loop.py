@@ -20,8 +20,10 @@ from research_ai.services.agent.errors import (
     ProviderError,
 )
 from research_ai.services.agent.providers.base import LLMProvider
+from research_ai.services.agent.recorder import AgentRecorder
 from research_ai.services.agent.tools import Toolset
 from research_ai.services.agent.types import (
+    AssistantTurn,
     Message,
     StopReason,
     TextBlock,
@@ -106,6 +108,7 @@ class Agent:
         max_iterations: int,
         max_tokens: int,
         temperature: float,
+        recorder: AgentRecorder | None = None,
     ):
         self.provider = provider
         self.toolset = toolset
@@ -113,28 +116,55 @@ class Agent:
         self.max_iterations = max_iterations
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.recorder = recorder
 
-    def run(self, user_prompt: str, *, on_event=None) -> AgentResult:
+    def run(self, user_prompt: str) -> AgentResult:
         """Drive a fresh conversation from ``user_prompt`` to completion."""
-        messages = [Message(role="user", content=[TextBlock(text=user_prompt)])]
-        return self._drive(messages, on_event=on_event)
+        user_message = Message(role="user", content=[TextBlock(text=user_prompt)])
+        messages = [user_message]
+        self._record_message(user_message)
+        return self._drive(messages)
 
     def continue_conversation(
         self,
         messages: list[Message],
         user_message: str,
-        *,
-        on_event=None,
     ) -> AgentResult:
         """Append a user turn to ``messages`` and drive (resumable multi-turn).
 
         ``messages`` is copied, not mutated; the updated list is returned on the
         ``AgentResult``.
         """
-        messages = list(messages) + [
-            Message(role="user", content=[TextBlock(text=user_message)])
-        ]
-        return self._drive(messages, on_event=on_event)
+        next_message = Message(role="user", content=[TextBlock(text=user_message)])
+        messages = list(messages) + [next_message]
+        self._record_message(next_message)
+        return self._drive(messages)
+
+    def _record_message(
+        self, message: Message, *, turn: AssistantTurn | None = None
+    ) -> None:
+        if self.recorder is None:
+            return
+        try:
+            self.recorder.record_message(message, turn=turn)
+        except Exception:  # noqa: BLE001 - observability must not break the run
+            logger.exception("agent recorder failed to record message")
+
+    def _record_run_finished(self, result: AgentResult) -> None:
+        if self.recorder is None:
+            return
+        try:
+            self.recorder.on_run_finished(result)
+        except Exception:  # noqa: BLE001 - observability must not break the run
+            logger.exception("agent recorder failed to record run completion")
+
+    def _record_run_failed(self, error: AgentRunError) -> None:
+        if self.recorder is None:
+            return
+        try:
+            self.recorder.on_run_failed(error)
+        except Exception:  # noqa: BLE001 - preserve the original run failure
+            logger.exception("agent recorder failed to record run failure")
 
     def _complete_turn(self, messages, rendered_tools, iteration):
         try:
@@ -187,9 +217,11 @@ class Agent:
             )
         return result_blocks, stop
 
-    def _drive(self, messages: list[Message], *, on_event=None) -> AgentResult:
-        # ``on_event`` is an unused placeholder for the future streaming hook;
-        # it is threaded toward ``complete`` but streaming is not implemented.
+    def _finish(self, result: AgentResult) -> AgentResult:
+        self._record_run_finished(result)
+        return result
+
+    def _drive(self, messages: list[Message]) -> AgentResult:
         rendered_tools = self.toolset.render_specs(self.provider)
         logger.info(
             "agent run start: tools=[%s] max_iterations=%d",
@@ -197,53 +229,72 @@ class Agent:
             self.max_iterations,
         )
 
-        for iteration in range(1, self.max_iterations + 1):
-            turn = self._complete_turn(messages, rendered_tools, iteration)
-            messages.append(
-                Message(
+        try:
+            for iteration in range(1, self.max_iterations + 1):
+                turn = self._complete_turn(messages, rendered_tools, iteration)
+                assistant_message = Message(
                     role="assistant",
                     content=[*turn.text_blocks, *turn.tool_calls],
                 )
+                messages.append(assistant_message)
+                self._record_message(assistant_message, turn=turn)
+
+                # The assistant's text on a tool-calling turn is its stated
+                # reason for the calls -- log it so the trace shows *why* a
+                # tool was picked.
+                if turn.text.strip():
+                    logger.info(
+                        "iter %d reasoning: %s", iteration, _truncate(turn.text)
+                    )
+
+                if not turn.tool_calls and turn.stop_reason == StopReason.END_TURN:
+                    # Model answered in plain text without calling a tool: done.
+                    logger.info(
+                        "iter %d end_turn: agent answered in plain text", iteration
+                    )
+                    return self._finish(
+                        AgentResult(
+                            messages=messages,
+                            final_text=turn.text,
+                            stop_reason=turn.stop_reason.value,
+                            iterations=iteration,
+                        )
+                    )
+                if not turn.tool_calls:
+                    raise IncompleteTurnError(
+                        "Provider stopped without completing the agent run: "
+                        f"{turn.stop_reason.value}",
+                        stop_reason=turn.stop_reason.value,
+                        messages=messages,
+                        iterations=iteration,
+                    )
+
+                result_blocks, stop = self._dispatch_tool_calls(
+                    turn.tool_calls, iteration
+                )
+                result_message = Message(role="user", content=result_blocks)
+                messages.append(result_message)
+                self._record_message(result_message)
+
+                if stop:
+                    logger.info(
+                        "iter %d stop_tool: terminal tool ended the run", iteration
+                    )
+                    return self._finish(
+                        AgentResult(
+                            messages=messages,
+                            final_text=turn.text,
+                            stop_reason="stop_tool",
+                            iterations=iteration,
+                        )
+                    )
+
+            logger.info("agent hit iteration cap of %d", self.max_iterations)
+            raise IterationLimitError(
+                f"Agent exceeded {self.max_iterations} iterations",
+                messages=messages,
+                iterations=self.max_iterations,
             )
-
-            # The assistant's text on a tool-calling turn is its stated reason for
-            # the calls -- log it so the trace shows *why* a tool was picked.
-            if turn.text.strip():
-                logger.info("iter %d reasoning: %s", iteration, _truncate(turn.text))
-
-            if not turn.tool_calls and turn.stop_reason == StopReason.END_TURN:
-                # Model answered in plain text without calling a tool: done.
-                logger.info("iter %d end_turn: agent answered in plain text", iteration)
-                return AgentResult(
-                    messages=messages,
-                    final_text=turn.text,
-                    stop_reason=turn.stop_reason.value,
-                    iterations=iteration,
-                )
-            if not turn.tool_calls:
-                raise IncompleteTurnError(
-                    "Provider stopped without completing the agent run: "
-                    f"{turn.stop_reason.value}",
-                    stop_reason=turn.stop_reason.value,
-                    messages=messages,
-                    iterations=iteration,
-                )
-
-            result_blocks, stop = self._dispatch_tool_calls(turn.tool_calls, iteration)
-            messages.append(Message(role="user", content=result_blocks))
-
-            if stop:
-                logger.info("iter %d stop_tool: terminal tool ended the run", iteration)
-                return AgentResult(
-                    messages=messages,
-                    final_text=turn.text,
-                    stop_reason="stop_tool",
-                    iterations=iteration,
-                )
-
-        logger.info("agent hit iteration cap of %d", self.max_iterations)
-        raise IterationLimitError(
-            f"Agent exceeded {self.max_iterations} iterations",
-            messages=messages,
-            iterations=self.max_iterations,
-        )
+        except AgentRunError as exc:
+            self._record_run_failed(exc)
+            raise

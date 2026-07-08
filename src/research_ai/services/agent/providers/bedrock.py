@@ -21,6 +21,7 @@ from research_ai.services.agent.types import (
     TextBlock,
     ToolResultBlock,
     ToolUseBlock,
+    TurnUsage,
 )
 from utils.aws import bedrock_runtime_client
 
@@ -120,7 +121,6 @@ class BedrockProvider(LLMProvider):
             logger.exception("Bedrock complete failed")
             raise ProviderError(f"Bedrock complete failed: {e}") from e
 
-        self._log_usage(response)
         return self._parse_turn(response)
 
     # -- private helpers --------------------------------------------------
@@ -152,6 +152,23 @@ class BedrockProvider(LLMProvider):
             usage.get("cacheWriteInputTokens"),
             usage.get("outputTokens"),
         )
+
+    def _parse_usage(self, response: dict) -> TurnUsage | None:
+        usage = response.get("usage")
+        if not usage:
+            return None
+        return TurnUsage(
+            input_tokens=usage.get("inputTokens") or 0,
+            output_tokens=usage.get("outputTokens") or 0,
+            cache_read_tokens=usage.get("cacheReadInputTokens") or 0,
+            cache_write_tokens=usage.get("cacheWriteInputTokens") or 0,
+        )
+
+    def _parse_latency_ms(self, response: dict) -> int | None:
+        latency = (response.get("metrics") or {}).get("latencyMs")
+        if isinstance(latency, list):
+            latency = latency[0] if latency else None
+        return latency if isinstance(latency, int) else None
 
     def _render_block(self, block: Any) -> dict:
         if isinstance(block, TextBlock):
@@ -195,9 +212,12 @@ class BedrockProvider(LLMProvider):
                 )
 
         stop_reason = _STOP_REASONS.get(response.get("stopReason"), StopReason.OTHER)
+        self._log_usage(response)
         return AssistantTurn(
             text_blocks=text_blocks,
             tool_calls=tool_calls,
             stop_reason=stop_reason,
+            usage=self._parse_usage(response),
+            latency_ms=self._parse_latency_ms(response),
             raw=response,
         )

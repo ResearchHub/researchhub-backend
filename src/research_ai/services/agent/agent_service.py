@@ -10,6 +10,7 @@ second provider exists and there is a real choice to make.
 
 from research_ai.services.agent.loop import Agent
 from research_ai.services.agent.providers.base import LLMProvider
+from research_ai.services.agent.recorder import AgentRecorder
 from research_ai.services.agent.tools import Toolset
 
 
@@ -28,6 +29,7 @@ class AgentService:
         max_tokens: int = 4096,
         temperature: float = 0.0,
         max_iterations: int | None = None,
+        recorder: AgentRecorder | None = None,
     ) -> Agent:
         """Build an ``Agent`` for ``toolset`` with the injected provider."""
         return Agent(
@@ -39,4 +41,5 @@ class AgentService:
             ),
             max_tokens=max_tokens,
             temperature=temperature,
+            recorder=recorder,
         )

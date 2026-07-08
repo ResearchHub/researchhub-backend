@@ -73,6 +73,16 @@ class Message:
 
 
 @dataclass(frozen=True)
+class TurnUsage:
+    """Provider-normalized token usage for one assistant turn."""
+
+    input_tokens: int
+    output_tokens: int
+    cache_read_tokens: int
+    cache_write_tokens: int
+
+
+@dataclass(frozen=True)
 class AssistantTurn:
     """A parsed model response: text, tool calls, stop reason, and raw payload.
 
@@ -83,6 +93,8 @@ class AssistantTurn:
     text_blocks: list[TextBlock]
     tool_calls: list[ToolUseBlock]
     stop_reason: StopReason
+    usage: TurnUsage | None = None
+    latency_ms: int | None = None
     raw: dict = field(default_factory=dict)
 
     @property

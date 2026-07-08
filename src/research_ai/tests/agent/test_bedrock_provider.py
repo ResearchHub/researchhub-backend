@@ -13,6 +13,7 @@ from research_ai.services.agent.types import (
     TextBlock,
     ToolResultBlock,
     ToolUseBlock,
+    TurnUsage,
 )
 
 
@@ -127,6 +128,13 @@ class CompleteAndParseTests(SimpleTestCase):
                 }
             },
             "stopReason": "tool_use",
+            "usage": {
+                "inputTokens": 12,
+                "outputTokens": 4,
+                "cacheReadInputTokens": 8,
+                "cacheWriteInputTokens": 6,
+            },
+            "metrics": {"latencyMs": 321},
         }
         provider = _build_provider([response])
 
@@ -145,8 +153,49 @@ class CompleteAndParseTests(SimpleTestCase):
         self.assertEqual(turn.tool_calls[0].id, "t1")
         self.assertEqual(turn.tool_calls[0].input, {"q": "jane"})
         self.assertEqual(turn.stop_reason, StopReason.TOOL_USE)
+        self.assertEqual(
+            turn.usage,
+            TurnUsage(
+                input_tokens=12,
+                output_tokens=4,
+                cache_read_tokens=8,
+                cache_write_tokens=6,
+            ),
+        )
+        self.assertEqual(turn.latency_ms, 321)
         # toolConfig was forwarded because tools were present.
         self.assertIn("toolConfig", provider._client.calls[0])
+
+    def test_complete_defaults_missing_usage_fields_to_zero(self):
+        # Arrange
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+            "usage": {"inputTokens": 10},
+            "metrics": {"latencyMs": [222]},
+        }
+        provider = _build_provider([response])
+
+        # Act
+        turn = provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=100,
+            temperature=0.0,
+        )
+
+        # Assert
+        self.assertEqual(
+            turn.usage,
+            TurnUsage(
+                input_tokens=10,
+                output_tokens=0,
+                cache_read_tokens=0,
+                cache_write_tokens=0,
+            ),
+        )
+        self.assertEqual(turn.latency_ms, 222)
 
     def test_omits_temperature_for_models_that_reject_sampling_params(self):
         # Arrange: Opus 4.8 rejects `temperature` with a 400.
