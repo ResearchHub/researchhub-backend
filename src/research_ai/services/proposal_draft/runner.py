@@ -369,10 +369,10 @@ class _ProposalDraftRunner:
         }
         if accepted:
             feedback["note"] = (
-                "This draft clears every gate. That is the minimum to ship, not "
-                "the goal -- the run keeps your best-scoring accepted draft, so "
-                "keep revising to raise the panel score on its weakest criteria. "
-                "The run stops when the score stops improving."
+                "This draft clears every gate -- that is the floor, not the goal. "
+                "Keep revising the weakest criteria. "
+                "Your best accepted draft is kept; the run stops itself "
+                "once the score stops improving."
             )
         return feedback
 

@@ -69,9 +69,11 @@ field.
   rhetorical lists for emphasis ("no animals, no surgery, no sequencing").
 - No preemptively defensive statements against a charge no one made ("No
   claim of new wet-lab data is made.").
-- No meta-commentary on the proposal's own scope or fit -- never "matched to
-  the $5,000 award". State budget and timeline as concrete numbers and let
-  them stand.
+- No meta-commentary on the proposal's own scope or fit, in any wording. Do not
+  frame the budget or timeline against the award at all.
+  Open the budget by allocating the number ("Of the $5,000, $3,200 funds ...")
+  and state the timeline as concrete durations; let the numbers stand without
+  remarking that they fit.
 - Do not state the obvious -- never call a hypothesis "testable" or
   "falsifiable"; rigor is assumed.
 - No self-praising section names ("Honest scope of prior expertise"); name
