@@ -130,6 +130,7 @@ class _ProposalDraftRunner:
             verification_toolset=self.verification_toolset,
             judge_context=self._judge_context,
             grounded_urls=self._grounded_urls,
+            award_context=lambda: self.rfp_context,
             on_step=self.recorder.set_step,
         )
 
@@ -168,7 +169,8 @@ class _ProposalDraftRunner:
         self._ensure_profile()
 
         system_prompt = build_proposal_system_prompt(
-            panel_threshold=self.config.panel_threshold
+            panel_threshold=self.config.panel_threshold,
+            award=self.rfp_context,
         )
         user_prompt = build_proposal_user_prompt(self.expert, self.rfp_context)
         agent = self._build_agent(system_prompt)
@@ -234,7 +236,9 @@ class _ProposalDraftRunner:
         assembled fields, so we fill them here before anything else runs.
         """
         submitted = submitted if isinstance(submitted, dict) else {}
-        plain_text, prosemirror = assemble_proposal(submitted.get("sections"))
+        plain_text, prosemirror = assemble_proposal(
+            submitted.get("sections"), submitted.get("citations")
+        )
         normalized = dict(submitted)
         normalized["plain_text"] = plain_text
         normalized["prosemirror"] = prosemirror

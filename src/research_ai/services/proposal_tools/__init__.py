@@ -20,8 +20,8 @@ The draft driver wires these together; this package only builds the tools.
 """
 
 from research_ai.services.proposal_tools.assembly import (
-    PROPOSAL_SECTIONS,
     assemble_proposal,
+    valid_aims,
 )
 from research_ai.services.proposal_tools.context_tools import (
     ProposalContextToolset,
@@ -38,11 +38,11 @@ from research_ai.services.proposal_tools.web_search_tools import (
 )
 
 __all__ = [
-    "PROPOSAL_SECTIONS",
     "ProposalContextToolset",
     "ProposalFulltextToolset",
     "ProposalVerificationToolset",
     "ProposalWebSearchToolset",
     "assemble_proposal",
     "build_judge_context",
+    "valid_aims",
 ]
