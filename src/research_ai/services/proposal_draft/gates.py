@@ -81,6 +81,8 @@ def _apply_corrections(citations: list[dict], results_by_id: dict) -> list[str]:
             continue
         c["title"] = correction["title"]
         c["authors"] = correction["authors"]
+        if correction.get("year"):
+            c["year"] = correction["year"]
         corrected.append(str(c.get("claim_id") or "?"))
     return corrected
 

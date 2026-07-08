@@ -38,6 +38,8 @@ LLM output even if it matches no example, whatever the proposal's domain:
 - Contrived or novelistic constructions where a plain scientific verb exists
   ("holds them short of maturation" for "prevents them from maturing");
   filler clichés ("in hand", "at play", "sheds light on").
+- Antithesis-for-emphasis ("fails not because X, but because Y"; "not a passive
+  scar but an active environment") where the positive claim would stand alone.
 - Short, content-free declarative sentences a journal would never accept
   ("This is a fully computational pilot.").
 - Intensifiers and exaggeration ("genuinely", "truly", "cutting-edge");
@@ -58,6 +60,11 @@ Also always list as a gap (and cap the affected criteria low):
 - A core method or capability the project needs but the profile does not
   justify -- claimed anyway or admitted as lacking -- with no concrete plan to
   acquire or collaborate for it.
+- A central validation or transfer step that only promises to "test" or
+  "compare" with no concrete success criterion (threshold, effect size, or
+  metric), no stated read of a negative result, or -- for any cross-dataset,
+  cross-cohort, or cross-species integration -- no control for batch, platform,
+  or species differences. Cap c1 low.
 - An unfinished section: a placeholder or editorial note ("[needs source ...]",
   "TODO", "TBD", "[citation]"), an empty or stub section, or a sentence that
   promises content it never delivers.

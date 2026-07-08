@@ -58,12 +58,20 @@ def valid_aims(aims: object) -> list[dict]:
 
 
 def _reference_line(citation: object) -> str:
-    """One rendered reference: ``Authors. Title. <doi-url>`` (blank parts dropped)."""
+    """One rendered reference: ``Authors (Year). Title. <doi-url>``.
+
+    The year is rendered next to the authors -- when present -- so an inline
+    author-year citation ("(Weber et al., 2025)") has a matching anchor in the
+    list. Blank parts are dropped.
+    """
     if not isinstance(citation, dict):
         return ""
     authors = citation.get("authors")
     authors = authors if isinstance(authors, list) else []
     author_text = ", ".join(a for a in (str(x).strip() for x in authors) if a)
+    year = str(citation.get("year") or "").strip()
+    if author_text and year:
+        author_text = f"{author_text} ({year})"
     parts = [
         part
         for part in (

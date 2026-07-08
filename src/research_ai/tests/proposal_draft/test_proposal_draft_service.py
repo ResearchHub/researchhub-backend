@@ -942,7 +942,7 @@ class ProposalDraftServiceTests(TestCase):
         note = Note.objects.get(id=result["note_id"])
         plain_text = note.latest_version.plain_text
         self.assertIn(
-            "Alan M. Turing. The Extracellular Matrix and Remyelination in "
+            "Alan M. Turing (2021). The Extracellular Matrix and Remyelination in "
             "CNS Disease. https://doi.org/10.1/drift",
             plain_text,
         )
