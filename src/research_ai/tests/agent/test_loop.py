@@ -300,9 +300,7 @@ class AgentLoopTests(SimpleTestCase):
     def test_raising_recorder_does_not_break_successful_run(self):
         # Arrange
         provider = FakeProvider([_build_text_turn("done")])
-        agent = _build_agent(
-            provider, _build_toolset(), recorder=ExplodingRecorder()
-        )
+        agent = _build_agent(provider, _build_toolset(), recorder=ExplodingRecorder())
 
         # Act
         result = agent.run("hi")
@@ -315,9 +313,7 @@ class AgentLoopTests(SimpleTestCase):
         provider = FakeProvider(
             [_build_text_turn("partial", stop_reason=StopReason.MAX_TOKENS)]
         )
-        agent = _build_agent(
-            provider, _build_toolset(), recorder=ExplodingRecorder()
-        )
+        agent = _build_agent(provider, _build_toolset(), recorder=ExplodingRecorder())
 
         # Act / Assert
         with self.assertRaisesRegex(IncompleteTurnError, "max_tokens"):
