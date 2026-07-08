@@ -85,9 +85,14 @@ class DraftRecorder:
     # -- terminal writes ------------------------------------------------------
 
     def complete(self, note) -> dict:
+        # The shipped draft is the best-scoring ACCEPTED round, which the loop
+        # may have moved past -- persist that round's scores/report/submission so
+        # the record matches the Note, not a later round that regressed.
+        submission, gate_report, scores = self.state.accepted_outcome()
         self.draft.note = note
-        self.draft.final_scores = self.state.final_scores
-        self.draft.gate_report = self.state.last_gate_report
+        self.draft.final_scores = scores
+        self.draft.gate_report = gate_report
+        self.draft.last_submission = submission
         self.draft.rounds_used = self.state.rounds_used
         self.draft.status = ProposalDraft.Status.COMPLETED
         self.draft.step = ProposalDraft.Step.DONE
@@ -99,8 +104,8 @@ class DraftRecorder:
             "proposal_draft_id": self.draft.id,
             "note_id": note.id,
             "rounds_used": self.state.rounds_used,
-            "final_scores": self.state.final_scores,
-            "gate_report": self.state.last_gate_report,
+            "final_scores": scores,
+            "gate_report": gate_report,
         }
 
     def fail(self, message: str) -> dict:

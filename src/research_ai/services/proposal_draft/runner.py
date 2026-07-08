@@ -14,19 +14,22 @@ The division of labour is the whole point of the agentic design:
 - this **driver** owns the gates and the write -- it never trusts the model's
   own "this is done" signal. The terminal ``submit_proposal`` tool hands the
   draft back here; the ``ProposalGateRunner`` re-runs verification and the
-  panel and only lets the loop stop when the draft actually clears every gate.
-  While rounds remain, a rejected submit feeds its concrete gaps back to the
-  model with ``stop=False`` so it revises in place.
+  panel; clearing every gate is the floor for shipping, not a stop signal. A
+  submit -- accepted or not -- feeds its per-criterion scores and any gaps back
+  to the model with ``stop=False`` so it keeps revising to raise the score,
+  while the driver tracks the best accepted round.
 
-Bounded termination: the loop stops when a submit clears the gates, when
-``max_rounds`` submit attempts are spent, when the panel score plateaus below
-the bar (no improvement for ``plateau_patience`` rounds -- grinding a flat
-single-judge score buys nothing), or when the core agent hits its iteration
-cap. All non-accepting exits end in ``FAILED`` with the final ``gate_report``
-and a specific ``error_message`` naming which bound tripped (iteration cap vs.
-give-up vs. plateau vs. round budget vs. a provider failure). A terminal
-safety net converts any unexpected exception to the same ``FAILED`` shape --
-no run ends with the record still saying ``PROCESSING``.
+Bounded termination: clearing the bar does NOT stop the loop -- the run keeps
+pushing the panel score higher and stops only when the score plateaus (no
+improvement for ``plateau_patience`` rounds -- grinding a flat single-judge
+score buys nothing), when ``max_rounds`` submit attempts are spent, or when the
+core agent hits its iteration cap. At termination the run ships the
+highest-scoring round that cleared every gate: ``COMPLETED`` with that draft
+written as a ``Note`` if any round did, else ``FAILED``. A FAILED run records
+the final ``gate_report`` and a specific ``error_message`` naming which bound
+tripped (iteration cap vs. give-up vs. plateau vs. round budget vs. a provider
+failure). A terminal safety net converts any unexpected exception to the same
+``FAILED`` shape -- no run ends with the record still saying ``PROCESSING``.
 
 The pieces live beside this module: ``config`` (the settings-backed knobs),
 ``gates`` (the deterministic accept/reject checks), ``run_state`` (the loop
@@ -185,7 +188,10 @@ class _ProposalDraftRunner:
             logger.warning("proposal draft agent stopped early: %s", exc)
             self.state.record_agent_error(exc)
 
-        if self.state.accepted and self.state.submitted is not None:
+        # A COMPLETED run needs a round that cleared every gate at some point in
+        # the loop -- not merely that the last round did (it may have regressed
+        # after an earlier accepted peak).
+        if self.state.has_accepted:
             return self._complete()
         return self._fail()
 
@@ -285,12 +291,16 @@ class _ProposalDraftRunner:
                 "gate_report": report,
             }
         state.track_plateau(report)
+        state.track_accepted(accepted, report)
 
         exhausted = state.rounds_exhausted
-        # Cut a run short only when the panel is the blocker and its score has
-        # stopped improving; a passing panel held up by a mechanical gate is
-        # still worth revising, and the round budget takes precedence anyway.
-        plateaued = not accepted and not exhausted and state.panel_plateaued(report)
+        # Clearing the bar is the floor for shipping, NOT a stop signal: the loop
+        # keeps revising to raise the panel score, tracking the best accepted
+        # draft, and stops only when the score has plateaued or the round budget
+        # is spent (the iteration cap is enforced separately in the agent loop).
+        # ``exhausted`` is reported ahead of ``plateaued`` when both fire on the
+        # same round, but either ends the loop.
+        plateaued = not exhausted and state.plateaued()
         state.stopped_on_plateau = plateaued
         self.recorder.persist_round()
 
@@ -298,62 +308,73 @@ class _ProposalDraftRunner:
         # keep going -- the counterpart to the per-tool trace in the agent loop.
         panel = report.get("panel") or {}
         decision = (
-            "accepted"
-            if accepted
-            else "exhausted"
+            "exhausted"
             if exhausted
             else "plateaued"
             if plateaued
+            else "accepted-refining"
+            if accepted
             else "revising"
         )
         logger.info(
-            "submit round %d/%d: %s | panel overall=%s (best=%s, flat=%d) | "
-            "failing gates=[%s]",
+            "submit round %d/%d: %s | panel overall=%s (best=%s, best_ok=%s, "
+            "flat=%d) | failing gates=[%s]",
             state.rounds_used,
             self.config.max_rounds,
             decision,
             panel.get("overall"),
             state.best_overall,
+            state.best_accepted_overall,
             state.rounds_since_improvement,
             ", ".join(failing_gates(report)),
         )
 
-        # End the loop on a clean submit, when no rounds remain to revise, or
-        # when the panel score has plateaued below the bar.
-        self._submit_tool.is_terminal = accepted or exhausted or plateaued
+        # End the loop only when no rounds remain or the score has plateaued;
+        # whether this particular round was accepted no longer stops it.
+        self._submit_tool.is_terminal = exhausted or plateaued
 
-        if accepted:
-            self.recorder.set_step(ProposalDraft.Step.WRITING_NOTE)
-            return {"accepted": True, "gate_report": report}
         if exhausted:
             return {
-                "accepted": False,
+                "accepted": accepted,
                 "exhausted": True,
                 "gaps": report["gaps"],
                 "gate_report": report,
             }
         if plateaued:
             return {
-                "accepted": False,
+                "accepted": accepted,
                 "stopped": "plateau",
                 "gaps": report["gaps"],
                 "gate_report": report,
             }
         self.recorder.set_step(ProposalDraft.Step.REVISING)
-        return self._revise_feedback(report)
+        return self._revise_feedback(report, accepted=accepted)
 
-    def _revise_feedback(self, report: dict) -> dict:
-        """Rejection payload for the revising agent: the gaps plus the panel's
-        per-criterion scores, so it can target the weak criteria instead of
-        rewriting ones already scoring well (overall is also in the gap text)."""
+    def _revise_feedback(self, report: dict, *, accepted: bool) -> dict:
+        """Feedback for the next round: the gaps plus the panel's per-criterion
+        scores, so the agent can target the weak criteria instead of rewriting
+        ones already scoring well (overall is also in the gap text).
+
+        When ``accepted`` the draft already clears every gate, but clearing the
+        bar is the floor, not the finish -- the run keeps the highest-scoring
+        accepted draft and keeps revising to raise the score, so tell the agent
+        to push the weak criteria higher rather than stop."""
         panel = report.get("panel") or {}
-        return {
-            "accepted": False,
+        feedback = {
+            "accepted": accepted,
             "gaps": report["gaps"],
             "scores": panel.get("scores"),
             "overall": panel.get("overall"),
             "threshold": panel.get("threshold"),
         }
+        if accepted:
+            feedback["note"] = (
+                "This draft clears every gate. That is the minimum to ship, not "
+                "the goal -- the run keeps your best-scoring accepted draft, so "
+                "keep revising to raise the panel score on its weakest criteria. "
+                "The run stops when the score stops improving."
+            )
+        return feedback
 
     # -- judge context ------------------------------------------------------
 
@@ -382,7 +403,9 @@ class _ProposalDraftRunner:
     # -- terminal outcomes ------------------------------------------------
 
     def _complete(self) -> dict:
-        note = write_proposal_note(self.state.submitted)
+        self.recorder.set_step(ProposalDraft.Step.WRITING_NOTE)
+        submission, _report, _scores = self.state.accepted_outcome()
+        note = write_proposal_note(submission)
         return self.recorder.complete(note)
 
     def _fail(self, message: str | None = None) -> dict:
