@@ -52,6 +52,7 @@ SUBMIT_INPUT_SCHEMA = {
                     "doi": {"type": "string"},
                     "title": {"type": "string"},
                     "authors": {"type": "array", "items": {"type": "string"}},
+                    "year": {"type": "integer"},
                 },
                 "required": ["claim_id"],
             },

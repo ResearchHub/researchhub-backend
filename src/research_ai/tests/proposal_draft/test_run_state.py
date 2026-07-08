@@ -81,16 +81,17 @@ class ProposalRunStatePlateauTests(unittest.TestCase):
         self.assertEqual(state.rounds_since_improvement, 0)
         self.assertIsNone(state.best_submission)
 
-    def test_panel_plateaued_requires_patience_and_a_failing_panel(self):
+    def test_plateaued_triggers_at_patience_regardless_of_gate_pass(self):
         # Arrange
         state = ProposalRunState(_build_config(plateau_patience=2))
-        state.rounds_since_improvement = 2
 
-        # Act & Assert: a passing panel is never a plateau, whatever the counter.
-        self.assertFalse(state.panel_plateaued(_build_report(4.8, ok=True)))
-        self.assertTrue(state.panel_plateaued(_build_report(3.0)))
+        # Act & Assert: a flat score plateaus once the counter reaches patience,
+        # whether or not the round clears the bar -- clearing it no longer stops
+        # the loop, so a plateau on a passing score must still register.
         state.rounds_since_improvement = 1
-        self.assertFalse(state.panel_plateaued(_build_report(3.0)))
+        self.assertFalse(state.plateaued())
+        state.rounds_since_improvement = 2
+        self.assertTrue(state.plateaued())
 
 
 class ProposalRunStateOutcomeTests(unittest.TestCase):
@@ -139,6 +140,58 @@ class ProposalRunStateOutcomeTests(unittest.TestCase):
         self.assertEqual(submission, {})
         self.assertEqual(gate_report, {})
         self.assertEqual(scores, {})
+
+
+class ProposalRunStateAcceptedTests(unittest.TestCase):
+    def test_no_accepted_round_leaves_nothing_to_ship(self):
+        # Arrange: a round that never cleared the gates.
+        state = ProposalRunState(_build_config())
+        state.begin_round({"plain_text": "v1"})
+        report = _build_report(3.0)
+        state.record_gate_result(False, report)
+
+        # Act
+        state.track_accepted(False, report)
+
+        # Assert
+        self.assertFalse(state.has_accepted)
+
+    def test_accepted_outcome_keeps_the_highest_scoring_accepted_round(self):
+        # Arrange: round 1 clears the gates at 4.2, round 2 clears them at 4.0
+        # (a regression) -- the lower later round must not displace the peak.
+        state = ProposalRunState(_build_config())
+        peak_submission = {"plain_text": "peak"}
+        state.begin_round(peak_submission)
+        peak_report = _build_report(4.2, ok=True, rollup={"overall": 4.2})
+        state.record_gate_result(True, peak_report)
+        state.track_accepted(True, peak_report)
+        state.begin_round({"plain_text": "regressed"})
+        low_report = _build_report(4.0, ok=True, rollup={"overall": 4.0})
+        state.record_gate_result(True, low_report)
+        state.track_accepted(True, low_report)
+
+        # Act
+        submission, gate_report, scores = state.accepted_outcome()
+
+        # Assert
+        self.assertTrue(state.has_accepted)
+        self.assertIs(submission, peak_submission)
+        self.assertIs(gate_report, peak_report)
+        self.assertEqual(scores, {"overall": 4.2})
+
+    def test_non_numeric_overall_never_counts_as_acceptable(self):
+        # Arrange: an accepted flag but no numeric panel overall (e.g. a panel
+        # that returned nothing) cannot be ranked, so it is not shippable.
+        state = ProposalRunState(_build_config())
+        state.begin_round({"plain_text": "v1"})
+        report = _build_report(None, ok=True)
+        state.record_gate_result(True, report)
+
+        # Act
+        state.track_accepted(True, report)
+
+        # Assert
+        self.assertFalse(state.has_accepted)
 
 
 class ProposalRunStateFailureMessageTests(unittest.TestCase):
@@ -192,8 +245,8 @@ class ProposalRunStateFailureMessageTests(unittest.TestCase):
         # Act & Assert
         self.assertEqual(
             state.failure_message(),
-            "panel score plateaued at 3.5 for 2 rounds below the 4.0 bar; "
-            "stopped after 3 of 4 rounds",
+            "panel score plateaued at 3.5 for 2 rounds without clearing every "
+            "gate (bar 4.0); stopped after 3 of 4 rounds",
         )
 
     def test_round_budget_exhausted(self):

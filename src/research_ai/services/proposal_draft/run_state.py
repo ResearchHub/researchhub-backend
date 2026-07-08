@@ -57,6 +57,16 @@ class ProposalRunState:
         self.best_gate_report: dict = {}
         self.best_scores: dict = {}
 
+        # Snapshot of the highest-scoring round that cleared EVERY gate (panel
+        # over the bar plus the mechanical gates). Clearing the bar is the floor
+        # for shipping, not a stop signal -- the loop keeps trying to raise the
+        # score until it plateaus or the round budget runs out, then ships this
+        # best accepted draft. A COMPLETED run exists iff this is populated.
+        self.best_accepted_submission: dict | None = None
+        self.best_accepted_gate_report: dict = {}
+        self.best_accepted_scores: dict = {}
+        self.best_accepted_overall: float | None = None
+
     # -- per-round updates --------------------------------------------------
 
     def begin_round(self, submitted: dict) -> None:
@@ -98,10 +108,49 @@ class ProposalRunState:
         self.best_gate_report = report
         self.best_scores = self.final_scores
 
-    def panel_plateaued(self, report: dict) -> bool:
-        """The panel is the blocker and its overall has stopped improving."""
-        if (report.get("panel") or {}).get("ok"):
-            return False
+    def track_accepted(self, accepted: bool, report: dict) -> None:
+        """Snapshot this round if it cleared every gate and beat the best so far.
+
+        Only fully-accepted rounds are eligible to ship, and among them the
+        highest panel overall wins -- so a later round that clears the gates but
+        scores lower never displaces an earlier, better accepted draft. Must be
+        called after ``record_gate_result`` so ``final_scores`` reflects this
+        round."""
+        if not accepted:
+            return
+        overall = (report.get("panel") or {}).get("overall")
+        if not isinstance(overall, (int, float)):
+            return
+        overall = float(overall)
+        if self.best_accepted_overall is None or overall > self.best_accepted_overall:
+            self.best_accepted_overall = overall
+            self.best_accepted_submission = self.submitted
+            self.best_accepted_gate_report = report
+            self.best_accepted_scores = self.final_scores
+
+    @property
+    def has_accepted(self) -> bool:
+        """At least one round cleared every gate, so the run can ship a draft."""
+        return self.best_accepted_submission is not None
+
+    def accepted_outcome(self) -> tuple[dict, dict, dict]:
+        """The ``(submission, gate_report, scores)`` a COMPLETED run ships.
+
+        The highest-scoring round that cleared every gate -- not necessarily the
+        last, since the loop keeps revising past the bar and a later round can
+        regress. Only valid when ``has_accepted`` is true."""
+        return (
+            self.best_accepted_submission or {},
+            self.best_accepted_gate_report,
+            self.best_accepted_scores,
+        )
+
+    def plateaued(self) -> bool:
+        """The panel overall has stopped improving for ``plateau_patience`` rounds.
+
+        Independent of whether the round cleared the bar: once the score stops
+        climbing there is nothing to gain from more rounds, whether the draft is
+        already acceptable (ship the best) or still short (give up)."""
         return self.rounds_since_improvement >= self.config.plateau_patience
 
     @property
@@ -164,8 +213,8 @@ class ProposalRunState:
         if self.stopped_on_plateau:
             return (
                 f"panel score plateaued at {self.best_overall} for "
-                f"{self.rounds_since_improvement} rounds below the "
-                f"{self.config.panel_threshold} bar; stopped after "
+                f"{self.rounds_since_improvement} rounds without clearing every "
+                f"gate (bar {self.config.panel_threshold}); stopped after "
                 f"{self.rounds_used} of {self.config.max_rounds} rounds"
             )
         if self.rounds_used >= self.config.max_rounds:

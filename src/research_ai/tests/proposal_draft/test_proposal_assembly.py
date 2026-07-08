@@ -98,6 +98,28 @@ class AssembleProposalTests(unittest.TestCase):
         )
         self.assertIn("2. Second. https://doi.org/10.2/xyz", plain_text)
 
+    def test_reference_renders_year_next_to_authors(self):
+        # Arrange: a citation carrying a resolved year, so an inline author-year
+        # mention has a matching anchor in the reference list.
+        citations = [
+            {
+                "claim_id": "c1",
+                "doi": "10.1/abc",
+                "title": "First Paper",
+                "authors": ["Ada Lovelace"],
+                "year": 2019,
+            }
+        ]
+
+        # Act
+        plain_text, _doc = assemble_proposal(_full_sections(), citations)
+
+        # Assert: the year renders in parentheses after the authors.
+        self.assertIn(
+            "1. Ada Lovelace (2019). First Paper. https://doi.org/10.1/abc",
+            plain_text,
+        )
+
     def test_no_citations_yields_no_references_section(self):
         # Arrange / Act
         _plain, doc = assemble_proposal(_full_sections(), [])

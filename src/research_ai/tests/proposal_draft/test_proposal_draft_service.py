@@ -588,6 +588,65 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(provider.call_count, 6)
         self.assertIn("plateau", result["error_message"])
 
+    # -- clearing the bar does not stop the loop; it runs to plateau ------
+
+    @override_settings(
+        RESEARCH_AI_PROPOSAL_MAX_ROUNDS=8,
+        RESEARCH_AI_PROPOSAL_PLATEAU_PATIENCE=3,
+    )
+    def test_passing_panel_keeps_refining_until_plateau_then_completes(self):
+        # Arrange: every submit clears the 4.0 bar at a constant 4, so the run
+        # must NOT stop at round 1 -- it keeps revising to try to raise the score
+        # and only stops when the flat score plateaus.
+        provider = _AlwaysSubmitProvider(_clean_payload())
+        panel = _FakePanel(overall=4)
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: round 1 sets the best, then patience=3 flat rounds -> stops at
+        # round 4 (short of the 8-round budget), and still COMPLETES because a
+        # round cleared every gate, shipping that draft as a Note.
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.assertEqual(provider.call_count, 4)
+        self.assertEqual(result["final_scores"]["overall"], 4)
+        self.assertEqual(Note.objects.count(), 1)
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(draft.status, ProposalDraft.Status.COMPLETED)
+        self.assertEqual(draft.rounds_used, 4)
+
+    @override_settings(
+        RESEARCH_AI_PROPOSAL_MAX_ROUNDS=8,
+        RESEARCH_AI_PROPOSAL_PLATEAU_PATIENCE=3,
+    )
+    def test_completed_run_ships_the_highest_scoring_accepted_round(self):
+        # Arrange: the score climbs above the bar (4 -> 4.5) then flatlines. The
+        # run should keep the higher round and ship it, not the first one that
+        # merely cleared the bar.
+        provider = _AlwaysSubmitProvider(_clean_payload())
+        panel = _SequencePanel([4, 4.5], gaps=[])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: the 4.5 round wins; the run completes on plateau (round 5) with
+        # the peak score persisted.
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.assertEqual(provider.call_count, 5)
+        self.assertEqual(result["final_scores"]["overall"], 4.5)
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(draft.final_scores["overall"], 4.5)
+
     # -- a failed run persists the best draft, not the last ----------------
 
     @override_settings(
@@ -942,7 +1001,7 @@ class ProposalDraftServiceTests(TestCase):
         note = Note.objects.get(id=result["note_id"])
         plain_text = note.latest_version.plain_text
         self.assertIn(
-            "Alan M. Turing. The Extracellular Matrix and Remyelination in "
+            "Alan M. Turing (2021). The Extracellular Matrix and Remyelination in "
             "CNS Disease. https://doi.org/10.1/drift",
             plain_text,
         )
