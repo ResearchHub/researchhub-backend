@@ -41,10 +41,11 @@ Judge-facing context compaction lives with the other tool code in
 """
 
 import logging
+from dataclasses import asdict
 
 from django.conf import settings
 
-from research_ai.models import ProposalDraft, SearchExpert
+from research_ai.models import AgentConversation, ProposalDraft, SearchExpert
 from research_ai.prompts.proposal_draft_prompts import (
     build_proposal_system_prompt,
     build_proposal_user_prompt,
@@ -56,6 +57,7 @@ from research_ai.services.agent import (
     Tool,
     Toolset,
 )
+from research_ai.services.agent_transcript import DatabaseAgentRecorder
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_draft.draft_recorder import DraftRecorder
 from research_ai.services.proposal_draft.gates import (
@@ -212,6 +214,19 @@ class _ProposalDraftRunner:
     def _build_agent(self, system_prompt: str):
         provider = self.provider or BedrockProvider()
         toolset = self._compose_toolset()
+        conversation = AgentConversation.objects.create(
+            kind=AgentConversation.Kind.PROPOSAL_DRAFT,
+            created_by=self.recorder.draft.created_by,
+            system_prompt=system_prompt,
+        )
+        self.recorder.draft.conversation = conversation
+        self.recorder.draft.save(update_fields=["conversation", "updated_date"])
+        model_id = getattr(provider, "model_id", "")
+        transcript_recorder = DatabaseAgentRecorder(
+            conversation,
+            self._agent_run_config(toolset=toolset, model_id=model_id),
+            model_id=model_id,
+        )
         return AgentService(
             provider=provider, max_iterations=self.config.max_iterations
         ).create_agent(
@@ -219,7 +234,15 @@ class _ProposalDraftRunner:
             system_prompt=system_prompt,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
+            recorder=transcript_recorder,
         )
+
+    def _agent_run_config(self, *, toolset: Toolset, model_id: str) -> dict:
+        config = asdict(self.config)
+        config["toolset_names"] = list(toolset.names)
+        if model_id:
+            config["model_id"] = model_id
+        return config
 
     def _compose_toolset(self) -> Toolset:
         self._submit_tool = build_submit_tool(self._handle_submit)

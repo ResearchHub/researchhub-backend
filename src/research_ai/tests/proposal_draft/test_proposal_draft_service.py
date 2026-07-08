@@ -17,12 +17,20 @@ from django.utils import timezone
 
 from note.models import Note
 from purchase.models import Grant
-from research_ai.models import Expert, ExpertSearch, ProposalDraft, SearchExpert
+from research_ai.models import (
+    AgentConversation,
+    AgentRun,
+    Expert,
+    ExpertSearch,
+    ProposalDraft,
+    SearchExpert,
+)
 from research_ai.services.agent.types import (
     AssistantTurn,
     StopReason,
     TextBlock,
     ToolUseBlock,
+    TurnUsage,
 )
 from research_ai.services.proposal_draft import run_proposal_draft
 from research_ai.services.proposal_draft.runner import _ProposalDraftRunner
@@ -159,11 +167,13 @@ class _SequenceSubmitProvider:
         )
 
 
-def _submit_turn(payload):
+def _submit_turn(payload, *, usage=None, latency_ms=None):
     return AssistantTurn(
         text_blocks=[],
         tool_calls=[ToolUseBlock(id="submit-1", name="submit_proposal", input=payload)],
         stop_reason=StopReason.TOOL_USE,
+        usage=usage,
+        latency_ms=latency_ms,
     )
 
 
@@ -318,6 +328,67 @@ class ProposalDraftServiceTests(TestCase):
         draft.refresh_from_db()
         self.assertEqual(draft.status, ProposalDraft.Status.COMPLETED)
         self.assertEqual(draft.created_by, self.user)
+
+    def test_completed_run_persists_agent_transcript(self):
+        # Arrange
+        usage = TurnUsage(
+            input_tokens=25,
+            output_tokens=7,
+            cache_read_tokens=13,
+            cache_write_tokens=5,
+        )
+        draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.user,
+            status=ProposalDraft.Status.PENDING,
+            step=ProposalDraft.Step.QUEUED,
+        )
+        provider = _ScriptedProvider(
+            [_submit_turn(_clean_payload(), usage=usage, latency_ms=321)]
+        )
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            draft_id=draft.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        draft.refresh_from_db()
+        conversation = draft.conversation
+        self.assertIsNotNone(conversation)
+        self.assertEqual(conversation.kind, AgentConversation.Kind.PROPOSAL_DRAFT)
+        self.assertEqual(conversation.created_by, self.user)
+        self.assertIn("$50,000", conversation.system_prompt)
+
+        run = conversation.runs.get()
+        self.assertEqual(run.status, AgentRun.Status.COMPLETED)
+        self.assertEqual(run.stop_reason, StopReason.END_TURN.value)
+        self.assertEqual(run.iterations, 2)
+        self.assertEqual(run.input_tokens, usage.input_tokens)
+        self.assertEqual(run.output_tokens, usage.output_tokens)
+        self.assertEqual(run.cache_read_tokens, usage.cache_read_tokens)
+        self.assertEqual(run.cache_write_tokens, usage.cache_write_tokens)
+        self.assertIn("submit_proposal", run.config["toolset_names"])
+
+        messages = list(conversation.messages.order_by("sequence"))
+        self.assertEqual([m.sequence for m in messages], [1, 2, 3, 4])
+        self.assertEqual(
+            [m.role for m in messages],
+            ["user", "assistant", "user", "assistant"],
+        )
+        self.assertEqual(messages[1].content[0]["type"], "tool_use")
+        self.assertEqual(messages[1].content[0]["name"], "submit_proposal")
+        self.assertEqual(messages[1].input_tokens, usage.input_tokens)
+        self.assertEqual(messages[1].latency_ms, 321)
+        self.assertEqual(messages[1].stop_reason, StopReason.TOOL_USE.value)
+        self.assertEqual(messages[2].content[0]["type"], "tool_result")
+        self.assertEqual(messages[3].content[0]["text"], "done")
+        self.assertEqual(messages[3].stop_reason, StopReason.END_TURN.value)
 
     # -- a major_fabrication submit is blocked, gaps fed back -------------
 
@@ -758,6 +829,57 @@ class ProposalDraftServiceTests(TestCase):
         self.assertIn("throttled by bedrock", result["error_message"])
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
         self.assertEqual(draft.status, ProposalDraft.Status.FAILED)
+
+    def test_mid_run_provider_error_persists_failed_agent_run(self):
+        # Arrange
+        class _ToolThenExplodingProvider:
+            def __init__(self):
+                self.call_count = 0
+
+            def render_tools(self, _tools):
+                return {"tools": []}
+
+            def complete(self, **_kwargs):
+                self.call_count += 1
+                if self.call_count == 1:
+                    return AssistantTurn(
+                        text_blocks=[],
+                        tool_calls=[
+                            ToolUseBlock(
+                                id="rfp-1",
+                                name="get_rfp_context",
+                                input={},
+                            )
+                        ],
+                        stop_reason=StopReason.TOOL_USE,
+                    )
+                raise ValueError("bedrock dropped the connection")
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=_ToolThenExplodingProvider(),
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertIn("provider error", result["error_message"])
+        self.assertIn("bedrock dropped the connection", result["error_message"])
+
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        run = draft.conversation.runs.get()
+        self.assertEqual(run.status, AgentRun.Status.FAILED)
+        self.assertEqual(run.stop_reason, "provider_error")
+        self.assertEqual(run.iterations, 1)
+        self.assertIn("bedrock dropped the connection", run.error_message)
+
+        messages = list(draft.conversation.messages.order_by("sequence"))
+        self.assertEqual([m.sequence for m in messages], [1, 2, 3])
+        self.assertEqual([m.role for m in messages], ["user", "assistant", "user"])
+        self.assertEqual(messages[1].content[0]["name"], "get_rfp_context")
+        self.assertEqual(messages[2].content[0]["tool_use_id"], "rfp-1")
 
     # -- a truncated/filtered turn names its stop reason -------------------
 

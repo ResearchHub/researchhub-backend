@@ -374,6 +374,144 @@ class EmailTemplate(DefaultModel):
         return f"EmailTemplate {self.id} ({self.name})"
 
 
+class AgentConversation(DefaultModel):
+    """Durable container for one logical agent conversation."""
+
+    class Kind(models.TextChoices):
+        PROPOSAL_DRAFT = "PROPOSAL_DRAFT"
+        NOTEBOOK_CHAT = "NOTEBOOK_CHAT"
+
+    created_by = models.ForeignKey(
+        "user.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_research_ai_agent_conversations",
+        db_comment=("User who owns this conversation; null for headless/system runs."),
+    )
+    kind = models.CharField(
+        max_length=32,
+        choices=Kind.choices,
+        db_index=True,
+    )
+    system_prompt = models.TextField(
+        db_comment=(
+            "The system prompt for this conversation. A flow that changes the "
+            "system prompt starts a new conversation."
+        ),
+    )
+
+    class Meta:
+        db_table = "research_ai_agent_conversation"
+        ordering = ["-created_date"]
+        indexes = [
+            models.Index(
+                fields=["created_by", "kind"],
+                name="ra_agent_conv_user_kind",
+            ),
+        ]
+
+    def __str__(self):
+        return f"AgentConversation {self.id} ({self.kind})"
+
+
+class AgentRun(DefaultModel):
+    """One invocation of the neutral agent loop within a conversation."""
+
+    class Status(models.TextChoices):
+        RUNNING = "RUNNING"
+        COMPLETED = "COMPLETED"
+        FAILED = "FAILED"
+
+    conversation = models.ForeignKey(
+        "research_ai.AgentConversation",
+        on_delete=models.CASCADE,
+        related_name="runs",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.RUNNING,
+        db_index=True,
+    )
+    stop_reason = models.CharField(max_length=64, blank=True)
+    iterations = models.IntegerField(default=0)
+    model_id = models.CharField(max_length=256, blank=True)
+    config = models.JSONField(
+        default=dict,
+        blank=True,
+        db_comment=(
+            "Snapshot of the agent config for reproducibility: max_iterations, "
+            "max_tokens, temperature, tool names, and flow-specific knobs."
+        ),
+    )
+    input_tokens = models.BigIntegerField(default=0)
+    output_tokens = models.BigIntegerField(default=0)
+    cache_read_tokens = models.BigIntegerField(default=0)
+    cache_write_tokens = models.BigIntegerField(default=0)
+    error_message = models.TextField(blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    duration = models.DurationField(null=True, blank=True)
+
+    class Meta:
+        db_table = "research_ai_agent_run"
+        ordering = ["-created_date"]
+        indexes = [
+            models.Index(fields=["conversation"], name="ra_agent_run_conv_idx"),
+            models.Index(fields=["status"], name="ra_agent_run_status"),
+        ]
+
+    def __str__(self):
+        return f"AgentRun {self.id} ({self.status})"
+
+
+class AgentMessage(DefaultModel):
+    """One persisted message in an agent conversation."""
+
+    conversation = models.ForeignKey(
+        "research_ai.AgentConversation",
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    run = models.ForeignKey(
+        "research_ai.AgentRun",
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    sequence = models.PositiveIntegerField(
+        db_comment="Per-conversation message order, starting at 1.",
+    )
+    role = models.CharField(max_length=16)
+    content = models.JSONField(
+        db_comment=(
+            "The exact serialized block list from the neutral agent Message "
+            "shape, subject only to the configured large-string truncation cap."
+        ),
+    )
+    input_tokens = models.BigIntegerField(null=True, blank=True)
+    output_tokens = models.BigIntegerField(null=True, blank=True)
+    cache_read_tokens = models.BigIntegerField(null=True, blank=True)
+    cache_write_tokens = models.BigIntegerField(null=True, blank=True)
+    latency_ms = models.IntegerField(null=True, blank=True)
+    stop_reason = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        db_table = "research_ai_agent_message"
+        ordering = ["conversation", "sequence"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["conversation", "sequence"],
+                name="ra_msg_conv_seq_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["run"], name="ra_agent_msg_run_idx"),
+        ]
+
+    def __str__(self):
+        return f"AgentMessage {self.id} ({self.role} #{self.sequence})"
+
+
 class ProposalDraft(DefaultModel):
     """
     Tracks a headless proposal-drafting job.
@@ -416,6 +554,13 @@ class ProposalDraft(DefaultModel):
     )
     note = models.ForeignKey(
         "note.Note",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="proposal_drafts",
+    )
+    conversation = models.ForeignKey(
+        "research_ai.AgentConversation",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
