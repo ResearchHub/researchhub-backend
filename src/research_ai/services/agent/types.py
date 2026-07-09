@@ -73,17 +73,36 @@ class Message:
 
 
 @dataclass(frozen=True)
+class TurnUsage:
+    """Normalized token accounting for a single model turn.
+
+    Each adapter maps its provider's usage shape onto these four counters; a
+    counter the provider did not report stays ``None`` (distinct from a
+    reported zero).
+    """
+
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cache_read_tokens: int | None = None
+    cache_write_tokens: int | None = None
+
+
+@dataclass(frozen=True)
 class AssistantTurn:
     """A parsed model response: text, tool calls, stop reason, and raw payload.
 
     ``raw`` keeps the untouched provider response for logging/debugging; it is
-    intentionally excluded from JSON serialization of conversations.
+    intentionally excluded from JSON serialization of conversations. ``usage``
+    and ``latency_ms`` are per-turn metadata for recorders; ``None`` when the
+    provider does not report them.
     """
 
     text_blocks: list[TextBlock]
     tool_calls: list[ToolUseBlock]
     stop_reason: StopReason
     raw: dict = field(default_factory=dict)
+    usage: TurnUsage | None = None
+    latency_ms: int | None = None
 
     @property
     def text(self) -> str:
