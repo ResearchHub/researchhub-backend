@@ -43,6 +43,17 @@ class ProposalDraft(DefaultModel):
             "user is later deleted (the job record is kept for diagnostics)."
         ),
     )
+    conversation = models.ForeignKey(
+        "research_ai.AgentConversation",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="proposal_drafts",
+        db_comment=(
+            "Agent transcript of the drafting run. SET_NULL so deleting a "
+            "transcript keeps the draft's own summary fields for diagnostics."
+        ),
+    )
     note = models.ForeignKey(
         "note.Note",
         null=True,

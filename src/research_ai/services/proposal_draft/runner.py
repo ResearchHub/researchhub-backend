@@ -44,7 +44,7 @@ import logging
 
 from django.conf import settings
 
-from research_ai.models import ProposalDraft, SearchExpert
+from research_ai.models import AgentConversation, ProposalDraft, SearchExpert
 from research_ai.prompts.proposal_draft_prompts import (
     build_proposal_system_prompt,
     build_proposal_user_prompt,
@@ -56,6 +56,7 @@ from research_ai.services.agent import (
     Tool,
     Toolset,
 )
+from research_ai.services.agent_transcript import DatabaseAgentRecorder
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_draft.draft_recorder import DraftRecorder
 from research_ai.services.proposal_draft.gates import (
@@ -104,6 +105,7 @@ class _ProposalDraftRunner:
     ):
         self.search_expert = search_expert
         self.expert = search_expert.expert
+        self.draft = draft
         self.provider = provider
         self.oa_client = oa_client or OpenAlex()
         self.web_search_client = web_search_client
@@ -219,6 +221,7 @@ class _ProposalDraftRunner:
     def _build_agent(self, system_prompt: str):
         provider = self.provider or BedrockProvider()
         toolset = self._compose_toolset()
+        recorder = self._build_transcript_recorder(provider, toolset, system_prompt)
         return AgentService(
             provider=provider, max_iterations=self.config.max_iterations
         ).create_agent(
@@ -226,6 +229,29 @@ class _ProposalDraftRunner:
             system_prompt=system_prompt,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
+            recorder=recorder,
+        )
+
+    def _build_transcript_recorder(
+        self, provider, toolset: Toolset, system_prompt: str
+    ) -> DatabaseAgentRecorder:
+        """Create the run's transcript conversation and link it to the draft."""
+        conversation = AgentConversation.objects.create(
+            created_by=self.draft.created_by,
+            kind=AgentConversation.Kind.PROPOSAL_DRAFT,
+            system_prompt=system_prompt,
+        )
+        self.draft.conversation = conversation
+        self.draft.save(update_fields=["conversation", "updated_date"])
+        return DatabaseAgentRecorder(
+            conversation,
+            model_id=getattr(provider, "model_id", "") or "",
+            config={
+                "max_iterations": self.config.max_iterations,
+                "max_tokens": self.config.max_tokens,
+                "temperature": self.config.temperature,
+                "tools": toolset.names,
+            },
         )
 
     def _compose_toolset(self) -> Toolset:

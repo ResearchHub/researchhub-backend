@@ -17,7 +17,14 @@ from django.utils import timezone
 
 from note.models import Note
 from purchase.models import Grant
-from research_ai.models import Expert, ExpertSearch, ProposalDraft, SearchExpert
+from research_ai.models import (
+    AgentConversation,
+    AgentRun,
+    Expert,
+    ExpertSearch,
+    ProposalDraft,
+    SearchExpert,
+)
 from research_ai.services.agent.types import (
     AssistantTurn,
     StopReason,
@@ -374,6 +381,48 @@ class ProposalDraftServiceTests(TestCase):
                 organization=self.user.organization, access_type=NO_ACCESS
             ).exists()
         )
+
+    def test_run_persists_its_agent_transcript(self):
+        # Arrange: a clean single-submit run.
+        draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.user,
+            status=ProposalDraft.Status.PENDING,
+            step=ProposalDraft.Step.QUEUED,
+        )
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+        panel = _FakePanel(overall=5)
+
+        # Act
+        run_proposal_draft(
+            self.search_expert.id,
+            draft_id=draft.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: the draft links a conversation holding the whole exchange.
+        draft.refresh_from_db()
+        conversation = draft.conversation
+        self.assertIsNotNone(conversation)
+        self.assertEqual(conversation.kind, AgentConversation.Kind.PROPOSAL_DRAFT)
+        self.assertEqual(conversation.created_by, self.user)
+        self.assertTrue(conversation.system_prompt)
+        run = conversation.runs.get()
+        self.assertEqual(run.status, AgentRun.Status.COMPLETED)
+        self.assertEqual(run.stop_reason, "end_turn")
+        self.assertIn("submit_proposal", run.config["tools"])
+        self.assertEqual(
+            run.config["max_iterations"], draft.run_config["max_iterations"]
+        )
+        # user prompt, the submit call, its feedback, the closing text turn --
+        # in order (an accepted submit keeps the loop going until it plateaus,
+        # and the scripted provider then answers in plain text).
+        roles = list(
+            conversation.messages.order_by("sequence").values_list("role", flat=True)
+        )
+        self.assertEqual(roles, ["user", "assistant", "user", "assistant"])
 
     # -- a major_fabrication submit is blocked, gaps fed back -------------
 
