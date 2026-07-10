@@ -72,6 +72,8 @@ def compute_user_balances(user):
     return {
         "rsc": rsc,
         "rsc_locked": rsc_locked,
+        # Subset of rsc_locked that earns yield (not withdrawable).
+        "rsc_promotional": user.get_promotional_balance(),
         "total_rsc": float(total_rsc),
         "total_usd_cents": rsc_as_usd_cents,
     }
@@ -589,6 +591,7 @@ class UserEditableSerializer(ModelSerializer):
     balances = SerializerMethodField()
     is_funder = SerializerMethodField()
     locked_balance = SerializerMethodField()
+    promotional_balance = SerializerMethodField()
     balance_history = SerializerMethodField()
     email = SerializerMethodField()
     organization_slug = SerializerMethodField()
@@ -648,6 +651,13 @@ class UserEditableSerializer(ModelSerializer):
         request_user = context.get("user", None)
         if request_user and request_user == user:
             return user.get_locked_balance()
+        return None
+
+    def get_promotional_balance(self, user):
+        context = self.context
+        request_user = context.get("user", None)
+        if request_user and request_user == user:
+            return user.get_promotional_balance()
         return None
 
     def get_balance_history(self, user):

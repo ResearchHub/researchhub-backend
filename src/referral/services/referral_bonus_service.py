@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 
-from purchase.models import Purchase
+from purchase.models import Balance, Purchase
 from referral.constants import REFERRAL_BONUS_PERCENTAGE, REFERRAL_ELIGIBILITY_MONTHS
 from referral.models import ReferralSignup
 from reputation.distributions import create_referral_bonus_distribution
@@ -109,6 +109,7 @@ class ReferralBonusService:
             db_record=fundraise,
             timestamp=timestamp,
             giver=None,  # Platform gives the bonus
+            lock_type=Balance.LockType.REFERRAL_BONUS,
         )
         referred_distributor.distribute_locked_balance()
 
@@ -120,5 +121,6 @@ class ReferralBonusService:
             db_record=fundraise,
             timestamp=timestamp,
             giver=None,  # Platform gives the bonus
+            lock_type=Balance.LockType.REFERRAL_BONUS,
         )
         referrer_distributor.distribute_locked_balance()

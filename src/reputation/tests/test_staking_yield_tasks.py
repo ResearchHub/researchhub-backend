@@ -211,7 +211,10 @@ class DistributeStakingYieldTaskTest(TestCase):
             object_id=dist.id,
         ).first()
         self.assertIsNotNone(balance)
+        # Yield is always paid as locked funding credits: non-withdrawable
+        # and not yield-eligible itself (no compounding).
         self.assertTrue(balance.is_locked)
+        self.assertEqual(balance.lock_type, Balance.LockType.STAKING_YIELD)
 
     def test_idempotent_distribution(self):
         distribute_staking_yield()

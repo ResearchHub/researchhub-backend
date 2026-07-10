@@ -41,6 +41,7 @@ class Distributor:
         giver=None,
         hubs=None,
         is_locked=False,
+        lock_type=None,
     ):
         self.distribution = distribution
         self.recipient = recipient
@@ -49,6 +50,7 @@ class Distributor:
         self.giver = giver
         self.hubs = hubs
         self.is_locked = is_locked
+        self.lock_type = lock_type
 
     @staticmethod
     def generate_proof(db_record, timestamp):
@@ -131,6 +133,7 @@ class Distributor:
             object_id=distribution.id,
             amount=self.distribution.amount,  # db converts integer to string
             is_locked=is_locked,
+            lock_type=self.lock_type if is_locked else None,
         )
 
     def distribute_locked_balance(self):

@@ -185,6 +185,7 @@ class PaymentService:
             db_record=payment,
             timestamp=timezone.now().timestamp(),
             giver=None,  # Platform gives the RSC
+            lock_type=Balance.LockType.FUNDING_CREDIT,
         )
         distributor.distribute_locked_balance()
 
@@ -479,6 +480,7 @@ class PaymentService:
             db_record=payment,
             timestamp=timezone.now().timestamp(),
             giver=None,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
         )
         distributor.distribute_locked_balance()
 
@@ -492,6 +494,7 @@ class PaymentService:
             object_id=fee_obj.id,
             amount=f"-{rsc_fee}",
             is_locked=True,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
         )
 
         return payment, rsc_amount

@@ -427,6 +427,146 @@ class UserBalanceTests(TestCase):
         self.assertEqual(allocations, [])
 
 
+class UserPromotionalBalanceTests(TestCase):
+    def setUp(self):
+        self.user = create_user(
+            email="promotional@test.com",
+            first_name="Promotional",
+            last_name="Test",
+        )
+        self.content_type = ContentType.objects.get_for_model(Paper)
+
+    def _create_balance(self, amount, is_locked=False, lock_type=None):
+        return Balance.objects.create(
+            user=self.user,
+            amount=str(amount),
+            content_type=self.content_type,
+            is_locked=is_locked,
+            lock_type=lock_type,
+        )
+
+    def test_get_promotional_balance_only_sums_promotional_rows(self):
+        # Arrange
+        self._create_balance("100", is_locked=False)
+        self._create_balance("50", is_locked=True)
+        self._create_balance(
+            "30", is_locked=True, lock_type=Balance.LockType.PROMOTIONAL
+        )
+
+        # Act
+        promotional = self.user.get_promotional_balance()
+
+        # Assert
+        self.assertEqual(promotional, Decimal(30))
+
+    def test_get_funding_credits_balance_excludes_promotional(self):
+        # Arrange
+        self._create_balance(
+            "50", is_locked=True, lock_type=Balance.LockType.FUNDING_CREDIT
+        )
+        self._create_balance("20", is_locked=True)
+        self._create_balance(
+            "30", is_locked=True, lock_type=Balance.LockType.PROMOTIONAL
+        )
+
+        # Act
+        credits = self.user.get_funding_credits_balance()
+
+        # Assert
+        self.assertEqual(credits, Decimal(70))
+
+    def test_get_locked_balance_includes_promotional(self):
+        # Arrange
+        self._create_balance("50", is_locked=True)
+        self._create_balance(
+            "30", is_locked=True, lock_type=Balance.LockType.PROMOTIONAL
+        )
+
+        # Act
+        locked = self.user.get_locked_balance()
+
+        # Assert
+        self.assertEqual(locked, Decimal(80))
+
+    def test_get_available_balance_excludes_promotional(self):
+        # Arrange
+        self._create_balance("100", is_locked=False)
+        self._create_balance(
+            "30", is_locked=True, lock_type=Balance.LockType.PROMOTIONAL
+        )
+
+        # Act
+        available = self.user.get_available_balance()
+
+        # Assert
+        self.assertEqual(available, Decimal(100))
+
+    def test_yield_eligible_lots_include_unlocked_and_promotional(self):
+        # Arrange
+        self._create_balance("100", is_locked=False)
+        self._create_balance(
+            "30", is_locked=True, lock_type=Balance.LockType.PROMOTIONAL
+        )
+        self._create_balance("50", is_locked=True)
+
+        # Act
+        lots = self.user.get_yield_eligible_balance_lots_lifo()
+
+        # Assert
+        self.assertEqual(
+            sorted(lot.amount for lot in lots), [Decimal(30), Decimal(100)]
+        )
+
+    def test_yield_eligible_lots_net_pools_separately(self):
+        # Arrange: an unlocked debit must not consume the promotional lot,
+        # and a promotional debit must not consume the unlocked lot.
+        self._create_balance("100", is_locked=False)
+        self._create_balance(
+            "30", is_locked=True, lock_type=Balance.LockType.PROMOTIONAL
+        )
+        self._create_balance("-40", is_locked=False)
+        self._create_balance(
+            "-10", is_locked=True, lock_type=Balance.LockType.PROMOTIONAL
+        )
+
+        # Act
+        lots = self.user.get_yield_eligible_balance_lots_lifo()
+
+        # Assert
+        self.assertEqual(sorted(lot.amount for lot in lots), [Decimal(20), Decimal(60)])
+
+    def test_allocate_spend_excludes_promotional_from_locked_pool(self):
+        # Arrange
+        self._create_balance("50", is_locked=False)
+        self._create_balance(
+            "40", is_locked=True, lock_type=Balance.LockType.FUNDING_CREDIT
+        )
+        self._create_balance(
+            "500", is_locked=True, lock_type=Balance.LockType.PROMOTIONAL
+        )
+
+        # Act
+        allocations = self.user.allocate_spend(Decimal(60), allow_locked=True)
+
+        # Assert: only the 40 non-promotional locked RSC is allocated as locked.
+        locked_allocs = [a for a in allocations if a["is_locked"]]
+        unlocked_allocs = [a for a in allocations if not a["is_locked"]]
+        self.assertEqual(len(locked_allocs), 1)
+        self.assertEqual(locked_allocs[0]["amount"], Decimal(40))
+        self.assertEqual(len(unlocked_allocs), 1)
+        self.assertEqual(unlocked_allocs[0]["amount"], Decimal(20))
+
+    def test_allocate_spend_promotional_only_locked_raises(self):
+        # Arrange
+        self._create_balance(
+            "500", is_locked=True, lock_type=Balance.LockType.PROMOTIONAL
+        )
+
+        # Act / Assert
+        with self.assertRaises(ValueError):
+            self.user.allocate_spend(Decimal(100), allow_locked=True)
+
+
 class BalanceLockedByReferralBonusTests(TestCase):
     def setUp(self):
         self.user = create_user(

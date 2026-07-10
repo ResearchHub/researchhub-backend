@@ -246,7 +246,9 @@ class FundraiseService:
             user = User.objects.select_for_update().get(id=user.id)
 
             if use_credits:
-                if user.get_locked_balance() < total_cost:
+                # Promotional funds are excluded: they earn yield and are not
+                # spendable as funding credits (yet).
+                if user.get_funding_credits_balance() < total_cost:
                     return None, "Insufficient funding credits"
                 allocations = [{"amount": total_cost, "is_locked": True}]
             else:
@@ -415,7 +417,12 @@ class FundraiseService:
             return True
 
         if debit.content_type == purchase_ct:
-            return fundraise.escrow.refund(user, abs_amount, is_locked=debit.is_locked)
+            return fundraise.escrow.refund(
+                user,
+                abs_amount,
+                is_locked=debit.is_locked,
+                lock_type=debit.lock_type,
+            )
 
         if debit.content_type == bounty_fee_ct:
             return self._refund_fee(user, debit, abs_amount)
@@ -434,6 +441,7 @@ class FundraiseService:
             time.time(),
             giver=rh_revenue_account,
             is_locked=debit.is_locked,
+            lock_type=debit.lock_type,
         )
         record = distributor.distribute()
         return record.distributed_status != "FAILED"

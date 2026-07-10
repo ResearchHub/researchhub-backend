@@ -102,6 +102,11 @@ def create_staking_yield_distribution(amount):
     return distribution
 
 
+def create_promotional_credit_distribution(amount):
+    distribution = Distribution("PROMOTIONAL_CREDIT", amount, give_rep=False)
+    return distribution
+
+
 DISTRIBUTION_TYPE_CHOICES = [
     (FlagPaper.name, FlagPaper.name),
     ("STORED_PAPER_POT", "STORED_PAPER_POT"),
@@ -122,4 +127,5 @@ DISTRIBUTION_TYPE_CHOICES = [
     ),
     ("PREREGISTRATION_UPDATE_REWARD", "PREREGISTRATION_UPDATE_REWARD"),
     ("STAKING_YIELD", "STAKING_YIELD"),
+    ("PROMOTIONAL_CREDIT", "PROMOTIONAL_CREDIT"),
 ]

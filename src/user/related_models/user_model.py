@@ -261,9 +261,32 @@ class User(AbstractUser):
         return self.get_balance(queryset=available_queryset, include_locked=True)
 
     def get_locked_balance(self):
-        """Returns total locked balance amount."""
+        """Returns total locked balance amount (promotional included)."""
         locked_queryset = self.get_balance_qs().filter(is_locked=True)
         return self.get_balance(queryset=locked_queryset, include_locked=True)
+
+    def get_promotional_balance(self):
+        """Returns total promotional balance (locked, but earns yield)."""
+        from purchase.related_models.balance_model import Balance
+
+        promotional_queryset = self.get_balance_qs().filter(
+            lock_type=Balance.LockType.PROMOTIONAL
+        )
+        return self.get_balance(queryset=promotional_queryset, include_locked=True)
+
+    def get_funding_credits_balance(self):
+        """Returns the locked balance spendable as funding credits.
+
+        Excludes promotional funds, which earn yield and are not spendable.
+        """
+        from purchase.related_models.balance_model import Balance
+
+        credits_queryset = (
+            self.get_balance_qs()
+            .filter(is_locked=True)
+            .exclude(lock_type=Balance.LockType.PROMOTIONAL)
+        )
+        return self.get_balance(queryset=credits_queryset, include_locked=True)
 
     def get_unlocked_balance_lots_lifo(self):
         """
@@ -271,13 +294,27 @@ class User(AbstractUser):
 
         Negative balance rows consume the most recent positive rows first.
         """
+        return self._balance_lots_lifo(self.get_balance_qs().filter(is_locked=False))
+
+    def get_yield_eligible_balance_lots_lifo(self):
+        """
+        Reconstruct the user's yield-earning balance lots using LIFO.
+
+        Yield-eligible principal is the unlocked balance plus promotional
+        funds. Each pool is reconstructed independently so debits in one pool
+        never consume lots from the other.
+        """
+        from purchase.related_models.balance_model import Balance
+
+        return self.get_unlocked_balance_lots_lifo() + self._balance_lots_lifo(
+            self.get_balance_qs().filter(lock_type=Balance.LockType.PROMOTIONAL)
+        )
+
+    def _balance_lots_lifo(self, queryset):
         remaining_debits = Decimal(0)
         lots = []
-        balance_rows = (
-            self.get_balance_qs()
-            .filter(is_locked=False)
-            .order_by("-created_date", "-id")
-            .only("id", "amount", "created_date")
+        balance_rows = queryset.order_by("-created_date", "-id").only(
+            "id", "amount", "created_date"
         )
 
         for balance in balance_rows.iterator():
@@ -312,6 +349,8 @@ class User(AbstractUser):
         """
         Determine how to split ``amount`` across locked and unlocked balances.
 
+        The locked pool excludes promotional funds, which are not spendable.
+
         Returns a list of dicts::
 
             [{"amount": Decimal, "is_locked": bool}]
@@ -325,7 +364,7 @@ class User(AbstractUser):
         allocations = []
 
         if allow_locked:
-            locked_balance = self.get_locked_balance()
+            locked_balance = self.get_funding_credits_balance()
             if locked_balance > 0:
                 use = min(locked_balance, remaining)
                 allocations.append({"amount": use, "is_locked": True})

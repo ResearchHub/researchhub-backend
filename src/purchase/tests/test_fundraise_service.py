@@ -679,6 +679,36 @@ class CloseFundraiseTests(TestCase):
         # Funding credits are untouched.
         self.assertEqual(contributor.get_locked_balance(), Decimal(50))
 
+    def test_create_rsc_contribution_use_credits_excludes_promotional_funds(self):
+        """
+        With use_credits=True, promotional funds (locked but yield-earning)
+        must not count toward or be spent as funding credits.
+        """
+        # Arrange
+        contributor = create_random_authenticated_user("promo_contributor")
+
+        dist_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount=500,
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=True,
+            lock_type=Balance.LockType.PROMOTIONAL,
+        )
+        Balance.objects.create(
+            amount=50, user=contributor, content_type=dist_ct, is_locked=True
+        )
+
+        # Act
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal(100), use_credits=True
+        )
+
+        # Assert: rejected despite a large promotional balance.
+        self.assertIsNone(purchase)
+        self.assertEqual(error, "Insufficient funding credits")
+        self.assertEqual(contributor.get_promotional_balance(), Decimal(500))
+
     def test_create_rsc_contribution_use_credits_false_skips_locked_balance(self):
         """
         With use_credits=False, the service must only spend unlocked balance

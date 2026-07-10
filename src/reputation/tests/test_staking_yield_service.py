@@ -176,13 +176,21 @@ class StakingMultiplierCalculationTest(TestCase):
             tzinfo=UTC,
         )
 
-    def _create_balance(self, amount, days_before_accrual, is_locked=False, user=None):
+    def _create_balance(
+        self,
+        amount,
+        days_before_accrual,
+        is_locked=False,
+        lock_type=None,
+        user=None,
+    ):
         user = user or self.user
         balance = Balance.objects.create(
             user=user,
             amount=str(amount),
             content_type=self.content_type,
             is_locked=is_locked,
+            lock_type=lock_type,
         )
         balance.created_date = self._timestamp(days_before_accrual)
         balance.save(update_fields=["created_date"])
@@ -201,6 +209,31 @@ class StakingMultiplierCalculationTest(TestCase):
         self.assertEqual(len(lots), 1)
         self.assertEqual(lots[0].amount, Decimal("90.00000000"))
         self.assertEqual(lots[0].created_date, self.accrual_date - timedelta(days=20))
+
+    def test_yield_eligible_lots_include_promotional_but_not_other_locked(self):
+        # Arrange
+        self._create_balance("100", days_before_accrual=20)
+        self._create_balance(
+            "40",
+            days_before_accrual=10,
+            is_locked=True,
+            lock_type=Balance.LockType.PROMOTIONAL,
+        )
+        self._create_balance(
+            "70",
+            days_before_accrual=10,
+            is_locked=True,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
+        )
+
+        # Act
+        lots = sorted(
+            self.user.get_yield_eligible_balance_lots_lifo(),
+            key=lambda lot: lot.amount,
+        )
+
+        # Assert
+        self.assertEqual([lot.amount for lot in lots], [Decimal(40), Decimal(100)])
 
     def test_compute_balance_age_multiplier_uses_step_schedule(self):
         self.assertEqual(
@@ -317,6 +350,38 @@ class StakingMultiplierCalculationTest(TestCase):
         self.assertEqual(user2_snapshot.weighted_stake, Decimal("52.50000000"))
         self.assertEqual(snapshot.total_staked, Decimal("150.00000000"))
         self.assertEqual(snapshot.total_weighted_stake, Decimal("162.50000000"))
+
+    @patch(
+        "reputation.services.staking_yield_service."
+        "RscSupplyService.fetch_circulating_supply"
+    )
+    def test_create_daily_snapshots_stakes_promotional_balance(self, mock_supply):
+        # Arrange: user holds only promotional (locked, yield-earning) funds.
+        mock_supply.return_value = Decimal(220000000)
+        self.user.is_staking_opted_in = True
+        self.user.staking_opted_in_date = self._timestamp(days_before_accrual=400)
+        self.user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
+        self._create_balance(
+            "100",
+            days_before_accrual=200,
+            is_locked=True,
+            lock_type=Balance.LockType.PROMOTIONAL,
+        )
+        self._create_balance(
+            "70",
+            days_before_accrual=200,
+            is_locked=True,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
+        )
+
+        # Act
+        snapshot = StakingYieldService.create_daily_snapshots(self.accrual_date)
+
+        # Assert: promotional funds are staked; other locked funds are not.
+        user_snapshot = snapshot.user_snapshots.get(user=self.user)
+        self.assertEqual(user_snapshot.stake_amount, Decimal("100.00000000"))
+        self.assertEqual(user_snapshot.multiplier, Decimal("1.10000000"))
+        self.assertEqual(snapshot.total_staked, Decimal("100.00000000"))
 
     @patch(
         "reputation.services.staking_yield_service."
