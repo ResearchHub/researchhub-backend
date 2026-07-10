@@ -679,12 +679,14 @@ class CloseFundraiseTests(TestCase):
         # Funding credits are untouched.
         self.assertEqual(contributor.get_locked_balance(), Decimal(50))
 
-    def test_create_rsc_contribution_use_credits_excludes_promotional_funds(self):
+    def test_create_rsc_contribution_use_credits_spends_promotional_funds(self):
         """
-        With use_credits=True, promotional funds (locked but yield-earning)
-        must not count toward or be spent as funding credits.
+        With use_credits=True, promotional funds are spendable on fundraises
+        and are consumed after non-promotional credits; promotional debits
+        carry lock_type=PROMOTIONAL so yield netting stays correct.
         """
         # Arrange
+        User.objects.get_or_create(id=1)
         contributor = create_random_authenticated_user("promo_contributor")
 
         dist_ct = ContentType.objects.get(model="distribution")
@@ -704,10 +706,100 @@ class CloseFundraiseTests(TestCase):
             contributor, self.fundraise, Decimal(100), use_credits=True
         )
 
-        # Assert: rejected despite a large promotional balance.
-        self.assertIsNone(purchase)
-        self.assertEqual(error, "Insufficient funding credits")
+        # Assert
+        self.assertIsNone(error)
+        debits = Balance.objects.filter(purchase=purchase)
+        self.assertTrue(all(d.is_locked for d in debits))
+
+        # Non-promotional credits (50) are exhausted first; the remainder of
+        # amount + fee comes from promotional funds.
+        non_promo_spent = -sum(
+            Decimal(d.amount)
+            for d in debits
+            if d.lock_type != Balance.LockType.PROMOTIONAL
+        )
+        promo_spent = -sum(
+            Decimal(d.amount)
+            for d in debits
+            if d.lock_type == Balance.LockType.PROMOTIONAL
+        )
+        self.assertEqual(non_promo_spent, Decimal(50))
+        self.assertGreater(promo_spent, Decimal(0))
+        self.assertEqual(
+            contributor.get_promotional_balance(), Decimal(500) - promo_spent
+        )
+        self.assertEqual(contributor.get_funding_credits_balance(), Decimal(0))
+
+        # The yield-eligible promotional pool shrinks accordingly.
+        promo_lots = [
+            lot
+            for lot in contributor.get_yield_eligible_balance_lots_lifo()
+            if lot.amount != Decimal(0)
+        ]
+        self.assertEqual(
+            sum(lot.amount for lot in promo_lots), Decimal(500) - promo_spent
+        )
+
+    def test_create_rsc_contribution_use_credits_promotional_only(self):
+        """
+        With use_credits=True, a contribution can be fully covered by
+        promotional funds alone.
+        """
+        # Arrange
+        User.objects.get_or_create(id=1)
+        contributor = create_random_authenticated_user("promo_only_contributor")
+
+        dist_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount=500,
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=True,
+            lock_type=Balance.LockType.PROMOTIONAL,
+        )
+
+        # Act
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal(100), use_credits=True
+        )
+
+        # Assert
+        self.assertIsNone(error)
+        debits = Balance.objects.filter(purchase=purchase)
+        self.assertTrue(
+            all(d.lock_type == Balance.LockType.PROMOTIONAL for d in debits)
+        )
+
+    def test_close_fundraise_refunds_promotional_funds_as_promotional(self):
+        """
+        Refunding a contribution paid from promotional funds must restore
+        them as promotional (locked + yield-earning), not as plain credits.
+        """
+        # Arrange
+        User.objects.get_or_create(id=1)
+        contributor = create_random_authenticated_user("promo_refund_contributor")
+
+        dist_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount=500,
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=True,
+            lock_type=Balance.LockType.PROMOTIONAL,
+        )
+
+        _, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal(100), use_credits=True
+        )
+        self.assertIsNone(error)
+
+        # Act
+        result = self.fundraise_service.close_fundraise(self.fundraise)
+
+        # Assert: the full promotional balance is restored as promotional.
+        self.assertTrue(result)
         self.assertEqual(contributor.get_promotional_balance(), Decimal(500))
+        self.assertEqual(contributor.get_funding_credits_balance(), Decimal(0))
 
     def test_create_rsc_contribution_use_credits_false_skips_locked_balance(self):
         """

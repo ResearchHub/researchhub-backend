@@ -275,9 +275,10 @@ class User(AbstractUser):
         return self.get_balance(queryset=promotional_queryset, include_locked=True)
 
     def get_funding_credits_balance(self):
-        """Returns the locked balance spendable as funding credits.
+        """Returns the non-promotional locked balance.
 
-        Excludes promotional funds, which earn yield and are not spendable.
+        Promotional funds are also spendable on fundraises but are tracked
+        separately because they earn yield and are consumed last.
         """
         from purchase.related_models.balance_model import Balance
 
@@ -349,14 +350,19 @@ class User(AbstractUser):
         """
         Determine how to split ``amount`` across locked and unlocked balances.
 
-        The locked pool excludes promotional funds, which are not spendable.
+        Locked funds are consumed first, with yield-earning promotional funds
+        consumed after other locked credits. Debits written from these
+        allocations must carry ``lock_type`` so promotional yield netting
+        stays correct.
 
         Returns a list of dicts::
 
-            [{"amount": Decimal, "is_locked": bool}]
+            [{"amount": Decimal, "is_locked": bool, "lock_type": str | None}]
 
         Raises ``ValueError`` if the user cannot cover ``amount``.
         """
+        from purchase.related_models.balance_model import Balance
+
         if amount <= 0:
             return []
 
@@ -364,16 +370,33 @@ class User(AbstractUser):
         allocations = []
 
         if allow_locked:
-            locked_balance = self.get_funding_credits_balance()
-            if locked_balance > 0:
-                use = min(locked_balance, remaining)
-                allocations.append({"amount": use, "is_locked": True})
+            credits_balance = self.get_funding_credits_balance()
+            if credits_balance > 0:
+                use = min(credits_balance, remaining)
+                allocations.append(
+                    {"amount": use, "is_locked": True, "lock_type": None}
+                )
                 remaining -= use
+
+            if remaining > 0:
+                promotional_balance = self.get_promotional_balance()
+                if promotional_balance > 0:
+                    use = min(promotional_balance, remaining)
+                    allocations.append(
+                        {
+                            "amount": use,
+                            "is_locked": True,
+                            "lock_type": Balance.LockType.PROMOTIONAL,
+                        }
+                    )
+                    remaining -= use
 
         if remaining > 0:
             if self.get_available_balance() < remaining:
                 raise ValueError("Insufficient balance")
-            allocations.append({"amount": remaining, "is_locked": False})
+            allocations.append(
+                {"amount": remaining, "is_locked": False, "lock_type": None}
+            )
 
         return allocations
 

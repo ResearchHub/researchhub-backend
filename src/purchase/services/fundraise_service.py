@@ -224,15 +224,16 @@ class FundraiseService:
 
         The contribution is funded exclusively from a single pool: when
         ``use_credits`` is True the full ``amount + fee`` must be covered by
-        the user's funding credits (locked balance); when False, by unlocked
-        RSC. Mixing the two pools is not allowed.
+        the user's locked balance (funding credits and promotional funds, with
+        promotional consumed last); when False, by unlocked RSC. Mixing locked
+        and unlocked funds is not allowed.
 
         Args:
             user: The user making the contribution
             fundraise: The fundraise to contribute to
             amount: The contribution amount in RSC
-            use_credits: When True, pay entirely from funding credits (locked
-                balance). When False, pay entirely from unlocked RSC.
+            use_credits: When True, pay entirely from locked funds. When
+                False, pay entirely from unlocked RSC.
 
         Returns:
             Tuple of (purchase, error_message). If successful, error_message is None.
@@ -246,15 +247,36 @@ class FundraiseService:
             user = User.objects.select_for_update().get(id=user.id)
 
             if use_credits:
-                # Promotional funds are excluded: they earn yield and are not
-                # spendable as funding credits (yet).
-                if user.get_funding_credits_balance() < total_cost:
+                # All locked funds are spendable on fundraises. Non-promotional
+                # credits are consumed first so yield-earning promotional funds
+                # are spent last. Promotional debits must carry their lock_type
+                # so the yield LIFO netting stays correct.
+                credits_balance = user.get_funding_credits_balance()
+                promotional_balance = user.get_promotional_balance()
+                if credits_balance + promotional_balance < total_cost:
                     return None, "Insufficient funding credits"
-                allocations = [{"amount": total_cost, "is_locked": True}]
+
+                allocations = []
+                from_credits = min(credits_balance, total_cost)
+                if from_credits > 0:
+                    allocations.append(
+                        {"amount": from_credits, "is_locked": True, "lock_type": None}
+                    )
+                from_promotional = total_cost - from_credits
+                if from_promotional > 0:
+                    allocations.append(
+                        {
+                            "amount": from_promotional,
+                            "is_locked": True,
+                            "lock_type": Balance.LockType.PROMOTIONAL,
+                        }
+                    )
             else:
                 if user.get_available_balance() < total_cost:
                     return None, "Insufficient balance"
-                allocations = [{"amount": total_cost, "is_locked": False}]
+                allocations = [
+                    {"amount": total_cost, "is_locked": False, "lock_type": None}
+                ]
 
             # Create purchase object
             purchase = Purchase.objects.create(
@@ -290,6 +312,7 @@ class FundraiseService:
                         object_id=purchase.id,
                         amount=f"-{amount_used.to_eng_string()}",
                         is_locked=alloc["is_locked"],
+                        lock_type=alloc["lock_type"],
                         purchase=purchase,
                     )
 
@@ -300,6 +323,7 @@ class FundraiseService:
                         object_id=fee_object.id,
                         amount=f"-{fee_used.to_eng_string()}",
                         is_locked=alloc["is_locked"],
+                        lock_type=alloc["lock_type"],
                         purchase=purchase,
                     )
 

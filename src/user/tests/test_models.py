@@ -535,7 +535,7 @@ class UserPromotionalBalanceTests(TestCase):
         # Assert
         self.assertEqual(sorted(lot.amount for lot in lots), [Decimal(20), Decimal(60)])
 
-    def test_allocate_spend_excludes_promotional_from_locked_pool(self):
+    def test_allocate_spend_consumes_promotional_last(self):
         # Arrange
         self._create_balance("50", is_locked=False)
         self._create_balance(
@@ -548,23 +548,30 @@ class UserPromotionalBalanceTests(TestCase):
         # Act
         allocations = self.user.allocate_spend(Decimal(60), allow_locked=True)
 
-        # Assert: only the 40 non-promotional locked RSC is allocated as locked.
-        locked_allocs = [a for a in allocations if a["is_locked"]]
-        unlocked_allocs = [a for a in allocations if not a["is_locked"]]
-        self.assertEqual(len(locked_allocs), 1)
-        self.assertEqual(locked_allocs[0]["amount"], Decimal(40))
-        self.assertEqual(len(unlocked_allocs), 1)
-        self.assertEqual(unlocked_allocs[0]["amount"], Decimal(20))
+        # Assert: non-promotional credits are consumed first, then promotional
+        # (tagged with its lock_type); unlocked funds are untouched.
+        self.assertEqual(len(allocations), 2)
+        self.assertTrue(allocations[0]["is_locked"])
+        self.assertIsNone(allocations[0]["lock_type"])
+        self.assertEqual(allocations[0]["amount"], Decimal(40))
+        self.assertTrue(allocations[1]["is_locked"])
+        self.assertEqual(allocations[1]["lock_type"], Balance.LockType.PROMOTIONAL)
+        self.assertEqual(allocations[1]["amount"], Decimal(20))
 
-    def test_allocate_spend_promotional_only_locked_raises(self):
+    def test_allocate_spend_promotional_only_locked(self):
         # Arrange
         self._create_balance(
             "500", is_locked=True, lock_type=Balance.LockType.PROMOTIONAL
         )
 
-        # Act / Assert
-        with self.assertRaises(ValueError):
-            self.user.allocate_spend(Decimal(100), allow_locked=True)
+        # Act
+        allocations = self.user.allocate_spend(Decimal(100), allow_locked=True)
+
+        # Assert: the spend is fully covered by promotional funds.
+        self.assertEqual(len(allocations), 1)
+        self.assertTrue(allocations[0]["is_locked"])
+        self.assertEqual(allocations[0]["lock_type"], Balance.LockType.PROMOTIONAL)
+        self.assertEqual(allocations[0]["amount"], Decimal(100))
 
 
 class BalanceLockedByReferralBonusTests(TestCase):
