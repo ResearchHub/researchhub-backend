@@ -342,8 +342,6 @@ class UserBalancesSerializerTests(TestCase):
     def test_balances_with_promotional_rsc(self):
         """Promotional RSC is reported both in rsc_locked and its own field"""
         # Arrange
-        from purchase.models import Balance
-
         Balance.objects.create(
             user=self.user,
             content_type=ContentType.objects.get_for_model(Distribution),

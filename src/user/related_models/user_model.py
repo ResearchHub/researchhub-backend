@@ -13,6 +13,7 @@ from django.utils import timezone
 from hub.models import Hub
 from mailing_list.lib import send_email
 from mailing_list.models import EmailRecipient
+from purchase.related_models.balance_model import Balance
 from reputation.models import Distribution, PaidStatusModelMixin, Withdrawal
 from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
 from researchhub_access_group.constants import (
@@ -267,8 +268,6 @@ class User(AbstractUser):
 
     def get_promotional_balance(self):
         """Returns total promotional balance (locked, but earns yield)."""
-        from purchase.related_models.balance_model import Balance
-
         promotional_queryset = self.get_balance_qs().filter(
             lock_type=Balance.LockType.PROMOTIONAL
         )
@@ -280,8 +279,6 @@ class User(AbstractUser):
         Promotional funds are also spendable on fundraises but are tracked
         separately because they earn yield and are consumed last.
         """
-        from purchase.related_models.balance_model import Balance
-
         credits_queryset = (
             self.get_balance_qs()
             .filter(is_locked=True)
@@ -321,8 +318,6 @@ class User(AbstractUser):
         of ``{"amount": Decimal, "is_locked": True, "lock_type": str | None}``
         and ``remaining`` is the portion locked funds could not cover.
         """
-        from purchase.related_models.balance_model import Balance
-
         remaining = Decimal(str(amount))
         if remaining <= 0:
             return [], Decimal(0)
@@ -359,8 +354,6 @@ class User(AbstractUser):
         funds. Each pool is reconstructed independently so debits in one pool
         never consume lots from the other.
         """
-        from purchase.related_models.balance_model import Balance
-
         return self.get_unlocked_balance_lots_lifo() + self._balance_lots_lifo(
             self.get_balance_qs().filter(lock_type=Balance.LockType.PROMOTIONAL)
         )
