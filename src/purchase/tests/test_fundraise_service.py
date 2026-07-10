@@ -675,7 +675,7 @@ class CloseFundraiseTests(TestCase):
             contributor, self.fundraise, Decimal(100), use_credits=True
         )
         self.assertIsNone(purchase)
-        self.assertEqual(error, "Insufficient funding credits")
+        self.assertEqual(error, "Insufficient locked balance")
         # Funding credits are untouched.
         self.assertEqual(contributor.get_locked_balance(), Decimal(50))
 

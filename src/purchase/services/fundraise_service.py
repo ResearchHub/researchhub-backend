@@ -253,7 +253,7 @@ class FundraiseService:
                 # restore the exact fund type and promotional yield netting
                 # stays correct.
                 if user.get_locked_balance() < total_cost:
-                    return None, "Insufficient funding credits"
+                    return None, "Insufficient locked balance"
                 allocations, _ = user.allocate_locked_spend(total_cost)
             else:
                 if user.get_available_balance() < total_cost:
