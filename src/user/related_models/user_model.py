@@ -266,14 +266,14 @@ class User(AbstractUser):
         locked_queryset = self.get_balance_qs().filter(is_locked=True)
         return self.get_balance(queryset=locked_queryset, include_locked=True)
 
-    def get_promotional_balance(self):
+    def get_promotional_balance(self) -> Decimal:
         """Returns total promotional balance (locked, but earns yield)."""
         promotional_queryset = self.get_balance_qs().filter(
             lock_type=Balance.LockType.PROMOTIONAL
         )
         return self.get_balance(queryset=promotional_queryset, include_locked=True)
 
-    def get_funding_credits_balance(self):
+    def get_funding_credits_balance(self) -> Decimal:
         """Returns the non-promotional locked balance.
 
         Promotional funds are also spendable on fundraises but are tracked
@@ -286,7 +286,7 @@ class User(AbstractUser):
         )
         return self.get_balance(queryset=credits_queryset, include_locked=True)
 
-    def get_locked_balance_by_lock_type(self):
+    def get_locked_balance_by_lock_type(self) -> dict[str | None, Decimal]:
         """Returns locked balance totals keyed by lock_type (None included).
 
         Categories can be net negative for legacy users whose pre-lock_type
@@ -305,7 +305,7 @@ class User(AbstractUser):
         )
         return {row["lock_type"]: row["total"] or Decimal(0) for row in rows}
 
-    def allocate_locked_spend(self, amount):
+    def allocate_locked_spend(self, amount: Decimal) -> tuple[list[dict], Decimal]:
         """Split ``amount`` across locked categories in spend order.
 
         Consumes categories in ``Balance.LOCKED_SPEND_ORDER`` (untyped legacy
@@ -338,7 +338,7 @@ class User(AbstractUser):
 
         return allocations, remaining
 
-    def get_unlocked_balance_lots_lifo(self):
+    def get_unlocked_balance_lots_lifo(self) -> list[UnlockedBalanceLot]:
         """
         Reconstruct the user's remaining unlocked balance lots using LIFO.
 
@@ -346,7 +346,7 @@ class User(AbstractUser):
         """
         return self._balance_lots_lifo(self.get_balance_qs().filter(is_locked=False))
 
-    def get_yield_eligible_balance_lots_lifo(self):
+    def get_yield_eligible_balance_lots_lifo(self) -> list[UnlockedBalanceLot]:
         """
         Reconstruct the user's yield-earning balance lots using LIFO.
 
@@ -358,7 +358,7 @@ class User(AbstractUser):
             self.get_balance_qs().filter(lock_type=Balance.LockType.PROMOTIONAL)
         )
 
-    def _balance_lots_lifo(self, queryset):
+    def _balance_lots_lifo(self, queryset: models.QuerySet) -> list[UnlockedBalanceLot]:
         remaining_debits = Decimal(0)
         lots = []
         balance_rows = queryset.order_by("-created_date", "-id").only(
@@ -393,7 +393,7 @@ class User(AbstractUser):
 
         return lots
 
-    def allocate_spend(self, amount, allow_locked=False):
+    def allocate_spend(self, amount: Decimal, allow_locked: bool = False) -> list[dict]:
         """
         Determine how to split ``amount`` across locked and unlocked balances.
 

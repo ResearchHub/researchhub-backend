@@ -417,8 +417,13 @@ class FundraiseService:
         return contribution, None
 
     def _refund_contribution_debit(
-        self, fundraise, user, debit, purchase_ct, bounty_fee_ct
-    ):
+        self,
+        fundraise: Fundraise,
+        user: User,
+        debit: Balance,
+        purchase_ct: ContentType,
+        bounty_fee_ct: ContentType,
+    ) -> bool:
         """Refund a single debit entry. Returns True on success, False on failure."""
         abs_amount = abs(Decimal(debit.amount))
         if abs_amount == 0:
@@ -437,7 +442,7 @@ class FundraiseService:
 
         return True
 
-    def _refund_fee(self, user, debit, abs_amount):
+    def _refund_fee(self, user: User, debit: Balance, abs_amount: Decimal) -> bool:
         """Refund a fee debit from the revenue account. Returns True on success."""
         rh_revenue_account = User.objects.get_revenue_account()
         fee_object = BountyFee.objects.get(id=debit.object_id)

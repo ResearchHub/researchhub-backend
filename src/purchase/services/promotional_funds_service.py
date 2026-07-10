@@ -4,6 +4,8 @@ from decimal import Decimal
 from purchase.related_models.balance_model import Balance
 from reputation.distributions import create_promotional_credit_distribution
 from reputation.distributor import Distributor
+from reputation.related_models.distribution import Distribution
+from user.related_models.user_model import User
 
 
 class PromotionalFundsService:
@@ -12,7 +14,14 @@ class PromotionalFundsService:
     staking yield like unlocked balance.
     """
 
-    def grant(self, user, amount, *, reason, giver=None):
+    def grant(
+        self,
+        user: User,
+        amount: Decimal,
+        *,
+        reason: str,
+        giver: User | None = None,
+    ) -> Distribution:
         """
         Grant ``amount`` RSC of promotional funds to ``user``.
 

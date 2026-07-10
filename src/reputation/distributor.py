@@ -40,8 +40,8 @@ class Distributor:
         timestamp,
         giver=None,
         hubs=None,
-        is_locked=False,
-        lock_type=None,
+        is_locked: bool = False,
+        lock_type: str | None = None,
     ):
         self.distribution = distribution
         self.recipient = recipient
@@ -125,7 +125,7 @@ class Distributor:
                 users.update(reputation=models.F("reputation") + rep)
             self._record_balance(record, is_locked=self.is_locked)
 
-    def _record_balance(self, distribution, is_locked=False):
+    def _record_balance(self, distribution, is_locked: bool = False) -> None:
         content_type = ContentType.objects.get_for_model(distribution)
         Balance.objects.create(
             user=self.recipient,

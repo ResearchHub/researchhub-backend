@@ -172,7 +172,14 @@ class Escrow(DefaultModel):
 
         return True
 
-    def refund(self, recipient, amount, status=None, is_locked=False, lock_type=None):
+    def refund(
+        self,
+        recipient,
+        amount,
+        status=None,
+        is_locked: bool = False,
+        lock_type: str | None = None,
+    ) -> bool:
         from reputation.distributor import Distributor
 
         if amount == 0:
