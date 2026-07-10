@@ -112,7 +112,7 @@ class Migration(migrations.Migration):
                     models.CharField(
                         blank=True,
                         db_comment="The provider model actually used.",
-                        max_length=128,
+                        max_length=2048,
                     ),
                 ),
                 (
@@ -168,7 +168,7 @@ class Migration(migrations.Migration):
                 (
                     "sequence",
                     models.PositiveIntegerField(
-                        db_comment="Per-conversation position; the recorder is the single writer."
+                        db_comment="Per-conversation position, allocated under a conversation row lock."
                     ),
                 ),
                 (

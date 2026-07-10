@@ -205,9 +205,11 @@ class Agent:
     def _drive(self, messages: list[Message]) -> AgentResult:
         try:
             result = self._loop(messages)
-        except AgentRunError as error:
+        except Exception as error:
             # Every message up to the failure was already recorded as it was
-            # appended; this only marks the terminal outcome.
+            # appended; this only marks the terminal outcome. Provider and
+            # bounded-loop failures are AgentRunError instances, but setup or
+            # core failures must finalize the run as well.
             self._record("on_run_failed", error)
             raise
         self._record("on_run_finished", result)

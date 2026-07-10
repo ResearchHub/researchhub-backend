@@ -5,11 +5,13 @@ recorder, so what is asserted is the persisted transcript of an actual run --
 not the recorder's methods in isolation.
 """
 
+from django.db import DataError, transaction
 from django.test import TestCase
 
-from research_ai.models import AgentConversation, AgentRun
+from research_ai.models import AgentConversation, AgentMessage, AgentRun
 from research_ai.services.agent import (
     Agent,
+    AgentResult,
     AssistantTurn,
     IncompleteTurnError,
     Message,
@@ -47,6 +49,13 @@ class ExplodingProvider(FakeProvider):
         if not self._turns:
             raise ValueError("socket closed")
         return super().complete(**kwargs)
+
+
+class ExplodingRenderProvider(FakeProvider):
+    """Fails while preparing tools, before the first model turn."""
+
+    def render_tools(self, tools):
+        raise ValueError("tool rendering exploded")
 
 
 def _build_text_turn(text, *, usage=None, latency_ms=None, stop_reason=None):
@@ -101,6 +110,18 @@ def _make_conversation(**kwargs):
 
 
 class DatabaseAgentRecorderTests(TestCase):
+    def test_accepts_the_full_bedrock_model_id_length(self):
+        # Arrange
+        conversation = _make_conversation()
+        model_id = "m" * 2048
+
+        # Act
+        recorder = DatabaseAgentRecorder(conversation, model_id=model_id)
+
+        # Assert
+        recorder.run.refresh_from_db()
+        self.assertEqual(recorder.run.model_id, model_id)
+
     def test_full_run_persists_the_transcript_and_finalizes_the_run(self):
         # Arrange: a tool turn then a plain-text answer, both reporting usage.
         conversation = _make_conversation()
@@ -180,6 +201,38 @@ class DatabaseAgentRecorderTests(TestCase):
         # Assert: the derived context is the run's exact message list.
         self.assertEqual(build_context(conversation), result.messages)
 
+    def test_build_context_ignores_unknown_additive_blocks(self):
+        # Arrange: one row mixes a future block with known text, while another
+        # contains only a future block that cannot be sent to this provider.
+        conversation = _make_conversation()
+        recorder = DatabaseAgentRecorder(conversation)
+        AgentMessage.objects.create(
+            conversation=conversation,
+            run=recorder.run,
+            sequence=0,
+            role="user",
+            content=[
+                {"type": "future_block", "payload": {"value": 1}},
+                {"type": "text", "text": "known content"},
+            ],
+        )
+        AgentMessage.objects.create(
+            conversation=conversation,
+            run=recorder.run,
+            sequence=1,
+            role="assistant",
+            content=[{"type": "future_block", "payload": {"value": 2}}],
+        )
+
+        # Act
+        context = build_context(conversation)
+
+        # Assert: supported content survives and an empty provider message does not.
+        self.assertEqual(
+            context,
+            [Message(role="user", content=[TextBlock(text="known content")])],
+        )
+
     def test_mid_run_provider_error_leaves_failed_run_with_all_messages(self):
         # Arrange: one good tool turn, then the provider dies.
         conversation = _make_conversation()
@@ -204,6 +257,25 @@ class DatabaseAgentRecorderTests(TestCase):
         self.assertIn("socket closed", run.error_message)
         self.assertEqual(run.iterations, 1)
         self.assertIsNotNone(run.finished_at)
+
+    def test_unexpected_setup_error_finalizes_the_run_as_failed(self):
+        # Arrange
+        conversation = _make_conversation()
+        recorder = DatabaseAgentRecorder(conversation)
+        provider = ExplodingRenderProvider([])
+        agent = _build_agent(provider, recorder=recorder)
+
+        # Act
+        with self.assertRaisesRegex(ValueError, "tool rendering exploded"):
+            agent.run("hi")
+
+        # Assert: the seed landed before setup failed and the run is terminal.
+        run = recorder.run
+        run.refresh_from_db()
+        self.assertEqual(run.status, AgentRun.Status.FAILED)
+        self.assertEqual(run.iterations, 0)
+        self.assertEqual(run.error_message, "tool rendering exploded")
+        self.assertEqual(conversation.messages.count(), 1)
 
     def test_incomplete_turn_failure_records_its_stop_reason(self):
         # Arrange: the provider truncates without answering or calling a tool.
@@ -283,6 +355,53 @@ class DatabaseAgentRecorderTests(TestCase):
         self.assertEqual([r.run_id for r in rows[2:]], [second.run.id] * 2)
         self.assertEqual(rows[2].content[0]["text"], "follow up")
         self.assertEqual(AgentRun.objects.filter(conversation=conversation).count(), 2)
+
+    def test_recorders_allocate_sequences_when_runs_overlap(self):
+        # Arrange: both runs start before either has written a message.
+        conversation = _make_conversation()
+        first = DatabaseAgentRecorder(conversation)
+        second = DatabaseAgentRecorder(conversation)
+
+        # Act
+        first.record_message(
+            Message(role="user", content=[TextBlock(text="first run")])
+        )
+        second.record_message(
+            Message(role="user", content=[TextBlock(text="second run")])
+        )
+
+        # Assert: each run received a distinct position in the shared log.
+        rows = list(conversation.messages.order_by("sequence"))
+        self.assertEqual([row.sequence for row in rows], [0, 1])
+        self.assertEqual([row.run_id for row in rows], [first.run.id, second.run.id])
+
+    def test_hook_database_errors_do_not_break_an_outer_transaction(self):
+        # Arrange
+        conversation = _make_conversation()
+        recorder = DatabaseAgentRecorder(conversation)
+        invalid_message = Message(
+            role="r" * 100,
+            content=[TextBlock(text="invalid role length")],
+        )
+        invalid_result = AgentResult(
+            messages=[],
+            final_text="",
+            stop_reason="s" * 100,
+            iterations=0,
+        )
+
+        # Act / Assert: both insert and terminal-update failures roll back to
+        # their own savepoints; queries in the caller's transaction still work.
+        with transaction.atomic():
+            with self.assertRaises(DataError):
+                recorder.record_message(invalid_message)
+            self.assertTrue(
+                AgentConversation.objects.filter(pk=conversation.pk).exists()
+            )
+
+            with self.assertRaises(DataError):
+                recorder.on_run_finished(invalid_result)
+            self.assertTrue(AgentRun.objects.filter(pk=recorder.run.pk).exists())
 
     def test_run_aggregates_update_as_turns_land(self):
         # Arrange: record an assistant turn directly, with no terminal hook --

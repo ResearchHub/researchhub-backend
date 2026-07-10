@@ -130,7 +130,9 @@ def _serialize_block(block: Block) -> dict:
     raise TypeError(f"unserializable block: {block!r}")
 
 
-def _deserialize_block(data: dict) -> Block:
+def _deserialize_block(
+    data: dict, *, ignore_unknown_blocks: bool = False
+) -> Block | None:
     block_type = data.get("type")
     if block_type == "text":
         return TextBlock(text=data["text"])
@@ -142,6 +144,8 @@ def _deserialize_block(data: dict) -> Block:
             content=data["content"],
             is_error=data.get("is_error", False),
         )
+    if ignore_unknown_blocks:
+        return None
     raise ValueError(f"unknown block type: {block_type!r}")
 
 
@@ -153,12 +157,24 @@ def serialize_messages(messages: list[Message]) -> list[dict]:
     ]
 
 
-def deserialize_messages(data: list[dict]) -> list[Message]:
-    """Rebuild a conversation from its ``serialize_messages`` JSON shape."""
-    return [
-        Message(
-            role=m["role"],
-            content=[_deserialize_block(b) for b in m["content"]],
-        )
-        for m in data
-    ]
+def deserialize_messages(
+    data: list[dict], *, ignore_unknown_blocks: bool = False
+) -> list[Message]:
+    """Rebuild messages, optionally omitting unsupported additive blocks.
+
+    Malformed known blocks remain errors. When unknown blocks are ignored, a
+    message containing no supported content is omitted as well so providers
+    never receive an empty content list.
+    """
+    messages: list[Message] = []
+    for item in data:
+        content: list[Block] = []
+        for block_data in item["content"]:
+            block = _deserialize_block(
+                block_data, ignore_unknown_blocks=ignore_unknown_blocks
+            )
+            if block is not None:
+                content.append(block)
+        if content or not ignore_unknown_blocks:
+            messages.append(Message(role=item["role"], content=content))
+    return messages

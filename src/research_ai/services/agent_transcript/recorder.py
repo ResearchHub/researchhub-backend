@@ -13,13 +13,12 @@ not kill a run), so a persistence failure here costs rows, never the run.
 import logging
 
 from django.conf import settings
-from django.db.models import Max
+from django.db import transaction
 from django.utils import timezone
 
 from research_ai.models import AgentConversation, AgentMessage, AgentRun
 from research_ai.services.agent import (
     AgentResult,
-    AgentRunError,
     AssistantTurn,
     Message,
     serialize_messages,
@@ -89,12 +88,6 @@ class DatabaseAgentRecorder:
             model_id=model_id,
             config=config or {},
         )
-        # The recorder is the single writer during a run, so an in-memory
-        # counter suffices; seed it past whatever prior runs stored.
-        last = AgentMessage.objects.filter(conversation=conversation).aggregate(
-            Max("sequence")
-        )["sequence__max"]
-        self._next_sequence = 0 if last is None else last + 1
 
     # -- AgentRecorder protocol -------------------------------------------
 
@@ -103,17 +96,30 @@ class DatabaseAgentRecorder:
     ) -> None:
         content = serialize_messages([message])[0]["content"]
         content = [self._cap_block(block) for block in content]
-        AgentMessage.objects.create(
-            conversation=self.conversation,
-            run=self.run,
-            sequence=self._next_sequence,
-            role=message.role,
-            content=content,
-            **self._turn_columns(turn),
-        )
-        self._next_sequence += 1
-        if turn is not None:
-            self._fold_turn_into_run(turn)
+        with transaction.atomic():
+            # Conversations may have multiple overlapping runs. Lock the
+            # shared parent while allocating the next sequence so two
+            # recorders cannot claim the same position.
+            AgentConversation.objects.select_for_update().only("pk").get(
+                pk=self.conversation.pk
+            )
+            last_sequence = (
+                AgentMessage.objects.filter(conversation=self.conversation)
+                .order_by("-sequence")
+                .values_list("sequence", flat=True)
+                .first()
+            )
+            sequence = 0 if last_sequence is None else last_sequence + 1
+            AgentMessage.objects.create(
+                conversation=self.conversation,
+                run=self.run,
+                sequence=sequence,
+                role=message.role,
+                content=content,
+                **self._turn_columns(turn),
+            )
+            if turn is not None:
+                self._fold_turn_into_run(turn)
 
     def on_run_finished(self, result: AgentResult) -> None:
         self._finalize(
@@ -122,12 +128,13 @@ class DatabaseAgentRecorder:
             iterations=result.iterations,
         )
 
-    def on_run_failed(self, error: AgentRunError) -> None:
+    def on_run_failed(self, error: Exception) -> None:
         self._finalize(
             status=AgentRun.Status.FAILED,
-            # Only IncompleteTurnError carries a provider stop reason.
+            # Typed agent failures may carry a stop reason and iteration
+            # count; unexpected failures retain the aggregates recorded so far.
             stop_reason=getattr(error, "stop_reason", "") or "",
-            iterations=error.iterations,
+            iterations=getattr(error, "iterations", None),
             error_message=str(error),
         )
 
@@ -185,22 +192,26 @@ class DatabaseAgentRecorder:
         iterations: int | None,
         error_message: str = "",
     ) -> None:
-        run = self.run
-        run.status = status
-        run.stop_reason = stop_reason
-        if iterations is not None:
-            run.iterations = iterations
-        run.error_message = error_message
-        run.finished_at = timezone.now()
-        run.duration = run.finished_at - run.created_date
-        run.save(
-            update_fields=[
-                "status",
-                "stop_reason",
-                "iterations",
-                "error_message",
-                "finished_at",
-                "duration",
-                "updated_date",
-            ]
-        )
+        # The agent suppresses recorder failures. An inner atomic block gives
+        # database errors a savepoint to roll back before that suppression, so
+        # a caller's surrounding transaction remains usable.
+        with transaction.atomic():
+            run = self.run
+            run.status = status
+            run.stop_reason = stop_reason
+            if iterations is not None:
+                run.iterations = iterations
+            run.error_message = error_message
+            run.finished_at = timezone.now()
+            run.duration = run.finished_at - run.created_date
+            run.save(
+                update_fields=[
+                    "status",
+                    "stop_reason",
+                    "iterations",
+                    "error_message",
+                    "finished_at",
+                    "duration",
+                    "updated_date",
+                ]
+            )
