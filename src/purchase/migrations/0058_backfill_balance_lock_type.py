@@ -22,6 +22,8 @@ def backfill_lock_type(apps, schema_editor):
     Balance = apps.get_model("purchase", "Balance")
     ContentType = apps.get_model("contenttypes", "ContentType")
     Distribution = apps.get_model("reputation", "Distribution")
+    Purchase = apps.get_model("purchase", "Purchase")
+    Escrow = apps.get_model("reputation", "Escrow")
 
     locked = Balance.objects.filter(is_locked=True, lock_type__isnull=True)
 
@@ -48,9 +50,68 @@ def backfill_lock_type(apps, schema_editor):
     if fee_ct is not None:
         _update_in_batches(locked.filter(content_type=fee_ct), "FUNDING_CREDIT")
 
-    # Fundraise contribution movement rows (locked debits/refunds) are not tied
-    # to a granting Distribution and intentionally stay NULL — harmless for
-    # withdrawal and yield, which key off is_locked / the PROMOTIONAL allowlist.
+    # Before lock_type, fundraise contributions spent a single undifferentiated
+    # locked pool. Treat their legacy movements as funding credits so a negative
+    # NULL bucket cannot hide already-spent non-promotional funds from the new
+    # category allocator.
+    purchase_ct = ContentType.objects.filter(
+        app_label="purchase", model="purchase"
+    ).first()
+    fundraise_ct = ContentType.objects.filter(
+        app_label="purchase", model="fundraise"
+    ).first()
+    bounty_fee_ct = ContentType.objects.filter(
+        app_label="reputation", model="bountyfee"
+    ).first()
+    escrow_ct = ContentType.objects.filter(
+        app_label="reputation", model="escrow"
+    ).first()
+
+    if purchase_ct is not None and fundraise_ct is not None:
+        fundraise_purchase_ids = Purchase.objects.filter(
+            purchase_type="FUNDRAISE_CONTRIBUTION",
+            content_type=fundraise_ct,
+        ).values_list("id", flat=True)
+        _update_in_batches(
+            locked.filter(
+                content_type=purchase_ct,
+                object_id__in=fundraise_purchase_ids,
+            ),
+            "FUNDING_CREDIT",
+        )
+
+    # Fundraise fee debits are recorded against the shared BountyFee object.
+    if bounty_fee_ct is not None:
+        _update_in_batches(locked.filter(content_type=bounty_fee_ct), "FUNDING_CREDIT")
+
+    # Backfill historical refunds alongside their debits. Principal refunds
+    # point at a fundraise escrow; fee refunds point at BountyFee.
+    if dist_ct is not None:
+        bounty_refunds = Distribution.objects.filter(distribution_type="BOUNTY_REFUND")
+        if escrow_ct is not None:
+            fundraise_escrow_ids = Escrow.objects.filter(
+                hold_type="FUNDRAISE"
+            ).values_list("id", flat=True)
+            _update_in_batches(
+                locked.filter(
+                    content_type=dist_ct,
+                    object_id__in=bounty_refunds.filter(
+                        proof_item_content_type=escrow_ct,
+                        proof_item_object_id__in=fundraise_escrow_ids,
+                    ).values_list("id", flat=True),
+                ),
+                "FUNDING_CREDIT",
+            )
+        if bounty_fee_ct is not None:
+            _update_in_batches(
+                locked.filter(
+                    content_type=dist_ct,
+                    object_id__in=bounty_refunds.filter(
+                        proof_item_content_type=bounty_fee_ct,
+                    ).values_list("id", flat=True),
+                ),
+                "FUNDING_CREDIT",
+            )
 
 
 def reverse_backfill(apps, schema_editor):
