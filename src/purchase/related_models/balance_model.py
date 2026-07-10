@@ -12,6 +12,17 @@ class Balance(models.Model):
         # Promotional grants — not withdrawable, but earn staking yield.
         PROMOTIONAL = "PROMOTIONAL", "Promotional"
 
+    # Order in which locked categories are consumed when spending. Untyped
+    # legacy rows go first; yield-earning promotional funds go last. Debits
+    # are written per category so refunds can restore each category exactly.
+    LOCKED_SPEND_ORDER = (
+        None,
+        LockType.FUNDING_CREDIT,
+        LockType.REFERRAL_BONUS,
+        LockType.STAKING_YIELD,
+        LockType.PROMOTIONAL,
+    )
+
     user = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="balances"
     )

@@ -247,30 +247,14 @@ class FundraiseService:
             user = User.objects.select_for_update().get(id=user.id)
 
             if use_credits:
-                # All locked funds are spendable on fundraises. Non-promotional
-                # credits are consumed first so yield-earning promotional funds
-                # are spent last. Promotional debits must carry their lock_type
-                # so the yield LIFO netting stays correct.
-                credits_balance = user.get_funding_credits_balance()
-                promotional_balance = user.get_promotional_balance()
-                if credits_balance + promotional_balance < total_cost:
+                # All locked funds are spendable on fundraises. The spend is
+                # split per lock_type category (yield-earning promotional
+                # funds last) and each debit carries its category so refunds
+                # restore the exact fund type and promotional yield netting
+                # stays correct.
+                if user.get_locked_balance() < total_cost:
                     return None, "Insufficient funding credits"
-
-                allocations = []
-                from_credits = min(credits_balance, total_cost)
-                if from_credits > 0:
-                    allocations.append(
-                        {"amount": from_credits, "is_locked": True, "lock_type": None}
-                    )
-                from_promotional = total_cost - from_credits
-                if from_promotional > 0:
-                    allocations.append(
-                        {
-                            "amount": from_promotional,
-                            "is_locked": True,
-                            "lock_type": Balance.LockType.PROMOTIONAL,
-                        }
-                    )
+                allocations, _ = user.allocate_locked_spend(total_cost)
             else:
                 if user.get_available_balance() < total_cost:
                     return None, "Insufficient balance"

@@ -770,6 +770,89 @@ class CloseFundraiseTests(TestCase):
             all(d.lock_type == Balance.LockType.PROMOTIONAL for d in debits)
         )
 
+    def test_create_rsc_contribution_use_credits_tags_debits_by_category(self):
+        """
+        A credits spend is split per lock_type category so every debit row
+        records exactly which category it consumed.
+        """
+        # Arrange
+        User.objects.get_or_create(id=1)
+        contributor = create_random_authenticated_user("category_contributor")
+
+        dist_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount=50,
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=True,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
+        )
+        Balance.objects.create(
+            amount=500,
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=True,
+            lock_type=Balance.LockType.REFERRAL_BONUS,
+        )
+
+        # Act
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal(100), use_credits=True
+        )
+
+        # Assert: funding credits are exhausted first, the remainder is
+        # debited from referral-bonus credits, and each debit is tagged.
+        self.assertIsNone(error)
+        debits = Balance.objects.filter(purchase=purchase)
+        spent_by_type = {}
+        for debit in debits:
+            spent_by_type[debit.lock_type] = spent_by_type.get(
+                debit.lock_type, Decimal(0)
+            ) - Decimal(debit.amount)
+        self.assertEqual(spent_by_type[Balance.LockType.FUNDING_CREDIT], Decimal(50))
+        self.assertGreater(spent_by_type[Balance.LockType.REFERRAL_BONUS], Decimal(0))
+        self.assertNotIn(None, spent_by_type)
+
+    def test_close_fundraise_refunds_preserve_lock_type_categories(self):
+        """
+        Refunds restore each locked category exactly as it was spent.
+        """
+        # Arrange
+        User.objects.get_or_create(id=1)
+        contributor = create_random_authenticated_user("category_refund_contributor")
+
+        dist_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount=50,
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=True,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
+        )
+        Balance.objects.create(
+            amount=500,
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=True,
+            lock_type=Balance.LockType.REFERRAL_BONUS,
+        )
+
+        _, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal(100), use_credits=True
+        )
+        self.assertIsNone(error)
+
+        # Act
+        result = self.fundraise_service.close_fundraise(self.fundraise)
+
+        # Assert: both categories are restored to their original totals.
+        self.assertTrue(result)
+        balances_by_type = contributor.get_locked_balance_by_lock_type()
+        self.assertEqual(balances_by_type[Balance.LockType.FUNDING_CREDIT], Decimal(50))
+        self.assertEqual(
+            balances_by_type[Balance.LockType.REFERRAL_BONUS], Decimal(500)
+        )
+
     def test_close_fundraise_refunds_promotional_funds_as_promotional(self):
         """
         Refunding a contribution paid from promotional funds must restore

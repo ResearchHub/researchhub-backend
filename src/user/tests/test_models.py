@@ -548,15 +548,57 @@ class UserPromotionalBalanceTests(TestCase):
         # Act
         allocations = self.user.allocate_spend(Decimal(60), allow_locked=True)
 
-        # Assert: non-promotional credits are consumed first, then promotional
-        # (tagged with its lock_type); unlocked funds are untouched.
+        # Assert: non-promotional credits are consumed first, then promotional;
+        # each allocation carries its category; unlocked funds are untouched.
         self.assertEqual(len(allocations), 2)
         self.assertTrue(allocations[0]["is_locked"])
-        self.assertIsNone(allocations[0]["lock_type"])
+        self.assertEqual(allocations[0]["lock_type"], Balance.LockType.FUNDING_CREDIT)
         self.assertEqual(allocations[0]["amount"], Decimal(40))
         self.assertTrue(allocations[1]["is_locked"])
         self.assertEqual(allocations[1]["lock_type"], Balance.LockType.PROMOTIONAL)
         self.assertEqual(allocations[1]["amount"], Decimal(20))
+
+    def test_allocate_locked_spend_splits_by_category_in_order(self):
+        # Arrange
+        self._create_balance("10", is_locked=True)  # untyped legacy
+        self._create_balance(
+            "20", is_locked=True, lock_type=Balance.LockType.FUNDING_CREDIT
+        )
+        self._create_balance(
+            "30", is_locked=True, lock_type=Balance.LockType.REFERRAL_BONUS
+        )
+        self._create_balance(
+            "500", is_locked=True, lock_type=Balance.LockType.PROMOTIONAL
+        )
+
+        # Act
+        allocations, remaining = self.user.allocate_locked_spend(Decimal(45))
+
+        # Assert: untyped first, then per-category, promotional only for the
+        # remainder.
+        self.assertEqual(remaining, Decimal(0))
+        self.assertEqual(
+            [(a["lock_type"], a["amount"]) for a in allocations],
+            [
+                (None, Decimal(10)),
+                (Balance.LockType.FUNDING_CREDIT, Decimal(20)),
+                (Balance.LockType.REFERRAL_BONUS, Decimal(15)),
+            ],
+        )
+
+    def test_allocate_locked_spend_reports_uncovered_remainder(self):
+        # Arrange
+        self._create_balance(
+            "25", is_locked=True, lock_type=Balance.LockType.FUNDING_CREDIT
+        )
+
+        # Act
+        allocations, remaining = self.user.allocate_locked_spend(Decimal(40))
+
+        # Assert
+        self.assertEqual(remaining, Decimal(15))
+        self.assertEqual(len(allocations), 1)
+        self.assertEqual(allocations[0]["amount"], Decimal(25))
 
     def test_allocate_spend_promotional_only_locked(self):
         # Arrange
