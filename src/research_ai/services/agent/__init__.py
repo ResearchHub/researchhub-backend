@@ -3,11 +3,13 @@
 Public surface:
 
 - Neutral types: ``Message``, ``TextBlock``, ``ToolUseBlock``,
-  ``ToolResultBlock``, ``AssistantTurn``, ``StopReason``, and the
-  ``serialize_messages`` / ``deserialize_messages`` helpers.
+  ``ToolResultBlock``, ``AssistantTurn``, ``TurnUsage``, ``StopReason``, and
+  the ``serialize_messages`` / ``deserialize_messages`` helpers.
 - Tools: ``Tool``, ``Toolset``.
 - Providers: ``LLMProvider`` (ABC), ``BedrockProvider``.
 - Loop: ``Agent``, ``AgentResult``.
+- Recording: ``AgentRecorder`` (protocol; implementations live outside the
+  package and are injected).
 - Errors: ``AgentRunError`` and its subclasses ``ProviderError``,
   ``IncompleteTurnError``, ``IterationLimitError``.
 - Factory: ``AgentService``.
@@ -25,6 +27,7 @@ from research_ai.services.agent.errors import (
 from research_ai.services.agent.loop import Agent, AgentResult
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.providers.bedrock import BedrockProvider
+from research_ai.services.agent.recorder import AgentRecorder
 from research_ai.services.agent.tools import Tool, Toolset
 from research_ai.services.agent.types import (
     AssistantTurn,
@@ -33,12 +36,14 @@ from research_ai.services.agent.types import (
     TextBlock,
     ToolResultBlock,
     ToolUseBlock,
+    TurnUsage,
     deserialize_messages,
     serialize_messages,
 )
 
 __all__ = [
     "Agent",
+    "AgentRecorder",
     "AgentResult",
     "AgentRunError",
     "AgentService",
@@ -55,6 +60,7 @@ __all__ = [
     "ToolResultBlock",
     "ToolUseBlock",
     "Toolset",
+    "TurnUsage",
     "deserialize_messages",
     "serialize_messages",
 ]

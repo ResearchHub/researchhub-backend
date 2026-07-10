@@ -20,6 +20,7 @@ from research_ai.services.agent.errors import (
     ProviderError,
 )
 from research_ai.services.agent.providers.base import LLMProvider
+from research_ai.services.agent.recorder import AgentRecorder
 from research_ai.services.agent.tools import Toolset
 from research_ai.services.agent.types import (
     Message,
@@ -106,6 +107,7 @@ class Agent:
         max_iterations: int,
         max_tokens: int,
         temperature: float,
+        recorder: AgentRecorder | None = None,
     ):
         self.provider = provider
         self.toolset = toolset
@@ -113,28 +115,41 @@ class Agent:
         self.max_iterations = max_iterations
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.recorder = recorder
 
-    def run(self, user_prompt: str, *, on_event=None) -> AgentResult:
+    def run(self, user_prompt: str) -> AgentResult:
         """Drive a fresh conversation from ``user_prompt`` to completion."""
-        messages = [Message(role="user", content=[TextBlock(text=user_prompt)])]
-        return self._drive(messages, on_event=on_event)
+        seed = Message(role="user", content=[TextBlock(text=user_prompt)])
+        self._record("record_message", seed)
+        return self._drive([seed])
 
     def continue_conversation(
         self,
         messages: list[Message],
         user_message: str,
-        *,
-        on_event=None,
     ) -> AgentResult:
         """Append a user turn to ``messages`` and drive (resumable multi-turn).
 
         ``messages`` is copied, not mutated; the updated list is returned on the
-        ``AgentResult``.
+        ``AgentResult``. Only the appended turn is recorded -- the history was
+        recorded by the runs that produced it.
         """
-        messages = list(messages) + [
-            Message(role="user", content=[TextBlock(text=user_message)])
-        ]
-        return self._drive(messages, on_event=on_event)
+        appended = Message(role="user", content=[TextBlock(text=user_message)])
+        self._record("record_message", appended)
+        return self._drive(list(messages) + [appended])
+
+    def _record(self, hook: str, *args, **kwargs) -> None:
+        """Invoke a recorder hook; a raising recorder never breaks the run.
+
+        The transcript is observability -- persistence failing must not kill
+        the run it observes (same contract as ``progress_callback``).
+        """
+        if self.recorder is None:
+            return
+        try:
+            getattr(self.recorder, hook)(*args, **kwargs)
+        except Exception:  # noqa: BLE001 - recording must not break the run
+            logger.warning("agent recorder %s failed", hook, exc_info=True)
 
     def _complete_turn(self, messages, rendered_tools, iteration):
         try:
@@ -187,9 +202,18 @@ class Agent:
             )
         return result_blocks, stop
 
-    def _drive(self, messages: list[Message], *, on_event=None) -> AgentResult:
-        # ``on_event`` is an unused placeholder for the future streaming hook;
-        # it is threaded toward ``complete`` but streaming is not implemented.
+    def _drive(self, messages: list[Message]) -> AgentResult:
+        try:
+            result = self._loop(messages)
+        except AgentRunError as error:
+            # Every message up to the failure was already recorded as it was
+            # appended; this only marks the terminal outcome.
+            self._record("on_run_failed", error)
+            raise
+        self._record("on_run_finished", result)
+        return result
+
+    def _loop(self, messages: list[Message]) -> AgentResult:
         rendered_tools = self.toolset.render_specs(self.provider)
         logger.info(
             "agent run start: tools=[%s] max_iterations=%d",
@@ -199,12 +223,12 @@ class Agent:
 
         for iteration in range(1, self.max_iterations + 1):
             turn = self._complete_turn(messages, rendered_tools, iteration)
-            messages.append(
-                Message(
-                    role="assistant",
-                    content=[*turn.text_blocks, *turn.tool_calls],
-                )
+            assistant_message = Message(
+                role="assistant",
+                content=[*turn.text_blocks, *turn.tool_calls],
             )
+            messages.append(assistant_message)
+            self._record("record_message", assistant_message, turn=turn)
 
             # The assistant's text on a tool-calling turn is its stated reason for
             # the calls -- log it so the trace shows *why* a tool was picked.
@@ -230,7 +254,9 @@ class Agent:
                 )
 
             result_blocks, stop = self._dispatch_tool_calls(turn.tool_calls, iteration)
-            messages.append(Message(role="user", content=result_blocks))
+            tool_result_message = Message(role="user", content=result_blocks)
+            messages.append(tool_result_message)
+            self._record("record_message", tool_result_message)
 
             if stop:
                 logger.info("iter %d stop_tool: terminal tool ended the run", iteration)
