@@ -109,7 +109,7 @@ class ReferralBonusService:
             db_record=fundraise,
             timestamp=timestamp,
             giver=None,  # Platform gives the bonus
-            lock_type=Balance.LockType.REFERRAL_BONUS,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
         )
         referred_distributor.distribute_locked_balance()
 
@@ -121,6 +121,6 @@ class ReferralBonusService:
             db_record=fundraise,
             timestamp=timestamp,
             giver=None,  # Platform gives the bonus
-            lock_type=Balance.LockType.REFERRAL_BONUS,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
         )
         referrer_distributor.distribute_locked_balance()

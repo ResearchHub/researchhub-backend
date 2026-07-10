@@ -91,11 +91,13 @@ class ReferralBonusServiceTest(TestCase):
             user=self.referrer, is_locked=True
         ).first()
         self.assertIsNotNone(referrer_balance)
+        self.assertEqual(referrer_balance.lock_type, Balance.LockType.FUNDING_CREDIT)
 
         referred_balance = Balance.objects.filter(
             user=self.referred_user, is_locked=True
         ).first()
         self.assertIsNotNone(referred_balance)
+        self.assertEqual(referred_balance.lock_type, Balance.LockType.FUNDING_CREDIT)
 
         # Bonuses can be applied multiple times for different fundraises
 

@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("contenttypes", "0002_remove_content_type_name"),
         ("purchase", "0056_alter_purchase_purchase_method"),
@@ -20,8 +19,6 @@ class Migration(migrations.Migration):
                 blank=True,
                 choices=[
                     ("FUNDING_CREDIT", "Funding Credit"),
-                    ("REFERRAL_BONUS", "Referral Bonus"),
-                    ("STAKING_YIELD", "Staking Yield"),
                     ("PROMOTIONAL", "Promotional"),
                 ],
                 null=True,

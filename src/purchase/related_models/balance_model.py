@@ -5,10 +5,10 @@ from django.db import models
 
 class Balance(models.Model):
     class LockType(models.TextChoices):
-        # Purchased RSC (Stripe) — spendable on fundraises, no yield.
+        # Non-promotional locked RSC — spendable on fundraises, no yield.
+        # The source Distribution retains provenance such as PURCHASE,
+        # REFERRAL_BONUS, or STAKING_YIELD.
         FUNDING_CREDIT = "FUNDING_CREDIT", "Funding Credit"
-        REFERRAL_BONUS = "REFERRAL_BONUS", "Referral Bonus"
-        STAKING_YIELD = "STAKING_YIELD", "Staking Yield"
         # Promotional grants — not withdrawable, but earn staking yield.
         PROMOTIONAL = "PROMOTIONAL", "Promotional"
 
@@ -18,8 +18,6 @@ class Balance(models.Model):
     LOCKED_SPEND_ORDER = (
         None,
         LockType.FUNDING_CREDIT,
-        LockType.REFERRAL_BONUS,
-        LockType.STAKING_YIELD,
         LockType.PROMOTIONAL,
     )
 

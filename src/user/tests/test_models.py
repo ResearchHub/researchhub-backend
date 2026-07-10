@@ -565,14 +565,14 @@ class UserPromotionalBalanceTests(TestCase):
             "20", is_locked=True, lock_type=Balance.LockType.FUNDING_CREDIT
         )
         self._create_balance(
-            "30", is_locked=True, lock_type=Balance.LockType.REFERRAL_BONUS
+            "30", is_locked=True, lock_type=Balance.LockType.FUNDING_CREDIT
         )
         self._create_balance(
             "500", is_locked=True, lock_type=Balance.LockType.PROMOTIONAL
         )
 
         # Act
-        allocations, remaining = self.user.allocate_locked_spend(Decimal(45))
+        allocations, remaining = self.user.allocate_locked_spend(Decimal(75))
 
         # Assert: untyped first, then per-category, promotional only for the
         # remainder.
@@ -581,8 +581,8 @@ class UserPromotionalBalanceTests(TestCase):
             [(a["lock_type"], a["amount"]) for a in allocations],
             [
                 (None, Decimal(10)),
-                (Balance.LockType.FUNDING_CREDIT, Decimal(20)),
-                (Balance.LockType.REFERRAL_BONUS, Decimal(15)),
+                (Balance.LockType.FUNDING_CREDIT, Decimal(50)),
+                (Balance.LockType.PROMOTIONAL, Decimal(15)),
             ],
         )
 

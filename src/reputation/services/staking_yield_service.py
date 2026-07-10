@@ -339,7 +339,7 @@ class StakingYieldService:
             user,
             accrual,
             time.time(),
-            lock_type=Balance.LockType.STAKING_YIELD,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
         )
         record = distributor.distribute_locked_balance()
         return record

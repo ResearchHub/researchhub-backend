@@ -665,7 +665,11 @@ class CloseFundraiseTests(TestCase):
 
         dist_ct = ContentType.objects.get(model="distribution")
         Balance.objects.create(
-            amount=50, user=contributor, content_type=dist_ct, is_locked=True
+            amount=50,
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=True,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
         )
         Balance.objects.create(
             amount=500, user=contributor, content_type=dist_ct, is_locked=False
@@ -698,7 +702,11 @@ class CloseFundraiseTests(TestCase):
             lock_type=Balance.LockType.PROMOTIONAL,
         )
         Balance.objects.create(
-            amount=50, user=contributor, content_type=dist_ct, is_locked=True
+            amount=50,
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=True,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
         )
 
         # Act
@@ -792,7 +800,7 @@ class CloseFundraiseTests(TestCase):
             user=contributor,
             content_type=dist_ct,
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
+            lock_type=Balance.LockType.PROMOTIONAL,
         )
 
         # Act
@@ -801,7 +809,7 @@ class CloseFundraiseTests(TestCase):
         )
 
         # Assert: funding credits are exhausted first, the remainder is
-        # debited from referral-bonus credits, and each debit is tagged.
+        # debited from promotional credits, and each debit is tagged.
         self.assertIsNone(error)
         debits = Balance.objects.filter(purchase=purchase)
         spent_by_type = {}
@@ -810,7 +818,7 @@ class CloseFundraiseTests(TestCase):
                 debit.lock_type, Decimal(0)
             ) - Decimal(debit.amount)
         self.assertEqual(spent_by_type[Balance.LockType.FUNDING_CREDIT], Decimal(50))
-        self.assertGreater(spent_by_type[Balance.LockType.REFERRAL_BONUS], Decimal(0))
+        self.assertGreater(spent_by_type[Balance.LockType.PROMOTIONAL], Decimal(0))
         self.assertNotIn(None, spent_by_type)
 
     def test_close_fundraise_refunds_preserve_lock_type_categories(self):
@@ -834,7 +842,7 @@ class CloseFundraiseTests(TestCase):
             user=contributor,
             content_type=dist_ct,
             is_locked=True,
-            lock_type=Balance.LockType.REFERRAL_BONUS,
+            lock_type=Balance.LockType.PROMOTIONAL,
         )
 
         _, error = self.fundraise_service.create_rsc_contribution(
@@ -849,9 +857,7 @@ class CloseFundraiseTests(TestCase):
         self.assertTrue(result)
         balances_by_type = contributor.get_locked_balance_by_lock_type()
         self.assertEqual(balances_by_type[Balance.LockType.FUNDING_CREDIT], Decimal(50))
-        self.assertEqual(
-            balances_by_type[Balance.LockType.REFERRAL_BONUS], Decimal(500)
-        )
+        self.assertEqual(balances_by_type[Balance.LockType.PROMOTIONAL], Decimal(500))
 
     def test_close_fundraise_refunds_promotional_funds_as_promotional(self):
         """
