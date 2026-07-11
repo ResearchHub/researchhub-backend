@@ -683,6 +683,35 @@ class CloseFundraiseTests(TestCase):
         # Funding credits are untouched.
         self.assertEqual(contributor.get_locked_balance(), Decimal(50))
 
+    @patch.object(User, "allocate_locked_spend", return_value=([], Decimal(1)))
+    def test_create_rsc_contribution_rejects_incomplete_locked_allocation(
+        self, mock_allocate_locked_spend
+    ):
+        # Arrange: the aggregate balance is sufficient, but the allocator
+        # reports that it could not assign the full debit to valid categories.
+        contributor = create_random_authenticated_user("incomplete_allocation_user")
+        dist_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount=200,
+            user=contributor,
+            content_type=dist_ct,
+            is_locked=True,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
+        )
+
+        # Act
+        purchase, error = self.fundraise_service.create_rsc_contribution(
+            contributor, self.fundraise, Decimal(100), use_credits=True
+        )
+
+        # Assert
+        self.assertIsNone(purchase)
+        self.assertEqual(error, "Insufficient locked balance")
+        self.assertFalse(Purchase.objects.filter(user=contributor).exists())
+        self.fundraise.escrow.refresh_from_db()
+        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal(0))
+        mock_allocate_locked_spend.assert_called_once()
+
     def test_create_rsc_contribution_use_credits_spends_promotional_funds(self):
         """
         With use_credits=True, promotional funds are spendable on fundraises

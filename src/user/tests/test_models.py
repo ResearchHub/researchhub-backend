@@ -4,6 +4,7 @@ from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from paper.related_models.authorship_model import Authorship
@@ -445,6 +446,36 @@ class UserPromotionalBalanceTests(TestCase):
             lock_type=lock_type,
         )
 
+    def test_locked_balance_without_type_defaults_to_funding_credit(self):
+        # Arrange / Act
+        balance = self._create_balance("10", is_locked=True)
+
+        # Assert
+        self.assertEqual(balance.lock_type, Balance.LockType.FUNDING_CREDIT)
+
+    def test_unlocked_balance_rejects_lock_type(self):
+        # Act / Assert
+        with self.assertRaisesRegex(
+            ValueError, "Unlocked balances cannot have a lock type"
+        ):
+            self._create_balance(
+                "10", is_locked=False, lock_type=Balance.LockType.PROMOTIONAL
+            )
+
+    def test_database_rejects_untyped_locked_balance(self):
+        # Arrange: bulk_create bypasses Balance.save().
+        balance = Balance(
+            user=self.user,
+            amount="10",
+            content_type=self.content_type,
+            is_locked=True,
+            lock_type=None,
+        )
+
+        # Act / Assert
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Balance.objects.bulk_create([balance])
+
     def test_get_promotional_balance_only_sums_promotional_rows(self):
         # Arrange
         self._create_balance("100", is_locked=False)
@@ -535,6 +566,26 @@ class UserPromotionalBalanceTests(TestCase):
         # Assert
         self.assertEqual(sorted(lot.amount for lot in lots), [Decimal(20), Decimal(60)])
 
+    def test_locked_category_debt_caps_promotional_balance_and_yield(self):
+        # Arrange: historical debt in one category must reduce the effective
+        # balance of later categories rather than create staking principal.
+        self._create_balance(
+            "-50", is_locked=True, lock_type=Balance.LockType.FUNDING_CREDIT
+        )
+        self._create_balance(
+            "100", is_locked=True, lock_type=Balance.LockType.PROMOTIONAL
+        )
+
+        # Act
+        balances = self.user.get_locked_balance_by_lock_type()
+        lots = self.user.get_yield_eligible_balance_lots_lifo()
+
+        # Assert
+        self.assertEqual(balances[Balance.LockType.FUNDING_CREDIT], Decimal(0))
+        self.assertEqual(balances[Balance.LockType.PROMOTIONAL], Decimal(50))
+        self.assertEqual(self.user.get_promotional_balance(), Decimal(50))
+        self.assertEqual(sum((lot.amount for lot in lots), Decimal(0)), Decimal(50))
+
     def test_allocate_spend_consumes_promotional_last(self):
         # Arrange
         self._create_balance("50", is_locked=False)
@@ -560,7 +611,7 @@ class UserPromotionalBalanceTests(TestCase):
 
     def test_allocate_locked_spend_splits_by_category_in_order(self):
         # Arrange
-        self._create_balance("10", is_locked=True)  # untyped legacy
+        self._create_balance("10", is_locked=True)  # defaults to funding credit
         self._create_balance(
             "20", is_locked=True, lock_type=Balance.LockType.FUNDING_CREDIT
         )
@@ -574,14 +625,13 @@ class UserPromotionalBalanceTests(TestCase):
         # Act
         allocations, remaining = self.user.allocate_locked_spend(Decimal(75))
 
-        # Assert: untyped first, then per-category, promotional only for the
-        # remainder.
+        # Assert: funding credits are combined, with promotional funds used
+        # only for the remainder.
         self.assertEqual(remaining, Decimal(0))
         self.assertEqual(
             [(a["lock_type"], a["amount"]) for a in allocations],
             [
-                (None, Decimal(10)),
-                (Balance.LockType.FUNDING_CREDIT, Decimal(50)),
+                (Balance.LockType.FUNDING_CREDIT, Decimal(60)),
                 (Balance.LockType.PROMOTIONAL, Decimal(15)),
             ],
         )

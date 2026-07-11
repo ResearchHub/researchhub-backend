@@ -252,9 +252,16 @@ class FundraiseService:
                 # funds last) and each debit carries its category so refunds
                 # restore the exact fund type and promotional yield netting
                 # stays correct.
-                if user.get_locked_balance() < total_cost:
+                try:
+                    allocations, remaining = user.allocate_locked_spend(total_cost)
+                except ValueError:
+                    logger.exception(
+                        "Invalid locked balance state for user %s", user.id
+                    )
+                    return None, "Invalid locked balance state"
+
+                if remaining > 0:
                     return None, "Insufficient locked balance"
-                allocations, _ = user.allocate_locked_spend(total_cost)
             else:
                 if user.get_available_balance() < total_cost:
                     return None, "Insufficient balance"

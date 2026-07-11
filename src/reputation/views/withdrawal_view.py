@@ -417,10 +417,12 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             return (False, "Transaction fee can't be negative", None)
 
         net_amount = amount - transaction_fee
-        if net_amount < 0:
+        if net_amount <= 0:
             return (False, "Invalid withdrawal", None)
 
-        if user and user.get_available_balance() < net_amount:
+        # The ledger debit includes both the amount sent and the transaction
+        # fee, so validate the full debit rather than only the net transfer.
+        if user and user.get_available_balance() < amount:
             return (False, "You do not have enough RSC to make this withdrawal", None)
 
         return True, None, net_amount

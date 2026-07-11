@@ -12,11 +12,10 @@ class Balance(models.Model):
         # Promotional grants — not withdrawable, but earn staking yield.
         PROMOTIONAL = "PROMOTIONAL", "Promotional"
 
-    # Order in which locked categories are consumed when spending. Untyped
-    # legacy rows go first; yield-earning promotional funds go last. Debits
-    # are written per category so refunds can restore each category exactly.
+    # Order in which locked categories are consumed when spending. Promotional
+    # funds earn yield, so they are consumed last. Debits are written per
+    # category so refunds can restore each category exactly.
     LOCKED_SPEND_ORDER = (
-        None,
         LockType.FUNDING_CREDIT,
         LockType.PROMOTIONAL,
     )
@@ -53,6 +52,19 @@ class Balance(models.Model):
     updated_date = models.DateTimeField(auto_now=True)
 
     class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        is_locked=True,
+                        lock_type__isnull=False,
+                        lock_type__in=("FUNDING_CREDIT", "PROMOTIONAL"),
+                    )
+                    | models.Q(is_locked=False, lock_type__isnull=True)
+                ),
+                name="balance_lock_state_valid",
+            ),
+        ]
         indexes = [
             # Partial index: the vast majority of rows are unlocked with a
             # NULL lock_type, so only index the categorized (locked) rows.
@@ -62,6 +74,26 @@ class Balance(models.Model):
                 condition=models.Q(lock_type__isnull=False),
             ),
         ]
+
+    def save(self, *args, **kwargs):
+        """Keep lock state valid before the database constraint is reached."""
+        original_lock_type = self.lock_type
+
+        if self.is_locked:
+            # All non-promotional locked funds have the same behavior, so make
+            # that safe behavior the default for older/internal callers.
+            if self.lock_type in (None, ""):
+                self.lock_type = self.LockType.FUNDING_CREDIT
+            elif self.lock_type not in self.LockType.values:
+                raise ValueError(f"Unsupported balance lock type: {self.lock_type}")
+        elif self.lock_type is not None:
+            raise ValueError("Unlocked balances cannot have a lock type")
+
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and self.lock_type != original_lock_type:
+            kwargs["update_fields"] = {*update_fields, "lock_type"}
+
+        return super().save(*args, **kwargs)
 
     @staticmethod
     def locked_by_referral_bonus(queryset=None):
