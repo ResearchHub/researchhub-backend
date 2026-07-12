@@ -34,7 +34,9 @@ class OverviewMixin:
     def _query_matched_contributions(
         self, user_id: int, fundraise_ids: list[int]
     ) -> tuple[float, int, float]:
-        """Raw RSC total, USD cents, and RSC-to-USD snapshot from others (excluding user)."""
+        """
+        Raw RSC total, USD cents, and RSC-to-USD snapshot from others (excluding user).
+        """
         if not fundraise_ids:
             return 0.0, 0, 0.0
         rsc, snapshot = self._sum_rsc_with_snapshot(
@@ -93,7 +95,10 @@ class OverviewMixin:
     def _matched_contributions_usd(
         self, user_id: int, fundraise_ids: list[int], exchange_rate: float
     ) -> float:
-        """Total contributions from others (excluding user) to the given fundraises, in USD."""
+        """
+        Total contributions from others (excluding user) to the given fundraises,
+        in USD.
+        """
         rsc, cents, _ = self._query_matched_contributions(user_id, fundraise_ids)
         return rsc_and_cents_to_usd(rsc, cents, exchange_rate)
 
@@ -111,7 +116,10 @@ class OverviewMixin:
     def _matched_contributions_breakdown(
         self, user_id: int, fundraise_ids: list[int]
     ) -> dict:
-        """Separate RSC, USD snapshot of RSC, and USD contribution totals from others (excluding user)."""
+        """
+        Separate RSC, USD snapshot of RSC, and USD contribution totals from others
+        (excluding user).
+        """
         rsc, cents, snapshot = self._query_matched_contributions(user_id, fundraise_ids)
         return {
             "rsc": round(rsc, 2),

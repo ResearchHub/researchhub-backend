@@ -1,6 +1,5 @@
 import logging
 from datetime import timedelta
-from typing import List
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
@@ -29,7 +28,7 @@ class SyncService:
         self.mapper = ItemMapper()
 
     def sync_items(
-        self, unified_docs: List[ResearchhubUnifiedDocument]
+        self, unified_docs: list[ResearchhubUnifiedDocument]
     ) -> SyncResultWithSkipped:
         if not unified_docs:
             return {

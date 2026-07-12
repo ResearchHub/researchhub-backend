@@ -1,0 +1,117 @@
+"""Tool composition for the proposal-drafting agent.
+
+Builds the terminal ``submit_proposal`` tool and assembles the full toolset
+the agent runs with (OpenAlex + context + fulltext + web + verification +
+submit). The submit handler stays with the runner -- it closes over run state;
+this module owns only the static schema and the wiring.
+"""
+
+from research_ai.services.agent import Tool, Toolset
+from research_ai.services.researcher_profile.openalex_tools import SUBMIT_PROFILE
+
+SUBMIT_INPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "sections": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "background": {"type": "string"},
+                "preliminary_data": {"type": "string"},
+                "aims": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "body": {"type": "string"},
+                        },
+                        "required": ["title", "body"],
+                    },
+                },
+                "why_this_team": {"type": "string"},
+                "budget": {"type": "string"},
+                "timeline": {"type": "string"},
+            },
+            "required": [
+                "title",
+                "background",
+                "preliminary_data",
+                "aims",
+                "why_this_team",
+                "budget",
+                "timeline",
+            ],
+        },
+        "citations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "claim_id": {"type": "string"},
+                    "doi": {"type": "string"},
+                    "title": {"type": "string"},
+                    "authors": {"type": "array", "items": {"type": "string"}},
+                    "year": {"type": "integer"},
+                },
+                "required": ["claim_id"],
+            },
+        },
+    },
+    "required": ["sections"],
+}
+
+
+def build_submit_tool(handler) -> Tool:
+    """The terminal ``submit_proposal`` tool, gated by the driver.
+
+    Terminality is decided per call: the gates run inside ``handler``, and the
+    tool only ends the loop when the draft is accepted or the round budget is
+    spent -- the runner flips ``is_terminal`` accordingly. While rounds remain,
+    a rejected submit returns its gaps with the tool non-terminal so the agent
+    revises and submits again.
+    """
+    return Tool(
+        name="submit_proposal",
+        description=(
+            "Submit the finished proposal for the deterministic gate. Provide "
+            "`sections` (title, background, preliminary_data, aims as a list of "
+            "{title, body}, why_this_team, budget, timeline) and `citations` "
+            "(each from a tool result); the server assembles the final numbered "
+            "document from your sections. If the gate rejects the draft it "
+            "returns concrete gaps -- revise and submit again."
+        ),
+        input_schema=SUBMIT_INPUT_SCHEMA,
+        handler=handler,
+        is_terminal=False,
+    )
+
+
+def compose_proposal_toolset(
+    *,
+    openalex_toolset,
+    context_toolset,
+    fulltext_toolset,
+    web_search_toolset,
+    verification_toolset,
+    submit_tool: Tool,
+) -> Toolset:
+    """OpenAlex + context + fulltext + web + verification + submit."""
+    toolset = Toolset()
+    # OpenAlex tools, minus that toolset's own terminal submit_profile -- the
+    # proposal agent has its own terminal tool.
+    for tool in openalex_toolset.build_tools():
+        if tool.name == SUBMIT_PROFILE:
+            continue
+        toolset.add(tool)
+    for tool in context_toolset.build_tools():
+        toolset.add(tool)
+    for tool in fulltext_toolset.build_tools():
+        toolset.add(tool)
+    for tool in web_search_toolset.build_tools():
+        toolset.add(tool)
+    for tool in verification_toolset.build_tools():
+        toolset.add(tool)
+
+    toolset.add(submit_tool)
+    return toolset

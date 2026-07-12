@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
@@ -32,7 +34,8 @@ from researchhub_document.related_models.constants.document_type import (
 from user.models import User
 from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed
-from utils.sentry import log_error
+
+logger = logging.getLogger(__name__)
 
 
 def censor(item):
@@ -91,10 +94,10 @@ class ReactionViewActionMixin:
                 status=status.HTTP_409_CONFLICT,
             )
         except Exception as e:
-            log_error(e)
+            logger.exception("Failed to create flag for item %s", item.id)
             return Response(
                 {
-                    "detail": e,
+                    "detail": str(e),
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
@@ -108,6 +111,7 @@ class ReactionViewActionMixin:
             flag.delete()
             return Response(serialized.data, status=200)
         except Exception as e:
+            logger.exception("Failed to delete flag for item %s", item.id)
             return Response(f"Failed to delete flag: {e}", status=400)
 
     @action(
@@ -311,19 +315,19 @@ def create_automated_bounty(item):
                         "insert": "$150 in ResearchCoin (RSC)",
                     },
                     {
-                        "insert": " for a high-quality, rigorous, and constructive peer review of this manuscript. If your expertise aligns well with this research, please consider posting your review.\n\n"
+                        "insert": " for a high-quality, rigorous, and constructive peer review of this manuscript. If your expertise aligns well with this research, please consider posting your review.\n\n"  # noqa: E501
                     },
                     {"attributes": {"bold": True}, "insert": "Requirements:"},
                     {
-                        "insert": "\nVerify identity and complete profile (including ORCID auth) on ResearchHub."
+                        "insert": "\nVerify identity and complete profile (including ORCID auth) on ResearchHub."  # noqa: E501
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": "Submit your review within 14 days of the date this bounty was initiated."
+                        "insert": "Submit your review within 14 days of the date this bounty was initiated."  # noqa: E501
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": "Describe the relevance of your domain expertise to the manuscript."
+                        "insert": "Describe the relevance of your domain expertise to the manuscript."  # noqa: E501
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {"insert": "Disclose AI use. Please refer to our "},
@@ -338,7 +342,7 @@ def create_automated_bounty(item):
                     {"insert": "Disclose conflicts of interest."},
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria: overall assessment, introduction, methods, results, and discussion. Please read our '
+                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria: overall assessment, introduction, methods, results, and discussion. Please read our '  # noqa: E501
                     },
                     {
                         "attributes": {
@@ -347,11 +351,11 @@ def create_automated_bounty(item):
                         "insert": "Peer Review Guide",
                     },
                     {
-                        "insert": " with details about the process and examples of awarded reviews. Please avoid using other review formats."
+                        "insert": " with details about the process and examples of awarded reviews. Please avoid using other review formats."  # noqa: E501
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": "\nEditors will review and award up to 2 high-quality peer reviews within 1 week following the 14 day submission window. All decisions are final. For questions, please contact "
+                        "insert": "\nEditors will review and award up to 2 high-quality peer reviews within 1 week following the 14 day submission window. All decisions are final. For questions, please contact "  # noqa: E501
                     },
                     {
                         "attributes": {
@@ -443,10 +447,11 @@ def update_or_create_vote(request, user, item, vote_type):
     item.save()
 
     try:
-        # If we're in the biorxiv review hub, we want all papers with 10 upvotes to get an automatic peer review
+        # If we're in the biorxiv review hub, we want all papers with 10 upvotes
+        # to get an automatic peer review
         create_automated_bounty(item)
-    except Exception as e:
-        log_error(e)
+    except Exception:
+        logger.exception("Failed to create automated bounty for item %s", item.id)
 
     if vote is not None:
         vote.vote_type = vote_type

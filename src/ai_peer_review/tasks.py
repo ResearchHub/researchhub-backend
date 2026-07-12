@@ -14,7 +14,6 @@ from purchase.models import GrantApplication
 from researchhub.celery import app
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
-from utils import sentry
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,8 @@ def process_rfp_summary_task(rfp_summary_id: int):
 @app.task
 def auto_run_proposal_reviews_for_post(post_id: int, force: bool = False) -> None:
     """
-    For a proposal (preregistration) post, enqueue a guarded AI proposal review per linked grant.
+    For a proposal (preregistration) post, enqueue a guarded AI proposal review per
+    linked grant.
     """
     try:
         post = ResearchhubPost.objects.select_related("unified_document").get(
@@ -102,7 +102,10 @@ def auto_run_proposal_review_for_grant_application(
 def auto_run_proposal_key_insights_for_ud(
     unified_document_id: int, force: bool = False
 ) -> None:
-    """Enqueue guarded key-insights runs for every completed proposal review on this document."""
+    """
+    Enqueue guarded key-insights runs for every completed proposal review on this
+    document.
+    """
     reviews = ProposalReview.objects.filter(
         unified_document_id=unified_document_id,
         status=Status.COMPLETED,
@@ -127,10 +130,6 @@ def guarded_run_proposal_review(review_id: int, force: bool = False) -> None:
             "guarded_run_proposal_review: skip review=%s reason=%s",
             review_id,
             reason,
-        )
-        sentry.log_info(
-            f"guarded_run_proposal_review skipped by guard review_id={review_id} "
-            f"reason={reason} force={force}"
         )
         return
 
@@ -160,10 +159,6 @@ def guarded_run_proposal_key_insights(review_id: int, force: bool = False) -> No
             "guarded_run_proposal_key_insights: skip review=%s reason=%s",
             review_id,
             reason,
-        )
-        sentry.log_info(
-            f"guarded_run_proposal_key_insights skipped by guard review_id={review_id} "
-            f"reason={reason} force={force}"
         )
         return
 

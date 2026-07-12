@@ -1,5 +1,6 @@
 import datetime
 import json
+import logging
 import math
 from calendar import monthrange
 
@@ -12,7 +13,7 @@ from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution  # this is NOT the model
 from reputation.related_models.distribution import Distribution as DistributionModel
-from researchhub.settings import APP_ENV, MORALIS_API_KEY, WEB3_RSC_ADDRESS
+from researchhub.settings import MORALIS_API_KEY, WEB3_RSC_ADDRESS
 from researchhub_access_group.constants import (
     ASSOCIATE_EDITOR,
     SENIOR_EDITOR,
@@ -22,7 +23,8 @@ from user.constants.gatekeeper_constants import (
     PAYOUT_EXCLUSION_LIST,
 )
 from user.related_models.gatekeeper_model import Gatekeeper
-from utils import sentry
+
+logger = logging.getLogger(__name__)
 
 UNI_SWAP_BUNDLE_ID = 1  # their own hard-coded eth-bundle id
 UNI_SWAP_GRAPH_URI = "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2"
@@ -33,9 +35,7 @@ SENIOR_EDITOR_USD_PAY_AMOUNT_PER_MONTH = 2000
 USD_PER_RSC_PRICE_FLOOR = 0.10
 
 MORALIS_LOOKUP_URI = (
-    "https://deep-index.moralis.io/api/v2/erc20/{address}/price".format(
-        address=WEB3_RSC_ADDRESS
-    )
+    f"https://deep-index.moralis.io/api/v2/erc20/{WEB3_RSC_ADDRESS}/price"
 )
 
 
@@ -48,7 +48,7 @@ def editor_daily_payout_task():
         if is_payment_made_today:
             return {"msg": "Editor payout already made today"}
 
-        User = apps.get_model("user.User")
+        User = apps.get_model("user.User")  # noqa: N806
         today = datetime.date.today()
         num_days_this_month = monthrange(today.year, today.month)[1]
         gecko_result = get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month)
@@ -56,9 +56,10 @@ def editor_daily_payout_task():
             moralis_result = get_daily_rsc_payout_amount_from_deep_index(
                 num_days_this_month
             )
-        except Exception as error:
-            # NOTE: moralis is a back up. Backup failing should not hard kill payout process.
-            sentry.log_info(f"{APP_ENV}-running payout moralis Fail: {error}")
+        except Exception as e:
+            # NOTE: moralis is a back up. Backup failing should not hard kill payout
+            # process.
+            logger.warning("Payout with moralis failed: %s", e)
 
         result = gecko_result or moralis_result
 
@@ -93,13 +94,12 @@ def editor_daily_payout_task():
                 )
                 distributor.distribute()
 
-            except Exception as error:
-                sentry.log_error(error)
-                pass
+            except Exception:
+                logger.exception("Failed to distribute payout to editor %s", editor.id)
 
         return result
-    except Exception as error:
-        sentry.log_error(error)
+    except Exception:
+        logger.exception("Failed to execute editor daily payout task")
 
 
 def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
@@ -113,10 +113,8 @@ def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
     if recent_coin_gecko_rate is None:
         return None
 
-    gecko_payout_usd_per_rsc = (
-        recent_coin_gecko_rate.real_rate
-        if recent_coin_gecko_rate.real_rate > USD_PER_RSC_PRICE_FLOOR
-        else USD_PER_RSC_PRICE_FLOOR
+    gecko_payout_usd_per_rsc = max(
+        USD_PER_RSC_PRICE_FLOOR, recent_coin_gecko_rate.real_rate
     )
 
     return {
@@ -143,14 +141,12 @@ def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
 def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
     headers = requests.utils.default_headers()
     headers["x-api-key"] = MORALIS_API_KEY
-    moralis_request_result = requests.get(MORALIS_LOOKUP_URI, headers=headers)
+    moralis_request_result = requests.get(
+        MORALIS_LOOKUP_URI, headers=headers, timeout=30
+    )
 
     real_usd_per_rsc = json.loads(moralis_request_result.text)["usdPrice"]
-    payout_usd_per_rsc = (
-        real_usd_per_rsc
-        if real_usd_per_rsc > USD_PER_RSC_PRICE_FLOOR
-        else USD_PER_RSC_PRICE_FLOOR
-    )
+    payout_usd_per_rsc = max(USD_PER_RSC_PRICE_FLOOR, real_usd_per_rsc)
 
     result = {
         "rate": payout_usd_per_rsc,

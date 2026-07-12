@@ -148,6 +148,36 @@ class JournalFeedViewSetTests(AWSMockTestCase):
         self.assertNotIn("Non-Journal Paper", titles)
         self.assertNotIn("Removed Journal Paper", titles)
 
+    def test_pending_paper_excluded_from_journal_feed(self):
+        """Papers awaiting moderation must not appear in the journal feed."""
+        pending_unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER",
+            status=ResearchhubUnifiedDocument.PENDING,
+        )
+        pending_paper = Paper.objects.create(
+            title="Pending Journal Paper",
+            uploaded_by=self.user,
+            is_public=True,
+            is_removed=False,
+            unified_document=pending_unified_document,
+            created_date=timezone.now(),
+        )
+        PaperVersion.objects.create(
+            paper=pending_paper,
+            journal=PaperVersion.RESEARCHHUB,
+            publication_status=PaperVersion.PREPRINT,
+            version=1,
+            base_doi="10.1234/pending.12345",
+        )
+
+        url = reverse("journal_feed-list")
+        response = self.client.get(url, {"journal_status": "ALL"})
+
+        self.assertEqual(response.status_code, 200)
+        titles = [item["content_object"]["title"] for item in response.data["results"]]
+        self.assertNotIn("Pending Journal Paper", titles)
+        self.assertIn("Preprint Paper", titles)
+
     def test_filter_by_journal_status_in_journal(self):
         """Test filtering by journal_status=IN_JOURNAL"""
         url = reverse("journal_feed-list")
@@ -413,7 +443,8 @@ class JournalFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(paper_data["user_vote"]["id"], vote.id)  # NOSONAR
 
     def test_unique_base_doi(self):
-        """Test that journal feed returns only one paper per base_doi (the latest one)"""
+        """
+        Test that journal feed returns only one paper per base_doi (the latest one)"""
         # Create a common base_doi for multiple papers
         base_doi = "10.1234/test.12345"
 

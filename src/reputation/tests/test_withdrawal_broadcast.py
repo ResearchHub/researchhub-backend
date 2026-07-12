@@ -1,8 +1,7 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest import mock
 
-import pytz
 from celery.exceptions import Retry
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -86,12 +85,17 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
         )
         return withdrawal
 
-    @override_settings(WEB3_WALLET_ADDRESS=TEST_WEB3_WALLET_ADDRESS)
+    @override_settings(
+        WEB3_WALLET_ADDRESS=TEST_WEB3_WALLET_ADDRESS,
+        WEB3_KEYSTORE_SECRET_ID="mock-secret-id",
+    )
     @mock.patch("reputation.lib.RSC_CONTRACT_ADDRESS", TEST_RSC_CONTRACT_ADDRESS)
     @mock.patch("reputation.lib.execute_erc20_transfer", return_value="0xabc")
     @mock.patch("reputation.lib.get_nonce", return_value=7)
-    @mock.patch("reputation.lib.PRIVATE_KEY", "mock-key")
-    def test_broadcast_sets_hash_and_pending(self, mock_nonce, mock_transfer):
+    @mock.patch("reputation.lib.get_private_key", return_value="mock-key")
+    def test_broadcast_sets_hash_and_pending(
+        self, mock_get_private_key, mock_nonce, mock_transfer
+    ):
         withdrawal = Withdrawal.objects.create(
             user=self.user,
             token_address="0xtoken",
@@ -110,10 +114,15 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
         self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.PENDING)
         self.assertEqual(withdrawal.broadcast_nonce, 7)
         mock_transfer.assert_called_once()
+        self.assertEqual(mock_transfer.call_args.args[2], "mock-key")
         self.assertEqual(mock_transfer.call_args.kwargs["nonce"], 7)
+        mock_get_private_key.assert_called_once_with()
 
+    @mock.patch("reputation.lib.get_private_key")
     @mock.patch("reputation.lib.execute_erc20_transfer")
-    def test_broadcast_skips_when_hash_already_set(self, mock_transfer):
+    def test_broadcast_skips_when_hash_already_set(
+        self, mock_transfer, mock_get_private_key
+    ):
         withdrawal = Withdrawal.objects.create(
             user=self.user,
             token_address="0xtoken",
@@ -130,12 +139,13 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
         broadcast_withdrawal_transfer(withdrawal)
 
         mock_transfer.assert_not_called()
+        mock_get_private_key.assert_not_called()
 
-    @mock.patch("reputation.tasks.log_error")
+    @mock.patch("reputation.tasks.logger")
     @mock.patch("reputation.tasks.broadcast_withdrawal.retry")
     @mock.patch("reputation.tasks.broadcast_withdrawal_transfer")
     def test_broadcast_withdrawal_failure_handling(
-        self, mock_transfer, mock_retry, mock_log_error
+        self, mock_transfer, mock_retry, mock_logger
     ):
         mock_transfer.side_effect = Exception("RPC unavailable")
 
@@ -146,7 +156,7 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
 
         withdrawal.refresh_from_db()
         self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.INITIATED)
-        self.assertEqual(self.user.get_balance(), self.initial_balance - Decimal("510"))
+        self.assertEqual(self.user.get_balance(), self.initial_balance - Decimal(510))
 
         with mock.patch.object(
             broadcast_withdrawal.request,
@@ -172,7 +182,7 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
 
         pending_with_hash.refresh_from_db()
         self.assertEqual(pending_with_hash.paid_status, PaidStatusModelMixin.PENDING)
-        self.assertEqual(self.user.get_balance(), self.initial_balance - Decimal("510"))
+        self.assertEqual(self.user.get_balance(), self.initial_balance - Decimal(510))
 
 
 class CheckPendingWithdrawalRecoveryTests(AWSMockTransactionTestCase):
@@ -240,8 +250,8 @@ class WithdrawalOnCommitTests(AWSMockTransactionTestCase):
         self.user = create_random_authenticated_user_with_reputation(
             "on_commit_user", 1000
         )
-        self.user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
-        self.user.created_date = datetime(year=2020, month=1, day=1, tzinfo=pytz.utc)
+        self.user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        self.user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         self.user.save()
         create_deposit(self.user, amount="5000.0")
 

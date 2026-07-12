@@ -1,8 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock, call, patch
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.test import override_settings
 
@@ -150,7 +149,7 @@ class TestPurchaseSignals(AWSMockTestCase):
             organization="NSF",
             description="Open research grant",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
 
         # Create a feed entry for the grant post
@@ -236,7 +235,7 @@ class TestPurchaseSignals(AWSMockTestCase):
             organization="NSF",
             description="Open research grant",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
 
         # Create a feed entry for the grant post
@@ -313,7 +312,7 @@ class TestPurchaseSignals(AWSMockTestCase):
         fundraise = fundraise_service.create_fundraise_with_escrow(
             user=self.user,
             unified_document=post.unified_document,
-            goal_amount=Decimal("1000"),
+            goal_amount=Decimal(1000),
             goal_currency="USD",
         )
 
@@ -324,7 +323,7 @@ class TestPurchaseSignals(AWSMockTestCase):
             object_id=post.id,
             unified_document=post.unified_document,
             action=FeedEntry.PUBLISH,
-            action_date=datetime.now(pytz.UTC),
+            action_date=datetime.now(UTC),
             content={},
         )
 
@@ -387,7 +386,7 @@ class TestPurchaseSignals(AWSMockTestCase):
         fundraise = fundraise_service.create_fundraise_with_escrow(
             user=self.user,
             unified_document=post.unified_document,
-            goal_amount=Decimal("1000"),
+            goal_amount=Decimal(1000),
             goal_currency="USD",
         )
 
@@ -398,7 +397,7 @@ class TestPurchaseSignals(AWSMockTestCase):
             object_id=post.id,
             unified_document=post.unified_document,
             action=FeedEntry.PUBLISH,
-            action_date=datetime.now(pytz.UTC),
+            action_date=datetime.now(UTC),
             content={},
         )
 
@@ -469,7 +468,7 @@ class TestPurchaseSignals(AWSMockTestCase):
         fundraise = fundraise_service.create_fundraise_with_escrow(
             user=self.user,
             unified_document=post.unified_document,
-            goal_amount=Decimal("1000"),
+            goal_amount=Decimal(1000),
             goal_currency="USD",
         )
 

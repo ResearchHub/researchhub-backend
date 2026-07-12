@@ -82,7 +82,9 @@ class UpvoteInteractionMapperTests(TestCase):
         self.assertIn("has no created_by user", str(context.exception))
 
     def test_map_from_upvote_raises_error_for_missing_unified_document(self):
-        """Test that map_from_upvote raises ValueError when item has no unified_document."""
+        """
+        Test that map_from_upvote raises ValueError when item has no unified_document.
+        """
         from unittest.mock import PropertyMock, patch
 
         vote = Vote.objects.create(

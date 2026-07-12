@@ -10,6 +10,7 @@ from rest_framework.test import APIClient
 from feed.models import FeedEntry
 from feed.tasks import create_feed_entry
 from hub.models import Hub
+from note.models import Note
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
@@ -27,7 +28,10 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.related_models.researchhub_post_model import (
     ResearchhubPost,
 )
-from user.models import Action
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
+from user.models import Action, Organization
 from user.tests.helpers import make_user_verified
 from utils.test_helpers import AWSMockTestCase
 
@@ -41,11 +45,14 @@ LONG_BODY = (
 )
 
 
-def _make_user(name):
+def _make_user(name, moderator=False):
     user = User.objects.create_user(
         username=f"{name}-{uuid.uuid4().hex[:8]}",
         password=uuid.uuid4().hex,
     )
+    if moderator:
+        user.moderator = True
+        user.save(update_fields=["moderator"])
     make_user_verified(user)
     return user
 
@@ -176,7 +183,9 @@ class VisibleToQuerySetTests(AWSMockTestCase):
         )
 
     def test_anonymous_only_sees_public(self):
-        ids = set(ResearchhubPost.objects.visible_to(None).values_list("id", flat=True))
+        ids = set(
+            ResearchhubPost.objects.publicly_visible().values_list("id", flat=True)
+        )
         self.assertIn(self.public_post.id, ids)
         self.assertNotIn(self.private_post.id, ids)
 
@@ -259,6 +268,72 @@ class VisibleToQuerySetTests(AWSMockTestCase):
 
         ids = set(ResearchhubPost.objects.visible_to(user).values_list("id", flat=True))
         self.assertNotIn(self.private_post.id, ids)
+
+    def _unmoderated_post(self, status):
+        post = create_post(
+            title=f"{status} public post",
+            created_by=self.author,
+            document_type=PREREGISTRATION,
+        )
+        post.unified_document.status = status
+        post.unified_document.save(update_fields=["status"])
+        return post
+
+    def _visible_ids(self, user):
+        return set(
+            ResearchhubPost.objects.visible_to(user).values_list("id", flat=True)
+        )
+
+    def test_pending_public_post_hidden_from_public(self):
+        """A public post awaiting moderation is hidden from the public, but
+        stays visible to its author and to moderators."""
+        pending_post = self._unmoderated_post(ResearchhubUnifiedDocument.PENDING)
+        moderator = _make_user("moderator", moderator=True)
+
+        self.assertNotIn(pending_post.id, self._visible_ids(None))
+        self.assertNotIn(pending_post.id, self._visible_ids(self.outsider))
+        self.assertIn(pending_post.id, self._visible_ids(self.author))
+        self.assertIn(pending_post.id, self._visible_ids(moderator))
+
+    def test_declined_public_post_hidden_from_public(self):
+        """A declined post is likewise hidden from the public, while its author
+        and moderators retain access."""
+        declined_post = self._unmoderated_post(ResearchhubUnifiedDocument.DECLINED)
+        moderator = _make_user("moderator", moderator=True)
+
+        self.assertNotIn(declined_post.id, self._visible_ids(None))
+        self.assertNotIn(declined_post.id, self._visible_ids(self.outsider))
+        self.assertIn(declined_post.id, self._visible_ids(self.author))
+        self.assertIn(declined_post.id, self._visible_ids(moderator))
+
+    def test_grant_owner_cannot_see_pending_application(self):
+        """Grant owners only gain access once an application has cleared
+        moderation; a pending application stays limited to its author and
+        moderators / hub editors."""
+        self.private_post.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        self.private_post.unified_document.save(update_fields=["status"])
+
+        self.assertNotIn(self.private_post.id, self._visible_ids(self.grant_owner))
+        self.assertIn(self.private_post.id, self._visible_ids(self.author))
+
+    def test_invited_expert_cannot_see_pending_post(self):
+        """A non-revoked Permission only grants access to approved posts."""
+        invited = _make_user("invited")
+        ud_ct = ContentType.objects.get_for_model(
+            self.private_post.unified_document.__class__
+        )
+        Permission.objects.create(
+            access_type=VIEWER,
+            content_type=ud_ct,
+            object_id=self.private_post.unified_document_id,
+            user=invited,
+        )
+
+        self.private_post.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        self.private_post.unified_document.save(update_fields=["status"])
+
+        self.assertNotIn(self.private_post.id, self._visible_ids(invited))
+        self.assertIn(self.private_post.id, self._visible_ids(self.author))
 
 
 class PostViewSetVisibilityTests(AWSMockTestCase):
@@ -746,6 +821,86 @@ class DynamicPostSerializerRedactionTests(AWSMockTestCase):
             _include_fields=["id", "title"],
         ).data
         self.assertEqual(data["title"], "Open title")
+
+
+class NotePostEmbedVisibilityTests(AWSMockTestCase):
+    """A note embeds its published post via NoteSerializer.get_post, and the
+    post endpoint serializes that post -> note -> post chain. The requesting
+    viewer must be propagated all the way into the nested DynamicPostSerializer
+    so an authorized viewer sees the full post while an unauthorized one only
+    gets the redaction stub.
+
+    Regression: get_post built a fresh serializer context without the request,
+    so DynamicPostSerializer treated every viewer as anonymous and redacted the
+    embedded private post even for its own author.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.author = _make_user("author")
+        self.outsider = _make_user("outsider")
+        self.org = Organization.objects.create(
+            name=f"org-{uuid.uuid4().hex[:8]}",
+            slug=f"org-{uuid.uuid4().hex[:8]}",
+        )
+
+        self.private_post = create_post(
+            title="Secret title",
+            created_by=self.author,
+            document_type=PREREGISTRATION,
+        )
+        self.private_post.unified_document.is_public = False
+        self.private_post.unified_document.save()
+
+        # Link a note to the private post (mirrors a published note).
+        self.note = Note.objects.create(
+            created_by=self.author,
+            organization=self.org,
+            title="Note title",
+            unified_document=self.private_post.unified_document,
+        )
+        self.private_post.note = self.note
+        self.private_post.save()
+
+    def _serialize_note(self, user):
+        from rest_framework.test import APIRequestFactory
+
+        from note.serializers import NoteSerializer
+
+        request = APIRequestFactory().get("/")
+        request.user = user
+        return NoteSerializer(self.note, context={"request": request}).data
+
+    def test_author_sees_full_embedded_post(self):
+        # Arrange / Act
+        data = self._serialize_note(self.author)
+
+        # Assert: full payload, not the {id, is_public} stub
+        post_data = data["post"]
+        self.assertEqual(post_data["id"], self.private_post.id)
+        self.assertIn("document_type", post_data)
+
+    def test_outsider_gets_redacted_embedded_post(self):
+        # Arrange / Act
+        data = self._serialize_note(self.outsider)
+
+        # Assert: redacted to the stub only
+        self.assertEqual(data["post"], {"id": self.private_post.id, "is_public": False})
+
+    def test_post_endpoint_returns_full_embedded_post_for_author(self):
+        """End-to-end: GET the post keeps the viewer through post -> note -> post."""
+        # Arrange
+        client = APIClient()
+        client.force_authenticate(self.author)
+
+        # Act
+        response = client.get(f"/api/researchhubpost/{self.private_post.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        embedded = response.data["note"]["post"]
+        self.assertEqual(embedded["id"], self.private_post.id)
+        self.assertIn("document_type", embedded)
 
 
 class AuthorContributionsPrivacyTests(AWSMockTestCase):

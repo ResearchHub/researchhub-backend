@@ -117,7 +117,10 @@ class TrackEventDecoratorTests(TestCase):
     def test_track_event_comment_triggers_user_activity(
         self, mock_track_activity, mock_build_hit
     ):
-        """Test that @track_event on create_rh_comment method triggers COMMENT user activity."""
+        """
+        Test that @track_event on create_rh_comment method triggers COMMENT user
+        activity.
+        """
         # Arrange
         mock_view = MagicMock()
         mock_view.__class__.__name__ = "RhCommentViewSet"
@@ -237,7 +240,10 @@ class TrackEventDecoratorTests(TestCase):
     def test_track_event_review_create_triggers_user_activity(
         self, mock_track_activity, mock_build_hit
     ):
-        """Test that @track_event on review create method triggers PEER_REVIEW user activity."""
+        """
+        Test that @track_event on review create method triggers PEER_REVIEW
+        user activity.
+        """
         # Arrange
         mock_view = MagicMock()
         mock_view.__class__.__name__ = "ReviewViewSet"
@@ -283,7 +289,10 @@ class TrackEventDecoratorTests(TestCase):
     def test_track_event_fundraise_contribution_triggers_user_activity(
         self, mock_track_activity, mock_build_hit
     ):
-        """Test that @track_event on fundraise contribution method triggers FUND user activity."""
+        """
+        Test that @track_event on fundraise contribution method triggers FUND
+        user activity.
+        """
         # Arrange
         mock_view = MagicMock()
         mock_view.__class__.__name__ = "FundraiseViewSet"
@@ -323,7 +332,10 @@ class TrackEventDecoratorTests(TestCase):
     def test_track_event_boost_purchase_triggers_user_activity(
         self, mock_track_activity, mock_build_hit
     ):
-        """Test that @track_event on boost purchase method triggers TIP user activity."""
+        """
+        Test that @track_event on boost purchase method triggers TIP user
+        activity.
+        """
         # Arrange
         mock_view = MagicMock()
         mock_view.__class__.__name__ = "PurchaseViewSet"
@@ -410,7 +422,10 @@ class TrackEventDecoratorTests(TestCase):
     def test_track_event_paper_submission_triggers_user_activity(
         self, mock_track_activity, mock_build_hit
     ):
-        """Test that @track_event on paper submission method triggers JOURNAL_SUBMISSION user activity."""
+        """
+        Test that @track_event on paper submission method triggers JOURNAL_SUBMISSION
+        user activity.
+        """
         # Arrange
         mock_view = MagicMock()
         mock_view.__class__.__name__ = "PaperSubmissionViewSet"

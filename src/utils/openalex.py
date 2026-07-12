@@ -1,4 +1,6 @@
 import math
+import re
+from dataclasses import dataclass
 from unicodedata import normalize
 
 from dateutil import parser
@@ -21,6 +23,205 @@ SOURCE_TO_OPENALEX_ID = {
     "AUTHOREA": "s4306402105",
     "SSRN": "s4210172589",
 }
+
+
+def normalize_openalex_id(value: str | None) -> str:
+    """Bare OpenAlex id (e.g. ``A5023888391``) from a full URL or an already-bare id.
+
+    Returns ``""`` when there is nothing to normalize. Case is preserved, so
+    lowercase both sides when comparing ids.
+    """
+    s = str(value or "").strip()
+    if "openalex.org/" in s:
+        s = s.rstrip("/").rsplit("/", 1)[-1]
+    return s.strip("/")
+
+
+_ORCID_RE = re.compile(r"(\d{4}-\d{4}-\d{4}-\d{3}[\dxX])")
+
+
+def orcid_from_urls(urls) -> str | None:
+    """Mine an ORCID from a list of URLs, or ``None`` when absent.
+
+    The ORCID is only ever a lookup key into OpenAlex's ``/authors`` endpoint
+    here.
+    """
+    for url in urls or []:
+        if "orcid.org" in url.lower():
+            m = _ORCID_RE.search(url)
+            if m:
+                return m.group(1).upper()
+    return None
+
+
+def author_institution_names(entity: dict) -> list[str]:
+    """Institution display names found anywhere on an OpenAlex author entity."""
+    names: list[str] = []
+    for inst in entity.get("last_known_institutions") or []:
+        dn = (inst or {}).get("display_name")
+        if dn:
+            names.append(dn)
+    for aff in entity.get("affiliations") or []:
+        inst = (aff or {}).get("institution") or {}
+        if inst.get("display_name"):
+            names.append(inst["display_name"])
+    return names
+
+
+@dataclass
+class Author:
+    """An OpenAlex author entity, reduced to the fields profile-building uses.
+
+    ``metrics`` keeps the entity's citation stats under stable keys (note
+    ``2yr_mean_citedness`` becomes ``two_year_mean_citedness``) plus the
+    author URL as ``source_url``; it is ``{}`` when the entity carries no
+    stats at all. ``affiliations`` and ``topics`` are deduped display names,
+    uncapped -- callers apply their own limits.
+    """
+
+    id: str | None
+    display_name: str | None
+    metrics: dict
+    affiliations: list[str]
+    topics: list[str]
+
+    @classmethod
+    def from_openalex(cls, entity: dict):
+        return cls(
+            id=entity.get("id"),
+            display_name=entity.get("display_name"),
+            metrics=cls._metrics(entity),
+            affiliations=cls._affiliations(entity),
+            topics=cls._topics(entity),
+        )
+
+    @staticmethod
+    def _metrics(entity: dict) -> dict:
+        ss = entity.get("summary_stats") or {}
+        metrics = {
+            "h_index": ss.get("h_index"),
+            "i10_index": ss.get("i10_index"),
+            "two_year_mean_citedness": ss.get("2yr_mean_citedness"),
+            "works_count": entity.get("works_count"),
+            "cited_by_count": entity.get("cited_by_count"),
+        }
+        if all(v is None for v in metrics.values()):
+            return {}
+        metrics["source_url"] = entity.get("id")
+        return metrics
+
+    @staticmethod
+    def _affiliations(entity: dict) -> list[str]:
+        out: list[str] = []
+        for name in author_institution_names(entity):
+            name = (name or "").strip()
+            if name and name not in out:
+                out.append(name)
+        return out
+
+    @staticmethod
+    def _topics(entity: dict) -> list[str]:
+        """Topic display names, falling back to ``x_concepts`` when empty."""
+        out: list[str] = []
+        for source in (entity.get("topics") or [], entity.get("x_concepts") or []):
+            for item in source:
+                label = ((item or {}).get("display_name") or "").strip()
+                if label and label not in out:
+                    out.append(label)
+            if out:
+                break
+        return out
+
+
+@dataclass
+class Work:
+    """An OpenAlex work entity, reduced to the fields profile-building uses."""
+
+    title: str
+    publication_date: str
+    publication_year: str
+    source_url: str
+    author_position: str | None = None
+    pdf_url: str = ""
+    is_oa: bool = False
+    abstract: str = ""
+
+    @classmethod
+    def from_openalex(cls, entity: dict, *, author_id: str | None = None):
+        """Build a ``Work`` from an OpenAlex work entity.
+
+        Returns ``None`` for unusable entities: no title, or neither a DOI nor
+        an OpenAlex URL to cite as the source.
+        """
+        title = str(entity.get("display_name") or "").strip()
+        if not title:
+            return None
+        url = (
+            str(entity.get("doi") or "").strip() or str(entity.get("id") or "").strip()
+        )
+        if not url:
+            return None
+        return cls(
+            title=title,
+            publication_date=str(entity.get("publication_date") or "").strip(),
+            publication_year=str(entity.get("publication_year") or "").strip(),
+            source_url=url,
+            author_position=cls._author_position(entity, author_id),
+            pdf_url=cls._published_pdf_url(entity),
+            is_oa=bool((entity.get("open_access") or {}).get("is_oa")),
+            abstract=rebuild_sentence_from_inverted_index(
+                entity.get("abstract_inverted_index") or {}
+            ),
+        )
+
+    @staticmethod
+    def _published_pdf_url(entity: dict) -> str:
+        """Open-access PDF of the published version of record (``""`` when none)."""
+        locations = [entity.get("primary_location")] + (entity.get("locations") or [])
+        for location in locations:
+            location = location or {}
+            pdf_url = location.get("pdf_url")
+            if pdf_url and location.get("version") == "publishedVersion":
+                return str(pdf_url).strip()
+        return ""
+
+    @staticmethod
+    def _author_position(entity: dict, author_id: str | None) -> str | None:
+        target = normalize_openalex_id(author_id).lower()
+        if not target:
+            return None
+        for authorship in entity.get("authorships") or []:
+            author = (authorship or {}).get("author") or {}
+            if normalize_openalex_id(author.get("id")).lower() == target:
+                return authorship.get("author_position") or None
+        return None
+
+    @property
+    def is_lead_author(self) -> bool:
+        return self.author_position in ("first", "last")
+
+    @property
+    def label(self) -> str:
+        label = (
+            f"({self.publication_year}) {self.title}"
+            if self.publication_year
+            else self.title
+        )
+        if self.is_lead_author:
+            label += f" [{self.author_position} author]"
+        return label
+
+    def as_dict(self) -> dict:
+        return {
+            "title": self.title,
+            "publication_date": self.publication_date,
+            "publication_year": self.publication_year,
+            "source_url": self.source_url,
+            "author_position": self.author_position,
+            "pdf_url": self.pdf_url,
+            "is_oa": self.is_oa,
+            "abstract": self.abstract,
+        }
 
 
 class OpenAlex:
@@ -189,10 +390,20 @@ class OpenAlex:
         res = self._get(f"authors/{orcid_lookup}")
         return res
 
-    def search_authors_via_name(self, name, page=1):
+    def get_author(self, openalex_id):
+        """Fetch a single author entity by its OpenAlex id (e.g. ``A5023888391``)."""
+        return self._get(f"authors/{openalex_id}")
+
+    def search_authors_via_name(self, name, page=1, institution_id=None):
         filters = {"search": name, "page": page, "per_page": 10}
+        if institution_id:
+            filters["filter"] = f"affiliations.institution.id:{institution_id}"
         res = self._get("authors", filters=filters)
         return res
+
+    def search_institutions(self, query, page=1):
+        filters = {"search": query, "page": page, "per_page": 5}
+        return self._get("institutions", filters=filters)
 
     # Hydrates a list of dehydrated paper concepts with fresh and expanded data from
     # OpenAlex
@@ -304,6 +515,8 @@ class OpenAlex:
         from_updated_date=None,
         core_sources_only: bool = False,
         require_abstracts_and_authors: bool = False,
+        open_access_only: bool = False,
+        sort=None,
     ):
         """
         Fetches works from OpenAlex based on the given criteria.
@@ -314,6 +527,9 @@ class OpenAlex:
             core_sources_only (bool): If True, only fetch works from "core sources".
             require_abstracts_and_authors (bool): If True, only fetch works that have
                 abstracts and authors.
+            open_access_only (bool): If True, only fetch open-access works (those with
+                a free full-text copy OpenAlex knows about).
+            sort (str): OpenAlex sort expression, e.g. "publication_date:desc".
         """
         # Build the filter
         oa_filters = []
@@ -339,6 +555,10 @@ class OpenAlex:
             oa_filters.append("has_abstract:true")
             oa_filters.append("authors_count:>0")
 
+        if open_access_only:
+            # Only fetch open-access works (a free full-text copy exists).
+            oa_filters.append("open_access.is_oa:true")
+
         if since_date:
             # Format the date in YYYY-MM-DD format
             formatted_date = since_date.strftime("%Y-%m-%d")
@@ -360,6 +580,8 @@ class OpenAlex:
             "per-page": batch_size,
             "cursor": next_cursor,
         }
+        if sort:
+            filters["sort"] = sort
 
         response = self._get("works", filters=filters)
         works = response.get("results", [])
@@ -379,6 +601,25 @@ class OpenAlex:
         next_cursor = response.get("meta", {}).get("next_cursor")
         cursor = next_cursor if next_cursor != "*" else None
         return filtered_works, cursor
+
+    def get_works_typed(self, **kwargs) -> list[Work]:
+        """Typed variant of :meth:`get_works`: parsed ``Work`` objects for one page.
+
+        Forwards every keyword argument to ``get_works`` and maps each raw entity
+        to a ``Work``, dropping unusable ones (no title, or no DOI/OpenAlex URL).
+        ``author_position`` is attributed to ``openalex_author_id`` when given.
+
+        The pagination cursor is intentionally not returned: this is for
+        single-page, select-and-keep use, not full pagination.
+        """
+        author_id = kwargs.get("openalex_author_id")
+        results, _ = self.get_works(**kwargs)
+        works = []
+        for entity in results or []:
+            work = Work.from_openalex(entity, author_id=author_id)
+            if work is not None:
+                works.append(work)
+        return works
 
     def autocomplete_works(self, query):
         """
@@ -403,7 +644,7 @@ class OpenAlex:
         return results[0] if results else None
 
     @classmethod
-    def normalize_dates(self, generic_openalex_object):
+    def normalize_dates(cls, generic_openalex_object):
         """Normalize the dates of an OpenAlex object such that
         they include timezone information"""
 

@@ -406,26 +406,32 @@ class ScoreChange(DefaultModel):
 
         return current_rep - prev_rep
 
-    def calculate_citation_score_v1(citation_count, bins):
+    @classmethod
+    def calculate_citation_score_v1(cls, citation_count, bins):
         rep = 0
         for key, val in bins.items():
             key_tuple = json.loads(key)
 
+            # Take min of the citation count and the upper bound of the bin range then
+            # subtract the lower bound of the bin range and avoid going negative.
             citation_count_curr_bin = max(
                 min(citation_count, key_tuple[1]) - key_tuple[0], 0
-            )  # Take min of the citation count and the upper bound of the bin range then subtract the lower bound of the bin range and avoid going negative.
+            )
             rep += citation_count_curr_bin * val
 
         return rep
 
-    def calculate_citation_score_v2(citation_count, bins, paper_work_type):
+    @classmethod
+    def calculate_citation_score_v2(cls, citation_count, bins, paper_work_type):
         rep = 0
         for key, val in bins.items():
             key_tuple = json.loads(key)
 
+            # Take min of the citation count and the upper bound of the bin range then
+            # subtract the lower bound of the bin range and avoid going negative.
             citation_count_curr_bin = max(
                 min(citation_count, key_tuple[1]) - key_tuple[0], 0
-            )  # Take min of the citation count and the upper bound of the bin range then subtract the lower bound of the bin range and avoid going negative.
+            )
             rep_change = citation_count_curr_bin * val
             if paper_work_type == "review":
                 rep_change = math.ceil(rep_change / 5)
@@ -434,7 +440,8 @@ class ScoreChange(DefaultModel):
 
         return rep
 
-    def vote_change(vote, previous_score_change):
+    @classmethod
+    def vote_change(cls, vote, previous_score_change):
         vote_values = {
             Vote.UPVOTE: 1,
             Vote.DOWNVOTE: -1,

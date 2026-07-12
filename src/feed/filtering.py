@@ -1,5 +1,4 @@
 import logging
-from typing import List, Tuple
 
 from django.core.cache import cache
 from rest_framework.filters import BaseFilterBackend
@@ -11,7 +10,6 @@ from hub.models import Hub
 from personalize.config.settings import PERSONALIZE_CONFIG
 from personalize.services.feed_service import DEFAULT_NUM_RESULTS
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
-from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +19,7 @@ PREPRINT_HUB_IDS_CACHE_KEY = "feed:allowed_preprint_hub_ids"
 PREPRINT_HUB_IDS_CACHE_TTL = 86400  # 24 hours
 
 
-def _get_allowed_preprint_hub_ids() -> Tuple[int, ...]:
+def _get_allowed_preprint_hub_ids() -> tuple[int, ...]:
     """
     Get cached hub IDs for allowed preprint sources.
     """
@@ -128,19 +126,16 @@ class FeedFilteringBackend(BaseFilterBackend):
                 trending_ids, queryset, view
             )
 
-        except Exception as e:
-            log_error(
-                e,
-                message="AWS Personalize trending failed, falling back to hot_score_v2",
-                json_data={"feed_view": "popular", "ordering": "aws_trending"},
+        except Exception:
+            logger.exception(
+                "Personalize trending failed, falling back to hot_score_v2"
             )
-            logger.error(f"Trending feed error: {e}")
             view._feed_source = "rh-popular"
             return queryset
 
     def _fetch_and_order_entries_for_trending(
-        self, document_ids: List[int], queryset, view
-    ) -> List[FeedEntry]:
+        self, document_ids: list[int], queryset, view
+    ) -> list[FeedEntry]:
         """
         Fetch and order entries based on trending document IDs.
         Filters by the documents in the trending list and sorts in-memory.
@@ -212,8 +207,8 @@ class FeedFilteringBackend(BaseFilterBackend):
             return self._filter_following(request, queryset, view)
 
     def _fetch_and_order_entries(
-        self, document_ids: List[int], queryset, view
-    ) -> List[FeedEntry]:
+        self, document_ids: list[int], queryset, view
+    ) -> list[FeedEntry]:
         """
         Fetch and order entries based on recommended document IDs.
         """

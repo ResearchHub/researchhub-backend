@@ -30,7 +30,10 @@ class FundingImpactService:
     """Calculates funding impact metrics for grant creators who also contribute."""
 
     def get_funding_impact_overview(self, user: User) -> dict:
-        """Return funding impact metrics for proposals the user funded through their grants."""
+        """
+        Return funding impact metrics for proposals the user funded through
+        their grants.
+        """
         grant_fundraise_ids = GrantApplication.objects.for_user_grants(
             user
         ).fundraise_ids()
@@ -138,7 +141,7 @@ class FundingImpactService:
             .for_fundraises(fundraise_ids)
             .annotate(amount_decimal=Cast("amount", DECIMAL_FIELD))
             .values("object_id")
-            .annotate(total=Coalesce(Sum("amount_decimal"), Decimal("0")))
+            .annotate(total=Coalesce(Sum("amount_decimal"), Decimal(0)))
             .values_list("object_id", "total")
         )
 
@@ -176,7 +179,7 @@ class FundingImpactService:
                 amount_decimal=Cast("amount", DECIMAL_FIELD),
             )
             .values("month", "user_id")
-            .annotate(total=Coalesce(Sum("amount_decimal"), Decimal("0")))
+            .annotate(total=Coalesce(Sum("amount_decimal"), Decimal(0)))
         )
 
         usd_monthly = (

@@ -66,6 +66,8 @@ def _update_associated_document_feed_entries(bounty):
         )
     except Exception as e:
         logger.warning(
-            f"Failed to update feed entries associated with unified document {unified_document.id}: {e}"
+            "Failed to update feed entries associated with unified document %s: %s",
+            unified_document.id,
+            e,
         )
         return

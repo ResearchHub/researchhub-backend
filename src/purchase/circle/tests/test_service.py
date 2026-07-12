@@ -272,7 +272,7 @@ class TestCircleWalletServiceSweep(TestCase):
     )
     def test_sweep_raises_when_no_multisig(self, mock_rsc_to_usd):
         """Raise ValueError when large amount and RH_MULTISIG_ADDRESS is empty."""
-        self.mock_client.get_wallet_balance.return_value = Decimal("50000")
+        self.mock_client.get_wallet_balance.return_value = Decimal(50000)
         with self.settings(RH_MULTISIG_ADDRESS=""):
             with self.assertRaises(ValueError) as ctx:
                 self.service.sweep_wallet("wallet-1", "50000", "BASE", "notif-0")
@@ -284,7 +284,7 @@ class TestCircleWalletServiceSweep(TestCase):
     )
     def test_sweep_raises_when_no_hot_wallet(self, mock_rsc_to_usd):
         """Raise ValueError when small amount and WEB3_WALLET_ADDRESS is empty."""
-        self.mock_client.get_wallet_balance.return_value = Decimal("10")
+        self.mock_client.get_wallet_balance.return_value = Decimal(10)
         with self.settings(WEB3_WALLET_ADDRESS=""):
             with self.assertRaises(ValueError) as ctx:
                 self.service.sweep_wallet("wallet-1", "10", "BASE", "notif-0")
@@ -302,7 +302,7 @@ class TestCircleWalletServiceSweep(TestCase):
     )
     def test_sweep_propagates_transfer_error(self, mock_rsc_to_usd):
         """CircleTransferError from client propagates."""
-        self.mock_client.get_wallet_balance.return_value = Decimal("10")
+        self.mock_client.get_wallet_balance.return_value = Decimal(10)
         self.mock_client.create_transfer.side_effect = CircleTransferError(
             "API failure"
         )
@@ -317,7 +317,9 @@ class TestCircleWalletServiceSweep(TestCase):
         return_value=500.0,
     )
     def test_sweep_uses_wallet_balance_not_deposit_amount(self, mock_rsc_to_usd):
-        """Transfer amount should be the actual wallet balance, not the deposit amount."""
+        """
+        Transfer amount should be the actual wallet balance, not the deposit amount.
+        """
         self.mock_client.get_wallet_balance.return_value = Decimal("150.5")
         self.mock_client.create_transfer.return_value = CircleTransferResult(
             transfer_id="tx-5", state="INITIATED"

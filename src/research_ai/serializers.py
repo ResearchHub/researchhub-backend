@@ -15,9 +15,14 @@ from research_ai.models import (
     Expert,
     ExpertSearch,
     GeneratedEmail,
+    ProposalDraft,
     SearchExpert,
 )
 from research_ai.services.expert_display import ExpertDisplay
+from research_ai.services.expert_outreach_history_service import (
+    ExpertOutreachHistory,
+    build_expert_outreach_history_map,
+)
 from research_ai.services.invited_experts_service import (
     EDITOR_SORT_FIELDS,
     default_overview_date_range,
@@ -107,23 +112,41 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
         required=True,
     )
     config = ExpertSearchConfigSerializer(required=False, default=dict)
-    excluded_search_ids = serializers.ListField(
-        child=serializers.IntegerField(min_value=1),
-        required=False,
-        default=list,
-    )
 
     def validate(self, attrs):
-        raw_ids = attrs.get("excluded_search_ids") or []
-        norm_ids: list[int] = []
-        seen: set[int] = set()
-        for x in raw_ids:
-            if x not in seen:
-                seen.add(x)
-                norm_ids.append(int(x))
-        attrs["excluded_search_ids"] = norm_ids
         attrs["config"] = attrs.get("config") or {}
         return attrs
+
+
+class ExpertCurrentDocumentOutreachSerializer(serializers.Serializer):
+    sent_at = serializers.CharField()
+    search_id = serializers.IntegerField()
+
+
+class ExpertOutreachDocumentRefSerializer(serializers.Serializer):
+    unified_document_id = serializers.IntegerField()
+    document_type = serializers.CharField()
+    title = serializers.CharField()
+    slug = serializers.CharField()
+    id = serializers.IntegerField()
+    sent_at = serializers.CharField()
+    search_id = serializers.IntegerField()
+
+
+class ExpertOutreachHistorySerializer(serializers.Serializer):
+    emailed_for_current_document = ExpertCurrentDocumentOutreachSerializer(
+        allow_null=True,
+        required=False,
+    )
+    emailed_on_other_documents = ExpertOutreachDocumentRefSerializer(many=True)
+
+    def to_representation(self, instance: ExpertOutreachHistory | None):
+        if instance is None:
+            return {
+                "emailed_for_current_document": None,
+                "emailed_on_other_documents": [],
+            }
+        return super().to_representation(instance)
 
 
 class ExpertSerializer(serializers.Serializer):
@@ -140,7 +163,31 @@ class ExpertSerializer(serializers.Serializer):
     notes = serializers.CharField(allow_blank=True)
     sources = serializers.ListField(required=False, allow_null=True)
     last_email_sent_at = serializers.DateTimeField(allow_null=True)
+    emailed_for_current_document = serializers.SerializerMethodField()
+    emailed_on_other_documents = serializers.SerializerMethodField()
     display_name = serializers.SerializerMethodField()
+
+    def _outreach_history_for(self, obj):
+        by_email = self.context.get("expert_outreach_by_email") or {}
+        email = ExpertDisplay.normalize_email(getattr(obj, "email", "") or "")
+        return by_email.get(email)
+
+    def get_emailed_for_current_document(self, obj):
+        history = self._outreach_history_for(obj)
+        if history is None or history.emailed_for_current_document is None:
+            return None
+        return ExpertCurrentDocumentOutreachSerializer(
+            history.emailed_for_current_document
+        ).data
+
+    def get_emailed_on_other_documents(self, obj):
+        history = self._outreach_history_for(obj)
+        if history is None:
+            return []
+        return ExpertOutreachDocumentRefSerializer(
+            history.emailed_on_other_documents,
+            many=True,
+        ).data
 
     def get_display_name(self, obj):
         return ExpertDisplay.display_name_for(obj)
@@ -294,8 +341,10 @@ def _get_created_by_payload(obj):
 
 def resolve_work_for_unified_document(unified_doc, context=None):
     """
-    Resolve a unified document to work payload (paper or post) using paper/post serializers.
-    Returns None if resolution fails (no document, unknown type, or serialization error).
+    Resolve a unified document to work payload (paper or post) using paper/post
+    serializers.
+    Returns None if resolution fails (no document, unknown type, or serialization
+        error).
     """
     if not unified_doc:
         return None
@@ -342,7 +391,6 @@ class ExpertSearchListItemSerializer(serializers.ModelSerializer):
             "query",
             "status",
             "expert_count",
-            "excluded_search_ids",
             "created_at",
             "completed_at",
         ]
@@ -374,7 +422,6 @@ class ExpertSearchDetailSerializer(serializers.ModelSerializer):
             "work",
             "input_type",
             "config",
-            "excluded_search_ids",
             "llm_model",
             "status",
             "progress",
@@ -406,8 +453,19 @@ class ExpertSearchDetailSerializer(serializers.ModelSerializer):
             .order_by("-expert__is_manually_added", "position")
         )
         experts = [se.expert for se in qs]
+        outreach_by_email = build_expert_outreach_history_map(
+            expert_emails=[e.email for e in experts],
+            current_unified_document_id=obj.unified_document_id,
+        )
 
-        return ExpertSerializer(experts, many=True).data
+        return ExpertSerializer(
+            experts,
+            many=True,
+            context={
+                **self.context,
+                "expert_outreach_by_email": outreach_by_email,
+            },
+        ).data
 
     def get_report_urls(self, obj):
         out = {}
@@ -605,14 +663,21 @@ class BulkGenerateEmailRequestSerializer(serializers.Serializer):
 
 
 class PreviewEmailRequestSerializer(serializers.Serializer):
-    """Request for POST /expert-finder/emails/preview/. Send existing generated emails to current user."""
+    """
+    Request for POST /expert-finder/emails/preview/. Send existing generated emails to
+    current user.
+    """
 
     generated_email_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1),
         min_length=1,
         max_length=100,
     )
-    reply_to = serializers.EmailField(required=True)
+    reply_to = serializers.ListField(
+        child=serializers.EmailField(),
+        min_length=1,
+        max_length=10,
+    )
 
 
 class SendEmailRequestSerializer(serializers.Serializer):
@@ -623,7 +688,11 @@ class SendEmailRequestSerializer(serializers.Serializer):
         min_length=1,
         max_length=100,
     )
-    reply_to = serializers.EmailField(required=True)
+    reply_to = serializers.ListField(
+        child=serializers.EmailField(),
+        min_length=1,
+        max_length=10,
+    )
     cc = serializers.ListField(
         child=serializers.EmailField(),
         required=False,
@@ -671,6 +740,7 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "opened_at",
             "open_count",
             "bounced_at",
+            "complained_at",
             "created_at",
             "updated_at",
         ]
@@ -681,6 +751,7 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "opened_at",
             "open_count",
             "bounced_at",
+            "complained_at",
         ]
 
     def get_created_by(self, obj):
@@ -756,3 +827,36 @@ class EmailTemplateUpdateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255, required=False, allow_blank=False)
     email_subject = serializers.CharField(required=False, allow_blank=True)
     email_body = serializers.CharField(required=False, allow_blank=True)
+
+
+class ProposalDraftCreateSerializer(serializers.Serializer):
+    """
+    Request body for enqueueing a proposal-drafting job.
+    """
+
+    search_expert_id = serializers.IntegerField(min_value=1)
+
+
+class ProposalDraftSerializer(serializers.ModelSerializer):
+    """
+    Read-only job status/result payload for a `ProposalDraft`.
+    """
+
+    class Meta:
+        model = ProposalDraft
+        fields = [
+            "id",
+            "search_expert",
+            "created_by",
+            "note",
+            "status",
+            "step",
+            "rounds_used",
+            "final_scores",
+            "gate_report",
+            "error_message",
+            "processing_time",
+            "created_date",
+            "completed_at",
+        ]
+        read_only_fields = fields

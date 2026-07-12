@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.conf import settings
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -759,7 +760,10 @@ class BulkGenerateEmailViewTests(APITestCase):
         self.assertIsNone(rec.template)
 
     def test_post_expert_not_in_search_returns_400_and_creates_no_placeholders(self):
-        """Invalid expert email returns 400 and no GeneratedEmail records (transaction rollback)."""
+        """
+        Invalid expert email returns 400 and no GeneratedEmail records
+        (transaction rollback).
+        """
         self.client.force_authenticate(self.moderator)
         initial_count = GeneratedEmail.objects.count()
         response = self.client.post(
@@ -777,7 +781,9 @@ class BulkGenerateEmailViewTests(APITestCase):
 
     @patch("research_ai.views.email_views.process_bulk_generate_emails_task")
     def test_post_second_expert_invalid_rolls_back_all_placeholders(self, mock_task):
-        """When second expert is invalid, no placeholders are created (atomic rollback)."""
+        """
+        When second expert is invalid, no placeholders are created (atomic rollback).
+        """
         self.client.force_authenticate(self.moderator)
         initial_count = GeneratedEmail.objects.count()
         response = self.client.post(
@@ -797,6 +803,7 @@ class BulkGenerateEmailViewTests(APITestCase):
         mock_task.delay.assert_not_called()
 
 
+@override_settings(EXPERT_FINDER_OUTREACH_ENABLED=True)
 class SendPlainEmailTests(APITestCase):
     """Unit tests for send_plain_email service."""
 
@@ -831,12 +838,29 @@ class SendPlainEmailTests(APITestCase):
             "to@example.com",
             "Subject",
             "Body",
-            reply_to="reply@example.com",
+            reply_to=["reply@example.com"],
             cc=None,
             from_email=None,
         )
+        call_kwargs = mock_email_alt.call_args[1]
+        self.assertEqual(call_kwargs["reply_to"], ["reply@example.com"])
         mock_email_alt.return_value.attach_alternative.assert_called_once()
         mock_email_alt.return_value.send.assert_called_once()
+
+    @patch("research_ai.services.email_sending_service.EmailMultiAlternatives")
+    def test_send_plain_email_with_multiple_reply_to_addresses(self, mock_email_alt):
+        send_plain_email(
+            "to@example.com",
+            "Subject",
+            "Body",
+            reply_to=["reply@example.com", "other@example.com"],
+            cc=None,
+            from_email=None,
+        )
+        call_kwargs = mock_email_alt.call_args[1]
+        self.assertEqual(
+            call_kwargs["reply_to"], ["reply@example.com", "other@example.com"]
+        )
 
 
 class PreviewEmailViewTests(APITestCase):
@@ -860,7 +884,7 @@ class PreviewEmailViewTests(APITestCase):
             self.url,
             {
                 "generated_email_ids": [email_rec.id],
-                "reply_to": "replies@example.com",
+                "reply_to": ["replies@example.com"],
             },
             format="json",
         )
@@ -885,7 +909,7 @@ class PreviewEmailViewTests(APITestCase):
 
     @patch("research_ai.views.email_views.send_plain_email")
     def test_preview_by_ids_sends_to_current_user(self, mock_send):
-        reply_to_email = "sender-replies@example.com"
+        reply_to_emails = ["sender-replies@example.com"]
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
             expert_name="Dr. X",
@@ -897,7 +921,7 @@ class PreviewEmailViewTests(APITestCase):
             self.url,
             {
                 "generated_email_ids": [email_rec.id],
-                "reply_to": reply_to_email,
+                "reply_to": reply_to_emails,
             },
             format="json",
         )
@@ -905,8 +929,46 @@ class PreviewEmailViewTests(APITestCase):
         self.assertEqual(response.json().get("sent"), 1)
         mock_send.assert_called_once()
         call_kw = mock_send.call_args[1]
-        self.assertEqual(call_kw["reply_to"], reply_to_email)
+        self.assertEqual(call_kw["reply_to"], reply_to_emails)
         self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, call_kw["from_email"])
+
+    @patch("research_ai.views.email_views.send_plain_email")
+    def test_preview_accepts_multiple_reply_to_addresses(self, mock_send):
+        reply_to_emails = ["reply@example.com", "other@example.com"]
+        email_rec = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Dr. X",
+            email_subject="Subj",
+            email_body="Body text",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {
+                "generated_email_ids": [email_rec.id],
+                "reply_to": reply_to_emails,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        call_kw = mock_send.call_args[1]
+        self.assertEqual(call_kw["reply_to"], reply_to_emails)
+
+    def test_preview_with_empty_reply_to_returns_400(self):
+        email_rec = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Dr. X",
+            email_subject="Subj",
+            email_body="Body",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {"generated_email_ids": [email_rec.id], "reply_to": []},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("reply_to", response.json())
 
 
 class SendEmailViewTests(APITestCase):
@@ -935,7 +997,7 @@ class SendEmailViewTests(APITestCase):
 
     @patch("research_ai.views.email_views.send_queued_emails_task")
     def test_send_queues_emails_and_returns_immediately(self, mock_task):
-        reply_to_email = "reply@example.com"
+        reply_to_emails = ["reply@example.com"]
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
             expert_name="Dr. Y",
@@ -949,7 +1011,7 @@ class SendEmailViewTests(APITestCase):
             self.url,
             {
                 "generated_email_ids": [email_rec.id],
-                "reply_to": reply_to_email,
+                "reply_to": reply_to_emails,
             },
             format="json",
         )
@@ -960,7 +1022,7 @@ class SendEmailViewTests(APITestCase):
         mock_task.delay.assert_called_once()
         call_kw = mock_task.delay.call_args[1]
         self.assertEqual(call_kw["generated_email_ids"], [email_rec.id])
-        self.assertEqual(call_kw["reply_to"], reply_to_email)
+        self.assertEqual(call_kw["reply_to"], reply_to_emails)
         from_email = call_kw["from_email"]
         self.assertIn("ResearchHub", from_email)
         self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, from_email)

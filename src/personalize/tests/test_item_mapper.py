@@ -2,9 +2,8 @@
 Tests for Personalize item mapper functions.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
-import pytz
 from django.test import TestCase
 
 from hub.models import Hub
@@ -448,7 +447,7 @@ class CommonFieldTests(TestCase):
         """Papers should use paper_publish_date for timestamp when available."""
         # Arrange
         mapper = ItemMapper()
-        publish_date = datetime(2023, 1, 15, 12, 0, 0, tzinfo=pytz.UTC)
+        publish_date = datetime(2023, 1, 15, 12, 0, 0, tzinfo=UTC)
         unified_doc = create_prefetched_paper(paper_publish_date=publish_date)
         batch_data = create_batch_data()
 
@@ -768,7 +767,9 @@ class PaperSpecificFieldTests(TestCase):
         self.assertEqual(result[CITATION_COUNT_TOTAL], 100)
 
     def test_paper_bluesky_metrics_from_external_metadata(self):
-        """Bluesky metrics should extract from paper.external_metadata.metrics.bluesky."""
+        """
+        Bluesky metrics should extract from paper.external_metadata.metrics.bluesky.
+        """
         # Arrange
         mapper = ItemMapper()
         external_metadata = {
@@ -838,7 +839,10 @@ class PaperSpecificFieldTests(TestCase):
         self.assertEqual(result[X_TOTAL_IMPRESSIONS], 516)
 
     def test_paper_github_metrics_from_external_metadata(self):
-        """GitHub metrics should extract from paper.external_metadata.metrics.github_mentions."""
+        """
+        GitHub metrics should extract from
+        paper.external_metadata.metrics.github_mentions.
+        """
         # Arrange
         mapper = ItemMapper()
         external_metadata = {

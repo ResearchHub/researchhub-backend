@@ -7,9 +7,9 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
-from ..exceptions import FetchError, RetryExhaustedError, TimeoutError
+from paper.ingestion.exceptions import FetchError, RetryExhaustedError, TimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,8 @@ class ClientConfig:
     page_size: int = 100
 
     # Authentication
-    api_key: Optional[str] = None
-    auth_token: Optional[str] = None
+    api_key: str | None = None
+    auth_token: str | None = None
 
 
 class RateLimiter:
@@ -68,39 +68,37 @@ class BaseClient(ABC):
 
     @abstractmethod
     def fetch(
-        self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs
-    ) -> Union[str, bytes, Dict[str, Any]]:
+        self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
+    ) -> str | bytes | dict[str, Any]:
         """
         Fetch data from the source API.
 
         Must be implemented by each source client.
         Should handle authentication and return raw response.
         """
-        pass
 
     @abstractmethod
     def parse(
         self,
-        raw_data: Union[str, bytes, Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        raw_data: str | bytes | dict[str, Any],
+    ) -> list[dict[str, Any]]:
         """
         Parse raw response into list of paper records.
 
         Must be implemented by each source client.
         This should return minimally processed data.
         """
-        pass
 
     def fetch_with_rate_limit(
-        self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs
-    ) -> Union[str, bytes, Dict[str, Any]]:
+        self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
+    ) -> str | bytes | dict[str, Any]:
         """Fetch data with rate limiting."""
         self.rate_limiter.wait_if_needed()
         return self.fetch(endpoint, params, **kwargs)
 
     def fetch_with_retry(
-        self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs
-    ) -> Union[str, bytes, Dict[str, Any]]:
+        self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
+    ) -> str | bytes | dict[str, Any]:
         """Fetch data with retry logic and exponential backoff."""
         backoff = self.config.initial_backoff
 
@@ -131,17 +129,16 @@ class BaseClient(ABC):
         )
 
     def process_page(
-        self, page_data: Union[str, bytes, Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, page_data: str | bytes | dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Process a page of results."""
         return self.parse(page_data)
 
     @abstractmethod
     def fetch_recent(
         self,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Fetch recent papers within date range."""
-        pass

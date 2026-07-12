@@ -3,7 +3,6 @@ import re
 import string
 import time
 from datetime import datetime
-from typing import List, Optional
 
 import requests
 from django.conf import settings
@@ -22,9 +21,9 @@ from user.models import Author
 class DOI:
     def __init__(
         self,
-        base_doi: Optional[str] = None,
-        version: Optional[int] = None,
-        journal: Optional[str] = None,
+        base_doi: str | None = None,
+        version: int | None = None,
+        journal: str | None = None,
     ) -> None:
         self.base_doi = base_doi
         if base_doi is None:
@@ -115,7 +114,7 @@ class DOI:
 
     # Generate a random DOI using the configured prefix
     # (e.g., "10.55277/researchhub." or "10.55277/rhj.") and a random suffix.
-    def _generate_base_doi(self, journal: Optional[str] = None) -> str:
+    def _generate_base_doi(self, journal: str | None = None) -> str:
         # Use ResearchHub Journal prefix for RHJ papers
         if journal == PaperVersion.RESEARCHHUB:
             prefix = settings.CROSSREF_DOI_RHJ_PREFIX
@@ -129,19 +128,19 @@ class DOI:
 
     # Register DOI for a ResearchHub post.
     def register_doi_for_post(
-        self, authors: List[Author], title: str, rh_post: ResearchhubPost
+        self, authors: list[Author], title: str, rh_post: ResearchhubPost
     ) -> HttpResponse:
         url = f"{settings.BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}"
         return self.register_doi(authors, [], title, url)
 
     # Register DOI for a ResearchHub paper.
     def register_doi_for_paper(
-        self, authors: List[Author], title: str, rh_paper: Paper
+        self, authors: list[Author], title: str, rh_paper: Paper
     ) -> HttpResponse:
         url = f"{settings.BASE_FRONTEND_URL}/paper/{rh_paper.id}/{rh_paper.slug}"
         return self.register_doi(authors, rh_paper.authorships.all(), title, url)
 
-    def clean_orcid_id(self, orcid_id: str) -> Optional[str]:
+    def clean_orcid_id(self, orcid_id: str) -> str | None:
         if orcid_id.startswith("https://orcid.org/"):
             orcid_id = orcid_id.replace("https://orcid.org/", "")
 
@@ -152,8 +151,8 @@ class DOI:
     # Main method to register a DOI with Crossref.
     def register_doi(
         self,
-        authors: List[Author],
-        authorships: List[Authorship],
+        authors: list[Author],
+        authorships: list[Authorship],
         title: str,
         url: str,
     ) -> HttpResponse:
@@ -209,5 +208,7 @@ class DOI:
             "login_passwd": (None, settings.CROSSREF_LOGIN_PASSWORD),
             "fname": ("crossref.xml", crossref_xml),
         }
-        crossref_response = requests.post(settings.CROSSREF_API_URL, files=files)
+        crossref_response = requests.post(
+            settings.CROSSREF_API_URL, files=files, timeout=30
+        )
         return crossref_response

@@ -313,7 +313,9 @@ class PaperVersionCommentsTests(APITestCase):
         self.assertIn("id", thread_data_normal)
 
     def test_comment_view_with_mocked_paper_service(self):
-        """Test that RhCommentViewSet can use an injected paper service for easier testing."""
+        """
+        Test that RhCommentViewSet can use an injected paper service for easier testing.
+        """
         from unittest.mock import Mock
 
         from paper.services.paper_version_service import PaperService

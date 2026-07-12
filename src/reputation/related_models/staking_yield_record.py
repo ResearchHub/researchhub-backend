@@ -7,7 +7,7 @@ from utils.models import DefaultModel
 
 class StakingYieldRecord(DefaultModel):
     yield_amount = models.DecimalField(
-        max_digits=19, decimal_places=8, default=Decimal("0")
+        max_digits=19, decimal_places=8, default=Decimal(0)
     )
     user_snapshot = models.OneToOneField(
         "reputation.StakingUserSnapshot",
@@ -26,4 +26,7 @@ class StakingYieldRecord(DefaultModel):
         app_label = "reputation"
 
     def __str__(self):
-        return f"StakingYieldRecord(user_snapshot={self.user_snapshot_id}, yield={self.yield_amount})"
+        return (
+            f"StakingYieldRecord(user_snapshot={self.user_snapshot_id}, "
+            f"yield={self.yield_amount})"
+        )

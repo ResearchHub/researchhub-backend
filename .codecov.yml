@@ -1,5 +1,10 @@
 coverage:
   status:
+    project:
+      default:
+        target: auto
+        threshold: 0.5%
+        removed_code_behavior: removals_only
     patch:
       default:
         target: auto

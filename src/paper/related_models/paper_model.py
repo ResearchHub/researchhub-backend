@@ -23,7 +23,9 @@ from reputation.models import Score, ScoreChange
 from reputation.related_models.paper_reward import HubCitationValue
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
+from user.related_models.user_model import User
 from utils.aws import lambda_compress_and_linearize_pdf
+from utils.models import ModeratedDocumentMixin
 
 DOI_IDENTIFIER = "10."
 ARXIV_IDENTIFIER = "arXiv:"
@@ -36,11 +38,36 @@ HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 logger = logging.getLogger(__name__)
 
 
+class PaperQuerySet(models.QuerySet):
+    def visible_to(self, user: User | None) -> "PaperQuerySet":
+        """Restrict to papers by moderation status the given user may see.
+
+        This is a moderation-status gate, not the full privacy gate: papers
+        whose unified document has cleared moderation (``status=APPROVED``)
+        pass for everyone, while papers still awaiting moderation or declined
+        pass only for their uploader and for site moderators / hub editors.
+        The ``is_public`` flag is layered on separately by callers that need it
+        (see ``ResearchhubUnifiedDocument.is_visible_to_user``).
+        """
+        # A paper without a unified document is not under moderation, so treat
+        # it as cleared.
+        moderation_approved = Q(
+            unified_document__status=ModeratedDocumentMixin.APPROVED
+        ) | Q(unified_document__isnull=True)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return self.filter(moderation_approved)
+        if user.is_moderator_or_editor():
+            return self
+        return self.filter(moderation_approved | Q(uploaded_by=user))
+
+
 class Paper(AbstractGenericReactionModel):
     REGULAR = "REGULAR"
     PRE_REGISTRATION = "PRE_REGISTRATION"
 
     PAPER_TYPE_CHOICES = [(REGULAR, REGULAR), (PRE_REGISTRATION, PRE_REGISTRATION)]
+
+    objects = PaperQuerySet.as_manager()
 
     rh_threads = GenericRelation(
         RhCommentThreadModel,
@@ -52,7 +79,8 @@ class Paper(AbstractGenericReactionModel):
     # TODO clean this up to use SoftDeleteable mixin in utils
     is_removed = models.BooleanField(default=False, help_text=HELP_TEXT_IS_REMOVED)
 
-    # We assume that is_pdf_removed_by_moderator is only set to True if the PDF was removed for copyright reasons
+    # We assume that is_pdf_removed_by_moderator is only set to True if the PDF was
+    # removed for copyright reasons
     is_pdf_removed_by_moderator = models.BooleanField(
         default=False, help_text=HELP_TEXT_IS_PDF_REMOVED
     )
@@ -156,7 +184,9 @@ class Paper(AbstractGenericReactionModel):
     slug = models.SlugField(
         max_length=1024,
         blank=True,
-        help_text="Slug is automatically generated on a signal, so it is not needed in a form",
+        help_text=(
+            "Slug is automatically generated on a signal, so it is not needed in a form"
+        ),
     )
     unified_document = models.OneToOneField(
         "researchhub_document.ResearchhubUnifiedDocument",
@@ -208,7 +238,7 @@ class Paper(AbstractGenericReactionModel):
         title = self.title
         uploaded_by = self.uploaded_by
         if title and uploaded_by:
-            return "{} - {}".format(title, uploaded_by)
+            return f"{title} - {uploaded_by}"
         elif title:
             return title
         else:
@@ -228,17 +258,15 @@ class Paper(AbstractGenericReactionModel):
 
     @property
     def users_to_notify(self):
-        users = []
-        paper_authors = self.authors.all()
-        for author in paper_authors:
+        return [
+            author.user
+            for author in self.authors.all()
             if (
                 author.user
                 and author.user.emailrecipient.paper_subscription.threads
                 and not author.user.emailrecipient.paper_subscription.none
-            ):
-                users.append(author.user)
-
-        return users
+            )
+        ]
 
     @property
     def hot_score(self):
@@ -261,20 +289,6 @@ class Paper(AbstractGenericReactionModel):
 
     def get_hub_names(self):
         return ",".join(self.hubs.values_list("name", flat=True))
-
-    def get_promoted_score(paper):
-        purchases = paper.purchases.filter(
-            paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
-        )
-        if purchases.exists():
-            base_score = paper.score
-            boost_amount = (
-                purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
-                .aggregate(sum=Sum("amount_as_int"))
-                .get("sum", 0)
-            )
-            return base_score + boost_amount
-        return False
 
     def get_discussion_count(self):
         from paper.services.paper_version_service import PaperService
@@ -336,8 +350,9 @@ class Paper(AbstractGenericReactionModel):
             self.is_removed = True
 
         res = requests.get(
-            "https://doi.org/api/handles/{}".format(doi),
+            f"https://doi.org/api/handles/{doi}",
             headers=requests.utils.default_headers(),
+            timeout=30,
         )
         if res.status_code >= 200 and res.status_code < 400 and has_doi:
             self.is_removed = False
@@ -426,7 +441,7 @@ class Paper(AbstractGenericReactionModel):
     def update_scores_citations(self, author):
         hub = self.unified_document.get_primary_hub()
         if hub is None:
-            print(f"Paper {self.id} has no primary hub")
+            logger.warning("Paper %s has no primary hub", self.id)
             return
 
         citation_entries = Citation.objects.filter(paper=self).order_by("created_date")
@@ -466,8 +481,8 @@ class Paper(AbstractGenericReactionModel):
     def hubs(self):
         """
         Access hubs through the unified document.
-        This property maintains backwards compatibility while enforcing the unified document
-        as the single source of truth for hubs.
+        This property maintains backwards compatibility while enforcing the unified
+        document as the single source of truth for hubs.
         """
         if self.unified_document:
             return self.unified_document.hubs

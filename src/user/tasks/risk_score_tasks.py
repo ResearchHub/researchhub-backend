@@ -11,7 +11,7 @@ EventType = RiskScoreEvent.EventType
 
 
 @app.task
-def apply_account_age_bonus_task():
+def apply_account_age_bonus_task() -> None:
     """Grant ACCOUNT_AGE_BONUS to active users with accounts older than 90 days."""
     service = RiskScoreService()
     threshold = timezone.now() - timedelta(days=90)

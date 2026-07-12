@@ -117,11 +117,11 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             if not author_profile:
                 continue
 
-            ud = getattr(application.preregistration_post, "unified_document", None)
-            if ud and ud.is_removed:
+            if not application.has_approved_proposal():
                 continue
 
-            if ud and not ud.is_public and not can_view_private:
+            proposal_document = application.preregistration_post.unified_document
+            if not proposal_document.is_public and not can_view_private:
                 if not viewer_authed:
                     continue
                 if application.applicant_id != viewer.id:

@@ -1,8 +1,7 @@
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from logging import Logger
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models.signals import post_save
@@ -138,7 +137,7 @@ def _reward_preregistration_update(comment: RhCommentModel):
         return
 
     unified_document = comment.unified_document
-    now = datetime.now(pytz.UTC)
+    now = datetime.now(UTC)
 
     fundraise_ct = ContentType.objects.get_for_model(Fundraise)
 

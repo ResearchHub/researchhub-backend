@@ -1,6 +1,5 @@
 from celery import chain
 from django.core.cache import cache
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -23,7 +22,6 @@ from researchhub_document.serializers.researchhub_unified_document_serializer im
 from researchhub_document.views.researchhub_unified_document_views import (
     ResearchhubUnifiedDocumentViewSet,
 )
-from user.filters import AuthorFilter
 from user.models import Author
 from user.permissions import DeleteAuthorPermission, IsVerifiedUser, UpdateAuthor
 from user.serializers import (
@@ -32,7 +30,7 @@ from user.serializers import (
     DynamicAuthorProfileSerializer,
 )
 from user.tasks import invalidate_author_profile_caches
-from user.utils import AuthorClaimException, claim_openalex_author_profile
+from user.utils import AuthorClaimError, claim_openalex_author_profile
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
@@ -44,8 +42,7 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         "user__userverification",
     )
     serializer_class = AuthorSerializer
-    filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
-    filterset_class = AuthorFilter
+    filter_backends = (SearchFilter, OrderingFilter)
     search_fields = ("first_name", "last_name")
     permission_classes = [
         (IsAuthenticatedOrReadOnly & UpdateAuthor & CreateOrUpdateIfAllowed)
@@ -189,14 +186,15 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         openalex_ids = request.data.get("openalex_ids", [])
         openalex_author_id = request.data.get("openalex_author_id", None)
 
-        # Ensure the openalex author id is a full url since it is the format stored in our system
+        # Ensure the openalex author id is a full url since it is the format stored in
+        # our system
         if "openalex.org" not in openalex_author_id:
             openalex_author_id = f"https://openalex.org/authors/{openalex_author_id}"
 
         # Attempt to associate the openalex author id with the RH author
         try:
             claim_openalex_author_profile(author.id, openalex_author_id)
-        except AuthorClaimException:
+        except AuthorClaimError:
             pass
         except Exception:
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -229,69 +227,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         count, _ = authorships.delete()
         invalidate_author_profile_caches(None, request.user.author_profile.id)
         return Response({"count": count}, status=status.HTTP_200_OK)
-
-    @action(
-        detail=True,
-        methods=["get"],
-    )
-    def overview(self, request, pk=None):
-        author = self.get_object()
-
-        # Get documents from cache if available
-        cache_key = f"author-{author.id}-overview"
-        documents = cache.get(cache_key)
-
-        if not documents:
-            # We want to only return a few documents for the overview section
-            NUM_DOCUMENTS_TO_FETCH = 4
-
-            # Use UNION for better query performance (avoids sequential scan)
-            direct = Authorship.objects.filter(author=author)
-            merged = Authorship.objects.filter(author__merged_with_author=author)
-            all_authorships = direct.union(merged)
-
-            # Get doc IDs and sort by citations (UNION doesn't support order_by)
-            authorship_ids = list(all_authorships.values_list("id", flat=True))
-            authored_doc_ids = list(
-                Authorship.objects.filter(id__in=authorship_ids)
-                .order_by("-paper__citations")
-                .values_list("paper__unified_document_id", flat=True)[
-                    :NUM_DOCUMENTS_TO_FETCH
-                ]
-            )
-
-            docs = ResearchhubUnifiedDocument.objects.filter(id__in=authored_doc_ids)
-
-            # Maintain the ordering authored papers
-            documents = sorted(docs, key=lambda x: authored_doc_ids.index(x.id))
-
-            cache.set(cache_key, documents, timeout=60 * 60 * 24)
-
-        context = ResearchhubUnifiedDocumentViewSet._get_serializer_context(self)
-        page = self.paginate_queryset(documents)
-
-        serializer = DynamicUnifiedDocumentSerializer(
-            page,
-            _include_fields=[
-                "id",
-                "created_date",
-                "documents",
-                "document_filter",
-                "document_type",
-                "hot_score",
-                "hubs",
-                "reviews",
-                "score",
-                "fundraise",
-                "grant",
-            ],
-            many=True,
-            context=context,
-        )
-
-        serializer_data = serializer.data
-
-        return self.get_paginated_response(serializer_data)
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def minimal_overview(self, request, pk=None):

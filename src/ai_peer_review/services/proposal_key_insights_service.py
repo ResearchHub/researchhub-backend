@@ -1,6 +1,7 @@
 import logging
 import time
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -22,7 +23,6 @@ from ai_peer_review.services.proposal_review_comment_service import (
 )
 from ai_peer_review.services.proposal_review_scoring import parse_json_response
 from ai_peer_review.services.proposal_review_service import (
-    get_grant_context_text,
     get_proposal_markdown,
 )
 from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
@@ -195,7 +195,7 @@ class ProposalKeyInsightsService:
             proposal_text = get_proposal_markdown(review.unified_document)
             rfp_context = None
             if review.grant_id and review.grant is not None:
-                rfp_context = get_grant_context_text(review.grant)
+                rfp_context = review.grant.get_llm_context_text()
             ai_summary = self._get_ai_peer_review_comment_plain_text(review)
             human = self._get_rhf_endorsed_human_reviews(review.unified_document)
             system = get_proposal_key_insights_system_prompt()

@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -20,8 +22,9 @@ from user.filters import AUTO_PAYMENT_TYPES, AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
-from utils import sentry
 from utils.models import SoftDeletableModel
+
+logger = logging.getLogger(__name__)
 
 
 class CursorSetPagination(CursorPagination):
@@ -338,7 +341,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         try:
             flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
             for flag in flags:
-                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
+                available_reasons = [r[0] for r in FLAG_REASON_CHOICES]
                 verdict_choice = NOT_SPECIFIED
                 if data.get("verdict_choice") in available_reasons:
                     verdict_choice = f"NOT_{data.get('verdict_choice')}"
@@ -350,9 +353,8 @@ class AuditViewSet(viewsets.GenericViewSet):
                 verdict_serializer = VerdictSerializer(data=verdict_data)
                 verdict_serializer.is_valid(raise_exception=True)
                 verdict_serializer.save()
-        except Exception as e:
-            print("e", e)
-            sentry.log_error(e)
+        except Exception:
+            logger.exception("Error dismissing flagged content")
 
             return Response(
                 {},
@@ -376,7 +378,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         with transaction.atomic():
             flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
             for flag in flags.iterator():
-                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
+                available_reasons = [r[0] for r in FLAG_REASON_CHOICES]
                 verdict_choice = NOT_SPECIFIED
                 if data.get("verdict_choice") in available_reasons:
                     verdict_choice = data.get("verdict_choice")
@@ -398,8 +400,10 @@ class AuditViewSet(viewsets.GenericViewSet):
                         send_email=data.get("send_email", True),
                         verdict=verdict,
                     )
-                except Exception as e:
-                    sentry.log_error(e, message="Content Removal notification not sent")
+                except Exception:
+                    logger.exception(
+                        "Failed to send notification for verdict %s", verdict.id
+                    )
 
             return Response(
                 {},
@@ -423,7 +427,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                 ):
                     continue
 
-                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
+                available_reasons = [r[0] for r in FLAG_REASON_CHOICES]
                 verdict_choice = NOT_SPECIFIED
                 if data.get("verdict_choice") in available_reasons:
                     verdict_choice = data.get("verdict_choice")

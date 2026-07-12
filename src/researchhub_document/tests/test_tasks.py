@@ -51,8 +51,10 @@ class AssignPreregistrationDoisTests(TestCase):
 
     @patch("researchhub_document.tasks.DOI")
     def test_skips_ineligible_posts(self, mock_doi_cls):
-        """Preregistrations that are too young, already have a DOI, are removed,
-        or are flagged should be skipped. Non-preregistration types are always skipped."""
+        """
+        Preregistrations that are too young, already have a DOI, are removed,
+        or are flagged should be skipped. Non-preregistration types are always skipped.
+        """
         self._create_post(days_old=3)
         self._create_post(days_old=10, doi="10.55277/existing")
         self._create_post(days_old=10, is_removed=True)

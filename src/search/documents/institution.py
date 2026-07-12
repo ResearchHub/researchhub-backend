@@ -42,8 +42,10 @@ class InstitutionDocument(BaseDocument):
 
         suggestions.append({"input": instance.display_name, "weight": 10})
 
-        for alt_name in instance.display_name_alternatives:
-            suggestions.append({"input": alt_name, "weight": 5})
+        suggestions.extend(
+            {"input": alt_name, "weight": 5}
+            for alt_name in instance.display_name_alternatives
+        )
 
         if instance.country_code:
             suggestions.append({"input": instance.country_code, "weight": 2})

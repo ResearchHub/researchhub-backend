@@ -13,7 +13,7 @@ GRANT_FEED_ORDERINGS = [
     "most_applicants",
     "amount_raised",
 ]
-GRANT_FEED_STATUSES = ["", "OPEN", "CLOSED", "COMPLETED", "PENDING"]
+GRANT_FEED_STATUSES = ["", "OPEN", "CLOSED", "COMPLETED"]
 GRANT_FEED_MAX_CACHED_PAGE = 3
 
 
@@ -22,7 +22,8 @@ class GrantCacheMixin:
         base_key = super().get_cache_key(request, feed_type)
         status = request.query_params.get("status", "")
         created_by = request.query_params.get("created_by", "")
-        return f"{base_key}:{status}:{created_by}"
+        include_key_insights = request.query_params.get("include_key_insights", "")
+        return f"{base_key}:{status}:{created_by}:{include_key_insights}"
 
     @staticmethod
     def invalidate_grant_feed_cache():
@@ -38,12 +39,14 @@ class GrantCacheMixin:
             sort_part = f"-{ordering}" if ordering != "latest" else ""
             for status in GRANT_FEED_STATUSES:
                 for created_by in created_by_values:
-                    for page in range(1, GRANT_FEED_MAX_CACHED_PAGE + 1):
-                        cache_key = (
-                            f"grants_feed:popular:all:all:none:"
-                            f"{page}-{page_size}{sort_part}:{status}:{created_by}"
-                        )
-                        cache.delete(cache_key)
+                    for include_key_insights in ("", "true"):
+                        for page in range(1, GRANT_FEED_MAX_CACHED_PAGE + 1):
+                            cache_key = (
+                                f"grants_feed:popular:all:all:none:"
+                                f"{page}-{page_size}{sort_part}:{status}:"
+                                f"{created_by}:{include_key_insights}"
+                            )
+                            cache.delete(cache_key + ":public")
 
     @staticmethod
     def invalidate_if_grant_linked(unified_document):

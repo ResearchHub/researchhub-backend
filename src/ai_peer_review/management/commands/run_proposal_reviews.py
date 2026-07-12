@@ -1,11 +1,14 @@
 """
-Run AI proposal reviews synchronously for grant applications and refresh executive comparison.
+Run AI proposal reviews synchronously for grant applications and refresh executive
+comparison.
 
 Usage:
     python manage.py run_proposal_reviews --grant-ids 1,2,3
     python manage.py run_proposal_reviews --created-after 2024-01-01
-    python manage.py run_proposal_reviews --created-before 2025-12-31 --created-after 2025-01-01
-    python manage.py run_proposal_reviews --grant-ids 1 --force  # re-run completed proposal reviews too
+    python manage.py run_proposal_reviews --created-before 2025-12-31 --created-after \
+        2025-01-01
+    python manage.py run_proposal_reviews --grant-ids 1 --force  # re-run completed \
+        proposal reviews too
 """
 
 from __future__ import annotations
@@ -76,9 +79,9 @@ class Command(BaseCommand):
             "--force",
             action="store_true",
             help=(
-                "Re-run proposal reviews that are already COMPLETED (e.g. after prompt changes). "
-                "Without this, only pending/failed reviews are executed; executive comparison "
-                "still runs for each grant."
+                "Re-run proposal reviews that are already COMPLETED (e.g. after prompt "
+                "changes). Without this, only pending/failed reviews are executed; "
+                "executive comparison still runs for each grant."
             ),
         )
 
@@ -244,7 +247,8 @@ class Command(BaseCommand):
                     )
                     self.stdout.write(
                         self.style.ERROR(
-                            f"  [{pj}/{len(prereg_apps)}] unified_document={ud.id} ERROR: {e}"
+                            f"  [{pj}/{len(prereg_apps)}] unified_document="
+                            f"{ud.id} ERROR: {e}"
                         )
                     )
 

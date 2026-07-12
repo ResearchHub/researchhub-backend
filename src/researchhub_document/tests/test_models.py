@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core.files.base import ContentFile
 from django.test import TestCase
 
 from hub.models import Hub
@@ -10,6 +11,9 @@ from paper.tests.helpers import create_paper
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from review.models import Review
 from user.tests.helpers import create_random_default_user
 
@@ -155,3 +159,99 @@ class ModelTests(TestCase):
         # only the review on the active comment is counted
         self.assertEqual(details["count"], 1)
         self.assertEqual(details["avg"], 6.0)
+
+    def test_get_display_title_for_paper(self):
+        # Arrange
+        self.paper.title = "Short title"
+        self.paper.paper_title = "Full paper title"
+        self.paper.save()
+
+        # Act
+        title = self.paper.unified_document.get_display_title()
+
+        # Assert
+        self.assertEqual(title, "Short title")
+
+    def test_get_display_title_for_paper_falls_back_to_paper_title(self):
+        # Arrange
+        self.paper.title = ""
+        self.paper.paper_title = "Full paper title"
+        self.paper.save()
+
+        # Act
+        title = self.paper.unified_document.get_display_title()
+
+        # Assert
+        self.assertEqual(title, "Full paper title")
+
+    def test_get_display_title_for_post(self):
+        # Arrange
+        post = create_post(title="Post title", created_by=self.user)
+
+        # Act
+        title = post.unified_document.get_display_title()
+
+        # Assert
+        self.assertEqual(title, "Post title")
+
+    def test_get_document_slug(self):
+        # Arrange
+        post = create_post(title="Post title", created_by=self.user)
+
+        # Act
+        slug = post.unified_document.get_document_slug()
+
+        # Assert
+        self.assertEqual(slug, post.slug)
+
+    def test_get_full_markdown_reads_grant_body_from_discussion_src(self):
+        """GRANT (and other post types) store their body in discussion_src."""
+        # Arrange
+        post = create_post(created_by=self.user, document_type="GRANT")
+        post.discussion_src.save(
+            "grant.md", ContentFile(b"# RFP\nFull call for proposals")
+        )
+
+        # Act
+        markdown = post.get_full_markdown()
+
+        # Assert
+        self.assertEqual(markdown, "# RFP\nFull call for proposals")
+
+    def test_get_full_markdown_reads_discussion_body(self):
+        """DISCUSSION posts still read from discussion_src."""
+        # Arrange
+        post = create_post(created_by=self.user, document_type="DISCUSSION")
+        post.discussion_src.save("discussion.md", ContentFile(b"Discussion body"))
+
+        # Act
+        markdown = post.get_full_markdown()
+
+        # Assert
+        self.assertEqual(markdown, "Discussion body")
+
+
+class ResearchhubPostStatusTests(TestCase):
+    def setUp(self):
+        self.user = create_random_default_user("post_status_user")
+
+    def test_default_status_is_approved(self):
+        # Act
+        post = create_post(created_by=self.user)
+
+        # Assert
+        unified_document = post.unified_document
+        self.assertEqual(unified_document.status, ResearchhubUnifiedDocument.APPROVED)
+        self.assertIsNone(unified_document.reviewed_by)
+        self.assertIsNone(unified_document.reviewed_date)
+
+    def test_status_choices_match_constants(self):
+        # Assert
+        self.assertEqual(
+            set(dict(ResearchhubUnifiedDocument.STATUS_CHOICES).keys()),
+            {
+                ResearchhubUnifiedDocument.PENDING,
+                ResearchhubUnifiedDocument.APPROVED,
+                ResearchhubUnifiedDocument.DECLINED,
+            },
+        )

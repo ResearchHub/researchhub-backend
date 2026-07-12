@@ -53,7 +53,7 @@ class ProposalReviewCommentServiceTests(TestCase):
                         "rationale": "Question is important but not novel.",
                         "items": {
                             "question_importance": {
-                                "justification": "The core question matters for the field.",
+                                "justification": "The core question matters for the field.",  # noqa: E501
                             },
                         },
                     },
@@ -86,7 +86,8 @@ class ProposalReviewCommentServiceTests(TestCase):
             payload["content"][0]["content"][0]["text"],
             "1. Overall Impact. Score: High",
         )
-        # Per-category item bullets: overall impact, then 2. Core, 2a/2b/3 each with a bullet list
+        # Per-category item bullets: overall impact, then 2. Core, 2a/2b/3 each with a
+        # bullet list
         self.assertEqual(payload["content"][1]["type"], "bulletList")
         first_item_para = payload["content"][1]["content"][0]["content"][0]
         self.assertEqual(

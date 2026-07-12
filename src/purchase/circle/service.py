@@ -3,7 +3,6 @@ import time
 import uuid
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Optional
 
 from django.conf import settings
 from django.db import transaction
@@ -136,7 +135,8 @@ def process_circle_deposit(
 # smaller sweeps go to the hot wallet.
 SWEEP_MULTISIG_THRESHOLD_USD = 10_000
 
-# Map Deposit.network values to Circle blockchain identifiers (derived from _NETWORK_DEFS).
+# Map Deposit.network values to Circle blockchain identifiers
+# (derived from _NETWORK_DEFS).
 NETWORK_TO_BLOCKCHAIN_MAINNET = {
     d["network"]: d["mainnet_blockchain"] for d in _NETWORK_DEFS
 }
@@ -161,8 +161,6 @@ NETWORK_TO_RSC_ADDRESS = {
 class CircleZeroBalanceError(Exception):
     """Raised when a sweep is attempted on a wallet with zero balance."""
 
-    pass
-
 
 @dataclass
 class DepositAddressResult:
@@ -179,7 +177,7 @@ class CircleWalletService:
     existing Circle wallet address or provisions a new one via the Circle API.
     """
 
-    def __init__(self, client: Optional[CircleWalletClient] = None):
+    def __init__(self, client: CircleWalletClient | None = None):
         self.client = client or CircleWalletClient()
 
     def get_or_create_deposit_address(self, user: User) -> DepositAddressResult:
@@ -412,7 +410,8 @@ class CircleWalletService:
             sweep_reference: Unique reference (Circle transaction ID).
 
         Raises:
-            Exception: Any retryable error — sweep_status unchanged (caller should retry).
+            Exception: Any retryable error — sweep_status unchanged
+                (caller should retry).
                 Non-retryable errors (ValueError, CircleZeroBalanceError) are
                 handled internally and do not propagate.
         """

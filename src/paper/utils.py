@@ -264,7 +264,7 @@ def clean_dois(parsed_url, dois):
     netloc = parsed_url.netloc
     if "biorxiv" in netloc:
         version_regex = r"v[0-9]+$"
-        dois = list(map(lambda doi: re.sub(version_regex, "", doi), dois))
+        dois = [re.sub(version_regex, "", doi) for doi in dois]
     return dois
 
 

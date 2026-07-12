@@ -173,7 +173,7 @@ class User(AbstractUser):
         if (self.email is not None) and (self.email != ""):
             self.username = self.email
 
-        user_to_save = super(User, self).save(*args, **kwargs)
+        user_to_save = super().save(*args, **kwargs)
 
         # Keep Email Recipient up to date with email
         if (self.email is not None) and (self.email != ""):
@@ -271,7 +271,7 @@ class User(AbstractUser):
 
         Negative balance rows consume the most recent positive rows first.
         """
-        remaining_debits = Decimal("0")
+        remaining_debits = Decimal(0)
         lots = []
         balance_rows = (
             self.get_balance_qs()
@@ -294,7 +294,7 @@ class User(AbstractUser):
                 continue
 
             remaining_amount = amount - remaining_debits
-            remaining_debits = Decimal("0")
+            remaining_debits = Decimal(0)
 
             if remaining_amount <= 0:
                 continue
@@ -366,6 +366,15 @@ class User(AbstractUser):
             content_type=hub_content_type,
         ).exists()
 
+    def is_moderator_or_editor(self):
+        """Whether the user has elevated moderation reach.
+
+        Site moderators and hub editors share the same privileged visibility
+        across the app (e.g. seeing works still awaiting moderation), so the
+        check lives in one place instead of being re-spelled at every call site.
+        """
+        return self.moderator or self.is_hub_editor()
+
     def is_hub_editor_of(self, hubs):
         hub_content_type = ContentType.objects.get_for_model(Hub)
         return self.permissions.filter(
@@ -423,10 +432,16 @@ class User(AbstractUser):
     def peer_review_count(self):
         from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 
-        peer_review_count = RhCommentModel.objects.filter(
-            created_by=self,
-            comment_type="REVIEW",
-            is_removed=False,
-        ).aggregate(count=Count("id"))["count"]
+        peer_review_count = (
+            RhCommentModel.objects.filter(
+                created_by=self,
+                comment_type="REVIEW",
+                is_removed=False,
+                reviews__is_assessed=True,
+                reviews__is_removed=False,
+            )
+            .distinct()
+            .aggregate(count=Count("id"))["count"]
+        )
 
         return peer_review_count

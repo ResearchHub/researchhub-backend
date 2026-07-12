@@ -1,6 +1,7 @@
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import BasePermission
 
-from utils.permissions import AuthorizationBasedPermission, PermissionDenied
+from utils.permissions import AuthorizationBasedPermission
 
 
 class EditorCensorDiscussion(BasePermission):

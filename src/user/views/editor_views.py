@@ -16,15 +16,14 @@ from researchhub_access_group.constants import (
 )
 from user.related_models.user_model import User
 from user.serializers import EditorContributionSerializer
-from utils.http import GET
 
 
 def resolve_timeframe_for_contribution(start_date, end_date, query_key=None):
 
-    dateFrame = {}
+    date_frame = {}
 
     if start_date:
-        dateFrame[
+        date_frame[
             (
                 "contributions__created_date__gte"
                 if query_key is None
@@ -33,7 +32,7 @@ def resolve_timeframe_for_contribution(start_date, end_date, query_key=None):
         ] = start_date
 
     if end_date:
-        dateFrame[
+        date_frame[
             (
                 "contributions__created_date__lte"
                 if query_key is None
@@ -41,10 +40,10 @@ def resolve_timeframe_for_contribution(start_date, end_date, query_key=None):
             )
         ] = end_date
 
-    return dateFrame
+    return date_frame
 
 
-@api_view(http_method_names=[GET])
+@api_view(http_method_names=["GET"])
 @permission_classes([AllowAny])
 def get_hub_active_contributors(request):
     user_ids = request.GET.get("userIds", "").split(",")
@@ -69,9 +68,7 @@ def get_hub_active_contributors(request):
             access_type__in=[ASSISTANT_EDITOR, ASSOCIATE_EDITOR, SENIOR_EDITOR],
             content_type=hub_content_type,
         )
-        target_hub_ids = []
-        for permission in target_permissions:
-            target_hub_ids.append(permission.object_id)
+        target_hub_ids = [permission.object_id for permission in target_permissions]
 
         total_active_contributors = (
             Contribution.objects.filter(
@@ -118,7 +115,7 @@ def get_hub_active_contributors(request):
     )
 
 
-@api_view(http_method_names=[GET])
+@api_view(http_method_names=["GET"])
 @permission_classes([AllowAny])
 def get_editors_by_contributions(request):
     editor_qs = User.objects.filter(
@@ -150,11 +147,11 @@ def get_editors_by_contributions(request):
     )
 
     qs_key = "contributions__contribution_type"
-    comment_query = Q(**dict([(qs_key, Contribution.COMMENTER)])) & timeframe_query
+    comment_query = Q(**{qs_key: Contribution.COMMENTER}) & timeframe_query
 
-    submission_query = Q(**dict([(qs_key, Contribution.SUBMITTER)])) & timeframe_query
+    submission_query = Q(**{qs_key: Contribution.SUBMITTER}) & timeframe_query
 
-    support_query = Q(**dict([(qs_key, Contribution.SUPPORTER)])) & timeframe_query
+    support_query = Q(**{qs_key: Contribution.SUPPORTER}) & timeframe_query
 
     hub_id = request.GET.get("hub_id", None)
     if hub_id is not None:

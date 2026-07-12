@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 from urllib.parse import urlencode
 
 import requests
@@ -15,7 +15,7 @@ class EndaomentServiceError(Exception):
     """Raised when the Endaoment API cannot be reached or returns an error."""
 
 
-class EndaomentOrgNotFound(Exception):
+class EndaomentOrgNotFoundError(Exception):
     """Raised when no Endaoment org matches the provided EIN and org id."""
 
 
@@ -35,8 +35,10 @@ def base_chain_id() -> int:
     return settings.BASE_SEPOLIA_CHAIN_ID
 
 
-def base_wallet_from_org(org: Dict[str, Any]) -> str:
-    """Extract the org's Base deployment contract address from an Endaoment org payload."""
+def base_wallet_from_org(org: dict[str, Any]) -> str:
+    """
+    Extract the org's Base deployment contract address from an Endaoment org payload.
+    """
     chain_id = base_chain_id()
     for deployment in org.get("deployments") or []:
         if deployment.get("chainId") == chain_id:
@@ -44,7 +46,7 @@ def base_wallet_from_org(org: Dict[str, Any]) -> str:
     return ""
 
 
-def nonprofit_fields_from_org(org: Dict[str, Any]) -> Dict[str, str]:
+def nonprofit_fields_from_org(org: dict[str, Any]) -> dict[str, str]:
     """Extract canonical nonprofit fields from a verified Endaoment org payload."""
     name = (org.get("name") or "").strip() or UNKNOWN_NONPROFIT_NAME
     return {
@@ -58,19 +60,19 @@ def nonprofit_fields_from_org(org: Dict[str, Any]) -> Dict[str, str]:
 class EndaomentService:
     """Service for interacting with the Endaoment API."""
 
-    def __init__(self, base_url: Optional[str] = None):
+    def __init__(self, base_url: str | None = None):
         """Initialize the service with configurable base URL for testing."""
         self.base_url = base_url or default_org_search_url()
 
     def search_nonprofit_orgs(
         self,
-        search_term: Optional[str] = None,
-        ntee_major_codes: Optional[str] = None,
-        ntee_minor_codes: Optional[str] = None,
-        countries: Optional[str] = None,
+        search_term: str | None = None,
+        ntee_major_codes: str | None = None,
+        ntee_minor_codes: str | None = None,
+        countries: str | None = None,
         count: int = 15,
         offset: int = 0,
-    ) -> Union[List[Any], Dict[str, Any]]:
+    ) -> list[Any] | dict[str, Any]:
         """
         Search for nonprofit organizations using the Endaoment API.
 
@@ -132,10 +134,10 @@ class EndaomentService:
 
     def _find_matching_org(
         self,
-        results: List[Dict[str, Any]],
+        results: list[dict[str, Any]],
         normalized_ein: str,
         endaoment_org_id: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         for org in results:
             if (
                 normalize_ein(org.get("ein", "")) == normalized_ein
@@ -144,7 +146,7 @@ class EndaomentService:
                 return org
         return None
 
-    def verify_nonprofit_org(self, ein: str, endaoment_org_id: str) -> Dict[str, Any]:
+    def verify_nonprofit_org(self, ein: str, endaoment_org_id: str) -> dict[str, Any]:
         """
         Verify that a nonprofit exists on Endaoment with the given EIN and org id.
 
@@ -165,4 +167,4 @@ class EndaomentService:
         if match is not None:
             return match
 
-        raise EndaomentOrgNotFound()
+        raise EndaomentOrgNotFoundError

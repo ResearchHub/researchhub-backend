@@ -6,7 +6,6 @@ from django.dispatch import receiver
 
 from analytics.models import UserInteractions
 from personalize.tasks import sync_interaction_event_to_personalize_task
-from utils.sentry import log_error, log_info
 
 logger = logging.getLogger(__name__)
 
@@ -22,16 +21,17 @@ def sync_interaction_to_personalize(sender, instance, created, **kwargs):
         return
 
     if not instance.unified_document_id:
-        log_info(
-            f"UserInteraction {instance.id} missing unified_document_id, "
-            f"skipping Personalize sync"
+        logger.info(
+            "UserInteraction %s missing unified_document_id, skipping Personalize sync",
+            instance.id,
         )
         return
 
     if not instance.user_id and not instance.external_user_id:
-        log_info(
-            f"UserInteraction {instance.id} missing both user_id and external_user_id, "
-            f"skipping Personalize sync"
+        logger.info(
+            "UserInteraction %s missing both user_id and external_user_id, "
+            "skipping Personalize sync",
+            instance.id,
         )
         return
 
@@ -47,12 +47,9 @@ def sync_interaction_to_personalize(sender, instance, created, **kwargs):
             f"(event={instance.event}, user_id={instance.user_id}, "
             f"external_user_id={instance.external_user_id})"
         )
-    except Exception as e:
-        log_error(
-            e,
-            message=(
-                f"Exception scheduling Personalize sync task for UserInteraction "
-                f"{instance.id}"
-            ),
+    except Exception:
+        logger.exception(
+            "Failed to schedule Personalize sync task for UserInteraction %s",
+            instance.id,
         )
         # Don't re-raise - we don't want to break the UserInteraction creation process

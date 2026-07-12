@@ -1,13 +1,15 @@
+import logging
+
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
+from rest_framework import serializers
 
-import utils.sentry as sentry
 from purchase.models import Balance
-from reputation.exceptions import ReputationDistributorError
 from reputation.models import Distribution
 from user.models import User
-from utils.serializers import get_model_serializer
+
+logger = logging.getLogger(__name__)
 
 
 class Distributor:
@@ -51,8 +53,7 @@ class Distributor:
     @staticmethod
     def generate_proof(db_record, timestamp):
         if db_record:
-            serializer = get_model_serializer(type(db_record))
-            obj = serializer(db_record).data
+            obj = Distributor._serialize_proof_record(db_record)
             if obj.get("password"):
                 del obj["password"]
             proof = {
@@ -62,6 +63,15 @@ class Distributor:
             }
             return proof
         return None
+
+    @staticmethod
+    def _serialize_proof_record(db_record):
+        class ProofRecordSerializer(serializers.ModelSerializer):
+            class Meta:
+                model = type(db_record)
+                fields = "__all__"
+
+        return ProofRecordSerializer(db_record).data
 
     def reputation(self):
         if not self.giver or self.giver.reputation > 110:
@@ -77,13 +87,9 @@ class Distributor:
             record.set_distributed_pending()
             self._update_reputation_and_balance(record)
             record.set_distributed()
-        except Exception as e:
+        except Exception:
             record.set_distributed_failed()
-
-            error_message = f"Distribution {record.id} failed"
-            error = ReputationDistributorError(e, error_message)
-            sentry.log_error(error)
-            print(error_message, e)
+            logger.exception("Distribution %s failed", record.id)
         return record
 
     def _record_distribution(self):

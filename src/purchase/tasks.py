@@ -1,7 +1,6 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
@@ -16,7 +15,6 @@ from reputation.models import Deposit
 from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
-from utils.sentry import log_error, log_info
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +36,10 @@ def complete_eligible_fundraises():
     2. Are at least 7 days old (based on start_date)
     3. Have escrow funds available to payout
     """
-    log_info("Starting complete_eligible_fundraises task")
+    logger.info("Starting complete_eligible_fundraises task")
 
     # Calculate the cutoff date (7 days ago)
-    cutoff_date = datetime.now(pytz.UTC) - timedelta(days=7)
+    cutoff_date = datetime.now(UTC) - timedelta(days=7)
 
     # Get all open fundraises that are at least a week old
     eligible_fundraises = Fundraise.objects.filter(
@@ -64,13 +62,13 @@ def complete_eligible_fundraises():
             if amount_raised_usd >= goal_amount_usd:
                 fundraise_service.complete_fundraise(fundraise)
                 completed_count += 1
-                log_info(f"Successfully completed fundraise {fundraise.id}")
+                logger.info("Successfully completed fundraise %s", fundraise.id)
 
-        except Exception as e:
-            log_error(e, message=f"Error processing fundraise {fundraise.id}")
+        except Exception:
+            logger.exception("Error processing fundraise %s", fundraise.id)
             error_count += 1
 
-    log_info(f"Completed {completed_count} fundraises, {error_count} errors")
+    logger.info("Completed %d fundraises, %d errors", completed_count, error_count)
     return {
         "completed_count": completed_count,
         "error_count": error_count,
@@ -80,7 +78,7 @@ def complete_eligible_fundraises():
 
 @app.task(queue=QUEUE_NOTIFICATION)
 def send_monthly_preregistration_update_reminders():
-    now = datetime.now(pytz.UTC)
+    now = datetime.now(UTC)
 
     # Get distinct (author, unified_document) pairs with completed fundraises.
     # We send at most one reminder per author per document per month.
@@ -126,13 +124,14 @@ def send_monthly_preregistration_update_reminders():
             )
             notification.send_notification()
             sent_count += 1
-        except Exception as e:
-            log_error(
-                e,
-                message=f"Error sending preregistration update reminder for fundraise {fundraise.id}",
+        except Exception:
+            logger.exception(
+                "Error sending preregistration update reminder for fundraise %s",
+                fundraise.id,
             )
 
-    log_info(f"Sent {sent_count} preregistration update reminders")
+    logger.info("Sent %d preregistration update reminders", sent_count)
+
     return {"sent_count": sent_count}
 
 

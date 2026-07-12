@@ -178,9 +178,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
 
         self.assertEqual(response.data["results"][0]["content_type"], "RESEARCHHUBPOST")
 
-        post_ids = []
-        for item in response.data["results"]:
-            post_ids.append(item["content_object"]["id"])
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
 
         self.assertIn(self.post.id, post_ids)
         self.assertIn(self.other_post.id, post_ids)
@@ -188,6 +186,30 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         # Verify non-preregistration and removed posts are not included
         self.assertNotIn(self.non_preregistration_post.id, post_ids)
         self.assertNotIn(self.removed_post.id, post_ids)
+
+    def test_pending_preregistration_excluded_from_funding_feed(self):
+        """Preregistrations awaiting moderation must not appear in the feed."""
+        pending_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+            status=ResearchhubUnifiedDocument.PENDING,
+        )
+        pending_post = ResearchhubPost.objects.create(
+            title="Pending Preregistration",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            renderable_text="This preregistration is awaiting moderation",
+            slug="pending-preregistration",
+            unified_document=pending_document,
+            created_date=timezone.now(),
+        )
+
+        url = reverse("funding_feed-list")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(pending_post.id, post_ids)
+        self.assertIn(self.post.id, post_ids)
 
     @patch("feed.views.funding_feed_view.cache")
     def test_funding_feed_cache(self, mock_cache):
@@ -330,7 +352,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
             self.assertNotIn("user_vote", item)
 
     def test_get_cache_key(self):
-        """Test cache key generation logic"""
+        """Base cache key from get_cache_key(); list() appends viewer segment suffix."""
+        from feed.cache_segment import get_feed_cache_segment
         from feed.views.funding_feed_view import FundingFeedViewSet
 
         # Create viewset instance and configure it
@@ -356,6 +379,14 @@ class FundingFeedViewSetTests(AWSMockTestCase):
 
         cache_key = viewset.get_cache_key(request, "funding")
         self.assertEqual(cache_key, "funding_feed:popular:all:all:none:1-20")
+
+        suffix, should_cache = get_feed_cache_segment(request)
+        self.assertEqual(suffix, ":public")
+        self.assertTrue(should_cache)
+        self.assertEqual(
+            cache_key + suffix,
+            "funding_feed:popular:all:all:none:1-20:public",
+        )
 
         # Authenticated user
         request = request_factory.get("/api/funding_feed/")
@@ -422,7 +453,9 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         )
 
     def test_open_fundraise_sorting(self):
-        """Test that OPEN fundraises are sorted by created_date descending (newest first)"""
+        """
+        Test that OPEN fundraises are sorted by created_date descending (newest first)
+        """
         # Arrange
         today = timezone.now()
 
@@ -494,7 +527,9 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertLess(post_ids.index(newest_post.id), post_ids.index(oldest_post.id))
 
     def test_closed_fundraise_sorting(self):
-        """Test that CLOSED fundraises are sorted by created_date descending (newest first)"""
+        """
+        Test that CLOSED fundraises are sorted by created_date descending (newest first)
+        """
         # Arrange
         today = timezone.now()
 
@@ -566,7 +601,10 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertLess(post_ids.index(newest_post.id), post_ids.index(oldest_post.id))
 
     def test_all_fundraise_conditional_sorting(self):
-        """Test open fundraises appear before closed, both sorted by created_date descending"""
+        """
+        Test open fundraises appear before closed, both sorted by created_date
+        descending
+        """
         # Arrange
         today = timezone.now()
 
@@ -739,6 +777,21 @@ class FundingFeedViewSetTests(AWSMockTestCase):
             grant=grant, preregistration_post=self.post, applicant=self.user
         )
 
+        pending_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+            status=ResearchhubUnifiedDocument.PENDING,
+        )
+        pending_post = ResearchhubPost.objects.create(
+            title="Pending Grant Application",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=pending_doc,
+            created_date=timezone.now(),
+        )
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=pending_post, applicant=self.user
+        )
+
         # Create another preregistration post without grant application
         other_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
@@ -758,7 +811,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 1)
 
-        # Should only return the post that applied to this grant
+        # Should only return the approved post that applied to this grant
         returned_post_id = response.data["results"][0]["content_object"]["id"]
         self.assertEqual(returned_post_id, self.post.id)
 
@@ -880,6 +933,101 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], third_post.id
         )
+
+    def _create_private_preregistration(self, created_by):
+        """Create a private (non-public) preregistration post for `created_by`."""
+        private_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION, is_public=False
+        )
+        return ResearchhubPost.objects.create(
+            title="Private Preregistration",
+            created_by=created_by,
+            document_type=PREREGISTRATION,
+            renderable_text="This is a private preregistration post",
+            slug="private-preregistration",
+            unified_document=private_doc,
+            created_date=timezone.now(),
+        )
+
+    def test_created_by_includes_private_for_author(self):
+        """The author sees their own private preregistration on their feed."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+
+        # Act
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
+        response = self.client.get(url)  # authenticated as self.user in setUp
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertIn(private_post.id, post_ids)
+
+    def test_created_by_excludes_private_for_anonymous(self):
+        """Anonymous viewers never see a private preregistration via created_by."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+        anonymous_client = APIClient()
+
+        # Act
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
+        response = anonymous_client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
+        self.assertIn(self.post.id, post_ids)  # public one still shows
+
+    def test_created_by_excludes_private_for_other_user(self):
+        """An unrelated authenticated user does not see another's private prereg."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+        other_client = APIClient()
+        other_client.force_authenticate(user=self.other_user)
+
+        # Act
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
+        response = other_client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
+
+    def test_created_by_includes_private_for_moderator(self):
+        """Moderators see private preregistrations so they can moderate them."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+        moderator = User.objects.create_user(
+            username="moderator", password=uuid.uuid4().hex, moderator=True
+        )
+        moderator_client = APIClient()
+        moderator_client.force_authenticate(user=moderator)
+
+        # Act
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
+        response = moderator_client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertIn(private_post.id, post_ids)
+
+    def test_public_discovery_feed_excludes_private(self):
+        """
+        The cacheable discovery feed (no personalization) never leaks private work.
+        """
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+
+        # Act
+        response = self.client.get(reverse("funding_feed-list"))
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
 
     def test_created_by_filter_disables_caching(self):
         """Test that created_by filter disables caching"""
@@ -1044,7 +1192,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Should include all items: self.post (OPEN), self.other_post (COMPLETED), expired_post (OPEN+Expired)
+        # Should include all items: self.post (OPEN), self.other_post (COMPLETED),
+        # expired_post (OPEN+Expired)
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
         self.assertIn(self.post.id, post_ids)
         self.assertIn(self.other_post.id, post_ids)
@@ -1055,7 +1204,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Should exclude expired_post but include self.post (OPEN+Active) and self.other_post (COMPLETED)
+        # Should exclude expired_post but include self.post (OPEN+Active) and
+        # self.other_post (COMPLETED)
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
         self.assertIn(self.post.id, post_ids)
         self.assertIn(self.other_post.id, post_ids)
@@ -1090,7 +1240,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
             end_date=timezone.now() - timezone.timedelta(days=5),
         )
 
-        # Create open-expired fundraise (would be excluded by include_ended=false without override)
+        # Create open-expired fundraise (would be excluded by include_ended=false
+        # without override)
         open_expired_escrow = Escrow.objects.create(
             amount_holding=50,
             hold_type=Escrow.FUNDRAISE,
@@ -1414,7 +1565,9 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertLess(high_amount_index, low_amount_index)
 
     def test_ordering_validation(self):
-        """Test that FundOrderingFilter handles different ordering scenarios correctly."""
+        """
+        Test that FundOrderingFilter handles different ordering scenarios correctly.
+        """
         from unittest.mock import Mock, patch
 
         from feed.filters import FundOrderingFilter
@@ -1607,7 +1760,9 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertLess(result_ids.index(open_item), result_ids.index(closed_item))
 
     def test_best_sorting_ignores_historical_fundraises(self):
-        """Test best sorting: only counts open fundraise amount, not historical closed"""
+        """
+        Test best sorting: only counts open fundraise amount, not historical closed
+        """
         # Post with $10k closed + $50 open
         doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
         post_historical = ResearchhubPost.objects.create(
@@ -1659,7 +1814,9 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         )
 
     def test_upvotes_sorting_fallback_to_score_when_no_document_filter(self):
-        """Test upvotes sorting falls back to post.score when document_filter is NULL."""
+        """
+        Test upvotes sorting falls back to post.score when document_filter is NULL.
+        """
         # Arrange
         doc_high = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
@@ -1836,7 +1993,9 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         )
 
     def test_funded_by_filter_returns_empty_for_user_with_no_grants(self):
-        """Test funded_by filter returns empty when user has no grants with applications."""
+        """
+        Test funded_by filter returns empty when user has no grants with applications.
+        """
         # Arrange
         user_without_grants = User.objects.create_user(
             username="no_grants", password=uuid.uuid4().hex

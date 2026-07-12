@@ -167,7 +167,8 @@ class ProposalReviewDetailView(APIView):
 
 class ProposalReviewByGrantView(APIView):
     """
-    GET /api/ai_peer_review/proposal-review/grant/<grant_id>/ - Per-proposal rows, editorial feedback, executive summary snippet.
+    GET /api/ai_peer_review/proposal-review/grant/<grant_id>/
+    Per-proposal rows, editorial feedback, executive summary snippet.
     """
 
     permission_classes = _EDITOR_PERMS
@@ -290,7 +291,8 @@ class RFPSummaryView(APIView):
 
 class GrantExecutiveSummaryView(APIView):
     """
-    POST /api/ai_peer_review/rfp/<grant_id>/executive-summary/ - Generate executive comparison text.
+    POST /api/ai_peer_review/rfp/<grant_id>/executive-summary/
+    Generate executive comparison text.
     """
 
     permission_classes = _EDITOR_PERMS

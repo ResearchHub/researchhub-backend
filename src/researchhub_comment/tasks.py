@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @app.task()
 def celery_create_comment_content_src(comment_id, comment_content):
-    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")
+    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")  # noqa: N806
 
     rh_comment = RhCommentModel.objects.get(id=comment_id)
     thread = rh_comment.thread
@@ -27,8 +27,8 @@ def celery_create_comment_content_src(comment_id, comment_content):
 
 @app.task(queue=QUEUE_NOTIFICATION)
 def celery_create_mention_notification(comment_id, recipients):
-    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")
-    Notification = apps.get_model("notification.Notification")
+    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")  # noqa: N806
+    Notification = apps.get_model("notification.Notification")  # noqa: N806
 
     comment = RhCommentModel.objects.get(id=comment_id)
     thread = comment.thread
@@ -58,8 +58,8 @@ def celery_create_mention_notification(comment_id, recipients):
             outer_subject = "You were Mentioned in a Comment"
             context = {**base_email_context}
             context["action"] = {
-                "message": f"{comment_created_by.first_name} {comment_created_by.last_name} has you mention in their comment",
-                "frontend_view_link": f"{unified_document.frontend_view_link()}#comments",
+                "message": f"{comment_created_by.first_name} {comment_created_by.last_name} has you mention in their comment",  # noqa: E501
+                "frontend_view_link": f"{unified_document.frontend_view_link()}#comments",  # noqa: E501
             }
             context["subject"] = outer_subject
             send_email(
@@ -77,8 +77,8 @@ def send_author_update_email_notifications(comment_id, follower_user_ids):
     Send email notifications to followers about preregistration author updates.
     This runs asynchronously to avoid blocking the main transaction.
     """
-    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")
-    User = apps.get_model("user.User")
+    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")  # noqa: N806
+    User = apps.get_model("user.User")  # noqa: N806
 
     try:
         comment = RhCommentModel.objects.get(id=comment_id)
@@ -87,7 +87,7 @@ def send_author_update_email_notifications(comment_id, follower_user_ids):
 
         context = {**base_email_context}
         context["action"] = {
-            "message": f"{author.first_name} {author.last_name} posted an update to a preregistration you're following",
+            "message": f"{author.first_name} {author.last_name} posted an update to a preregistration you're following",  # noqa: E501
             "frontend_view_link": comment.unified_document.frontend_view_link(),
         }
         context["document_title"] = document.title

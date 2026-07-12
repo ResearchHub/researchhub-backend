@@ -8,7 +8,7 @@ from django.test import TestCase
 
 from institution.models import Institution
 from paper.ingestion.constants import IngestionSource
-from paper.ingestion.services import PaperIngestionService
+from paper.ingestion.services.ingestion_service import PaperIngestionService
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from user.related_models.author_model import Author
@@ -79,7 +79,7 @@ class TestPaperIngestionService(TestCase):
         self.assertEqual(failures[0]["error"], "Validation failed")
         self.assertEqual(failures[0]["id"], "test123")
 
-    @patch("paper.ingestion.services.PaperIngestionService._save_paper")
+    @patch.object(PaperIngestionService, "_save_paper")
     def test_ingest_papers_with_save(self, mock_save_paper):
         """Test ingestion with database save."""
         mock_paper = Mock(spec=Paper)
@@ -131,9 +131,7 @@ class TestPaperIngestionService(TestCase):
         self.assertEqual(failures[0]["error"], "Mapping error")
         self.assertEqual(failures[0]["id"], "test123")
 
-    @patch(
-        "paper.ingestion.services.PaperIngestionService._trigger_pdf_download_if_needed"
-    )
+    @patch.object(PaperIngestionService, "_trigger_pdf_download_if_needed")
     @patch("paper.models.Paper.objects.filter")
     def test_save_paper_new(self, mock_filter, mock_trigger_pdf):
         """Test saving a new paper."""
@@ -152,10 +150,8 @@ class TestPaperIngestionService(TestCase):
         # PDF download should be triggered for new papers
         mock_trigger_pdf.assert_called_once_with(mock_paper, pdf_url_changed=True)
 
-    @patch(
-        "paper.ingestion.services.PaperIngestionService._trigger_pdf_download_if_needed"
-    )
-    @patch("paper.ingestion.services.PaperIngestionService._update_paper")
+    @patch.object(PaperIngestionService, "_trigger_pdf_download_if_needed")
+    @patch.object(PaperIngestionService, "_update_paper")
     @patch("paper.models.Paper.objects.filter")
     def test_save_paper_existing_no_update(
         self, mock_filter, mock_update, mock_trigger_pdf
@@ -182,10 +178,8 @@ class TestPaperIngestionService(TestCase):
         # PDF download triggered with pdf_url_changed=False
         mock_trigger_pdf.assert_called_once_with(existing_paper, pdf_url_changed=False)
 
-    @patch(
-        "paper.ingestion.services.PaperIngestionService._trigger_pdf_download_if_needed"
-    )
-    @patch("paper.ingestion.services.PaperIngestionService._update_paper")
+    @patch.object(PaperIngestionService, "_trigger_pdf_download_if_needed")
+    @patch.object(PaperIngestionService, "_update_paper")
     @patch("paper.models.Paper.objects.filter")
     def test_save_paper_existing_with_update(
         self, mock_filter, mock_update, mock_trigger_pdf
@@ -209,10 +203,8 @@ class TestPaperIngestionService(TestCase):
         # PDF download triggered with pdf_url_changed=True
         mock_trigger_pdf.assert_called_once_with(updated_paper, pdf_url_changed=True)
 
-    @patch(
-        "paper.ingestion.services.PaperIngestionService._trigger_pdf_download_if_needed"
-    )
-    @patch("paper.ingestion.services.PaperIngestionService._update_paper")
+    @patch.object(PaperIngestionService, "_trigger_pdf_download_if_needed")
+    @patch.object(PaperIngestionService, "_update_paper")
     @patch("paper.models.Paper.objects.filter")
     def test_save_paper_existing_by_url_when_doi_not_found(
         self, mock_filter, mock_update, mock_trigger_pdf
@@ -333,7 +325,7 @@ class TestPaperIngestionService(TestCase):
         existing_paper.save.assert_called_once()
         self.assertEqual(result, existing_paper)
 
-    @patch("paper.ingestion.services.PaperIngestionService.ingest_papers")
+    @patch.object(PaperIngestionService, "ingest_papers")
     def test_ingest_single_paper_success(self, mock_ingest_papers):
         """Test ingesting a single paper successfully."""
         mock_paper = Mock(spec=Paper)
@@ -347,7 +339,7 @@ class TestPaperIngestionService(TestCase):
             [raw_record], IngestionSource.ARXIV, validate=True
         )
 
-    @patch("paper.ingestion.services.PaperIngestionService.ingest_papers")
+    @patch.object(PaperIngestionService, "ingest_papers")
     def test_ingest_single_paper_failure(self, mock_ingest_papers):
         """Test handling failure when ingesting a single paper."""
         mock_ingest_papers.return_value = (

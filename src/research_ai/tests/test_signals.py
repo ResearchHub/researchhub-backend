@@ -1,5 +1,5 @@
 from django.test import TestCase
-from django_ses.signals import bounce_received, open_received
+from django_ses.signals import bounce_received, complaint_received, open_received
 
 from research_ai.models import GeneratedEmail
 from user.tests.helpers import create_random_authenticated_user
@@ -34,6 +34,19 @@ class SesEventSignalTests(TestCase):
             bounce_obj={
                 "timestamp": timestamp,
                 "bouncedRecipients": [{"emailAddress": "expert@researchhub.com"}],
+            },
+            raw_message=b"",
+        )
+
+    def _send_complaint(
+        self, message_id="messageId1", timestamp="2026-05-01T12:00:00.000Z"
+    ):
+        complaint_received.send(
+            sender=self.__class__,
+            mail_obj={"messageId": message_id},
+            complaint_obj={
+                "timestamp": timestamp,
+                "complainedRecipients": [{"emailAddress": "expert@researchhub.com"}],
             },
             raw_message=b"",
         )
@@ -82,3 +95,34 @@ class SesEventSignalTests(TestCase):
         self.email.refresh_from_db()
         self.assertEqual(self.email.status, GeneratedEmail.Status.CLOSED)
         self.assertIsNone(self.email.bounced_at)
+
+    def test_complaint_sets_status_and_timestamp(self):
+        # Act
+        self._send_complaint()
+
+        # Assert
+        self.email.refresh_from_db()
+        self.assertEqual(self.email.status, GeneratedEmail.Status.COMPLAINED)
+        self.assertIsNotNone(self.email.complained_at)
+
+    def test_complaint_does_not_reopen_closed_email(self):
+        # Arrange
+        self.email.status = GeneratedEmail.Status.CLOSED
+        self.email.save(update_fields=["status"])
+
+        # Act
+        self._send_complaint()
+
+        # Assert
+        self.email.refresh_from_db()
+        self.assertEqual(self.email.status, GeneratedEmail.Status.CLOSED)
+        self.assertIsNone(self.email.complained_at)
+
+    def test_complaint_with_unknown_message_id_is_ignored(self):
+        # Act
+        self._send_complaint(message_id="unknownMessageId")
+
+        # Assert
+        self.email.refresh_from_db()
+        self.assertEqual(self.email.status, GeneratedEmail.Status.SENT)
+        self.assertIsNone(self.email.complained_at)

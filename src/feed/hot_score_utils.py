@@ -8,8 +8,8 @@ All functions gracefully handle missing keys and malformed data.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional, Tuple
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def has_comments(metrics: dict) -> bool:
     return replies > 0 or review_count > 0
 
 
-def parse_iso_datetime(date_string: str) -> Optional[datetime]:
+def parse_iso_datetime(date_string: str) -> datetime | None:
     if not date_string or not isinstance(date_string, str):
         return None
 
@@ -49,7 +49,7 @@ def parse_iso_datetime(date_string: str) -> Optional[datetime]:
 
         # Ensure timezone aware
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
 
         return dt
     except (ValueError, TypeError, AttributeError) as e:
@@ -278,7 +278,7 @@ def calculate_adjusted_score(base_votes: int, external_metrics: dict) -> int:
 
 def get_bounties_from_content(
     content: dict, feed_entry, urgency_hours: int = 48
-) -> Tuple[float, bool]:
+) -> tuple[float, bool]:
     """
     Extract total bounty amount and urgency status from content JSON.
 
@@ -309,7 +309,7 @@ def get_bounties_from_content(
     if not isinstance(bounties, list):
         return 0.0, False
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     urgency_threshold = timedelta(hours=urgency_hours)
 
     total_amount = 0.0
@@ -510,7 +510,7 @@ def get_age_hours_from_content(
             }
         }
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     doc_type = safe_get_nested(content, "type", default="")
 
     # Handle GRANT with approaching deadline

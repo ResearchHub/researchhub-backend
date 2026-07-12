@@ -289,28 +289,28 @@ class LeaderboardApiTests(APITestCase):
             leaderboard_type=Leaderboard.EARNER,
             period=Leaderboard.ALL_TIME,
             rank=1,
-            total_amount=Decimal("250"),
+            total_amount=Decimal(250),
         )
         Leaderboard.objects.create(
             user=self.funder1,
             leaderboard_type=Leaderboard.FUNDER,
             period=Leaderboard.ALL_TIME,
             rank=1,
-            total_amount=Decimal("650"),
+            total_amount=Decimal(650),
         )
         Leaderboard.objects.create(
             user=self.reviewer1,
             leaderboard_type=Leaderboard.EARNER,
             period=Leaderboard.SEVEN_DAYS,
             rank=1,
-            total_amount=Decimal("250"),
+            total_amount=Decimal(250),
         )
         Leaderboard.objects.create(
             user=self.funder1,
             leaderboard_type=Leaderboard.FUNDER,
             period=Leaderboard.THIRTY_DAYS,
             rank=1,
-            total_amount=Decimal("650"),
+            total_amount=Decimal(650),
         )
 
     def test_get_reviewers_leaderboard(self):
@@ -408,12 +408,14 @@ class LeaderboardApiTests(APITestCase):
         self.assertEqual(response.data["error"], "Date range exceeds 60 days")
 
     def test_date_range_funders_excludes_bank(self):
-        """Excluded users (e.g. bank) do not appear in funders leaderboard by date range."""
+        """
+        Excluded users (e.g. bank) do not appear in funders leaderboard by date range.
+        """
         ct_user = ContentType.objects.get_for_model(type(self.reviewer1))
         FundingActivity.objects.create(
             funder=self.bank,
             source_type=FundingActivity.FEE,
-            total_amount=Decimal("999"),
+            total_amount=Decimal(999),
             unified_document=self.paper.unified_document,
             activity_date=timezone.now(),
             source_content_type=ct_user,
@@ -429,19 +431,21 @@ class LeaderboardApiTests(APITestCase):
         self.assertIn(self.funder1.id, user_ids)
 
     def test_date_range_reviewers_excludes_bank(self):
-        """Excluded users (e.g. bank) do not appear in reviewers leaderboard by date range."""
+        """
+        Excluded users (e.g. bank) do not appear in reviewers leaderboard by date range.
+        """
         ct_user = ContentType.objects.get_for_model(type(self.reviewer1))
         fa = FundingActivity.objects.create(
             funder=self.funder1,
             source_type=FundingActivity.TIP_REVIEW,
-            total_amount=Decimal("500"),
+            total_amount=Decimal(500),
             unified_document=self.paper.unified_document,
             activity_date=timezone.now(),
             source_content_type=ct_user,
             source_object_id=8888,
         )
         FundingActivityRecipient.objects.create(
-            activity=fa, recipient_user=self.bank, amount=Decimal("500")
+            activity=fa, recipient_user=self.bank, amount=Decimal(500)
         )
         start_date = (timezone.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         end_date = (timezone.now() + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -567,7 +571,9 @@ class LeaderboardApiTests(APITestCase):
             self.assertEqual(funder1_entry["rank"], 1)
 
     def test_leaderboard_me_reviewer_precomputed_period(self):
-        """Test /leaderboard/me/ with period=7_days returns reviewer data from Leaderboard."""
+        """
+        Test /leaderboard/me/ with period=7_days returns reviewer data from Leaderboard.
+        """
         url = "/api/leaderboard/me/"
         self.client.force_authenticate(user=self.reviewer1)
         response = self.client.get(f"{url}?period=7_days")
@@ -582,7 +588,9 @@ class LeaderboardApiTests(APITestCase):
         self.assertEqual(float(reviewer["earned_rsc"]), 250.0)
 
     def test_leaderboard_me_funder_precomputed_period(self):
-        """Test /leaderboard/me/ with period=30_days returns funder data from Leaderboard."""
+        """
+        Test /leaderboard/me/ with period=30_days returns funder data from Leaderboard.
+        """
         url = "/api/leaderboard/me/"
         self.client.force_authenticate(user=self.funder1)
         response = self.client.get(f"{url}?period=30_days")
@@ -597,7 +605,9 @@ class LeaderboardApiTests(APITestCase):
         self.assertEqual(float(funder["total_funding"]), 650.0)
 
     def test_leaderboard_me_default_all_time(self):
-        """Test /leaderboard/me/ with no params defaults to all_time (overview-style)."""
+        """
+        Test /leaderboard/me/ with no params defaults to all_time (overview-style).
+        """
         url = "/api/leaderboard/me/"
         self.client.force_authenticate(user=self.reviewer1)
         response = self.client.get(url)

@@ -4,13 +4,10 @@ from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
 
-import fitz
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator
 
-from paper.tasks.tasks import create_download_url
-from paper.utils import download_pdf_from_url
 from research_ai.constants import (
     EXPERT_FINDER_DEFAULT_STATE,
     MAX_PDF_SIZE_BYTES,
@@ -26,6 +23,12 @@ from research_ai.services.expert_display import ExpertDisplay
 from research_ai.services.expert_finder_json import ExpertFinderJson
 from research_ai.services.expert_persist import ExpertPersist
 from research_ai.services.openai_expert_finder_service import OpenAIExpertFinderService
+from research_ai.services.pdf_text import (
+    extract_text_from_pdf_bytes as _extract_text_from_pdf_bytes,
+)
+from research_ai.services.pdf_text import (
+    get_paper_pdf_bytes as _get_paper_pdf_bytes,
+)
 from research_ai.services.progress_service import ProgressService, TaskType
 from research_ai.services.report_generator_service import (
     expert_to_report_row,
@@ -138,56 +141,6 @@ def get_document_content(unified_doc, input_type: str):
     raise ValueError("Post has no content available")
 
 
-def _get_paper_pdf_bytes(paper) -> bytes | None:
-    """
-    Get PDF content for a paper. Prefer paper.file (S3); fall back to pdf_url .
-    """
-
-    if getattr(paper, "file", None) and getattr(paper.file, "url", None):
-        try:
-            pdf_file = download_pdf_from_url(paper.file.url)
-            return pdf_file.read()
-        except Exception as e:
-            logger.warning(
-                "Failed to get PDF from paper.file for paper %s: %s. Trying pdf_url.",
-                getattr(paper, "id", "?"),
-                e,
-            )
-
-    pdf_url = getattr(paper, "pdf_url", None) or getattr(paper, "url", None)
-    if not pdf_url:
-        return None
-    try:
-        url = create_download_url(pdf_url, getattr(paper, "external_source", "") or "")
-        pdf_file = download_pdf_from_url(url)
-        return pdf_file.read()
-    except Exception as e:
-        logger.warning(
-            "Failed to download PDF from pdf_url for paper %s: %s",
-            getattr(paper, "id", "?"),
-            e,
-            exc_info=True,
-        )
-        return None
-
-
-def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
-    """
-    Extract text from PDF bytes using PyMuPDF
-    """
-    try:
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        parts = []
-        for page in doc:
-            parts.append(page.get_text())
-        doc.close()
-        text = "\n".join(parts)
-        return text[:200000] if len(text) > 200000 else text
-    except Exception as e:
-        logger.warning("Failed to extract text from PDF: %s", e)
-        raise ValueError(f"PDF text extraction failed: {e}") from e
-
-
 def _prompt_expert_count_for_round(remaining: int) -> int:
     need = max(1, remaining)
     with_headroom = (need * (100 + PROMPT_EXPERT_HEADROOM_PCT) + 99) // 100
@@ -207,16 +160,20 @@ def load_experts_for_expert_search(expert_search_id: int) -> list[Expert]:
     return [se.expert for se in qs]
 
 
-def _names_and_emails_from_excluded_searches(
-    excluded_search_ids: list[int] | None,
+def _names_and_emails_from_prior_document_searches(
+    unified_document_id: int | None,
+    *,
+    exclude_search_id: int | None = None,
 ) -> tuple[list[str], set[str]]:
-    if not excluded_search_ids:
+    if not unified_document_id:
         return [], set()
     out_names: list[str] = []
     out_emails: set[str] = set()
     qs = SearchExpert.objects.filter(
-        expert_search_id__in=excluded_search_ids
+        expert_search__unified_document_id=unified_document_id,
     ).select_related("expert")
+    if exclude_search_id is not None:
+        qs = qs.exclude(expert_search_id=exclude_search_id)
     for se in qs:
         e = se.expert
         label = ExpertDisplay.personal_name_for(e)
@@ -329,12 +286,19 @@ class ExpertFinderService:
         query: str,
         config: dict[str, Any],
         *,
-        excluded_search_ids: list[int] | None = None,
         is_pdf: bool = False,
         additional_context: str | None = None,
         progress_callback: Callable[[str, int, str], None] | None = None,
     ) -> dict[str, Any]:
         expert_search_id = int(search_id)
+        try:
+            unified_document_id = (
+                ExpertSearch.objects.only("unified_document_id")
+                .get(id=expert_search_id)
+                .unified_document_id
+            )
+        except ExpertSearch.DoesNotExist:
+            unified_document_id = None
         progress_service = self.progress_service
         openai = self.openai_expert
 
@@ -366,24 +330,21 @@ class ExpertFinderService:
             *,
             current_step: str,
             store_full_response_error: str | None = None,
-            sentry_exception: BaseException | None = None,
-            sentry_extra: dict[str, Any] | None = None,
+            exc: BaseException | None = None,
+            extra: dict[str, Any] | None = None,
         ) -> dict[str, Any]:
             payload: dict[str, Any] = {
                 "search_id": search_id,
                 "current_step": current_step,
             }
-            if sentry_extra:
-                payload.update(sentry_extra)
+            if extra:
+                payload.update(extra)
             logger.error(
                 "Expert finder failed: %s payload=%s",
                 current_step,
                 payload,
-                exc_info=(
-                    sentry_exception
-                    if sentry_exception is not None
-                    else RuntimeError(current_step)
-                ),
+                exc_info=(exc if exc is not None else RuntimeError(current_step)),
+                extra=extra,
             )
             clear_expert_search_links(expert_search_id)
             err = (store_full_response_error or msg)[:MAX_ERROR_MESSAGE_LENGTH]
@@ -404,7 +365,10 @@ class ExpertFinderService:
         data_persisted = False
         try:
             search_id_names, search_id_emails = (
-                _names_and_emails_from_excluded_searches(excluded_search_ids)
+                _names_and_emails_from_prior_document_searches(
+                    unified_document_id,
+                    exclude_search_id=expert_search_id,
+                )
             )
             expert_count = int(config.get("expert_count", 10) or 10)
             target_expert_count = max(0, expert_count)
@@ -495,8 +459,8 @@ class ExpertFinderService:
                             response_text[:MAX_ERROR_MESSAGE_LENGTH]
                         )
                         or str(e)[:MAX_ERROR_MESSAGE_LENGTH],
-                        sentry_exception=e,
-                        sentry_extra={
+                        exc=e,
+                        extra={
                             "round_num": round_num,
                             "prompt_expert_count": prompt_expert_count,
                             "target_expert_count": target_expert_count,
@@ -510,8 +474,8 @@ class ExpertFinderService:
                     return fail_return(
                         f"Invalid expert JSON structure: {e}"[:2000],
                         current_step="Expert output validation failed",
-                        sentry_exception=e,
-                        sentry_extra={
+                        exc=e,
+                        extra={
                             "round_num": round_num,
                             "prompt_expert_count": prompt_expert_count,
                         },
@@ -547,8 +511,8 @@ class ExpertFinderService:
             if len(experts_rows) == 0:
                 if all_filtered_by_exclusion:
                     umsg = (
-                        "Every recommendation matched an email from a prior search "
-                        "you excluded. Try broadening criteria or adjust excluded searches."
+                        "Every recommendation matched an email from a prior expert "
+                        "search on this document. Try broadening criteria."
                     )
                     return fail_return(umsg, current_step="All experts excluded")
 
@@ -569,7 +533,7 @@ class ExpertFinderService:
                     store_full_response_error=(
                         llm_err[:MAX_ERROR_MESSAGE_LENGTH] or umsg
                     ),
-                    sentry_extra={
+                    extra={
                         "target_expert_count": target_expert_count,
                         "llm_response_length": len(llm_err),
                     },
@@ -587,7 +551,7 @@ class ExpertFinderService:
                 return fail_return(
                     f"Saving experts failed: {e}"[:2000],
                     current_step="Persist failed",
-                    sentry_exception=e,
+                    exc=e,
                 )
             data_persisted = True
 
@@ -636,7 +600,6 @@ def run_expert_finder_search(
     query: str,
     config: dict[str, Any],
     *,
-    excluded_search_ids: list[int] | None = None,
     is_pdf: bool = False,
     additional_context: str | None = None,
     progress_callback: Callable[[str, int, str], None] | None = None,
@@ -645,7 +608,6 @@ def run_expert_finder_search(
         search_id,
         query,
         config,
-        excluded_search_ids=excluded_search_ids,
         is_pdf=is_pdf,
         additional_context=additional_context,
         progress_callback=progress_callback,

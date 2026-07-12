@@ -2,7 +2,7 @@
 Tests for the hot score calculation module.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
@@ -25,7 +25,7 @@ class TestHotScore(AWSMockTestCase):
     def setUp(self):
         super().setUp()
         # Create a time reference for consistent testing
-        self.now = datetime.now(timezone.utc)
+        self.now = datetime.now(UTC)
         self.one_day_ago = self.now - timedelta(days=1)
         self.one_week_ago = self.now - timedelta(days=7)
 
@@ -179,9 +179,9 @@ class TestHotScore(AWSMockTestCase):
     def test_bounty_calculation(self):
         """Test hot score calculation with various bounty amounts."""
         # Create bounties for the paper
-        self.create_bounty(Decimal("5"), self.paper)
-        self.create_bounty(Decimal("10"), self.paper)
-        self.create_bounty(Decimal("15"), self.paper)
+        self.create_bounty(Decimal(5), self.paper)
+        self.create_bounty(Decimal(10), self.paper)
+        self.create_bounty(Decimal(15), self.paper)
 
         # Refresh the paper content/metrics to include bounties
         paper_content_type = ContentType.objects.get_for_model(self.paper)

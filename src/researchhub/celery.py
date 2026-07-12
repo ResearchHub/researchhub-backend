@@ -1,5 +1,3 @@
-from __future__ import absolute_import, unicode_literals
-
 import os
 
 from celery import Celery
@@ -34,7 +32,6 @@ QUEUE_LOGS = "logs"
 QUEUE_PURCHASES = "purchases"
 QUEUE_REPUTATION = "reputation"
 QUEUE_CONTRIBUTIONS = "contributions"
-QUEUE_AUTHOR_CLAIM = "author_claim"
 QUEUE_PAPER_METADATA = "paper_metadata"
 QUEUE_BOUNTIES = "bounties"
 QUEUE_HUBS = "hubs"

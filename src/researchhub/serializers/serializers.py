@@ -1,6 +1,22 @@
 import rest_framework.serializers as serializers
 
 
+class ModeratedDocumentStatusSerializerMixin(serializers.Serializer):
+    """Read-only moderation fields, which live on the unified document.
+
+    Mix into serializers for works (papers, posts) that surface their unified
+    document's moderation state.
+    """
+
+    status = serializers.CharField(source="unified_document.status", read_only=True)
+    reviewed_by = serializers.IntegerField(
+        source="unified_document.reviewed_by_id", read_only=True
+    )
+    reviewed_date = serializers.DateTimeField(
+        source="unified_document.reviewed_date", read_only=True
+    )
+
+
 class DynamicModelFieldSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         # Don't pass the '_include_fields' arg up to the superclass
@@ -17,7 +33,7 @@ class DynamicModelFieldSerializer(serializers.ModelSerializer):
         # Don't pass the '_prefetch_related_fields' arg up to the superclass
         _prefetch_related_fields = kwargs.pop("_prefetch_related_fields", None)
 
-        super(DynamicModelFieldSerializer, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         if _include_fields is not None and _include_fields != "__all__":
             # Drop any fields that are not specified in the `_include_fields` argument.

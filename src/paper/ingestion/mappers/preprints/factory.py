@@ -2,13 +2,11 @@
 Factory for creating mapper instances with hub mapper configuration.
 """
 
-from typing import Dict
-
 from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from paper.ingestion.constants import IngestionSource
+from paper.ingestion.mappers.base import BaseMapper
+from paper.ingestion.mappers.enrichment.openalex import OpenAlexMapper
 
-from ..base import BaseMapper
-from ..enrichment.openalex import OpenAlexMapper
 from .arxiv import ArXivMapper
 from .arxiv_oai import ArXivOAIMapper
 from .biorxiv import BioRxivMapper
@@ -23,7 +21,7 @@ class MapperFactory:
 
     _hub_mapper = ExternalCategoryMapper()
 
-    def create_mappers(self) -> Dict[IngestionSource, BaseMapper]:
+    def create_mappers(self) -> dict[IngestionSource, BaseMapper]:
         """
         Create all mapper instances.
         """

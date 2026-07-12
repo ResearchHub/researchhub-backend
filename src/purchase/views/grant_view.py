@@ -27,14 +27,14 @@ class GrantViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # Restrict to grants whose unified_document has a post visible to the
-        # current user. Reuses ResearchhubPost.visible_to so the rules
-        # (creator, Permission rows, applied-to-by-creator, mod/editor bypass)
-        # stay in one place.
-        visible_post_ids = ResearchhubPost.objects.visible_to(self.request.user).values(
+        # visible_to gates grant posts on Grant.status, so pending and declined
+        # grants stay hidden from everyone but the creator, moderators, and hub
+        # editors.
+        visible_doc_ids = ResearchhubPost.objects.visible_to(self.request.user).values(
             "unified_document_id"
         )
-        qs = qs.filter(unified_document_id__in=visible_post_ids)
+        qs = qs.filter(unified_document_id__in=visible_doc_ids)
+
         return qs.prefetch_related(
             Prefetch(
                 "proposal_reviews",
@@ -118,7 +118,8 @@ class GrantViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         """
-        Partially update a grant. Only moderators and the grant creator can update grants.
+        Partially update a grant. Only moderators and the grant creator can update
+        grants.
         """
         grant = self.get_object()
 
@@ -233,7 +234,8 @@ class GrantViewSet(viewsets.ModelViewSet):
     )
     def complete(self, request, *args, **kwargs):
         """
-        Mark a grant as completed (set status to COMPLETED). Only moderators can complete grants.
+        Mark a grant as completed (set status to COMPLETED). Only moderators can
+        complete grants.
         """
         grant = self.get_object()
 

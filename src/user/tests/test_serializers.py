@@ -16,6 +16,7 @@ from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Distribution, Score, Withdrawal
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from review.models import Review
 from user.models import UserVerification
 from user.serializers import (
     AuthorSerializer,
@@ -64,11 +65,17 @@ class UserSerializersTests(TestCase):
                 created_by=self.user,
             )
 
-            RhCommentModel.objects.create(
+            comment = RhCommentModel.objects.create(
                 created_by=self.user,
                 comment_type="REVIEW",
                 is_removed=False,
                 thread_id=thread.id,
+            )
+            Review.objects.create(
+                created_by=self.user,
+                content_type=ContentType.objects.get_for_model(RhCommentModel),
+                object_id=comment.id,
+                is_assessed=True,
             )
 
     def test_author_serializer_succeeds_without_user_or_university(self):
@@ -230,7 +237,9 @@ class UserBalancesSerializerTests(TestCase):
         self.assertIsNone(serializer.data["balances"])
 
     def test_user_serializer_balance_backwards_compatible(self):
-        """UserSerializer should still return top-level balance for backwards compatibility"""
+        """
+        UserSerializer should still return top-level balance for backwards compatibility
+        """
         serializer = UserSerializer(
             self.user,
             context={"user": self.user},
@@ -255,7 +264,9 @@ class UserBalancesSerializerTests(TestCase):
         self.assertEqual(balances["total_usd_cents"], 50000)
 
     def test_user_editable_serializer_balances_returns_none_for_other_user(self):
-        """UserEditableSerializer should return None for balances when viewing another user"""
+        """
+        UserEditableSerializer should return None for balances when viewing another user
+        """
         serializer = UserEditableSerializer(
             self.user,
             context={"user": self.other_user},
@@ -264,7 +275,9 @@ class UserBalancesSerializerTests(TestCase):
         self.assertIsNone(serializer.data["balances"])
 
     def test_user_editable_serializer_backwards_compatible(self):
-        """UserEditableSerializer should still return top-level balance and locked_balance"""
+        """
+        UserEditableSerializer should still return top-level balance and locked_balance
+        """
         serializer = UserEditableSerializer(
             self.user,
             context={"user": self.user},
@@ -289,7 +302,9 @@ class UserBalancesSerializerTests(TestCase):
         self.assertEqual(balances["total_usd_cents"], 50000)
 
     def test_dynamic_user_serializer_balances_returns_none_for_other_user(self):
-        """DynamicUserSerializer should return None for balances when viewing another user"""
+        """
+        DynamicUserSerializer should return None for balances when viewing another user
+        """
         serializer = DynamicUserSerializer(
             self.user,
             context={"user": self.other_user},

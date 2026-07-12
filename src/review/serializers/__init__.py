@@ -5,7 +5,7 @@ from .review_serializer import (
 )
 
 __all__ = [
-    "ReviewSerializer",
     "DynamicReviewSerializer",
     "ReviewAvailabilitySerializer",
+    "ReviewSerializer",
 ]

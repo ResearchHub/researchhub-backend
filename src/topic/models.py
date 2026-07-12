@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
@@ -7,6 +9,8 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from utils.models import DefaultModel
 from utils.openalex import OpenAlex
+
+logger = logging.getLogger(__name__)
 
 
 class Domain(DefaultModel):
@@ -124,7 +128,8 @@ class Topic(DefaultModel):
         null=True,
     )
 
-    def upsert_from_openalex(oa_topic):
+    @classmethod
+    def upsert_from_openalex(cls, oa_topic):
         has_dates = oa_topic.get("updated_date") and oa_topic.get("created_date")
 
         # Normalize created, updated dates to format that is compatible with django
@@ -152,10 +157,8 @@ class Topic(DefaultModel):
 
         if not domain:
             domain = Domain.objects.create(
-                **{
-                    "openalex_id": oa_topic["domain"]["id"],
-                    "display_name": oa_topic["domain"]["display_name"],
-                }
+                openalex_id=oa_topic["domain"]["id"],
+                display_name=oa_topic["domain"]["display_name"],
             )
         elif needs_update:
             domain.openalex_id = oa_topic["domain"]["id"]
@@ -171,11 +174,9 @@ class Topic(DefaultModel):
 
         if not field:
             field = Field.objects.create(
-                **{
-                    "openalex_id": oa_topic["field"]["id"],
-                    "display_name": oa_topic["field"]["display_name"],
-                    "domain_id": domain.id,
-                }
+                openalex_id=oa_topic["field"]["id"],
+                display_name=oa_topic["field"]["display_name"],
+                domain_id=domain.id,
             )
         elif needs_update:
             field.openalex_id = oa_topic["field"]["id"]
@@ -191,11 +192,9 @@ class Topic(DefaultModel):
 
         if not subfield:
             subfield = Subfield.objects.create(
-                **{
-                    "openalex_id": oa_topic["subfield"]["id"],
-                    "display_name": oa_topic["subfield"]["display_name"],
-                    "field_id": field.id,
-                }
+                openalex_id=oa_topic["subfield"]["id"],
+                display_name=oa_topic["subfield"]["display_name"],
+                field_id=field.id,
             )
 
         elif needs_update:
@@ -221,16 +220,19 @@ class Topic(DefaultModel):
                 )
 
             if created:
-                print(
-                    f"Created new hub {hub.name} and associated with subfield {subfield.display_name}."
+                logger.info(
+                    "Created new hub %s associated with subfield %s",
+                    hub.name,
+                    subfield.display_name,
                 )
             else:
                 hub.subfield = subfield
                 hub.is_used_for_rep = True
                 hub.save()
-        except Exception as e:
-            pass
-            print(f"Error creating hub {subfield.display_name}: {e}")
+        except Exception:
+            logger.exception(
+                "Error creating hub for subfield %s", subfield.display_name
+            )
 
         # Upsert topic
         mapped = {

@@ -1,8 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import PropertyMock, patch
 
-import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import FileSystemStorage, default_storage
@@ -795,9 +794,6 @@ class PostSerializerTests(AWSMockTestCase):
 
     def test_serializes_grant_post_with_grant(self):
         """Test that grant posts serialize with grant data"""
-        from datetime import datetime, timedelta
-
-        import pytz
 
         # Create a grant post
         grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
@@ -813,7 +809,7 @@ class PostSerializerTests(AWSMockTestCase):
         )
 
         # Create a grant for the post
-        end_date = datetime.now(pytz.UTC) + timedelta(days=30)
+        end_date = datetime.now(UTC) + timedelta(days=30)
         grant = Grant.objects.create(
             created_by=self.user,
             unified_document=grant_unified_doc,
@@ -886,9 +882,6 @@ class PostSerializerTests(AWSMockTestCase):
     def test_serializes_grant_post_with_applications(self):
         """Test that grant posts serialize with application data when applications
         exist"""
-        from datetime import datetime, timedelta
-
-        import pytz
 
         # Create a grant post
         grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
@@ -912,7 +905,7 @@ class PostSerializerTests(AWSMockTestCase):
             organization="Test Foundation",
             description="Grant with applications",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=60),
+            end_date=datetime.now(UTC) + timedelta(days=60),
         )
 
         # Create applicants and their preregistration posts
@@ -1000,7 +993,10 @@ class PostSerializerTests(AWSMockTestCase):
             self.assertIsNone(app_data["key_insight"])
 
     def test_serializes_grant_post_application_includes_key_insight_when_present(self):
-        """ProposalReview + ProposalKeyInsight for the grant/proposal pair appear on application."""
+        """
+        ProposalReview + ProposalKeyInsight for the grant/proposal pair appear on
+        application.
+        """
         grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=document_type.GRANT,
         )
@@ -1019,7 +1015,7 @@ class PostSerializerTests(AWSMockTestCase):
             organization="Org",
             description="Desc",
             status=Grant.OPEN,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
         applicant = create_random_default_user("ki_grant_applicant")
         prereg_doc = ResearchhubUnifiedDocument.objects.create(
@@ -1098,9 +1094,6 @@ class PostSerializerTests(AWSMockTestCase):
 
     def test_serializes_expired_grant(self):
         """Test that expired grants are properly identified"""
-        from datetime import datetime, timedelta
-
-        import pytz
 
         # Create a grant post with an expired grant
         grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
@@ -1115,7 +1108,7 @@ class PostSerializerTests(AWSMockTestCase):
         )
 
         # Create an expired grant (end_date in the past)
-        past_date = datetime.now(pytz.UTC) - timedelta(days=5)
+        past_date = datetime.now(UTC) - timedelta(days=5)
         grant = Grant.objects.create(
             created_by=self.user,
             unified_document=grant_unified_doc,
@@ -1661,8 +1654,79 @@ class FeedEntrySerializerTests(AWSMockTestCase):
         self.assertIn("unified_document_id", post_data)
         self.assertEqual(post_data["unified_document_id"], post.unified_document.id)
 
+    def test_filters_unapproved_grant_applications_from_cached_content(self):
+        # Arrange
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant_post = ResearchhubPost.objects.create(
+            title="Grant",
+            created_by=self.user,
+            document_type=GRANT,
+            unified_document=grant_doc,
+        )
+        approved_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        approved_post = ResearchhubPost.objects.create(
+            title="Approved proposal",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=approved_doc,
+        )
+        pending_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+            status=ResearchhubUnifiedDocument.PENDING,
+        )
+        pending_post = ResearchhubPost.objects.create(
+            title="Pending proposal",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=pending_doc,
+        )
+        removed_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+            is_removed=True,
+        )
+        removed_post = ResearchhubPost.objects.create(
+            title="Removed proposal",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=removed_doc,
+        )
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=grant_post.id,
+            content={
+                "id": grant_post.id,
+                "grant": {
+                    "application_count": 3,
+                    "applications": [
+                        {"preregistration_post_id": approved_post.id},
+                        {"preregistration_post_id": pending_post.id},
+                        {"preregistration_post_id": removed_post.id},
+                    ],
+                },
+            },
+            metrics={},
+            user=self.user,
+            action="PUBLISH",
+            action_date=grant_post.created_date,
+            unified_document=grant_doc,
+        )
+
+        # Act
+        data = FeedEntrySerializer(feed_entry).data
+
+        # Assert
+        grant = data["content_object"]["grant"]
+        applications = grant["applications"]
+        self.assertEqual(grant["application_count"], 1)
+        self.assertEqual(len(applications), 1)
+        self.assertEqual(applications[0]["preregistration_post_id"], approved_post.id)
+
     def test_serializes_comment_feed_entry_with_unified_document_id(self):
-        """Test that comment feed entries include unified_document_id in paper/post fields"""
+        """
+        Test that comment feed entries include unified_document_id in paper/post fields
+        """
         paper = create_paper(uploaded_by=self.user)
 
         thread = RhCommentThreadModel.objects.create(
@@ -2529,7 +2593,10 @@ class FundingFeedEntrySerializerTests(AWSMockTestCase):
     def test_grant_application_fundraise_includes_reviews(
         self, mock_usd_to_rsc, mock_rsc_to_usd
     ):
-        """Reviews on a preregistration appear in its fundraise within a grant's applications."""
+        """
+        Reviews on a preregistration appear in its fundraise within a grant's
+        applications.
+        """
         mock_usd_to_rsc.return_value = 200.0
         mock_rsc_to_usd.return_value = 0.005
 

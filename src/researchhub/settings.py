@@ -16,7 +16,6 @@ import sys
 import requests
 import sentry_sdk
 import stripe
-from corsheaders.defaults import default_headers
 from sentry_sdk.integrations.django import DjangoIntegration
 
 APP_ENV = os.environ.get("APP_ENV") or "development"
@@ -64,12 +63,12 @@ LOGGING = {
             "style": "{",
         },
         "verbose": {
-            "format": "{asctime} {levelname} {name} [{filename}:{lineno}] [{threadName}] {message}",
+            "format": "{asctime} {levelname} {name} [{filename}:{lineno}] [{threadName}] {message}",  # noqa: E501
             "style": "{",
         },
         "json": {
             "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
-            "fmt": "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(threadName)s] %(message)s",
+            "fmt": "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(threadName)s] %(message)s",  # noqa: E501
             "exc_info_as_array": True,
             "stack_info_as_array": True,
         },
@@ -173,10 +172,6 @@ if DJANGO_ALLOWED_HOSTS:
                 pass
             ALLOWED_HOSTS += ips
 
-CORS_ALLOW_HEADERS = (
-    *default_headers,
-    "X-organization-id",
-)
 
 # Cors
 CORS_ORIGIN_WHITELIST = [
@@ -267,7 +262,6 @@ INSTALLED_APPS = [
     "referral",
     "reputation",
     "researchhub",
-    "researchhub_case",
     "researchhub_comment",
     "researchhub_document",
     "researchhub_access_group",
@@ -277,7 +271,6 @@ INSTALLED_APPS = [
     "new_feature_release",
     "review",
     "organizations",
-    "user_saved",
     "user_lists",
     "research_ai",
     "ai_peer_review",
@@ -300,7 +293,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 if USE_DEBUG_TOOLBAR:
-    print("Using Debug Toolbar")
+    print("Using Debug Toolbar")  # noqa: T201
     DEBUG_TOOLBAR_CONFIG = {
         "SHOW_TOOLBAR_CALLBACK": lambda request: True,
     }
@@ -676,7 +669,7 @@ OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", keys.OPENSEARCH_HOST)
 
 OPENSEARCH_DSL = {
     "default": {
-        "hosts": OPENSEARCH_HOST if OPENSEARCH_HOST else "http://localhost:9200",
+        "hosts": OPENSEARCH_HOST or "http://localhost:9200",
         "pool_maxsize": 20,
         "timeout": 30,
     },
@@ -758,10 +751,7 @@ else:
 
 # Celery
 
-CELERY_BROKER_URL = "redis://{}:{}/0".format(REDIS_HOST, REDIS_PORT)
-CELERY_RESULT_BACKEND = "db+postgresql://{}:{}@{}:{}/{}".format(
-    DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME
-)
+CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
 CELERY_TIMEZONE = "UTC"
 CELERY_RESULT_BACKEND = "django-db"
 CELERY_TASK_TRACK_STARTED = True
@@ -771,8 +761,8 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_TASK_DEFAULT_QUEUE = "default"
 CELERY_TASK_IGNORE_RESULT = True
 
-CELERY_WORKER_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(processName)s] %(message)s"
-CELERY_WORKER_TASK_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(processName)s] %(message)s"
+CELERY_WORKER_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(processName)s] %(message)s"  # noqa: E501
+CELERY_WORKER_TASK_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d] [%(processName)s] %(message)s"  # noqa: E501
 
 # Use Django's root logger (JSON) if running in Beanstalk
 if ELASTIC_BEANSTALK:
@@ -781,7 +771,7 @@ if ELASTIC_BEANSTALK:
 if TESTING:
     CELERY_BROKER_URL = "memory://localhost"  # use in-memory broker for testing
 
-REDBEAT_REDIS_URL = "redis://{}:{}/2".format(REDIS_HOST, REDIS_PORT)
+REDBEAT_REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/2"
 REDBEAT_KEY_PREFIX = f"{APP_ENV}_redbeat_"
 
 # Django Channels
@@ -857,6 +847,9 @@ if STAGING or PRODUCTION:
 
 # Killswitch Variables
 SERIALIZER_SWITCH = os.environ.get("SERIALIZER_SWITCH", True)
+EXPERT_FINDER_OUTREACH_ENABLED = (
+    os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
+)
 
 # Crossref
 CROSSREF_DOI_RSC_FEE = 5
@@ -898,6 +891,12 @@ TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)
 
 # OpenAlex API
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", keys.OPENALEX_KEY)
+
+# Brave Search API (research_ai proposal-draft web search). Optional: when unset,
+# the web_search tool is inert and the agent grounds in profile/OpenAlex only.
+BRAVE_SEARCH_API_KEY = os.environ.get(
+    "BRAVE_SEARCH_API_KEY", getattr(keys, "BRAVE_SEARCH_API_KEY", "")
+)
 
 # Endaoment API
 ENDAOMENT_API_URL = f"https://api{'' if PRODUCTION else '.dev'}.endaoment.org"

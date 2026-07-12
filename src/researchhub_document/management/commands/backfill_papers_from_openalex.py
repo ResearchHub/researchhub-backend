@@ -38,11 +38,14 @@ class Command(BaseCommand):
             "--interacted_content_only",
             default=False,
             type=bool,
-            help="If used, only content that has been interacted with will be processed (e.g. papers associated with comments instaed of all papers)",
+            help=(
+                "If used, only content that has been interacted with will be processed "
+                "(e.g. papers associated with comments instaed of all papers)"
+            ),
         )
 
     def handle(self, *args, **kwargs):
-        OA = OpenAlex()
+        oa = OpenAlex()
         papers = Paper.objects.all()
 
         if kwargs["id"]:
@@ -54,9 +57,7 @@ class Command(BaseCommand):
             # First, get all papers associated with comments
             content_type = ContentType.objects.get_for_model(Paper)
             all_threads = RhCommentThreadModel.objects.filter(content_type=content_type)
-            paper_ids_of_commentors = list(
-                set([thread.object_id for thread in all_threads])
-            )
+            paper_ids_of_commentors = list({thread.object_id for thread in all_threads})
 
             # Next, get all papers associated with users who verified their identity
             verified_user_ids = UserVerification.objects.all().values_list(
@@ -71,7 +72,8 @@ class Command(BaseCommand):
 
             print(f"Total papers associated w/comments: {len(paper_ids_of_commentors)}")
             print(
-                f"Total papers associated w/verified users: {len(paper_ids_of_verified_users)}"
+                "Total papers associated w/verified users: "
+                f"{len(paper_ids_of_verified_users)}"
             )
 
             unique_paper_ids = list(
@@ -81,7 +83,7 @@ class Command(BaseCommand):
 
         for paper in papers:
             try:
-                work = OA.get_data_from_doi(paper.doi)
+                work = oa.get_data_from_doi(paper.doi)
                 process_openalex_works([work])
             except Exception as e:
                 print(f"Error processing paper {paper.id}: {e}")

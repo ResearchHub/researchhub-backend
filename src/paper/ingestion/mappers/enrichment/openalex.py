@@ -6,15 +6,14 @@ Maps OpenAlex work records to ResearchHub Paper model fields.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from hub.models import Hub
 from institution.models import Institution
+from paper.ingestion.mappers.base import BaseMapper
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from user.related_models.author_model import Author
-
-from ..base import BaseMapper
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,7 @@ class OpenAlexMapper(BaseMapper):
         """
         super().__init__(hub_mapper=None)
 
-    def validate(self, record: Dict[str, Any]) -> bool:
+    def validate(self, record: dict[str, Any]) -> bool:
         """
         Validate an OpenAlex work record has minimum required fields.
 
@@ -63,7 +62,7 @@ class OpenAlexMapper(BaseMapper):
 
         return True
 
-    def map_to_paper(self, record: Dict[str, Any]) -> Paper:
+    def map_to_paper(self, record: dict[str, Any]) -> Paper:
         """
         Map OpenAlex work record to Paper model instance.
 
@@ -151,7 +150,7 @@ class OpenAlexMapper(BaseMapper):
         # If it's already just an ID, return it
         return id_url
 
-    def _extract_doi(self, doi_url: Optional[str]) -> Optional[str]:
+    def _extract_doi(self, doi_url: str | None) -> str | None:
         """
         Extract DOI from URL format.
 
@@ -171,7 +170,7 @@ class OpenAlexMapper(BaseMapper):
         # If it's already just a DOI, return it
         return doi_url
 
-    def _get_best_date(self, record: Dict[str, Any]) -> Optional[str]:
+    def _get_best_date(self, record: dict[str, Any]) -> str | None:
         """
         Get the best available date from the record.
 
@@ -197,7 +196,7 @@ class OpenAlexMapper(BaseMapper):
 
         return None
 
-    def _parse_date(self, date_str: Optional[str]) -> Optional[str]:
+    def _parse_date(self, date_str: str | None) -> str | None:
         """
         Parse date string to Paper model format (YYYY-MM-DD).
 
@@ -219,8 +218,8 @@ class OpenAlexMapper(BaseMapper):
             return None
 
     def _extract_authors(
-        self, authorships_list: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, authorships_list: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Extract authors from OpenAlex authorships list.
 
@@ -281,7 +280,7 @@ class OpenAlexMapper(BaseMapper):
 
         return authors
 
-    def _parse_author_name(self, full_name: str) -> Dict[str, str]:
+    def _parse_author_name(self, full_name: str) -> dict[str, str]:
         """
         Parse author name into components.
 
@@ -313,7 +312,7 @@ class OpenAlexMapper(BaseMapper):
             "last_name": parts[-1],
         }
 
-    def map_to_authors(self, record: Dict[str, Any]) -> List[Author]:
+    def map_to_authors(self, record: dict[str, Any]) -> list[Author]:
         """
         Map OpenAlex work record to Author model instances.
 
@@ -363,7 +362,7 @@ class OpenAlexMapper(BaseMapper):
 
         return authors
 
-    def map_to_institutions(self, record: Dict[str, Any]) -> List[Institution]:
+    def map_to_institutions(self, record: dict[str, Any]) -> list[Institution]:
         """
         Map OpenAlex work record to Institution model instances.
 
@@ -406,7 +405,7 @@ class OpenAlexMapper(BaseMapper):
                     display_name=institution_info.get("display_name", ""),
                     ror_id=ror_id,
                     country_code=institution_info.get("country_code"),
-                    openalex_id=openalex_id if openalex_id else "",
+                    openalex_id=openalex_id or "",
                     type=institution_info.get("type", ""),
                 )
 
@@ -415,8 +414,8 @@ class OpenAlexMapper(BaseMapper):
         return institutions
 
     def map_to_authorships(
-        self, paper: Paper, record: Dict[str, Any]
-    ) -> List[Authorship]:
+        self, paper: Paper, record: dict[str, Any]
+    ) -> list[Authorship]:
         """
         Map OpenAlex work record to Authorship model instances.
 
@@ -472,23 +471,18 @@ class OpenAlexMapper(BaseMapper):
 
         return authorships
 
-    def map_to_hubs(self, record: Dict[str, Any]) -> List[Hub]:
+    def map_to_hubs(self, record: dict[str, Any]) -> list[Hub]:
         """
         Map OpenAlex work record to Hub instances.
         """
-        hubs = []
-        topics = record.get("topics", [])
-
-        for topic in topics:
-            hubs.append(
-                Hub(
-                    name=topic.get("display_name", ""),
-                )
+        return [
+            Hub(
+                name=topic.get("display_name", ""),
             )
+            for topic in record.get("topics", [])
+        ]
 
-        return hubs
-
-    def _extract_license_info(self, record: Dict[str, Any]) -> Dict[str, Any]:
+    def _extract_license_info(self, record: dict[str, Any]) -> dict[str, Any]:
         """
         Extract license information from OpenAlex record.
 

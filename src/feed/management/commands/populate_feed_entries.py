@@ -35,7 +35,10 @@ class Command(BaseCommand):
             "--since",
             type=str,
             default=None,
-            help="Only process entries with action_date after this date (YYYY-MM-DD). Overrides existing data.",
+            help=(
+                "Only process entries with action_date after this date (YYYY-MM-DD). "
+                "Overrides existing data."
+            ),
         )
         parser.add_argument(
             "--id",
@@ -73,7 +76,8 @@ class Command(BaseCommand):
                     )
                     return
 
-        # Apply empty field filter unless --all, --id, or --since (these override existing data)
+        # Apply empty field filter unless --all, --id, or --since
+        # (these override existing data)
         metrics_only = options["metrics_only"]
         content_only = options["content_only"]
         update_both = not metrics_only and not content_only

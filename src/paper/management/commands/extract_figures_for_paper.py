@@ -303,7 +303,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  Title: {paper.title[:80]}...")
         self.stdout.write(f"  Published: {paper.paper_publish_date}")
         self.stdout.write(f"  PDF File: {paper.file.name if paper.file else 'None'}")
-        self.stdout.write(f"  PDF URL: {paper.pdf_url if paper.pdf_url else 'None'}\n")
+        self.stdout.write(f"  PDF URL: {paper.pdf_url or 'None'}\n")
 
         if not paper.file and not paper.pdf_url:
             raise CommandError(

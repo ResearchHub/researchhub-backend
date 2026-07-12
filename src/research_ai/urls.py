@@ -20,6 +20,10 @@ from research_ai.views.expert_finder_views import (
     InvitedExpertEditorsOverviewView,
     InvitedExpertOverviewView,
 )
+from research_ai.views.proposal_draft_views import (
+    ProposalDraftCreateView,
+    ProposalDraftDetailView,
+)
 from research_ai.views.template_views import TemplateDetailView, TemplateListView
 
 urlpatterns = [
@@ -85,5 +89,13 @@ urlpatterns = [
     path(
         "expert-finder/rfp/<int:grant_id>/invite-applicants/",
         InviteRfpApplicantsView.as_view(),
+    ),
+    path(
+        "expert-finder/proposal-drafts/",
+        ProposalDraftCreateView.as_view(),
+    ),
+    path(
+        "expert-finder/proposal-drafts/<int:draft_id>/",
+        ProposalDraftDetailView.as_view(),
     ),
 ]

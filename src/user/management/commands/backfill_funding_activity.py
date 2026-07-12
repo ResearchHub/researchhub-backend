@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 
 from user.related_models.funding_activity_model import FundingActivity
@@ -34,50 +35,50 @@ class Command(BaseCommand):
         total_created = 0
         total_skipped = 0
         total_errors = 0
-        total_would_process = 0
+        total_would_create = 0
 
         # 1. Fundraise payouts (Purchase FUNDRAISE_CONTRIBUTION, paid, escrow PAID)
-        created, skipped, errors, count = self._backfill_fundraise_payouts(
+        created, skipped, errors, would_create = self._backfill_fundraise_payouts(
             dry_run, log_freq
         )
         total_created += created
         total_skipped += skipped
         total_errors += errors
-        total_would_process += count if dry_run else 0
+        total_would_create += would_create
 
         # 2. Bounty payouts (EscrowRecipients, PAID escrow, REVIEW bounty)
-        c, s, e, n = self._backfill_bounty_payouts(dry_run, log_freq)
+        c, s, e, wc = self._backfill_bounty_payouts(dry_run, log_freq)
         total_created += c
         total_skipped += s
         total_errors += e
-        total_would_process += n if dry_run else 0
+        total_would_create += wc
 
         # 3. Document tips (Purchase BOOST on paper/post, paid)
-        c, s, e, n = self._backfill_document_tips(dry_run, log_freq)
+        c, s, e, wc = self._backfill_document_tips(dry_run, log_freq)
         total_created += c
         total_skipped += s
         total_errors += e
-        total_would_process += n if dry_run else 0
+        total_would_create += wc
 
         # 4. Review tips (Distribution PURCHASE for review comments)
-        c, s, e, n = self._backfill_review_tips(dry_run, log_freq)
+        c, s, e, wc = self._backfill_review_tips(dry_run, log_freq)
         total_created += c
         total_skipped += s
         total_errors += e
-        total_would_process += n if dry_run else 0
+        total_would_create += wc
 
         # 5. Fees (Distribution BOUNTY_DAO_FEE, BOUNTY_RH_FEE, SUPPORT_RH_FEE)
-        c, s, e, n = self._backfill_fees(dry_run, log_freq)
+        c, s, e, wc = self._backfill_fees(dry_run, log_freq)
         total_created += c
         total_skipped += s
         total_errors += e
-        total_would_process += n if dry_run else 0
+        total_would_create += wc
 
         if dry_run:
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Dry run complete. Would process {total_would_process} "
-                    "source record(s)."
+                    f"Dry run complete. would_create={total_would_create} "
+                    f"skipped={total_skipped} errors={total_errors}"
                 )
             )
         else:
@@ -152,37 +153,83 @@ class Command(BaseCommand):
         log_freq,
     ):
         """Process a queryset of source objects; create FundingActivity per item."""
+        content_type = ContentType.objects.get_for_model(queryset.model)
+        existing_source_ids = set(
+            FundingActivity.objects.filter(
+                source_type=source_type,
+                source_content_type=content_type,
+            ).values_list("source_object_id", flat=True)
+        )
+
         created = 0
         skipped = 0
         errors = 0
+        would_create = 0
         total = queryset.count()
         self.stdout.write(f"Backfilling {label}: {total} source(s).")
 
         for i, obj in enumerate(queryset.iterator(), start=1):
-            if dry_run:
+            if obj.pk in existing_source_ids:
+                skipped += 1
                 if i % log_freq == 0:
-                    self.stdout.write(f"  {label}: {i}/{total} (dry-run)")
+                    self._log_backfill_progress(
+                        label, i, total, dry_run, created, skipped, errors, would_create
+                    )
                 continue
 
-            try:
-                activity = FundingActivityService.create_funding_activity(
-                    source_type=source_type,
-                    source_object=obj,
-                )
-                if activity is not None:
-                    created += 1
-                else:
-                    skipped += 1
-            except Exception as e:
-                errors += 1
-                self.stdout.write(
-                    self.style.WARNING(f"  {label} pk={getattr(obj, 'pk', '?')}: {e}")
-                )
+            if dry_run:
+                would_create += 1
+            else:
+                try:
+                    activity = FundingActivityService.create_funding_activity(
+                        source_type=source_type,
+                        source_object=obj,
+                    )
+                    if activity is not None:
+                        created += 1
+                    else:
+                        skipped += 1
+                except Exception as e:
+                    errors += 1
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"  {label} pk={getattr(obj, 'pk', '?')}: {e}"
+                        )
+                    )
 
             if i % log_freq == 0:
-                self.stdout.write(
-                    f"  {label}: {i}/{total} (created={created} skipped={skipped} "
-                    f"errors={errors})"
+                self._log_backfill_progress(
+                    label, i, total, dry_run, created, skipped, errors, would_create
                 )
 
-        return created, skipped, errors, total
+        self._log_backfill_phase_summary(
+            label, dry_run, created, skipped, errors, would_create
+        )
+        return created, skipped, errors, would_create
+
+    def _log_backfill_progress(
+        self, label, i, total, dry_run, created, skipped, errors, would_create
+    ):
+        if dry_run:
+            self.stdout.write(
+                f"  {label}: {i}/{total} "
+                f"(would_create={would_create} skipped={skipped} errors={errors})"
+            )
+        else:
+            self.stdout.write(
+                f"  {label}: {i}/{total} "
+                f"(created={created} skipped={skipped} errors={errors})"
+            )
+
+    def _log_backfill_phase_summary(
+        self, label, dry_run, created, skipped, errors, would_create
+    ):
+        if dry_run:
+            self.stdout.write(
+                f"  {label}: would_create={would_create} "
+                f"skipped={skipped} errors={errors}"
+            )
+        else:
+            self.stdout.write(
+                f"  {label}: created={created} skipped={skipped} errors={errors}"
+            )

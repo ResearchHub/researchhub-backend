@@ -336,7 +336,8 @@ class TestEndaomentClient(TestCase):
 
     def test_create_async_entity_transfer_http_error(self):
         """
-        Test that HTTP errors from the API are propagated when creating an async entity transfer.
+        Test that HTTP errors from the API are propagated when creating an
+        async entity transfer.
         """
         mock_response = Mock()
         mock_response.raise_for_status.side_effect = requests.HTTPError(

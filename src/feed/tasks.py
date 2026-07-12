@@ -1,9 +1,10 @@
 import logging
 import time
 from datetime import timedelta
-from typing import Any, Optional
+from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.utils import timezone
 
 import utils.locking as lock
@@ -19,7 +20,6 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from user.models import User
 from user.related_models.author_model import Author
-from utils import sentry
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,16 @@ def create_feed_entry(
     # Suppress feed entries for items attached to a private unified document.
     # Covers posts, comments, bounties, and fundraise contributions in one place.
     if unified_document is not None and not unified_document.is_public:
+        return None
+
+    # Defense-in-depth: never publish a work still awaiting moderation. The
+    # publishing signals already defer these, but the task can be called directly.
+    if (
+        action == FeedEntry.PUBLISH
+        and isinstance(item, (ResearchhubPost, Paper))
+        and unified_document is not None
+        and not unified_document.is_approved
+    ):
         return None
 
     content = serialize_feed_item(item, item_content_type)
@@ -108,12 +118,26 @@ def create_feed_entry(
         )
 
 
+def publish_to_feed(item: ResearchhubPost | Paper, user_id: int | None = None) -> None:
+    """Enqueue a PUBLISH feed entry for ``item`` once the transaction commits."""
+    hub_ids = list(item.unified_document.hubs.values_list("id", flat=True))
+    content_type_id = ContentType.objects.get_for_model(item).id
+    transaction.on_commit(
+        lambda: create_feed_entry.apply_async(
+            args=(item.id, content_type_id, FeedEntry.PUBLISH, hub_ids, user_id),
+            priority=1,
+        )
+    )
+
+
 def refresh_feed_entry(feed_entry, skip_figure_extraction=False):
     content = serialize_feed_item(feed_entry.item, feed_entry.content_type)
     if content is None:
         logger.warning(
-            f"Unsupported content type for feed entry refresh: "
-            f"{feed_entry.content_type.model} (feed_entry_id={feed_entry.id}). Skipping."
+            "Unsupported content type for feed entry refresh: %s (feed_entry_id=%s). "
+            "Skipping.",
+            feed_entry.content_type.model,
+            feed_entry.id,
         )
         return
 
@@ -188,7 +212,7 @@ def update_feed_metrics(item_id, item_content_type_id, metrics):
 
 def _get_unified_document(
     item: Any, item_content_type: ContentType
-) -> Optional[ResearchhubUnifiedDocument]:
+) -> ResearchhubUnifiedDocument | None:
     """
     Extract unified document from different content types.
 
@@ -292,7 +316,6 @@ def refresh_feed_hot_scores():
             content_types=None,
         )
         logger.info(f"Refreshed hot scores: {stats}")
-        sentry.log_info(f"Refreshed hot scores: {stats}")
         return stats
     finally:
         lock.release(key)

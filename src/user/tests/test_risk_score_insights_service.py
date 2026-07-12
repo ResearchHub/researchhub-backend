@@ -1,9 +1,11 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
+from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient
 
+from paper.tests.helpers import create_paper
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
 from reputation.related_models.bounty import Bounty, BountySolution
@@ -52,7 +54,7 @@ def _record_many(user, event_type, count, *, delta=None):
         )
 
 
-class BuildEventDetailsTests(APITestCase):
+class BuildEventDetailsTests(TestCase):
     def setUp(self):
         self.user = create_user(email="author@test.com")
         self.post = create_post(created_by=self.user, title="Quantum Computing")
@@ -118,6 +120,22 @@ class BuildEventDetailsTests(APITestCase):
         self.assertEqual(detail["title"], "Quantum Computing")
         self.assertEqual(detail["text"], "some text")
         self.assertEqual(detail["document_type"], "DISCUSSION")
+        self.assertIsNone(detail["comment_type"])
+
+    def test_paper_detail_includes_title_and_abstract(self):
+        # Arrange
+        paper = create_paper(uploaded_by=self.user)
+        paper.paper_title = "Quantum Decoherence"
+        paper.abstract = "An abstract about quantum systems."
+        paper.save(update_fields=["paper_title", "abstract"])
+        event = _record(self.user, EventType.WORK_APPROVED, source=paper)
+
+        # Act
+        detail = build_event_details([event])[event.id]
+
+        # Assert
+        self.assertEqual(detail["title"], "Quantum Decoherence")
+        self.assertEqual(detail["text"], "An abstract about quantum systems.")
         self.assertIsNone(detail["comment_type"])
 
     def test_comment_detail_includes_anchor_and_types(self):
@@ -282,7 +300,7 @@ class BuildEventDetailsTests(APITestCase):
         self.assertEqual(len(comment_fetches), 1)
 
 
-class BuildInsightsTests(APITestCase):
+class BuildInsightsTests(TestCase):
     def setUp(self):
         self.user = create_user(email="insights@test.com")
 
@@ -293,7 +311,7 @@ class BuildInsightsTests(APITestCase):
         # Assert
         self.assertEqual(insights, [])
 
-    def test_score_decrease_bucket_reports_negative_bounds(self):
+    def test_score_increase_bucket_reports_positive_bounds(self):
         # Arrange
         _record_many(self.user, EventType.GOOGLE_SIGNUP, 1)
 
@@ -307,9 +325,9 @@ class BuildInsightsTests(APITestCase):
         self.assertEqual(insights[0]["total_delta"], delta)
         self.assertEqual(insights[0]["min_delta"], delta)
         self.assertEqual(insights[0]["max_delta"], delta)
-        self.assertLess(insights[0]["max_delta"], 0)
+        self.assertGreater(insights[0]["min_delta"], 0)
 
-    def test_score_increase_bucket_reports_positive_bounds(self):
+    def test_score_decrease_bucket_reports_negative_bounds(self):
         # Arrange
         _record_many(self.user, EventType.CONTENT_CENSORED, 3)
 
@@ -322,19 +340,19 @@ class BuildInsightsTests(APITestCase):
         self.assertEqual(insights[0]["total_delta"], delta * 3)
         self.assertEqual(insights[0]["min_delta"], delta)
         self.assertEqual(insights[0]["max_delta"], delta)
-        self.assertGreater(insights[0]["min_delta"], 0)
+        self.assertLess(insights[0]["max_delta"], 0)
 
     def test_mixed_signs_within_event_type_straddle_zero(self):
         # Arrange
-        _record_many(self.user, EventType.WORK_APPROVED, 1, delta=-50)
-        _record_many(self.user, EventType.WORK_APPROVED, 1, delta=10)
+        _record_many(self.user, EventType.WORK_APPROVED, 1, delta=50)
+        _record_many(self.user, EventType.WORK_APPROVED, 1, delta=-20)
 
         # Act
         insights = build_insights(self.user)
 
         # Assert
-        self.assertEqual(insights[0]["min_delta"], -50)
-        self.assertEqual(insights[0]["max_delta"], 10)
+        self.assertEqual(insights[0]["min_delta"], -20)
+        self.assertEqual(insights[0]["max_delta"], 50)
 
     def test_unrelated_event_types_stay_separate(self):
         # Arrange
@@ -371,7 +389,7 @@ class BuildInsightsTests(APITestCase):
         self.assertNotIn(EventType.WORK_APPROVED, by_type)
         self.assertNotIn(EventType.WORK_DECLINED, by_type)
 
-    def test_works_moderated_only_approvals_has_no_score_increase(self):
+    def test_works_moderated_only_approvals_has_no_score_decrease(self):
         # Arrange
         _record_many(self.user, EventType.WORK_APPROVED, 2)
 
@@ -380,7 +398,7 @@ class BuildInsightsTests(APITestCase):
 
         # Assert
         self.assertEqual(insights[0]["event_type"], "WORKS_MODERATED")
-        self.assertLess(insights[0]["max_delta"], 0)
+        self.assertGreater(insights[0]["min_delta"], 0)
 
     def test_persona_verified_consolidates_country_variants(self):
         # Arrange
@@ -405,11 +423,12 @@ class BuildInsightsTests(APITestCase):
             build_insights(self.user)
 
 
-class RiskScoreEventsApiTests(APITestCase):
+class RiskScoreEventsApiTests(TestCase):
     def setUp(self):
         self.moderator = create_user(email="mod@test.com", moderator=True)
         self.target = create_user(email="target@test.com")
         self.post = create_post(created_by=self.target, title="Subject paper")
+        self.client = APIClient()
         self.client.force_authenticate(user=self.moderator)
 
     def test_response_includes_source_detail_and_insights(self):
@@ -427,8 +446,8 @@ class RiskScoreEventsApiTests(APITestCase):
         self.assertIn("results", response.data)
         self.assertIn("insights", response.data)
         by_type = {row["event_type"]: row for row in response.data["insights"]}
-        self.assertGreater(by_type[EventType.CONTENT_CENSORED]["min_delta"], 0)
-        self.assertLess(by_type[EventType.GOOGLE_SIGNUP]["max_delta"], 0)
+        self.assertLess(by_type[EventType.CONTENT_CENSORED]["max_delta"], 0)
+        self.assertGreater(by_type[EventType.GOOGLE_SIGNUP]["min_delta"], 0)
         details_by_type = {
             row["event_type"]: row["source_detail"] for row in response.data["results"]
         }

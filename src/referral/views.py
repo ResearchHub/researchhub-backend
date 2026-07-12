@@ -228,7 +228,9 @@ class ReferralAssignmentViewSet(viewsets.ViewSet):
                 if request.user.id != user_id:
                     return Response(
                         {
-                            "detail": "You can only add referral codes to your own account."
+                            "detail": (
+                                "You can only add referral codes to your own account."
+                            )
                         },
                         status=status.HTTP_403_FORBIDDEN,
                     )
@@ -238,7 +240,10 @@ class ReferralAssignmentViewSet(viewsets.ViewSet):
                 if referred_user.date_joined < one_hour_ago:
                     return Response(
                         {
-                            "detail": "Can only add referral codes to users who joined within the last hour."
+                            "detail": (
+                                "Can only add referral codes to users who joined within"
+                                " the last hour."
+                            )
                         },
                         status=status.HTTP_403_FORBIDDEN,
                     )
@@ -267,7 +272,10 @@ class ReferralAssignmentViewSet(viewsets.ViewSet):
             logger.error(f"Error adding referral code: {e}")
             return Response(
                 {
-                    "detail": "An error occurred while adding the referral code. Please try again later."
+                    "detail": (
+                        "An error occurred while adding the referral code. "
+                        "Please try again later."
+                    )
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

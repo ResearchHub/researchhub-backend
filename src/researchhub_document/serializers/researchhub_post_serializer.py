@@ -1,6 +1,15 @@
+import logging
+
 from django.core.files.storage import default_storage
 from django.db.models import Count
-from rest_framework.serializers import CharField, ModelSerializer, SerializerMethodField
+from rest_framework.serializers import (
+    CharField,
+    IntegerField,
+    ListField,
+    ModelSerializer,
+    Serializer,
+    SerializerMethodField,
+)
 
 from ai_peer_review.models import ProposalReview
 from ai_peer_review.serializers import ProposalReviewSerializer
@@ -11,7 +20,10 @@ from discussion.serializers import (
 )
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from purchase.models import GrantApplication, Purchase
-from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub.serializers import (
+    DynamicModelFieldSerializer,
+    ModeratedDocumentStatusSerializerMixin,
+)
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
@@ -26,9 +38,36 @@ from user.serializers import (
 )
 from utils.http import get_user_from_request
 
+logger = logging.getLogger(__name__)
 
-class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin):
-    class Meta(object):
+
+class JournalEntryAcceptSerializer(Serializer):
+    """Validate a journal entry acceptance request."""
+
+    fundraise_id = IntegerField()
+    user_id = IntegerField()
+
+
+class RegisteredReportPublishSerializer(Serializer):
+    """Validate a registered report publish request."""
+
+    note_id = IntegerField()
+    proposal_id = IntegerField()
+    title = CharField()
+    renderable_text = CharField()
+    full_src = CharField()
+    authors = ListField(child=IntegerField(), required=False)
+    editor_type = CharField(required=False, allow_blank=True, allow_null=True)
+    image = CharField(required=False, allow_blank=True, allow_null=True)
+    preview_img = CharField(required=False, allow_blank=True, allow_null=True)
+
+
+class ResearchhubPostSerializer(
+    ModelSerializer,
+    GenericReactionSerializerMixin,
+    ModeratedDocumentStatusSerializerMixin,
+):
+    class Meta:
         model = ResearchhubPost
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
@@ -55,7 +94,10 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "post_src",
             "preview_img",
             "renderable_text",
+            "reviewed_by",
+            "reviewed_date",
             "slug",
+            "status",
             "title",
             "unified_document_id",
             "unified_document",
@@ -84,7 +126,6 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
         ]
 
     # GenericReactionSerializerMixin
-    promoted = SerializerMethodField()
     boost_amount = SerializerMethodField()
     user_flag = SerializerMethodField()
 
@@ -145,7 +186,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
         note = instance.note
         if note:
-            return NoteSerializer(instance.note).data
+            return NoteSerializer(instance.note, context=self.context).data
         return None
 
     def get_unified_document_id(self, instance):
@@ -209,8 +250,8 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
                 byte_string = instance.eln_src.read()
             full_markdown = byte_string.decode("utf-8")
             return full_markdown
-        except Exception as e:
-            print(e)
+        except Exception:
+            logger.exception("Error getting full markdown for document")
             return None
 
     def get_hubs(self, instance):
@@ -252,7 +293,8 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             grant_post_by_ud.setdefault(p.unified_document_id, p)
         applicant_counts = (
             dict(
-                GrantApplication.objects.filter(grant_id__in=grant_ids)
+                GrantApplication.objects.with_approved_proposal()
+                .filter(grant_id__in=grant_ids)
                 .values_list("grant_id")
                 .annotate(count=Count("id"))
             )
@@ -341,14 +383,13 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
         )
         return serializer.data
 
-    def get_promoted_score(self, instance):
-        return instance.get_promoted_score()
-
     def get_boost_amount(self, instance):
         return instance.get_boost_amount()
 
 
-class DynamicPostSerializer(DynamicModelFieldSerializer):
+class DynamicPostSerializer(
+    DynamicModelFieldSerializer, ModeratedDocumentStatusSerializerMixin
+):
     authors = SerializerMethodField()
     boost_amount = SerializerMethodField()
     bounties = SerializerMethodField()
@@ -379,7 +420,9 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         those paths to an unauthorized viewer.
         """
         unified_document = instance.unified_document
-        if unified_document is not None and not unified_document.is_public:
+        if unified_document is not None and not (
+            unified_document.is_public and unified_document.is_approved
+        ):
             user = get_user_from_request(self.context)
             if not unified_document.is_visible_to_user(user):
                 return {"id": instance.id, "is_public": False}

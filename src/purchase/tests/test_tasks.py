@@ -1,8 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
-import pytz
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase
@@ -73,7 +72,7 @@ class FundraiseTasksTest(TestCase):
         )
 
         # Manually set the start_date to be more than a week old
-        old_date = datetime.now(pytz.UTC) - timedelta(days=8)
+        old_date = datetime.now(UTC) - timedelta(days=8)
         fundraise.start_date = old_date
         fundraise.save()
 
@@ -112,7 +111,7 @@ class FundraiseTasksTest(TestCase):
         )
 
         # Manually set the start_date to be more than a week old
-        old_date = datetime.now(pytz.UTC) - timedelta(days=8)
+        old_date = datetime.now(UTC) - timedelta(days=8)
         fundraise.start_date = old_date
         fundraise.save()
 
@@ -230,7 +229,7 @@ class PreregistrationUpdateReminderTest(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("reminder_test", moderator=True)
         self.post = create_post(created_by=self.user, document_type=PREREGISTRATION)
-        self.future = datetime.now(pytz.UTC) + timedelta(days=30)
+        self.future = datetime.now(UTC) + timedelta(days=30)
         self.notif_qs = Notification.objects.filter(
             notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
             recipient=self.user,

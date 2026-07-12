@@ -20,7 +20,7 @@ class RiskScore(DefaultModel):
             models.Index(fields=["score"], name="risk_score_score_idx"),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"User {self.user_id} - Score: {self.score}"
 
 
@@ -52,20 +52,20 @@ class RiskScoreEvent(models.Model):
 
     DELTAS = {
         # Content moderation
-        EventType.WORK_APPROVED: -50,
-        EventType.WORK_DECLINED: 20,
-        EventType.CONTENT_CENSORED: 15,
+        EventType.WORK_APPROVED: 50,
+        EventType.WORK_DECLINED: -20,
+        EventType.CONTENT_CENSORED: -15,
         # Bounties and tips
-        EventType.BOUNTY_AWARDED: -10,
-        EventType.PEER_REVIEW_TIPPED: -5,
-        EventType.PEER_REVIEW_ASSESSED: -5,
+        EventType.BOUNTY_AWARDED: 10,
+        EventType.PEER_REVIEW_TIPPED: 5,
+        EventType.PEER_REVIEW_ASSESSED: 5,
         # One-time profile signals
-        EventType.EXPERT_FINDER_SIGNUP: -51,
-        EventType.EDU_EMAIL: -20,
-        EventType.GOOGLE_SIGNUP: -10,
-        EventType.ACCOUNT_AGE_BONUS: -5,
-        EventType.PERSONA_VERIFIED_WHITELISTED: -51,
-        EventType.PERSONA_VERIFIED_NON_WHITELISTED: -10,
+        EventType.EXPERT_FINDER_SIGNUP: 51,
+        EventType.EDU_EMAIL: 20,
+        EventType.GOOGLE_SIGNUP: 10,
+        EventType.ACCOUNT_AGE_BONUS: 5,
+        EventType.PERSONA_VERIFIED_WHITELISTED: 51,
+        EventType.PERSONA_VERIFIED_NON_WHITELISTED: 10,
     }
 
     ONE_TIME_TYPES = {
@@ -112,5 +112,5 @@ class RiskScoreEvent(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"User {self.user_id} - {self.event_type} ({self.delta:+d})"

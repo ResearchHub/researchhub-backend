@@ -10,6 +10,8 @@ from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from purchase.related_models.balance_model import Balance
 from reputation.related_models.distribution import Distribution
+from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from review.models import Review
 from user.related_models.follow_model import Follow
 from user.related_models.user_model import User
 from user.tests.helpers import create_user
@@ -49,6 +51,50 @@ class AuthorModelsTests(TestCase):
 
     def test_achievements(self):
         self.assertIn("CITED_AUTHOR", self.user.author_profile.achievements)
+
+    def test_peer_review_count_only_includes_assessed_reviews(self):
+        paper = Paper.objects.create(title="review paper")
+        thread = RhCommentThreadModel.objects.create(
+            object_id=paper.id,
+            content_type=ContentType.objects.get_for_model(Paper),
+            created_by=self.user,
+        )
+        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+
+        assessed_comment = RhCommentModel.objects.create(
+            created_by=self.user,
+            comment_type="REVIEW",
+            is_removed=False,
+            thread=thread,
+        )
+        Review.objects.create(
+            created_by=self.user,
+            content_type=comment_content_type,
+            object_id=assessed_comment.id,
+            is_assessed=True,
+        )
+
+        unassessed_comment = RhCommentModel.objects.create(
+            created_by=self.user,
+            comment_type="REVIEW",
+            is_removed=False,
+            thread=thread,
+        )
+        Review.objects.create(
+            created_by=self.user,
+            content_type=comment_content_type,
+            object_id=unassessed_comment.id,
+            is_assessed=False,
+        )
+
+        RhCommentModel.objects.create(
+            created_by=self.user,
+            comment_type="REVIEW",
+            is_removed=False,
+            thread=thread,
+        )
+
+        self.assertEqual(self.user.peer_review_count, 1)
 
     def test_is_orcid_connected_false_when_no_account(self):
         # Act
@@ -182,7 +228,7 @@ class UserBalanceTests(TestCase):
 
         # Default behavior should exclude locked funds
         balance = self.user.get_balance()
-        self.assertEqual(balance, Decimal("100"))
+        self.assertEqual(balance, Decimal(100))
 
     def test_get_balance_includes_locked_when_requested(self):
         # Create regular balance
@@ -203,7 +249,7 @@ class UserBalanceTests(TestCase):
 
         # When include_locked=True, should include all funds
         balance = self.user.get_balance(include_locked=True)
-        self.assertEqual(balance, Decimal("150"))
+        self.assertEqual(balance, Decimal(150))
 
     def test_get_available_balance(self):
         # Create regular balance
@@ -224,7 +270,7 @@ class UserBalanceTests(TestCase):
 
         # Should only return unlocked funds
         available = self.user.get_available_balance()
-        self.assertEqual(available, Decimal("200"))
+        self.assertEqual(available, Decimal(200))
 
     def test_get_locked_balance_all(self):
         # Create regular balance
@@ -252,7 +298,7 @@ class UserBalanceTests(TestCase):
 
         # Should return total locked funds
         locked = self.user.get_locked_balance()
-        self.assertEqual(locked, Decimal("125"))
+        self.assertEqual(locked, Decimal(125))
 
     def test_get_locked_balance_returns_all_locked(self):
         # Create locked balance
@@ -264,7 +310,7 @@ class UserBalanceTests(TestCase):
         )
 
         locked = self.user.get_locked_balance()
-        self.assertEqual(locked, Decimal("60"))
+        self.assertEqual(locked, Decimal(60))
 
     def test_balance_calculations_with_mixed_balances(self):
         # Create mix of locked and unlocked balances
@@ -295,10 +341,10 @@ class UserBalanceTests(TestCase):
         locked = self.user.get_locked_balance()
         default_balance = self.user.get_balance()  # Should exclude locked
 
-        self.assertEqual(total_with_locked, Decimal("800"))
-        self.assertEqual(available, Decimal("600"))
-        self.assertEqual(locked, Decimal("200"))
-        self.assertEqual(default_balance, Decimal("600"))  # Same as available
+        self.assertEqual(total_with_locked, Decimal(800))
+        self.assertEqual(available, Decimal(600))
+        self.assertEqual(locked, Decimal(200))
+        self.assertEqual(default_balance, Decimal(600))  # Same as available
 
         # Verify math: available + locked = total
         self.assertEqual(available + locked, total_with_locked)
@@ -317,10 +363,10 @@ class UserBalanceTests(TestCase):
             is_locked=True,
         )
 
-        allocations = self.user.allocate_spend(Decimal("150"))
+        allocations = self.user.allocate_spend(Decimal(150))
         self.assertEqual(len(allocations), 1)
         self.assertFalse(allocations[0]["is_locked"])
-        self.assertEqual(allocations[0]["amount"], Decimal("150"))
+        self.assertEqual(allocations[0]["amount"], Decimal(150))
 
     def test_allocate_spend_unlocked_insufficient_raises(self):
         Balance.objects.create(
@@ -337,7 +383,7 @@ class UserBalanceTests(TestCase):
         )
 
         with self.assertRaises(ValueError):
-            self.user.allocate_spend(Decimal("100"))
+            self.user.allocate_spend(Decimal(100))
 
     def test_allocate_spend_with_locked(self):
         Balance.objects.create(
@@ -353,15 +399,15 @@ class UserBalanceTests(TestCase):
             is_locked=True,
         )
 
-        allocations = self.user.allocate_spend(Decimal("150"), allow_locked=True)
+        allocations = self.user.allocate_spend(Decimal(150), allow_locked=True)
         locked_allocs = [a for a in allocations if a["is_locked"]]
         unlocked_allocs = [a for a in allocations if not a["is_locked"]]
 
         self.assertEqual(len(locked_allocs), 1)
-        self.assertEqual(locked_allocs[0]["amount"], Decimal("120"))
+        self.assertEqual(locked_allocs[0]["amount"], Decimal(120))
 
         self.assertEqual(len(unlocked_allocs), 1)
-        self.assertEqual(unlocked_allocs[0]["amount"], Decimal("30"))
+        self.assertEqual(unlocked_allocs[0]["amount"], Decimal(30))
 
     def test_allocate_spend_fully_covered_by_locked(self):
         Balance.objects.create(
@@ -371,13 +417,13 @@ class UserBalanceTests(TestCase):
             is_locked=True,
         )
 
-        allocations = self.user.allocate_spend(Decimal("100"), allow_locked=True)
+        allocations = self.user.allocate_spend(Decimal(100), allow_locked=True)
         self.assertEqual(len(allocations), 1)
         self.assertTrue(allocations[0]["is_locked"])
-        self.assertEqual(allocations[0]["amount"], Decimal("100"))
+        self.assertEqual(allocations[0]["amount"], Decimal(100))
 
     def test_allocate_spend_zero_amount(self):
-        allocations = self.user.allocate_spend(Decimal("0"))
+        allocations = self.user.allocate_spend(Decimal(0))
         self.assertEqual(allocations, [])
 
 

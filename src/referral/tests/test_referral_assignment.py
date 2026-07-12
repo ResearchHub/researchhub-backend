@@ -75,7 +75,10 @@ class ReferralAssignmentViewSetTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_regular_user_can_add_referral_to_themselves(self):
-        """Test that regular users can add referral codes to their own account if recently joined."""
+        """
+        Test that regular users can add referral codes to their own account if
+        recently joined.
+        """
         # Create a new user that just joined
         new_user = User.objects.create_user(
             username="new_user",
@@ -107,7 +110,9 @@ class ReferralAssignmentViewSetTestCase(TestCase):
         self.assertEqual(new_user.invited_by, self.referrer)
 
     def test_regular_user_cannot_add_referral_to_other_user(self):
-        """Test that regular users cannot add referral codes to other users' accounts."""
+        """
+        Test that regular users cannot add referral codes to other users' accounts.
+        """
         self.client.force_authenticate(user=self.regular_user)
 
         response = self.client.post(
@@ -125,7 +130,10 @@ class ReferralAssignmentViewSetTestCase(TestCase):
         )
 
     def test_regular_user_cannot_add_referral_to_themselves_if_old(self):
-        """Test that regular users cannot add referral codes to themselves if they joined over an hour ago."""
+        """
+        Test that regular users cannot add referral codes to themselves if they joined
+        over an hour ago.
+        """
         self.client.force_authenticate(user=self.old_user)
 
         response = self.client.post(

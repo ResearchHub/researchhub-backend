@@ -23,7 +23,7 @@ class TestOpenAlexMapper(TestCase):
         fixtures_dir = Path(__file__).parent / "fixtures"
 
         # Read the sample response JSON
-        with open(fixtures_dir / "openalex_sample_get_by_doi_response.json", "r") as f:
+        with open(fixtures_dir / "openalex_sample_get_by_doi_response.json") as f:
             self.sample_record = json.load(f)
 
     def test_validate_valid_record(self):

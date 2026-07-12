@@ -32,18 +32,24 @@ def _funding_invalidation_request(query_params: dict[str, str]) -> Request:
 
 
 class FundingCacheMixin:
-    """Mixin for :class:`~feed.views.funding_feed_view.FundingFeedViewSet` cache helpers."""
+    """
+    Mixin for :class:`~feed.views.funding_feed_view.FundingFeedViewSet` cache helpers.
+    """
 
     @staticmethod
     def invalidate_funding_feed_cache() -> None:
         """
-        Delete cached funding-feed list responses (pages 1–``FUNDING_FEED_MAX_CACHED_PAGE``).
+        Delete cached funding-feed list responses
+        (pages 1-``FUNDING_FEED_MAX_CACHED_PAGE``).
 
-        Only keys that can be written when ``FundingFeedViewSet.list`` uses the cache
-        branch are targeted. Hub-specific ``?hub_slug=`` keys (other than default) are
-        not enumerated; they expire via TTL.
+        Only ``:public`` segment keys that can be written when
+        ``FundingFeedViewSet.list`` uses the cache branch are targeted.
+        Per-viewer ``:viewer-{user_id}`` entries are left to TTL.
+        Hub-specific ``?hub_slug=`` keys (other than default) are not enumerated;
+        they expire via TTL.
         """
-        # Local import avoids circular import: funding_feed_view loads this module first.
+        # Local import avoids circular import:
+        # funding_feed_view loads this module first.
         from feed.views.funding_feed_view import FundingFeedViewSet
 
         view = FundingFeedViewSet()
@@ -73,5 +79,7 @@ class FundingCacheMixin:
                                     if include_ended != "true":
                                         params["include_ended"] = include_ended
                                     req = _funding_invalidation_request(params)
-                                    keys.append(view.get_cache_key(req, "funding"))
+                                    keys.append(
+                                        view.get_cache_key(req, "funding") + ":public"
+                                    )
         cache.delete_many(list(dict.fromkeys(keys)))

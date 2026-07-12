@@ -8,15 +8,14 @@ class Command(BaseCommand):
         objects = User.objects.all()
         supports = {}
         for i, user in enumerate(objects):
-            print("{} / {}".format(i, objects.count()))
+            print(f"{i} / {objects.count()}")
             if user.invited_by:
                 if user.invited_by not in supports:
                     supports[user.invited_by] = 1
                 else:
                     supports[user.invited_by] += 1
 
-        sorted_support = {
-            k: v
-            for k, v in sorted(supports.items(), key=lambda item: item[1], reverse=True)
-        }
+        sorted_support = dict(
+            sorted(supports.items(), key=lambda item: item[1], reverse=True)
+        )
         print(sorted_support)

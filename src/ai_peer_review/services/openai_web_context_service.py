@@ -119,7 +119,7 @@ class OpenAIReviewContextService:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=max_tokens,
+            max_completion_tokens=max_tokens,
             temperature=temperature,
         )
         choice = completion.choices[0].message

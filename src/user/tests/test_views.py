@@ -4,18 +4,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 from django.core.cache import cache
-from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from paper.openalex_util import process_openalex_works
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from user.models import UserVerification
-from user.related_models.author_model import Author
 from user.tests.helpers import (
     create_hub_editor,
     create_random_authenticated_user,
@@ -23,7 +20,6 @@ from user.tests.helpers import (
     create_user,
 )
 from utils.openalex import OpenAlex
-from utils.test_helpers import get_authenticated_patch_response
 
 fixtures_dir = Path(__file__).parent / "fixtures"
 
@@ -64,9 +60,10 @@ class UserApiTests(APITestCase):
         Authorship.objects.create(
             author=self.user_with_published_works.author_profile, paper=paper2
         )
+        author_profile = self.user_with_published_works.author_profile
 
         # Act
-        url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
+        url = f"/api/author/{author_profile.id}/publications/"
         resp = self.client.get(url)
 
         # Assert
@@ -83,17 +80,16 @@ class UserApiTests(APITestCase):
         Authorship.objects.create(
             author=self.user_with_published_works.author_profile, paper=paper
         )
+        author_profile = self.user_with_published_works.author_profile
 
         # Act
-        url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
+        url = f"/api/author/{author_profile.id}/publications/"
         resp = self.client.get(url)
 
         # Assert
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["count"], 1)
-        cache_key = (
-            f"author-{self.user_with_published_works.author_profile.id}-publications"
-        )
+        cache_key = f"author-{author_profile.id}-publications"
         self.assertEqual(cache.get(cache_key)[0].paper, paper)
 
     def test_get_publications_reads_from_cache(self):
@@ -103,13 +99,12 @@ class UserApiTests(APITestCase):
         document = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
         Paper.objects.create(title="title1", unified_document=document)
 
-        cache_key = (
-            f"author-{self.user_with_published_works.author_profile.id}-publications"
-        )
+        author_profile = self.user_with_published_works.author_profile
+        cache_key = f"author-{author_profile.id}-publications"
         cache.set(cache_key, [document])
 
         # Act
-        url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
+        url = f"/api/author/{author_profile.id}/publications/"
         resp = self.client.get(url)
 
         # Assert
@@ -122,7 +117,7 @@ class UserApiTests(APITestCase):
     @patch.object(OpenAlex, "get_works")
     @patch.object(OpenAlex, "get_authors")
     def test_add_publications_to_author(self, mock_get_authors, mock_get_works):
-        with open(fixtures_dir / "openalex_author_works.json", "r") as works_file:
+        with open(fixtures_dir / "openalex_author_works.json") as works_file:
             # Mock responses for OpenAlex API calls
             mock_data = json.load(works_file)
             mock_get_works.return_value = (mock_data["results"], None)
@@ -136,9 +131,9 @@ class UserApiTests(APITestCase):
             openalex_api = OpenAlex()
             author_works, _ = openalex_api.get_works()
             work_ids = [work["id"] for work in author_works]
-
+            author_profile = self.user_with_published_works.author_profile
             # Add publications to author
-            url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
+            url = f"/api/author/{author_profile.id}/publications/"
             self.client.post(
                 url,
                 {
@@ -163,9 +158,10 @@ class UserApiTests(APITestCase):
         Authorship.objects.create(
             author=self.user_with_published_works.author_profile, paper=paper2
         )
+        author_profile = self.user_with_published_works.author_profile
 
         # Act
-        url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
+        url = f"/api/author/{author_profile.id}/publications/"
         resp = self.client.delete(url, {"paper_ids": [paper1.id, paper2.id]})
 
         # Assert
@@ -173,7 +169,7 @@ class UserApiTests(APITestCase):
         self.assertEqual(resp.json()["count"], 2)
         self.assertFalse(
             Authorship.objects.filter(
-                author=self.user_with_published_works.author_profile,
+                author=author_profile,
                 paper__id__in=[paper1.id, paper2.id],
             ).exists()
         )
@@ -181,9 +177,10 @@ class UserApiTests(APITestCase):
     def test_delete_publications_paper_not_found(self):
         # Arrange
         self.client.force_authenticate(self.user_with_published_works)
+        author_profile = self.user_with_published_works.author_profile
 
         # Act
-        url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
+        url = f"/api/author/{author_profile.id}/publications/"
         resp = self.client.delete(url, {"paper_ids": [-1]})
 
         # Assert
@@ -199,30 +196,27 @@ class UserApiTests(APITestCase):
         )
         self.client.force_authenticate(other_user)
 
+        author_profile = self.user_with_published_works.author_profile
         paper = Paper.objects.create(
             title="title1",
         )
-        Authorship.objects.create(
-            author=self.user_with_published_works.author_profile, paper=paper
-        )
+        Authorship.objects.create(author=author_profile, paper=paper)
 
         # Act
-        url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
+        url = f"/api/author/{author_profile.id}/publications/"
         resp = self.client.delete(url, {"paper_ids": [paper.id]})
 
         # Assert
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["count"], 0)
         self.assertTrue(
-            Authorship.objects.filter(
-                author=self.user_with_published_works.author_profile, paper=paper
-            ).exists()
+            Authorship.objects.filter(author=author_profile, paper=paper).exists()
         )
 
     @patch.object(OpenAlex, "get_works")
     @patch.object(OpenAlex, "get_authors")
     def _add_publications_to_author(self, author, mock_get_authors, mock_get_works):
-        with open(fixtures_dir / "openalex_author_works.json", "r") as works_file:
+        with open(fixtures_dir / "openalex_author_works.json") as works_file:
             # Mock responses for OpenAlex API calls
             mock_data = json.load(works_file)
             mock_get_works.return_value = (mock_data["results"], None)
@@ -260,15 +254,14 @@ class UserApiTests(APITestCase):
         )
 
 
-class UserViewsTests(TestCase):
+class UserViewsTests(APITestCase):
     def test_set_has_seen_first_coin_modal(self):
         user = create_random_authenticated_user("first_coin_viewser")
         self.assertFalse(user.has_seen_first_coin_modal)
 
         url = "/api/user/has_seen_first_coin_modal/"
-        response = get_authenticated_patch_response(
-            user, url, data={}, content_type="application/json"
-        )
+        self.client.force_authenticate(user)
+        response = self.client.patch(url, {})
         self.assertContains(
             response, 'has_seen_first_coin_modal":true', status_code=200
         )
@@ -284,11 +277,10 @@ class UserViewsTests(TestCase):
         user.save(update_fields=["is_staking_opted_in", "staking_opted_in_date"])
 
         url = "/api/user/set_staking_opted_in/"
-        response = get_authenticated_patch_response(
-            user,
+        self.client.force_authenticate(user)
+        response = self.client.patch(
             url,
-            data={"is_staking_opted_in": True},
-            content_type="application/json",
+            {"is_staking_opted_in": True},
         )
 
         self.assertEqual(response.status_code, 200)
@@ -296,92 +288,6 @@ class UserViewsTests(TestCase):
         user.refresh_from_db()
         self.assertTrue(user.is_staking_opted_in)
         self.assertEqual(user.staking_opted_in_date, original_opt_in_date)
-
-    @patch.object(OpenAlex, "get_authors")
-    def test_author_overview(self, mock_get_authors):
-        from paper.models import Paper
-
-        works = None
-        with open(fixtures_dir / "openalex_works.json", "r") as file:
-            response = json.load(file)
-            works = response.get("results")
-
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
-            mock_data = json.load(file)
-            mock_get_authors.return_value = (mock_data["results"], None)
-
-            process_openalex_works(works)
-
-            dois = [work.get("doi") for work in works]
-            dois = [doi.replace("https://doi.org/", "") for doi in dois]
-
-            papers = Paper.objects.filter(doi__in=dois)
-            first_author = papers.first().authors.first()
-
-            url = f"/api/author/{first_author.id}/overview/"
-            response = self.client.get(
-                url,
-            )
-
-            self.assertGreater(response.data["count"], 0)
-
-    @patch.object(OpenAlex, "get_authors")
-    def test_author_overview_writes_to_cache(self, mock_get_authors):
-        # Arrange
-        from paper.models import Paper
-
-        works = None
-        with open(fixtures_dir / "openalex_works.json", "r") as file:
-            response = json.load(file)
-            works = response.get("results")
-
-        with open(fixtures_dir / "openalex_authors.json", "r") as file:
-            mock_data = json.load(file)
-            mock_get_authors.return_value = (mock_data["results"], None)
-
-            process_openalex_works(works)
-
-            dois = [work.get("doi") for work in works]
-            dois = [doi.replace("https://doi.org/", "") for doi in dois]
-
-            papers = Paper.objects.filter(doi__in=dois)
-            first_author = papers.first().authors.first()
-
-            # Act
-            url = f"/api/author/{first_author.id}/overview/"
-            response = self.client.get(
-                url,
-            )
-
-            # Assert
-            self.assertTrue(response.status_code, 200)
-            self.assertEqual(response.data["count"], 1)
-            cache_key = f"author-{first_author.id}-overview"
-            self.assertTrue(cache.get(cache_key))
-            self.assertEqual(len(cache.get(cache_key)), 1)
-
-    def test_author_overview_returns_from_cache(self):
-        # Arrange
-        author = Author.objects.create(first_name="firstName1", last_name="lastName1")
-
-        document = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
-        Paper.objects.create(title="title1", unified_document=document)
-
-        cache_key = f"author-{author.id}-overview"
-        cache.set(cache_key, [document])
-
-        # Act
-        url = f"/api/author/{author.id}/overview/"
-        response = self.client.get(
-            url,
-        )
-
-        # Assert
-        self.assertTrue(response.status_code, 200)
-        self.assertEqual(response.json()["count"], 1)
-        self.assertEqual(
-            response.json()["results"][0]["documents"]["id"], document.paper.id
-        )
 
 
 class UserModerationTests(APITestCase):
@@ -416,7 +322,9 @@ class UserModerationTests(APITestCase):
         self.assertTrue(self.target_user.is_active)
 
     def test_mark_probable_spammer_requires_moderator_or_editor(self):
-        """Test that only moderators or hub editors can mark users as probable spammers"""
+        """
+        Test that only moderators or hub editors can mark users as probable spammers
+        """
         regular_user = create_random_default_user("regular_user")
         another_user = create_random_default_user("another_user")
         url = "/api/user/mark_probable_spammer/"

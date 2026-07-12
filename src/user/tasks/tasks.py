@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterator
 
 from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
@@ -16,9 +17,9 @@ from purchase.models import Fundraise, Grant
 from purchase.services.fundraise_service import FundraiseService
 from reputation.models import Bounty
 from researchhub.celery import app
+from researchhub.services.storage_service import S3StorageService
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
-from review.models.peer_review_model import PeerReview
 from review.models.review_model import Review
 from user.editor_payout_tasks import editor_daily_payout_task
 from user.events import publish_user_reinstated, publish_user_suspended
@@ -72,11 +73,8 @@ def handle_spam_user_task(user_id, requestor=None):
     for bounty in user.bounties.filter(status__in=[Bounty.OPEN, Bounty.ASSESSMENT]):
         bounty.close(Bounty.CANCELLED)
 
-    # Soft-delete peer reviews and reviews
+    # Soft-delete reviews
     now = timezone.now()
-    PeerReview.objects.filter(user=user).update(
-        is_removed=True, is_public=False, is_removed_date=now
-    )
     Review.objects.filter(created_by=user).update(
         is_removed=True, is_public=False, is_removed_date=now
     )
@@ -97,6 +95,9 @@ def handle_spam_user_task(user_id, requestor=None):
 
     # Resolve any open moderation flags on the user's content
     _resolve_open_flags_for_user(user, requestor)
+
+    # Quarantine S3 objects backing the user's content
+    _quarantine_user_files(user)
 
     publish_user_suspended(sender=User, user_id=user.id)
 
@@ -147,6 +148,44 @@ def _resolve_open_flags_for_user(user, requestor=None):
     )
 
 
+def _user_file_keys(user: User) -> Iterator[str]:
+    """
+    Yield the S3 object keys for all files of the given user's content.
+    """
+    for paper in user.papers.iterator():
+        if paper.file:
+            yield paper.file.name
+
+    for post in user.created_posts.iterator():
+        for file_field in (post.discussion_src, post.eln_src):
+            if file_field:
+                yield file_field.name
+
+    comments = RhCommentModel.all_objects.filter(created_by=user)
+    for comment in comments.iterator():
+        if comment.comment_content_src:
+            yield comment.comment_content_src.name
+
+
+def _quarantine_user_files(user: User) -> None:
+    """
+    Move the S3 object of the user's content to quarantine.
+    """
+    storage_service = S3StorageService()
+    for key in _user_file_keys(user):
+        storage_service.quarantine_object(key)
+
+
+def _restore_user_files(user: User) -> None:
+    """
+    Move the S3 object of the user's content out of quarantine back to
+    its original location.
+    """
+    storage_service = S3StorageService()
+    for key in _user_file_keys(user):
+        storage_service.restore_object(key)
+
+
 @app.task
 def reinstate_user_task(user_id):
     user = User.objects.get(id=user_id)
@@ -177,19 +216,19 @@ def reinstate_user_task(user_id):
         is_removed=False
     )
 
-    # Restore peer reviews and reviews
-    PeerReview.all_objects.filter(user=user).update(
-        is_removed=False, is_public=True, is_removed_date=None
-    )
+    # Restore reviews
     Review.all_objects.filter(created_by=user).update(
         is_removed=False, is_public=True, is_removed_date=None
     )
+
+    # Restore quarantined S3 objects backing the user's content
+    _restore_user_files(user)
 
     publish_user_reinstated(sender=User, user_id=user.id)
 
 
 def get_latest_actions(cursor):
-    Action = apps.get_model("user.Action")
+    Action = apps.get_model("user.Action")  # noqa: N806
     actions = Action.objects.all().order_by("-id")[cursor:]
     next_cursor = cursor + len(actions)
     return actions, next_cursor

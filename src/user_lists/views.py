@@ -95,7 +95,9 @@ class ListItemViewSet(
 
     def create(self, request, *args, **kwargs):
         data = request.data
-        # when creating a new item, if no parent list is provided in the POST request (one click add to list instead of selecting a list), get or create the default list
+        # when creating a new item, if no parent list is provided in the POST request
+        # (one click add to list instead of selecting a list), get or create the
+        # default list
         if not data.get("parent_list"):
             default_list = self._get_or_create_default_list(request.user)
             data = {

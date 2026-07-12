@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
 
@@ -15,7 +15,7 @@ from user.models import User
 logger = logging.getLogger(__name__)
 
 
-def extract_related_work(event_props: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def extract_related_work(event_props: dict[str, Any]) -> dict[str, Any] | None:
     """
     Extract related_work data from event_properties.
 
@@ -68,12 +68,12 @@ class AmplitudeEvent:
     event_type: str
     unified_document_id: int
     event_timestamp: datetime
-    user_id: Optional[int] = None
-    external_user_id: Optional[str] = None
-    content_type: Optional[ContentType] = None
-    object_id: Optional[int] = None
-    personalize_rec_id: Optional[str] = None
-    impression: Optional[str] = None
+    user_id: int | None = None
+    external_user_id: str | None = None
+    content_type: ContentType | None = None
+    object_id: int | None = None
+    personalize_rec_id: str | None = None
+    impression: str | None = None
 
 
 class AmplitudeEventParser:
@@ -96,8 +96,8 @@ class AmplitudeEventParser:
         return cls._content_type_cache[model_name]
 
     def _extract_user_ids(
-        self, event: Dict[str, Any], validate_user_exists: bool = True
-    ) -> Tuple[Optional[int], Optional[str]]:
+        self, event: dict[str, Any], validate_user_exists: bool = True
+    ) -> tuple[int | None, str | None]:
         """Extract user_id and external_user_id from event."""
         event_props = event.get("event_properties", {})
         user_id_str = event_props.get("user_id") or event.get("user_id")
@@ -119,7 +119,7 @@ class AmplitudeEventParser:
         return user_id, external_user_id
 
     def _extract_timestamp(
-        self, event: Dict[str, Any], time_field: str = "time"
+        self, event: dict[str, Any], time_field: str = "time"
     ) -> datetime:
         """Extract timestamp from event.
 
@@ -131,7 +131,7 @@ class AmplitudeEventParser:
             return datetime.fromtimestamp(timestamp_ms / 1000)
         return datetime.now()
 
-    def parse_amplitude_event(self, event: Dict[str, Any]) -> Optional[AmplitudeEvent]:
+    def parse_amplitude_event(self, event: dict[str, Any]) -> AmplitudeEvent | None:
         """Parse an Amplitude event and return an AmplitudeEvent object."""
         try:
             event_type = event.get("event_type", "").lower()
@@ -247,8 +247,8 @@ class AmplitudeEventParser:
             return None
 
     def parse_bulk_impression_event(
-        self, event: Dict[str, Any]
-    ) -> List[AmplitudeEvent]:
+        self, event: dict[str, Any]
+    ) -> list[AmplitudeEvent]:
         """Parse a bulk_feed_impression event into multiple AmplitudeEvent objects.
 
         Args:

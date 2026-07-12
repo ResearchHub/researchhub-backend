@@ -189,8 +189,10 @@ class TestRhCommentThreadModel(TestCase):
 
         # Assert bounty_count is 2 (only top-level comments with bounties)
         self.assertEqual(aggregates["bounty_count"], 2)
-        # Assert conversation_count now uses discussion_count (only non-bounty GENERIC_COMMENT)
-        # comment1 and comment2 have bounties, comment3 doesn't, nested_comment has bounty
+        # Assert conversation_count now uses discussion_count
+        # (only non-bounty GENERIC_COMMENT)
+        # comment1 and comment2 have bounties, comment3 doesn't, nested_comment
+        # has bounty
         # So only comment3 and its non-bounty children count = 1
         self.assertEqual(aggregates["conversation_count"], 1)
 
@@ -262,7 +264,8 @@ class TestRhCommentThreadModel(TestCase):
         # Get aggregates
         aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
 
-        # Assert conversation_count now uses discussion_count (all GENERIC_COMMENT in generic threads)
+        # Assert conversation_count now uses discussion_count
+        # (all GENERIC_COMMENT in generic threads)
         self.assertEqual(aggregates["conversation_count"], 4)
         # Assert review_count is 2 (only top-level review comments)
         self.assertEqual(aggregates["review_count"], 2)
@@ -357,7 +360,8 @@ class TestRhCommentThreadModel(TestCase):
             aggregates["bounty_count"], 1
         )  # Only non-removed bounty comment
         # conversation_count uses discussion_count which excludes bounty comments
-        # comment_with_bounty has bounty (excluded), removed_comment_with_bounty (excluded),
+        # comment_with_bounty has bounty (excluded),
+        # removed_comment_with_bounty (excluded),
         # 1 generic without bounty (counted), 1 removed generic (excluded)
         self.assertEqual(
             aggregates["conversation_count"], 1
@@ -440,7 +444,8 @@ class TestRhCommentThreadModel(TestCase):
         # Assert counts
         self.assertEqual(aggregates["bounty_count"], 3)  # 3 comments with bounties
         # conversation_count uses discussion_count which excludes bounty comments
-        # 3 comments have bounties (excluded), 5 generic comments without bounties (counted)
+        # 3 comments have bounties (excluded)
+        # 5 generic comments without bounties (counted)
         self.assertEqual(
             aggregates["conversation_count"], 5
         )  # Only non-bounty GENERIC_COMMENT in generic thread

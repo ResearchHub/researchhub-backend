@@ -42,7 +42,6 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from tag.models import Concept
 from topic.models import Topic, UnifiedDocumentTopics
-from utils import sentry
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.semantic_scholar import SemanticScholar
@@ -53,7 +52,7 @@ logger = get_task_logger(__name__)
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
 def celery_process_paper(self, submission_id):
-    PaperSubmission = apps.get_model("paper.PaperSubmission")
+    PaperSubmission = apps.get_model("paper.PaperSubmission")  # noqa: N806
 
     paper_submission = PaperSubmission.objects.get(id=submission_id)
     paper_submission.set_processing_status()
@@ -169,8 +168,8 @@ def celery_manubot_doi(self, celery_data):
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
 def celery_combine_doi(self, celery_data):
-    Paper = apps.get_model("paper.Paper")
-    PaperSubmission = apps.get_model("paper.PaperSubmission")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
+    PaperSubmission = apps.get_model("paper.PaperSubmission")  # noqa: N806
 
     try:
         dois = []
@@ -193,9 +192,9 @@ def celery_combine_doi(self, celery_data):
             paper_submission.save()
         else:
             for error in errors:
-                sentry.log_info(error)
+                logger.warning("DOI lookup error: %s", error)
             self.request.args = (celery_data, submission_id)
-            raise DOINotFoundError()
+            raise DOINotFoundError
 
         paper_submission.set_processing_doi_status()
         doi_paper_check = Paper.objects.filter(doi__iexact=doi)
@@ -206,7 +205,7 @@ def celery_combine_doi(self, celery_data):
             raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
 
         if errors:
-            sentry.log_info(errors)
+            logger.warning("DOI lookup errors: %s", errors)
 
     except DOINotFoundError as e:
         raise e
@@ -221,7 +220,7 @@ def celery_combine_doi(self, celery_data):
 def celery_manubot(self, celery_data):
     paper_data, submission_id = celery_data
 
-    Paper = apps.get_model("paper.Paper")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
 
     try:
         doi = paper_data.get("doi")
@@ -305,7 +304,7 @@ def celery_manubot(self, celery_data):
 def celery_unpaywall(self, celery_data):
     paper_data, submission_id = celery_data
 
-    Paper = apps.get_model("paper.Paper")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
 
     try:
         doi = paper_data.get("doi")
@@ -365,7 +364,7 @@ def celery_unpaywall(self, celery_data):
 def celery_crossref(self, celery_data):
     paper_data, submission_id = celery_data
 
-    Paper = apps.get_model("paper.Paper")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
 
     try:
         doi = paper_data.get("doi")
@@ -419,7 +418,7 @@ def celery_crossref(self, celery_data):
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
 def celery_openalex(self, celery_data):
     paper_data, submission_id = celery_data
-    Paper = apps.get_model("paper.Paper")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
 
     try:
         doi = paper_data.get("doi")
@@ -457,7 +456,7 @@ def celery_openalex(self, celery_data):
 def celery_semantic_scholar(self, celery_data):
     paper_data, submission_id = celery_data
 
-    Paper = apps.get_model("paper.Paper")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
 
     try:
         doi = paper_data.get("doi")
@@ -504,7 +503,7 @@ def celery_semantic_scholar(self, celery_data):
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
 def celery_combine_paper_data(self, celery_data):
-    PaperSubmission = apps.get_model("paper.PaperSubmission")
+    PaperSubmission = apps.get_model("paper.PaperSubmission")  # noqa: N806
 
     errors = []
     data = {}
@@ -531,7 +530,7 @@ def celery_combine_paper_data(self, celery_data):
         paper_submission.set_processing_doi_status()
 
     if errors:
-        sentry.log_info(errors)
+        logger.warning("Errors while combining paper data: %s", errors)
 
     if not data:
         self.request.args = (celery_data, submission_id)
@@ -546,9 +545,9 @@ def celery_create_paper(self, celery_data):
 
     paper_data, submission_id = celery_data
 
-    Paper = apps.get_model("paper.Paper")
-    PaperSubmission = apps.get_model("paper.PaperSubmission")
-    Contribution = apps.get_model("reputation.Contribution")
+    Paper = apps.get_model("paper.Paper")  # noqa: N806
+    PaperSubmission = apps.get_model("paper.PaperSubmission")  # noqa: N806
+    Contribution = apps.get_model("reputation.Contribution")  # noqa: N806
 
     paper = None
     try:
@@ -565,7 +564,8 @@ def celery_create_paper(self, celery_data):
             paper.doi = async_paper_updator.doi
             paper.unified_document.hubs.add(*async_paper_updator.hubs)
             paper.title = async_paper_updator.title
-            # Used for backwards compatibility. Hubs should preferrably be retrieved through the unified_document model.
+            # Used for backwards compatibility. Hubs should preferrably be retrieved
+            # through the unified_document model.
             paper.hub.add(*async_paper_updator.hubs)
 
         paper.full_clean()
@@ -592,9 +592,10 @@ def celery_create_paper(self, celery_data):
         paper.unified_document.update_filter(FILTER_OPEN_ACCESS)
         download_pdf.apply_async((paper_id,), priority=3, countdown=5)
 
-        # We need to ensure this paper is processed properly so that all metadata is retrieved
-        # from OpenAlex. The OpenAlex metadata above is superficial and does not include the rest
-        # of the processing necessary to have this paper (e.g. authorship).
+        # We need to ensure this paper is processed properly so that all metadata is
+        # retrieved from OpenAlex. The OpenAlex metadata above is superficial and does
+        # not include the rest of the processing necessary to have this paper
+        # (e.g. authorship).
         if paper.openalex_id:
             pull_openalex_author_works_batch.apply_async(
                 ([paper.openalex_id],), priority=1
@@ -623,8 +624,8 @@ def celery_create_paper(self, celery_data):
         concepts = openalex_data.get("concepts", [])
         create_paper_related_tags(paper, concepts, topics)
 
-    except Exception as e:
-        sentry.log_error(e, message=f"Failed to create paper tags for paper {paper.id}")
+    except Exception:
+        logger.exception("Failed to create paper tags for paper %s", paper.id)
 
     return paper.id
 
@@ -660,8 +661,8 @@ def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
             # Add subfield hub
             subfield_hub = Hub.get_from_subfield(topic.subfield)
             paper.unified_document.hubs.add(subfield_hub)
-        except Exception as e:
-            sentry.log_error(e, message=f"Failed to process topic for paper {paper.id}")
+        except Exception:
+            logger.exception("Failed to process topic for paper %s", paper.id)
 
     # Bulk create/update UnifiedDocumentTopics
     UnifiedDocumentTopics.objects.bulk_create(
@@ -690,10 +691,8 @@ def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
             )
         except IntegrityError:
             pass
-        except Exception as e:
-            sentry.log_error(
-                e, message=f"Failed to process concept for paper {paper.id}"
-            )
+        except Exception:
+            logger.exception("Failed to process concept for paper %s", paper.id)
 
     # Bulk add concept hubs
     concept_ids = paper.unified_document.concepts.values_list("id", flat=True)
@@ -769,10 +768,10 @@ def _add_preprint_hub_if_applicable(paper) -> None:
 @app.task(queue=QUEUE_PAPER_METADATA)
 def celery_handle_paper_processing_errors(request, exc, traceback):
     try:
-        sentry.log_error(exc)
+        logger.error("Paper processing failed", exc_info=exc)
 
         extra_metadata = {}
-        PaperSubmission = apps.get_model("paper.PaperSubmission")
+        PaperSubmission = apps.get_model("paper.PaperSubmission")  # noqa: N806
         celery_args = request.args
         _, submission_id = celery_args
         paper_submission = PaperSubmission.objects.get(id=submission_id)
@@ -787,7 +786,9 @@ def celery_handle_paper_processing_errors(request, exc, traceback):
             paper_submission.set_failed_doi_status()
         else:
             paper_submission.set_failed_status()
-    except Exception as e:
-        sentry.log_error(e, exc)
+    except Exception:
+        logger.exception(
+            "Error while handling paper processing failure (original error: %s)", exc
+        )
 
     return
