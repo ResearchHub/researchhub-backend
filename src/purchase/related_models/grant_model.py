@@ -1,6 +1,5 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
-import pytz
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import CASCADE
@@ -30,6 +29,10 @@ class Grant(DefaultModel):
         (COMPLETED, "Completed"),
         (DECLINED, "Declined"),
     )
+
+    # Statuses in which a grant has not cleared moderation and stays hidden from
+    # everyone except its creator, moderators, and hub editors.
+    PENDING_MODERATION_STATUSES = (PENDING, DECLINED)
 
     # Visibility rule applied to preregistrations applying to this grant.
     APPLICATION_VISIBILITY_OPTIONAL = "OPTIONAL"
@@ -124,9 +127,36 @@ class Grant(DefaultModel):
     def is_expired(self):
         """Check if the grant application deadline has passed"""
         if self.end_date:
-            return self.end_date < datetime.now(pytz.UTC)
+            return self.end_date < datetime.now(UTC)
         return False
 
     def is_active(self):
         """Check if the grant is currently accepting applications"""
         return self.status == self.OPEN and not self.is_expired()
+
+    def is_pending_moderation(self):
+        """Whether the grant has not yet cleared moderation.
+
+        Grants gate their public visibility through ``Grant.status`` rather than
+        the status of their backing post (which stays APPROVED).
+        """
+        return self.status in self.PENDING_MODERATION_STATUSES
+
+    def get_llm_context_text(self):
+        """Grant terms as prompt-ready text for LLM grounding.
+
+        Combines the structured terms (``short_title`` + ``organization`` +
+        ``description``) with the associated ``GRANT`` post body, when present.
+        """
+        parts = []
+        if self.short_title:
+            parts.append(f"Title: {self.short_title}")
+        if self.organization:
+            parts.append(f"Organization: {self.organization}")
+        parts.append(self.description or "")
+        post = self.unified_document.posts.first()
+        if post:
+            body = post.get_full_markdown()
+            if body:
+                parts.append(body)
+        return "\n\n".join(p for p in parts if p).strip()

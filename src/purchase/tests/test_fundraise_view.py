@@ -1,8 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APIRequestFactory, APITestCase, force_authenticate
 
@@ -91,10 +90,8 @@ class FundraiseViewTests(APITestCase):
         return self.client.get(f"/api/fundraise/{fundraise_id}/contributions/")
 
     def _give_user_balance(self, user, amount):
-        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
-        Balance.objects.create(
-            amount=amount, user=user, content_type=DISTRIBUTION_CONTENT_TYPE
-        )
+        distribution_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(amount=amount, user=user, content_type=distribution_ct)
 
     # Fundraise tests
 
@@ -294,7 +291,7 @@ class FundraiseViewTests(APITestCase):
 
         # update fundraise end_date to 1 day ago
         fundraise = Fundraise.objects.get(id=fundraise_id)
-        fundraise.end_date = datetime.now(pytz.UTC) - timedelta(days=1)
+        fundraise.end_date = datetime.now(UTC) - timedelta(days=1)
         fundraise.save()
 
         user = create_random_authenticated_user("fundraise_views")
@@ -437,12 +434,12 @@ class FundraiseViewTests(APITestCase):
         fundraise_obj.escrow.set_cancelled_status()
 
         self.client.force_authenticate(self.user)
-        before = datetime.now(pytz.UTC)
+        before = datetime.now(UTC)
         response = self.client.post(
             f"/api/fundraise/{fundraise_id}/reopen/",
             {"duration_days": 14},
         )
-        after = datetime.now(pytz.UTC)
+        after = datetime.now(UTC)
 
         self.assertEqual(response.status_code, 200)
 
@@ -463,7 +460,7 @@ class FundraiseViewTests(APITestCase):
         fundraise_id = fundraise.data["id"]
 
         fundraise_obj = Fundraise.objects.get(id=fundraise_id)
-        fundraise_obj.end_date = datetime.now(pytz.UTC) - timedelta(days=1)
+        fundraise_obj.end_date = datetime.now(UTC) - timedelta(days=1)
         fundraise_obj.save()
         self.assertTrue(fundraise_obj.is_expired())
 
@@ -561,7 +558,7 @@ class FundraiseViewTests(APITestCase):
         ReferralSignup.objects.create(
             referrer=referrer,
             referred=referred_user,
-            signup_date=datetime.now(pytz.UTC) - timedelta(days=30),  # 1 month ago
+            signup_date=datetime.now(UTC) - timedelta(days=30),  # 1 month ago
         )
 
         # Create a fundraise with a goal
@@ -592,7 +589,7 @@ class FundraiseViewTests(APITestCase):
         # Note: Other distributions (fundraise payout, fees) are also created
         referral_bonus_distributions = Distribution.objects.filter(
             distribution_type="REFERRAL_BONUS",
-            created_date__gte=datetime.now(pytz.UTC) - timedelta(seconds=10),
+            created_date__gte=datetime.now(UTC) - timedelta(seconds=10),
         )
 
         self.assertEqual(referral_bonus_distributions.count(), 2)
@@ -600,7 +597,7 @@ class FundraiseViewTests(APITestCase):
         # Check that both users received the correct bonus amount
 
         service = ReferralBonusService()
-        expected_bonus = Decimal("200") * (service.bonus_percentage / 100)
+        expected_bonus = Decimal(200) * (service.bonus_percentage / 100)
 
         referrer_distribution = Distribution.objects.filter(
             recipient=referrer,

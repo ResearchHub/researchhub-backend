@@ -6,6 +6,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from utils.models import DefaultModel
+from utils.openalex import orcid_from_urls
 
 
 class ExpertSearch(DefaultModel):
@@ -42,7 +43,10 @@ class ExpertSearch(DefaultModel):
     name = models.CharField(
         max_length=512,
         blank=True,
-        db_comment="Optional user-defined search name; auto-filled from document title if not provided.",
+        db_comment=(
+            "Optional user-defined search name; auto-filled from document title if not "
+            "provided."
+        ),
     )
     query = models.TextField(
         db_comment="Research description or document content used for the search.",
@@ -56,11 +60,6 @@ class ExpertSearch(DefaultModel):
         default=dict,
         blank=True,
         db_comment="Expert count, expertise_level, region, state, gender, etc.",
-    )
-    excluded_search_ids = models.JSONField(
-        default=list,
-        blank=True,
-        db_comment="Expert ids to exclude from new search results.",
     )
     additional_context = models.TextField(
         blank=True,
@@ -132,6 +131,15 @@ class Expert(DefaultModel):
     expertise = models.TextField(blank=True)
     notes = models.TextField(blank=True)
     sources = models.JSONField(default=list, blank=True)
+    profile = models.JSONField(
+        default=dict,
+        blank=True,
+        db_comment=(
+            "Persisted, source-attributed researcher profile built once by "
+            "researcher_profile_service (OpenAlex/ORCID resolver + web search) and "
+            "reused by the proposal draft engine and source verifier."
+        ),
+    )
     is_manually_added = models.BooleanField(
         default=False,
         db_comment=(
@@ -150,7 +158,9 @@ class Expert(DefaultModel):
     last_email_sent_at = models.DateTimeField(
         null=True,
         blank=True,
-        db_comment="Last time an outreach email was sent to this expert address (any search).",
+        db_comment=(
+            "Last time an outreach email was sent to this expert address (any search)."
+        ),
     )
 
     class Meta:
@@ -171,6 +181,30 @@ class Expert(DefaultModel):
 
     def __str__(self):
         return f"Expert {self.id} ({self.email})"
+
+    @property
+    def full_name(self) -> str:
+        parts = [self.first_name, self.middle_name, self.last_name]
+        return " ".join(str(p).strip() for p in parts if p and str(p).strip()).strip()
+
+    @property
+    def source_urls(self) -> list[str]:
+        urls: list[str] = []
+        for item in self.sources or []:
+            if isinstance(item, dict):
+                url = str(item.get("url") or "").strip()
+            elif isinstance(item, str):
+                url = item.strip()
+            else:
+                url = ""
+            if url:
+                urls.append(url)
+        return urls
+
+    @property
+    def orcid(self) -> str | None:
+        """ORCID mined from the ``sources`` URLs, or ``None`` when absent."""
+        return orcid_from_urls(self.source_urls)
 
     def save(self, *args, **kwargs):
         if self.email:
@@ -222,6 +256,7 @@ class GeneratedEmail(DefaultModel):
 
     class Status(models.TextChoices):
         BOUNCED = "bounced", "bounced"
+        COMPLAINED = "complained", "complained"
         DRAFT = "draft", "draft"
         SENT = "sent", "sent"
         PROCESSING = "processing", "processing"
@@ -255,7 +290,9 @@ class GeneratedEmail(DefaultModel):
         default=EmailTemplateType.CUSTOM,
         null=True,
         blank=True,
-        db_comment="LLM prompt key; null when placeholder is for fixed {{}} template only.",
+        db_comment=(
+            "LLM prompt key; null when placeholder is for fixed {{}} template only."
+        ),
     )
     status = models.CharField(
         max_length=16,
@@ -282,6 +319,11 @@ class GeneratedEmail(DefaultModel):
         null=True,
         blank=True,
         db_comment="Timestamp of bounce email event.",
+    )
+    complained_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_comment="Timestamp of complaint (spam report) email event.",
     )
 
     class Meta:
@@ -330,3 +372,112 @@ class EmailTemplate(DefaultModel):
 
     def __str__(self):
         return f"EmailTemplate {self.id} ({self.name})"
+
+
+class ProposalDraft(DefaultModel):
+    """
+    Tracks a headless proposal-drafting job.
+
+    One FK (``search_expert``) resolves both the Expert and, via
+    ``expert_search.unified_document``, the Grant and GRANT post.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING"
+        PROCESSING = "PROCESSING"
+        COMPLETED = "COMPLETED"
+        FAILED = "FAILED"
+
+    class Step(models.TextChoices):
+        QUEUED = "QUEUED"
+        BUILDING_PROFILE = "BUILDING_PROFILE"
+        DRAFTING = "DRAFTING"
+        JUDGING = "JUDGING"
+        REVISING = "REVISING"
+        VERIFYING = "VERIFYING"
+        WRITING_NOTE = "WRITING_NOTE"
+        DONE = "DONE"
+
+    search_expert = models.ForeignKey(
+        "research_ai.SearchExpert",
+        on_delete=models.CASCADE,
+        related_name="proposal_drafts",
+    )
+    created_by = models.ForeignKey(
+        "user.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_research_ai_proposal_drafts",
+        db_comment=(
+            "User who triggered the draft; null for system/automatic runs or if the "
+            "user is later deleted (the job record is kept for diagnostics)."
+        ),
+    )
+    note = models.ForeignKey(
+        "note.Note",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="proposal_drafts",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    step = models.CharField(
+        max_length=32,
+        choices=Step.choices,
+        default=Step.QUEUED,
+        db_index=True,
+    )
+    rounds_used = models.IntegerField(default=0)
+    run_config = models.JSONField(
+        default=dict,
+        blank=True,
+        db_comment=(
+            "Snapshot of the models/config that actually ran: generator model, judge "
+            "panel roster, max_rounds, etc. Recorded for reproducibility since the "
+            "engine's roster is configurable and the loop is non-deterministic."
+        ),
+    )
+    final_scores = models.JSONField(
+        default=dict,
+        blank=True,
+        db_comment="Last panel rollup.",
+    )
+    gate_report = models.JSONField(
+        default=dict,
+        blank=True,
+        db_comment="Programmatic gate results.",
+    )
+    last_submission = models.JSONField(
+        default=dict,
+        blank=True,
+        db_comment=(
+            "The last draft the agent submitted (sections, prosemirror, "
+            "plain_text, citations). On a COMPLETED run the accepted draft also "
+            "lives on the linked Note; this field exists so a FAILED run's "
+            "rejected draft is still inspectable, since it is never written as a "
+            "Note."
+        ),
+    )
+    error_message = models.TextField(blank=True)
+    processing_time = models.FloatField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "research_ai_proposal_draft"
+        ordering = ["-created_date"]
+        indexes = [
+            models.Index(fields=["status"], name="research_ai_pd_status"),
+            models.Index(
+                fields=["search_expert", "status"],
+                name="research_ai_pd_search_status",
+            ),
+        ]
+
+    def __str__(self):
+        return f"ProposalDraft {self.id} ({self.status}/{self.step})"

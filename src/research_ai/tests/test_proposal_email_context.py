@@ -70,7 +70,8 @@ class FormatAmountRaisedTests(TestCase):
         self.assertEqual(_format_amount_raised(2_500_000), "$2M")
 
     def test_fallback_when_int_round_raises(self):
-        # NaN passes the <= 0 guard but int(round(nan)) raises ValueError; except formats with .0f.
+        # NaN passes the <= 0 guard but int(round(nan)) raises ValueError
+        # except formats with .0f.
         self.assertEqual(_format_amount_raised(float("nan")), "$nan")
 
 
@@ -142,7 +143,7 @@ class FundraiseEmailFieldsTests(TestCase):
 
     def test_populated_from_fundraise(self):
         fundraise = MagicMock()
-        fundraise.goal_amount = Decimal("5000")
+        fundraise.goal_amount = Decimal(5000)
         fundraise.get_amount_raised.return_value = 1200.0
         summary = MagicMock()
         summary.total = 7
@@ -160,7 +161,7 @@ class FundraiseEmailFieldsTests(TestCase):
 
     def test_contributor_count_empty_when_total_zero(self):
         fundraise = MagicMock()
-        fundraise.goal_amount = Decimal("100")
+        fundraise.goal_amount = Decimal(100)
         fundraise.get_amount_raised.return_value = 0.0
         summary = MagicMock()
         summary.total = 0

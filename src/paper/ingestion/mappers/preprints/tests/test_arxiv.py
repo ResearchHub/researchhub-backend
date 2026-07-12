@@ -32,7 +32,7 @@ class TestArXivMapper(TestCase):
         fixtures_dir = Path(__file__).parent / "fixtures"
 
         # Load pre-parsed records from JSON fixture
-        with open(fixtures_dir / "arxiv_parsed_records.json", "r") as f:
+        with open(fixtures_dir / "arxiv_parsed_records.json") as f:
             parsed_records = json.load(f)
 
         # First entry (without extras like comment)

@@ -1,9 +1,9 @@
+import logging
 from urllib.parse import urlparse
 
 import requests
 from django.conf import settings
 from django.contrib.admin.options import get_content_type_for_model
-from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -22,40 +22,36 @@ from analytics.amplitude import track_event
 from discussion.models import Vote
 from discussion.serializers import VoteSerializer
 from discussion.views import ReactionViewActionMixin
-from hub.permissions import IsModerator
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
-from paper.models import Figure, Paper, PaperSubmission, PaperVersion
+from paper.models import Paper, PaperSubmission, PaperVersion
 from paper.paper_upload_tasks import celery_process_paper
-from paper.permissions import CreatePaper, IsAuthor, UpdatePaper
+from paper.permissions import CreatePaper, UpdatePaper
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_version import PaperSeries, PaperSeriesDeclaration
 from paper.serializers import (
     DynamicPaperSerializer,
-    FigureSerializer,
     PaperSerializer,
     PaperSubmissionSerializer,
 )
-from paper.utils import get_cache_key
-from reputation.related_models.paper_reward import (
-    OPEN_ACCESS_MULTIPLIER,
-    OPEN_DATA_MULTIPLIER,
-    PREREGISTERED_MULTIPLIER,
-)
-from researchhub.permissions import IsObjectOwnerOrModerator
-from user.permissions import IsVerifiedUser
+from user.content_moderation_mixin import ContentModerationActionsMixin
+from user.permissions import IsModerator
 from user.related_models.author_model import Author
+from user.services.risk_score_service import RiskScoreService
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
-from utils.http import POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, PostOnly
-from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
+
+logger = logging.getLogger(__name__)
 
 
 class PaperViewSet(
-    ReactionViewActionMixin, FollowViewActionMixin, viewsets.ModelViewSet
+    ContentModerationActionsMixin,
+    ReactionViewActionMixin,
+    FollowViewActionMixin,
+    viewsets.ModelViewSet,
 ):
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
@@ -65,6 +61,7 @@ class PaperViewSet(
     filterset_class = PaperFilter
     throttle_classes = THROTTLE_CLASSES
     ordering = "-created_date"
+    moderation_model = Paper
 
     permission_classes = [
         IsAuthenticatedOrReadOnly & CreatePaper & UpdatePaper & CreateOrUpdateIfAllowed
@@ -107,6 +104,11 @@ class PaperViewSet(
         if user.is_staff:
             return queryset
 
+        # Papers that have not yet been approved (pending or declined) are not
+        # publicly viewable (including via a direct link); only the uploader and
+        # moderators / hub editors may see them until they are approved.
+        queryset = queryset.visible_to(user)
+
         if not user.is_anonymous and user.moderator and external_source:
             queryset = queryset.filter(
                 is_removed=False, retrieved_from_external_source=True
@@ -133,15 +135,20 @@ class PaperViewSet(
             return response
         except IntegrityError as e:
             return self._get_integrity_error_response(e)
-        except PaperSerializerError as e:
-            print("EXCEPTION: ", e)
-            return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+        except PaperSerializerError:
+            logger.exception("Failed to serialize paper")
+            return Response(
+                "Failed to serialize paper", status=status.HTTP_400_BAD_REQUEST
+            )
 
     @track_event
     @action(
         detail=False,
         methods=["post"],
-        permission_classes=[IsAuthenticated, CreatePaper, IsVerifiedUser],
+        permission_classes=[
+            IsAuthenticated,
+            CreatePaper,
+        ],
     )
     def create_researchhub_paper(self, request):
         """
@@ -185,20 +192,21 @@ class PaperViewSet(
                     try:
                         previous_paper = Paper.objects.get(id=previous_paper_id)
                         work_type = previous_paper.work_type
-                    except Paper.DoesNotExist as e:
-                        log_error(
-                            e, message=f"Previous paper not found: {previous_paper_id}"
-                        )
+                    except Paper.DoesNotExist:
+                        logger.error("Previous paper not found: %s", previous_paper_id)
                         return Response(
                             {
-                                "error": "Previous paper not found. Please check the paper ID and try again."
+                                "error": (
+                                    "Previous paper not found. "
+                                    "Please check the paper ID and try again."
+                                )
                             },
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
                 if not title or not abstract:
                     error_msg = "Title and abstract are required"
-                    log_error(ValueError(error_msg))
+                    logger.error(error_msg)
                     return Response(
                         {"error": error_msg}, status=status.HTTP_400_BAD_REQUEST
                     )
@@ -206,7 +214,7 @@ class PaperViewSet(
                 # Validate author data
                 if not authors_data:
                     error_msg = "At least one author is required"
-                    log_error(ValueError(error_msg))
+                    logger.error(error_msg)
                     return Response(
                         {"error": error_msg}, status=status.HTTP_400_BAD_REQUEST
                     )
@@ -216,12 +224,15 @@ class PaperViewSet(
                     author.get("is_corresponding", False) for author in authors_data
                 ):
                     error_msg = "At least one corresponding author is required"
-                    log_error(ValueError(error_msg))
+                    logger.error(error_msg)
                     return Response(
                         {"error": error_msg}, status=status.HTTP_400_BAD_REQUEST
                     )
 
-                # Create paper
+                # Risk-score gating at submission: trusted authors auto-approve,
+                # everyone else enters the moderation queue as PENDING and stays
+                # there through payment until a moderator approves.
+                work_status = RiskScoreService().initial_work_status(request.user)
                 paper_data = {
                     "title": title,
                     "paper_title": title,
@@ -237,19 +248,20 @@ class PaperViewSet(
 
                 try:
                     paper = Paper.objects.create(**paper_data)
-                except Exception as e:
-                    log_error(
-                        e,
-                        message="Failed to create paper",
-                        json_data={"paper_data": paper_data},
-                    )
+                except Exception:
+                    logger.exception("Failed to create paper")
                     raise
+
+                # The Paper post_save signal creates the unified document, which
+                # owns moderation status; carry the gating decision onto it.
+                paper.unified_document.status = work_status
+                paper.unified_document.save(update_fields=["status"])
 
                 # Create paper series
                 try:
                     paper_series = PaperSeries.objects.create()
-                except Exception as e:
-                    log_error(e, message="Failed to create paper series")
+                except Exception:
+                    logger.exception("Failed to create paper series")
                     raise
 
                 # Get valid declaration types
@@ -268,15 +280,12 @@ class PaperViewSet(
                         )
                     ]
                     if missing_declarations:
-                        error_msg = f"Missing required declarations: {', '.join(missing_declarations)}"
-                        log_error(
-                            ValueError(error_msg),
-                            json_data={"declarations": declarations},
+                        logger.warning(
+                            "Missing declarations",
+                            extra={"missing_declarations": missing_declarations},
                         )
                         return Response(
-                            {
-                                "error": "Please accept all required declarations to continue."
-                            },
+                            {"error": ("Please accept all required declarations.")},
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
@@ -288,10 +297,9 @@ class PaperViewSet(
                         and not d.get("accepted", False)
                     ]
                     if unaccepted_declarations:
-                        error_msg = f"All declarations must be accepted. Unaccepted: {', '.join(unaccepted_declarations)}"
-                        log_error(
-                            ValueError(error_msg),
-                            json_data={"declarations": declarations},
+                        logger.warning(
+                            "Unaccepted declarations",
+                            extra={"unaccepted_declarations": unaccepted_declarations},
                         )
                         return Response(
                             {"error": "All declarations must be accepted to continue."},
@@ -310,13 +318,9 @@ class PaperViewSet(
                     # Log if any authors weren't found
                     missing_author_ids = set(author_ids) - set(author_map.keys())
                     if missing_author_ids:
-                        log_error(
-                            ValueError("Some authors not found"),
-                            message=f"Authors not found: {missing_author_ids}",
-                            json_data={
-                                "author_ids": author_ids,
-                                "found_authors": list(author_map.keys()),
-                            },
+                        logger.error(
+                            "Some authors not found",
+                            extra={"missing_author_ids": missing_author_ids},
                         )
 
                     for author_data in authors_data:
@@ -336,17 +340,19 @@ class PaperViewSet(
                             email=author_data.get("email"),
                             source="RESEARCHHUB",
                             author_position=author_position,
-                            raw_author_name=f"{author_map[author_id].first_name} {author_map[author_id].last_name}",
+                            raw_author_name=(
+                                f"{author_map[author_id].first_name} "
+                                f"{author_map[author_id].last_name}"
+                            ),
                             is_corresponding=author_data.get("is_corresponding", False),
                         )
 
                         if institution_id:
                             authorship.institutions.add(institution_id)
-                except Exception as e:
-                    log_error(
-                        e,
-                        message="Failed to associate authors with paper",
-                        json_data={"paper_id": paper.id, "author_data": authors_data},
+                except Exception:
+                    logger.exception(
+                        "Failed to associate authors with paper",
+                        extra={"paper_id": paper.id, "author_data": authors_data},
                     )
                     raise
 
@@ -354,11 +360,10 @@ class PaperViewSet(
                 try:
                     if hub_ids:
                         paper.unified_document.hubs.add(*hub_ids)
-                except Exception as e:
-                    log_error(
-                        e,
-                        message="Failed to associate hubs with paper",
-                        json_data={"paper_id": paper.id, "hub_ids": hub_ids},
+                except Exception:
+                    logger.exception(
+                        "Failed to associate hubs with paper",
+                        extra={"paper_id": paper.id, "hub_ids": hub_ids},
                     )
                     raise
 
@@ -382,10 +387,10 @@ class PaperViewSet(
                             publication_status = (
                                 previous_paper_version.publication_status
                             )
-                        except PaperVersion.DoesNotExist as e:
-                            log_error(
-                                e,
-                                message=f"Previous paper version not found for paper {previous_paper.id}",
+                        except PaperVersion.DoesNotExist:
+                            logger.error(
+                                "Previous paper version not found for paper %s",
+                                previous_paper.id,
                             )
                             raise
 
@@ -397,15 +402,14 @@ class PaperViewSet(
                         journal=journal,
                         publication_status=publication_status,
                     )
-                except Exception as e:
-                    log_error(
-                        e,
-                        message="Failed to create paper version",
-                        json_data={
+                except Exception:
+                    logger.exception(
+                        "Failed to create paper version",
+                        extra={
                             "paper_id": paper.id,
-                            "previous_paper_id": (
-                                previous_paper_id if previous_paper else None
-                            ),
+                            "previous_paper_id": previous_paper_id
+                            if previous_paper
+                            else None,
                         },
                     )
                     raise
@@ -422,30 +426,26 @@ class PaperViewSet(
                         "abstract",
                         "authors",
                         "hubs",
+                        "status",
                         "version",
                         "version_list",
                     ],
                 )
 
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
-            except Exception as e:
-                log_error(
-                    e,
-                    message="Failed to serialize paper response",
-                    json_data={"paper_id": paper.id},
+            except Exception:
+                logger.exception(
+                    "Failed to serialize paper response", extra={"paper_id": paper.id}
                 )
                 raise
 
-        except Exception as e:
-            log_error(
-                e,
-                message="Unhandled exception in create_researchhub_paper",
-                json_data={"request_data": request.data},
+        except Exception:
+            logger.exception(
+                "Unhandled exception in create_researchhub_paper",
+                extra={"request_data": request.data},
             )
             return Response(
-                {
-                    "error": "An error occurred while creating the paper. Please try again later."
-                },
+                {"error": "An error occurred while creating the paper."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -491,13 +491,14 @@ class PaperViewSet(
                 # Get the previous paper
                 try:
                     previous_paper = Paper.objects.get(id=previous_paper_id)
-                except Paper.DoesNotExist as e:
-                    log_error(
-                        e, message=f"Previous paper not found: {previous_paper_id}"
-                    )
+                except Paper.DoesNotExist:
+                    logger.warning("Previous paper not found: %s", previous_paper_id)
                     return Response(
                         {
-                            "error": "Previous paper not found. Please check the paper ID and try again."
+                            "error": (
+                                "Previous paper not found. "
+                                "Please check the paper ID and try again."
+                            )
                         },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
@@ -563,9 +564,9 @@ class PaperViewSet(
                     )
                     paper_version_number = paper_version.version + 1
                 except PaperVersion.DoesNotExist:
-                    log_error(
-                        ValueError("Previous paper version not found"),
-                        message=f"Previous paper version not found for paper {previous_paper.id}",
+                    logger.warning(
+                        "Previous paper version not found for paper %s",
+                        previous_paper.id,
                     )
                     raise
 
@@ -595,16 +596,13 @@ class PaperViewSet(
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        except Exception as e:
-            log_error(
-                e,
-                message="Unhandled exception in publish_to_researchhub_journal",
-                json_data={"request_data": request.data},
+        except Exception:
+            logger.exception(
+                "Unhandled exception in publish_to_researchhub_journal",
+                extra={"request_data": request.data},
             )
             return Response(
-                {
-                    "error": "An error occurred while creating the paper. Please try again later."
-                },
+                {"error": "An error occurred while creating the paper."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -787,61 +785,13 @@ class PaperViewSet(
         except Exception as e:
             return Response(f"Failed to delete vote: {e}", status=400)
 
-    @action(detail=False, methods=[POST])
-    def check_url(self, request):
-        url = request.data.get("url", None)
-        url_is_pdf = check_url_contains_pdf(url)
-        data = {"found_file": url_is_pdf}
-        return Response(data, status=status.HTTP_200_OK)
-
-    @action(
-        detail=True,
-        methods=["get"],
-    )
-    def eligible_reward_summary(self, request, pk=None):
-        """
-        Provides information about rewards for which this paper is eligible for
-        """
-        paper_id = pk
-        if not paper_id:
-            return Response("paper_id is required", status=400)
-
-        paper = Paper.objects.get(id=paper_id)
-        if not paper:
-            return Response("Paper not found", status=404)
-
-        try:
-            paper_rewards = paper.paper_rewards
-        except Exception:
-            return Response("Failed to get paper reward", status=500)
-
-        summary = {
-            "base_rewards": paper_rewards,
-            "open_access_multiplier": OPEN_ACCESS_MULTIPLIER,
-            "open_data_multiplier": OPEN_DATA_MULTIPLIER,
-            "preregistration_multiplier": PREREGISTERED_MULTIPLIER,
-        }
-        return Response(summary, status=200)
-
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
-    def doi_search_via_openalex(self, request):
-        doi_string = request.query_params.get("doi", None)
-        if doi_string is None:
-            return Response(status=400)
-        try:
-            open_alex = OpenAlex()
-            open_alex_json = open_alex.get_data_from_doi(doi_string)
-        except Exception:
-            return Response(status=404)
-
-        return Response(open_alex_json, status=200)
-
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def fetch_publications_by_doi(self, request):
         doi_string = request.query_params.get("doi", "")
         rh_author = request.user.author_profile
 
-        # Client has the ability (optional) to specify explicilty which OpenAlex ID it wants works for
+        # Client has the ability (optional) to specify explicilty which OpenAlex ID it
+        # wants works for
         openalex_author_id = request.query_params.get("author_id", None)
 
         if doi_string is None:
@@ -858,8 +808,10 @@ class PaperViewSet(
             except DOINotFoundError:
                 return Response(status=404)
 
-            # Next we want to try and guess the author in the list of authors associated with the work.
-            # The guess doesn't have to be precise since the user will have the ability to select the correct author.
+            # Next we want to try and guess the author in the list of authors associated
+            # with the work.
+            # The guess doesn't have to be precise since the user will have the ability
+            # to select the correct author.
             # In case we can't guess the author, we will return an error.
             if not openalex_author_id:
                 for authorship in work.get("authorships", []):
@@ -910,8 +862,10 @@ class PaperViewSet(
             }
 
             return Response(response, status=200)
-        except Exception as error:
-            log_error(error)
+        except Exception:
+            logger.exception(
+                "Error fetching publications by DOI", extra={"doi": doi_string}
+            )
             return Response(status=500)
 
     def _filter_unclaimed_works(self, author: Author, openalex_works: list) -> list:
@@ -1002,102 +956,12 @@ class PaperViewSet(
             serializer_data = self._serialize_paper(paper, request)
             return Response(serializer_data, status=status.HTTP_201_CREATED)
 
-        except Exception as e:
-            log_error(e)
+        except Exception:
+            logger.exception("Error creating paper by DOI", extra={"doi": doi})
             return Response(
-                {"error": str(e)},
+                {"error": "An error occurred while creating the paper."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-
-class FigureViewSet(viewsets.ModelViewSet):
-    queryset = Figure.objects.all()
-    serializer_class = FigureSerializer
-    throttle_classes = THROTTLE_CLASSES
-
-    permission_classes = [IsObjectOwnerOrModerator]
-
-    def get_queryset(self):
-        return self.queryset
-
-    def get_figures(self, paper_id, figure_type=None):
-        # Returns all figures
-        paper = Paper.objects.get(id=paper_id)
-        figures = self.get_queryset().filter(paper=paper)
-
-        if figure_type:
-            figures = figures.filter(figure_type=figure_type)
-
-        figures = figures.order_by("-figure_type", "created_date")
-        figure_serializer = self.serializer_class(figures, many=True)
-        return figure_serializer.data
-
-    @action(
-        detail=True,
-        methods=["post"],
-        permission_classes=[IsAuthor & CreateOrUpdateIfAllowed],
-    )
-    def add_figure(self, request, pk=None):
-        user = request.user
-        if user.is_anonymous:
-            user = None
-
-        paper = self.get_object()
-        figures = request.FILES.values()
-        figure_type = request.data.get("figure_type")
-        urls = []
-        try:
-            for figure in figures:
-                fig = Figure.objects.create(
-                    paper=paper,
-                    file=figure,
-                    figure_type=figure_type,
-                    created_by=user,
-                )
-                urls.append({"id": fig.id, "file": fig.file.url})
-            return Response({"files": urls}, status=200)
-        except Exception as e:
-            log_error(e)
-            return Response(status=500)
-
-    @action(
-        detail=True,
-        methods=["delete"],
-        permission_classes=[IsAuthor & CreateOrUpdateIfAllowed],
-    )
-    def delete_figure(self, request, pk=None):
-        figure = self.get_queryset().get(id=pk)
-        figure.delete()
-        return Response(status=200)
-
-    @action(
-        detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
-    )
-    def get_all_figures(self, request, pk=None):
-        cache_key = get_cache_key("figure", pk)
-        cache_hit = cache.get(cache_key)
-        if cache_hit is not None:
-            return Response({"data": cache_hit}, status=status.HTTP_200_OK)
-
-        serializer_data = self.get_figures(pk)
-        cache.set(cache_key, serializer_data, timeout=60 * 60 * 24 * 7)
-        return Response({"data": serializer_data}, status=status.HTTP_200_OK)
-
-    @action(
-        detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
-    )
-    def get_preview_figures(self, request, pk=None):
-        # Returns pdf preview figures
-        serializer_data = self.get_figures(pk, figure_type=Figure.PREVIEW)
-        return Response({"data": serializer_data}, status=status.HTTP_200_OK)
-
-    @action(
-        detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
-    )
-    def get_regular_figures(self, request, pk=None):
-        # Returns regular figures
-        serializer_data = self.get_figures(pk, figure_type=Figure.FIGURE)
-        return Response({"data": serializer_data}, status=status.HTTP_200_OK)
 
 
 def retrieve_vote(user, paper):

@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Any, Optional, override
+from typing import Any, override
 
 from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
@@ -53,15 +53,19 @@ class JournalDocument(BaseDocument):
     @override
     def get_queryset(
         self,
-        filter_: Optional[Q] = None,
-        exclude: Optional[Q] = None,
-        count: int = None,  # type: ignore[override]
+        filter_: Q | None = None,
+        exclude: Q | None = None,
+        count: int = None,
+        alias: str = None,
     ) -> QuerySet:
-        return (
+        qs = (
             super()
-            .get_queryset(filter_=filter_, exclude=exclude, count=count)
+            .get_queryset(filter_=filter_, exclude=exclude, alias=alias)
             .filter(namespace="journal")
         )
+        if count is not None:
+            qs = qs[:count]
+        return qs
 
     # Used specifically for "autocomplete" style suggest feature
     def prepare_name_suggest(self, instance) -> dict[str, Any]:

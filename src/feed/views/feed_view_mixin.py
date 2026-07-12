@@ -1,9 +1,12 @@
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.db.models import Model
 from rest_framework.request import Request
 
 from discussion.models import Vote
 from discussion.serializers import VoteSerializer
+from feed.models import FeedEntry
+from feed.serializers import serialize_feed_metrics
 from feed.views.common import FeedPagination
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
@@ -61,6 +64,27 @@ class FeedViewMixin:
                 model_class
             )
         return self._content_types[model_name]
+
+    @staticmethod
+    def build_unsaved_feed_entry(
+        item: Model, content_type: ContentType, author: Model
+    ) -> FeedEntry:
+        """Build a transient FeedEntry for feeds that render items without a
+        persisted FeedEntry (e.g. journal, funding, grant, and pending-moderation
+        feeds). The entry is never saved; it only carries the item and its
+        metrics through the standard feed serializer."""
+        feed_entry = FeedEntry(
+            id=item.id,
+            content_type=content_type,
+            object_id=item.id,
+            action=FeedEntry.PUBLISH,
+            action_date=item.created_date,
+            user=author,
+            unified_document=item.unified_document,
+        )
+        feed_entry.item = item
+        feed_entry.metrics = serialize_feed_metrics(item, content_type)
+        return feed_entry
 
     def add_user_votes_to_response(self, user, response_data):
         """

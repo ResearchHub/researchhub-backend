@@ -6,6 +6,7 @@ from django.test import TestCase
 
 from discussion.constants.flag_reasons import SPAM
 from discussion.models import Flag
+from paper.tests.helpers import create_paper
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
 from reputation.related_models.bounty import Bounty, BountySolution
@@ -16,11 +17,15 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from review.models.review_model import Review
 from user.models import User, UserVerification
 from user.related_models.risk_score_model import RiskScoreEvent
 from user.related_models.verdict_model import Verdict
-from user.signals.risk_score_signals import on_post_status_changed
+from user.signals.risk_score_signals import on_unified_document_status_changed
 from user.tests.helpers import create_user, remove_content_via_verdict
 
 EventType = RiskScoreEvent.EventType
@@ -184,6 +189,18 @@ class ContentCensoredSignalTests(RiskScoreSignalTestCase):
         # Act
         with self.captureOnCommitCallbacks(execute=True):
             remove_content_via_verdict(grant)
+
+        # Assert
+        self._assert_no_events(self.user, EventType.CONTENT_CENSORED)
+
+    def test_declined_post_verdict_does_not_record(self):
+        # Arrange
+        self.post.unified_document.status = ResearchhubUnifiedDocument.DECLINED
+        self.post.unified_document.save(update_fields=["status"])
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            remove_content_via_verdict(self.post)
 
         # Assert
         self._assert_no_events(self.user, EventType.CONTENT_CENSORED)
@@ -504,23 +521,27 @@ class UserCreatedSignalTests(RiskScoreSignalTestCase):
 
 
 class PostStatusChangedSignalTests(RiskScoreSignalTestCase):
-    """Tests for on_post_status_changed signal. The `status` field will be
-    added to ResearchhubPost in a future PR; we test the handler logic by
-    invoking it directly with a mock status attribute."""
-
     def setUp(self):
         self.user = create_user(email="postauthor@test.com")
+        self.moderator = create_user(email="postmod@test.com", moderator=True)
         self.post = create_post(created_by=self.user)
+        self.unified_document = self.post.unified_document
 
-    def test_approved_status_records_work_approved(self):
-        # Simulate the future status field
-        self.post.status = "APPROVED"
+    def _fire(self, created=False):
+        on_unified_document_status_changed(
+            sender=type(self.unified_document),
+            instance=self.unified_document,
+            created=created,
+        )
+
+    def test_moderator_approval_records_work_approved(self):
+        # Arrange
+        self.unified_document.status = ResearchhubUnifiedDocument.APPROVED
+        self.unified_document.reviewed_by = self.moderator
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
-            on_post_status_changed(
-                sender=type(self.post), instance=self.post, created=False
-            )
+            self._fire()
 
         # Assert
         self._assert_has_event(
@@ -530,14 +551,14 @@ class PostStatusChangedSignalTests(RiskScoreSignalTestCase):
             source_id=self.post.pk,
         )
 
-    def test_declined_status_records_work_declined(self):
-        self.post.status = "DECLINED"
+    def test_moderator_decline_records_work_declined(self):
+        # Arrange
+        self.unified_document.status = ResearchhubUnifiedDocument.DECLINED
+        self.unified_document.reviewed_by = self.moderator
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
-            on_post_status_changed(
-                sender=type(self.post), instance=self.post, created=False
-            )
+            self._fire()
 
         # Assert
         self._assert_has_event(
@@ -548,21 +569,141 @@ class PostStatusChangedSignalTests(RiskScoreSignalTestCase):
         )
 
     def test_pending_status_does_not_record(self):
-        self.post.status = "PENDING"
+        # Arrange
+        self.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        self.unified_document.reviewed_by = self.moderator
 
         # Act
-        on_post_status_changed(
-            sender=type(self.post), instance=self.post, created=False
-        )
+        self._fire()
 
         # Assert
         self._assert_no_events(self.user)
 
-    def test_no_status_field_does_not_record(self):
-        # Act - no status attribute set, simulating current state
-        on_post_status_changed(
-            sender=type(self.post), instance=self.post, created=False
+    def test_auto_approval_without_reviewer_does_not_record(self):
+        # Arrange
+        self.unified_document.status = ResearchhubUnifiedDocument.APPROVED
+        self.unified_document.reviewed_by = None
+
+        # Act
+        self._fire()
+
+        # Assert
+        self._assert_no_events(self.user)
+
+    def test_creation_does_not_record(self):
+        # Arrange
+        self.unified_document.status = ResearchhubUnifiedDocument.APPROVED
+        self.unified_document.reviewed_by = self.moderator
+
+        # Act
+        self._fire(created=True)
+
+        # Assert
+        self._assert_no_events(self.user)
+
+    def test_grant_document_does_not_record_via_document_signal(self):
+        # Arrange
+        self.unified_document.document_type = GRANT
+        self.unified_document.status = ResearchhubUnifiedDocument.APPROVED
+        self.unified_document.reviewed_by = self.moderator
+
+        # Act
+        self._fire()
+
+        # Assert
+        self._assert_no_events(self.user)
+
+
+class PaperStatusChangedSignalTests(RiskScoreSignalTestCase):
+    def setUp(self):
+        self.user = create_user(email="paperauthor@test.com")
+        self.moderator = create_user(email="papermod@test.com", moderator=True)
+        self.paper = create_paper(uploaded_by=self.user)
+        self.unified_document = self.paper.unified_document
+
+    def _fire(self, created=False):
+        on_unified_document_status_changed(
+            sender=type(self.unified_document),
+            instance=self.unified_document,
+            created=created,
         )
+
+    def test_moderator_approval_records_work_approved(self):
+        # Arrange
+        self.unified_document.status = ResearchhubUnifiedDocument.APPROVED
+        self.unified_document.reviewed_by = self.moderator
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            self._fire()
+
+        # Assert
+        self._assert_has_event(
+            self.user,
+            EventType.WORK_APPROVED,
+            delta=RiskScoreEvent.DELTAS[EventType.WORK_APPROVED],
+            source_id=self.paper.pk,
+        )
+
+    def test_moderator_decline_records_work_declined(self):
+        # Arrange
+        self.unified_document.status = ResearchhubUnifiedDocument.DECLINED
+        self.unified_document.reviewed_by = self.moderator
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            self._fire()
+
+        # Assert
+        self._assert_has_event(
+            self.user,
+            EventType.WORK_DECLINED,
+            delta=RiskScoreEvent.DELTAS[EventType.WORK_DECLINED],
+            source_id=self.paper.pk,
+        )
+
+    def test_pending_status_does_not_record(self):
+        # Arrange
+        self.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        self.unified_document.reviewed_by = self.moderator
+
+        # Act
+        self._fire()
+
+        # Assert
+        self._assert_no_events(self.user)
+
+    def test_auto_approval_without_reviewer_does_not_record(self):
+        # Arrange
+        self.unified_document.status = ResearchhubUnifiedDocument.APPROVED
+        self.unified_document.reviewed_by = None
+
+        # Act
+        self._fire()
+
+        # Assert
+        self._assert_no_events(self.user)
+
+    def test_creation_does_not_record(self):
+        # Arrange
+        self.unified_document.status = ResearchhubUnifiedDocument.APPROVED
+        self.unified_document.reviewed_by = self.moderator
+
+        # Act
+        self._fire(created=True)
+
+        # Assert
+        self._assert_no_events(self.user)
+
+    def test_imported_paper_without_uploader_does_not_record(self):
+        # Arrange
+        self.paper.uploaded_by = None
+        self.paper.save(update_fields=["uploaded_by"])
+        self.unified_document.status = ResearchhubUnifiedDocument.APPROVED
+        self.unified_document.reviewed_by = self.moderator
+
+        # Act
+        self._fire()
 
         # Assert
         self._assert_no_events(self.user)

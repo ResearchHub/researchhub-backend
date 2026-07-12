@@ -29,17 +29,20 @@ class AuthorApiTests(APITestCase):
         )
 
     def test_get_author_summary_stats(self):
-        url = f"/api/author/{self.user_with_published_works.author_profile.id}/summary_stats/"
+        author_profile = self.user_with_published_works.author_profile
+        url = f"/api/author/{author_profile.id}/summary_stats/"
         response = self.client.get(url, {})
         self.assertIn("summary_stats", response.data)
 
     def test_get_achievements(self):
-        url = f"/api/author/{self.user_with_published_works.author_profile.id}/achievements/"
+        author_profile = self.user_with_published_works.author_profile
+        url = f"/api/author/{author_profile.id}/achievements/"
         response = self.client.get(url, {})
         self.assertIn("achievements", response.data)
 
     def test_minimal_overview(self):
-        url = f"/api/author/{self.user_with_published_works.author_profile.id}/minimal_overview/"
+        author_profile = self.user_with_published_works.author_profile
+        url = f"/api/author/{author_profile.id}/minimal_overview/"
         response = self.client.get(url, {})
         self.assertEqual(response.status_code, 200)
         self.assertIn("id", response.data)

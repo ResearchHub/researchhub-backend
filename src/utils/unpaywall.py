@@ -1,7 +1,10 @@
+import logging
+
 import requests
 
 from paper.exceptions import DOINotFoundError
-from utils.sentry import log_error
+
+logger = logging.getLogger(__name__)
 
 
 class Unpaywall:
@@ -15,9 +18,8 @@ class Unpaywall:
         try:
             response = requests.get(url, timeout=self.timeout)
             response.raise_for_status()
-        except requests.exceptions.HTTPError as e:
-            print(e)
-            log_error(e)
+        except requests.exceptions.HTTPError:
+            logger.exception("Failed to fetch Unpaywall data for DOI %s", doi)
             raise DOINotFoundError(f"No Unpaywall works found for doi: {doi}")
 
         return response.json()

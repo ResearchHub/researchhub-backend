@@ -38,7 +38,9 @@ def handle_purchase_feed_entry(sender, instance, created, **kwargs):
                 fundraise = Fundraise.objects.get(id=instance.object_id)
             except Fundraise.DoesNotExist:
                 logger.warning(
-                    f"Fundraise {instance.object_id} not found for purchase {instance.id}"
+                    "Fundraise %s not found for purchase %s",
+                    instance.object_id,
+                    instance.id,
                 )
                 return
 
@@ -46,7 +48,7 @@ def handle_purchase_feed_entry(sender, instance, created, **kwargs):
             unified_document = fundraise.unified_document
             if not unified_document:
                 logger.warning(
-                    f"No unified document found for fundraise {fundraise.id}"
+                    "No unified document found for fundraise %s", fundraise.id
                 )
                 return
 
@@ -146,7 +148,8 @@ def _refresh_document_feed_entries(unified_document):
 @receiver(post_save, sender=GrantApplication)
 def refresh_feed_entries_on_grant_application(sender, instance, created, **kwargs):
     """
-    Signal handler that refreshes feed entries when a grant application is created or updated.
+    Signal handler that refreshes feed entries when a grant application is created or
+    updated.
     This ensures feed entries show the latest application information for grants.
     """
     try:
@@ -178,10 +181,8 @@ def refresh_feed_entries_on_grant_application(sender, instance, created, **kwarg
         ]
         transaction.on_commit(lambda: [task() for task in tasks])
 
-    except Exception as e:
-        logger.error(
-            f"Error refreshing feed entries for grant application {instance.id}: {str(e)}"
-        )
+    except Exception:
+        logger.exception("Error refreshing feed entries for grant application")
 
 
 @receiver(post_delete, sender=GrantApplication)
@@ -221,5 +222,6 @@ def refresh_feed_entries_on_grant_application_delete(sender, instance, **kwargs)
 
     except Exception as e:
         logger.error(
-            f"Error refreshing feed entries for deleted grant application {instance.id}: {str(e)}"
+            "Error refreshing feed entries for deleted grant application "
+            f"{instance.id}: {str(e)}"
         )

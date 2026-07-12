@@ -1,6 +1,5 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db import transaction
@@ -48,26 +47,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         return organizations
 
     def get_object(self, slug=False):
+        if not slug:
+            return super().get_object()
+
+        # Look up by slug instead of the default lookup field.
         queryset = self.filter_queryset(self.get_queryset())
-
-        # Perform the lookup filtering.
-        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
-
-        assert lookup_url_kwarg in self.kwargs, (
-            "Expected view %s to be called with a URL keyword argument "
-            'named "%s". Fix your URL conf, or set the `.lookup_field` '
-            "attribute on the view correctly."
-            % (self.__class__.__name__, lookup_url_kwarg)
-        )
-
-        if slug:
-            filter_kwargs = {"slug": self.kwargs[lookup_url_kwarg]}
-        else:
-            filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
-        obj = get_object_or_404(queryset, **filter_kwargs)
-
+        obj = get_object_or_404(queryset, slug=self.kwargs[self.lookup_field])
         self.check_object_permissions(self.request, obj)
-
         return obj
 
     def create(self, request, *args, **kwargs):
@@ -163,7 +149,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         permissions = organization.permissions
         invited_users = (
             organization.invited_users.filter(accepted=False)
-            .exclude(expiration_date__lt=datetime.now(pytz.utc))
+            .exclude(expiration_date__lt=datetime.now(UTC))
             .distinct("recipient_email")
         )
         admin_user_ids = permissions.filter(
@@ -178,7 +164,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
         invited_users = invited_users.exclude(
             recipient__in=all_users.values("id"),
-        ).filter(expiration_date__gt=datetime.now(pytz.utc))
+        ).filter(expiration_date__gt=datetime.now(UTC))
         invitation_serializer = DynamicOrganizationInvitationSerializer(
             invited_users,
             _include_fields=[
@@ -329,7 +315,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             recipient_email=recipient_email,
             organization=organization,
         )
-        invites.update(expiration_date=datetime.now(pytz.utc))
+        invites.update(expiration_date=datetime.now(UTC))
         return Response({"data": f"Invite removed for {recipient_email}"}, status=200)
 
     @action(

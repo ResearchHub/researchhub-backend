@@ -1,7 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-import pytz
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework.test import APITestCase
@@ -43,7 +42,7 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
             organization="Tech Innovation Fund",
             description="Seed funding for tech innovation",
             status=Grant.CLOSED,
-            end_date=datetime.now(pytz.UTC) + timedelta(days=30),
+            end_date=datetime.now(UTC) + timedelta(days=30),
         )
 
     def test_get_grant_with_existing_grant(self):

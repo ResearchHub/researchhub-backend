@@ -1,7 +1,6 @@
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import List, Optional
 
 from django.db import transaction
 from django.utils import timezone
@@ -22,9 +21,9 @@ class EnrichmentResult:
     """Result of enriching a single paper with OpenAlex data."""
 
     status: str  # "success", "not_found", "skipped", or "error"
-    license: Optional[str] = None
-    license_url: Optional[str] = None
-    reason: Optional[str] = None
+    license: str | None = None
+    license_url: str | None = None
+    reason: str | None = None
     authors_created: int = 0
     authors_updated: int = 0
     institutions_created: int = 0
@@ -70,7 +69,7 @@ class PaperOpenAlexEnrichmentService:
         self.openalex_client = openalex_client
         self.openalex_mapper = openalex_mapper
 
-    def get_recent_papers_with_dois(self, days: int) -> List[int]:
+    def get_recent_papers_with_dois(self, days: int) -> list[int]:
         """
         Query papers created in the last N days that have DOIs.
 
@@ -341,7 +340,9 @@ class PaperOpenAlexEnrichmentService:
                 ).first()
                 if not author:
                     logger.warning(
-                        f"Author with OpenAlex ID {author_openalex_id} not found for paper {paper.id}"
+                        "Author with OpenAlex ID %s not found for paper %s",
+                        author_openalex_id,
+                        paper.id,
                     )
                     continue
 
@@ -385,7 +386,8 @@ class PaperOpenAlexEnrichmentService:
 
     def process_hubs(self, paper: Paper, openalex_data: dict) -> int:
         """
-        Process hubs from OpenAlex data, create Hub instances, and assign it to the given paper.
+        Process hubs from OpenAlex data, create Hub instances, and assign it to the
+        given paper.
 
         Args:
             paper: Paper instance
@@ -415,7 +417,7 @@ class PaperOpenAlexEnrichmentService:
 
         return hubs_created
 
-    def enrich_papers_batch(self, paper_ids: List[int]) -> BatchEnrichmentResult:
+    def enrich_papers_batch(self, paper_ids: list[int]) -> BatchEnrichmentResult:
         """
         Enrich multiple papers with OpenAlex data, including license info,
         authors, institutions, and authorships.

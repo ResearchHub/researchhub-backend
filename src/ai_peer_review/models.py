@@ -9,7 +9,9 @@ from utils.models import DefaultModel
 
 
 class Status(models.TextChoices):
-    """Lifecycle for async AI jobs: proposal review, RFP summary, proposal key insight."""
+    """
+    Lifecycle for async AI jobs: proposal review, RFP summary, proposal key insight.
+    """
 
     PENDING = "pending", "pending"
     PROCESSING = "processing", "processing"

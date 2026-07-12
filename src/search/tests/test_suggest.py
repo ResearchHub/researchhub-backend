@@ -14,13 +14,6 @@ class SuggestViewTests(TestCase):
         self.client = APIClient()
         self.url = reverse("suggest")
 
-        # Add debug method
-        self.debug_log = []
-
-    def log_debug(self, message):
-        print(message)  # Print immediately for test output
-        self.debug_log.append(message)
-
     def test_missing_query_param(self):
         """Test that missing query parameter returns 400"""
         response = self.client.get(self.url)
@@ -301,19 +294,13 @@ class SuggestViewTests(TestCase):
                     return MockResponseUser()
                 # Default response for unknown indexes
                 return MockResponsePaper()
-            except Exception as e:
-                print(f"ERROR IN MOCK: {str(e)}")
+            except Exception:
                 # Return paper response as fallback
                 return MockResponsePaper()
 
         mock_es_execute.side_effect = mock_execute_side_effect
 
         response = self.client.get(self.url + "?q=test&index=paper,user")
-        print("\nDEBUG RESPONSE:", response.status_code)
-        if response.status_code != status.HTTP_200_OK:
-            print(
-                "ERROR DATA:", response.data
-            )  # Print error data if response is not 200
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Should have results from both indexes
@@ -340,20 +327,17 @@ class SuggestViewTests(TestCase):
     def test_limit_parameter(self, mock_es_execute, mock_openalex):
         """Test that limit parameter restricts the number of results"""
         # Create numerous results
-        openalex_results = []
-
-        # Generate 15 test results
-        for i in range(15):
-            openalex_results.append(
-                {
-                    "external_id": f"10.1234/test.{i}",
-                    "display_name": f"Test Paper {i}",
-                    "hint": f"Author {i}",
-                    "cited_by_count": i,
-                    "id": f"W{i}",
-                    "publication_date": "2023-01-01",
-                }
-            )
+        openalex_results = [
+            {
+                "external_id": f"10.1234/test.{i}",
+                "display_name": f"Test Paper {i}",
+                "hint": f"Author {i}",
+                "cited_by_count": i,
+                "id": f"W{i}",
+                "publication_date": "2023-01-01",
+            }
+            for i in range(15)
+        ]
 
         # Mock OpenAlex response with many results
         mock_openalex.return_value = {"results": openalex_results}
@@ -462,18 +446,17 @@ class SuggestViewTests(TestCase):
     def test_mixed_entity_representation(self, mock_es_execute, mock_openalex):
         """Test that balanced results include various entity types when requested"""
         # Mock OpenAlex response with papers
-        paper_openalex_results = []
-        for i in range(5):
-            paper_openalex_results.append(
-                {
-                    "external_id": f"10.1234/test.{i}",
-                    "display_name": f"Test Paper {i}",
-                    "hint": f"Author {i}",
-                    "cited_by_count": i,
-                    "id": f"W{i}",
-                    "publication_date": "2023-01-01",
-                }
-            )
+        paper_openalex_results = [
+            {
+                "external_id": f"10.1234/test.{i}",
+                "display_name": f"Test Paper {i}",
+                "hint": f"Author {i}",
+                "cited_by_count": i,
+                "id": f"W{i}",
+                "publication_date": "2023-01-01",
+            }
+            for i in range(5)
+        ]
         mock_openalex.return_value = {"results": paper_openalex_results}
 
         # Mock Elasticsearch response with different entity types directly with lists
@@ -543,7 +526,7 @@ class SuggestViewTests(TestCase):
             self.client.get = original_get
 
         # Check that we have results from all entity types
-        entity_types = set(result.get("entity_type") for result in response.data)
+        entity_types = {result.get("entity_type") for result in response.data}
         self.assertEqual(
             len(entity_types), 3, "Expected results from all three entity types"
         )
@@ -797,39 +780,26 @@ class SuggestViewTests(TestCase):
         def mock_execute_side_effect(search):
             try:
                 current_index = search.index._name
-                self.log_debug(f"MOCK EXECUTE: Called with index: {current_index}")
-
                 if "paper" in current_index:
-                    self.log_debug("MOCK EXECUTE: Returning paper options")
                     return MockResponsePaper()
                 elif "hub" in current_index:
-                    self.log_debug("MOCK EXECUTE: Returning hub options")
                     return MockResponseHub()
                 elif "user" in current_index:
-                    self.log_debug("MOCK EXECUTE: Returning user options")
                     return MockResponseUser()
                 else:
-                    self.log_debug("MOCK EXECUTE: Returning default paper options")
                     return MockResponsePaper()
-            except Exception as e:
-                self.log_debug(f"MOCK EXECUTE ERROR: {str(e)}")
+            except Exception:
                 return MockResponsePaper()
 
         mock_es_execute.side_effect = mock_execute_side_effect
 
         # Test with default scoring (no balanced parameter)
-        self.log_debug(
-            "SENDING REQUEST: " + self.url + "?q=test&index=paper,hub,user&limit=5"
-        )
         response = self.client.get(self.url + "?q=test&index=paper,hub,user&limit=5")
-        self.log_debug("RESPONSE STATUS: " + str(response.status_code))
-        self.log_debug("RESPONSE DATA: " + str(response.data))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Results should be ordered by score: user (highest) -> paper -> hub (lowest)
         entity_types = [result["entity_type"] for result in response.data[:3]]
-        self.log_debug("ENTITY TYPES: " + str(entity_types))
 
         if len(entity_types) > 0:
             # User should be first (highest score)

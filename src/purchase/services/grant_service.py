@@ -1,15 +1,17 @@
 import logging
 
-from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import transaction
+from django_opensearch_dsl.registries import registry
 
-from discussion.views import create_flag
 from feed.signals.post_signals import _create_post_feed_entries
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from notification.models import Notification
 from purchase.models import Grant
-from user.related_models.verdict_model import Verdict
+from user.services.moderation import (
+    create_removal_verdict,
+    send_moderation_notification,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +30,7 @@ class GrantModerationService:
 
             post = grant.unified_document.posts.first()
             self._publish_to_feed(post)
+            self._reindex_post(post)
 
             cache.delete("grant_available_funding")
             GrantCacheMixin.invalidate_grant_feed_cache()
@@ -57,22 +60,7 @@ class GrantModerationService:
         return grant
 
     def _flag_and_remove_grant(self, grant, reviewer, reason, reason_choice):
-        flag, _ = create_flag(
-            user=reviewer,
-            item=grant,
-            reason=reason,
-            reason_choice=reason_choice,
-            reason_memo=reason,
-        )
-
-        verdict = Verdict.objects.create(
-            created_by=reviewer,
-            flag=flag,
-            verdict_choice=reason_choice,
-            is_content_removed=True,
-        )
-        flag.verdict_created_date = verdict.created_date
-        flag.save(update_fields=["verdict_created_date"])
+        create_removal_verdict(reviewer, grant, reason, reason_choice)
 
         unified_document = grant.unified_document
         unified_document.is_removed = True
@@ -87,21 +75,29 @@ class GrantModerationService:
         except Exception:
             logger.exception("Failed to create feed entry for post %s", post.id)
 
+    def _reindex_post(self, post):
+        """Refresh the grant post in OpenSearch after its status changes.
+
+        Approving a grant only saves ``Grant.status``; the backing post (which
+        the post index keys on) is untouched, so its search document would not
+        otherwise reflect the now-approved grant. Run after commit so the index
+        sees the persisted state.
+        """
+        if not post:
+            return
+
+        def _update():
+            try:
+                registry.update(post)
+            except Exception:
+                logger.exception("Failed to reindex grant post %s", post.id)
+
+        transaction.on_commit(_update)
+
     def _send_moderation_notification(self, grant, action_user, notification_type):
-        try:
-            content_type = ContentType.objects.get_for_model(Grant)
-            notification = Notification.objects.create(
-                notification_type=notification_type,
-                recipient=grant.created_by,
-                action_user=action_user,
-                content_type=content_type,
-                object_id=grant.id,
-                unified_document=grant.unified_document,
-            )
-            notification.send_notification()
-        except Exception:
-            logger.exception(
-                "Failed to send %s notification for grant %s",
-                notification_type,
-                grant.id,
-            )
+        send_moderation_notification(
+            notification_type,
+            recipient=grant.created_by,
+            action_user=action_user,
+            item=grant,
+        )

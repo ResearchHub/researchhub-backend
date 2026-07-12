@@ -122,9 +122,9 @@ class Command(BaseCommand):
                     )
                 )
 
-            self.steps_to_run = set(
+            self.steps_to_run = {
                 step.strip() for step in steps_arg.split(",") if step.strip()
-            )
+            }
             # Validate steps
             invalid_steps = self.steps_to_run - set(self.AVAILABLE_STEPS)
             if invalid_steps:
@@ -426,8 +426,7 @@ class Command(BaseCommand):
                     f.write(f"# Generated: {self._get_timestamp()}\n")
                     f.write(f"# Total: {len(duplicate_hub_ids)} hubs\n")
                     f.write("\n")
-                    for hub_id in sorted(duplicate_hub_ids):
-                        f.write(f"{hub_id}\n")
+                    f.writelines(f"{hub_id}\n" for hub_id in sorted(duplicate_hub_ids))
 
                 self.stdout.write("")
                 self.stdout.write(

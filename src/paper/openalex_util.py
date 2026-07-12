@@ -1,14 +1,13 @@
 import copy
 import logging
 import urllib.parse
-from typing import Any, Dict, List
+from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.db import IntegrityError, transaction
 from django.db.models import Q, QuerySet
 
-import utils.sentry as sentry
 from institution.models import Institution
 from paper.related_models.citation_model import Citation, Source
 from user.related_models.author_contribution_summary_model import (
@@ -17,6 +16,8 @@ from user.related_models.author_contribution_summary_model import (
 from user.related_models.author_institution import AuthorInstitution
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
+
+logger = logging.getLogger(__name__)
 
 # Only these particular fields will be updated when an OpenAlex
 # paper which matches an existing paper is found
@@ -44,10 +45,11 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
 
 """
 This dictionary maps OpenAlex sources (`external_source`) to ResearchHub journal hubs.
-It is used to automatically tag papers with the appropriate journal hub when they are fetched from OpenAlex.
+It is used to automatically tag papers with the appropriate journal hub when they are
+fetched from OpenAlex.
 Note: If the name of the journal hub changes, this dictionary will need to be updated.
 """
-OPENALEX_SOURCES_TO_JOURNAL_HUBS: Dict[str, str] = {
+OPENALEX_SOURCES_TO_JOURNAL_HUBS: dict[str, str] = {
     "arXiv (Cornell University)": "Arxiv",
     "bioRxiv (Cold Spring Harbor Laboratory)": "Biorxiv",
     "medRxiv (Cold Spring Harbor Laboratory)": "Medrxiv",
@@ -86,7 +88,7 @@ def process_openalex_works(works):
 def create_all_paper_tags(papers_to_openalex_data):
     from paper.paper_upload_tasks import create_paper_related_tags
 
-    for paper_id, paper_data in papers_to_openalex_data.items():
+    for paper_data in papers_to_openalex_data.values():
         create_paper_related_tags(
             paper_data["paper"],
             paper_data["openalex_concepts"],
@@ -94,7 +96,7 @@ def create_all_paper_tags(papers_to_openalex_data):
         )
 
 
-def create_and_update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
+def create_and_update_papers(open_alex, works) -> dict[int, dict[str, Any]]:
     from paper.models import Paper
 
     dois = [work.get("doi") for work in works]
@@ -129,7 +131,7 @@ def create_and_update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
 
         doi = work.get("doi")
         if doi is None:
-            print(f"No Doi for result: {work.get('id')}")
+            logger.warning("No DOI for work %s", work.get("id"))
             continue
 
         existing_paper = existing_paper_map.get(doi)
@@ -149,7 +151,7 @@ def create_and_update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
     return paper_to_openalex_data
 
 
-def create_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
+def create_papers(open_alex, works) -> dict[int, dict[str, Any]]:
     from paper.models import Paper
 
     paper_to_openalex_data = {}
@@ -172,10 +174,9 @@ def create_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
         try:
             paper.clean_fields()
             paper.clean()
-        except ValidationError as e:
-            sentry.log_error(
-                e,
-                message=f"Failed to validate paper: {paper.doi}, {work.get('id')}",
+        except ValidationError:
+            logger.exception(
+                "Failed to validate paper: %s, %s", paper.doi, work.get("id")
             )
             continue
 
@@ -197,21 +198,17 @@ def create_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
                 "openalex_work": work,
                 "paper": paper,
             }
-        except IntegrityError as e:
-            sentry.log_error(
-                e, message=f"Failed to save paper, DOI already exists: {paper.doi}"
-            )
+        except IntegrityError:
+            logger.error("Failed to save paper, DOI already exists: %s", paper.doi)
             continue
-        except Exception as e:
-            sentry.log_error(
-                e, message=f"Failed to save paper, unexpected error: {paper.doi}"
-            )
+        except Exception:
+            logger.exception("Failed to save paper, unexpected error: %s", paper.doi)
             continue
 
     return paper_to_openalex_data
 
 
-def update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
+def update_papers(open_alex, works) -> dict[int, dict[str, Any]]:
     from paper.models import Paper
 
     paper_to_openalex_data = {}
@@ -256,13 +253,13 @@ def update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
         papers_to_update = [paper for paper, _ in works]
         try:
             Paper.objects.bulk_update(papers_to_update, fields_to_update)
-        except Exception as e:
-            sentry.log_error(e, message="Failed to bulk update papers")
+        except Exception:
+            logger.exception("Failed to bulk update papers")
 
     return paper_to_openalex_data
 
 
-def fetch_authors_for_works(openalex_works) -> List[Dict[str, Any]]:
+def fetch_authors_for_works(openalex_works) -> list[dict[str, Any]]:
     open_alex = OpenAlex()
     all_authors_to_fetch = set()
     batch_size = 100
@@ -284,7 +281,7 @@ def fetch_authors_for_works(openalex_works) -> List[Dict[str, Any]]:
 
 def build_oa_authors_by_work_id_dict(
     openalex_works, fetched_oa_authors
-) -> Dict[str, List[Dict[str, Any]]]:
+) -> dict[str, list[dict[str, Any]]]:
     fetched_oa_authors_by_id = {author["id"]: author for author in fetched_oa_authors}
 
     oa_authors_by_work_id = {}
@@ -296,13 +293,7 @@ def build_oa_authors_by_work_id_dict(
             if oa_author_id in fetched_oa_authors_by_id:
                 oa_authors.append(fetched_oa_authors_by_id[oa_author_id])
             else:
-                logging.warning(
-                    f"Author with OpenAlex ID not found: {oa_author_id}",
-                )
-                sentry.log_error(
-                    None,
-                    message=f"Author with OpenAlex ID not found: {oa_author_id}",
-                )
+                logging.warning("Author with OpenAlex ID not found: %s", oa_author_id)
 
         oa_authors_by_work_id[work.get("id")] = oa_authors
 
@@ -351,7 +342,7 @@ def create_authors(openalex_works) -> QuerySet[Author]:
     return Author.objects.filter(openalex_ids__overlap=all_openalex_author_ids)
 
 
-def build_authors_by_oa_id_dict(authors: QuerySet[Author]) -> Dict[str, List[Author]]:
+def build_authors_by_oa_id_dict(authors: QuerySet[Author]) -> dict[str, list[Author]]:
     authors_by_oa_id = {}
     for author in authors:
         for openalex_id in author.openalex_ids:
@@ -379,13 +370,13 @@ def create_openalex_authorships_and_institutions(
         oa_authors = oa_authors_by_work_id.get(work["id"], [])
 
         if not openalex_authorships or not paper_id:
-            sentry.log_error(
-                None,
-                message=f"Authorships data is missing or paper_id is None for work: {work.get('id')}",
+            logger.warning(
+                "Authorships data is missing or paper_id is None for work: %s",
+                work.get("id"),
             )
             continue
 
-        print(f"Processing authorships for paper: {related_paper.title}")
+        logger.info("Processing authorships for paper: %s", related_paper.title)
         authors = []
         for oa_author in oa_authors:
             authors.extend(authors_by_oa_id.get(oa_author.get("id"), []))
@@ -412,7 +403,8 @@ def create_openalex_authorships_and_institutions(
 
                 authorships_to_create_or_update[key] = authorship
 
-                # Set institutions associated with authorships if they do not already exist
+                # Set institutions associated with authorships
+                # if they do not already exist
                 for oa_inst in oa_authorship.get("institutions", []):
                     try:
                         institution = Institution.upsert_from_openalex(oa_inst)
@@ -420,10 +412,9 @@ def create_openalex_authorships_and_institutions(
                             if key not in authorship_institution_relations:
                                 authorship_institution_relations[key] = []
                             authorship_institution_relations[key].append(institution)
-                    except Exception as e:
-                        sentry.log_error(
-                            e,
-                            message=f"Failed to upsert institution: {e}",
+                    except Exception:
+                        logger.exception(
+                            "Failed to upsert institution: %s", oa_inst.get("id")
                         )
 
     Authorship.objects.bulk_create(
@@ -456,20 +447,17 @@ def merge_openalex_authors_with_researchhub_authors(oa_authors, authors_by_oa_id
             for rh_author in rh_authors:
                 merge_openalex_author_with_researchhub_author(oa_author, rh_author)
 
-        except Exception as e:
-            logging.warning(
-                f"Author with OpenAlex ID failed to be merged: {oa_author.get('id')}",
-            )
-            sentry.log_error(
-                e,
-                message=f"Author with OpenAlex ID failed to be merged {oa_author.get('id')}",
+        except Exception:
+            logger.exception(
+                "Author with OpenAlex ID failed to be merged: %s", oa_author.get("id")
             )
             continue
 
 
 def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_author):
     """
-    Merges the OpenAlex author data with the ResearchHub author data. This is necessary because the OpenAlex author data
+    Merges the OpenAlex author data with the ResearchHub author data.
+    This is necessary because the OpenAlex author data
     """
     # Update basic metadata fields
     researchhub_author.i10_index = openalex_author.get("summary_stats", {}).get(
@@ -493,16 +481,16 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
 
     # Process activity by year
     activity_by_year = openalex_author.get("counts_by_year", [])
-    for activity in activity_by_year:
-        contribution_summaries.append(
-            AuthorContributionSummary(
-                source=AuthorContributionSummary.SOURCE_OPENALEX,
-                author=researchhub_author,
-                year=activity.get("year"),
-                works_count=activity.get("works_count"),
-                citation_count=activity.get("cited_by_count"),
-            )
+    contribution_summaries = [
+        AuthorContributionSummary(
+            source=AuthorContributionSummary.SOURCE_OPENALEX,
+            author=researchhub_author,
+            year=activity.get("year"),
+            works_count=activity.get("works_count"),
+            citation_count=activity.get("cited_by_count"),
         )
+        for activity in activity_by_year
+    ]
 
     # Process affiliations
     affiliations = openalex_author.get("affiliations", [])

@@ -404,7 +404,7 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         grant = Grant.objects.create(
             created_by=self.user,
             unified_document=grant_unified_doc,
-            amount=Decimal("10000"),
+            amount=Decimal(10000),
             organization="Test Org",
             description="Test grant",
             status=Grant.OPEN,
@@ -450,13 +450,13 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         escrow = Escrow.objects.create(
             created_by=self.user,
             hold_type=Escrow.BOUNTY,
-            amount_holding=Decimal("100"),
+            amount_holding=Decimal(100),
             content_type=ContentType.objects.get_for_model(RhCommentModel),
             object_id=other_comment.id,
         )
         bounty = Bounty.objects.create(
             created_by=self.user,
-            amount=Decimal("100"),
+            amount=Decimal(100),
             status=Bounty.OPEN,
             bounty_type=Bounty.Type.ANSWER,
             item_content_type=ContentType.objects.get_for_model(RhCommentModel),
@@ -472,7 +472,7 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         bounty.refresh_from_db()
         escrow.refresh_from_db()
         self.assertEqual(bounty.status, Bounty.CANCELLED)
-        self.assertEqual(escrow.amount_holding, Decimal("0"))
+        self.assertEqual(escrow.amount_holding, Decimal(0))
 
     @patch("purchase.services.fundraise_service.User.objects.get_revenue_account")
     def test_suspend_closes_fundraises_and_refunds_escrow(self, mock_revenue_account):
@@ -493,7 +493,7 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         escrow = Escrow.objects.create(
             created_by=self.user,
             hold_type=Escrow.FUNDRAISE,
-            amount_holding=Decimal("100"),
+            amount_holding=Decimal(100),
             content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
             object_id=prereg_unified_doc.id,
         )
@@ -502,7 +502,7 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
             unified_document=prereg_unified_doc,
             escrow=escrow,
             status=Fundraise.OPEN,
-            goal_amount=Decimal("1000"),
+            goal_amount=Decimal(1000),
         )
 
         Purchase.objects.create(
@@ -555,7 +555,9 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         self.assertEqual(comment_verdict.verdict_choice, ABUSIVE_OR_RUDE)
 
     def test_suspend_deletes_feed_entries(self):
-        """Feed entries for the banned user are hard-deleted; other users' entries remain."""
+        """
+        Feed entries for the banned user are hard-deleted; other users' entries remain.
+        """
         # Arrange
         post_ct = ContentType.objects.get_for_model(ResearchhubPost)
         user_entry = FeedEntry.objects.create(
@@ -627,6 +629,54 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         review = Review.all_objects.get(id=review.id)
         self.assertFalse(review.is_removed)
         self.assertTrue(review.is_public)
+
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_quarantines_user_files(self, storage_service_mock):
+        """
+        S3 objects backing the user's paper, post, and comment are quarantined.
+        """
+        # Arrange
+        mock_storage_service = storage_service_mock.return_value
+        self.paper.file.name = "uploads/papers/users/spam.pdf"
+        self.paper.save()
+        self.post.discussion_src.name = "uploads/posts/users/spam.txt"
+        self.post.save()
+        self.comment.comment_content_src.name = "uploads/comments/users/spam.txt"
+        self.comment.save()
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        quarantined = {
+            call.args[0] for call in mock_storage_service.quarantine_object.mock_calls
+        }
+        self.assertEqual(
+            quarantined,
+            {
+                "uploads/papers/users/spam.pdf",
+                "uploads/posts/users/spam.txt",
+                "uploads/comments/users/spam.txt",
+            },
+        )
+
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_reinstate_restores_user_files(self, mock_storage_service_cls):
+        """
+        Quarantined S3 objects backing the user's content are restored.
+        """
+        # Arrange
+        mock_storage_service = mock_storage_service_cls.return_value
+        self.paper.file.name = "uploads/papers/users/spam.pdf"
+        self.paper.save()
+
+        # Act
+        reinstate_user_task(self.user.id)
+
+        # Assert
+        mock_storage_service.restore_object.assert_called_once_with(
+            "uploads/papers/users/spam.pdf"
+        )
 
 
 class CensorFunctionTests(TestCase):

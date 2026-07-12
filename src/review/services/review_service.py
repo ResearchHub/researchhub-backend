@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
 
 from django.utils import timezone
 
@@ -15,7 +14,7 @@ MAX_REVIEWS_PER_WINDOW = 2
 @dataclass
 class ReviewAvailability:
     can_review: bool
-    available_at: Optional[datetime] = None
+    available_at: datetime | None = None
 
 
 def get_review_availability(user: User) -> ReviewAvailability:

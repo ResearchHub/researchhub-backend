@@ -36,7 +36,8 @@ class Command(BaseCommand):
                     hot_score_tpl = doc.calculate_hot_score(should_save=save)
 
                     print(
-                        f"Doc: {doc.id}, {doc.document_type}, score: {hot_score_tpl[0]} - {i + 1}/{count}"
+                        f"Doc: {doc.id}, {doc.document_type}, "
+                        f"score: {hot_score_tpl[0]} - {i + 1}/{count}"
                     )
 
             except Exception as e:

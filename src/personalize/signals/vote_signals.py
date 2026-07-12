@@ -32,8 +32,7 @@ def create_upvote_interaction(sender, instance, created, **kwargs):
             create_upvote_interaction_task.delay(instance.id)
         except Exception:
             logger.exception(
-                "Exception triggering UserInteraction creation task for UPVOTE: vote_id=%s",
-                instance.id,
+                "Failed to create upvote interaction for vote %s", instance.id
             )
 
     transaction.on_commit(trigger_task)

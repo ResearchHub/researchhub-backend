@@ -37,25 +37,17 @@ ACCEPTED_TRANSFER_STATES = {
 class CircleWalletCreationError(Exception):
     """Raised when Circle fails to create a wallet."""
 
-    pass
-
 
 class CircleWalletFrozenError(Exception):
     """Raised when a Circle wallet is in FROZEN state."""
-
-    pass
 
 
 class CircleTransferError(Exception):
     """Raised when Circle fails to create a transfer."""
 
-    pass
-
 
 class CircleBalanceError(Exception):
     """Raised when Circle fails to fetch a wallet balance."""
-
-    pass
 
 
 @dataclass

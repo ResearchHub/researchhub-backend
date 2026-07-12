@@ -30,13 +30,16 @@ from researchhub_document.related_models.constants.document_type import (
     POSTS,
     PREREGISTRATION,
     QUESTION,
+    REGISTERED_REPORT,
 )
 from researchhub_document.related_models.document_filter_model import DocumentFilter
 from user.models import Author
-from utils.models import DefaultModel, SoftDeletableModel
+from utils.models import DefaultModel, ModeratedDocumentMixin, SoftDeletableModel
 
 
-class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel):
+class ResearchhubUnifiedDocument(
+    ModeratedDocumentMixin, SoftDeletableModel, HotScoreMixin, DefaultModel
+):
     document_type = models.CharField(
         choices=DOCUMENT_TYPES,
         default=PAPER,
@@ -94,6 +97,19 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
                 name="uni_doc_not_note_doc_type_idx",
                 condition=~Q(document_type=NOTE),
             ),
+            # Partial index: only the moderation queue (pending/declined) is ever
+            # filtered by status, so indexing those rows keeps it small on a
+            # large table where the vast majority of works are approved.
+            models.Index(
+                fields=["status"],
+                name="uni_doc_status_pending_idx",
+                condition=Q(
+                    status__in=[
+                        ModeratedDocumentMixin.PENDING,
+                        ModeratedDocumentMixin.DECLINED,
+                    ]
+                ),
+            ),
             models.Index(
                 fields=["document_type", "-hot_score"], name="doc_type_hot_score_idx"
             ),
@@ -136,14 +152,21 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
     def is_visible_to_user(self, user):
         """Whether this unified document may be exposed to ``user``.
 
-        Public documents are visible to everyone. Private documents (e.g.
-        private preregistrations) reuse the post-level ``visible_to`` rules so
-        the logic stays in one place: the author, grant creators the post
-        applied to, users with a non-revoked Permission, and moderators /
-        hub editors can see them.
+        A work is publicly visible only once it is public *and* has cleared
+        moderation. Posts (preregistrations, discussions, grants) defer to
+        ``ResearchhubPost.visible_to``, which keeps a work awaiting moderation
+        limited to its author and to moderators / hub editors (grants gate on
+        ``Grant.status`` there, since their backing post stays APPROVED). Papers
+        awaiting moderation (or declined) are likewise restricted to their
+        uploader and to moderators / hub editors.
         """
-        if self.is_public:
-            return True
+        if self.document_type == PAPER:
+            paper = self.paper if hasattr(self, "paper") else None
+            if paper is not None and not self.is_approved:
+                from paper.related_models.paper_model import Paper
+
+                return Paper.objects.filter(pk=paper.pk).visible_to(user).exists()
+            return self.is_public
 
         from researchhub_document.related_models.researchhub_post_model import (
             ResearchhubPost,
@@ -181,7 +204,7 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
 
         doc = self.get_document()
 
-        return "{}/{}/{}/{}".format(BASE_FRONTEND_URL, doc_url, doc.id, doc.slug)
+        return f"{BASE_FRONTEND_URL}/{doc_url}/{doc.id}/{doc.slug}"
 
     def get_client_doc_type(self):
         if self.document_type == PAPER:
@@ -270,10 +293,31 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             return self.posts.first()
         elif self.document_type == PREREGISTRATION:
             return self.posts.first()
+        elif self.document_type == REGISTERED_REPORT:
+            return self.posts.first()
         elif self.document_type == GRANT:
             return self.posts.first()
         else:
             raise Exception(f"Unrecognized document_type: {self.document_type}")
+
+    def get_display_title(self, *, max_length: int = 512) -> str:
+        """Return the user-facing title of the underlying document."""
+        doc = self.get_document()
+        if doc is None:
+            return ""
+        if hasattr(doc, "display_title"):
+            title = (doc.display_title or "").strip()
+        elif hasattr(doc, "title"):
+            title = (str(doc.title or "")).strip()
+        else:
+            title = ""
+        return title[:max_length]
+
+    def get_document_slug(self) -> str:
+        doc = self.get_document()
+        if doc is None:
+            return ""
+        return getattr(doc, "slug", "") or ""
 
     @cached_property
     def fe_document_type(self):
@@ -412,7 +456,7 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         """
         comments = self.get_all_comments()
         total = comments.aggregate(total_score=Sum("score"))["total_score"]
-        return total if total else 0
+        return total or 0
 
     def get_comment_tip_sum(self):
         """

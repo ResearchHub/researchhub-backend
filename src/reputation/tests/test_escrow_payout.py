@@ -1,9 +1,8 @@
 import decimal
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.test import TransactionTestCase
@@ -67,14 +66,14 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
         paper = create_paper()
         escrow = Escrow.objects.create(
             hold_type=Escrow.AUTHOR_RSC,
-            amount_holding=decimal.Decimal("25"),
+            amount_holding=decimal.Decimal(25),
             created_by=self.user,
             content_type=ContentType.objects.get_for_model(paper),
             object_id=paper.id,
         )
 
         with self.assertRaises(ValueError):
-            escrow.payout(recipient=self.recipient, payout_amount=decimal.Decimal("25"))
+            escrow.payout(recipient=self.recipient, payout_amount=decimal.Decimal(25))
 
         self.assertFalse(
             Distribution.objects.filter(
@@ -113,7 +112,7 @@ class EscrowPayoutApproveBountyTests(APITestCase):
         self.assertEqual(response.status_code, 201)
         bounty = Bounty.objects.get(id=response.data["id"])
         bounty.status = Bounty.ASSESSMENT
-        bounty.assessment_end_date = datetime.now(pytz.UTC) + timedelta(days=5)
+        bounty.assessment_end_date = datetime.now(UTC) + timedelta(days=5)
         bounty.save()
         return bounty
 
@@ -188,7 +187,7 @@ class EscrowPayoutConcurrencyTests(TransactionTestCase):
         self.assertEqual(bounty_res.status_code, 201)
         self.bounty = Bounty.objects.get(id=bounty_res.data["id"])
         self.bounty.status = Bounty.ASSESSMENT
-        self.bounty.assessment_end_date = datetime.now(pytz.UTC) + timedelta(days=5)
+        self.bounty.assessment_end_date = datetime.now(UTC) + timedelta(days=5)
         self.bounty.save()
         self.escrow_id = self.bounty.escrow_id
 
@@ -228,7 +227,7 @@ class EscrowPayoutConcurrencyTests(TransactionTestCase):
         self.assertEqual(sum(1 for status_code in results if status_code == 200), 1)
 
         self.bounty.escrow.refresh_from_db()
-        self.assertEqual(self.bounty.escrow.amount_holding, decimal.Decimal("0"))
+        self.assertEqual(self.bounty.escrow.amount_holding, decimal.Decimal(0))
 
         payout_count = Distribution.objects.filter(
             proof_item_object_id=self.escrow_id,

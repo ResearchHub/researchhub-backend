@@ -6,7 +6,7 @@ and handles the saving process with proper validation and error handling.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from django.db import transaction
 
@@ -28,7 +28,7 @@ class PaperIngestionService:
     maps them to Paper model instances, and saves them to the database.
     """
 
-    def __init__(self, mappers: Dict[IngestionSource, BaseMapper]):
+    def __init__(self, mappers: dict[IngestionSource, BaseMapper]):
         """Constructor."""
         self._mappers = mappers
 
@@ -53,9 +53,9 @@ class PaperIngestionService:
     def _create_authors_and_institutions(
         self,
         paper: Paper,
-        record: Dict[str, Any],
+        record: dict[str, Any],
         mapper: BaseMapper,
-    ) -> Tuple[List[Author], List[Institution], List[Authorship]]:
+    ) -> tuple[list[Author], list[Institution], list[Authorship]]:
         """
         Create authors, institutions, and their relationships for a paper.
 
@@ -122,8 +122,10 @@ class PaperIngestionService:
                     created_authors.append(author_model)
                     saved_authors[author_model.orcid_id] = author_model
                     logger.info(
-                        f"Created author: {author_model.first_name} {author_model.last_name} "
-                        f"with ORCID: {author_model.orcid_id}"
+                        "Created author: %s %s with ORCID: %s",
+                        author_model.first_name,
+                        author_model.last_name,
+                        author_model.orcid_id,
                     )
 
             except Exception as e:
@@ -159,7 +161,9 @@ class PaperIngestionService:
                                 )
 
                     logger.info(
-                        f"Created authorship: {authorship_model.author.last_name} -> {paper.title[:50]}"
+                        "Created authorship: %s -> %s",
+                        authorship_model.author.last_name,
+                        paper.title[:50],
                     )
 
             except Exception as e:
@@ -169,10 +173,10 @@ class PaperIngestionService:
 
     def ingest_papers(
         self,
-        raw_response: List[Dict[str, Any]],
+        raw_response: list[dict[str, Any]],
         source: IngestionSource,
         validate: bool = True,
-    ) -> Tuple[List[Paper], List[Dict[str, Any]]]:
+    ) -> tuple[list[Paper], list[dict[str, Any]]]:
         """
         Process and save papers from raw ingestion client response.
 
@@ -249,15 +253,16 @@ class PaperIngestionService:
                         )
                     except Exception as e:
                         logger.warning(
-                            f"Failed to create authors/institutions for paper {paper.id}: {e}"
+                            "Failed to create authors/institutions for paper %s: %s",
+                            paper.id,
+                            e,
                         )
 
                 successful_papers.append(paper)
 
             except Exception as e:
-                logger.error(
-                    f"Failed to process paper {record.get('id', 'unknown')}: {e}",
-                    exc_info=True,
+                logger.exception(
+                    "Failed to process paper %s", record.get("id", "unknown")
                 )
                 failed_records.append(
                     {
@@ -338,7 +343,7 @@ class PaperIngestionService:
 
     def _update_paper(
         self, existing_paper: Paper, new_paper: Paper
-    ) -> Tuple[Paper, bool]:
+    ) -> tuple[Paper, bool]:
         """
         Update an existing paper with new data.
 
@@ -393,10 +398,10 @@ class PaperIngestionService:
 
     def ingest_single_paper(
         self,
-        raw_record: Dict[str, Any],
+        raw_record: dict[str, Any],
         source: IngestionSource,
         validate: bool = True,
-    ) -> Optional[Paper]:
+    ) -> Paper | None:
         """
         Process and save a single paper from raw ingestion client response.
 

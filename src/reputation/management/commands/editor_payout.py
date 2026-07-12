@@ -9,7 +9,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 
 from hub.models import Hub
-from reputation.distributions import Distribution as dist
+from reputation.distributions import Distribution
 from reputation.distributor import Distributor
 from researchhub_access_group.constants import EDITOR
 from user.models import User
@@ -37,7 +37,10 @@ class Command(BaseCommand):
             try:
                 user = User.objects.get(email__iexact=email)
                 distributor = Distributor(
-                    dist("EDITOR_PAYOUT", amount, False), user, None, time.time()
+                    Distribution("EDITOR_PAYOUT", amount, False),
+                    user,
+                    None,
+                    time.time(),
                 )
 
                 df2 = {
@@ -55,9 +58,12 @@ class Command(BaseCommand):
             if distributed_editors.get(editor.email):
                 continue
             else:
-                AMOUNT = 90909.1
+                amount = 90909.1
                 distributor = Distributor(
-                    dist("EDITOR_PAYOUT", AMOUNT, False), editor, None, time.time()
+                    Distribution("EDITOR_PAYOUT", amount, False),
+                    editor,
+                    None,
+                    time.time(),
                 )
 
                 df2 = {

@@ -2,6 +2,7 @@ import json
 
 import requests
 from django.core.management.base import BaseCommand
+from django.core.serializers.json import DjangoJSONEncoder
 
 from discussion.models import Vote
 from paper.models import Paper
@@ -10,7 +11,6 @@ from reputation.models import Bounty
 from researchhub.settings import AMPLITUDE_API_KEY
 from researchhub_document.models import ResearchhubPost
 from user.models import User
-from utils.parsers import json_serial
 
 API_URL = "https://api.amplitude.com/2/httpapi"
 
@@ -48,9 +48,9 @@ class Command(BaseCommand):
 
     def forward_amp_event(self, events):
         event_data = {"api_key": AMPLITUDE_API_KEY, "events": events}
-        data = json.dumps(event_data, default=json_serial)
+        data = json.dumps(event_data, cls=DjangoJSONEncoder)
         headers = {"Content-Type": "application/json", "Accept": "*/*"}
-        request = requests.post(API_URL, data=data, headers=headers)
+        request = requests.post(API_URL, data=data, headers=headers, timeout=10)
         res = request.json()
         if request.status_code != 200:
             res = request.json()

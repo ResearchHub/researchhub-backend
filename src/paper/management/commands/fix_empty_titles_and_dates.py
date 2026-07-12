@@ -8,7 +8,10 @@ from utils.openalex import OpenAlex
 
 
 class Command(BaseCommand):
-    help = "Update paper titles and publication dates from OpenAlex for papers with NULL or empty titles"
+    help = (
+        "Update paper titles and publication dates from OpenAlex for papers with NULL "
+        "or empty titles"
+    )
 
     def handle(self, *args, **kwargs):
         papers = Paper.objects.filter(

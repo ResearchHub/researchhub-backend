@@ -1,5 +1,4 @@
 import json
-from typing import Optional
 
 import boto3
 from boto3.session import Session
@@ -31,7 +30,7 @@ def create_client(
     service_name: str,
     region_name: str = settings.AWS_REGION_NAME,
     *,
-    config: Optional[Config] = None,
+    config: Config | None = None,
 ) -> boto3.client:
     """
     Create a boto3 client for the given service.
@@ -44,5 +43,13 @@ def create_client(
 
 def bedrock_runtime_client() -> boto3.client:
     read_timeout = int(getattr(settings, "BEDROCK_RUNTIME_READ_TIMEOUT", 600))
-    config = Config(connect_timeout=60, read_timeout=read_timeout)
+    max_attempts = int(getattr(settings, "BEDROCK_RUNTIME_MAX_ATTEMPTS", 8))
+    # Adaptive retries absorb transient throttling: agent runs make many
+    # sequential Converse calls, and one ThrottlingException must not kill a
+    # long multi-turn run.
+    config = Config(
+        connect_timeout=60,
+        read_timeout=read_timeout,
+        retries={"max_attempts": max_attempts, "mode": "adaptive"},
+    )
     return create_client("bedrock-runtime", settings.AWS_REGION_NAME, config=config)

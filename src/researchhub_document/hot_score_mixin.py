@@ -1,11 +1,15 @@
 import datetime
+import logging
 import math
+from datetime import UTC
 
 from django.db.models import Q
 
 from purchase.related_models.constants.currency import RSC
 from purchase.related_models.fundraise_model import Fundraise
 from reputation.related_models.bounty import Bounty
+
+logger = logging.getLogger(__name__)
 
 
 class HotScoreMixin:
@@ -36,7 +40,7 @@ class HotScoreMixin:
 
         # Define the 3-day threshold
         three_days = datetime.timedelta(days=3)
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(UTC)
 
         for fundraise in self.fundraises.all():
             # Only use end_date if it exists, is in the future,
@@ -61,11 +65,6 @@ class HotScoreMixin:
         half_days_since_epoch = num_seconds_since_epoch / num_seconds_in_half_day
         time_score = half_days_since_epoch
 
-        # Debug
-        if False:
-            print(f"Num seconds since epoch: {num_seconds_since_epoch}")
-            print(f"Value for {date} is: {time_score}")
-
         return time_score
 
     def _calc_boost_score(self):
@@ -73,9 +72,9 @@ class HotScoreMixin:
         try:
             doc = self.get_document()
             boost = doc.get_boost_amount()
-            boost_score = math.log(boost + 1, 10)
-        except Exception as e:
-            print(e)
+            boost_score = math.log10(boost + 1)
+        except Exception:
+            logger.exception("Error calculating boost score")
 
         return boost_score
 
@@ -90,11 +89,10 @@ class HotScoreMixin:
 
             for bounty in open_bounties:
                 seconds_since_create = (
-                    datetime.datetime.now(datetime.timezone.utc) - bounty.created_date
+                    datetime.datetime.now(UTC) - bounty.created_date
                 ).total_seconds()
                 seconds_to_expiration = (
-                    bounty.expiration_date
-                    - datetime.datetime.now(datetime.timezone.utc)
+                    bounty.expiration_date - datetime.datetime.now(UTC)
                 ).total_seconds()
                 percentage_within_promo_period = 0
                 this_bounty_score = 0
@@ -118,21 +116,8 @@ class HotScoreMixin:
                         percentage_within_promo_period + 1, 7
                     )
                     total_bounty_score += this_bounty_score
-
-                # Useful for debugging, do not delete
-                # print("bounty.created_date", bounty.created_date)
-                # print("bounty.expiration_date", bounty.expiration_date)
-                # print("seconds_since_create", seconds_since_create)
-                # print("seconds_to_expiration", seconds_to_expiration)
-                # print("id", bounty.id)
-                # print("is_near_new", is_near_new)
-                # print("is_near_expire", is_near_expire)
-                # print("percentage_within_promo_period",
-                # ... percentage_within_promo_period)
-                # print("score", this_bounty_score)
-
-        except Exception as e:
-            print(e)
+        except Exception:
+            logger.exception("Error calculating bounty score")
 
         return total_bounty_score
 
@@ -153,7 +138,7 @@ class HotScoreMixin:
 
             for fundraise in fundraises:
                 # Get time since creation
-                now = datetime.datetime.now(datetime.timezone.utc)
+                now = datetime.datetime.now(UTC)
                 seconds_since_create = (now - fundraise.start_date).total_seconds()
 
                 # Calculate time to expiration if end_date exists
@@ -192,8 +177,8 @@ class HotScoreMixin:
                     this_fundraise_score = amount_factor + percent_factor
                     total_fundraise_score += this_fundraise_score
 
-        except Exception as e:
-            print(e)
+        except Exception:
+            logger.exception("Error calculating fundraise score")
 
         return total_fundraise_score
 
@@ -202,7 +187,7 @@ class HotScoreMixin:
     # somewhat comparable to the time score. To do that, we pass these signals through
     # log functions so that scores don't grow out of control.
     def calculate_hot_score(self, should_save=False):
-        MIN_REQ_DISCUSSIONS = 1
+        min_req_discussions = 1
         hot_score = 0
         doc = self.get_document()
 
@@ -220,18 +205,18 @@ class HotScoreMixin:
         time_score = self._get_time_score(relevant_date)
 
         time_score_with_magnitude = self._c(doc_vote_net_score) * time_score
-        doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 2)
-        discussion_vote_score = math.log(doc.discussion_count + 1, 2) + math.log(
+        doc_vote_score = math.log2(abs(doc_vote_net_score) + 1)
+        discussion_vote_score = math.log2(doc.discussion_count + 1) + math.log(
             max(0, total_comment_vote_score) + 1, 3
         )
 
         # If basic criteria needed to show in trending is not available,
         # penalize the score by subtracting time. This will result in the
         # document being sent to the back of the feed
-        if doc.discussion_count == MIN_REQ_DISCUSSIONS:
+        if doc.discussion_count == min_req_discussions:
             discussion_vote_score -= 2  # Roughly one day penalty
         elif (
-            doc.discussion_count < MIN_REQ_DISCUSSIONS
+            doc.discussion_count < min_req_discussions
             and time_score_with_magnitude >= 0
         ):
             time_score_with_magnitude *= -1

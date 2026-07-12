@@ -8,11 +8,10 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from oauth.serializers import SocialLoginSerializer
-from utils.http import RequestMethods
 from utils.throttles import captcha_unlock
 
 
-@api_view([RequestMethods.POST])
+@api_view(["POST"])
 @permission_classes([AllowAny])
 def captcha_verify(request):
     verify_request = requests.post(
@@ -21,6 +20,7 @@ def captcha_verify(request):
             "secret": settings.RECAPTCHA_SECRET_KEY,
             "response": request.data.get("response"),
         },
+        timeout=10,
     )
     status = verify_request.status_code
     req_json = verify_request.json()

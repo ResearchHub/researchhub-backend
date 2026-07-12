@@ -1,8 +1,7 @@
 import math
-from datetime import datetime, timedelta
-from typing import List, TypedDict
+from datetime import UTC, datetime, timedelta
+from typing import TypedDict
 
-import pytz
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -16,7 +15,7 @@ from utils.models import DefaultModel
 
 
 def get_default_expiration_date():
-    now = datetime.now(pytz.UTC)
+    now = datetime.now(UTC)
     date = now + timedelta(days=14)
     return date
 
@@ -219,7 +218,7 @@ class Bounty(DefaultModel):
     @classmethod
     def find_bounties_for_user(
         cls, user, include_unrelated=False
-    ) -> List[AnnotatedBounty]:
+    ) -> list[AnnotatedBounty]:
         from django.db.models import F, IntegerField, OuterRef, Subquery, Value
 
         # Get user's expertise hubs and their scores

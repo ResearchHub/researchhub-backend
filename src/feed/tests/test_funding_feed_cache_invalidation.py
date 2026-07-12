@@ -54,7 +54,7 @@ class FundingFeedCacheInvalidationTests(TestCase):
         req.user = MagicMock()
         req.user.is_authenticated = False
         req.user.id = None
-        k = view.get_cache_key(req, "funding")
+        k = view.get_cache_key(req, "funding") + ":public"
         cache.set(k, {"cached": True}, timeout=3600)
         self.assertIsNotNone(cache.get(k))
         FundingCacheMixin.invalidate_funding_feed_cache()

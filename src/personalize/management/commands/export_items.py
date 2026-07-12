@@ -1,7 +1,6 @@
 import argparse
 import time
 from datetime import datetime
-from typing import Optional
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, reset_queries
@@ -33,7 +32,8 @@ class Command(BaseCommand):
             type=int,
             help="Specific unified document IDs to export (space-separated)",
         )
-        # Note: Cannot be combined with --since-publish-date. If both are provided, --since-publish-date takes precedence.
+        # Note: Cannot be combined with --since-publish-date.
+        # If both are provided, --since-publish-date takes precedence.
         parser.add_argument(
             "--with-interactions",
             action=argparse.BooleanOptionalAction,
@@ -95,11 +95,11 @@ class Command(BaseCommand):
 
     def export_items(
         self,
-        since_publish_date: Optional[datetime],
-        ids: Optional[list] = None,
+        since_publish_date: datetime | None,
+        ids: list | None = None,
         with_interactions: bool = True,
         with_posts: bool = False,
-        post_types: Optional[list] = None,
+        post_types: list | None = None,
     ):
         """Export items from ResearchhubUnifiedDocument to CSV."""
         # Force enable query tracking for debugging
@@ -262,7 +262,7 @@ class Command(BaseCommand):
             document_type__in=SUPPORTED_DOCUMENT_TYPES,
         )
 
-    def _get_posts_filter(self, post_types: Optional[list] = None) -> Q:
+    def _get_posts_filter(self, post_types: list | None = None) -> Q:
         """Get Q filter for all ResearchHub post documents.
 
         Args:
@@ -276,11 +276,11 @@ class Command(BaseCommand):
 
     def _get_queryset(
         self,
-        since_publish_date: Optional[datetime],
-        ids: Optional[list] = None,
+        since_publish_date: datetime | None,
+        ids: list | None = None,
         with_interactions: bool = True,
         with_posts: bool = False,
-        post_types: Optional[list] = None,
+        post_types: list | None = None,
     ) -> QuerySet[ResearchhubUnifiedDocument]:
         base_queryset = self._build_base_queryset()
 
@@ -312,7 +312,8 @@ class Command(BaseCommand):
                 self._debug_log(f"Found {len(post_ids)} post documents")
 
         if since_publish_date:
-            # Get unified document IDs for papers with paper_publish_date >= since_publish_date
+            # Get unified document IDs for papers with
+            # paper_publish_date >= since_publish_date
             paper_doc_ids = set(
                 Paper.objects.filter(
                     paper_publish_date__gte=since_publish_date,
@@ -322,7 +323,8 @@ class Command(BaseCommand):
             combined_ids.update(paper_doc_ids)
             if self.debug_mode:
                 self._debug_log(
-                    f"Found {len(paper_doc_ids)} papers with publish date >= {since_publish_date.date()}"
+                    f"Found {len(paper_doc_ids)} papers with publish date >= "
+                    f"{since_publish_date.date()}"
                 )
 
         if not combined_ids:
@@ -336,7 +338,7 @@ class Command(BaseCommand):
         # Return queryset filtered by the combined IDs
         return base_queryset.filter(id__in=combined_ids).order_by("id")
 
-    def _parse_date(self, date_str: Optional[str]) -> Optional[datetime]:
+    def _parse_date(self, date_str: str | None) -> datetime | None:
         """Parse date string to timezone-aware datetime object."""
         if not date_str:
             return None
@@ -427,19 +429,24 @@ class Command(BaseCommand):
             for idx in slowest_indices:
                 chunk = chunk_timings[idx]
                 self.stdout.write(
-                    f"     Chunk {chunk['chunk_num']}: {total_chunk_times[idx]:.2f}s total"
+                    f"     Chunk {chunk['chunk_num']}: "
+                    f"{total_chunk_times[idx]:.2f}s total"
                 )
                 self.stdout.write(
-                    f"       - Eval: {chunk.get('eval_time', 0):.2f}s ({chunk.get('eval_queries', 0)} queries)"
+                    f"       - Eval: {chunk.get('eval_time', 0):.2f}s "
+                    f"({chunk.get('eval_queries', 0)} queries)"
                 )
                 self.stdout.write(
-                    f"       - Fetch: {chunk.get('fetch_time', 0):.2f}s ({chunk.get('fetch_queries', 0)} queries)"
+                    f"       - Fetch: {chunk.get('fetch_time', 0):.2f}s "
+                    f"({chunk.get('fetch_queries', 0)} queries)"
                 )
                 self.stdout.write(
-                    f"       - Map: {chunk.get('map_time', 0):.2f}s ({chunk.get('map_queries', 0)} queries)"
+                    f"       - Map: {chunk.get('map_time', 0):.2f}s "
+                    f"({chunk.get('map_queries', 0)} queries)"
                 )
                 self.stdout.write(
-                    f"       - Items: {chunk.get('chunk_size', 0)} in chunk, {chunk.get('items_mapped', 0)} mapped"
+                    f"       - Items: {chunk.get('chunk_size', 0)} in chunk, "
+                    f"{chunk.get('items_mapped', 0)} mapped"
                 )
 
             # Show most query-heavy operation
@@ -451,13 +458,16 @@ class Command(BaseCommand):
 
             self.stdout.write(f"     • Total queries: {total_q}")
             self.stdout.write(
-                f"       - Queryset eval: {total_eval_q} ({total_eval_q / total_q * 100:.1f}%)"
+                f"       - Queryset eval: {total_eval_q} "
+                f"({total_eval_q / total_q * 100:.1f}%)"
             )
             self.stdout.write(
-                f"       - Fetch data:    {total_fetch_q} ({total_fetch_q / total_q * 100:.1f}%)"
+                f"       - Fetch data:    {total_fetch_q} "
+                f"({total_fetch_q / total_q * 100:.1f}%)"
             )
             self.stdout.write(
-                f"       - Map items:     {total_map_q} ({total_map_q / total_q * 100:.1f}%)"
+                f"       - Map items:     {total_map_q} "
+                f"({total_map_q / total_q * 100:.1f}%)"
             )
 
         # Performance insights
@@ -475,7 +485,8 @@ class Command(BaseCommand):
                 avg_fetch_q = sum(fetch_queries) / len(fetch_queries)
                 if avg_fetch_q > 10:
                     self.stdout.write(
-                        f"     - High query count in fetch ({avg_fetch_q:.0f} avg) - consider optimizing RelatedDataFetcher"
+                        f"     - High query count in fetch ({avg_fetch_q:.0f} avg) - "
+                        "consider optimizing RelatedDataFetcher"
                     )
             elif avg_eval_time > avg_fetch_time and avg_eval_time > avg_map_time:
                 self.stdout.write(
@@ -484,7 +495,8 @@ class Command(BaseCommand):
                 avg_eval_q = sum(eval_queries) / len(eval_queries)
                 if avg_eval_q > 100:
                     self.stdout.write(
-                        f"     - High query count ({avg_eval_q:.0f} avg) - prefetch_related may not be working"
+                        f"     - High query count ({avg_eval_q:.0f} avg) - "
+                        "prefetch_related may not be working"
                     )
             elif avg_map_time > avg_fetch_time and avg_map_time > avg_eval_time:
                 self.stdout.write(
@@ -493,7 +505,8 @@ class Command(BaseCommand):
                 avg_map_q = sum(map_queries) / len(map_queries)
                 if avg_map_q > 10:
                     self.stdout.write(
-                        f"     - Mapping triggering queries ({avg_map_q:.0f} avg) - possible N+1 in mapper"
+                        f"     - Mapping triggering queries ({avg_map_q:.0f} avg) - "
+                        "possible N+1 in mapper"
                     )
 
             # General warnings

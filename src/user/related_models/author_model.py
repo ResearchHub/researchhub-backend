@@ -9,11 +9,9 @@ from django.db import models, transaction
 from django.db.models import JSONField, Sum
 from django.db.models.deletion import SET_NULL
 
-from discussion.models import Vote
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
-from purchase.related_models.purchase_model import Purchase
 from reputation.models import Score
 from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.profile_image_storage import ProfileImageStorage
@@ -84,7 +82,8 @@ class Author(models.Model):
         max_length=20,
     )
 
-    # Indicates whether the user was created through the RH platform or through another source such as OpenAlex
+    # Indicates whether the user was created through the RH platform or through another
+    # source such as OpenAlex
     created_source = models.CharField(
         max_length=20,
         null=False,
@@ -93,7 +92,8 @@ class Author(models.Model):
         default=SOURCE_RESEARCHHUB,
     )
 
-    # Indicates the last time we did a full fetch from OpenAlex which includes all the works
+    # Indicates the last time we did a full fetch from OpenAlex which includes all the
+    # works
     last_full_fetch_from_openalex = models.DateTimeField(null=True, blank=True)
 
     # AKA Impact Factor. Derived from OpenAlex:  https://en.wikipedia.org/wiki/Impact_factor
@@ -190,15 +190,6 @@ class Author(models.Model):
             return None
         emails = account.extra_data.get("verified_edu_emails", [])
         return emails[0] if emails else None
-
-    @property
-    def profile_image_indexing(self):
-        if self.profile_image is not None:
-            try:
-                return self.profile_image.url
-            except ValueError:
-                return str(self.profile_image)
-        return None
 
     def get_all_authorships(self):
         """
@@ -309,125 +300,6 @@ class Author(models.Model):
                 "milestones": [1, 25, 50],
             },
         }
-
-    # Gets ranked list of hubs associated with user's interests.
-    # We use comments and votes to determine what is the user interested in
-    def get_interest_hubs(self, max_results=100, min_relevancy_score=0.2):
-        from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-        from researchhub_document.related_models.researchhub_unified_document_model import (
-            UnifiedDocumentConcepts,
-        )
-
-        # Contains all hubs associated with user's interests ordered by relevance
-        # Comments, votes
-        interest_hubs = []
-
-        # All Unified Documents associated with records
-        # which will be used to get related hubs
-        related_unified_documents = []
-
-        # Get unified documents associated with comments
-        comments = RhCommentModel.objects.filter(created_by_id=self.user.id)
-
-        for comment in comments:
-            related_unified_documents.append(comment.unified_document)
-
-        # Get all unified docs associated with user votes
-        user_votes = Vote.objects.filter(created_by_id=self.user.id)
-
-        for vote in user_votes:
-            try:
-                related_unified_documents.append(vote.item.unified_document)
-            except Exception:
-                logger.exception("Failed to append documents for vote id %s", vote.id)
-
-        # Get all items the user spend RSC on
-        purchases = Purchase.objects.filter(user_id=self.user.id)
-
-        for purchase in purchases:
-            try:
-                related_unified_documents.append(purchase.item.unified_document)
-            except Exception:
-                logger.exception(
-                    "Failed to append documents for purchase id %s", purchase.id
-                )
-
-        # Get relevant concepts associated with unified documents
-        ranked_concepts = UnifiedDocumentConcepts.objects.filter(
-            unified_document__in=related_unified_documents
-        ).order_by("-relevancy_score")
-
-        # Get hubs associated with concepts
-        interest_hubs = [
-            ranked.concept.hub
-            for ranked in ranked_concepts
-            if ranked.relevancy_score >= min_relevancy_score
-            and hasattr(ranked.concept, "hub")
-        ]
-
-        # It is quite possible that hubs returned through ranked concepts is less than max_results
-        # As a result, we want to pad the list with the rest of the hubs
-        for doc in related_unified_documents:
-            if hasattr(doc, "hubs"):
-                interest_hubs = interest_hubs + list(doc.hubs.all())
-
-        # Remove duplicates while preserving order
-        seen = set()
-        interest_hubs = [x for x in interest_hubs if not (x in seen or seen.add(x))]
-
-        return interest_hubs[:max_results]
-
-    # Gets ranked list of hubs associated with user's likely expertise.
-    # We use content peer reviewed and published papers to determine expertise
-    def get_expertise_hubs(self, max_results=100, min_relevancy_score=0.2):
-        from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-        from researchhub_document.related_models.researchhub_unified_document_model import (
-            UnifiedDocumentConcepts,
-        )
-
-        # Contains all hubs associated with user's authored papers ordered by relevance
-        expertise_hubs = []
-
-        # All Unified Documents associated with records (peer review, authored paper, etc.)
-        # which will be used to get relevant concepts and related hubs
-        related_unified_documents = []
-
-        # Get unified documents associated with authored papers
-        authored_papers = self.papers.all()
-        for authored_paper in authored_papers:
-            related_unified_documents.append(authored_paper.unified_document)
-
-        # Get unified documents associated with peer reviews
-        peer_reviews = RhCommentModel.objects.filter(
-            comment_type__in=["REVIEW"], created_by_id=self.user.id
-        )
-        for review in peer_reviews:
-            related_unified_documents.append(review.unified_document)
-
-        # Get relevant concepts associated with unified documents
-        ranked_concepts = UnifiedDocumentConcepts.objects.filter(
-            unified_document__in=related_unified_documents
-        ).order_by("-relevancy_score")
-
-        # Omit concepts with relevancy score below threshold
-        expertise_hubs = [
-            ranked.concept.hub
-            for ranked in ranked_concepts
-            if ranked.relevancy_score >= min_relevancy_score
-            and hasattr(ranked.concept, "hub")
-        ]
-
-        # It is quite possible that hubs returned through ranked concepts is less than max_results
-        # As a result, we want to pad the list with the rest of the hubs
-        for doc in related_unified_documents:
-            if hasattr(doc, "hubs"):
-                expertise_hubs = expertise_hubs + list(doc.hubs.all())
-
-        # Remove duplicates while preserving order
-        seen = set()
-        expertise_hubs = [x for x in expertise_hubs if not (x in seen or seen.add(x))]
-
-        return expertise_hubs[:max_results]
 
     def calculate_score(self):
         aggregated_score = self.papers.annotate(

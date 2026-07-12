@@ -40,7 +40,10 @@ from paper.utils import (
 from purchase.models import Purchase
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
-from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub.serializers import (
+    DynamicModelFieldSerializer,
+    ModeratedDocumentStatusSerializerMixin,
+)
 from researchhub.settings import TESTING
 from researchhub_document.utils import update_unified_document_to_paper
 from review.serializers.review_serializer import DynamicReviewSerializer
@@ -58,15 +61,11 @@ logger = logging.getLogger(__name__)
 
 class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
     authors = serializers.SerializerMethodField()
-    boost_amount = serializers.SerializerMethodField()
-    bullet_points = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
     pdf_copyright_allows_display = serializers.SerializerMethodField()
-    first_figure = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
-    promoted = serializers.SerializerMethodField()
     score = serializers.ReadOnlyField()
     unified_document = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
@@ -108,7 +107,7 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
                 author = Author.objects.get(pk=author_id)
                 valid_authors.append(author)
             except Author.DoesNotExist:
-                print(f"Author with id {author_id} was not found.")
+                logger.warning("Author with ID %s not found", author_id)
         data["authors"] = valid_authors
 
         return data
@@ -150,29 +149,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             context=self.context,
         )
         return serializer.data
-
-    def get_bullet_points(self, paper):
-        return None
-
-    def get_first_figure(self, paper):
-        try:
-            if len(paper.figure_list) > 0:
-                figure = paper.figure_list[0]
-                return FigureSerializer(figure).data
-        except AttributeError:
-            # Priority: is_primary > preview > first figure
-            primary_figure = paper.figures.filter(is_primary=True).first()
-            if primary_figure:
-                return FigureSerializer(primary_figure).data
-
-            preview = paper.figures.filter(figure_type=Figure.PREVIEW).first()
-            if preview:
-                return FigureSerializer(preview).data
-
-            figure = paper.figures.filter(figure_type=Figure.FIGURE).first()
-            if figure:
-                return FigureSerializer(figure).data
-        return None
 
     def get_first_preview(self, paper):
         # If we don't show the PDFs on the paper page, we shouldn't have previews either
@@ -262,12 +238,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
 
         return serializer.data
 
-    def get_promoted(self, paper):
-        return paper.get_promoted_score()
-
-    def get_boost_amount(self, paper):
-        return paper.get_boost_amount()
-
     def get_pdf_copyright_allows_display(self, paper):
         return pdf_copyright_allows_display(paper)
 
@@ -276,7 +246,8 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         if not file:
             return None
 
-        # Don't return copyrighted content by default, but enable override for specific cases
+        # Don't return copyrighted content by default,
+        # but enable override for specific cases
         exclude_copyrighted_content = self.context.get(
             "exclude_copyrighted_content", True
         )
@@ -291,7 +262,8 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         if not paper.pdf_url:
             return None
 
-        # Don't return copyrighted content by default, but enable override for specific cases
+        # Don't return copyrighted content by default,
+        # but enable override for specific cases
         exclude_copyrighted_content = self.context.get(
             "exclude_copyrighted_content", True
         )
@@ -360,17 +332,7 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         return []
 
 
-class ContributionPaperSerializer(BasePaperSerializer):
-    uploaded_by = None
-    discussion = None
-    first_figure = None
-    first_preview = None
-    bullet_points = None
-    summary = None
-    discussion_users = None
-
-
-class PaperSerializer(BasePaperSerializer):
+class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixin):
     authors = serializers.SerializerMethodField()
     uploaded_date = serializers.ReadOnlyField()
 
@@ -432,7 +394,7 @@ class PaperSerializer(BasePaperSerializer):
                 if paper is None:
                     # It is important to note that paper signals
                     # are ran after call to super
-                    paper = super(PaperSerializer, self).create(validated_data)
+                    paper = super().create(validated_data)
                     paper.full_clean(exclude=["paper_type"])
 
                 unified_doc_id = paper.unified_document.id
@@ -514,7 +476,7 @@ class PaperSerializer(BasePaperSerializer):
                 self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
 
-                paper = super(PaperSerializer, self).update(instance, validated_data)
+                paper = super().update(instance, validated_data)
                 paper.full_clean(exclude=["paper_type"])
 
                 unified_doc = paper.unified_document
@@ -628,8 +590,9 @@ class PaperSerializer(BasePaperSerializer):
             return True
 
         res = requests.get(
-            "https://doi.org/api/handles/{}".format(doi),
+            f"https://doi.org/api/handles/{doi}",
             headers=requests.utils.default_headers(),
+            timeout=30,
         )
         if res.status_code >= 200 and res.status_code < 400 and has_doi:
             return True
@@ -702,7 +665,9 @@ class DynamicAuthorshipSerializer(DynamicModelFieldSerializer):
 
 
 class DynamicPaperSerializer(
-    DynamicModelFieldSerializer, GenericReactionSerializerMixin
+    DynamicModelFieldSerializer,
+    GenericReactionSerializerMixin,
+    ModeratedDocumentStatusSerializerMixin,
 ):
     authors = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()
@@ -1012,7 +977,8 @@ class DynamicPaperSerializer(
         if not paper.file:
             return None
 
-        # Don't return copyrighted content by default, but enable override for specific cases
+        # Don't return copyrighted content by default,
+        # but enable override for specific cases
         exclude_copyrighted_content = self.context.get(
             "exclude_copyrighted_content", True
         )
@@ -1027,7 +993,8 @@ class DynamicPaperSerializer(
         if not paper.pdf_url:
             return None
 
-        # Don't return copyrighted content by default, but enable override for specific cases
+        # Don't return copyrighted content by default,
+        # but enable override for specific cases
         exclude_copyrighted_content = self.context.get(
             "exclude_copyrighted_content", True
         )

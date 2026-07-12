@@ -1,11 +1,9 @@
 import math
-from datetime import datetime
-
-import pytz
+from datetime import UTC, datetime
 
 
 def time_since(time):
-    now = datetime.now(pytz.UTC)
+    now = datetime.now(UTC)
     seconds_diff = (now - time).total_seconds()
 
     minute_diff = round(math.floor(seconds_diff / 60))

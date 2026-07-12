@@ -1,6 +1,3 @@
-import decimal
-from datetime import date, datetime
-
 from django.utils.text import slugify
 from rest_framework.parsers import BaseParser
 
@@ -19,20 +16,6 @@ class PlainTextParser(BaseParser):
         Simply return a string representing the body of the request.
         """
         return stream.read()
-
-
-def json_serial(obj, ignore_errors=False):
-    """JSON serializer for objects not serializable by default json code"""
-
-    if isinstance(obj, (datetime, date)):
-        return obj.isoformat()
-    if isinstance(obj, decimal.Decimal):
-        return str(obj)
-    if obj is None:
-        return ""
-    if ignore_errors:
-        return obj
-    raise TypeError("Type %s not serializable" % type(obj))
 
 
 def clean_filename(filename):

@@ -26,6 +26,7 @@ from reputation.serializers import (
     DynamicBountySolutionSerializer,
 )
 from reputation.views import BountyViewSet
+from user.earning_overview_serializer import EarningOverviewSerializer
 from user.filters import UserFilter
 from user.models import Author, Major, University, User
 from user.permissions import (
@@ -42,9 +43,9 @@ from user.serializers import (
     UserEditableSerializer,
     UserSerializer,
 )
+from user.services.earning_overview_service import EarningOverviewService
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.views.follow_view_mixins import FollowViewActionMixin
-from utils.http import POST, RequestMethods
 
 
 class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
@@ -101,7 +102,8 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         user = User.objects.filter(email=request.data["email"]).first()
         if user:
             # Filtering by provider == google because we only have google login
-            # If we ever add a second login, we need to update the provider to include those social accounts
+            # If we ever add a second login, we need to update the provider to include
+            # those social accounts
             # The case we're guarding against here is ORCID
             social_account = user.socialaccount_set.filter(provider="google").first()
             if social_account:
@@ -135,7 +137,11 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         user.save(update_fields=["clicked_on_balance_date"])
         return Response({"data": "ok"}, status=200)
 
-    @action(detail=False, methods=[POST], permission_classes=[IsAuthenticated, Censor])
+    @action(
+        detail=False,
+        methods=["POST"],
+        permission_classes=[IsAuthenticated, Censor],
+    )
     def censor(self, request, pk=None):
         author_id = request.data.get("authorId")
         user_to_censor = User.objects.get(author_profile__id=author_id)
@@ -148,7 +154,9 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         return Response({"message": "User is Censored"}, status=200)
 
     @action(
-        detail=False, methods=[POST], permission_classes=[UserIsEditor | IsModerator]
+        detail=False,
+        methods=["POST"],
+        permission_classes=[UserIsEditor | IsModerator],
     )
     def mark_probable_spammer(self, request, pk=None):
         author_id = request.data.get("authorId")
@@ -173,7 +181,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=[RequestMethods.POST],
+        methods=["POST"],
         permission_classes=[RequestorIsOwnUser],
     )
     def set_should_display_rsc_balance(self, request, pk=None):
@@ -197,7 +205,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
     @method_decorator(cache_page(60 * 60 * 6))
     @action(
         detail=False,
-        methods=[RequestMethods.GET],
+        methods=["GET"],
     )
     def leaderboard(self, request):
         """
@@ -250,9 +258,9 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
             time_filter = {keyword: datetime(year=2019, month=1, day=1)}
 
         items = []
-        serializerClass = None
+        serializer_class = None
         if leaderboard_type == "papers":
-            serializerClass = DynamicPaperSerializer
+            serializer_class = DynamicPaperSerializer
             if hub_id and hub_id != 0:
                 items = (
                     Paper.objects.exclude(
@@ -286,7 +294,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                 ]
             }
         elif leaderboard_type == "users":
-            serializerClass = UserSerializer
+            serializer_class = UserSerializer
             items = User.objects.filter(
                 is_active=True,
                 is_suspended=False,
@@ -355,19 +363,19 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                         )
                     ).order_by(F("time_rep").desc(nulls_last=True), "-reputation")
         elif leaderboard_type == "authors":
-            serializerClass = AuthorSerializer
+            serializer_class = AuthorSerializer
             items = Author.objects.filter(user__is_suspended=False).order_by(
                 "-author_score"
             )
 
         page = self.paginate_queryset(items)
-        serializer = serializerClass(
+        serializer = serializer_class(
             page, many=True, context=context, **serializer_kwargs
         )
 
         return self.get_paginated_response(serializer.data)
 
-    @action(detail=True, methods=[RequestMethods.GET], permission_classes=[AllowAny])
+    @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
     def bounties(self, request, pk=None):
         user = self.get_object()
         bounties = user.bounties.all().order_by("-created_date")
@@ -391,7 +399,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         response = self.get_paginated_response(serializer.data)
         return response
 
-    @action(detail=True, methods=[RequestMethods.GET], permission_classes=[AllowAny])
+    @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
     def awarded_bounties(self, request, pk=None):
         user = self.get_object()
         solutions = user.solutions.all().order_by("-created_date")
@@ -443,7 +451,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=[RequestMethods.PATCH],
+        methods=["PATCH"],
     )
     def has_seen_first_coin_modal(self, request):
         user = request.user
@@ -454,7 +462,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=[RequestMethods.PATCH],
+        methods=["PATCH"],
     )
     def has_seen_orcid_connect_modal(self, request):
         user = request.user
@@ -465,7 +473,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=[RequestMethods.PATCH],
+        methods=["PATCH"],
     )
     def has_completed_onboarding(self, request):
         user = request.user
@@ -477,7 +485,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=[RequestMethods.PATCH],
+        methods=["PATCH"],
     )
     def set_staking_opted_in(self, request):
         user = request.user
@@ -495,7 +503,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=[RequestMethods.POST],
+        methods=["POST"],
         permission_classes=[IsAuthenticated, Censor],
     )
     def reinstate(self, request):
@@ -508,6 +516,21 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         reinstate_user_task(user.id)
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
+
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    def earning_overview(self, request, *args, **kwargs):
+        """Return earning overview metrics for the authenticated user."""
+        user_id = request.query_params.get("user_id")
+        if user_id and request.user.moderator:
+            try:
+                user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                return Response({"error": "User not found"}, status=404)
+        else:
+            user = request.user
+        data = EarningOverviewService().get_earning_overview(user)
+        serializer = EarningOverviewSerializer(data)
+        return Response(serializer.data)
 
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):

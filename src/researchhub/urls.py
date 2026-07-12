@@ -38,6 +38,8 @@ from feed.views import (
     FundingFeedViewSet,
     GrantFeedViewSet,
     JournalFeedViewSet,
+    JournalV2FeedViewSet,
+    ModeratorFeedViewSet,
 )
 from orcid.views import OrcidCallbackView, OrcidConnectView, OrcidFetchView
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
@@ -59,7 +61,6 @@ from review.views.review_view import ReviewViewSet
 from user.views import author_views, editor_views, moderator_view, persona_webhook_view
 from user.views.custom_verify_email_view import CustomVerifyEmailView
 from user_lists.views import ListItemViewSet, ListViewSet
-from user_saved.views import UserSavedView
 
 router = routers.DefaultRouter()
 
@@ -111,8 +112,6 @@ router.register(
 router.register(
     r"notification", notification.views.NotificationViewSet, basename="notification"
 )
-
-router.register(r"figure", paper_views.FigureViewSet, basename="figure")
 
 router.register(r"purchase", purchase.views.PurchaseViewSet, basename="purchase")
 
@@ -191,11 +190,15 @@ router.register(r"activity_feed", ActivityFeedViewSet, basename="activity_feed")
 
 router.register(r"feed", FeedViewSet, basename="feed")
 
+router.register(r"moderator_feed", ModeratorFeedViewSet, basename="moderator_feed")
+
 router.register(r"funding_feed", FundingFeedViewSet, basename="funding_feed")
 
 router.register(r"grant_feed", GrantFeedViewSet, basename="grant_feed")
 
 router.register(r"journal_feed", JournalFeedViewSet, basename="journal_feed")
+
+router.register(r"journal_v2_feed", JournalV2FeedViewSet, basename="journal_v2_feed")
 
 urlpatterns = [
     # Health check
@@ -369,7 +372,6 @@ urlpatterns = [
         DepositAddressView.as_view(),
         name="deposit_address",
     ),
-    path("user_saved/", UserSavedView.as_view(), name="user_saved"),
     path(
         "api/review/availability/",
         ReviewAvailabilityView.as_view(),

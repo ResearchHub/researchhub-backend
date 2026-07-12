@@ -1,13 +1,12 @@
 import decimal
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest import mock
 
 import requests_mock
 from django.contrib.admin.models import LogEntry
 from django.utils import timezone
-from pytz import utc
 from rest_framework.test import APITestCase
 
 from reputation.distributions import Distribution as Dist
@@ -20,10 +19,6 @@ from user.rsc_exchange_rate_record_tasks import RSC_COIN_GECKO_ID
 from user.tests.helpers import (
     create_random_authenticated_user,
     create_random_authenticated_user_with_reputation,
-)
-from utils.test_helpers import (
-    get_authenticated_get_response,
-    get_authenticated_post_response,
 )
 
 VALID_TEST_TO_ADDRESS = "0xabcdef1234567890abcdef1234567890abcdef12"
@@ -129,8 +124,8 @@ class ReputationViewsTests(APITestCase):
 
     def test_regular_user_can_withdraw_rsc(self):
         user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
         create_deposit(user)
@@ -169,8 +164,8 @@ class ReputationViewsTests(APITestCase):
         withdrawal.created_date = timezone.now() - timedelta(hours=11)
         withdrawal.save()
 
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
         create_deposit(user)
@@ -210,8 +205,8 @@ class ReputationViewsTests(APITestCase):
         withdrawal.created_date = timezone.now() - timedelta(hours=25)
         withdrawal.save()
 
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
         create_deposit(user)
@@ -252,8 +247,8 @@ class ReputationViewsTests(APITestCase):
         withdrawal.created_date = timezone.now() - timedelta(days=13)
         withdrawal.save()
 
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
         create_deposit(user)
@@ -294,8 +289,8 @@ class ReputationViewsTests(APITestCase):
         withdrawal.created_date = timezone.now() - timedelta(hours=11)
         withdrawal.save()
 
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
         create_deposit(user)
@@ -335,8 +330,8 @@ class ReputationViewsTests(APITestCase):
         withdrawal.created_date = timezone.now() - timedelta(hours=25)
         withdrawal.save()
 
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
         create_deposit(user)
@@ -398,7 +393,7 @@ class ReputationViewsTests(APITestCase):
 
             self.assertEqual(response.status_code, 201)
 
-    def test_user_can_NOT_withdraw_with_switch_on(self):
+    def test_user_can_not_withdraw_with_switch_on(self):
         moderator = user = create_random_authenticated_user("moderator", moderator=True)
         # Withdrawals are on
         LogEntry.objects.create(
@@ -411,12 +406,14 @@ class ReputationViewsTests(APITestCase):
         distributor = Distributor(distribution, user, user, time.time(), user)
         distributor.distribute()
         user.reputation = 200
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
-        response = self.get_withdrawals_post_response(
-            user, data={"amount": 505, "to_address": VALID_TEST_TO_ADDRESS}
+        self.client.force_authenticate(user)
+        response = self.client.post(
+            "/api/withdrawal/",
+            {"amount": 505, "to_address": VALID_TEST_TO_ADDRESS},
         )
         self.assertEqual(response.status_code, 400)
 
@@ -472,8 +469,8 @@ class ReputationViewsTests(APITestCase):
         UserVerification.objects.create(
             user=user, status=UserVerification.Status.APPROVED
         )
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
         # Act
@@ -485,8 +482,8 @@ class ReputationViewsTests(APITestCase):
     def test_min_time_between_withdrawals_non_verified(self):
         # Arrange
         user = create_random_authenticated_user_with_reputation("user2", 0)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
         # Act
@@ -501,8 +498,8 @@ class ReputationViewsTests(APITestCase):
         UserVerification.objects.create(
             user=user, status=UserVerification.Status.APPROVED
         )
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
         # Act
@@ -514,8 +511,8 @@ class ReputationViewsTests(APITestCase):
     def test_min_time_between_withdrawals_message_non_verified(self):
         # Arrange
         user = create_random_authenticated_user_with_reputation("user2", 0)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
         # Act
@@ -526,8 +523,8 @@ class ReputationViewsTests(APITestCase):
 
     def test_withdrawal_fails_with_insufficient_hotwallet_balance(self):
         user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
         create_deposit(user)
@@ -555,8 +552,8 @@ class ReputationViewsTests(APITestCase):
 
     def test_base_network_withdrawal_succeeds(self):
         user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
         create_deposit(user)
@@ -581,8 +578,8 @@ class ReputationViewsTests(APITestCase):
 
     def test_invalid_network_withdrawal_fails(self):
         user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
         create_deposit(user)
@@ -605,8 +602,8 @@ class ReputationViewsTests(APITestCase):
 
     def test_base_network_withdrawal_fails_with_insufficient_hotwallet_balance(self):
         user = create_random_authenticated_user_with_reputation("rep_user", 1000)
-        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
-        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
 
         create_deposit(user)
@@ -671,15 +668,3 @@ class ReputationViewsTests(APITestCase):
         self.assertLess(base_fee, eth_fee)
 
         self.assertEqual(base_fee, decimal.Decimal("1.2"))
-
-    """
-    Helper methods
-    """
-
-    def get_withdrawals_get_response(self, user):
-        url = "/api/withdrawal/"
-        return get_authenticated_get_response(user, url)
-
-    def get_withdrawals_post_response(self, user, data={}):
-        url = "/api/withdrawal/"
-        return get_authenticated_post_response(user, url, data)

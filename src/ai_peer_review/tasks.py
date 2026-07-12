@@ -33,7 +33,8 @@ def process_rfp_summary_task(rfp_summary_id: int):
 @app.task
 def auto_run_proposal_reviews_for_post(post_id: int, force: bool = False) -> None:
     """
-    For a proposal (preregistration) post, enqueue a guarded AI proposal review per linked grant.
+    For a proposal (preregistration) post, enqueue a guarded AI proposal review per
+    linked grant.
     """
     try:
         post = ResearchhubPost.objects.select_related("unified_document").get(
@@ -101,7 +102,10 @@ def auto_run_proposal_review_for_grant_application(
 def auto_run_proposal_key_insights_for_ud(
     unified_document_id: int, force: bool = False
 ) -> None:
-    """Enqueue guarded key-insights runs for every completed proposal review on this document."""
+    """
+    Enqueue guarded key-insights runs for every completed proposal review on this
+    document.
+    """
     reviews = ProposalReview.objects.filter(
         unified_document_id=unified_document_id,
         status=Status.COMPLETED,

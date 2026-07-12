@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import Any, Union
+from typing import Any
 
 import redis
 from django.conf import settings
@@ -14,6 +14,7 @@ class TaskType(Enum):
     """Supported task types for progress tracking."""
 
     EXPERTS = "experts"
+    PROPOSALS = "proposals"
 
 
 def _get_redis_url() -> str:
@@ -33,7 +34,7 @@ class ProgressService:
 
     def publish_progress_sync(
         self,
-        task_type: Union[TaskType, str],
+        task_type: TaskType | str,
         task_id: str,
         progress_data: dict[str, Any],
     ) -> None:
@@ -68,7 +69,7 @@ class ProgressService:
 
     def subscribe_to_progress_sync(
         self,
-        task_type: Union[TaskType, str],
+        task_type: TaskType | str,
         task_id: str,
     ):
         """

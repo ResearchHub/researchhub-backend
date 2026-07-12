@@ -45,7 +45,7 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
 
         total_earned = StakingYieldRecord.objects.filter(
             user_snapshot__user=user
-        ).aggregate(total=Sum("yield_amount"))["total"] or Decimal("0")
+        ).aggregate(total=Sum("yield_amount"))["total"] or Decimal(0)
 
         global_snapshot = StakingGlobalSnapshot.load()
         apy = (
@@ -62,13 +62,13 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
             "is_staking_opted_in": user.is_staking_opted_in,
             "staking_opted_in_date": user.staking_opted_in_date,
             "current_stake": (
-                latest_snapshot.stake_amount if latest_snapshot else Decimal("0")
+                latest_snapshot.stake_amount if latest_snapshot else Decimal(0)
             ),
             "current_multiplier": (
-                latest_snapshot.multiplier if latest_snapshot else Decimal("0")
+                latest_snapshot.multiplier if latest_snapshot else Decimal(0)
             ),
             "current_weighted_stake": (
-                latest_snapshot.weighted_stake if latest_snapshot else Decimal("0")
+                latest_snapshot.weighted_stake if latest_snapshot else Decimal(0)
             ),
             "total_yield_earned": total_earned,
             "latest_accrual_date": (
@@ -102,7 +102,7 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
         earned = StakingYieldRecord.objects.filter(
             user_snapshot__user=request.user,
             user_snapshot__global_snapshot__accrual_date__gte=since_date,
-        ).aggregate(total=Sum("yield_amount"))["total"] or Decimal("0")
+        ).aggregate(total=Sum("yield_amount"))["total"] or Decimal(0)
 
         data = {"since_date": since_date, "yield_earned": earned}
         serializer = StakingYieldEarnedSinceSerializer(data)
@@ -160,11 +160,11 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
                 "apy": 0.0,
                 "apy_30d_avg": 0.0,
                 "holders": 0,
-                "total_staked_rsc": Decimal("0"),
+                "total_staked_rsc": Decimal(0),
                 "total_value_locked_usd": None,
-                "circulating_supply_rsc": Decimal("0"),
+                "circulating_supply_rsc": Decimal(0),
                 "pct_of_supply_staked": 0.0,
-                "issued_today_rsc": Decimal("0"),
+                "issued_today_rsc": Decimal(0),
                 "issued_today_usd": None,
             }
 

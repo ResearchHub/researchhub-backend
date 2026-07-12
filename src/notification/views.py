@@ -9,7 +9,6 @@ from notification.serializers import (
     DynamicNotificationSerializer,
     NotificationSerializer,
 )
-from utils.http import PATCH
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
@@ -69,7 +68,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         response = super().partial_update(request, *args, **kwargs)
         return response
 
-    @action(detail=False, methods=[PATCH], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=["PATCH"], permission_classes=[IsAuthenticated])
     def mark_read(self, request, pk=None):
         user = request.user
         Notification.objects.filter(recipient=user).update(

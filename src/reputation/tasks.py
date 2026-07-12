@@ -1,9 +1,7 @@
 import json
 import logging
-from datetime import datetime, timedelta
-from typing import List, Optional
+from datetime import UTC, datetime, timedelta
 
-import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -166,7 +164,7 @@ def check_hotwallet_balance():
 
 @app.task
 def check_open_bounties():
-    now = datetime.now(pytz.UTC)
+    now = datetime.now(UTC)
 
     open_bounties = Bounty.objects.filter(
         status=Bounty.OPEN, parent__isnull=True
@@ -363,15 +361,15 @@ def recalculate_rep_all_users():
     for user in User.objects.iterator():
         try:
             user.calculate_hub_scores()
-        except Exception as e:
-            print(f"Error calculating rep for user {user.id}: {e}")
+        except Exception:
+            logger.exception("Error calculating rep for user %s", user.id)
             continue
 
 
 @app.task
 def find_qualified_users_and_notify(
-    bounty_id: int, target_hubs: List[int], exclude_users: List[int]
-) -> List[Notification]:
+    bounty_id: int, target_hubs: list[int], exclude_users: list[int]
+) -> list[Notification]:
     """
     Find qualified users for bounty and sends them a notification.
     """
@@ -379,7 +377,7 @@ def find_qualified_users_and_notify(
     from django.db.models.functions import Coalesce
 
     # Minimum reputation score required to notify a user
-    MIN_REP_SCORE_REQUIRED_TO_NOTIFY = 100
+    min_rep_score_required_to_notify = 100
 
     bounty = Bounty.objects.select_related("unified_document").get(id=bounty_id)
 
@@ -421,8 +419,8 @@ def find_qualified_users_and_notify(
             ),
         )
         .filter(
-            max_hub_score__gte=MIN_REP_SCORE_REQUIRED_TO_NOTIFY
-        )  # Ensure we only get authors with score > MIN_REP_SCORE_REQUIRED_TO_NOTIFY
+            max_hub_score__gte=min_rep_score_required_to_notify
+        )  # Ensure we only get authors with score > min_rep_score_required_to_notify
         .order_by("-max_hub_score")
     )
 
@@ -459,9 +457,9 @@ def find_qualified_users_and_notify(
 
 
 @app.task
-def find_bounties_for_user_and_notify(user_id) -> Optional[Notification]:
+def find_bounties_for_user_and_notify(user_id) -> Notification | None:
     user = User.objects.get(id=user_id)
-    bounties: List[AnnotatedBounty] = Bounty.find_bounties_for_user(user)
+    bounties: list[AnnotatedBounty] = Bounty.find_bounties_for_user(user)
 
     for bounty in bounties:
         notification = Notification.objects.filter(
@@ -521,7 +519,7 @@ def create_daily_staking_snapshots(self):
     Runs before distribute_staking_yield so the distribution task uses
     up-to-date supply and staking data.
     """
-    accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
+    accrual_date = datetime.now(UTC).date() - timedelta(days=1)
     key = lock.name(f"create_daily_staking_snapshots_{accrual_date}")
     if not lock.acquire(key):
         logger.warning("Already locked %s, skipping task", key)
@@ -558,7 +556,7 @@ def create_daily_staking_snapshots(self):
 )
 def distribute_staking_yield(self):
     """Daily task to distribute staking yield for the previous UTC day."""
-    accrual_date = datetime.now(pytz.UTC).date() - timedelta(days=1)
+    accrual_date = datetime.now(UTC).date() - timedelta(days=1)
 
     key = lock.name(f"distribute_staking_yield_{accrual_date}")
     if not lock.acquire(key):

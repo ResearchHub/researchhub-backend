@@ -2,7 +2,6 @@ from rest_framework.exceptions import NotFound
 from rest_framework.permissions import BasePermission
 
 from researchhub_access_group.constants import WORKSPACE
-from utils.http import GET
 
 
 class CanSetAsAcceptedAnswer(BasePermission):
@@ -32,7 +31,7 @@ class ThreadViewingPermissions(BasePermission):
     def has_permission(self, request, view):
         user = request.user
         organization = getattr(request, "organization", None)
-        if request.method == GET:
+        if request.method == "GET":
             # Determine the requested privacy context (if any)
             privacy_type = request.query_params.get("privacy_type")
             organization_id = request.query_params.get("organization_id", None)
@@ -55,7 +54,7 @@ class ThreadViewingPermissions(BasePermission):
     def has_object_permission(self, request, view, obj):
         """Object-level checks for workspace / private visibility."""
         user = request.user
-        if request.method != GET:
+        if request.method != "GET":
             return True
 
         privacy_type = request.query_params.get("privacy_type")
@@ -71,7 +70,7 @@ class ThreadViewingPermissions(BasePermission):
             perm = obj.thread.permissions.filter(organization__isnull=False).first()
             if perm and perm.organization and not perm.organization.org_has_user(user):
                 # Hide existence from unauthorised users
-                raise NotFound()
+                raise NotFound
             return True
 
         # Private visibility: user must be explicitly on permission list (org null)
@@ -93,7 +92,7 @@ class ThreadViewingPermissions(BasePermission):
             comment_author_ok = user == getattr(obj, "created_by", None)
 
             if not (perm_ok or author_ok or comment_author_ok):
-                raise NotFound()
+                raise NotFound
             return True
 
         # Private visibility: user must be explicitly on permission list (org null)

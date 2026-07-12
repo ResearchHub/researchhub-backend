@@ -26,10 +26,10 @@ class TestArXivClient(TestCase):
         self.client = ArXivClient(self.config)
 
         # Load fixture files
-        with open(fixtures_dir / "arxiv_sample_response.xml", "r") as f:
+        with open(fixtures_dir / "arxiv_sample_response.xml") as f:
             self.sample_xml_response = f.read()
 
-        with open(fixtures_dir / "arxiv_empty_response.xml", "r") as f:
+        with open(fixtures_dir / "arxiv_empty_response.xml") as f:
             self.empty_xml_response = f.read()
 
     def test_config_defaults(self):

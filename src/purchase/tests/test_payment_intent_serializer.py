@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
@@ -44,7 +45,7 @@ class PaymentIntentSerializerTest(TestCase):
 
         # Assert
         self.assertTrue(serializer.is_valid())
-        self.assertEqual(serializer.validated_data["amount"], Decimal("100"))
+        self.assertEqual(serializer.validated_data["amount"], Decimal(100))
 
     def test_amount_below_minimum(self):
         # Arrange
@@ -103,7 +104,7 @@ class PaymentIntentSerializerTest(TestCase):
 
         # Assert
         self.assertTrue(serializer.is_valid())
-        self.assertEqual(serializer.validated_data["amount"], Decimal("100"))
+        self.assertEqual(serializer.validated_data["amount"], Decimal(100))
         self.assertEqual(serializer.validated_data["fundraise_id"], self.fundraise.id)
 
     def test_fundraise_id_null_is_valid(self):
@@ -155,11 +156,7 @@ class PaymentIntentSerializerTest(TestCase):
 
     def test_fundraise_id_expired_fundraise(self):
         # Arrange
-        from datetime import datetime, timedelta
-
-        import pytz
-
-        self.fundraise.end_date = datetime.now(pytz.UTC) - timedelta(days=1)
+        self.fundraise.end_date = datetime.now(UTC) - timedelta(days=1)
         self.fundraise.save()
 
         data = {

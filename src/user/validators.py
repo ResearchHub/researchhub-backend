@@ -3,7 +3,7 @@ import re
 from django.core.exceptions import ValidationError
 
 
-class SymbolValidator(object):
+class SymbolValidator:
     def validate(self, password, user=None):
         if not re.findall(r"[!@#$%^&*?]", password):
             raise ValidationError(

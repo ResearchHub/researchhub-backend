@@ -10,6 +10,9 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 from utils.test_helpers import AWSMockTestCase
 
@@ -101,3 +104,29 @@ class GrantApplicationVisibilityTests(AWSMockTestCase):
         ids = self._visible_post_ids(None)
         self.assertIn(self.public_post.id, ids)
         self.assertNotIn(self.private_post.id, ids)
+
+    def test_pending_proposal_hidden_from_all_viewers(self):
+        # Arrange
+        pending_post = create_post(
+            title="Pending", created_by=self.applicant, document_type=PREREGISTRATION
+        )
+        pending_post.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        pending_post.unified_document.save(update_fields=["status"])
+        GrantApplication.objects.create(
+            grant=self.grant,
+            preregistration_post=pending_post,
+            applicant=self.applicant,
+        )
+
+        # Act + Assert
+        for viewer in (
+            self.owner,
+            self.moderator,
+            self.editor,
+            self.applicant,
+            self.outsider,
+            None,
+        ):
+            with self.subTest(viewer=getattr(viewer, "username", "anonymous")):
+                ids = self._visible_post_ids(viewer)
+                self.assertNotIn(pending_post.id, ids)

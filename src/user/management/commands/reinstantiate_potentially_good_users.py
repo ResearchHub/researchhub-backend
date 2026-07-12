@@ -18,7 +18,7 @@ class Command(BaseCommand):
         objects = User.objects.filter(created_date__lte=static_start_date)
         count = objects.count()
         for i, user in enumerate(objects):
-            print("{} / {}".format(i, count))
+            print(f"{i} / {count}")
             user.probable_spammer = False
             user.is_suspended = False
             user.paper_votes.update(is_removed=False)

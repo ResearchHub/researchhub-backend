@@ -2,10 +2,9 @@
 Test helper functions for creating Personalize test data.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 
 from hub.models import Hub
@@ -54,7 +53,7 @@ def create_prefetched_paper(
     Returns the unified document with proper prefetch_related.
     """
     if paper_publish_date is None:
-        paper_publish_date = datetime.now(pytz.UTC)
+        paper_publish_date = datetime.now(UTC)
 
     if user is None:
         user = User.objects.create_user(

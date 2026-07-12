@@ -9,7 +9,7 @@ from organizations.serializers import (
     NonprofitOrgSerializer,
 )
 from organizations.services.endaoment_service import (
-    EndaomentOrgNotFound,
+    EndaomentOrgNotFoundError,
     EndaomentService,
     EndaomentServiceError,
     nonprofit_fields_from_org,
@@ -200,7 +200,7 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
             matched_org = self.endaoment_service.verify_nonprofit_org(
                 ein, endaoment_org_id
             )
-        except EndaomentOrgNotFound:
+        except EndaomentOrgNotFoundError:
             return Response(
                 {"error": "Nonprofit organization not found on Endaoment"},
                 status=status.HTTP_400_BAD_REQUEST,

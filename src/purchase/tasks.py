@@ -1,7 +1,6 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
@@ -40,7 +39,7 @@ def complete_eligible_fundraises():
     logger.info("Starting complete_eligible_fundraises task")
 
     # Calculate the cutoff date (7 days ago)
-    cutoff_date = datetime.now(pytz.UTC) - timedelta(days=7)
+    cutoff_date = datetime.now(UTC) - timedelta(days=7)
 
     # Get all open fundraises that are at least a week old
     eligible_fundraises = Fundraise.objects.filter(
@@ -79,7 +78,7 @@ def complete_eligible_fundraises():
 
 @app.task(queue=QUEUE_NOTIFICATION)
 def send_monthly_preregistration_update_reminders():
-    now = datetime.now(pytz.UTC)
+    now = datetime.now(UTC)
 
     # Get distinct (author, unified_document) pairs with completed fundraises.
     # We send at most one reminder per author per document per month.

@@ -1,6 +1,6 @@
 import logging
 from decimal import Decimal
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import stripe
 from django.contrib.contenttypes.models import ContentType
@@ -43,7 +43,7 @@ class PaymentService:
 
     def _get_or_create_payment(
         self, external_payment_id: str, defaults: dict
-    ) -> Tuple[Payment, bool]:
+    ) -> tuple[Payment, bool]:
         """
         Atomically get or create a Payment by external_payment_id.
 
@@ -72,11 +72,11 @@ class PaymentService:
         self,
         user_id: int,
         purpose: str,
-        amount: Optional[int] = None,
-        paper_id: Optional[int] = None,
-        success_url: Optional[str] = None,
-        cancel_url: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        amount: int | None = None,
+        paper_id: int | None = None,
+        success_url: str | None = None,
+        cancel_url: str | None = None,
+    ) -> dict[str, Any]:
         """
         Create a Stripe checkout session.
 
@@ -268,8 +268,8 @@ class PaymentService:
         self,
         user_id: int,
         rsc_amount: Decimal,
-        fundraise_id: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        fundraise_id: int | None = None,
+    ) -> dict[str, Any]:
         """
         Create a Stripe payment intent for RSC purchase.
 
@@ -349,7 +349,7 @@ class PaymentService:
 
     def process_payment_intent_confirmation(
         self, payment_intent_id: str
-    ) -> Tuple[Payment, Optional[Purchase]]:
+    ) -> tuple[Payment, Purchase | None]:
         """
         Process a confirmed payment intent and create a Payment record for RSC purchase.
 
@@ -419,7 +419,7 @@ class PaymentService:
         user_id: int,
         purpose: str,
         locked_rsc_amount: Decimal,
-    ) -> Tuple[Payment, Decimal]:
+    ) -> tuple[Payment, Decimal]:
         """
         Create payment record and credit user's balance.
         This is an atomic operation - either both succeed or both fail.
@@ -502,7 +502,7 @@ class PaymentService:
         user_id: int,
         rsc_amount: Decimal,
         fundraise_service,
-    ) -> Optional[Purchase]:
+    ) -> Purchase | None:
         """
         Process fundraise contribution in a separate transaction.
         Failures here do not affect the payment processing.

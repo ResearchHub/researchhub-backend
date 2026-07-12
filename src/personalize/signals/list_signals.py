@@ -6,7 +6,6 @@ from django.dispatch import receiver
 
 from personalize.tasks import create_list_item_interaction_task
 from user_lists.models import ListItem
-from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +21,10 @@ def create_list_item_interaction(sender, instance, created, **kwargs):
     def trigger_task():
         try:
             create_list_item_interaction_task.delay(instance.id)
-        except Exception as e:
-            log_error(
-                e,
-                message=(
-                    f"Exception triggering UserInteraction creation task for ListItem: "
-                    f"list_item_id={instance.id}"
-                ),
+        except Exception:
+            logger.exception(
+                "Exception triggering UserInteraction creation task for ListItem: %s",
+                instance.id,
             )
 
     transaction.on_commit(trigger_task)

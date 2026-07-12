@@ -1,10 +1,9 @@
 import logging
 import re
 from functools import wraps
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import requests
-from cdp.auth.utils.jwt import JwtOptions, generate_jwt
 from django.conf import settings
 from django.http import JsonResponse
 from rest_framework import status
@@ -30,7 +29,7 @@ class CoinbaseService:
             logger.warning("Coinbase API credentials not configured")
 
     @staticmethod
-    def _get_approved_web_origins() -> List[str]:
+    def _get_approved_web_origins() -> list[str]:
         return getattr(settings, "CORS_ORIGIN_WHITELIST", [])
 
     @staticmethod
@@ -143,6 +142,8 @@ class CoinbaseService:
         if not self.api_key_id or not self.api_key_secret:
             raise ValueError("Coinbase API credentials not configured")
 
+        from cdp.auth.utils.jwt import JwtOptions, generate_jwt  # delay until needed
+
         jwt_options = JwtOptions(
             api_key_id=self.api_key_id,
             api_key_secret=self.api_key_secret,
@@ -168,9 +169,9 @@ class CoinbaseService:
     def create_session_token(
         self,
         user: User,
-        assets: Optional[List[str]] = None,
-        client_ip: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        assets: list[str] | None = None,
+        client_ip: str | None = None,
+    ) -> dict[str, Any]:
         """
         Create a single use token for initializing an Onramp or Offramp session.
 
@@ -247,12 +248,12 @@ class CoinbaseService:
     def generate_onramp_url(
         self,
         user: User,
-        assets: Optional[List[str]] = None,
-        default_network: Optional[str] = None,
-        preset_fiat_amount: Optional[int] = None,
-        preset_crypto_amount: Optional[float] = None,
-        default_asset: Optional[str] = None,
-        client_ip: Optional[str] = None,
+        assets: list[str] | None = None,
+        default_network: str | None = None,
+        preset_fiat_amount: int | None = None,
+        preset_crypto_amount: float | None = None,
+        default_asset: str | None = None,
+        client_ip: str | None = None,
     ) -> str:
         """
         Generate a complete Onramp URL with session token.

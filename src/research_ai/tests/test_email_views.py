@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.conf import settings
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -759,7 +760,10 @@ class BulkGenerateEmailViewTests(APITestCase):
         self.assertIsNone(rec.template)
 
     def test_post_expert_not_in_search_returns_400_and_creates_no_placeholders(self):
-        """Invalid expert email returns 400 and no GeneratedEmail records (transaction rollback)."""
+        """
+        Invalid expert email returns 400 and no GeneratedEmail records
+        (transaction rollback).
+        """
         self.client.force_authenticate(self.moderator)
         initial_count = GeneratedEmail.objects.count()
         response = self.client.post(
@@ -777,7 +781,9 @@ class BulkGenerateEmailViewTests(APITestCase):
 
     @patch("research_ai.views.email_views.process_bulk_generate_emails_task")
     def test_post_second_expert_invalid_rolls_back_all_placeholders(self, mock_task):
-        """When second expert is invalid, no placeholders are created (atomic rollback)."""
+        """
+        When second expert is invalid, no placeholders are created (atomic rollback).
+        """
         self.client.force_authenticate(self.moderator)
         initial_count = GeneratedEmail.objects.count()
         response = self.client.post(
@@ -797,6 +803,7 @@ class BulkGenerateEmailViewTests(APITestCase):
         mock_task.delay.assert_not_called()
 
 
+@override_settings(EXPERT_FINDER_OUTREACH_ENABLED=True)
 class SendPlainEmailTests(APITestCase):
     """Unit tests for send_plain_email service."""
 

@@ -431,19 +431,19 @@ class PopularFeedTests(APITestCase):
         # Pages should not overlap
         self.assertEqual(len(page1_ids & page2_ids), 0)
 
-    @patch("feed.filtering.log_error")
+    @patch("feed.filtering.logger.exception")
     @patch(
         "personalize.clients.recommendation_client"
         ".RecommendationClient.get_trending_items"
     )
-    def test_popular_fallback_logs_to_sentry(self, mock_get_trending, mock_log_error):
-        """Test that AWS errors are logged to Sentry."""
+    def test_popular_fallback_logs_error(self, mock_get_trending, mock_logger):
+        """Test that AWS errors are logged."""
         mock_get_trending.side_effect = Exception("AWS Connection Error")
         url = reverse("feed-list")
 
         response = self.client.get(url, {"feed_view": "popular"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_log_error.assert_called_once()
-        call_args = mock_log_error.call_args
-        self.assertIn("AWS Personalize", call_args[1].get("message", ""))
+        mock_logger.assert_called_once()
+        call_args = mock_logger.call_args
+        self.assertIn("Personalize trending failed", call_args[0][0])

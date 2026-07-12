@@ -1,13 +1,11 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
-import pytz
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.permissions import BasePermission
 
 from reputation.models import Bounty
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import User
-from utils.http import PATCH, POST, RequestMethods
 from utils.permissions import AuthorizationBasedPermission
 
 
@@ -26,11 +24,7 @@ class UpdateOrDeleteWithdrawal(AuthorizationBasedPermission):
     def is_authorized(self, request, view, obj):
         method = request.method
         user = request.user
-        if (
-            (method == RequestMethods.PUT)
-            or (method == RequestMethods.PATCH)
-            or (method == RequestMethods.DELETE)
-        ):
+        if (method == "PUT") or (method == "PATCH") or (method == "DELETE"):
             return user == obj.user
         return True
 
@@ -40,7 +34,7 @@ class AllowWithdrawalIfNotSuspecious(BasePermission):
 
     def has_permission(self, request, view):
         if (
-            (request.method == POST or request.method == PATCH)
+            (request.method == "POST" or request.method == "PATCH")
             and request.user.is_authenticated
             and (request.user.is_suspended or request.user.probable_spammer)
         ):
@@ -51,7 +45,7 @@ class AllowWithdrawalIfNotSuspecious(BasePermission):
 class UserCanApproveBounty(BasePermission):
     def has_permission(self, request, view):
         method = request.method
-        if method == RequestMethods.POST or method == RequestMethods.DELETE:
+        if method == "POST" or method == "DELETE":
             return True
         return False
 
@@ -65,7 +59,7 @@ class UserCanApproveBounty(BasePermission):
             self.message = "Bounty is closed."
             return False
 
-        now = datetime.now(pytz.UTC)
+        now = datetime.now(UTC)
         if obj.status == Bounty.OPEN:
             # During OPEN phase, check expiration_date
             if obj.expiration_date and obj.expiration_date <= now:
@@ -87,7 +81,7 @@ class UserCanApproveBounty(BasePermission):
 class UserCanCancelBounty(BasePermission):
     def has_permission(self, request, view):
         method = request.method
-        if method == RequestMethods.POST or method == RequestMethods.DELETE:
+        if method == "POST" or method == "DELETE":
             return True
         return False
 

@@ -395,7 +395,10 @@ def get_invited_expert_overview(
 
 
 def _emails_sent_by_proposal_per_editor(filtered_qs) -> dict[int, dict[int, int]]:
-    """Map editor user_id -> {unified_document_id: sent email count} for PREREGISTRATION outreach."""
+    """
+    Map editor user_id -> {unified_document_id: sent email count} for PREREGISTRATION
+    outreach.
+    """
     rows = (
         GeneratedEmail.objects.filter(
             expert_search__in=filtered_qs,

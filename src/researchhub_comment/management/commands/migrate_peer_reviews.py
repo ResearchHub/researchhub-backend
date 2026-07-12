@@ -15,7 +15,10 @@ from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 
 
 class Command(BaseCommand):
-    help = "Migrate bounty replies that are actually peer reviews to the proper review structure"
+    help = (
+        "Migrate bounty replies that are actually peer reviews to the proper review "
+        "structure"
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -84,7 +87,8 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Found {total_count} total INVALID review comments that need migration:"
+                f"Found {total_count} total INVALID review comments that need "
+                "migration:"
             )
         )
         if limit:
@@ -115,7 +119,7 @@ class Command(BaseCommand):
                     f"Thread ID: {comment.thread_id}, "
                     f"Review ID: {review.id if review else 'None'}, "
                     f"Review Score: {review.score if review else 'None'}, "
-                    f"Parent Bounty ID: {parent_bounty.id if parent_bounty else 'None'}, "
+                    f"Parent Bounty ID: {parent_bounty.id if parent_bounty else 'None'}, "  # noqa: E501
                     f"Created: {comment.created_date}"
                 )
 
@@ -128,7 +132,8 @@ class Command(BaseCommand):
                 bounties__isnull=False,  # Is a bounty comment
             )
             .filter(
-                children__comment_type=COMMUNITY_REVIEW,  # Has children that are reviews
+                # Has children that are reviews:
+                children__comment_type=COMMUNITY_REVIEW,
                 children__reviews__content_type=comment_content_type,
                 children__reviews__object_id=models.F("children__id"),
             )
@@ -146,11 +151,13 @@ class Command(BaseCommand):
 
         if actual_count > 0:
             self.stdout.write(
-                f"\nFound {total_count} total invalid review comments that need migration."
+                f"\nFound {total_count} total invalid review comments that need "
+                "migration."
             )
             if limit:
                 self.stdout.write(
-                    f"Will migrate {actual_count} comments in this run (limited by --limit {limit})."
+                    f"Will migrate {actual_count} comments in this run "
+                    f"(limited by --limit {limit})."
                 )
                 remaining = total_count - actual_count
                 if remaining > 0:
@@ -186,7 +193,8 @@ class Command(BaseCommand):
                 )
         else:
             self.stdout.write(
-                "\nNo invalid review comments found. All reviews appear to be properly structured."
+                "\nNo invalid review comments found. "
+                "All reviews appear to be properly structured."
             )
 
     def _migrate_invalid_reviews(self, invalid_review_comments):
@@ -208,7 +216,8 @@ class Command(BaseCommand):
                     if not review:
                         self.stdout.write(
                             self.style.WARNING(
-                                f"Comment {comment.id} has no review record, skipping..."
+                                f"Comment {comment.id} has no review record, "
+                                "skipping..."
                             )
                         )
                         continue
@@ -220,7 +229,8 @@ class Command(BaseCommand):
                     if not parent_bounty:
                         self.stdout.write(
                             self.style.WARNING(
-                                f"Comment {comment.id} parent has no bounty, skipping..."
+                                f"Comment {comment.id} parent has no bounty, "
+                                "skipping..."
                             )
                         )
                         continue
