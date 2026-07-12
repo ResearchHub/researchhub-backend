@@ -1,7 +1,14 @@
 import logging
 
 from django.db.models import Count
-from rest_framework.serializers import CharField, ModelSerializer, SerializerMethodField
+from rest_framework.serializers import (
+    CharField,
+    IntegerField,
+    ListField,
+    ModelSerializer,
+    Serializer,
+    SerializerMethodField,
+)
 
 from ai_peer_review.models import ProposalReview
 from ai_peer_review.serializers import ProposalReviewSerializer
@@ -33,12 +40,33 @@ from utils.http import get_user_from_request
 logger = logging.getLogger(__name__)
 
 
+class JournalEntryAcceptSerializer(Serializer):
+    """Validate a journal entry acceptance request."""
+
+    fundraise_id = IntegerField()
+    user_id = IntegerField()
+
+
+class RegisteredReportPublishSerializer(Serializer):
+    """Validate a registered report publish request."""
+
+    note_id = IntegerField()
+    proposal_id = IntegerField()
+    title = CharField()
+    renderable_text = CharField()
+    full_src = CharField()
+    authors = ListField(child=IntegerField(), required=False)
+    editor_type = CharField(required=False, allow_blank=True, allow_null=True)
+    image = CharField(required=False, allow_blank=True, allow_null=True)
+    preview_img = CharField(required=False, allow_blank=True, allow_null=True)
+
+
 class ResearchhubPostSerializer(
     ModelSerializer,
     GenericReactionSerializerMixin,
     ModeratedDocumentStatusSerializerMixin,
 ):
-    class Meta(object):
+    class Meta:
         model = ResearchhubPost
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
@@ -97,7 +125,6 @@ class ResearchhubPostSerializer(
         ]
 
     # GenericReactionSerializerMixin
-    promoted = SerializerMethodField()
     boost_amount = SerializerMethodField()
     user_flag = SerializerMethodField()
 
@@ -349,9 +376,6 @@ class ResearchhubPostSerializer(
             },
         )
         return serializer.data
-
-    def get_promoted_score(self, instance):
-        return instance.get_promoted_score()
 
     def get_boost_amount(self, instance):
         return instance.get_boost_amount()

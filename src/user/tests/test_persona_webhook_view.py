@@ -26,7 +26,7 @@ class PersonaWebhookViewTests(TestCase):
         )
 
     def read_test_file(self, filename):
-        with open(fixtures_dir / filename, "r") as file:
+        with open(fixtures_dir / filename) as file:
             return file.read()
 
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)

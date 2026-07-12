@@ -1,12 +1,10 @@
 import base64
 import logging
 from io import BytesIO
-from typing import List, Optional, Tuple
 
 from django.conf import settings
 from PIL import Image
 
-from utils import sentry
 from utils.aws import create_client
 
 logger = logging.getLogger(__name__)
@@ -125,7 +123,7 @@ class BedrockPrimaryImageService:
         self.model_id = BEDROCK_MODEL_ID
         self.anthropic_version = BEDROCK_ANTHROPIC_VERSION
 
-    def _encode_image_to_base64(self, figure) -> Optional[tuple]:
+    def _encode_image_to_base64(self, figure) -> tuple | None:
         """
         Encode figure image to base64 string.
 
@@ -434,11 +432,11 @@ on other criteria."""
 
     def _select_best_from_batch(
         self,
-        batch_figures: List,
+        batch_figures: list,
         paper_title: str,
         paper_abstract: str,
-        batch_number: Optional[int] = None,
-    ) -> Tuple[Optional[int], Optional[float]]:
+        batch_number: int | None = None,
+    ) -> tuple[int | None, float | None]:
         """
         Select the best figure from a batch of figures using AWS Bedrock.
 
@@ -620,14 +618,13 @@ on other criteria."""
 
             return selected_figure.id, best_score
 
-        except Exception as e:
-            sentry.log_error(e, message=f"Bedrock API call failed for {batch_label}")
-            logger.exception(f"Exception details for {batch_label}")
+        except Exception:
+            logger.exception("Bedrock API call failed for %s", batch_label)
             return None, None
 
     def select_primary_image(
-        self, paper_title: str, paper_abstract: str, figures: List
-    ) -> Tuple[Optional[int], Optional[float]]:
+        self, paper_title: str, paper_abstract: str, figures: list
+    ) -> tuple[int | None, float | None]:
         """
         Select primary image from figures using AWS Bedrock with batching support.
 
@@ -735,7 +732,7 @@ on other criteria."""
                 logger.warning(
                     "Final selection failed, using highest scoring batch winner"
                 )
-                best_winner = max(batch_winners, key=lambda x: x[1] if x[1] else 0)
+                best_winner = max(batch_winners, key=lambda x: x[1] or 0)
                 winner_figure, winner_score = best_winner
                 return winner_figure.id, winner_score
 

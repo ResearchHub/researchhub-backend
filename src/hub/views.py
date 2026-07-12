@@ -31,7 +31,6 @@ from researchhub_access_group.constants import (
 from researchhub_access_group.models import Permission
 from user.models import User
 from user.views.follow_view_mixins import FollowViewActionMixin
-from utils.http import GET, PATCH, POST, PUT
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
@@ -119,7 +118,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
     @action(
         detail=False,
-        methods=[GET],
+        methods=["GET"],
         permission_classes=[AllowAny],
     )
     def rep_hubs(self, request):
@@ -137,7 +136,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
     @action(
         detail=True,
-        methods=[GET],
+        methods=["GET"],
         permission_classes=[IsAuthenticated],
     )
     def check_subscribed(self, request, pk=None):
@@ -147,7 +146,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
     @action(
         detail=True,
-        methods=[POST, PUT, PATCH],
+        methods=["POST", "PUT", "PATCH"],
         permission_classes=[IsAuthenticated & IsNotSubscribed],
     )
     def subscribe(self, request, pk=None):
@@ -164,7 +163,11 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         except Exception as e:
             return Response(str(e), status=400)
 
-    @action(detail=True, methods=[POST, PUT, PATCH], permission_classes=[IsSubscribed])
+    @action(
+        detail=True,
+        methods=["POST", "PUT", "PATCH"],
+        permission_classes=[IsSubscribed],
+    )
     def unsubscribe(self, request, pk=None):
         hub = self.get_object()
         try:
@@ -182,7 +185,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
     def _is_subscribed(self, user, hub):
         return user in hub.subscribers.all()
 
-    @action(detail=True, methods=[POST])
+    @action(detail=True, methods=["POST"])
     def invite_to_hub(self, request, pk=None):
         recipients = request.data.get("emails", [])
 
@@ -196,9 +199,9 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
         base_url = request.META["HTTP_ORIGIN"]
 
-        emailContext = {
+        email_context = {
             "hub_name": hub.name.capitalize(),
-            "link": base_url + "/hubs/{}/".format(hub.name),
+            "link": base_url + f"/hubs/{hub.name}/",
             "opt_out": base_url + "/email/opt-out/",
         }
 
@@ -214,7 +217,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
             recipients,
             "invite_to_hub_email.txt",
             subject,
-            emailContext,
+            email_context,
             "invite_to_hub_email.html",
         )
 
@@ -224,7 +227,11 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
         return Response(response, status=200)
 
-    @action(detail=False, methods=[POST], permission_classes=[IsModeratorOrSuperEditor])
+    @action(
+        detail=False,
+        methods=["POST"],
+        permission_classes=[IsModeratorOrSuperEditor],
+    )
     def create_new_editor(self, request, pk=None):
         try:
             target_user = User.objects.get(email=request.data.get("editor_email"))
@@ -247,7 +254,11 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         except Exception as e:
             return Response(str(e), status=500)
 
-    @action(detail=False, methods=[POST], permission_classes=[IsModeratorOrSuperEditor])
+    @action(
+        detail=False,
+        methods=["POST"],
+        permission_classes=[IsModeratorOrSuperEditor],
+    )
     def delete_editor(self, request, pk=None):
         try:
             target_user = User.objects.get(email=request.data.get("editor_email"))
@@ -345,7 +356,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         }
         return context
 
-    @action(detail=False, methods=[GET], permission_classes=[AllowAny])
+    @action(detail=False, methods=["GET"], permission_classes=[AllowAny])
     def by_contributions(self, request):
         query_params = request.query_params
         hub_id = query_params.get("hub_id", None)
@@ -421,7 +432,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
             status=200,
         )
 
-    @action(detail=False, methods=[GET], permission_classes=[AllowAny])
+    @action(detail=False, methods=["GET"], permission_classes=[AllowAny])
     def primary_only(self, request):
         """
         Returns a list of all unique hubs (both categories and subcategories)
@@ -468,7 +479,6 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
     def _build_subcategory_mapping(self):
         """Build mapping of subcategory slug -> category slug from all sources."""
 
-        mapping = {}
         all_mappings = [
             ARXIV_MAPPINGS,
             BIORXIV_MAPPINGS,
@@ -476,9 +486,11 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
             MEDRXIV_MAPPINGS,
         ]
 
-        for source in all_mappings:
-            for category_slug, subcategory_slug in source.values():
-                if category_slug and subcategory_slug:
-                    mapping[subcategory_slug] = category_slug
+        mapping = {
+            subcategory_slug: category_slug
+            for source in all_mappings
+            for category_slug, subcategory_slug in source.values()
+            if category_slug and subcategory_slug
+        }
 
         return mapping

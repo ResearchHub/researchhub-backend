@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
-from django.db.models import Q
+from django.db.models import Q, QuerySet
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -14,7 +14,11 @@ from invite.models import NoteInvitation
 from invite.serializers import DynamicNoteInvitationSerializer
 from invite.services import NoteInvitationExpiredError, NoteInvitationService
 from note.models import Note, NoteContent
-from note.serializers import NoteContentSerializer, NoteSerializer
+from note.serializers import (
+    DynamicNoteSerializer,
+    NoteContentSerializer,
+    NoteSerializer,
+)
 from researchhub.pagination import MediumPageLimitPagination
 from researchhub.settings import TESTING
 from researchhub_access_group.constants import (
@@ -36,7 +40,6 @@ from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import NOTE
 from user.models import Organization, User
-from utils.http import RequestMethods
 
 
 class NoteViewSet(ModelViewSet):
@@ -57,6 +60,88 @@ class NoteViewSet(ModelViewSet):
             .distinct()
             .order_by("-created_date")
         )
+
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    def accessible(self, request):
+        """
+        Endpoint to retrieve all notes that the current user has access to, including
+        those associated with organizations they belong to, and those they have explicit
+        permissions for (e.g., by invitation).
+        The notes are filtered based on the user's access rights and the status of the
+        notes (draft or published).
+        This endpoint mirrors the behavior and shape of the `get_organization_notes`
+        endpoint.
+        """
+        notes = self._get_accessible_notes(request.user)
+        notes = self._filter_accessible_notes(notes, request)
+        notes = notes.select_related(
+            "organization",
+            "unified_document",
+        ).prefetch_related(
+            "unified_document__permissions",
+        )
+
+        page = self.paginate_queryset(notes)
+        serializer_data = DynamicNoteSerializer(
+            page,
+            _include_fields=[
+                "access",
+                "created_date",
+                "document_type",
+                "id",
+                "organization",
+                "title",
+                "updated_date",
+            ],
+            context=self._get_accessible_notes_context(),
+            many=True,
+        ).data
+        return self.get_paginated_response(serializer_data)
+
+    def _get_accessible_notes(self, user) -> QuerySet[Note]:
+        return (
+            self.queryset.filter(
+                (
+                    Q(unified_document__permissions__user=user)
+                    & ~Q(unified_document__permissions__access_type=NO_ACCESS)
+                )
+                | (
+                    Q(
+                        unified_document__permissions__organization__permissions__user=user
+                    )
+                    & ~Q(unified_document__permissions__access_type=NO_ACCESS)
+                )
+            )
+            .distinct()
+            .order_by("-created_date")
+        )
+
+    def _filter_accessible_notes(
+        self, notes: QuerySet[Note], request
+    ) -> QuerySet[Note]:
+        status = request.query_params.get("status", "").upper()
+        if status == "DRAFT":
+            notes = notes.filter(post__isnull=True)
+        elif status == "PUBLISHED":
+            notes = notes.filter(post__isnull=False)
+
+        note_type = request.query_params.get("type", "").upper()
+        if note_type:
+            notes = notes.filter(document_type=note_type)
+
+        return notes
+
+    def _get_accessible_notes_context(self) -> dict:
+        return {
+            "nte_dns_get_organization": {
+                "_include_fields": [
+                    "cover_image",
+                    "id",
+                    "name",
+                    "slug",
+                ]
+            }
+        }
 
     def create(self, request, *args, **kwargs):
         user = request.user
@@ -441,7 +526,7 @@ class NoteContentViewSet(ModelViewSet):
 
     def get_object(self):
         request_method = self.request.method
-        if request_method == RequestMethods.POST:
+        if request_method == "POST":
             queryset = Note.objects.all()
         else:
             queryset = self.filter_queryset(self.get_queryset())
@@ -450,16 +535,15 @@ class NoteContentViewSet(ModelViewSet):
         lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
 
         assert lookup_url_kwarg in self.kwargs, (
-            "Expected view %s to be called with a URL keyword argument "
-            'named "%s". Fix your URL conf, or set the `.lookup_field` '
-            "attribute on the view correctly."
-            % (self.__class__.__name__, lookup_url_kwarg)
+            f"Expected view {self.__class__.__name__} to be called with a URL keyword "
+            f'argument named "{lookup_url_kwarg}". Fix your URL conf, or set the '
+            f"`.lookup_field` attribute on the view correctly."
         )
 
         filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
         obj = get_object_or_404(queryset, **filter_kwargs)
 
-        if request_method != RequestMethods.POST:
+        if request_method != "POST":
             self.check_object_permissions(self.request, obj.note)
         else:
             self.check_object_permissions(self.request, obj)

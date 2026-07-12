@@ -5,7 +5,9 @@ from django.db import transaction
 from django.db.models import Prefetch
 from django.utils.text import slugify
 from rest_framework import serializers
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -15,6 +17,8 @@ from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from hub.models import Hub
+from hub.serializers import SimpleHubSerializer
+from note.serializers import NoteSerializer
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
@@ -31,18 +35,23 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_HAS_BOUNTY,
     GRANT,
     PREREGISTRATION,
+    REGISTERED_REPORT,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
 from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.serializers.researchhub_post_serializer import (
+    JournalEntryAcceptSerializer,
+    RegisteredReportPublishSerializer,
     ResearchhubPostSerializer,
 )
+from researchhub_document.services.journal_entry_service import JournalEntryService
+from researchhub_document.services.journey_service import JourneyService
 from user.content_moderation_mixin import ContentModerationActionsMixin
-from user.models import User
+from user.models import Author, User
+from user.serializers import AuthorSerializer
 from user.services.risk_score_service import RiskScoreService
-from utils.sentry import log_error
 from utils.throttles import THROTTLE_CLASSES
 
 logger = logging.getLogger(__name__)
@@ -78,6 +87,118 @@ class ResearchhubPostViewSet(
 
     def update(self, request, *args, **kwargs):
         return self.upsert_researchhub_posts(request)
+
+    @action(
+        detail=False,
+        methods=["post"],
+        permission_classes=[IsAuthenticated],
+        url_name="accept-journal-entry",
+        url_path="accept_journal_entry",
+    )
+    def accept_journal_entry(self, request: Request) -> Response:
+        """Create a registered report note draft for a completed fundraise."""
+        try:
+            data = self.build_journal_entry_accept_data(request)
+        except ValueError as error:
+            return Response({"error": str(error)}, status=400)
+        serializer = JournalEntryAcceptSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            accepted_entry = JournalEntryService().accept_journal_entry(
+                request.user,
+                serializer.validated_data["user_id"],
+                serializer.validated_data["fundraise_id"],
+            )
+        except ValueError as error:
+            return Response({"error": str(error)}, status=400)
+
+        response_data = NoteSerializer(
+            accepted_entry.note, context={"request": request}
+        ).data
+        response_data["fundraise_id"] = accepted_entry.fundraise.id
+        response_data["journey_id"] = accepted_entry.journey.id
+        response_data["proposal_id"] = accepted_entry.proposal.id
+        response_data["registered_report_prefill"] = (
+            self.build_registered_report_prefill(accepted_entry.proposal)
+        )
+        return Response(response_data, status=200)
+
+    def build_journal_entry_accept_data(self, request: Request) -> dict[str, object]:
+        """Build accept data and reject conflicting query/body ids."""
+        data = request.query_params.dict()
+        for field in ("fundraise_id", "user_id"):
+            body_value = request.data.get(field)
+            query_value = data.get(field)
+            if body_value is None:
+                continue
+            if query_value is not None and str(query_value) != str(body_value):
+                raise ValueError(f"{field} does not match the request query.")
+            data[field] = body_value
+        return data
+
+    def build_registered_report_prefill(
+        self, proposal: ResearchhubPost
+    ) -> dict[str, object]:
+        """Build editable registered report defaults from a proposal."""
+        authors = self.get_registered_report_authors(proposal)
+        hubs = proposal.unified_document.hubs.all()
+        hub_ids = list(hubs.values_list("id", flat=True))
+        hub_data = SimpleHubSerializer(
+            hubs,
+            context={"request": self.request},
+            many=True,
+        ).data
+        return {
+            "author_ids": [author.id for author in authors],
+            "authors": AuthorSerializer(
+                authors,
+                context={"request": self.request},
+                many=True,
+            ).data,
+            "image": proposal.image,
+            "preview_img": proposal.preview_img,
+            "proposal_id": proposal.id,
+            "hub_ids": hub_ids,
+            "hubs": hub_data,
+        }
+
+    def get_registered_report_authors(self, proposal: ResearchhubPost) -> list[Author]:
+        """Return proposal authors for registered report defaults."""
+        authors = list(proposal.authors.all())
+        if authors:
+            return authors
+        if proposal.created_by is not None:
+            return [proposal.created_by.author_profile]
+        return []
+
+    def validate_post_content(
+        self, title: object, renderable_text: object
+    ) -> Response | None:
+        """Return an error response when post title or body content is invalid."""
+        if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
+            return Response(
+                {
+                    "msg": (
+                        f"Title cannot be less than {MIN_POST_TITLE_LENGTH} characters"
+                    )
+                },
+                400,
+            )
+        if (
+            type(renderable_text) is not str
+            or len(renderable_text) < MIN_POST_BODY_LENGTH
+        ):
+            return Response(
+                {
+                    "msg": (
+                        f"Post body cannot be less than "
+                        f"{MIN_POST_BODY_LENGTH} characters"
+                    )
+                },
+                400,
+            )
+        return None
 
     def get_queryset(self):
         request = self.request
@@ -135,6 +256,8 @@ class ResearchhubPostViewSet(
         note_id = data.get("note_id", None)
         document_type = data.get("document_type")
         editor_type = data.get("editor_type")
+        image = data.get("image")
+        preview_img = data.get("preview_img")
         title = data.get("title", "")
         renderable_text = data.get("renderable_text", "")
         grant_amount = data.get("grant_amount")
@@ -146,38 +269,48 @@ class ResearchhubPostViewSet(
                 status=400,
             )
 
-        if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
-            return Response(
-                {
-                    "msg": (
-                        f"Title cannot be less than {MIN_POST_TITLE_LENGTH} characters"
-                    )
-                },
-                400,
-            )
-        elif (
-            type(renderable_text) is not str
-            or len(renderable_text) < MIN_POST_BODY_LENGTH
-        ):
-            return Response(
-                {
-                    "msg": (
-                        f"Post body cannot be less than "
-                        f"{MIN_POST_BODY_LENGTH} characters"
-                    )
-                },
-                400,
-            )
+        validation_response = self.validate_post_content(title, renderable_text)
+        if validation_response is not None:
+            return validation_response
 
         try:
             with transaction.atomic():
                 created_by = request.user
+                journey_service = JourneyService()
+                registered_report_proposal = None
+                if document_type == REGISTERED_REPORT:
+                    serializer = RegisteredReportPublishSerializer(data=data)
+                    serializer.is_valid(raise_exception=True)
+                    journal_entry_service = JournalEntryService(
+                        journey_service=journey_service
+                    )
+                    journal_entry_service.get_registered_report_note(
+                        created_by,
+                        serializer.validated_data["note_id"],
+                    )
+                    registered_report_proposal = (
+                        journal_entry_service.get_registered_report_proposal(
+                            created_by,
+                            serializer.validated_data["proposal_id"],
+                        )
+                    )
+                    if not authors:
+                        authors = self.get_registered_report_authors(
+                            registered_report_proposal
+                        )
+                    if image is None:
+                        image = registered_report_proposal.image
+                    if preview_img is None:
+                        preview_img = registered_report_proposal.preview_img
+
                 risk_score_service = RiskScoreService()
 
                 # Risk-score gating: trusted users auto-approve, everyone else
                 # enters the moderation queue as PENDING. Grants gate via their
-                # own Grant.status, so the post itself stays APPROVED.
-                if document_type == GRANT:
+                # own Grant.status, so the post itself stays APPROVED. Registered
+                # Reports will always be auto approved, as they require the attached
+                # completed proposal.
+                if document_type in (GRANT, REGISTERED_REPORT):
                     work_status = ResearchhubUnifiedDocument.APPROVED
                 else:
                     work_status = risk_score_service.initial_work_status(created_by)
@@ -207,6 +340,10 @@ class ResearchhubPostViewSet(
                 if access_group is not None:
                     unified_document.access_groups = access_group
                 unified_document.save()
+                if registered_report_proposal is not None:
+                    unified_document.hubs.set(
+                        registered_report_proposal.unified_document.hubs.all()
+                    )
 
                 slug = slugify(title)
                 rh_post = ResearchhubPost.objects.create(
@@ -214,10 +351,10 @@ class ResearchhubPostViewSet(
                     document_type=document_type,
                     slug=slug,
                     editor_type=CK_EDITOR if editor_type is None else editor_type,
-                    image=data.get("image"),
+                    image=image,
                     note_id=note_id,
                     prev_version=None,
-                    preview_img=data.get("preview_img"),
+                    preview_img=preview_img,
                     renderable_text=data.get("renderable_text"),
                     title=title,
                     bounty_type=data.get("bounty_type"),
@@ -227,6 +364,11 @@ class ResearchhubPostViewSet(
                 full_src_file = ContentFile(data["full_src"].encode())
                 rh_post.authors.set(authors)
                 self.add_upvote(created_by, rh_post)
+                if registered_report_proposal is not None:
+                    journey_service.attach_stage(
+                        registered_report_proposal.journey,
+                        rh_post,
+                    )
 
                 fundraise = None
                 if goal_amount := data.get("fundraise_goal_amount"):
@@ -337,6 +479,8 @@ class ResearchhubPostViewSet(
                     )
                     GrantCacheMixin.invalidate_grant_feed_cache()
 
+                journey_service.ensure_approved_preregistration_has_journey(rh_post)
+
             response_data = ResearchhubPostSerializer(
                 rh_post, context={"request": request}
             ).data
@@ -400,9 +544,11 @@ class ResearchhubPostViewSet(
 
         except serializers.ValidationError as e:
             return Response({"error": e.detail}, status=400)
-        except (KeyError, TypeError) as exception:
-            log_error(exception)
-            return Response({"error": str(exception)}, status=400)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=400)
+        except (KeyError, TypeError) as e:
+            logger.exception("Failed to create researchhub post")
+            return Response({"error": str(e)}, status=400)
 
     def update_existing_researchhub_posts(self, request):
         try:
@@ -422,29 +568,9 @@ class ResearchhubPostViewSet(
             renderable_text = data.get("renderable_text", "")
             title = data.get("title", "")
 
-            if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
-                return Response(
-                    {
-                        "msg": (
-                            f"Title cannot be less than "
-                            f"{MIN_POST_TITLE_LENGTH} characters"
-                        )
-                    },
-                    400,
-                )
-            elif (
-                type(renderable_text) is not str
-                or len(renderable_text) < MIN_POST_BODY_LENGTH
-            ):
-                return Response(
-                    {
-                        "msg": (
-                            f"Post body cannot be less than "
-                            f"{MIN_POST_BODY_LENGTH} characters"
-                        )
-                    },
-                    400,
-                )
+            validation_response = self.validate_post_content(title, renderable_text)
+            if validation_response is not None:
+                return validation_response
 
             serializer = ResearchhubPostSerializer(
                 rh_post, data=request.data, partial=True, context={"request": request}
@@ -594,7 +720,7 @@ class ResearchhubPostViewSet(
             return Response(response_data, status=200)
 
         except (KeyError, TypeError) as exception:
-            log_error(exception)
+            logger.exception("Failed to update researchhub post")
             return Response({"error": str(exception)}, status=400)
 
     def create_access_group(self, request):

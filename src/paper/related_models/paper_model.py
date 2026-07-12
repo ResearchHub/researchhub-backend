@@ -238,7 +238,7 @@ class Paper(AbstractGenericReactionModel):
         title = self.title
         uploaded_by = self.uploaded_by
         if title and uploaded_by:
-            return "{} - {}".format(title, uploaded_by)
+            return f"{title} - {uploaded_by}"
         elif title:
             return title
         else:
@@ -258,17 +258,15 @@ class Paper(AbstractGenericReactionModel):
 
     @property
     def users_to_notify(self):
-        users = []
-        paper_authors = self.authors.all()
-        for author in paper_authors:
+        return [
+            author.user
+            for author in self.authors.all()
             if (
                 author.user
                 and author.user.emailrecipient.paper_subscription.threads
                 and not author.user.emailrecipient.paper_subscription.none
-            ):
-                users.append(author.user)
-
-        return users
+            )
+        ]
 
     @property
     def hot_score(self):
@@ -291,20 +289,6 @@ class Paper(AbstractGenericReactionModel):
 
     def get_hub_names(self):
         return ",".join(self.hubs.values_list("name", flat=True))
-
-    def get_promoted_score(paper):
-        purchases = paper.purchases.filter(
-            paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
-        )
-        if purchases.exists():
-            base_score = paper.score
-            boost_amount = (
-                purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
-                .aggregate(sum=Sum("amount_as_int"))
-                .get("sum", 0)
-            )
-            return base_score + boost_amount
-        return False
 
     def get_discussion_count(self):
         from paper.services.paper_version_service import PaperService
@@ -366,8 +350,9 @@ class Paper(AbstractGenericReactionModel):
             self.is_removed = True
 
         res = requests.get(
-            "https://doi.org/api/handles/{}".format(doi),
+            f"https://doi.org/api/handles/{doi}",
             headers=requests.utils.default_headers(),
+            timeout=30,
         )
         if res.status_code >= 200 and res.status_code < 400 and has_doi:
             self.is_removed = False

@@ -7,7 +7,7 @@ Handles communication with ArXiv API endpoints.
 import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import requests
 
@@ -16,8 +16,11 @@ from paper.ingestion.exceptions import FetchError, TimeoutError
 
 logger = logging.getLogger(__name__)
 
+ATOM_NS = "{http://www.w3.org/2005/Atom}"
+ARXIV_NS = "{http://arxiv.org/schemas/atom}"
 
-def parse_xml_entry(raw_xml: str) -> Dict[str, Any]:
+
+def parse_xml_entry(raw_xml: str) -> dict[str, Any]:
     """
     Parse raw ArXiv XML entry into a dictionary.
 
@@ -27,8 +30,6 @@ def parse_xml_entry(raw_xml: str) -> Dict[str, Any]:
     Returns:
         Dictionary with parsed fields
     """
-    ATOM_NS = "{http://www.w3.org/2005/Atom}"
-    ARXIV_NS = "{http://arxiv.org/schemas/atom}"
 
     try:
         root = ET.fromstring(raw_xml)
@@ -91,7 +92,7 @@ def parse_xml_entry(raw_xml: str) -> Dict[str, Any]:
         return {}
 
 
-def _get_text(element: ET.Element, tag: str) -> Optional[str]:
+def _get_text(element: ET.Element, tag: str) -> str | None:
     """
     Get text content from an XML element.
 
@@ -145,7 +146,7 @@ class ArXivClient(BaseClient):
     ARXIV_NS = "{http://arxiv.org/schemas/atom}"
     OPENSEARCH_NS = "{http://a9.com/-/spec/opensearch/1.1/}"
 
-    def __init__(self, config: Optional[ArXivConfig] = None):
+    def __init__(self, config: ArXivConfig | None = None):
         """Initialize ArXiv client."""
         if config is None:
             config = ArXivConfig()
@@ -153,8 +154,8 @@ class ArXivClient(BaseClient):
         self.session = requests.Session()
 
     def fetch(
-        self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs
-    ) -> Union[str, bytes, Dict[str, Any]]:
+        self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
+    ) -> str | bytes | dict[str, Any]:
         """
         Fetch data from ArXiv API.
 
@@ -191,9 +192,7 @@ class ArXivClient(BaseClient):
         except requests.RequestException as e:
             raise FetchError(f"Failed to fetch from {url}: {str(e)}")
 
-    def parse(
-        self, raw_data: Union[str, bytes, Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def parse(self, raw_data: str | bytes | dict[str, Any]) -> list[dict[str, Any]]:
         """
         Parse ArXiv Atom XML feed and return parsed entry data.
 
@@ -232,11 +231,11 @@ class ArXivClient(BaseClient):
 
     def fetch_recent(
         self,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        max_results: Optional[int] = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        max_results: int | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Fetch recent papers from ArXiv within date range.
 

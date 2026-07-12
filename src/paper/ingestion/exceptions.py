@@ -6,13 +6,9 @@ Custom exception classes for paper ingestion module.
 class IngestionError(Exception):
     """Base exception for all ingestion-related errors."""
 
-    pass
-
 
 class ClientError(IngestionError):
     """Base exception for client-specific errors."""
-
-    pass
 
 
 class FetchError(ClientError):

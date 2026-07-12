@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
@@ -16,7 +18,9 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
+    REGISTERED_REPORT,
 )
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.serializers import DynamicUserSerializer
 
 
@@ -68,11 +72,41 @@ def serialize_fund_feed_metrics(item, item_content_type):
     return metrics
 
 
+JOURNAL_STATE_COMPLETED_PROPOSAL = "completed_proposal"
+JOURNAL_STATE_REGISTERED_REPORT = "registered_report"
+
+
+def get_journal_state(post: ResearchhubPost) -> str:
+    """Return the journal feed state represented by the given post."""
+    if post.document_type == REGISTERED_REPORT:
+        return JOURNAL_STATE_REGISTERED_REPORT
+    return JOURNAL_STATE_COMPLETED_PROPOSAL
+
+
+def get_journal_source_proposal(post: ResearchhubPost) -> ResearchhubPost | None:
+    """Return the proposal that owns a journal feed card's review context."""
+    if post.document_type == PREREGISTRATION:
+        return post
+    journey = getattr(post, "journey", None)
+    if journey is None:
+        return None
+    return getattr(journey, "preregistration_post", None)
+
+
+def serialize_journal_feed_metrics(
+    item: ResearchhubPost, item_content_type: Any
+) -> dict[str, Any]:
+    """Serialize journal feed metrics without peer review aggregates."""
+    metrics = serialize_fund_feed_metrics(item, item_content_type)
+    metrics.pop("review_metrics", None)
+    return metrics
+
+
 def _serialize_slim_bounty(bounty):
     """Minimal bounty payload for funding feed action badges."""
-    contributions = []
-    for child in bounty.children.all():
-        contributions.append(BountyContributionSerializer(child).data)
+    contributions = [
+        BountyContributionSerializer(child).data for child in bounty.children.all()
+    ]
 
     created_by = None
     if bounty.created_by_id:
@@ -226,9 +260,7 @@ class GrantFeedPostSerializer(serializers.Serializer):
             "title": post.title,
             "type": post.document_type,
             "image_url": post.get_image_url(),
-            "unified_document_id": (
-                post.unified_document_id if post.unified_document_id else None
-            ),
+            "unified_document_id": (post.unified_document_id or None),
             "grant": None,
         }
 
@@ -258,13 +290,10 @@ def _serialize_slim_fundraise(fundraise, context):
 
     contributor_fields = context.get("pch_dfs_get_contributors", {})
     aggregated = fundraise.get_contributors_summary()
-    top = []
-    for entry in aggregated.top:
-        top.append(
-            DynamicUserSerializer(
-                entry.user, context=context, **contributor_fields
-            ).data
-        )
+    top = [
+        DynamicUserSerializer(entry.user, context=context, **contributor_fields).data
+        for entry in aggregated.top
+    ]
 
     return {
         "id": fundraise.id,
@@ -293,9 +322,7 @@ class FundingFeedPostSerializer(serializers.Serializer):
             "type": post.document_type,
             "image_url": post.get_image_url(),
             "institution": getattr(post, "institution", None),
-            "unified_document_id": (
-                post.unified_document_id if post.unified_document_id else None
-            ),
+            "unified_document_id": (post.unified_document_id or None),
             "authors": [],
             "reviews": [],
             "fundraise": None,
@@ -324,10 +351,67 @@ class FundingFeedPostSerializer(serializers.Serializer):
         return data
 
 
+class JournalFeedPostSerializer(FundingFeedPostSerializer):
+    """Minimal post payload for journal feed list responses."""
+
+    def to_representation(self, post: ResearchhubPost) -> dict[str, Any]:
+        """Serialize completed proposals and registered reports consistently."""
+        data = super().to_representation(post)
+        proposal = get_journal_source_proposal(post)
+
+        data["journal_state"] = get_journal_state(post)
+        data["proposal"] = self.serialize_proposal_reference(proposal)
+
+        if post.document_type == REGISTERED_REPORT and proposal is not None:
+            data["fundraise"] = self.serialize_proposal_fundraise(proposal)
+            data["reviews"] = self.serialize_proposal_reviews(proposal)
+
+        return data
+
+    def serialize_proposal_reference(
+        self, proposal: ResearchhubPost | None
+    ) -> dict[str, Any] | None:
+        """Serialize the source proposal reference for a journal card."""
+        if proposal is None:
+            return None
+        return {
+            "id": proposal.id,
+            "slug": proposal.slug,
+            "title": proposal.title,
+            "unified_document_id": proposal.unified_document_id,
+        }
+
+    def serialize_proposal_fundraise(
+        self, proposal: ResearchhubPost
+    ) -> dict[str, Any] | None:
+        """Serialize the source proposal fundraise for a journal card."""
+        if not (
+            proposal.unified_document
+            and hasattr(proposal.unified_document, "fundraises")
+            and proposal.unified_document.fundraises.exists()
+        ):
+            return None
+        return _serialize_slim_fundraise(
+            proposal.unified_document.fundraises.first(), self.context
+        )
+
+    def serialize_proposal_reviews(self, proposal: ResearchhubPost) -> list[dict]:
+        """Serialize assessed reviews from the source proposal."""
+        if not (
+            proposal.unified_document and hasattr(proposal.unified_document, "reviews")
+        ):
+            return []
+        reviews = proposal.unified_document.reviews.all()
+        if not reviews:
+            return []
+        return SimpleReviewSerializer(reviews, many=True).data
+
+
 class FundFeedListEntrySerializer(serializers.ModelSerializer):
     id = serializers.IntegerField()
     content_type = serializers.SerializerMethodField()
     content_object = serializers.SerializerMethodField()
+    post_ids = serializers.SerializerMethodField()
     action_date = serializers.DateTimeField()
     action = serializers.CharField()
     author = serializers.SerializerMethodField()
@@ -339,6 +423,7 @@ class FundFeedListEntrySerializer(serializers.ModelSerializer):
             "id",
             "content_type",
             "content_object",
+            "post_ids",
             "action_date",
             "action",
             "author",
@@ -346,6 +431,12 @@ class FundFeedListEntrySerializer(serializers.ModelSerializer):
         ]
 
     post_serializer_class = None
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize the serializer and hide optional journal routing fields."""
+        super().__init__(*args, **kwargs)
+        if not self.context.get("include_post_ids"):
+            self.fields.pop("post_ids", None)
 
     def get_author(self, obj):
         if obj.user and hasattr(obj.user, "author_profile"):
@@ -361,10 +452,23 @@ class FundFeedListEntrySerializer(serializers.ModelSerializer):
     def get_content_object(self, obj):
         if not obj.item:
             return None
-        serializer_class = self.post_serializer_class
+        serializer_class = self.get_post_serializer_class()
         if serializer_class is None:
             return None
         return serializer_class(obj.item, context=self.context).data
+
+    def get_post_ids(self, obj: FeedEntry) -> dict[str, int | None]:
+        """Return post ids used by frontend work-page routing."""
+        proposal = get_journal_source_proposal(obj.item)
+        journey = getattr(proposal, "journey", None) if proposal is not None else None
+        return {
+            "grant_post_id": getattr(journey, "grant_post_id", None),
+            "proposal_post_id": proposal.id if proposal is not None else None,
+        }
+
+    def get_post_serializer_class(self) -> type[serializers.Serializer] | None:
+        """Return the serializer used for the entry's content object."""
+        return self.context.get("post_serializer_class") or self.post_serializer_class
 
 
 class GrantFeedListEntrySerializer(serializers.ModelSerializer):

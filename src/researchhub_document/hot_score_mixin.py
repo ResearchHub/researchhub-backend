@@ -72,7 +72,7 @@ class HotScoreMixin:
         try:
             doc = self.get_document()
             boost = doc.get_boost_amount()
-            boost_score = math.log(boost + 1, 10)
+            boost_score = math.log10(boost + 1)
         except Exception:
             logger.exception("Error calculating boost score")
 
@@ -187,7 +187,7 @@ class HotScoreMixin:
     # somewhat comparable to the time score. To do that, we pass these signals through
     # log functions so that scores don't grow out of control.
     def calculate_hot_score(self, should_save=False):
-        MIN_REQ_DISCUSSIONS = 1
+        min_req_discussions = 1
         hot_score = 0
         doc = self.get_document()
 
@@ -205,18 +205,18 @@ class HotScoreMixin:
         time_score = self._get_time_score(relevant_date)
 
         time_score_with_magnitude = self._c(doc_vote_net_score) * time_score
-        doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 2)
-        discussion_vote_score = math.log(doc.discussion_count + 1, 2) + math.log(
+        doc_vote_score = math.log2(abs(doc_vote_net_score) + 1)
+        discussion_vote_score = math.log2(doc.discussion_count + 1) + math.log(
             max(0, total_comment_vote_score) + 1, 3
         )
 
         # If basic criteria needed to show in trending is not available,
         # penalize the score by subtracting time. This will result in the
         # document being sent to the back of the feed
-        if doc.discussion_count == MIN_REQ_DISCUSSIONS:
+        if doc.discussion_count == min_req_discussions:
             discussion_vote_score -= 2  # Roughly one day penalty
         elif (
-            doc.discussion_count < MIN_REQ_DISCUSSIONS
+            doc.discussion_count < min_req_discussions
             and time_score_with_magnitude >= 0
         ):
             time_score_with_magnitude *= -1

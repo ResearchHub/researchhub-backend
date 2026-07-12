@@ -7,6 +7,10 @@ from django.utils.html import strip_tags
 logger = logging.getLogger(__name__)
 
 
+class ExpertFinderOutreachDisabledError(Exception):
+    """Raised when expert-finder outreach sending is disabled via killswitch."""
+
+
 def send_plain_email(
     to_email: str,
     subject: str,
@@ -21,6 +25,15 @@ def send_plain_email(
 
     Returns the SES Message ID when the email was sent via SES, or None otherwise.
     """
+    if not settings.EXPERT_FINDER_OUTREACH_ENABLED:
+        logger.warning(
+            "Expert finder outreach disabled; refusing send to %s",
+            to_email,
+        )
+        raise ExpertFinderOutreachDisabledError(
+            "Expert finder outreach is temporarily disabled."
+        )
+
     subject = (subject or "").replace("\n", "").replace("\r", "")
     if not settings.PRODUCTION:
         subject = "[Staging] " + subject

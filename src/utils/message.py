@@ -6,7 +6,6 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
-from sentry_sdk import capture_exception
 
 logger = logging.getLogger(__name__)
 
@@ -139,10 +138,9 @@ def deliver_email(
                 msg.attach_alternative(html_message, "text/html")
             msg.send(fail_silently=False)
             result["success"].append(recipient)
-        except Exception as e:
+        except Exception:
             logger.exception("Email send failed to %s", recipient)
             result["failure"].append(recipient)
-            capture_exception(e)
 
         # Stagger sends based on AWS SES limit
         # https://docs.aws.amazon.com/ses/latest/DeveloperGuide/manage-sending-limits.html

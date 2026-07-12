@@ -46,7 +46,7 @@ class TestCoinbaseService(TestCase):
             CoinbaseService()
             self.assertIn("Coinbase API credentials not configured", cm.output[0])
 
-    @patch("purchase.services.coinbase_service.generate_jwt")
+    @patch("cdp.auth.utils.jwt.generate_jwt")
     def test_generate_jwt_token(self, mock_generate_jwt):
         """Test JWT token generation."""
         mock_generate_jwt.return_value = "test_jwt_token"
@@ -85,7 +85,7 @@ class TestCoinbaseService(TestCase):
         self.assertIn("Coinbase API credentials not configured", str(context.exception))
 
     @patch("purchase.services.coinbase_service.requests.post")
-    @patch("purchase.services.coinbase_service.generate_jwt")
+    @patch("cdp.auth.utils.jwt.generate_jwt")
     @patch(
         "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
         side_effect=_mock_get_or_create_deposit_address,
@@ -135,7 +135,7 @@ class TestCoinbaseService(TestCase):
         )
 
     @patch("purchase.services.coinbase_service.requests.post")
-    @patch("purchase.services.coinbase_service.generate_jwt")
+    @patch("cdp.auth.utils.jwt.generate_jwt")
     @patch(
         "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
         side_effect=_mock_get_or_create_deposit_address,
@@ -179,7 +179,7 @@ class TestCoinbaseService(TestCase):
         self.assertIn("Coinbase API credentials not configured", str(context.exception))
 
     @patch("purchase.services.coinbase_service.requests.post")
-    @patch("purchase.services.coinbase_service.generate_jwt")
+    @patch("cdp.auth.utils.jwt.generate_jwt")
     @patch(
         "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
         side_effect=_mock_get_or_create_deposit_address,
@@ -197,7 +197,7 @@ class TestCoinbaseService(TestCase):
             self.service.create_session_token(user=self.user, client_ip=TEST_IP)
 
     @patch("purchase.services.coinbase_service.requests.post")
-    @patch("purchase.services.coinbase_service.generate_jwt")
+    @patch("cdp.auth.utils.jwt.generate_jwt")
     @patch(
         "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
         side_effect=_mock_get_or_create_deposit_address,
@@ -219,7 +219,7 @@ class TestCoinbaseService(TestCase):
             self.service.create_session_token(user=self.user, client_ip=TEST_IP)
 
     @patch("purchase.services.coinbase_service.requests.post")
-    @patch("purchase.services.coinbase_service.generate_jwt")
+    @patch("cdp.auth.utils.jwt.generate_jwt")
     @patch(
         "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
         side_effect=_mock_get_or_create_deposit_address,
@@ -256,7 +256,7 @@ class TestCoinbaseService(TestCase):
         self.assertIn("defaultAsset=ETH", result)
 
     @patch("purchase.services.coinbase_service.requests.post")
-    @patch("purchase.services.coinbase_service.generate_jwt")
+    @patch("cdp.auth.utils.jwt.generate_jwt")
     @patch(
         "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
         side_effect=_mock_get_or_create_deposit_address,
@@ -281,7 +281,7 @@ class TestCoinbaseService(TestCase):
         self.assertIn("https://pay.coinbase.com/buy/select-asset?sessionToken=", result)
 
     @patch("purchase.services.coinbase_service.requests.post")
-    @patch("purchase.services.coinbase_service.generate_jwt")
+    @patch("cdp.auth.utils.jwt.generate_jwt")
     @patch(
         "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
         side_effect=_mock_get_or_create_deposit_address,
@@ -309,7 +309,7 @@ class TestCoinbaseService(TestCase):
         self.assertIn("presetCryptoAmount=0.5", result)
 
     @patch("purchase.services.coinbase_service.requests.post")
-    @patch("purchase.services.coinbase_service.generate_jwt")
+    @patch("cdp.auth.utils.jwt.generate_jwt")
     @patch(
         "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
         side_effect=_mock_get_or_create_deposit_address,
@@ -362,7 +362,7 @@ class CoinbaseSecurityComplianceTests(TestCase):
         }
 
     @patch("purchase.services.coinbase_service.requests.post")
-    @patch("purchase.services.coinbase_service.generate_jwt")
+    @patch("cdp.auth.utils.jwt.generate_jwt")
     @patch(
         "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
         side_effect=_mock_get_or_create_deposit_address,

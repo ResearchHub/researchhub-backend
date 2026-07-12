@@ -1,19 +1,23 @@
+from __future__ import annotations
+
 import logging
-from typing import Dict, List, Optional, Set
+from typing import TYPE_CHECKING
 
 from django.conf import settings
-from xdk import Client
 
 from paper.ingestion.clients.base import RateLimiter
 
 from .x_bot_accounts import X_BOT_ACCOUNTS
 
+if TYPE_CHECKING:
+    from xdk import Client
+
 logger = logging.getLogger(__name__)
 
 
 def get_bot_accounts_for_paper(
-    external_source: Optional[str], hub_slugs: Optional[List[str]]
-) -> Set[str]:
+    external_source: str | None, hub_slugs: list[str] | None
+) -> set[str]:
     """
     Get bot accounts to exclude based on paper's external source and hub slugs.
 
@@ -31,7 +35,7 @@ def get_bot_accounts_for_paper(
     if not source_bots:
         return set()
 
-    bot_accounts: Set[str] = set()
+    bot_accounts: set[str] = set()
 
     # Add category-specific bots based on hub slugs
     if hub_slugs:
@@ -43,7 +47,7 @@ def get_bot_accounts_for_paper(
 
 
 def build_query_with_exclusions(
-    base_query: str, excluded_accounts: Optional[Set[str]]
+    base_query: str, excluded_accounts: set[str] | None
 ) -> str:
     """
     Build an X search query with account exclusions.
@@ -84,8 +88,8 @@ class XClient:
 
     def __init__(
         self,
-        bearer_token: Optional[str] = None,
-        client=None,
+        bearer_token: str | None = None,
+        client: Client | None = None,
         rate_limit: float = DEFAULT_RATE_LIMIT,
     ):
         """
@@ -119,9 +123,11 @@ class XClient:
             )
 
         if self._client is None:
+            from xdk import Client  # delay until needed
+
             self._client = Client(bearer_token=self.bearer_token)
 
-    def search_posts(self, query: str, max_results: int = 10) -> Optional[Dict]:
+    def search_posts(self, query: str, max_results: int = 10) -> dict | None:
         """
         Search for posts on X matching a query.
 
@@ -156,7 +162,7 @@ class XClient:
             }
         return {"posts": [], "meta": {}}
 
-    def _parse_post(self, post) -> Dict:
+    def _parse_post(self, post) -> dict:
         """
         Parse a post object from the X API response.
 
@@ -198,7 +204,7 @@ class XMetricsClient:
     Client for retrieving X metrics for papers.
     """
 
-    def __init__(self, x_client: Optional[XClient] = None):
+    def __init__(self, x_client: XClient | None = None):
         """
         Constructor.
 
@@ -210,11 +216,11 @@ class XMetricsClient:
 
     def get_metrics(
         self,
-        terms: List[str],
+        terms: list[str],
         max_results: int = XClient.MAX_SEARCH_RESULTS,
-        external_source: Optional[str] = None,
-        hub_slugs: Optional[List[str]] = None,
-    ) -> Optional[Dict]:
+        external_source: str | None = None,
+        hub_slugs: list[str] | None = None,
+    ) -> dict | None:
         """
         Get X metrics for a list of terms using OR logic.
 
@@ -278,7 +284,7 @@ class XMetricsClient:
         metrics["terms"] = terms
         return metrics
 
-    def _build_query(self, terms: List[str]) -> str:
+    def _build_query(self, terms: list[str]) -> str:
         """
         Build an X search query from a list of terms using OR logic.
 
@@ -295,7 +301,7 @@ class XMetricsClient:
         return " OR ".join(quoted_terms)
 
     @staticmethod
-    def _extract_metrics(posts: List[Dict]) -> Dict:
+    def _extract_metrics(posts: list[dict]) -> dict:
         """
         Extract aggregated metrics from a list of posts.
 

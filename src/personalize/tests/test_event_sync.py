@@ -72,13 +72,13 @@ class EventSyncTests(TestCase):
     @patch("personalize.signals.interaction_signals.transaction")
     @patch("personalize.tasks.SyncService")
     def test_only_specific_events_synced_from_amplitude(
-        self, MockSyncService, mock_transaction
+        self, sync_service_mock, transaction_mock
     ):
         # Arrange
-        mock_transaction.on_commit = lambda func: func()
+        transaction_mock.on_commit = lambda func: func()
         mock_service = Mock()
         mock_service.sync_event.return_value = self.mock_sync_result_success
-        MockSyncService.return_value = mock_service
+        sync_service_mock.return_value = mock_service
 
         processor = EventProcessor()
         feed_click_event = self._create_amplitude_event("feed_item_clicked")
@@ -165,13 +165,13 @@ class EventSyncTests(TestCase):
     @patch("personalize.signals.interaction_signals.transaction")
     @patch("personalize.tasks.SyncService")
     def test_sync_only_triggered_when_interaction_created(
-        self, MockSyncService, mock_transaction
+        self, sync_service_mock, transaction_mock
     ):
         # Arrange
-        mock_transaction.on_commit = lambda func: func()
+        transaction_mock.on_commit = lambda func: func()
         mock_service = Mock()
         mock_service.sync_event.return_value = self.mock_sync_result_success
-        MockSyncService.return_value = mock_service
+        sync_service_mock.return_value = mock_service
 
         processor = EventProcessor()
         event_payload = self._create_amplitude_event("feed_item_clicked")
@@ -195,13 +195,13 @@ class EventSyncTests(TestCase):
     @patch("personalize.signals.interaction_signals.transaction")
     @patch("personalize.tasks.SyncService")
     def test_interaction_marked_as_synced_on_success(
-        self, MockSyncService, mock_transaction
+        self, sync_service_mock, transaction_mock
     ):
         # Arrange
-        mock_transaction.on_commit = lambda func: func()
+        transaction_mock.on_commit = lambda func: func()
         mock_service = Mock()
         mock_service.sync_event.return_value = self.mock_sync_result_success
-        MockSyncService.return_value = mock_service
+        sync_service_mock.return_value = mock_service
 
         # Act - Creating UserInteraction should trigger signal which calls sync task
         interaction = UserInteractions.objects.create(
@@ -223,13 +223,13 @@ class EventSyncTests(TestCase):
     @patch("personalize.signals.interaction_signals.transaction")
     @patch("personalize.tasks.SyncService")
     def test_interaction_not_marked_synced_on_failure(
-        self, MockSyncService, mock_transaction
+        self, sync_service_mock, transaction_mock
     ):
         # Arrange
-        mock_transaction.on_commit = lambda func: func()
+        transaction_mock.on_commit = lambda func: func()
         mock_service = Mock()
         mock_service.sync_event.return_value = self.mock_sync_result_failure
-        MockSyncService.return_value = mock_service
+        sync_service_mock.return_value = mock_service
 
         # Act - Creating UserInteraction should trigger signal which calls sync task
         interaction = UserInteractions.objects.create(
@@ -256,11 +256,7 @@ class UpvoteInteractionTaskTests(TestCase):
         self.content_type = ContentType.objects.get_for_model(self.post)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.signals.vote_signals.create_upvote_interaction_task")
-    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
-    def test_create_upvote_interaction_task_creates_user_interaction(
-        self, mock_sync_signal, mock_vote_signal
-    ):
+    def test_create_upvote_interaction_task_creates_user_interaction(self):
         vote = Vote.objects.create(
             created_by=self.user,
             content_type=self.content_type,
@@ -283,11 +279,7 @@ class UpvoteInteractionTaskTests(TestCase):
         self.assertFalse(interaction.is_synced_with_personalize)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.signals.vote_signals.create_upvote_interaction_task")
-    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
-    def test_create_upvote_interaction_task_handles_duplicate(
-        self, mock_sync_signal, mock_vote_signal
-    ):
+    def test_create_upvote_interaction_task_handles_duplicate(self):
         vote = Vote.objects.create(
             created_by=self.user,
             content_type=self.content_type,
@@ -642,35 +634,31 @@ class CommentInteractionTaskTests(TestCase):
             map_from_comment(mock_comment)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.tasks.log_error")
+    @patch("personalize.tasks.logger.exception")
     @patch("personalize.tasks.map_from_comment")
-    def test_create_comment_interaction_task_logs_mapper_exceptions_to_sentry(
-        self, mock_map, mock_log_error
+    def test_create_comment_interaction_task_logs_mapper_logs_exceptions(
+        self, mock_map, mock_log_exception
     ):
-        """Test that task catches mapper exceptions and logs them to Sentry."""
+        """Test that task catches mapper exceptions and logs them."""
         comment = self._create_comment()
 
         # Make mapper raise an exception
         mock_map.side_effect = Exception("Mapper failed unexpectedly")
 
-        # Task should catch exception, log to Sentry, and re-raise
+        # Task should catch exception, log, and re-raise
         with self.assertRaises(Exception) as context:
             create_comment_interaction_task(comment.id)
 
         # Verify the exception message
         self.assertIn("Mapper failed unexpectedly", str(context.exception))
 
-        # Verify log_error was called to log to Sentry
-        mock_log_error.assert_called_once()
-        call_args = mock_log_error.call_args
+        # Verify logger.exception was called to log the exception
+        mock_log_exception.assert_called_once()
+        call_args = mock_log_exception.call_args
 
         # First argument should be the exception
-        self.assertIsInstance(call_args[0][0], Exception)
-        self.assertIn("Mapper failed unexpectedly", str(call_args[0][0]))
-
-        # Should have a message keyword argument with comment_id
-        self.assertIn("message", call_args[1])
-        self.assertIn(str(comment.id), call_args[1]["message"])
+        self.assertIsInstance(call_args[0][0], str)
+        self.assertIn("Failed creating interaction for comment", call_args[0][0])
 
         # No UserInteraction should have been created
         interactions = UserInteractions.objects.filter(object_id=comment.id)

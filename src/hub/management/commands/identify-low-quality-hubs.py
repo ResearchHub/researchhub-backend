@@ -61,9 +61,9 @@ class Command(BaseCommand):
         # Parse which checks to run
         checks_arg = options.get("checks")
         if checks_arg:
-            self.checks_to_run = set(
+            self.checks_to_run = {
                 check.strip() for check in checks_arg.split(",") if check.strip()
-            )
+            }
             available_checks = {
                 "test",
                 "numeric_suffix",
@@ -456,8 +456,7 @@ class Command(BaseCommand):
                     f.write(f"  Subscriber Count: {hub.subscriber_count}\n")
                     f.write(f"  Created: {hub.created_date}\n")
                     f.write("  Issues:\n")
-                    for issue in issues:
-                        f.write(f"    • {issue}\n")
+                    f.writelines(f"    • {issue}\n" for issue in issues)
                     f.write("\n")
 
             # Hub IDs for easy removal

@@ -143,7 +143,7 @@ class PostDocument(BaseDocument):
         if hot_score_v2 > 0:
             # Scale down the hot score to avoid a huge range
             # of values that could result in bad suggestions
-            weight = int(math.log(hot_score_v2, 10) * 10)
+            weight = int(math.log10(hot_score_v2) * 10)
 
         return {
             "input": list(set(phrases)),  # Dedupe using set

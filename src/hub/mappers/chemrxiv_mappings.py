@@ -4,9 +4,7 @@ ChemRxiv category mappings to ResearchHub categories and subcategories.
 Maps ChemRxiv's chemistry categories to ResearchHub's category structure.
 """
 
-from typing import Dict, Optional, Tuple
-
-CHEMRXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
+CHEMRXIV_MAPPINGS: dict[str, tuple[str, str | None]] = {
     "agriculture and food chemistry": ("chemistry", "food-chemistry"),
     "analytical chemistry": ("chemistry", "analytical-chemistry"),
     "catalysis": ("chemistry", "catalysis"),

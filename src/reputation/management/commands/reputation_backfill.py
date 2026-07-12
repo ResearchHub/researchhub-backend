@@ -13,7 +13,7 @@ class Command(BaseCommand):
         users = User.objects.filter(reputation__gt=100)
         total_changed_records = 0
         for i, user in enumerate(users):
-            print("{} / {}".format(i, users.count()))
+            print(f"{i} / {users.count()}")
             rep = (
                 user.reputation_records.exclude(distribution_type="REFERRAL")
                 .exclude(distribution_type="PURCHASE")
@@ -63,4 +63,4 @@ class Command(BaseCommand):
             except Exception as e:
                 print(e)
 
-        print("TOTAL CHANGED RECORDS: {}".format(total_changed_records))
+        print(f"TOTAL CHANGED RECORDS: {total_changed_records}")

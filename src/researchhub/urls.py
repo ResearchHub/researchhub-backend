@@ -38,6 +38,7 @@ from feed.views import (
     FundingFeedViewSet,
     GrantFeedViewSet,
     JournalFeedViewSet,
+    JournalV2FeedViewSet,
     ModeratorFeedViewSet,
 )
 from orcid.views import OrcidCallbackView, OrcidConnectView, OrcidFetchView
@@ -196,6 +197,8 @@ router.register(r"funding_feed", FundingFeedViewSet, basename="funding_feed")
 router.register(r"grant_feed", GrantFeedViewSet, basename="grant_feed")
 
 router.register(r"journal_feed", JournalFeedViewSet, basename="journal_feed")
+
+router.register(r"journal_v2_feed", JournalV2FeedViewSet, basename="journal_v2_feed")
 
 urlpatterns = [
     # Health check

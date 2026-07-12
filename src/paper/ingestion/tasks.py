@@ -18,7 +18,6 @@ from researchhub.celery import (
     QUEUE_X_METRICS,
     app,
 )
-from utils import sentry
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +63,7 @@ def enrich_papers_with_openalex(self, days: int = 30, retry: int = 0):
             "error_count": results.error_count,
         }
     except Exception as e:
-        logger.error(f"Fatal error in OpenAlex enrichment task: {str(e)}")
-        sentry.log_error(e, message="Fatal error in OpenAlex enrichment task")
+        logger.exception("Fatal error in OpenAlex enrichment task")
 
         try:
             # Retry in case of failure
@@ -87,14 +85,7 @@ def update_recent_papers_with_github_metrics(days: int = 7):
     """
     logger.info(f"Starting GitHub metrics update for papers (last {days} days)")
 
-    github_metrics_client = _create_github_metrics_client()
-    service = PaperMetricsEnrichmentService(
-        bluesky_metrics_client=None,
-        github_metrics_client=github_metrics_client,
-        x_metrics_client=None,
-    )
-
-    papers = service.get_recent_papers_with_dois(days)
+    papers = PaperMetricsEnrichmentService.get_recent_papers_with_dois(days)
 
     total_papers = len(papers)
     logger.info(f"Found {total_papers} papers to update with GitHub metrics")
@@ -190,10 +181,7 @@ def enrich_paper_with_github_metrics(self, paper_id: int, retry: int = 0):
 
     # Handle other statuses (skipped, error)
     if enrichment_result.status == "error":
-        sentry.log_error(
-            Exception(enrichment_result.reason),
-            message=f"Error enriching paper {paper_id} with GitHub metrics",
-        )
+        logger.error("Error enriching paper %s with GitHub metrics", paper_id)
 
     return {
         "status": enrichment_result.status,
@@ -221,13 +209,7 @@ def update_recent_papers_with_bluesky_metrics(days: int = 7):
     """
     logger.info(f"Starting Bluesky metrics update for papers (last {days} days)")
 
-    service = PaperMetricsEnrichmentService(
-        bluesky_metrics_client=BlueskyMetricsClient(),
-        github_metrics_client=None,
-        x_metrics_client=None,
-    )
-
-    papers = service.get_recent_papers_with_dois(days)
+    papers = PaperMetricsEnrichmentService.get_recent_papers_with_dois(days)
 
     total_papers = len(papers)
     logger.info(f"Found {total_papers} papers to update with Bluesky metrics")
@@ -323,10 +305,7 @@ def enrich_paper_with_bluesky_metrics(self, paper_id: int, retry: int = 0):
         }
 
     except Exception as e:
-        logger.error(f"Error enriching paper {paper_id} with Bluesky metrics: {str(e)}")
-        sentry.log_error(
-            e, message=f"Error enriching paper {paper_id} with Bluesky metrics"
-        )
+        logger.exception("Error enriching paper %s with Bluesky metrics", paper_id)
 
         try:
             # Retry with exponential backoff
@@ -357,13 +336,7 @@ def update_recent_papers_with_x_metrics(days: int = 7):
 
     logger.info(f"Starting X metrics update for papers (last {days} days)")
 
-    service = PaperMetricsEnrichmentService(
-        bluesky_metrics_client=None,
-        github_metrics_client=None,
-        x_metrics_client=XMetricsClient(),
-    )
-
-    papers = service.get_recent_papers_with_dois(days)
+    papers = PaperMetricsEnrichmentService.get_recent_papers_with_dois(days)
 
     total_papers = len(papers)
     logger.info(f"Found {total_papers} papers to update with X metrics")
@@ -480,10 +453,7 @@ def enrich_paper_with_x_metrics(self, paper_id: int):
 
     # Handle other statuses (skipped, error)
     if enrichment_result.status == "error":
-        sentry.log_error(
-            Exception(enrichment_result.reason),
-            message=f"Error enriching paper {paper_id} with X metrics",
-        )
+        logger.error("Error enriching paper %s with X metrics", paper_id)
 
     return {
         "status": enrichment_result.status,

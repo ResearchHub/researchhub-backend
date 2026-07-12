@@ -31,16 +31,16 @@ class Command(BaseCommand):
                 print(e)
 
     def handle(self, *args, **options):
-        CHUNK_SIZE = 10000
+        chunk_size = 10000
         documents = ResearchhubUnifiedDocument.objects.all()
         start = 1263860
         end = documents.last().id
 
         py_threads = []
-        for i in range(start, end + CHUNK_SIZE, CHUNK_SIZE):
+        for i in range(start, end + chunk_size, chunk_size):
             t = Thread(
                 target=self._update_discussion_count,
-                args=(i, i + CHUNK_SIZE),
+                args=(i, i + chunk_size),
             )
             t.daemon = True
             t.start()

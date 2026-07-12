@@ -76,7 +76,7 @@ class Crossref:
             self.url = self.data_message.get("URL", None)
 
     def create_paper(self, is_public=False):
-        Paper = apps.get_model("paper.Paper")
+        Paper = apps.get_model("paper.Paper")  # noqa: N806
         if self.data_message is not None:
             if self.publication_type == "journal-article":
                 if self.id is not None:

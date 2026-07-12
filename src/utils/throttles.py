@@ -95,7 +95,7 @@ class UserCaptchaThrottle(UserRateThrottle):
             self.cache.delete(key)
 
             throt, created = Throttle.objects.get_or_create(throttle_key=key)
-            # TODO Log to sentry when we see a new user with same ip?
+            # TODO Log when we see a new user with same ip?
             throt.locked = False
             throt.ident = self.get_ident(request)
             if request.user.is_authenticated:

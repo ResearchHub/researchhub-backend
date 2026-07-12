@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.conf import settings
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -802,6 +803,7 @@ class BulkGenerateEmailViewTests(APITestCase):
         mock_task.delay.assert_not_called()
 
 
+@override_settings(EXPERT_FINDER_OUTREACH_ENABLED=True)
 class SendPlainEmailTests(APITestCase):
     """Unit tests for send_plain_email service."""
 

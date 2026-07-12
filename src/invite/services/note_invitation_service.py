@@ -38,7 +38,7 @@ class NoteInvitationService:
         invite = NoteInvitation.objects.get(key=key)
 
         if invite.is_expired() or invite.accepted:
-            raise NoteInvitationExpiredError()
+            raise NoteInvitationExpiredError
 
         return invite
 
@@ -60,7 +60,7 @@ class NoteInvitationService:
         invite = self.get_active_invite(key)
 
         if invite.recipient and user != invite.recipient:
-            raise NoteInvitationRecipientMismatchError()
+            raise NoteInvitationRecipientMismatchError
 
         if not invite.recipient:
             self._claim_recipientless_invite(invite, user)
@@ -104,6 +104,6 @@ class NoteInvitationService:
             or not invite_email
             or user_email != invite_email
         ):
-            raise NoteInvitationRecipientMismatchError()
+            raise NoteInvitationRecipientMismatchError
 
         invite.recipient = user

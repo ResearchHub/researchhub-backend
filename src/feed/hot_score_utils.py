@@ -9,7 +9,7 @@ All functions gracefully handle missing keys and malformed data.
 
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import Any, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def has_comments(metrics: dict) -> bool:
     return replies > 0 or review_count > 0
 
 
-def parse_iso_datetime(date_string: str) -> Optional[datetime]:
+def parse_iso_datetime(date_string: str) -> datetime | None:
     if not date_string or not isinstance(date_string, str):
         return None
 
@@ -278,7 +278,7 @@ def calculate_adjusted_score(base_votes: int, external_metrics: dict) -> int:
 
 def get_bounties_from_content(
     content: dict, feed_entry, urgency_hours: int = 48
-) -> Tuple[float, bool]:
+) -> tuple[float, bool]:
     """
     Extract total bounty amount and urgency status from content JSON.
 

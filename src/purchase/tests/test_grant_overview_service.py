@@ -44,7 +44,7 @@ class TestGrantOverviewService(TestCase):
         fundraise = Fundraise.objects.create(
             created_by=creator,
             unified_document=post.unified_document,
-            goal_amount=Decimal("1000"),
+            goal_amount=Decimal(1000),
             goal_currency="USD",
         )
         GrantApplication.objects.create(

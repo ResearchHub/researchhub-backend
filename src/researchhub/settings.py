@@ -669,7 +669,7 @@ OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", keys.OPENSEARCH_HOST)
 
 OPENSEARCH_DSL = {
     "default": {
-        "hosts": OPENSEARCH_HOST if OPENSEARCH_HOST else "http://localhost:9200",
+        "hosts": OPENSEARCH_HOST or "http://localhost:9200",
         "pool_maxsize": 20,
         "timeout": 30,
     },
@@ -751,10 +751,7 @@ else:
 
 # Celery
 
-CELERY_BROKER_URL = "redis://{}:{}/0".format(REDIS_HOST, REDIS_PORT)
-CELERY_RESULT_BACKEND = "db+postgresql://{}:{}@{}:{}/{}".format(
-    DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME
-)
+CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
 CELERY_TIMEZONE = "UTC"
 CELERY_RESULT_BACKEND = "django-db"
 CELERY_TASK_TRACK_STARTED = True
@@ -774,7 +771,7 @@ if ELASTIC_BEANSTALK:
 if TESTING:
     CELERY_BROKER_URL = "memory://localhost"  # use in-memory broker for testing
 
-REDBEAT_REDIS_URL = "redis://{}:{}/2".format(REDIS_HOST, REDIS_PORT)
+REDBEAT_REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/2"
 REDBEAT_KEY_PREFIX = f"{APP_ENV}_redbeat_"
 
 # Django Channels
@@ -850,6 +847,9 @@ if STAGING or PRODUCTION:
 
 # Killswitch Variables
 SERIALIZER_SWITCH = os.environ.get("SERIALIZER_SWITCH", True)
+EXPERT_FINDER_OUTREACH_ENABLED = (
+    os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
+)
 
 # Crossref
 CROSSREF_DOI_RSC_FEE = 5
@@ -891,6 +891,12 @@ TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)
 
 # OpenAlex API
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", keys.OPENALEX_KEY)
+
+# Brave Search API (research_ai proposal-draft web search). Optional: when unset,
+# the web_search tool is inert and the agent grounds in profile/OpenAlex only.
+BRAVE_SEARCH_API_KEY = os.environ.get(
+    "BRAVE_SEARCH_API_KEY", getattr(keys, "BRAVE_SEARCH_API_KEY", "")
+)
 
 # Endaoment API
 ENDAOMENT_API_URL = f"https://api{'' if PRODUCTION else '.dev'}.endaoment.org"

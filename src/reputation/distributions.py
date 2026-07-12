@@ -109,6 +109,9 @@ DISTRIBUTION_TYPE_CHOICES = [
     ("REWARD", "REWARD"),
     ("PURCHASE", "PURCHASE"),
     ("REFERRAL_BONUS", "REFERRAL_BONUS"),
+    # Will be given to specific users for purpose of funding science on platform
+    # This is temporary until we have better way
+    ("GIFT_FOR_FUNDING", "GIFT_FOR_FUNDING"),
     (
         "EDITOR_COMPENSATION",
         "EDITOR_COMPENSATION",

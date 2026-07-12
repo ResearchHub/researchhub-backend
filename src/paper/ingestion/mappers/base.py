@@ -4,7 +4,7 @@ Base mapper class for transforming source data to domain models.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any
 
 from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from hub.models import Hub
@@ -28,26 +28,24 @@ class BaseMapper(ABC):
         self._hub_mapper = hub_mapper
 
     @abstractmethod
-    def validate(self, record: Dict[str, Any]) -> bool:
+    def validate(self, record: dict[str, Any]) -> bool:
         """
         Validate a record has required fields.
 
         Returns True if valid, False if should be skipped.
         """
-        pass
 
     @abstractmethod
-    def map_to_paper(self, record: Dict[str, Any]) -> Paper:
+    def map_to_paper(self, record: dict[str, Any]) -> Paper:
         """
         Map source-specific record to Paper model instance.
 
         Must be implemented by each mapper.
         Returns Paper instance (not saved to database).
         """
-        pass
 
     @abstractmethod
-    def map_to_authors(self, record: Dict[str, Any]) -> List[Author]:
+    def map_to_authors(self, record: dict[str, Any]) -> list[Author]:
         """
         Map source record to Author model instances.
 
@@ -55,10 +53,9 @@ class BaseMapper(ABC):
         Note: Only creates authors with proper identifiers (e.g., ORCID)
         to enable deduplication.
         """
-        pass
 
     @abstractmethod
-    def map_to_institutions(self, record: Dict[str, Any]) -> List[Institution]:
+    def map_to_institutions(self, record: dict[str, Any]) -> list[Institution]:
         """
         Map source record to Institution model instances.
 
@@ -66,12 +63,11 @@ class BaseMapper(ABC):
         Note: Only creates institutions with proper identifiers (e.g., ROR ID)
         to enable deduplication.
         """
-        pass
 
     @abstractmethod
     def map_to_authorships(
-        self, paper: Paper, record: Dict[str, Any]
-    ) -> List[Authorship]:
+        self, paper: Paper, record: dict[str, Any]
+    ) -> list[Authorship]:
         """
         Map source record to Authorship model instances for a given paper.
 
@@ -83,10 +79,9 @@ class BaseMapper(ABC):
             List of Authorship instances (not saved to database).
             These connect authors to the paper with position and institution data.
         """
-        pass
 
     @abstractmethod
-    def map_to_hubs(self, record: Dict[str, Any]) -> List[Hub]:
+    def map_to_hubs(self, record: dict[str, Any]) -> list[Hub]:
         """
         Map source record to Hub (tag) model instances for a given paper.
 
@@ -94,11 +89,10 @@ class BaseMapper(ABC):
             paper: The Paper instance to create tags for
             record: Source record containing tag data
         """
-        pass
 
     def map_batch(
-        self, records: List[Dict[str, Any]], validate: bool = True
-    ) -> List[Paper]:
+        self, records: list[dict[str, Any]], validate: bool = True
+    ) -> list[Paper]:
         """
         Map a batch of records to Paper model instances.
 

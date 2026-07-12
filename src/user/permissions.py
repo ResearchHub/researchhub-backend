@@ -1,6 +1,5 @@
 from rest_framework.permissions import BasePermission
 
-from utils.http import DELETE, RequestMethods
 from utils.permissions import AuthorizationBasedPermission
 
 
@@ -9,9 +8,9 @@ class UpdateAuthor(AuthorizationBasedPermission):
 
     def is_authorized(self, request, view, obj):
         if (
-            (request.method == RequestMethods.PUT)
-            or (request.method == RequestMethods.PATCH)
-            or (request.method == RequestMethods.DELETE)
+            (request.method == "PUT")
+            or (request.method == "PATCH")
+            or (request.method == "DELETE")
         ):
             return request.user == obj.user
         return True
@@ -71,7 +70,7 @@ class DeleteUserPermission(BasePermission):
         user = request.user
         user_is_moderator = user.moderator
 
-        if request.method == DELETE and (user_is_moderator or user == obj):
+        if request.method == "DELETE" and (user_is_moderator or user == obj):
             return True
         return False
 
@@ -83,7 +82,7 @@ class DeleteAuthorPermission(BasePermission):
         user = request.user
         user_is_moderator = user.moderator
 
-        if request.method == DELETE and user_is_moderator:
+        if request.method == "DELETE" and user_is_moderator:
             return True
         return False
 

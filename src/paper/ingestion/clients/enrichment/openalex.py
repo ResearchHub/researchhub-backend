@@ -6,7 +6,7 @@ Handles communication with OpenAlex API endpoints.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import requests
 
@@ -38,7 +38,7 @@ class OpenAlexConfig(ClientConfig):
 class OpenAlexClient(BaseClient):
     """Client for fetching papers from OpenAlex API."""
 
-    def __init__(self, config: Optional[OpenAlexConfig] = None):
+    def __init__(self, config: OpenAlexConfig | None = None):
         """Initialize OpenAlex client."""
         if config is None:
             config = OpenAlexConfig()
@@ -52,8 +52,8 @@ class OpenAlexClient(BaseClient):
             self.headers["User-Agent"] = f"mailto:{config.email}"
 
     def fetch(
-        self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs
-    ) -> Union[str, bytes, Dict[str, Any]]:
+        self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
+    ) -> str | bytes | dict[str, Any]:
         """
         Fetch data from OpenAlex API.
 
@@ -96,9 +96,7 @@ class OpenAlexClient(BaseClient):
         except requests.RequestException as e:
             raise FetchError(f"Failed to fetch from {url}: {str(e)}")
 
-    def parse(
-        self, raw_data: Union[str, bytes, Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def parse(self, raw_data: str | bytes | dict[str, Any]) -> list[dict[str, Any]]:
         """
         Parse OpenAlex JSON response and return raw entry data.
 
@@ -117,20 +115,18 @@ class OpenAlexClient(BaseClient):
 
         results = raw_data.get("results", [])
 
-        papers = []
-        for result in results:
-            papers.append({"raw_data": result, "source": "openalex"})
+        papers = [{"raw_data": result, "source": "openalex"} for result in results]
 
         return papers
 
     def fetch_recent(
         self,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        max_results: Optional[int] = None,
-        filters: Optional[Dict[str, Any]] = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        max_results: int | None = None,
+        filters: dict[str, Any] | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Fetch recent papers from OpenAlex within date range.
 
@@ -222,7 +218,7 @@ class OpenAlexClient(BaseClient):
         )
         return all_papers
 
-    def fetch_by_doi(self, doi: str) -> Optional[Dict[str, Any]]:
+    def fetch_by_doi(self, doi: str) -> dict[str, Any] | None:
         """
         Fetch a specific paper by DOI.
 
@@ -248,8 +244,8 @@ class OpenAlexClient(BaseClient):
         return None
 
     def fetch_by_ids(
-        self, ids: List[str], id_type: str = "doi"
-    ) -> List[Dict[str, Any]]:
+        self, ids: list[str], id_type: str = "doi"
+    ) -> list[dict[str, Any]]:
         """
         Fetch papers by a list of IDs.
 

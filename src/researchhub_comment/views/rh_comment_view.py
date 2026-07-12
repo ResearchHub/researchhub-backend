@@ -1,7 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Prefetch
-from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
@@ -95,9 +94,12 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         RESEARCHHUB_POST: "researchhubpost",
         HYPOTHESIS: "hypothesis",
     }
-    _ALLOWED_UPDATE_FIELDS = set(
-        ["comment_content_type", "comment_content_json", "context_title", "mentions"]
-    )
+    _ALLOWED_UPDATE_FIELDS = {
+        "comment_content_type",
+        "comment_content_json",
+        "context_title",
+        "mentions",
+    }
 
     def dispatch(self, request, *args, **kwargs):
         """Initialize service dependencies for better testability."""
@@ -169,22 +171,11 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
 
     def get_queryset(self):
         """
-        Taken from DRF source code
+        Only return comments belonging to the parent object's threads, not the
+        class-level queryset.
         """
-        assert self.queryset is not None, (
-            "'%s' should either include a `queryset` attribute, "
-            "or override the `get_queryset()` method." % self.__class__.__name__
-        )
-
-        # Custom logic start
         thread_queryset = self._get_model_object_threads().values_list("id")
-        queryset = RhCommentModel.objects.filter(thread__in=thread_queryset)
-        # Custom logic end
-
-        if isinstance(queryset, QuerySet):
-            # Ensure queryset is re-evaluated on each request.
-            queryset = queryset.all()
-        return queryset
+        return RhCommentModel.objects.filter(thread__in=thread_queryset)
 
     def get_serializer(self, *args, **kwargs):
         """
@@ -235,7 +226,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "rhc_dcs_get_children": {
                 "_exclude_fields": (
                     "comment_content_src",
-                    "promoted",
                     "user_flag",
                 ),
                 "_select_related_fields": (
@@ -381,7 +371,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 rh_comment,
                 context=context,
                 _exclude_fields=(
-                    "promoted",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -467,7 +456,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 rh_comment,
                 context=context,
                 _exclude_fields=(
-                    "promoted",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -537,7 +525,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 many=True,
                 context=context,
                 _exclude_fields=(
-                    "promoted",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -549,7 +536,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             many=True,
             context=context,
             _exclude_fields=(
-                "promoted",
                 "user_flag",
                 "reviews",
                 "comment_content_src",
@@ -579,7 +565,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             instance,
             context=context,
             _exclude_fields=(
-                "promoted",
                 "user_flag",
                 "comment_content_src",
             ),
@@ -607,7 +592,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 comment,
                 context=context,
                 _exclude_fields=(
-                    "promoted",
                     "user_flag",
                     "comment_content_src",
                 ),
@@ -649,7 +633,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 comment,
                 context=context,
                 _exclude_fields=(
-                    "promoted",
                     "user_flag",
                     "comment_content_src",
                 ),

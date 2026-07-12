@@ -52,7 +52,6 @@ from feed.hot_score_utils import (
 )
 from paper.related_models.paper_model import Paper
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from utils import sentry
 
 logger = logging.getLogger(__name__)
 
@@ -463,7 +462,6 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
 
     except Exception as e:
         logger.error(f"Error calculating hot score for feed_entry {feed_entry.id}: {e}")
-        sentry.log_error(e)
         if return_components:
             return None
         return 0

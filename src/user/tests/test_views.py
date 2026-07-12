@@ -117,7 +117,7 @@ class UserApiTests(APITestCase):
     @patch.object(OpenAlex, "get_works")
     @patch.object(OpenAlex, "get_authors")
     def test_add_publications_to_author(self, mock_get_authors, mock_get_works):
-        with open(fixtures_dir / "openalex_author_works.json", "r") as works_file:
+        with open(fixtures_dir / "openalex_author_works.json") as works_file:
             # Mock responses for OpenAlex API calls
             mock_data = json.load(works_file)
             mock_get_works.return_value = (mock_data["results"], None)
@@ -216,7 +216,7 @@ class UserApiTests(APITestCase):
     @patch.object(OpenAlex, "get_works")
     @patch.object(OpenAlex, "get_authors")
     def _add_publications_to_author(self, author, mock_get_authors, mock_get_works):
-        with open(fixtures_dir / "openalex_author_works.json", "r") as works_file:
+        with open(fixtures_dir / "openalex_author_works.json") as works_file:
             # Mock responses for OpenAlex API calls
             mock_data = json.load(works_file)
             mock_get_works.return_value = (mock_data["results"], None)

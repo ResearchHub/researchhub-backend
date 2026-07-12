@@ -4,11 +4,17 @@ from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 
-from research_ai.models import Expert, ExpertSearch, GeneratedEmail
+from research_ai.models import (
+    Expert,
+    ExpertSearch,
+    GeneratedEmail,
+    ProposalDraft,
+    SearchExpert,
+)
 from research_ai.tasks import (
     _update_search_progress,
     process_bulk_generate_emails_task,
-    run_expert_finder_search,
+    run_proposal_draft_task,
     send_queued_emails_task,
 )
 from user.tests.helpers import create_random_authenticated_user
@@ -45,43 +51,6 @@ class UpdateSearchProgressTests(TestCase):
 
     def test_update_search_progress_invalid_id_logs_and_does_not_raise(self):
         _update_search_progress("99999999", 0, "No-op")  # no such id – should not raise
-
-
-# --- run_expert_finder_search (Celery) ---
-
-
-@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-class RunExpertFinderSearchTaskTests(TestCase):
-    def setUp(self):
-        self.user = create_random_authenticated_user("task_user")
-        self.search = ExpertSearch.objects.create(
-            created_by=self.user,
-            query="Task query",
-            status=ExpertSearch.Status.PENDING,
-            excluded_search_ids=[42],
-        )
-
-    @patch("research_ai.tasks.expert_finder_service_mod.run_expert_finder_search")
-    def test_task_merges_excluded_search_ids_from_model_when_kwargs_omitted(
-        self, mock_run
-    ):
-        mock_run.return_value = {
-            "status": ExpertSearch.Status.COMPLETED,
-            "experts": [],
-            "expert_count": 1,
-            "report_urls": {"pdf": "/p", "csv": "/c"},
-            "llm_model": "m",
-        }
-        run_expert_finder_search.apply(
-            kwargs={
-                "search_id": str(self.search.id),
-                "query": self.search.query,
-                "config": {},
-            }
-        ).get()
-        mock_run.assert_called_once()
-        kw = mock_run.call_args.kwargs
-        self.assertEqual(kw["excluded_search_ids"], [42])
 
 
 # --- process_bulk_generate_emails_task ---
@@ -180,10 +149,10 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
         self.assertIsNone(kw["template"])
         self.assertEqual(kw["template_id"], 99)
 
-    @patch("research_ai.tasks.sentry")
+    @patch("research_ai.tasks.logger")
     @patch("research_ai.tasks.generate_expert_email")
-    def test_process_bulk_one_fails_marks_failed_and_logs_sentry(
-        self, mock_generate, mock_sentry
+    def test_process_bulk_one_fails_marks_failed_and_logs(
+        self, mock_generate, mock_logger
     ):
         rec_ok = GeneratedEmail.objects.create(
             created_by=self.user,
@@ -222,16 +191,16 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
         rec_fail.refresh_from_db()
         self.assertEqual(rec_ok.status, GeneratedEmail.Status.DRAFT)
         self.assertEqual(rec_fail.status, GeneratedEmail.Status.FAILED)
-        mock_sentry.log_error.assert_called_once()
+        mock_logger.warning.assert_called_once()
 
-    @patch("research_ai.tasks.sentry")
+    @patch("research_ai.tasks.logger")
     @patch("research_ai.tasks.generate_expert_email")
-    def test_process_bulk_outer_exception_marks_all_failed_and_logs_sentry(
-        self, mock_generate, mock_sentry
+    def test_process_bulk_outer_exception_marks_all_failed_and_logs(
+        self, mock_generate, mock_logger
     ):
         """
         Top-level exception (e.g. User.objects.get raises) marks all ids FAILED
-        and logs to Sentry.
+        and logs the error.
         """
         rec = GeneratedEmail.objects.create(
             created_by=self.user,
@@ -255,7 +224,7 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
                 ).get()
         rec.refresh_from_db()
         self.assertEqual(rec.status, GeneratedEmail.Status.FAILED)
-        mock_sentry.log_error.assert_called_once()
+        mock_logger.exception.assert_called_once()
 
 
 # --- send_queued_emails_task ---
@@ -343,3 +312,58 @@ class SendQueuedEmailsTaskTests(TestCase):
         self.assertIsNotNone(ex.last_email_sent_at)
         if before:
             self.assertGreaterEqual(ex.last_email_sent_at, before)
+
+
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+class RunProposalDraftTaskTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("draft_user")
+        self.expert = Expert.objects.create(email="draft-expert@example.edu")
+        self.expert_search = ExpertSearch.objects.create(
+            created_by=self.user,
+            query="protein folding",
+        )
+        self.search_expert = SearchExpert.objects.create(
+            expert_search=self.expert_search,
+            expert=self.expert,
+        )
+        self.draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.user,
+        )
+
+    @patch("research_ai.tasks.run_proposal_draft")
+    def test_runs_service(self, mock_run):
+        # Arrange
+        mock_run.return_value = {
+            "status": ProposalDraft.Status.COMPLETED,
+            "proposal_draft_id": self.draft.id,
+        }
+
+        # Act
+        result = run_proposal_draft_task.apply(args=[self.draft.id]).get()
+
+        # Assert
+        mock_run.assert_called_once_with(self.search_expert.id, draft_id=self.draft.id)
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.draft.refresh_from_db()
+        self.assertIsNotNone(self.draft.processing_time)
+
+    @patch("research_ai.tasks.run_proposal_draft")
+    def test_unexpected_error_marks_draft_failed(self, mock_run):
+        # Arrange
+        mock_run.side_effect = SearchExpert.DoesNotExist("SearchExpert gone")
+
+        # Act & Assert
+        with self.assertRaises(SearchExpert.DoesNotExist):
+            run_proposal_draft_task.apply(args=[self.draft.id]).get()
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.status, ProposalDraft.Status.FAILED)
+        self.assertIn("SearchExpert gone", self.draft.error_message)
+
+    def test_missing_draft_returns_not_found(self):
+        # Act
+        result = run_proposal_draft_task.apply(args=[999999]).get()
+
+        # Assert
+        self.assertEqual(result, {"status": "not_found", "draft_id": 999999})

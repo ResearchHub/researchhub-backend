@@ -2,7 +2,6 @@ import logging
 import time
 from datetime import timedelta
 from decimal import Decimal
-from typing import Optional, Tuple
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -34,6 +33,7 @@ from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.journey_service import JourneyService
 from user.models import User
 
 USD_CONTRIBUTION_CSV_HEADERS = [
@@ -64,15 +64,17 @@ class FundraiseService:
 
     def __init__(
         self,
-        referral_bonus_service: ReferralBonusService = None,
-        endaoment_service: EndaomentService = None,
-    ):
+        referral_bonus_service: ReferralBonusService | None = None,
+        endaoment_service: EndaomentService | None = None,
+        journey_service: JourneyService | None = None,
+    ) -> None:
         self.referral_bonus_service = referral_bonus_service or ReferralBonusService()
         self.endaoment_service = endaoment_service or EndaomentService()
+        self.journey_service = journey_service or JourneyService()
 
     def validate_fundraise_for_contribution(
         self, fundraise: Fundraise, user: User, check_self_contribution: bool = True
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """
         Validates that a fundraise is valid for contributions.
 
@@ -105,9 +107,9 @@ class FundraiseService:
         amount: Decimal,
         currency: str = RSC,
         check_self_contribution: bool = True,
-        origin_fund_id: Optional[str] = None,
+        origin_fund_id: str | None = None,
         use_credits: bool = True,
-    ) -> Tuple[Optional[Purchase], Optional[str]]:
+    ) -> tuple[Purchase | None, str | None]:
         """
         Validates and creates a contribution to a fundraise.
         Handles both RSC and USD contributions with limit validation.
@@ -188,13 +190,13 @@ class FundraiseService:
         Creates a fundraise with its associated escrow.
         All input validation is handled by FundraiseCreateSerializer.
         """
-        create_kwargs = dict(
-            created_by=user,
-            unified_document=unified_document,
-            goal_amount=goal_amount,
-            goal_currency=goal_currency,
-            status=status,
-        )
+        create_kwargs = {
+            "created_by": user,
+            "unified_document": unified_document,
+            "goal_amount": goal_amount,
+            "goal_currency": goal_currency,
+            "status": status,
+        }
         if end_date is not None:
             create_kwargs["end_date"] = end_date
         fundraise = Fundraise.objects.create(**create_kwargs)
@@ -216,7 +218,7 @@ class FundraiseService:
         fundraise: Fundraise,
         amount: Decimal,
         use_credits: bool = True,
-    ) -> Tuple[Optional[Purchase], Optional[str]]:
+    ) -> tuple[Purchase | None, str | None]:
         """
         Creates an RSC contribution to a fundraise.
 
@@ -326,7 +328,7 @@ class FundraiseService:
         fundraise: Fundraise,
         amount_cents: int,
         origin_fund_id: str = None,
-    ) -> Tuple[Optional[UsdFundraiseContribution], Optional[str]]:
+    ) -> tuple[UsdFundraiseContribution | None, str | None]:
         """
         Creates a USD contribution to a fundraise.
 
@@ -491,6 +493,7 @@ class FundraiseService:
 
             fundraise.status = Fundraise.COMPLETED
             fundraise.save()
+            self.journey_service.include_completed_fundraise_in_journal(fundraise)
 
         # Process referral bonuses (outside transaction to not block payout on failure)
         try:

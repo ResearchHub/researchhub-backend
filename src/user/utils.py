@@ -7,7 +7,7 @@ from user.models import Organization
 from utils.openalex import OpenAlex
 
 
-class AuthorClaimException(Exception):
+class AuthorClaimError(Exception):
     ALREADY_CLAIMED_BY_CURRENT_USER = "ALREADY_CLAIMED_BY_CURRENT_USER"
     ALREADY_CLAIMED_BY_ANOTHER_USER = "ALREADY_CLAIMED_BY_ANOTHER_USER"
 
@@ -19,7 +19,7 @@ class AuthorClaimException(Exception):
 
 def claim_openalex_author_profile(claiming_rh_author_id, openalex_author_id):
     from user.related_models.author_model import Author
-    from user.views.author_views import AuthorClaimException
+    from user.views.author_views import AuthorClaimError
 
     if "openalex.org" not in openalex_author_id:
         raise Exception("Invalid OpenAlex author ID")
@@ -50,13 +50,9 @@ def claim_openalex_author_profile(claiming_rh_author_id, openalex_author_id):
         )
 
         if already_claimed_by_this_user:
-            raise AuthorClaimException(
-                AuthorClaimException.ALREADY_CLAIMED_BY_CURRENT_USER
-            )
+            raise AuthorClaimError(AuthorClaimError.ALREADY_CLAIMED_BY_CURRENT_USER)
         elif already_claimed_by_another_user:
-            raise AuthorClaimException(
-                AuthorClaimException.ALREADY_CLAIMED_BY_ANOTHER_USER
-            )
+            raise AuthorClaimError(AuthorClaimError.ALREADY_CLAIMED_BY_ANOTHER_USER)
         else:
             mergeable_authors.append(rh_author_with_this_openalex_id)
 

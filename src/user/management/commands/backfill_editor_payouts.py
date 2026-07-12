@@ -109,7 +109,7 @@ class Command(BaseCommand):
         )
 
         # Get editors
-        User = apps.get_model("user.User")
+        User = apps.get_model("user.User")  # noqa: N806
         excluded_emails = Gatekeeper.objects.filter(
             type__in=[EDITOR_PAYOUT_ADMIN, PAYOUT_EXCLUSION_LIST]
         ).values_list("email", flat=True)

@@ -88,7 +88,7 @@ class Command(BaseCommand):
         for root, hubs in names_by_root.items():
             if len(hubs) >= min_pair_size:
                 # Check if they're actually different names (not exact duplicates)
-                unique_names = set(h.name.lower() for h in hubs)
+                unique_names = {h.name.lower() for h in hubs}
                 if len(unique_names) > 1:
                     pairs.append((root, hubs))
 

@@ -35,9 +35,7 @@ SENIOR_EDITOR_USD_PAY_AMOUNT_PER_MONTH = 2000
 USD_PER_RSC_PRICE_FLOOR = 0.10
 
 MORALIS_LOOKUP_URI = (
-    "https://deep-index.moralis.io/api/v2/erc20/{address}/price".format(
-        address=WEB3_RSC_ADDRESS
-    )
+    f"https://deep-index.moralis.io/api/v2/erc20/{WEB3_RSC_ADDRESS}/price"
 )
 
 
@@ -50,7 +48,7 @@ def editor_daily_payout_task():
         if is_payment_made_today:
             return {"msg": "Editor payout already made today"}
 
-        User = apps.get_model("user.User")
+        User = apps.get_model("user.User")  # noqa: N806
         today = datetime.date.today()
         num_days_this_month = monthrange(today.year, today.month)[1]
         gecko_result = get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month)
@@ -98,7 +96,6 @@ def editor_daily_payout_task():
 
             except Exception:
                 logger.exception("Failed to distribute payout to editor %s", editor.id)
-                pass
 
         return result
     except Exception:
@@ -116,10 +113,8 @@ def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
     if recent_coin_gecko_rate is None:
         return None
 
-    gecko_payout_usd_per_rsc = (
-        recent_coin_gecko_rate.real_rate
-        if recent_coin_gecko_rate.real_rate > USD_PER_RSC_PRICE_FLOOR
-        else USD_PER_RSC_PRICE_FLOOR
+    gecko_payout_usd_per_rsc = max(
+        USD_PER_RSC_PRICE_FLOOR, recent_coin_gecko_rate.real_rate
     )
 
     return {
@@ -146,14 +141,12 @@ def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
 def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
     headers = requests.utils.default_headers()
     headers["x-api-key"] = MORALIS_API_KEY
-    moralis_request_result = requests.get(MORALIS_LOOKUP_URI, headers=headers)
+    moralis_request_result = requests.get(
+        MORALIS_LOOKUP_URI, headers=headers, timeout=30
+    )
 
     real_usd_per_rsc = json.loads(moralis_request_result.text)["usdPrice"]
-    payout_usd_per_rsc = (
-        real_usd_per_rsc
-        if real_usd_per_rsc > USD_PER_RSC_PRICE_FLOOR
-        else USD_PER_RSC_PRICE_FLOOR
-    )
+    payout_usd_per_rsc = max(USD_PER_RSC_PRICE_FLOOR, real_usd_per_rsc)
 
     result = {
         "rate": payout_usd_per_rsc,

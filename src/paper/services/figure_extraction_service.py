@@ -1,12 +1,9 @@
 import logging
 from io import BytesIO
-from typing import List
 
 import fitz
 from django.core.files.base import ContentFile
 from PIL import Image
-
-from utils import sentry
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +84,7 @@ class FigureExtractionService:
 
     def extract_figures_from_pdf(
         self, pdf_content: bytes, paper_id: int
-    ) -> List[ContentFile]:
+    ) -> list[ContentFile]:
         """
         Extract embedded images from PDF content.
 
@@ -194,12 +191,8 @@ class FigureExtractionService:
 
             doc.close()
 
-        except Exception as e:
-            logger.error(
-                f"Error extracting figures from PDF for paper {paper_id}: {e}",
-                exc_info=True,
-            )
-            sentry.log_error(e, message="Error extracting figures from PDF")
+        except Exception:
+            logger.exception("Error extracting figures from PDF for paper %s", paper_id)
             raise
 
         logger.info(f"Extracted {len(extracted_figures)} figures from PDF")

@@ -8,7 +8,7 @@ Both repositories share the same API infrastructure.
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import requests
 
@@ -37,7 +37,7 @@ class BioRxivBaseClient(BaseClient):
 
     default_server = "biorxiv"  # Default server, can be overridden in subclasses
 
-    def __init__(self, config: Optional[BioRxivBaseConfig] = None):
+    def __init__(self, config: BioRxivBaseConfig | None = None):
         """Initialize base client."""
         if config is None:
             config = BioRxivBaseConfig()
@@ -45,8 +45,8 @@ class BioRxivBaseClient(BaseClient):
         self.session = requests.Session()
 
     def fetch(
-        self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs
-    ) -> Union[str, bytes, Dict[str, Any]]:
+        self, endpoint: str, params: dict[str, Any] | None = None, **kwargs
+    ) -> str | bytes | dict[str, Any]:
         """
         Fetch data from BioRxiv API.
 
@@ -83,9 +83,7 @@ class BioRxivBaseClient(BaseClient):
         except requests.RequestException as e:
             raise FetchError(f"Failed to fetch from {url}: {str(e)}")
 
-    def parse(
-        self, raw_data: Union[str, bytes, Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def parse(self, raw_data: str | bytes | dict[str, Any]) -> list[dict[str, Any]]:
         """
         Extract collection from BioRxiv API response.
 
@@ -107,12 +105,12 @@ class BioRxivBaseClient(BaseClient):
 
     def fetch_recent(
         self,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
         cursor: int = 0,
         format: str = "json",
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Fetch recent papers from BioRxiv within date range.
 

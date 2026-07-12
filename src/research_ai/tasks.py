@@ -4,7 +4,7 @@ from functools import partial
 from django.utils import timezone
 
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
-from research_ai.models import ExpertSearch, GeneratedEmail
+from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft
 from research_ai.services import expert_finder_service as expert_finder_service_mod
 from research_ai.services.email_generator_service import generate_expert_email
 from research_ai.services.email_sending_service import send_plain_email
@@ -14,10 +14,10 @@ from research_ai.services.invited_experts_service import (
     grant_invited_expert_access_for_send,
     link_experts_for_new_user,
 )
+from research_ai.services.proposal_draft import run_proposal_draft
 from research_ai.services.rfp_email_context import get_expert_for_search_by_email
 from researchhub.celery import app
 from user.models import User
-from utils import sentry
 
 logger = logging.getLogger(__name__)
 
@@ -60,31 +60,18 @@ def _expert_search_task_progress_callback(
 
 def _resolve_expert_finder_task_inputs(
     search_id: str,
-    excluded_search_ids: list | None,
     additional_context: str | None,
-) -> tuple[ExpertSearch | None, list[int], str | None]:
+) -> tuple[ExpertSearch | None, str | None]:
     """
-    Load ExpertSearch and derive excluded-search ids + context.
+    Load ExpertSearch and resolve additional_context.
 
-    Returns ``(None, [], None)`` when the search row is missing.
+    Returns ``(None, None)`` when the search row is missing.
     """
     try:
         es = ExpertSearch.objects.get(id=int(search_id))
     except ExpertSearch.DoesNotExist:
         logger.warning("run_expert_finder_search: ExpertSearch %s not found", search_id)
-        return None, [], None
-
-    merged = (
-        excluded_search_ids
-        if excluded_search_ids is not None
-        else (es.excluded_search_ids or [])
-    )
-    norm: list[int] = []
-    for x in merged or []:
-        try:
-            norm.append(int(x))
-        except (TypeError, ValueError):
-            continue
+        return None, None
 
     if additional_context is not None:
         ctx: str | None = additional_context
@@ -92,7 +79,7 @@ def _resolve_expert_finder_task_inputs(
         stripped = (es.additional_context or "").strip()
         ctx = stripped or None
 
-    return es, norm, ctx
+    return es, ctx
 
 
 def _finalize_expert_search_in_db(
@@ -173,7 +160,6 @@ def run_expert_finder_search(
     query: str,
     config: dict,
     *,
-    excluded_search_ids: list | None = None,
     is_pdf: bool = False,
     additional_context: str | None = None,
 ):
@@ -184,15 +170,14 @@ def run_expert_finder_search(
         search_id: ExpertSearch id (string of integer).
         query: Research description or document text.
         config: Dict with expert_count, expertise_level, region, state, gender.
-        excluded_search_ids: Optional list of expert search ids to exclude experts from.
         is_pdf: True if query was extracted from PDF.
         additional_context: Optional user notes to steer the model alongside query.
     """
 
     progress_callback = partial(_expert_search_task_progress_callback, self)
 
-    es, norm_search_ids, additional_context = _resolve_expert_finder_task_inputs(
-        search_id, excluded_search_ids, additional_context
+    es, additional_context = _resolve_expert_finder_task_inputs(
+        search_id, additional_context
     )
     if es is None:
         return {"status": "not_found", "search_id": search_id}
@@ -210,7 +195,6 @@ def run_expert_finder_search(
             search_id=search_id,
             query=query,
             config=config,
-            excluded_search_ids=norm_search_ids,
             is_pdf=is_pdf,
             additional_context=additional_context,
             progress_callback=progress_callback,
@@ -230,11 +214,8 @@ def run_expert_finder_search(
         )
         return result
     except Exception as e:
-        logger.exception("Expert finder failed for search_id=%s: %s", search_id, e)
-        sentry.log_error(
-            e,
-            message="Expert finder task raised unexpectedly",
-            json_data={"search_id": search_id},
+        logger.exception(
+            "Expert finder search task failed", extra={"search_id": search_id}
         )
         err = str(e)[:10000]
         _update_search_progress(
@@ -248,6 +229,41 @@ def run_expert_finder_search(
             error_message=err,
         )
         raise
+
+
+@app.task
+def run_proposal_draft_task(draft_id: int):
+    """
+    Background task to run one headless proposal-drafting job.
+    """
+    try:
+        draft = ProposalDraft.objects.get(id=draft_id)
+    except ProposalDraft.DoesNotExist:
+        logger.warning("Proposal draft not found", extra={"draft_id": draft_id})
+        return {"status": "not_found", "draft_id": draft_id}
+
+    logger.info("Starting proposal draft", extra={"draft_id": draft_id})
+    start_time = timezone.now()
+    try:
+        result = run_proposal_draft(draft.search_expert_id, draft_id=draft.id)
+    except Exception as e:
+        logger.exception("Proposal draft task failed", extra={"draft_id": draft_id})
+        ProposalDraft.objects.filter(id=draft_id).update(
+            status=ProposalDraft.Status.FAILED,
+            error_message=str(e)[:10000],
+        )
+        raise
+    processing_time = (timezone.now() - start_time).total_seconds()
+    ProposalDraft.objects.filter(id=draft_id).update(processing_time=processing_time)
+    logger.info(
+        "Proposal draft finished",
+        extra={
+            "draft_id": draft_id,
+            "status": result.get("status"),
+            "processing_time": processing_time,
+        },
+    )
+    return result
 
 
 def _normalize_template_for_bulk(template: str | None) -> tuple[str | None, str | None]:
@@ -357,7 +373,6 @@ def _process_one_bulk_email(
         return 1, 0
     except Exception as e:
         logger.warning("Bulk generate failed for email id=%s: %s", email_id, e)
-        sentry.log_error(e, message=f"Bulk generate error for email id={email_id}")
         try:
             rec.status = GeneratedEmail.Status.FAILED
             rec.save(update_fields=["status", "updated_date"])
@@ -416,9 +431,8 @@ def process_bulk_generate_emails_task(
             success += s
             failed += f
         return {"processed": success + failed, "success": success, "failed": failed}
-    except Exception as e:
-        logger.exception("Bulk generate task failed: %s", e)
-        sentry.log_error(e, message="Bulk generate emails task failed")
+    except Exception:
+        logger.exception("Bulk generate task failed")
         _mark_generated_emails_failed(generated_email_ids)
         raise
 
@@ -456,7 +470,7 @@ def send_queued_emails_task(
                 rec.email_subject,
                 rec.email_body,
                 reply_to=reply_to_list or None,
-                cc=cc_list if cc_list else None,
+                cc=cc_list or None,
                 from_email=from_email,
             )
             GeneratedEmail.objects.filter(id=rec.id).update(
@@ -467,13 +481,12 @@ def send_queued_emails_task(
             ExpertPersist.mark_last_email_sent_at(rec.expert_email or "")
             try:
                 grant_invited_expert_access_for_send(generated_email=rec)
-            except Exception as e:
+            except Exception:
                 # Don't let an access-grant failure mask a successful send.
-                logger.exception("Grant access on send failed id=%s: %s", rec.id, e)
-                sentry.log_error(e, message="Grant access on send failed")
+                logger.exception("Grant access on send failed id=%s", rec.id)
             sent += 1
-        except Exception as e:
-            logger.exception("Send to expert failed id=%s: %s", rec.id, e)
+        except Exception:
+            logger.exception("Send to expert failed id=%s", rec.id)
             GeneratedEmail.objects.filter(id=rec.id).update(
                 status=GeneratedEmail.Status.SEND_FAILED,
                 updated_date=timezone.now(),

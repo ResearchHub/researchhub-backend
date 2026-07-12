@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from hub.serializers import SimpleHubSerializer
@@ -14,11 +16,12 @@ from researchhub_document.serializers import (
 )
 from tag.serializers import DynamicConceptSerializer, SimpleConceptSerializer
 from user.serializers import DynamicUserSerializer, UserSerializer
-from utils.sentry import log_error
+
+logger = logging.getLogger(__name__)
 
 
 class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = ResearchhubUnifiedDocument
         fields = [
             "access_group",
@@ -127,8 +130,10 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
                 ).data
             else:
                 return None
-        except Exception as e:
-            log_error(e, message=f"Related unified doc: {unified_doc}")
+        except Exception:
+            logger.exception(
+                "Failed to serialize documents for unified document %s", unified_doc.id
+            )
             return None
 
     def get_document_filter(self, unified_doc):

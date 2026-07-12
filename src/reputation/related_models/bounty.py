@@ -1,6 +1,6 @@
 import math
 from datetime import UTC, datetime, timedelta
-from typing import List, TypedDict
+from typing import TypedDict
 
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
@@ -218,7 +218,7 @@ class Bounty(DefaultModel):
     @classmethod
     def find_bounties_for_user(
         cls, user, include_unrelated=False
-    ) -> List[AnnotatedBounty]:
+    ) -> list[AnnotatedBounty]:
         from django.db.models import F, IntegerField, OuterRef, Subquery, Value
 
         # Get user's expertise hubs and their scores

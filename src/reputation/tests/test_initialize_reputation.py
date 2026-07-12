@@ -315,13 +315,13 @@ class InitializeReputationCommandTestCase(TestCase):
 
     @patch.object(OpenAlex, "get_authors")
     def setup_papers_algo_hubs(self, create_review_paper, mock_get_authors):
-        with open(paper_fixtures_dir / "openalex_works.json", "r") as file:
+        with open(paper_fixtures_dir / "openalex_works.json") as file:
             response = json.load(file)
             self.works = sorted(
                 response.get("results"), key=lambda x: x.get("citations") or 0
             )
 
-        with open(paper_fixtures_dir / "openalex_authors.json", "r") as file:
+        with open(paper_fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
             process_openalex_works(self.works)

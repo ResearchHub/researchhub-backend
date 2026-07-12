@@ -1,15 +1,19 @@
+from __future__ import annotations
+
 import json
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from django.utils import timezone
 
-from paper.ingestion.clients.enrichment.bluesky import BlueskyMetricsClient
-from paper.ingestion.clients.enrichment.github import GithubMetricsClient
-from paper.ingestion.clients.enrichment.x import XMetricsClient
 from paper.models import Paper
+
+if TYPE_CHECKING:
+    from paper.ingestion.clients.enrichment.bluesky import BlueskyMetricsClient
+    from paper.ingestion.clients.enrichment.github import GithubMetricsClient
+    from paper.ingestion.clients.enrichment.x import XMetricsClient
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +23,8 @@ class EnrichmentResult:
     """Result of enriching a single paper with metrics."""
 
     status: str  # "success", "not_found", "skipped", "error", or "retryable_error"
-    metrics: Optional[Dict[str, Any]] = None
-    reason: Optional[str] = None
+    metrics: dict[str, Any] | None = None
+    reason: str | None = None
 
 
 @dataclass
@@ -43,9 +47,9 @@ class PaperMetricsEnrichmentService:
 
     def __init__(
         self,
-        bluesky_metrics_client: BlueskyMetricsClient,
-        github_metrics_client: GithubMetricsClient,
-        x_metrics_client: XMetricsClient,
+        bluesky_metrics_client: BlueskyMetricsClient | None = None,
+        github_metrics_client: GithubMetricsClient | None = None,
+        x_metrics_client: XMetricsClient | None = None,
     ):
         """
         Constructor.
@@ -59,7 +63,8 @@ class PaperMetricsEnrichmentService:
         self.bluesky_metrics_client = bluesky_metrics_client
         self.x_metrics_client = x_metrics_client
 
-    def get_recent_papers_with_dois(self, days: int) -> List[int]:
+    @staticmethod
+    def get_recent_papers_with_dois(days: int) -> list[int]:
         """
         Query papers published in the last N days that have DOIs.
 
@@ -235,7 +240,7 @@ class PaperMetricsEnrichmentService:
             logger.error(error_message)
             return EnrichmentResult(status="error", reason=str(e))
 
-    def _update_paper_metrics(self, paper: Paper, metrics: Dict[str, Any]) -> None:
+    def _update_paper_metrics(self, paper: Paper, metrics: dict[str, Any]) -> None:
         """
         Update paper's external_metadata with metrics while preserving existing metrics.
 

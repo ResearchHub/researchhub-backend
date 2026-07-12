@@ -6,7 +6,6 @@ from django.dispatch import receiver
 
 from personalize.tasks import create_comment_interaction_task
 from researchhub_comment.models import RhCommentModel
-from utils.sentry import log_error
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +22,9 @@ def create_comment_interaction(sender, instance, created, **kwargs):
 
     try:
         _trigger_comment_interaction_task(instance)
-    except Exception as e:
-        log_error(
-            e,
-            message=f"Failed to trigger interaction task for comment {instance.id}",
+    except Exception:
+        logger.exception(
+            "Failed to trigger interaction task for comment %s:", instance.id
         )
 
 

@@ -30,6 +30,7 @@ from researchhub_document.related_models.constants.document_type import (
     POSTS,
     PREREGISTRATION,
     QUESTION,
+    REGISTERED_REPORT,
 )
 from researchhub_document.related_models.document_filter_model import DocumentFilter
 from user.models import Author
@@ -203,7 +204,7 @@ class ResearchhubUnifiedDocument(
 
         doc = self.get_document()
 
-        return "{}/{}/{}/{}".format(BASE_FRONTEND_URL, doc_url, doc.id, doc.slug)
+        return f"{BASE_FRONTEND_URL}/{doc_url}/{doc.id}/{doc.slug}"
 
     def get_client_doc_type(self):
         if self.document_type == PAPER:
@@ -292,10 +293,31 @@ class ResearchhubUnifiedDocument(
             return self.posts.first()
         elif self.document_type == PREREGISTRATION:
             return self.posts.first()
+        elif self.document_type == REGISTERED_REPORT:
+            return self.posts.first()
         elif self.document_type == GRANT:
             return self.posts.first()
         else:
             raise Exception(f"Unrecognized document_type: {self.document_type}")
+
+    def get_display_title(self, *, max_length: int = 512) -> str:
+        """Return the user-facing title of the underlying document."""
+        doc = self.get_document()
+        if doc is None:
+            return ""
+        if hasattr(doc, "display_title"):
+            title = (doc.display_title or "").strip()
+        elif hasattr(doc, "title"):
+            title = (str(doc.title or "")).strip()
+        else:
+            title = ""
+        return title[:max_length]
+
+    def get_document_slug(self) -> str:
+        doc = self.get_document()
+        if doc is None:
+            return ""
+        return getattr(doc, "slug", "") or ""
 
     @cached_property
     def fe_document_type(self):
@@ -434,7 +456,7 @@ class ResearchhubUnifiedDocument(
         """
         comments = self.get_all_comments()
         total = comments.aggregate(total_score=Sum("score"))["total_score"]
-        return total if total else 0
+        return total or 0
 
     def get_comment_tip_sum(self):
         """

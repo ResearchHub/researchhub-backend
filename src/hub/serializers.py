@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework.serializers import (
     IntegerField,
     ModelSerializer,
@@ -7,9 +9,10 @@ from rest_framework.serializers import (
 from reputation.models import Contribution
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.serializers import DynamicPermissionSerializer
-from utils.sentry import log_error
 
 from .models import Hub
+
+logger = logging.getLogger(__name__)
 
 
 class SimpleHubSerializer(ModelSerializer):
@@ -135,8 +138,8 @@ class HubContributionSerializer(ModelSerializer):
                 .latest("created_date")
                 .created_date
             )
-        except Exception as error:
-            log_error(error)
+        except Exception:
+            logger.exception("Failed to get latest comment date for hub %s", hub.id)
             return None
 
     def get_latest_submission_date(self, hub):
@@ -149,8 +152,8 @@ class HubContributionSerializer(ModelSerializer):
                 .latest("created_date")
                 .created_date
             )
-        except Exception as error:
-            log_error(error)
+        except Exception:
+            logger.exception("Failed to get latest submission date for hub %s", hub.id)
             return None
 
 

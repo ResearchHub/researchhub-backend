@@ -6,6 +6,7 @@ from django.core.files.storage import default_storage
 from django.db import models
 from django.db.models import Exists, IntegerField, OuterRef, Q, Sum
 from django.db.models.functions import Cast
+from django.utils.functional import cached_property
 
 from discussion.models import AbstractGenericReactionModel, Vote
 from purchase.models import Grant, Purchase
@@ -15,10 +16,15 @@ from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     DOCUMENT_TYPES,
+    REGISTERED_REPORT,
+    RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
 from researchhub_document.related_models.constants.editor_type import (
     CK_EDITOR,
     EDITOR_TYPES,
+)
+from researchhub_document.related_models.constants.journey_stage import (
+    JOURNEY_STAGE_BY_DOCUMENT_TYPE,
 )
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -131,6 +137,13 @@ class ResearchhubPost(AbstractGenericReactionModel):
         null=True,
         default=None,
     )
+    journey = models.ForeignKey(
+        "researchhub_document.ResearchJourney",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="stage_posts",
+    )
     note = models.OneToOneField(
         "note.Note",
         null=True,
@@ -194,6 +207,18 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     objects = ResearchhubPostQuerySet.as_manager()
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["journey"],
+                condition=Q(
+                    document_type=REGISTERED_REPORT,
+                    journey__isnull=False,
+                ),
+                name="unique_rr_per_journey",
+            ),
+        ]
+
     @property
     def is_latest_version(self):
         return self.next_version is None
@@ -201,6 +226,10 @@ class ResearchhubPost(AbstractGenericReactionModel):
     @property
     def is_root_version(self):
         return self.version_number == 1
+
+    @cached_property
+    def stage(self):
+        return JOURNEY_STAGE_BY_DOCUMENT_TYPE.get(self.document_type)
 
     @property
     def users_to_notify(self):
@@ -239,20 +268,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
             return None
         return default_storage.url(self.image)
 
-    def get_promoted_score(self):
-        purchases = self.purchases.filter(
-            paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
-        )
-        if purchases.exists():
-            base_score = self.score
-            boost_amount = (
-                purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
-                .aggregate(sum=Sum("amount_as_int"))
-                .get("sum", 0)
-            )
-            return base_score + boost_amount
-        return False
-
     def get_boost_amount(self):
         purchases = self.purchases.filter(
             paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
@@ -268,7 +283,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     def get_full_markdown(self):
         try:
-            if self.document_type == DISCUSSION:
+            if self.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
                 byte_string = self.discussion_src.read()
             else:
                 byte_string = self.eln_src.read()

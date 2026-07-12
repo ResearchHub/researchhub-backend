@@ -1,0 +1,167 @@
+"""API tests for the proposal-draft endpoints.
+
+The Celery task is patched at the view boundary; running the actual
+drafting loop is covered by ``test_proposal_draft_service``.
+"""
+
+from unittest.mock import patch
+
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from research_ai.models import Expert, ExpertSearch, ProposalDraft, SearchExpert
+from user.tests.helpers import create_random_authenticated_user
+
+BASE_URL = "/api/research_ai/expert-finder/proposal-drafts/"
+
+
+class ProposalDraftCreateViewTests(APITestCase):
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("mod", moderator=True)
+        self.user = create_random_authenticated_user("user", moderator=False)
+        self.expert = Expert.objects.create(email="jane@example.edu")
+        self.expert_search = ExpertSearch.objects.create(
+            created_by=self.moderator,
+            query="protein folding",
+        )
+        self.search_expert = SearchExpert.objects.create(
+            expert_search=self.expert_search,
+            expert=self.expert,
+        )
+
+    def test_create_requires_editor_or_moderator(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.post(
+            BASE_URL, {"search_expert_id": self.search_expert.id}, format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
+    def test_create_returns_201_and_enqueues_task(self, mock_delay):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(
+            BASE_URL, {"search_expert_id": self.search_expert.id}, format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        data = response.json()
+        draft = ProposalDraft.objects.get(id=data["id"])
+        self.assertEqual(draft.search_expert_id, self.search_expert.id)
+        self.assertEqual(draft.created_by, self.moderator)
+        self.assertEqual(draft.status, ProposalDraft.Status.PENDING)
+        self.assertEqual(draft.step, ProposalDraft.Step.QUEUED)
+        self.assertEqual(data["status"], ProposalDraft.Status.PENDING)
+        mock_delay.assert_called_once_with(draft.id)
+
+    def test_create_without_search_expert_id_returns_400(self):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(BASE_URL, {}, format="json")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_unknown_search_expert_returns_404(self):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(
+            BASE_URL, {"search_expert_id": 999999}, format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
+    def test_create_with_active_draft_returns_409(self, mock_delay):
+        # Arrange
+        draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            status=ProposalDraft.Status.PROCESSING,
+        )
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(
+            BASE_URL, {"search_expert_id": self.search_expert.id}, format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(ProposalDraft.objects.count(), 1)
+        mock_delay.assert_not_called()
+        self.assertEqual(response.json()["proposal_draft_id"], draft.id)
+
+
+class ProposalDraftDetailViewTests(APITestCase):
+    def setUp(self):
+        # Arrange
+        self.moderator = create_random_authenticated_user("mod", moderator=True)
+        self.user = create_random_authenticated_user("user", moderator=False)
+        self.expert = Expert.objects.create(email="jane@example.edu")
+        self.expert_search = ExpertSearch.objects.create(
+            created_by=self.moderator,
+            query="protein folding",
+        )
+        self.search_expert = SearchExpert.objects.create(
+            expert_search=self.expert_search,
+            expert=self.expert,
+        )
+        self.draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.moderator,
+            status=ProposalDraft.Status.FAILED,
+            step=ProposalDraft.Step.DRAFTING,
+            rounds_used=2,
+            error_message="gates not cleared within 2 rounds",
+        )
+
+    def test_detail_requires_editor_or_moderator(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get(f"{BASE_URL}{self.draft.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_detail_returns_job_state(self):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.get(f"{BASE_URL}{self.draft.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["id"], self.draft.id)
+        self.assertEqual(data["search_expert"], self.search_expert.id)
+        self.assertEqual(data["status"], ProposalDraft.Status.FAILED)
+        self.assertEqual(data["step"], ProposalDraft.Step.DRAFTING)
+        self.assertEqual(data["rounds_used"], 2)
+        self.assertEqual(data["error_message"], "gates not cleared within 2 rounds")
+        self.assertIsNone(data["note"])
+
+    def test_detail_not_found_returns_404(self):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.get(f"{BASE_URL}999999/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

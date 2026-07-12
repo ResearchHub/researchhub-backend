@@ -24,7 +24,7 @@ class Command(BaseCommand):
         file_path = os.path.join(
             settings.BASE_DIR, "reputation", "misc", "rep_bins.csv"
         )
-        with open(file_path, mode="r") as csvfile:
+        with open(file_path) as csvfile:
             reader = csv.DictReader(csvfile)
             with transaction.atomic():
                 for row in reader:

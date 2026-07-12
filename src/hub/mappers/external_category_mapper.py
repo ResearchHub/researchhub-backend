@@ -3,7 +3,6 @@ Mapper for external category systems (arXiv, bioRxiv, ChemRxiv, MedRxiv) to hubs
 """
 
 import logging
-from typing import List
 
 from hub.models import Hub
 
@@ -27,7 +26,7 @@ class ExternalCategoryMapper:
     }
 
     @classmethod
-    def map(cls, source_category: str, source: str = "arxiv") -> List[Hub]:
+    def map(cls, source_category: str, source: str = "arxiv") -> list[Hub]:
         """
         Map an external category to a list of Hub entities.
 
@@ -59,7 +58,7 @@ class ExternalCategoryMapper:
         return cls._get_hubs_from_slugs(hub_slugs, source_category)
 
     @classmethod
-    def _get_hubs_from_slugs(cls, hub_slugs: tuple, source_category: str) -> List[Hub]:
+    def _get_hubs_from_slugs(cls, hub_slugs: tuple, source_category: str) -> list[Hub]:
         """Convert hub slugs to Hub objects."""
         hubs = []
 

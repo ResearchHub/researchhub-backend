@@ -128,7 +128,8 @@ class Topic(DefaultModel):
         null=True,
     )
 
-    def upsert_from_openalex(oa_topic):
+    @classmethod
+    def upsert_from_openalex(cls, oa_topic):
         has_dates = oa_topic.get("updated_date") and oa_topic.get("created_date")
 
         # Normalize created, updated dates to format that is compatible with django
@@ -156,10 +157,8 @@ class Topic(DefaultModel):
 
         if not domain:
             domain = Domain.objects.create(
-                **{
-                    "openalex_id": oa_topic["domain"]["id"],
-                    "display_name": oa_topic["domain"]["display_name"],
-                }
+                openalex_id=oa_topic["domain"]["id"],
+                display_name=oa_topic["domain"]["display_name"],
             )
         elif needs_update:
             domain.openalex_id = oa_topic["domain"]["id"]
@@ -175,11 +174,9 @@ class Topic(DefaultModel):
 
         if not field:
             field = Field.objects.create(
-                **{
-                    "openalex_id": oa_topic["field"]["id"],
-                    "display_name": oa_topic["field"]["display_name"],
-                    "domain_id": domain.id,
-                }
+                openalex_id=oa_topic["field"]["id"],
+                display_name=oa_topic["field"]["display_name"],
+                domain_id=domain.id,
             )
         elif needs_update:
             field.openalex_id = oa_topic["field"]["id"]
@@ -195,11 +192,9 @@ class Topic(DefaultModel):
 
         if not subfield:
             subfield = Subfield.objects.create(
-                **{
-                    "openalex_id": oa_topic["subfield"]["id"],
-                    "display_name": oa_topic["subfield"]["display_name"],
-                    "field_id": field.id,
-                }
+                openalex_id=oa_topic["subfield"]["id"],
+                display_name=oa_topic["subfield"]["display_name"],
+                field_id=field.id,
             )
 
         elif needs_update:

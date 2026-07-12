@@ -156,7 +156,7 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
 
         withdrawal.refresh_from_db()
         self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.INITIATED)
-        self.assertEqual(self.user.get_balance(), self.initial_balance - Decimal("510"))
+        self.assertEqual(self.user.get_balance(), self.initial_balance - Decimal(510))
 
         with mock.patch.object(
             broadcast_withdrawal.request,
@@ -182,7 +182,7 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
 
         pending_with_hash.refresh_from_db()
         self.assertEqual(pending_with_hash.paid_status, PaidStatusModelMixin.PENDING)
-        self.assertEqual(self.user.get_balance(), self.initial_balance - Decimal("510"))
+        self.assertEqual(self.user.get_balance(), self.initial_balance - Decimal(510))
 
 
 class CheckPendingWithdrawalRecoveryTests(AWSMockTransactionTestCase):
