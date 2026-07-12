@@ -288,10 +288,10 @@ class GrantViewTests(APITestCase):
         self.assertIn("already open", response.data["message"])
 
     def test_grant_actions_permission_denied(self):
-        """Test that regular users cannot perform grant actions"""
+        """Test that regular users cannot perform grant moderation actions"""
         self.client.force_authenticate(self.regular_user)
 
-        # Test close action
+        # Test close action (grant owned by moderator, not regular_user)
         response = self.client.post(f"/api/grant/{self.grant.id}/close/")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -302,6 +302,65 @@ class GrantViewTests(APITestCase):
         # Test reopen action
         response = self.client.post(f"/api/grant/{self.grant.id}/reopen/")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def _create_and_approve_user_grant(self):
+        """Create a grant owned by regular_user and approve it to OPEN."""
+        post = create_post(created_by=self.regular_user, document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.regular_user,
+            unified_document=post.unified_document,
+            amount=Decimal("25000.00"),
+            currency="USD",
+            organization="User Foundation",
+            description="User grant",
+            status=Grant.PENDING,
+        )
+        self.client.force_authenticate(self.moderator)
+        self.client.post(f"/api/grant/{grant.id}/approve/")
+        grant.refresh_from_db()
+        return grant
+
+    def test_close_grant_as_creator(self):
+        """Grant creators can close their own open grants"""
+        grant = self._create_and_approve_user_grant()
+
+        self.client.force_authenticate(self.regular_user)
+        response = self.client.post(f"/api/grant/{grant.id}/close/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], Grant.CLOSED)
+        grant.refresh_from_db()
+        self.assertEqual(grant.status, Grant.CLOSED)
+
+    def test_close_grant_as_creator_completed(self):
+        """Grant creators cannot close completed grants"""
+        grant = self._create_and_approve_user_grant()
+        grant.status = Grant.COMPLETED
+        grant.save()
+
+        self.client.force_authenticate(self.regular_user)
+        response = self.client.post(f"/api/grant/{grant.id}/close/")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Only open or pending grants can be closed", response.data["message"]
+        )
+        grant.refresh_from_db()
+        self.assertEqual(grant.status, Grant.COMPLETED)
+
+    def test_close_grant_as_contact(self):
+        """Grant contacts can close open grants they are assigned to"""
+        grant = self._create_and_approve_user_grant()
+        contact_user = create_random_authenticated_user("grant_contact")
+        grant.contacts.add(contact_user)
+
+        self.client.force_authenticate(contact_user)
+        response = self.client.post(f"/api/grant/{grant.id}/close/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], Grant.CLOSED)
+        grant.refresh_from_db()
+        self.assertEqual(grant.status, Grant.CLOSED)
 
     def test_grant_serializer_context_fields(self):
         """Test that the grant serializer includes the expected context fields"""
