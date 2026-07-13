@@ -1,6 +1,5 @@
 import csv
 import decimal
-import time
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -10,15 +9,9 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 
 from purchase.models import Balance, RscExchangeRate
-from purchase.permissions import CanSendRSC
 from purchase.serializers import BalanceSerializer
-from reputation.distributions import Distribution
-from reputation.distributor import Distributor
-from user.models import User
-from user.permissions import IsModerator
 from utils.throttles import THROTTLE_CLASSES
 
 
@@ -44,34 +37,6 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         return self.queryset.filter(user=user).order_by("-created_date")
-
-    @action(
-        detail=False,
-        methods=["POST"],
-        permission_classes=[IsAuthenticated, IsModerator, CanSendRSC],
-    )
-    def send_rsc(self, request):
-        recipient_id = request.data.get("recipient_id", "")
-        try:
-            amount = Decimal(str(request.data.get("amount", 0)))
-        except (ArithmeticError, TypeError, ValueError):
-            return Response({"message": "Invalid RSC amount"}, status=400)
-
-        if not amount.is_finite() or amount <= 0:
-            return Response({"message": "Invalid RSC amount"}, status=400)
-
-        if recipient_id:
-            user = request.user
-            distribution = Distribution("MOD_PAYOUT", amount, give_rep=False)
-            timestamp = time.time()
-            user_proof = User.objects.get(id=recipient_id)
-            distributor = Distributor(
-                distribution, user_proof, user_proof, timestamp, user
-            )
-
-            distributor.distribute()
-
-        return Response({"message": "RSC Sent!"})
 
     @action(
         detail=False,
