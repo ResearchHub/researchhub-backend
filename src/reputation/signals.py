@@ -6,8 +6,8 @@ from django.dispatch import receiver
 
 import reputation.distributions as distributions
 from paper.models import Paper
-from reputation.distributor import Distributor
 from reputation.models import Distribution
+from reputation.services.balance_penalty_service import BalancePenaltyService
 from researchhub_document.models import ResearchhubUnifiedDocument
 
 NEW_USER_BONUS_REPUTATION_LIMIT = 200
@@ -42,15 +42,14 @@ def distribute_for_censor_paper(sender, instance, using, **kwargs):
     for flag in flags:
         recipient = flag.created_by
         if is_eligible_user(recipient):
-            distributor = Distributor(
-                distributions.FlagPaper,
-                recipient,
-                instance,
-                timestamp,
-                instance.created_by,
-                instance.hubs.all(),
+            BalancePenaltyService().apply(
+                user=recipient,
+                penalty=distributions.FlagPaper,
+                db_record=instance,
+                timestamp=timestamp,
+                giver=instance.created_by,
+                hubs=instance.hubs.all(),
             )
-            distributor.distribute()
 
 
 def is_eligible_user(user):

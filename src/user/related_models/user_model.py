@@ -13,6 +13,7 @@ from django.utils import timezone
 from hub.models import Hub
 from mailing_list.lib import send_email
 from mailing_list.models import EmailRecipient
+from purchase.related_models.balance_model import Balance
 from reputation.models import Distribution, PaidStatusModelMixin, Withdrawal
 from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
 from researchhub_access_group.constants import (
@@ -261,23 +262,152 @@ class User(AbstractUser):
         return self.get_balance(queryset=available_queryset, include_locked=True)
 
     def get_locked_balance(self):
-        """Returns total locked balance amount."""
+        """Returns total locked balance amount (promotional included)."""
         locked_queryset = self.get_balance_qs().filter(is_locked=True)
         return self.get_balance(queryset=locked_queryset, include_locked=True)
 
-    def get_unlocked_balance_lots_lifo(self):
+    def get_promotional_balance(self) -> Decimal:
+        """Returns total promotional balance (locked, but earns yield)."""
+        return self.get_locked_balance_by_lock_type().get(
+            Balance.LockType.PROMOTIONAL, Decimal(0)
+        )
+
+    def get_funding_credits_balance(self) -> Decimal:
+        """Returns the non-promotional locked balance.
+
+        Promotional funds are also spendable on fundraises but are tracked
+        separately because they earn yield and are consumed last.
+        """
+        return self.get_locked_balance_by_lock_type().get(
+            Balance.LockType.FUNDING_CREDIT, Decimal(0)
+        )
+
+    def get_locked_balance_by_lock_type(self) -> dict[str, Decimal]:
+        """Return effective, non-negative locked balances by category.
+
+        Historical category debits can exceed credits even when the overall
+        locked ledger is non-negative. Cap positive categories, in spend
+        order, to the overall locked total so category debt cannot create
+        spendable or yield-eligible funds in another category.
+        """
+        rows = (
+            self.get_balance_qs()
+            .filter(is_locked=True)
+            .values("lock_type")
+            .annotate(
+                total=Sum(
+                    Cast("amount", DecimalField(max_digits=255, decimal_places=128))
+                )
+            )
+        )
+        raw_balances = {row["lock_type"]: row["total"] or Decimal(0) for row in rows}
+
+        valid_lock_types = set(Balance.LOCKED_SPEND_ORDER)
+        unexpected_lock_types = set(raw_balances) - valid_lock_types
+        if unexpected_lock_types:
+            raise ValueError(
+                "Unsupported locked balance types: "
+                f"{sorted(str(value) for value in unexpected_lock_types)}"
+            )
+
+        remaining_total = max(sum(raw_balances.values(), Decimal(0)), Decimal(0))
+        effective_balances = {}
+        for lock_type in Balance.LOCKED_SPEND_ORDER:
+            if lock_type not in raw_balances:
+                continue
+            available = max(raw_balances[lock_type], Decimal(0))
+            effective_balances[lock_type] = min(available, remaining_total)
+            remaining_total -= effective_balances[lock_type]
+
+        return effective_balances
+
+    def allocate_locked_spend(self, amount: Decimal) -> tuple[list[dict], Decimal]:
+        """Split ``amount`` across locked categories in spend order.
+
+        Consumes categories in ``Balance.LOCKED_SPEND_ORDER`` (yield-earning
+        promotional funds last), capping each allocation at that category's
+        effective balance so the debits written from it keep every category
+        ledger — promotional yield netting in particular — correct.
+
+        Returns ``(allocations, remaining)`` where ``allocations`` is a list
+        of ``{"amount": Decimal, "is_locked": True, "lock_type": str}``
+        and ``remaining`` is the portion locked funds could not cover.
+        """
+        remaining = Decimal(str(amount))
+        if remaining <= 0:
+            return [], Decimal(0)
+
+        balances_by_type = self.get_locked_balance_by_lock_type()
+        allocations = []
+        for lock_type in Balance.LOCKED_SPEND_ORDER:
+            if remaining <= 0:
+                break
+            available = balances_by_type.get(lock_type, Decimal(0))
+            if available <= 0:
+                continue
+            use = min(available, remaining)
+            allocations.append(
+                {"amount": use, "is_locked": True, "lock_type": lock_type}
+            )
+            remaining -= use
+
+        return allocations, remaining
+
+    def get_unlocked_balance_lots_lifo(self) -> list[UnlockedBalanceLot]:
         """
         Reconstruct the user's remaining unlocked balance lots using LIFO.
 
         Negative balance rows consume the most recent positive rows first.
         """
+        return self._balance_lots_lifo(self.get_balance_qs().filter(is_locked=False))
+
+    def get_yield_eligible_balance_lots_lifo(self) -> list[UnlockedBalanceLot]:
+        """
+        Reconstruct the user's yield-earning balance lots using LIFO.
+
+        Yield-eligible principal is the unlocked balance plus the effective
+        promotional balance. Locked debt in another category caps promotional
+        lots so it cannot generate yield on funds the user no longer owns.
+        """
+        promotional_lots = self._balance_lots_lifo(
+            self.get_balance_qs().filter(
+                is_locked=True, lock_type=Balance.LockType.PROMOTIONAL
+            )
+        )
+        promotional_lots = self._cap_balance_lots_lifo(
+            promotional_lots, self.get_promotional_balance()
+        )
+        return self.get_unlocked_balance_lots_lifo() + promotional_lots
+
+    @staticmethod
+    def _cap_balance_lots_lifo(
+        lots: list[UnlockedBalanceLot], maximum: Decimal
+    ) -> list[UnlockedBalanceLot]:
+        """Cap lots by applying any excess as a LIFO debit."""
+        total = sum((lot.amount for lot in lots), Decimal(0))
+        remaining_debit = max(total - max(maximum, Decimal(0)), Decimal(0))
+        if remaining_debit == 0:
+            return lots
+
+        capped_lots = []
+        for lot in lots:
+            if remaining_debit >= lot.amount:
+                remaining_debit -= lot.amount
+                continue
+
+            amount = lot.amount - remaining_debit
+            remaining_debit = Decimal(0)
+            capped_lots.append(
+                UnlockedBalanceLot(amount=amount, created_date=lot.created_date)
+            )
+
+        return capped_lots
+
+    def _balance_lots_lifo(self, queryset: models.QuerySet) -> list[UnlockedBalanceLot]:
         remaining_debits = Decimal(0)
         lots = []
-        balance_rows = (
-            self.get_balance_qs()
-            .filter(is_locked=False)
-            .order_by("-created_date", "-id")
-            .only("id", "amount", "created_date")
+        balance_rows = queryset.order_by("-created_date", "-id").only(
+            "id", "amount", "created_date"
         )
 
         for balance in balance_rows.iterator():
@@ -308,13 +438,19 @@ class User(AbstractUser):
 
         return lots
 
-    def allocate_spend(self, amount, allow_locked=False):
+    def allocate_spend(self, amount: Decimal, allow_locked: bool = False) -> list[dict]:
         """
         Determine how to split ``amount`` across locked and unlocked balances.
 
+        Locked funds are consumed first, per category in
+        ``Balance.LOCKED_SPEND_ORDER`` (yield-earning promotional funds last).
+        Debits written from these allocations must carry ``lock_type`` so each
+        category — promotional yield netting in particular — stays correct
+        and refunds can restore the exact category.
+
         Returns a list of dicts::
 
-            [{"amount": Decimal, "is_locked": bool}]
+            [{"amount": Decimal, "is_locked": bool, "lock_type": str | None}]
 
         Raises ``ValueError`` if the user cannot cover ``amount``.
         """
@@ -325,16 +461,14 @@ class User(AbstractUser):
         allocations = []
 
         if allow_locked:
-            locked_balance = self.get_locked_balance()
-            if locked_balance > 0:
-                use = min(locked_balance, remaining)
-                allocations.append({"amount": use, "is_locked": True})
-                remaining -= use
+            allocations, remaining = self.allocate_locked_spend(remaining)
 
         if remaining > 0:
             if self.get_available_balance() < remaining:
                 raise ValueError("Insufficient balance")
-            allocations.append({"amount": remaining, "is_locked": False})
+            allocations.append(
+                {"amount": remaining, "is_locked": False, "lock_type": None}
+            )
 
         return allocations
 

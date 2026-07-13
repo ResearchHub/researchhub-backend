@@ -171,7 +171,9 @@ class PaymentService:
 
         # Convert cents to dollars, then USD to RSC
         usd_amount = checkout_session["amount_total"] / 100
-        rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
+        rsc_amount = Decimal(str(RscExchangeRate.usd_to_rsc(usd_amount)))
+        if not rsc_amount.is_finite() or rsc_amount <= 0:
+            raise ValueError("RSC purchase amount must be positive and finite")
 
         # Create a purchase distribution
         purchase_distribution = create_purchase_distribution(
@@ -185,6 +187,7 @@ class PaymentService:
             db_record=payment,
             timestamp=timezone.now().timestamp(),
             giver=None,  # Platform gives the RSC
+            lock_type=Balance.LockType.FUNDING_CREDIT,
         )
         distributor.distribute_locked_balance()
 
@@ -443,6 +446,9 @@ class PaymentService:
             },
         )
 
+        if not locked_rsc_amount.is_finite():
+            raise ValueError("Locked RSC amount must be finite")
+
         # Use the locked RSC amount from metadata
         if locked_rsc_amount > 0:
             rsc_amount = locked_rsc_amount
@@ -450,6 +456,9 @@ class PaymentService:
             # Fallback: convert USD to RSC using current rate
             usd_amount = payment_intent.amount / 100
             rsc_amount = Decimal(str(RscExchangeRate.usd_to_rsc(usd_amount)))
+
+        if not rsc_amount.is_finite() or rsc_amount <= 0:
+            raise ValueError("RSC purchase amount must be positive and finite")
 
         if not created:
             logger.info(
@@ -466,12 +475,25 @@ class PaymentService:
             calculate_bounty_fees(rsc_amount)
         )
 
+        if any(
+            not value.is_finite() or value < 0
+            for value in (
+                rsc_fee,
+                rh_fee,
+                dao_fee,
+                bounty_fee,
+                bounty_rh_fee,
+                bounty_dao_fee,
+            )
+        ):
+            raise ValueError("RSC purchase fees must be non-negative and finite")
+
         # Credit the user's locked balance with amount + both fees for transparency
         # The fees will be deducted separately to show as line items
         gross_amount = rsc_amount + rsc_fee + bounty_fee
 
         purchase_distribution = create_purchase_distribution(
-            user=payment.user, amount=float(gross_amount)
+            user=payment.user, amount=gross_amount
         )
         distributor = Distributor(
             distribution=purchase_distribution,
@@ -479,6 +501,7 @@ class PaymentService:
             db_record=payment,
             timestamp=timezone.now().timestamp(),
             giver=None,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
         )
         distributor.distribute_locked_balance()
 
@@ -492,6 +515,7 @@ class PaymentService:
             object_id=fee_obj.id,
             amount=f"-{rsc_fee}",
             is_locked=True,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
         )
 
         return payment, rsc_amount

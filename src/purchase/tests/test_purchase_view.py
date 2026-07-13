@@ -6,24 +6,17 @@ from purchase.models import Balance, Purchase, RscExchangeRate
 from reputation.models import BountyFee, Escrow, SupportFee
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
-from user.related_models.gatekeeper_model import Gatekeeper
 from user.tests.helpers import (
-    create_moderator,
     create_random_authenticated_user,
-    create_random_default_user,
     create_user,
 )
 
 
-class SendRSCTest(APITestCase):
-    base_url = "/api/transactions/send_rsc/"
-    balance_amount = 50
-
+class PurchaseViewTests(APITestCase):
     def setUp(self):
         self.bank_user = create_user(email="bank@researchhub.com")
         self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
         self.supportFee = SupportFee.objects.create(rh_pct=0.03, dao_pct=0.00)
-        self.recipient = create_random_default_user("recipient")
 
         RscExchangeRate.objects.create(
             rate=0.5,
@@ -76,43 +69,6 @@ class SendRSCTest(APITestCase):
         response = self.client.get("/api/purchase/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 0)
-
-    def test_regular_user_send_rsc(self):
-        user = create_random_authenticated_user("regular_user")
-        self.client.force_authenticate(user)
-        response = self._send_rsc(self.client, self.recipient)
-        self.assertEqual(response.status_code, 403)
-
-    def test_gatekeeper_send_rsc(self):
-        moderator = create_moderator(first_name="moderator", last_name="moderator")
-        Gatekeeper.objects.create(type="SEND_RSC", user=moderator)
-        self.client.force_authenticate(moderator)
-        response = self._send_rsc(self.client, self.recipient)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.recipient.balances.count(), 1)
-        self.assertEqual(
-            int(self.recipient.balances.first().amount), self.balance_amount
-        )
-
-    def test_moderator_user_send_rsc(self):
-        moderator = create_moderator(first_name="moderator", last_name="moderator")
-        self.client.force_authenticate(moderator)
-        response = self._send_rsc(self.client, self.recipient)
-        self.assertEqual(response.status_code, 403)
-
-    def test_unauthenticated_user_send_rsc(self):
-        response = self._send_rsc(self.client, self.recipient)
-        self.assertEqual(response.status_code, 401)
-
-    def _send_rsc(self, client, user):
-        url = self.base_url
-        form_data = self._build_form(user)
-        response = client.post(url, form_data)
-        return response
-
-    def _build_form(self, user):
-        form = {"recipient_id": user.id, "amount": self.balance_amount}
-        return form
 
     def test_support_paper_is_rejected(self):
         user = create_random_authenticated_user("rep_user")

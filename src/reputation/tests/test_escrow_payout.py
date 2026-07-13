@@ -82,6 +82,55 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
             ).exists()
         )
 
+    def test_escrow_rejects_non_positive_or_non_finite_payouts(self):
+        # Arrange
+        bounty_res = self._create_bounty()
+        escrow = Bounty.objects.get(id=bounty_res.data["id"]).escrow
+
+        # Act / Assert
+        for amount in (
+            decimal.Decimal(0),
+            decimal.Decimal(-1),
+            decimal.Decimal("NaN"),
+            decimal.Decimal("Infinity"),
+        ):
+            with self.subTest(amount=amount):
+                self.assertFalse(escrow.payout(self.recipient, amount))
+
+        escrow.refresh_from_db()
+        self.assertEqual(escrow.amount_holding, decimal.Decimal(100))
+        self.assertFalse(
+            Distribution.objects.filter(
+                proof_item_object_id=escrow.id,
+                recipient=self.recipient,
+                distribution_type="BOUNTY_PAYOUT",
+            ).exists()
+        )
+
+    def test_escrow_rejects_negative_or_non_finite_refunds(self):
+        # Arrange
+        bounty_res = self._create_bounty()
+        escrow = Bounty.objects.get(id=bounty_res.data["id"]).escrow
+
+        # Act / Assert
+        for amount in (
+            decimal.Decimal(-1),
+            decimal.Decimal("NaN"),
+            decimal.Decimal("Infinity"),
+        ):
+            with self.subTest(amount=amount):
+                self.assertFalse(escrow.refund(self.user, amount))
+
+        escrow.refresh_from_db()
+        self.assertEqual(escrow.amount_holding, decimal.Decimal(100))
+        self.assertFalse(
+            Distribution.objects.filter(
+                proof_item_object_id=escrow.id,
+                recipient=self.user,
+                distribution_type="BOUNTY_REFUND",
+            ).exists()
+        )
+
 
 class EscrowPayoutApproveBountyTests(APITestCase):
     def setUp(self):
