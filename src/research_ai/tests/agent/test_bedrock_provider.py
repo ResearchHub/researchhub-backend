@@ -13,6 +13,7 @@ from research_ai.services.agent.types import (
     TextBlock,
     ToolResultBlock,
     ToolUseBlock,
+    TurnUsage,
 )
 
 
@@ -248,6 +249,63 @@ class CompleteAndParseTests(SimpleTestCase):
         self.assertNotIn(
             {"cachePoint": {"type": "default"}}, call["messages"][-1]["content"]
         )
+
+    def test_complete_fills_usage_and_latency_from_response(self):
+        # Arrange: Converse reports usage and latency alongside the message.
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+            "usage": {
+                "inputTokens": 10,
+                "outputTokens": 3,
+                "cacheReadInputTokens": 5,
+                "cacheWriteInputTokens": 2,
+            },
+            "metrics": {"latencyMs": 1234},
+        }
+        provider = _build_provider([response])
+
+        # Act
+        turn = provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=100,
+            temperature=0.0,
+        )
+
+        # Assert: normalized into the neutral per-turn metadata.
+        self.assertEqual(
+            turn.usage,
+            TurnUsage(
+                input_tokens=10,
+                output_tokens=3,
+                cache_read_tokens=5,
+                cache_write_tokens=2,
+            ),
+        )
+        self.assertEqual(turn.latency_ms, 1234)
+
+    def test_missing_usage_and_metrics_leave_turn_metadata_none(self):
+        # Arrange: a response without usage/metrics (as fakes and older shapes omit).
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+        }
+        provider = _build_provider([response])
+
+        # Act
+        turn = provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=100,
+            temperature=0.0,
+        )
+
+        # Assert: absent metadata is None, not zeroed.
+        self.assertIsNone(turn.usage)
+        self.assertIsNone(turn.latency_ms)
 
     def test_parse_turn_maps_unknown_stop_reason_to_other(self):
         # Arrange

@@ -178,10 +178,17 @@ _FILLER = (
 def _clean_sections(title="A Study of Folding"):
     return {
         "title": title,
-        "hypothesis": "We hypothesize that X drives Y in measurable ways.",
-        "approach": "We will measure X under Y conditions. " + _FILLER,
+        "background": "We hypothesize that X drives Y in measurable ways.",
+        "preliminary_data": "Pilot work shows the trend. " + _FILLER,
+        "aims": [
+            {
+                "title": "Measure X",
+                "body": "We will measure X under Y conditions. " + _FILLER,
+            }
+        ],
         "why_this_team": "Jane Smith has published on protein folding.",
-        "scope_timeline": "Over 24 months within the $50,000 budget.",
+        "budget": "The $50,000 award covers compute and storage.",
+        "timeline": "The plan runs 24 months with monthly milestones.",
     }
 
 
@@ -383,6 +390,37 @@ class ProposalDraftServiceTests(TestCase):
         )
         self.assertEqual(result["last_submission"], draft.last_submission)
 
+    # -- too many aims for the award size is blocked ----------------------
+
+    def test_over_scoped_aims_are_blocked(self):
+        # Arrange: the $50k award funds at most two aims, but the draft has three.
+        sections = _clean_sections()
+        sections["aims"] = [
+            {"title": f"Aim {i}", "body": "We will measure X. " + _FILLER}
+            for i in range(1, 4)
+        ]
+        payload = {"sections": sections, "citations": []}
+        provider = _ScriptedProvider([_submit_turn(payload)])
+
+        # Act: the panel would pass (overall 5), so scope is the only blocker.
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: blocked on scope, the loop revised, and no Note was written.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertGreaterEqual(provider.call_count, 2)
+        scope = result["gate_report"]["scope"]
+        self.assertFalse(scope["ok"])
+        self.assertEqual(scope["max_aims"], 2)
+        self.assertEqual(scope["aims"], 3)
+        # The rejection names the award in the same format the prompt uses.
+        self.assertIn("This award ($50,000) funds at most 2", scope["gaps"][0])
+        self.assertEqual(Note.objects.count(), 0)
+
     # -- exhausting the round budget fails with a gate report -------------
 
     @override_settings(RESEARCH_AI_PROPOSAL_MAX_ROUNDS=2)
@@ -549,6 +587,65 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
         self.assertEqual(provider.call_count, 6)
         self.assertIn("plateau", result["error_message"])
+
+    # -- clearing the bar does not stop the loop; it runs to plateau ------
+
+    @override_settings(
+        RESEARCH_AI_PROPOSAL_MAX_ROUNDS=8,
+        RESEARCH_AI_PROPOSAL_PLATEAU_PATIENCE=3,
+    )
+    def test_passing_panel_keeps_refining_until_plateau_then_completes(self):
+        # Arrange: every submit clears the 4.0 bar at a constant 4, so the run
+        # must NOT stop at round 1 -- it keeps revising to try to raise the score
+        # and only stops when the flat score plateaus.
+        provider = _AlwaysSubmitProvider(_clean_payload())
+        panel = _FakePanel(overall=4)
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: round 1 sets the best, then patience=3 flat rounds -> stops at
+        # round 4 (short of the 8-round budget), and still COMPLETES because a
+        # round cleared every gate, shipping that draft as a Note.
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.assertEqual(provider.call_count, 4)
+        self.assertEqual(result["final_scores"]["overall"], 4)
+        self.assertEqual(Note.objects.count(), 1)
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(draft.status, ProposalDraft.Status.COMPLETED)
+        self.assertEqual(draft.rounds_used, 4)
+
+    @override_settings(
+        RESEARCH_AI_PROPOSAL_MAX_ROUNDS=8,
+        RESEARCH_AI_PROPOSAL_PLATEAU_PATIENCE=3,
+    )
+    def test_completed_run_ships_the_highest_scoring_accepted_round(self):
+        # Arrange: the score climbs above the bar (4 -> 4.5) then flatlines. The
+        # run should keep the higher round and ship it, not the first one that
+        # merely cleared the bar.
+        provider = _AlwaysSubmitProvider(_clean_payload())
+        panel = _SequencePanel([4, 4.5], gaps=[])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: the 4.5 round wins; the run completes on plateau (round 5) with
+        # the peak score persisted.
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.assertEqual(provider.call_count, 5)
+        self.assertEqual(result["final_scores"]["overall"], 4.5)
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(draft.final_scores["overall"], 4.5)
 
     # -- a failed run persists the best draft, not the last ----------------
 
@@ -858,6 +955,57 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
         self.assertTrue(result["gate_report"]["citations"]["ok"])
         self.assertEqual(result["gate_report"]["citations"]["ungrounded"], [])
+
+    # -- a minor_drift citation renders the resolved record, not the claim --
+
+    def test_minor_drift_citation_is_corrected_in_rendered_references(self):
+        # Arrange: the claimed title/authors drift from what the DOI resolves
+        # to (same paper), so the verifier classifies it minor_drift and the
+        # gate must adopt the resolved record before the References render.
+        citations = [
+            {
+                "claim_id": "drift1",
+                "doi": "10.1/drift",
+                "title": "Extracellular Matrix and Remyelination",
+                "authors": ["A. Turing"],
+            }
+        ]
+        oa = _FakeOpenAlex(
+            {
+                "10.1/drift": {
+                    "display_name": (
+                        "The Extracellular Matrix and Remyelination in CNS Disease"
+                    ),
+                    "publication_year": 2021,
+                    "doi": "https://doi.org/10.1/drift",
+                    "id": "https://openalex.org/W7",
+                    "authorships": [{"author": {"display_name": "Alan M. Turing"}}],
+                }
+            }
+        )
+        provider = _ScriptedProvider([_submit_turn(_clean_payload(citations))])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=oa,
+        )
+
+        # Assert: accepted (minor_drift passes the gate), the correction is
+        # reported, and the Note's References carry the resolved title/authors
+        # instead of what the model typed.
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.assertEqual(result["gate_report"]["citations"]["corrected"], ["drift1"])
+        note = Note.objects.get(id=result["note_id"])
+        plain_text = note.latest_version.plain_text
+        self.assertIn(
+            "Alan M. Turing (2021). The Extracellular Matrix and Remyelination in "
+            "CNS Disease. https://doi.org/10.1/drift",
+            plain_text,
+        )
+        self.assertNotIn("A. Turing. Extracellular Matrix", plain_text)
 
     # -- an unretrieved, unverifiable citation is still ungrounded ---------
 

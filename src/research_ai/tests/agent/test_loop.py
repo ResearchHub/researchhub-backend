@@ -73,7 +73,7 @@ def _build_toolset(seen=None):
     )
 
 
-def _build_agent(provider, toolset, *, max_iterations=12):
+def _build_agent(provider, toolset, *, max_iterations=12, recorder=None):
     """Build an Agent wired to the given provider and toolset with fixed defaults."""
     return Agent(
         provider,
@@ -82,7 +82,39 @@ def _build_agent(provider, toolset, *, max_iterations=12):
         max_iterations=max_iterations,
         max_tokens=4096,
         temperature=0.0,
+        recorder=recorder,
     )
+
+
+class RecordingRecorder:
+    """Captures every recorder hook invocation, in order."""
+
+    def __init__(self):
+        self.messages = []  # (message, turn) pairs, in recording order
+        self.finished = []
+        self.failed = []
+
+    def record_message(self, message, *, turn=None):
+        self.messages.append((message, turn))
+
+    def on_run_finished(self, result):
+        self.finished.append(result)
+
+    def on_run_failed(self, error):
+        self.failed.append(error)
+
+
+class RaisingRecorder:
+    """Every hook raises, to prove recording failures never break the run."""
+
+    def record_message(self, message, *, turn=None):
+        raise OSError("db gone")
+
+    def on_run_finished(self, result):
+        raise OSError("db gone")
+
+    def on_run_failed(self, error):
+        raise OSError("db gone")
 
 
 class AgentLoopTests(SimpleTestCase):
@@ -184,6 +216,122 @@ class AgentLoopTests(SimpleTestCase):
         self.assertEqual(ctx.exception.iterations, 1)
         # user turn + assistant tool turn + tool results survived the failure.
         self.assertEqual(len(ctx.exception.messages), 3)
+
+    def test_recorder_sees_every_message_and_the_finish(self):
+        # Arrange: a tool turn then a plain-text answer.
+        provider = FakeProvider(
+            [
+                _build_tool_turn("t1", "search", {"q": "jane"}),
+                _build_text_turn("done"),
+            ]
+        )
+        recorder = RecordingRecorder()
+        agent = _build_agent(provider, _build_toolset(), recorder=recorder)
+
+        # Act
+        result = agent.run("find jane")
+
+        # Assert: the recorded messages are exactly the run's transcript, in order.
+        self.assertEqual([m for m, _ in recorder.messages], result.messages)
+        # Assistant rows carry their turn (usage/latency ride along); others don't.
+        turns_by_role = [(m.role, turn is not None) for m, turn in recorder.messages]
+        self.assertEqual(
+            turns_by_role,
+            [
+                ("user", False),
+                ("assistant", True),
+                ("user", False),
+                ("assistant", True),
+            ],
+        )
+        self.assertEqual(recorder.finished, [result])
+        self.assertEqual(recorder.failed, [])
+
+    def test_recorder_sees_failure_with_all_prior_messages(self):
+        # Arrange: one good tool turn, then the provider dies.
+        class ExplodingProvider(FakeProvider):
+            def complete(self, **kwargs):
+                if not self._turns:
+                    raise ValueError("socket closed")
+                return super().complete(**kwargs)
+
+        provider = ExplodingProvider([_build_tool_turn("t1", "search", {})])
+        recorder = RecordingRecorder()
+        agent = _build_agent(provider, _build_toolset(), recorder=recorder)
+
+        # Act
+        with self.assertRaises(ProviderError) as ctx:
+            agent.run("hi")
+
+        # Assert: every message up to the failure was recorded, then the failure.
+        self.assertEqual([m for m, _ in recorder.messages], ctx.exception.messages)
+        self.assertEqual(len(recorder.messages), 3)  # user, assistant, tool results
+        self.assertEqual(recorder.failed, [ctx.exception])
+        self.assertEqual(recorder.finished, [])
+
+    def test_recorder_sees_iteration_limit_failure(self):
+        # Arrange: the model never stops calling tools.
+        provider = FakeProvider(
+            [_build_tool_turn(f"t{i}", "search", {}) for i in range(5)]
+        )
+        recorder = RecordingRecorder()
+        agent = _build_agent(
+            provider, _build_toolset(), max_iterations=2, recorder=recorder
+        )
+
+        # Act
+        with self.assertRaises(IterationLimitError) as ctx:
+            agent.run("loop forever")
+
+        # Assert: the full accumulated transcript was recorded before the failure.
+        self.assertEqual([m for m, _ in recorder.messages], ctx.exception.messages)
+        self.assertEqual(recorder.failed, [ctx.exception])
+
+    def test_raising_recorder_does_not_break_the_run(self):
+        # Arrange
+        provider = FakeProvider(
+            [
+                _build_tool_turn("t1", "search", {"q": "jane"}),
+                _build_text_turn("all done"),
+            ]
+        )
+        agent = _build_agent(provider, _build_toolset(), recorder=RaisingRecorder())
+
+        # Act: every hook raises; the run must still complete normally.
+        result = agent.run("find jane")
+
+        # Assert
+        self.assertEqual(result.final_text, "all done")
+        self.assertEqual(result.stop_reason, "end_turn")
+
+    def test_raising_recorder_does_not_mask_run_failure(self):
+        # Arrange: the run itself fails AND the recorder raises on the hook.
+        provider = FakeProvider(
+            [_build_text_turn("partial", stop_reason=StopReason.MAX_TOKENS)]
+        )
+        agent = _build_agent(provider, _build_toolset(), recorder=RaisingRecorder())
+
+        # Act / Assert: the run's own typed error propagates, not the recorder's.
+        with self.assertRaises(IncompleteTurnError):
+            agent.run("hi")
+
+    def test_continue_conversation_records_only_the_appended_turn(self):
+        # Arrange: prior history is already persisted; recording it again would
+        # duplicate rows.
+        history = [
+            Message(role="user", content=[TextBlock(text="earlier")]),
+            Message(role="assistant", content=[TextBlock(text="reply")]),
+        ]
+        provider = FakeProvider([_build_text_turn("second answer")])
+        recorder = RecordingRecorder()
+        agent = _build_agent(provider, _build_toolset(), recorder=recorder)
+
+        # Act
+        agent.continue_conversation(history, "follow up")
+
+        # Assert: the new user turn and the new assistant turn -- not the history.
+        recorded_texts = [m.content[0].text for m, _ in recorder.messages]
+        self.assertEqual(recorded_texts, ["follow up", "second answer"])
 
     def test_continue_conversation_resumes_from_prefilled_list(self):
         # Arrange: an existing conversation to resume.

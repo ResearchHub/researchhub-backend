@@ -16,17 +16,31 @@ SUBMIT_INPUT_SCHEMA = {
             "type": "object",
             "properties": {
                 "title": {"type": "string"},
-                "hypothesis": {"type": "string"},
-                "approach": {"type": "string"},
+                "background": {"type": "string"},
+                "preliminary_data": {"type": "string"},
+                "aims": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "body": {"type": "string"},
+                        },
+                        "required": ["title", "body"],
+                    },
+                },
                 "why_this_team": {"type": "string"},
-                "scope_timeline": {"type": "string"},
+                "budget": {"type": "string"},
+                "timeline": {"type": "string"},
             },
             "required": [
                 "title",
-                "hypothesis",
-                "approach",
+                "background",
+                "preliminary_data",
+                "aims",
                 "why_this_team",
-                "scope_timeline",
+                "budget",
+                "timeline",
             ],
         },
         "citations": {
@@ -38,6 +52,7 @@ SUBMIT_INPUT_SCHEMA = {
                     "doi": {"type": "string"},
                     "title": {"type": "string"},
                     "authors": {"type": "array", "items": {"type": "string"}},
+                    "year": {"type": "integer"},
                 },
                 "required": ["claim_id"],
             },
@@ -60,11 +75,11 @@ def build_submit_tool(handler) -> Tool:
         name="submit_proposal",
         description=(
             "Submit the finished proposal for the deterministic gate. Provide "
-            "`sections` (title, hypothesis, approach, why_this_team, "
-            "scope_timeline) and `citations` (each from a tool result); the "
-            "server assembles the final document from your sections. If the "
-            "gate rejects the draft it returns concrete gaps -- revise and "
-            "submit again."
+            "`sections` (title, background, preliminary_data, aims as a list of "
+            "{title, body}, why_this_team, budget, timeline) and `citations` "
+            "(each from a tool result); the server assembles the final numbered "
+            "document from your sections. If the gate rejects the draft it "
+            "returns concrete gaps -- revise and submit again."
         ),
         input_schema=SUBMIT_INPUT_SCHEMA,
         handler=handler,

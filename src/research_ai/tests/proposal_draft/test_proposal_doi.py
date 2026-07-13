@@ -1,8 +1,30 @@
-"""Unit tests for the shared proposal DOI helper (no Django, no network)."""
+"""Unit tests for the shared proposal DOI helpers (no Django, no network)."""
 
 import unittest
 
-from research_ai.services.proposal_tools.doi import strip_doi_prefix
+from research_ai.services.proposal_tools.doi import doi_url, strip_doi_prefix
+
+
+class DoiUrlTests(unittest.TestCase):
+    def test_bare_doi_gets_doi_org_prefix(self):
+        # Arrange / Act / Assert: casing is preserved for display.
+        self.assertEqual(doi_url("10.1/ABC"), "https://doi.org/10.1/ABC")
+
+    def test_existing_url_passes_through_untouched(self):
+        # Arrange / Act / Assert
+        cases = (
+            "https://doi.org/10.1/a",
+            "http://doi.org/10.2/x",  # NOSONAR - test input, not a request
+            "https://example.org/paper.pdf",
+        )
+        for value in cases:
+            with self.subTest(value=value):
+                self.assertEqual(doi_url(value), value)
+
+    def test_empty_and_none_return_empty(self):
+        # Arrange / Act / Assert
+        self.assertEqual(doi_url(""), "")
+        self.assertEqual(doi_url(None), "")
 
 
 class StripDoiPrefixTests(unittest.TestCase):

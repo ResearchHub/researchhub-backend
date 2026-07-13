@@ -21,6 +21,7 @@ from research_ai.services.agent.types import (
     TextBlock,
     ToolResultBlock,
     ToolUseBlock,
+    TurnUsage,
 )
 from utils.aws import bedrock_runtime_client
 
@@ -200,4 +201,17 @@ class BedrockProvider(LLMProvider):
             tool_calls=tool_calls,
             stop_reason=stop_reason,
             raw=response,
+            usage=self._parse_usage(response),
+            latency_ms=(response.get("metrics") or {}).get("latencyMs"),
+        )
+
+    def _parse_usage(self, response: dict) -> TurnUsage | None:
+        usage = response.get("usage")
+        if not usage:
+            return None
+        return TurnUsage(
+            input_tokens=usage.get("inputTokens"),
+            output_tokens=usage.get("outputTokens"),
+            cache_read_tokens=usage.get("cacheReadInputTokens"),
+            cache_write_tokens=usage.get("cacheWriteInputTokens"),
         )
