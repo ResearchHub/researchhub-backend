@@ -10,6 +10,7 @@ from note.models import Note, NoteContent
 from note.tests.helpers import create_note
 from purchase.models import Fundraise, Grant
 from reputation.models import Escrow
+from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.registered_report_note_metadata import (
@@ -209,6 +210,12 @@ class CreateRegisteredReportTests(APITestCase):
         post = create_post(created_by=self.user)
         post.note = note
         post.save(update_fields=["note"])
+        Permission.objects.create(
+            access_type="EDITOR",
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=note.unified_document_id,
+            user=self.user,
+        )
 
         # Act
         response = self.client.post(
