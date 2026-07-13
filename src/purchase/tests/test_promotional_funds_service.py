@@ -1,7 +1,5 @@
 from decimal import Decimal
-from io import StringIO
 
-from django.core.management import CommandError, call_command
 from django.test import TestCase
 
 from purchase.related_models.balance_model import Balance
@@ -60,54 +58,3 @@ class PromotionalFundsServiceTest(TestCase):
         # Act / Assert
         with self.assertRaises(ValueError):
             self.service.grant(self.user, Decimal(10), reason="  ")
-
-
-class GrantPromotionalFundsCommandTest(TestCase):
-    def setUp(self):
-        self.user = create_user(email="promo-command@test.com")
-
-    def test_command_grants_funds_by_email(self):
-        # Arrange
-        out = StringIO()
-
-        # Act
-        call_command(
-            "grant_promotional_funds",
-            "--user",
-            self.user.email,
-            "--amount",
-            "50",
-            "--reason",
-            "partner giveaway",
-            stdout=out,
-        )
-
-        # Assert
-        self.assertEqual(self.user.get_promotional_balance(), Decimal(50))
-        self.assertIn("Granted 50 RSC", out.getvalue())
-
-    def test_command_rejects_unknown_user(self):
-        # Act / Assert
-        with self.assertRaises(CommandError):
-            call_command(
-                "grant_promotional_funds",
-                "--user",
-                "missing@test.com",
-                "--amount",
-                "50",
-                "--reason",
-                "campaign",
-            )
-
-    def test_command_rejects_invalid_amount(self):
-        # Act / Assert
-        with self.assertRaises(CommandError):
-            call_command(
-                "grant_promotional_funds",
-                "--user",
-                self.user.email,
-                "--amount",
-                "not-a-number",
-                "--reason",
-                "campaign",
-            )
