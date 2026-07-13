@@ -59,17 +59,14 @@ class RegisteredReportPublishSerializer(Serializer):
     title = CharField()
     renderable_text = CharField()
     full_src = CharField()
-    full_json = JSONField(required=False, allow_null=True)
+    full_json = JSONField()
     authors = ListField(child=IntegerField(), required=False)
     editor_type = CharField(required=False, allow_blank=True, allow_null=True)
     image = CharField(required=False, allow_blank=True, allow_null=True)
     preview_img = CharField(required=False, allow_blank=True, allow_null=True)
 
-    def validate_full_json(self, value: object) -> dict[str, object] | None:
-        """Return editor JSON as an object even when clients send a JSON string."""
-        if value in (None, ""):
-            return None
-
+    def validate_full_json(self, value: object) -> dict[str, object]:
+        """Return the required editor JSON document as an object."""
         document = parse_note_json(value)
         if document is None:
             raise ValidationError("full_json must be a JSON object.")

@@ -28,6 +28,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from review.models import Review
+from user.models import Author
 
 from .common import FeedPagination
 
@@ -87,10 +88,16 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
             ),
             status=Fundraise.COMPLETED,
         )
+        public_grant_post = ResearchhubPost.objects.publicly_visible().filter(
+            pk=OuterRef("journey__grant_post_id"),
+        )
         source_proposal_prefetches = [
-            "journey__preregistration_post__authors",
-            "journey__preregistration_post__unified_document__hubs",
-            "journey__preregistration_post__unified_document__fundraises",
+            Prefetch(
+                "journey__preregistration_post__unified_document__fundraises",
+                queryset=Fundraise.objects.filter(status=Fundraise.COMPLETED)
+                .select_related("created_by", "escrow")
+                .order_by("-created_date", "-id"),
+            ),
             Prefetch(
                 "journey__preregistration_post__unified_document__reviews",
                 queryset=Review.objects.filter(is_removed=False).select_related(
@@ -122,31 +129,13 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
                 "unified_document",
             )
             .prefetch_related(
-                "authors",
-                "unified_document__hubs",
-                "unified_document__fundraises",
-                Prefetch(
-                    "unified_document__reviews",
-                    queryset=Review.objects.filter(is_removed=False).select_related(
-                        "created_by__author_profile"
-                    ),
-                ),
-                Prefetch(
-                    "unified_document__related_bounties",
-                    queryset=Bounty.objects.filter(parent__isnull=True)
-                    .select_related("created_by")
-                    .prefetch_related(
-                        Prefetch(
-                            "children",
-                            queryset=Bounty.objects.select_related(
-                                "created_by__author_profile"
-                            ),
-                        )
-                    ),
-                ),
+                Prefetch("authors", queryset=Author.objects.select_related("user")),
                 *source_proposal_prefetches,
             )
-            .annotate(has_completed_source_fundraise=Exists(completed_source_fundraise))
+            .annotate(
+                has_completed_source_fundraise=Exists(completed_source_fundraise),
+                has_public_grant_post=Exists(public_grant_post),
+            )
             .publicly_visible()
             .filter(
                 document_type=REGISTERED_REPORT,

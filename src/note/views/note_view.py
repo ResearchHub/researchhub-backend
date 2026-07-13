@@ -560,6 +560,11 @@ class NoteContentViewSet(ModelViewSet):
         self.kwargs["pk"] = note_id
 
         note = self.get_object()
+        if getattr(note, "post", None) is not None:
+            return Response(
+                {"error": "Published registered report content cannot be edited."},
+                status=400,
+            )
         note_content = NoteContent.objects.create(
             note=note, plain_text=plain_text, json=full_json
         )

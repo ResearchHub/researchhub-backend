@@ -5,76 +5,80 @@ from rest_framework import serializers
 
 from feed.hot_score_utils import calculate_adjusted_score
 from feed.models import FeedEntry
-from feed.serializers import SimpleAuthorSerializer
+from feed.serializers import SimpleAuthorSerializer, SimpleUserSerializer
 from hub.serializers import SimpleHubSerializer
-from researchhub_document.models import ResearchhubPost, ResearchJourney
+from researchhub_document.models import ResearchhubPost
 from researchhub_document.registered_report_note_metadata import parse_note_json
 from researchhub_document.related_models.constants.journey_stage import (
     JOURNEY_STAGE_GRANT,
     JOURNEY_STAGE_PROPOSAL,
     JOURNEY_STAGE_REGISTERED_REPORT,
 )
-from researchhub_document.services.journey_service import JourneyService
-from user.serializers import AuthorSerializer, UserSerializer
+from researchhub_document.services.registered_report_work_service import (
+    RegisteredReportWorkPayload,
+)
+from review.models import Review
+
+
+class RegisteredReportProposalReviewSerializer(serializers.ModelSerializer):
+    """Serialize the peer-review data shown beside a registered report."""
+
+    created_by = SimpleUserSerializer(read_only=True)
+
+    class Meta:
+        model = Review
+        fields = [
+            "id",
+            "score",
+            "is_assessed",
+            "created_by",
+            "created_date",
+            "updated_date",
+        ]
 
 
 class RegisteredReportWorkSerializer(serializers.Serializer):
     """Serialize one registered report work-page payload."""
 
-    def to_representation(self, post: ResearchhubPost) -> dict[str, Any]:
+    def to_representation(self, payload: RegisteredReportWorkPayload) -> dict[str, Any]:
         """Return feed-like registered report data plus tracker post references."""
-        journey = post.journey
-        proposal = self.get_proposal(journey)
-        grant_post = self.get_grant_post(journey)
-        authors = self.serialize_authors(post)
+        report = payload.report
+        authors = self.serialize_authors(report)
 
         return {
-            "id": post.id,
-            "content_type": post._meta.model_name.upper(),
-            "content_object": self.serialize_content_object(post, proposal, authors),
-            "action_date": post.created_date,
+            "id": report.id,
+            "content_type": report._meta.model_name.upper(),
+            "content_object": self.serialize_content_object(
+                report,
+                payload.proposal,
+                authors,
+            ),
+            "action_date": report.created_date,
             "action": FeedEntry.PUBLISH,
-            "author": self.serialize_author(post),
-            "metrics": self.serialize_metrics(post),
-            "work": self.serialize_work(post, authors),
+            "author": self.serialize_author(report),
+            "metrics": self.serialize_metrics(report),
+            "work": self.serialize_work(report, authors),
             "tracker": [
                 self.serialize_tracker_step(
                     JOURNEY_STAGE_GRANT,
                     "Grant",
-                    grant_post,
+                    payload.grant,
                     is_current=False,
                 ),
                 self.serialize_tracker_step(
                     JOURNEY_STAGE_PROPOSAL,
                     "Proposal",
-                    proposal,
+                    payload.proposal,
                     is_current=False,
                 ),
                 self.serialize_tracker_step(
                     JOURNEY_STAGE_REGISTERED_REPORT,
                     "Registered Report",
-                    post,
+                    report,
                     is_current=True,
                 ),
             ],
-            "links": {
-                JOURNEY_STAGE_GRANT: self.serialize_tracker_link(grant_post),
-                JOURNEY_STAGE_PROPOSAL: self.serialize_tracker_link(proposal),
-                JOURNEY_STAGE_REGISTERED_REPORT: self.serialize_tracker_link(post),
-            },
         }
-
-    def get_proposal(self, journey: ResearchJourney | None) -> ResearchhubPost | None:
-        """Return the proposal attached to the registered report."""
-        if journey is None:
-            return None
-        return JourneyService().get_proposal(journey)
-
-    def get_grant_post(self, journey: ResearchJourney | None) -> ResearchhubPost | None:
-        """Return the grant post attached to the registered report journey."""
-        if journey is None:
-            return None
-        return journey.grant_post
 
     def serialize_content_object(
         self,
@@ -88,10 +92,11 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
             "slug": post.slug,
             "title": post.title,
             "type": post.document_type,
+            "doi": post.doi,
             "image_url": self.get_image_url(post),
             "unified_document_id": post.unified_document_id,
             "authors": authors,
-            "journal_state": "registered_report",
+            "journal_state": JOURNEY_STAGE_REGISTERED_REPORT,
             "proposal": self.serialize_proposal_reference(proposal),
         }
 
@@ -99,23 +104,18 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
         self, post: ResearchhubPost, authors: list[dict[str, Any]]
     ) -> dict[str, Any]:
         """Serialize registered report work data for the work page."""
-        full_src = self.get_full_src(post)
         return {
             "id": post.id,
             "authors": authors,
-            "created_by": UserSerializer(post.created_by, read_only=True).data,
+            "created_by": self.serialize_created_by(post),
             "created_date": post.created_date,
             "document_type": post.document_type,
             "doi": post.doi,
             "editor_type": post.editor_type,
-            "formatted_html": full_src,
             "full_json": self.get_full_json(post),
-            "full_markdown": full_src,
-            "full_src": full_src,
             "hubs": SimpleHubSerializer(post.unified_document.hubs, many=True).data,
             "image_url": self.get_image_url(post),
             "is_removed": post.unified_document.is_removed,
-            "post_src": self.get_post_src(post),
             "preview_img": post.preview_img,
             "renderable_text": post.renderable_text,
             "slug": post.slug,
@@ -132,7 +132,7 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
         post: ResearchhubPost | None,
         is_current: bool,
     ) -> dict[str, Any]:
-        """Serialize one pizza tracker step and its post reference."""
+        """Serialize one ordered tracker stage and its post reference."""
         return {
             "stage": stage,
             "label": label,
@@ -143,26 +143,33 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
             "document_type": post.document_type if post is not None else None,
         }
 
-    def serialize_tracker_link(
-        self, post: ResearchhubPost | None
-    ) -> dict[str, Any]:
-        """Serialize the post reference used for a tracker stage."""
-        return {
-            "post_id": post.id if post is not None else None,
-            "title": post.title if post is not None else None,
-        }
-
     def serialize_proposal_reference(
         self, proposal: ResearchhubPost | None
     ) -> dict[str, Any] | None:
-        """Serialize the source proposal reference."""
+        """Serialize source-proposal data needed by the work-page sidebar."""
         if proposal is None:
             return None
         return {
             "id": proposal.id,
             "slug": proposal.slug,
             "title": proposal.title,
+            "doi": proposal.doi,
+            "authors": self.serialize_authors(proposal),
+            "created_by": self.serialize_created_by(proposal),
+            "created_date": proposal.created_date,
+            "document_type": proposal.document_type,
+            "hubs": SimpleHubSerializer(
+                proposal.unified_document.hubs,
+                many=True,
+            ).data,
+            "image_url": self.get_image_url(proposal),
+            "peer_reviews": RegisteredReportProposalReviewSerializer(
+                proposal.unified_document.reviews.all(),
+                many=True,
+            ).data,
+            "status": proposal.unified_document.status,
             "unified_document_id": proposal.unified_document_id,
+            "updated_date": proposal.updated_date,
         }
 
     def serialize_authors(self, post: ResearchhubPost) -> list[dict[str, Any]]:
@@ -170,7 +177,7 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
         authors = list(post.authors.all())
         if not authors and post.created_by is not None:
             authors = [post.created_by.author_profile]
-        return AuthorSerializer(authors, context=self.context, many=True).data
+        return SimpleAuthorSerializer(authors, context=self.context, many=True).data
 
     def serialize_author(self, post: ResearchhubPost) -> dict[str, Any] | None:
         """Serialize the feed author."""
@@ -178,6 +185,12 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
         if author is None:
             return None
         return SimpleAuthorSerializer(author).data
+
+    def serialize_created_by(self, post: ResearchhubPost) -> dict[str, Any] | None:
+        """Serialize the report creator without account-only fields."""
+        if post.created_by is None:
+            return None
+        return SimpleUserSerializer(post.created_by).data
 
     def serialize_metrics(self, post: ResearchhubPost) -> dict[str, Any]:
         """Serialize registered report metrics without conversations or reviews."""
@@ -193,31 +206,10 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
             return None
         return default_storage.url(post.image)
 
-    def get_post_src(self, post: ResearchhubPost) -> str | None:
-        """Return the registered report source file URL."""
-        try:
-            return post.discussion_src.url
-        except ValueError:
-            return None
-
-    def get_full_src(self, post: ResearchhubPost) -> str | None:
-        """Return stored formatted HTML when the report has source content."""
-        if not post.discussion_src:
-            return None
-        try:
-            post.discussion_src.open("rb")
-            try:
-                return post.discussion_src.read().decode("utf-8")
-            finally:
-                post.discussion_src.close()
-        except (OSError, UnicodeDecodeError, ValueError):
-            return None
-
-    def get_full_json(self, post: ResearchhubPost) -> object | None:
+    def get_full_json(self, post: ResearchhubPost) -> dict[str, Any] | None:
         """Return the notebook JSON used to render the registered report."""
         note = post.note
         if note is None or note.latest_version is None:
             return None
 
-        value = note.latest_version.json
-        return parse_note_json(value) or value
+        return parse_note_json(note.latest_version.json)

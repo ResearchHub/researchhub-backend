@@ -16,6 +16,7 @@ from researchhub_document.models import (
 )
 from researchhub_document.registered_report_note_metadata import (
     add_registered_report_prefill_metadata,
+    get_registered_report_prefill_metadata,
     parse_note_json,
 )
 from researchhub_document.related_models.constants.document_type import (
@@ -87,8 +88,10 @@ class JournalEntryService:
             raise ValueError("Proposal already has a registered report.")
         return proposal
 
-    def get_registered_report_note(self, user: User, note_id: int) -> Note:
-        """Return the user's unpublished registered report note."""
+    def get_registered_report_note(
+        self, user: User, note_id: int, proposal: ResearchhubPost
+    ) -> Note:
+        """Return the user's unpublished draft for the requested proposal."""
         note = Note.objects.filter(
             created_by=user,
             document_type=REGISTERED_REPORT,
@@ -99,7 +102,26 @@ class JournalEntryService:
             raise ValueError("Registered report note not found.")
         if hasattr(note, "post"):
             raise ValueError("Registered report note is already published.")
+        if note.latest_version is None:
+            raise ValueError("Registered report note has no content.")
+
+        metadata = get_registered_report_prefill_metadata(note.latest_version.json)
+        if metadata.get("proposal_id") != proposal.id:
+            raise ValueError("Registered report note does not belong to this proposal.")
         return note
+
+    def persist_registered_report_content(
+        self,
+        note: Note,
+        plain_text: str,
+        document: dict[str, object],
+    ) -> None:
+        """Save the final immutable editor document before publishing its report."""
+        NoteContent.objects.create(
+            note=note,
+            plain_text=plain_text,
+            json=document,
+        )
 
     def _validate_user_id(self, user: User, user_id: int) -> None:
         """Validate that the requested user is real and matches the requester."""
