@@ -1,17 +1,23 @@
 # flake8: noqa
+import threading
 import time
+from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
-from rest_framework.test import APITestCase
+from django.db import connection, transaction
+from rest_framework.test import APIClient, APITestCase, APITransactionTestCase
 
 from hub.models import Hub
 from notification.models import Notification
 from paper.tests.helpers import create_paper
+from purchase.models import Balance
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import BountyFee, Score
+from reputation.models import Bounty, BountyFee, Score
+from reputation.views.bounty_view import _create_bounty_checks
 from researchhub_comment.models import RhCommentModel
 from review.models import Review
+from user.models import User
 from user.related_models.user_model import FOUNDATION_EMAIL
 from user.tests.helpers import (
     create_moderator,
@@ -19,6 +25,97 @@ from user.tests.helpers import (
     create_user,
     make_user_verified,
 )
+
+
+class CommentBountyBalanceConcurrencyTests(APITransactionTestCase):
+    def setUp(self):
+        self.bank_user = create_user(email="bank@researchhub.com")
+        self.foundation = create_user(email=FOUNDATION_EMAIL)
+        self.paper_uploader = create_random_default_user("bounty_race_uploader")
+        self.paper = create_paper(uploaded_by=self.paper_uploader)
+        self.paper_content_type = ContentType.objects.get_for_model(self.paper)
+        BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
+        Balance.objects.create(
+            user=self.foundation,
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            amount="109",
+        )
+
+    def test_balance_is_rechecked_after_waiting_for_user_lock(self):
+        # Arrange
+        request_at_debit_boundary = threading.Event()
+        responses = []
+        errors = []
+        select_for_update = User.objects.select_for_update
+
+        def checked_bounty_balance(*args, **kwargs):
+            result = _create_bounty_checks(*args, **kwargs)
+            request_at_debit_boundary.set()
+            return result
+
+        def select_user_for_update(*args, **kwargs):
+            request_at_debit_boundary.set()
+            return select_for_update(*args, **kwargs)
+
+        def create_comment_bounty():
+            try:
+                client = APIClient()
+                client.force_authenticate(self.foundation)
+                responses.append(
+                    client.post(
+                        f"/api/paper/{self.paper.id}/comments/"
+                        "create_comment_with_bounty/",
+                        {
+                            "comment_content_json": {
+                                "ops": [{"insert": "Concurrent bounty"}]
+                            },
+                            "amount": "100",
+                        },
+                        format="json",
+                    )
+                )
+            except Exception as error:
+                errors.append(error)
+            finally:
+                connection.close()
+
+        request_thread = threading.Thread(target=create_comment_bounty)
+
+        # Act: hold the user lock while the request starts, consume the
+        # available balance, then let the request acquire the lock and recheck.
+        with transaction.atomic():
+            User.objects.select_for_update().get(pk=self.foundation.pk)
+            with (
+                patch.object(
+                    User.objects,
+                    "select_for_update",
+                    side_effect=select_user_for_update,
+                ),
+                patch(
+                    "researchhub_comment.views.rh_comment_view._create_bounty_checks",
+                    side_effect=checked_bounty_balance,
+                ),
+            ):
+                request_thread.start()
+                self.assertTrue(request_at_debit_boundary.wait(timeout=5))
+                Balance.objects.create(
+                    user=self.foundation,
+                    content_type=self.paper_content_type,
+                    object_id=self.paper.id,
+                    amount="-109",
+                )
+
+        request_thread.join(timeout=5)
+
+        # Assert
+        self.assertFalse(request_thread.is_alive())
+        self.assertEqual(errors, [])
+        self.assertEqual(len(responses), 1)
+        self.assertEqual(responses[0].status_code, 402)
+        self.assertEqual(self.foundation.get_available_balance(), 0)
+        self.assertFalse(Bounty.objects.exists())
+        self.assertFalse(RhCommentModel.objects.exists())
 
 
 class CommentViewTests(APITestCase):
