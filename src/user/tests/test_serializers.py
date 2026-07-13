@@ -334,6 +334,8 @@ class UserBalancesSerializerTests(TestCase):
 
         self.assertEqual(balances["rsc"], 1000)
         self.assertEqual(balances["rsc_locked"], 200)
+        self.assertEqual(balances["rsc_funding_credits"], 200)
+        self.assertEqual(balances["rsc_promotional"], 0)
         # total_rsc = 1200 RSC
         self.assertEqual(balances["total_rsc"], 1200)
         # total_usd_cents = 1200 RSC * 0.5 * 100 = 60000
@@ -360,6 +362,7 @@ class UserBalancesSerializerTests(TestCase):
 
         # Assert
         self.assertEqual(data["balances"]["rsc_locked"], 200)
+        self.assertEqual(data["balances"]["rsc_funding_credits"], 0)
         self.assertEqual(data["balances"]["rsc_promotional"], 200)
         self.assertEqual(data["promotional_balance"], 200)
 
@@ -377,6 +380,8 @@ class UserBalancesSerializerTests(TestCase):
         self.assertIsNotNone(balances)
         self.assertEqual(balances["rsc"], 0)
         self.assertEqual(balances["rsc_locked"], 0)
+        self.assertEqual(balances["rsc_funding_credits"], 0)
+        self.assertEqual(balances["rsc_promotional"], 0)
         self.assertEqual(balances["total_rsc"], 0)
         self.assertEqual(balances["total_usd_cents"], 0)
 
