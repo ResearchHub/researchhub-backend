@@ -877,6 +877,22 @@ class WithdrawalViewSetTests(APITestCase):
         self.assertEqual(message, "You do not have enough RSC to make this withdrawal")
         self.assertIsNone(net_amount)
 
+    def test_check_withdrawal_amount_requires_balance_for_full_debit(self):
+        # Arrange: the user can cover the net transfer, but not the fee that is
+        # included in the balance row written for the withdrawal.
+        user = create_random_authenticated_user("fee_shortfall_user")
+        create_deposit(user, amount="490")
+
+        # Act
+        valid, message, net_amount = self.withdrawal_view._check_withdrawal_amount(
+            decimal.Decimal(500), decimal.Decimal(10), user
+        )
+
+        # Assert
+        self.assertFalse(valid)
+        self.assertEqual(message, "You do not have enough RSC to make this withdrawal")
+        self.assertIsNone(net_amount)
+
     def test_check_withdrawal_time_limit_verified_user(self):
         """Test that verified users can withdraw immediately after account creation."""
         user = create_random_authenticated_user("new_verified_user")

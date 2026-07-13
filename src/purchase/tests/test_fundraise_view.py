@@ -653,7 +653,7 @@ class FundraiseViewTests(APITestCase):
         response = self._create_contribution(fundraise_id, user, amount=100)
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("Insufficient funding credits", response.data["message"])
+        self.assertIn("Insufficient locked balance", response.data["message"])
 
     def test_create_contribution_all_locked_balance(self):
         """

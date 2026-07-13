@@ -1,9 +1,11 @@
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, override_settings
 from web3 import Web3
 
+from purchase.models import Balance
 from reputation.distributions import Distribution
 from reputation.distributor import Distributor
 from reputation.services.wallet import DEAD_ADDRESS, WalletService
@@ -104,7 +106,12 @@ class TestWalletService(TestCase):
         """Test successful RSC burning from revenue account."""
         # Arrange
         mock_get_revenue_account.return_value = self.revenue_account
-        self.revenue_account.get_balance = Mock(return_value=Decimal("100.0"))
+        Balance.objects.create(
+            user=self.revenue_account,
+            content_type=ContentType.objects.get_for_model(self.revenue_account),
+            object_id=self.revenue_account.id,
+            amount="100.0",
+        )
         mock_get_private_key.return_value = "mock_private_key"
 
         mock_web3_provider.base = self.mock_w3
@@ -118,6 +125,7 @@ class TestWalletService(TestCase):
         self.assertEqual(result, "0xabc123")
         mock_logger.info.assert_called()
         mock_execute_transfer.assert_called_once()
+        self.assertEqual(self.revenue_account.get_available_balance(), Decimal(0))
 
         # Verify API calls were made for gas price
         self.mock_requests_get.assert_called()
@@ -135,7 +143,6 @@ class TestWalletService(TestCase):
         """Test RSC burning when revenue account has no balance."""
         # Arrange
         mock_get_revenue_account.return_value = self.revenue_account
-        self.revenue_account.get_balance = Mock(return_value=Decimal("0.0"))
 
         # Act
         result = WalletService.burn_revenue_rsc("BASE")
@@ -143,7 +150,7 @@ class TestWalletService(TestCase):
         # Assert
         self.assertIsNone(result)
         mock_logger.info.assert_called_with(
-            "Revenue account has no balance to burn: 0.0"
+            "Revenue account has no balance to burn: %s", Decimal(0)
         )
 
     @patch("reputation.services.wallet.User.objects.get_community_revenue_account")
