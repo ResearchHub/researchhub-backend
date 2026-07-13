@@ -71,7 +71,7 @@ class FundingActivityFeedSignalTests(AWSMockTestCase):
             rec = EscrowRecipients.objects.create(
                 escrow=escrow,
                 user=self.recipient,
-                amount=Decimal("25"),
+                amount=Decimal(25),
             )
 
             # Act
@@ -96,7 +96,7 @@ class FundingActivityFeedSignalTests(AWSMockTestCase):
         content = serialize_feed_item(activity, fa_ct)
         self.assertEqual(content["id"], activity.id)
         self.assertEqual(content["source_type"], FundingActivity.BOUNTY_PAYOUT)
-        self.assertEqual(Decimal(str(content["total_amount"])), Decimal("25"))
+        self.assertEqual(Decimal(str(content["total_amount"])), Decimal(25))
         self.assertEqual(content["funder"]["id"], self.funder.author_profile.id)
         self.assertEqual(len(content["recipients"]), 1)
         self.assertEqual(
@@ -133,14 +133,14 @@ class FundingActivityFeedSignalTests(AWSMockTestCase):
             object_id=comment.id,
             purchase_type=Purchase.BOOST,
             paid_status=Purchase.PAID,
-            amount=Decimal("20"),
+            amount=Decimal(20),
             purchase_method=Purchase.OFF_CHAIN,
         )
         ct_purchase = ContentType.objects.get_for_model(Purchase)
         distribution = Distribution.objects.create(
             giver=self.funder,
             recipient=self.recipient,
-            amount=Decimal("20"),
+            amount=Decimal(20),
             distribution_type="PURCHASE",
             proof_item_content_type=ct_purchase,
             proof_item_object_id=proof_purchase.id,
@@ -168,7 +168,7 @@ class FundingActivityFeedSignalTests(AWSMockTestCase):
 
         content = serialize_feed_item(activity, fa_ct)
         self.assertEqual(content["source_type"], FundingActivity.TIP_REVIEW)
-        self.assertEqual(Decimal(str(content["total_amount"])), Decimal("20"))
+        self.assertEqual(Decimal(str(content["total_amount"])), Decimal(20))
         self.assertEqual(content["funder"]["id"], self.funder.author_profile.id)
         self.assertEqual(len(content["recipients"]), 1)
 
@@ -179,7 +179,7 @@ class FundingActivityFeedSignalTests(AWSMockTestCase):
         activity = FundingActivity.objects.create(
             funder=self.funder,
             source_type=FundingActivity.BOUNTY_PAYOUT,
-            total_amount=Decimal("10"),
+            total_amount=Decimal(10),
             unified_document=paper.unified_document,
             activity_date=paper.created_date,
             source_content_type=ContentType.objects.get_for_model(EscrowRecipients),
@@ -188,7 +188,7 @@ class FundingActivityFeedSignalTests(AWSMockTestCase):
         FundingActivityRecipient.objects.create(
             activity=activity,
             recipient_user=self.recipient,
-            amount=Decimal("10"),
+            amount=Decimal(10),
         )
         fa_ct = ContentType.objects.get_for_model(FundingActivity)
 

@@ -1100,7 +1100,7 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
         self.bounty_fa = FundingActivity.objects.create(
             funder=self.user,
             source_type=FundingActivity.BOUNTY_PAYOUT,
-            total_amount=Decimal("25"),
+            total_amount=Decimal(25),
             total_usd_cents=500,
             unified_document=self.proposal_doc,
             activity_date=timezone.now(),
@@ -1117,7 +1117,7 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
         self.tip_review_fa = FundingActivity.objects.create(
             funder=self.user,
             source_type=FundingActivity.TIP_REVIEW,
-            total_amount=Decimal("20"),
+            total_amount=Decimal(20),
             total_usd_cents=400,
             unified_document=self.proposal_doc,
             activity_date=timezone.now(),
@@ -1136,7 +1136,7 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
         self.tip_document_fa = FundingActivity.objects.create(
             funder=self.user,
             source_type=FundingActivity.TIP_DOCUMENT,
-            total_amount=Decimal("10"),
+            total_amount=Decimal(10),
             total_usd_cents=200,
             unified_document=self.unrelated_doc,
             activity_date=timezone.now(),
