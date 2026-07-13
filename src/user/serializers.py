@@ -72,6 +72,8 @@ def compute_user_balances(user):
     return {
         "rsc": rsc,
         "rsc_locked": rsc_locked,
+        # Subset of rsc_locked that does not earn yield.
+        "rsc_funding_credits": user.get_funding_credits_balance(),
         # Subset of rsc_locked that earns yield (not withdrawable).
         "rsc_promotional": user.get_promotional_balance(),
         "total_rsc": float(total_rsc),
