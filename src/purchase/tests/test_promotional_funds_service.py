@@ -48,6 +48,14 @@ class PromotionalFundsServiceTest(TestCase):
         with self.assertRaises(ValueError):
             self.service.grant(self.user, Decimal(-5), reason="campaign")
 
+    def test_grant_rejects_non_finite_amount(self):
+        # Act / Assert
+        for amount in (Decimal("NaN"), Decimal("Infinity"), Decimal("-Infinity")):
+            with self.subTest(amount=amount), self.assertRaises(ValueError):
+                self.service.grant(self.user, amount, reason="campaign")
+
+        self.assertFalse(Balance.objects.filter(user=self.user).exists())
+
     def test_grant_requires_reason(self):
         # Act / Assert
         with self.assertRaises(ValueError):

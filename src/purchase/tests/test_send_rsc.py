@@ -94,6 +94,23 @@ class SendRSCTest(APITestCase):
             int(self.recipient.balances.first().amount), self.balance_amount
         )
 
+    def test_gatekeeper_cannot_send_invalid_rsc_amount(self):
+        # Arrange
+        moderator = create_moderator(first_name="moderator", last_name="moderator")
+        Gatekeeper.objects.create(type="SEND_RSC", user=moderator)
+        self.client.force_authenticate(moderator)
+
+        # Act / Assert
+        for amount in (-1, 0, "NaN", "Infinity", "invalid"):
+            with self.subTest(amount=amount):
+                response = self.client.post(
+                    self.base_url,
+                    {"recipient_id": self.recipient.id, "amount": amount},
+                )
+                self.assertEqual(response.status_code, 400)
+
+        self.assertFalse(self.recipient.balances.exists())
+
     def test_moderator_user_send_rsc(self):
         moderator = create_moderator(first_name="moderator", last_name="moderator")
         self.client.force_authenticate(moderator)

@@ -28,8 +28,11 @@ class PromotionalFundsService:
         Returns the created ``Distribution`` record (its ``Balance`` row is
         created with ``is_locked=True, lock_type=PROMOTIONAL``).
         """
-        amount = Decimal(str(amount))
-        if amount <= 0:
+        try:
+            amount = Decimal(str(amount))
+        except (ArithmeticError, TypeError, ValueError) as error:
+            raise ValueError("Promotional grant amount must be positive") from error
+        if not amount.is_finite() or amount <= 0:
             raise ValueError("Promotional grant amount must be positive")
         reason = (reason or "").strip()
         if not reason:

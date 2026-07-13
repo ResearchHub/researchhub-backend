@@ -52,7 +52,14 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
     )
     def send_rsc(self, request):
         recipient_id = request.data.get("recipient_id", "")
-        amount = request.data.get("amount", 0)
+        try:
+            amount = Decimal(str(request.data.get("amount", 0)))
+        except (ArithmeticError, TypeError, ValueError):
+            return Response({"message": "Invalid RSC amount"}, status=400)
+
+        if not amount.is_finite() or amount <= 0:
+            return Response({"message": "Invalid RSC amount"}, status=400)
+
         if recipient_id:
             user = request.user
             distribution = Distribution("MOD_PAYOUT", amount, give_rep=False)

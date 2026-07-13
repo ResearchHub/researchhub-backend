@@ -39,19 +39,25 @@ class WalletService:
         logger.info(f"Starting RSC burning on {network}")
 
         try:
-            # Get the revenue account and check balance
+            # Resolve the account before entering the transaction, then lock
+            # and re-read it below so concurrent burn jobs cannot debit the
+            # same balance twice.
             revenue_account = User.objects.get_community_revenue_account()
-            current_balance = revenue_account.get_balance()
-
-            if current_balance <= 0:
-                logger.info(
-                    f"Revenue account has no balance to burn: {current_balance}"
-                )
-                return None
-
-            logger.info(f"Revenue account balance to burn: {current_balance}")
 
             with transaction.atomic():
+                revenue_account = User.objects.select_for_update().get(
+                    pk=revenue_account.pk
+                )
+                current_balance = revenue_account.get_available_balance()
+
+                if current_balance <= 0:
+                    logger.info(
+                        "Revenue account has no balance to burn: %s", current_balance
+                    )
+                    return None
+
+                logger.info("Revenue account balance to burn: %s", current_balance)
+
                 # Step 1: Create negative balance records to zero out the account
                 WalletService._zero_out_revenue_account(
                     revenue_account, current_balance
@@ -82,7 +88,9 @@ class WalletService:
             distribution, revenue_account, revenue_account, time.time(), revenue_account
         )
 
-        distributor.distribute()
+        record = distributor.distribute()
+        if record.distributed_status == "FAILED":
+            raise RuntimeError("Failed to record the revenue-account burn")
 
     @staticmethod
     def _burn_tokens_from_hot_wallet(amount: Decimal, network: str = "BASE") -> str:

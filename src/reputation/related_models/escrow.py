@@ -1,4 +1,5 @@
 import time
+from decimal import Decimal, InvalidOperation
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -105,6 +106,10 @@ class Escrow(DefaultModel):
         if not recipient:
             return False
 
+        payout_amount = self._finite_decimal(payout_amount)
+        if payout_amount is None or payout_amount <= 0:
+            return False
+
         with transaction.atomic():
             escrow = Escrow.objects.select_for_update().get(pk=self.pk)
 
@@ -132,11 +137,11 @@ class Escrow(DefaultModel):
                 distribution, recipient, escrow, time.time(), giver=escrow.created_by
             )
             record = distributor.distribute()
-            escrow.recipients.add(recipient, through_defaults={"amount": payout_amount})
 
             if record.distributed_status == "FAILED":
                 return False
 
+            escrow.recipients.add(recipient, through_defaults={"amount": payout_amount})
             escrow.amount_holding -= payout_amount
             escrow.amount_paid += payout_amount
             if status == escrow.PARTIALLY_PAID:
@@ -182,6 +187,9 @@ class Escrow(DefaultModel):
     ) -> bool:
         from reputation.distributor import Distributor
 
+        amount = self._finite_decimal(amount)
+        if amount is None or amount < 0:
+            return False
         if amount == 0:
             return True
 
@@ -219,6 +227,14 @@ class Escrow(DefaultModel):
             self.status = escrow.status
 
         return True
+
+    @staticmethod
+    def _finite_decimal(amount) -> Decimal | None:
+        try:
+            amount = Decimal(str(amount))
+        except (InvalidOperation, TypeError, ValueError):
+            return None
+        return amount if amount.is_finite() else None
 
 
 class EscrowRecipients(DefaultModel):

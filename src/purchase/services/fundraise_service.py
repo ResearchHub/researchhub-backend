@@ -239,12 +239,37 @@ class FundraiseService:
             Tuple of (purchase, error_message). If successful, error_message is None.
             If failed, purchase is None and error_message contains the reason.
         """
+        try:
+            amount = Decimal(str(amount))
+        except (ArithmeticError, TypeError, ValueError):
+            return None, "Invalid amount"
+
+        if not amount.is_finite() or amount <= 0:
+            return None, "Invalid amount"
+
         # Calculate fees
         fee, rh_fee, dao_fee, fee_object = calculate_bounty_fees(amount)
         total_cost = amount + fee
 
+        if any(
+            not value.is_finite() or value < 0
+            for value in (fee, rh_fee, dao_fee, total_cost)
+        ):
+            return None, "Invalid fee configuration"
+
         with transaction.atomic():
+            # Serialize contributions with close/complete/reopen so a stale
+            # OPEN fundraise cannot accept a debit after its escrow is settled.
+            fundraise = Fundraise.objects.select_for_update().get(id=fundraise.id)
+            if fundraise.status != Fundraise.OPEN:
+                return None, "Fundraise is not open"
+            if fundraise.is_expired():
+                return None, "Fundraise is expired"
+            if not fundraise.escrow_id:
+                return None, "Fundraise escrow is not set"
+
             user = User.objects.select_for_update().get(id=user.id)
+            escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
 
             if use_credits:
                 # All locked funds are spendable on fundraises. The spend is
@@ -262,6 +287,18 @@ class FundraiseService:
 
                 if remaining > 0:
                     return None, "Insufficient locked balance"
+                if remaining != 0 or not self._valid_locked_allocations(
+                    allocations, total_cost
+                ):
+                    logger.error(
+                        "Invalid locked allocation for user %s: allocations=%s, "
+                        "remaining=%s, total_cost=%s",
+                        user.id,
+                        allocations,
+                        remaining,
+                        total_cost,
+                    )
+                    return None, "Invalid locked balance state"
             else:
                 if user.get_available_balance() < total_cost:
                     return None, "Insufficient balance"
@@ -334,10 +371,33 @@ class FundraiseService:
             )
 
             # Update escrow object
-            fundraise.escrow.amount_holding += amount
-            fundraise.escrow.save()
+            escrow.amount_holding += amount
+            escrow.save(update_fields=["amount_holding", "updated_date"])
 
         return purchase, None
+
+    @staticmethod
+    def _valid_locked_allocations(allocations: list[dict], total_cost: Decimal) -> bool:
+        """Return whether allocations are safe, typed, and cover the debit exactly."""
+        allocated_total = Decimal(0)
+
+        for allocation in allocations:
+            try:
+                allocated_amount = Decimal(str(allocation["amount"]))
+            except (ArithmeticError, KeyError, TypeError, ValueError):
+                return False
+
+            if (
+                not allocated_amount.is_finite()
+                or allocated_amount <= 0
+                or allocation.get("is_locked") is not True
+                or allocation.get("lock_type") not in Balance.LockType.values
+            ):
+                return False
+
+            allocated_total += allocated_amount
+
+        return allocated_total == total_cost
 
     def create_usd_contribution(
         self,
@@ -432,22 +492,38 @@ class FundraiseService:
         bounty_fee_ct: ContentType,
     ) -> bool:
         """Refund a single debit entry. Returns True on success, False on failure."""
-        abs_amount = abs(Decimal(debit.amount))
-        if abs_amount == 0:
+        try:
+            debit_amount = Decimal(debit.amount)
+        except (ArithmeticError, TypeError, ValueError):
+            logger.error("Invalid contribution balance amount for row %s", debit.id)
+            return False
+
+        if not debit_amount.is_finite() or debit_amount > 0:
+            logger.error(
+                "Refusing to refund non-debit contribution balance row %s", debit.id
+            )
+            return False
+        if debit_amount == 0:
             return True
 
+        refund_amount = -debit_amount
         if debit.content_type == purchase_ct:
             return fundraise.escrow.refund(
                 user,
-                abs_amount,
+                refund_amount,
                 is_locked=debit.is_locked,
                 lock_type=debit.lock_type,
             )
 
         if debit.content_type == bounty_fee_ct:
-            return self._refund_fee(user, debit, abs_amount)
+            return self._refund_fee(user, debit, refund_amount)
 
-        return True
+        logger.error(
+            "Unsupported contribution debit content type %s for row %s",
+            debit.content_type_id,
+            debit.id,
+        )
+        return False
 
     def _refund_fee(self, user: User, debit: Balance, abs_amount: Decimal) -> bool:
         """Refund a fee debit from the revenue account. Returns True on success."""
@@ -510,6 +586,11 @@ class FundraiseService:
             RuntimeError: If payout fails
         """
         with transaction.atomic():
+            # Lock the same row contribution creation locks, then refresh the
+            # caller's instance so validation and payout use current state.
+            Fundraise.objects.select_for_update().only("id").get(id=fundraise.id)
+            fundraise.refresh_from_db()
+
             if fundraise.status != Fundraise.OPEN:
                 raise ValueError("Fundraise is not open")
 
@@ -537,16 +618,23 @@ class FundraiseService:
         Returns True if successful, False otherwise.
         """
         with transaction.atomic():
+            Fundraise.objects.select_for_update().only("id").get(id=fundraise.id)
+            fundraise.refresh_from_db()
+
             # Check if fundraise can be closed (must be open)
             if fundraise.status != Fundraise.OPEN:
                 return False
 
             # Refund RSC contributions
             if not self.refund_rsc_contributions(fundraise):
+                # Returning from an atomic block normally commits. Explicitly
+                # roll back earlier refunds so retrying cannot refund them twice.
+                transaction.set_rollback(True)
                 return False
 
             # Refund USD contributions
             if not self.refund_usd_contributions(fundraise):
+                transaction.set_rollback(True)
                 return False
 
             # Update fundraise status
@@ -571,6 +659,9 @@ class FundraiseService:
             raise ValueError("duration_days must be a positive integer")
 
         with transaction.atomic():
+            Fundraise.objects.select_for_update().only("id").get(id=fundraise.id)
+            fundraise.refresh_from_db()
+
             if fundraise.status == Fundraise.COMPLETED:
                 raise ValueError("Cannot reopen a completed fundraise")
 
