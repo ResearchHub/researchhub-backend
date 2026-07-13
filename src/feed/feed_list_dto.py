@@ -17,7 +17,6 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
-    REGISTERED_REPORT,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.models import Author
@@ -101,17 +100,6 @@ def serialize_fund_feed_metrics(item, item_content_type):
     base_votes = metrics.get("votes", 0)
     metrics["adjusted_score"] = calculate_adjusted_score(base_votes, {})
     return metrics
-
-
-JOURNAL_STATE_COMPLETED_PROPOSAL = "completed_proposal"
-JOURNAL_STATE_REGISTERED_REPORT = "registered_report"
-
-
-def get_journal_state(post: ResearchhubPost) -> str:
-    """Return the journal feed state represented by the given post."""
-    if post.document_type == REGISTERED_REPORT:
-        return JOURNAL_STATE_REGISTERED_REPORT
-    return JOURNAL_STATE_COMPLETED_PROPOSAL
 
 
 def get_journal_source_proposal(post: ResearchhubPost) -> ResearchhubPost | None:
@@ -398,14 +386,14 @@ class JournalFeedPostSerializer(FundingFeedPostSerializer):
     """Minimal post payload for journal feed list responses."""
 
     def to_representation(self, post: ResearchhubPost) -> dict[str, Any]:
-        """Serialize completed proposals and registered reports consistently."""
+        """Serialize a registered report with source proposal context."""
         data = super().to_representation(post)
         proposal = get_journal_source_proposal(post)
 
-        data["journal_state"] = get_journal_state(post)
+        data["journal_state"] = "registered_report"
         data["proposal"] = self.serialize_proposal_reference(proposal)
 
-        if post.document_type == REGISTERED_REPORT and proposal is not None:
+        if proposal is not None:
             data["fundraise"] = self.serialize_proposal_fundraise(proposal)
             data["reviews"] = self.serialize_proposal_reviews(proposal)
 

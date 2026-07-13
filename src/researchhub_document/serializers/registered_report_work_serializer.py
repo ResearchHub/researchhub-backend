@@ -4,7 +4,6 @@ from django.core.files.storage import default_storage
 from django.urls import reverse
 from rest_framework import serializers
 
-from feed.feed_list_dto import JOURNAL_STATE_REGISTERED_REPORT
 from feed.hot_score_utils import calculate_adjusted_score
 from feed.models import FeedEntry
 from feed.serializers import SimpleAuthorSerializer
@@ -93,7 +92,7 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
             "image_url": self.get_image_url(post),
             "unified_document_id": post.unified_document_id,
             "authors": authors,
-            "journal_state": JOURNAL_STATE_REGISTERED_REPORT,
+            "journal_state": "registered_report",
             "proposal": self.serialize_proposal_reference(proposal),
         }
 

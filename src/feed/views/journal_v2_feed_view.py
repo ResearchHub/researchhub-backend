@@ -1,10 +1,10 @@
 """
-Post-based journal feed for completed proposals and registered reports.
+Post-based journal feed for registered reports.
 """
 
 from typing import Any
 
-from django.db.models import Exists, OuterRef, Prefetch, Q
+from django.db.models import Exists, OuterRef, Prefetch
 from django.db.models.query import QuerySet
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.request import Request
@@ -21,7 +21,6 @@ from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.related_models.fundraise_model import Fundraise
 from reputation.related_models.bounty import Bounty
 from researchhub_document.related_models.constants.document_type import (
-    PREREGISTRATION,
     REGISTERED_REPORT,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -52,7 +51,7 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
         return context
 
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        """Return paginated journal cards for latest included journey stages."""
+        """Return paginated journal cards for registered reports."""
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
 
@@ -77,26 +76,8 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
         return Response(response_data)
 
     def get_queryset(self) -> QuerySet:
-        """Return the latest visible stage for each journal-included journey."""
-        registered_report_for_journey = ResearchhubPost.objects.filter(
-            journey_id=OuterRef("journey_id"),
-            document_type=REGISTERED_REPORT,
-            unified_document__is_removed=False,
-            unified_document__status=ResearchhubUnifiedDocument.APPROVED,
-        )
-
-        queryset = (
-            self._build_journal_stage_queryset()
-            .annotate(has_registered_report=Exists(registered_report_for_journey))
-            .filter(
-                Q(document_type=REGISTERED_REPORT)
-                | Q(
-                    document_type=PREREGISTRATION,
-                    has_registered_report=False,
-                )
-            )
-        )
-        return queryset
+        """Return visible registered reports for journal-included journeys."""
+        return self._build_journal_stage_queryset()
 
     def _build_journal_stage_queryset(self) -> QuerySet:
         """Build the base queryset for public journal stages."""
@@ -168,7 +149,7 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
             .annotate(has_completed_source_fundraise=Exists(completed_source_fundraise))
             .publicly_visible()
             .filter(
-                document_type__in=[PREREGISTRATION, REGISTERED_REPORT],
+                document_type=REGISTERED_REPORT,
                 has_completed_source_fundraise=True,
                 journey__is_in_journal=True,
                 journey__preregistration_post__isnull=False,
