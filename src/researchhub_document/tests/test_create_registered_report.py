@@ -187,12 +187,43 @@ class CreateRegisteredReportTests(APITestCase):
         )
 
         # Assert
-        self.assertEqual(note_response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(report_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(note_response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(report_response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(
+            note_response.data["detail"],
+            "Published registered report content cannot be edited.",
+        )
+        self.assertEqual(
+            report_response.data["detail"],
+            "Published registered reports cannot be edited.",
+        )
         self.assertEqual(
             NoteContent.objects.filter(note=accepted_entry.note).count(),
             note_content_count,
         )
+
+    def test_regular_post_note_content_can_be_changed(self) -> None:
+        """Verify only published registered report notes are frozen."""
+        # Arrange
+        note, _ = create_note(self.user, self.organization)
+        post = create_post(created_by=self.user)
+        post.note = note
+        post.save(update_fields=["note"])
+
+        # Act
+        response = self.client.post(
+            "/api/note_content/",
+            {
+                "note": note.id,
+                "plain_text": "Updated regular post content.",
+                "full_json": {"type": "doc", "content": []},
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["plain_text"], "Updated regular post content.")
 
     def test_reject_generic_note(self) -> None:
         """Verify reports must publish from registered report notes."""

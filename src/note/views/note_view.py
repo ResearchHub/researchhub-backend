@@ -4,6 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db.models import Q, QuerySet
 from django.shortcuts import get_object_or_404
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -38,7 +39,10 @@ from researchhub_access_group.permissions import (
 )
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import NOTE
+from researchhub_document.related_models.constants.document_type import (
+    NOTE,
+    REGISTERED_REPORT,
+)
 from user.models import Organization, User
 
 
@@ -560,10 +564,11 @@ class NoteContentViewSet(ModelViewSet):
         self.kwargs["pk"] = note_id
 
         note = self.get_object()
-        if getattr(note, "post", None) is not None:
+        post = getattr(note, "post", None)
+        if post is not None and post.document_type == REGISTERED_REPORT:
             return Response(
-                {"error": "Published registered report content cannot be edited."},
-                status=400,
+                {"detail": "Published registered report content cannot be edited."},
+                status=status.HTTP_409_CONFLICT,
             )
         note_content = NoteContent.objects.create(
             note=note, plain_text=plain_text, json=full_json

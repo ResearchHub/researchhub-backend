@@ -22,19 +22,17 @@ class RegisteredReportWorkService:
 
     def __init__(
         self,
-        post_model: type[ResearchhubPost] | None = None,
         journey_service: JourneyService | None = None,
     ) -> None:
         """Initialize the service with optional dependencies."""
-        self.post_model = post_model or ResearchhubPost
         self.journey_service = journey_service or JourneyService()
 
     def get_work_payload(
-        self, post_id: int, user: User | None
+        self, post_id: str | int, user: User | None
     ) -> RegisteredReportWorkPayload:
         """Return a visible report and the stages visible to the requester."""
         report = (
-            self.post_model.objects.visible_to(user)
+            ResearchhubPost.objects.visible_to(user)
             .select_related(
                 "created_by",
                 "created_by__author_profile",
@@ -68,7 +66,7 @@ class RegisteredReportWorkService:
             .first()
         )
         if report is None:
-            raise self.post_model.DoesNotExist
+            raise ResearchhubPost.DoesNotExist
 
         journey = report.journey
         proposal = self.journey_service.get_proposal(journey) if journey else None
@@ -76,16 +74,16 @@ class RegisteredReportWorkService:
 
         return RegisteredReportWorkPayload(
             report=report,
-            grant=self.get_visible_stage(grant, user),
-            proposal=self.get_visible_stage(proposal, user),
+            grant=self._get_visible_stage(grant, user),
+            proposal=self._get_visible_stage(proposal, user),
         )
 
-    def get_visible_stage(
+    def _get_visible_stage(
         self, post: ResearchhubPost | None, user: User | None
     ) -> ResearchhubPost | None:
         """Return a tracker stage only when the requester can view it."""
         if post is None:
             return None
-        if self.post_model.objects.visible_to(user).filter(pk=post.pk).exists():
+        if ResearchhubPost.objects.visible_to(user).filter(pk=post.pk).exists():
             return post
         return None

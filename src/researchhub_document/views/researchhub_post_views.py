@@ -5,7 +5,7 @@ from django.db import transaction
 from django.db.models import Prefetch
 from django.http import Http404
 from django.utils.text import slugify
-from rest_framework import serializers
+from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.request import Request
@@ -95,14 +95,9 @@ class ResearchhubPostViewSet(
     def update(self, request, *args, **kwargs):
         return self.upsert_researchhub_posts(request)
 
-    @action(
-        detail=True,
-        methods=["get"],
-        url_name="registered-report-work",
-        url_path="registered_report_work",
-    )
+    @action(detail=True, methods=["get"])
     def registered_report_work(
-        self, request: Request, pk: int | None = None
+        self, request: Request, pk: str | None = None
     ) -> Response:
         """Return registered report work-page data and tracker post references."""
         if pk is None:
@@ -601,8 +596,8 @@ class ResearchhubPostViewSet(
             rh_post = ResearchhubPost.objects.get(id=rh_post_id)
             if rh_post.document_type == REGISTERED_REPORT:
                 return Response(
-                    {"error": "Published registered reports cannot be edited."},
-                    status=400,
+                    {"detail": "Published registered reports cannot be edited."},
+                    status=status.HTTP_409_CONFLICT,
                 )
 
             if authors and request.user.author_profile.id not in authors:
