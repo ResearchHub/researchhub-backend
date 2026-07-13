@@ -1,7 +1,6 @@
 from typing import Any
 
 from django.core.files.storage import default_storage
-from django.urls import reverse
 from rest_framework import serializers
 
 from feed.hot_score_utils import calculate_adjusted_score
@@ -20,10 +19,10 @@ from user.serializers import AuthorSerializer, UserSerializer
 
 
 class RegisteredReportWorkSerializer(serializers.Serializer):
-    """Serialize one registered report work page payload."""
+    """Serialize one registered report work-page payload."""
 
     def to_representation(self, post: ResearchhubPost) -> dict[str, Any]:
-        """Return feed-like registered report data plus tracker links."""
+        """Return feed-like registered report data plus tracker post references."""
         journey = post.journey
         proposal = self.get_proposal(journey)
         grant_post = self.get_grant_post(journey)
@@ -59,9 +58,9 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
                 ),
             ],
             "links": {
-                JOURNEY_STAGE_GRANT: self.build_work_url(grant_post),
-                JOURNEY_STAGE_PROPOSAL: self.build_work_url(proposal),
-                JOURNEY_STAGE_REGISTERED_REPORT: self.build_work_url(post),
+                JOURNEY_STAGE_GRANT: self.serialize_tracker_link(grant_post),
+                JOURNEY_STAGE_PROPOSAL: self.serialize_tracker_link(proposal),
+                JOURNEY_STAGE_REGISTERED_REPORT: self.serialize_tracker_link(post),
             },
         }
 
@@ -133,15 +132,24 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
         post: ResearchhubPost | None,
         is_current: bool,
     ) -> dict[str, Any]:
-        """Serialize one pizza tracker step and its fetch URL."""
+        """Serialize one pizza tracker step and its post reference."""
         return {
             "stage": stage,
             "label": label,
             "exists": post is not None,
             "is_current": is_current,
             "post_id": post.id if post is not None else None,
+            "title": post.title if post is not None else None,
             "document_type": post.document_type if post is not None else None,
-            "url": self.build_work_url(post),
+        }
+
+    def serialize_tracker_link(
+        self, post: ResearchhubPost | None
+    ) -> dict[str, Any]:
+        """Serialize the post reference used for a tracker stage."""
+        return {
+            "post_id": post.id if post is not None else None,
+            "title": post.title if post is not None else None,
         }
 
     def serialize_proposal_reference(
@@ -154,7 +162,6 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
             "id": proposal.id,
             "slug": proposal.slug,
             "title": proposal.title,
-            "url": self.build_work_url(proposal),
             "unified_document_id": proposal.unified_document_id,
         }
 
@@ -179,17 +186,6 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
             "votes": votes,
             "adjusted_score": calculate_adjusted_score(votes, {}),
         }
-
-    def build_work_url(self, post: ResearchhubPost | None) -> str | None:
-        """Build the API URL used to fetch a tracker step's work data."""
-        if post is None:
-            return None
-
-        path = reverse("researchhubpost-detail", args=[post.id])
-        request = self.context.get("request")
-        if request is not None and hasattr(request, "build_absolute_uri"):
-            return request.build_absolute_uri(path)
-        return path
 
     def get_image_url(self, post: ResearchhubPost) -> str | None:
         """Return the registered report image URL."""

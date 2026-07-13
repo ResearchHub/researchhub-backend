@@ -101,7 +101,7 @@ class ResearchhubPostViewSet(
     def registered_report_work(
         self, request: Request, pk: int | None = None
     ) -> Response:
-        """Return registered report work-page data and tracker links."""
+        """Return registered report work-page data and tracker post references."""
         post = self.get_object()
         if post.document_type != REGISTERED_REPORT:
             return Response(

@@ -231,8 +231,8 @@ class CreateRegisteredReportTests(APITestCase):
         # Assert
         self.assertIn(response.status_code, (401, 403))
 
-    def test_retrieve_report_work_returns_tracker_links(self) -> None:
-        """Verify registered report work data includes tracker fetch URLs."""
+    def test_retrieve_report_work_returns_tracker_post_references(self) -> None:
+        """Verify registered report work data includes tracker post references."""
         # Arrange
         proposal = self._create_completed_proposal(self.user)
         grant_post = self._create_grant_post()
@@ -283,25 +283,33 @@ class CreateRegisteredReportTests(APITestCase):
         self.assertNotIn("replies", response.data["metrics"])
         self.assertNotIn("peer_reviews", response.data["work"])
         self.assertNotIn("discussion_count", response.data["work"])
+        self.assertNotIn("url", response.data["content_object"]["proposal"])
         self.assertIn("formatted_html", response.data["work"])
         self.assertEqual(response.data["work"]["full_json"], full_json)
         self.assertIn("full_src", response.data["work"])
         self.assertEqual(
             response.data["links"],
             {
-                "grant": f"http://testserver/api/researchhubpost/{grant_post.id}/",
-                "proposal": f"http://testserver/api/researchhubpost/{proposal.id}/",
-                "registered_report": (
-                    f"http://testserver/api/researchhubpost/{report.id}/"
-                ),
+                "grant": {"post_id": grant_post.id, "title": grant_post.title},
+                "proposal": {"post_id": proposal.id, "title": proposal.title},
+                "registered_report": {"post_id": report.id, "title": report.title},
             },
         )
         tracker = {step["stage"]: step for step in response.data["tracker"]}
         self.assertTrue(tracker["grant"]["exists"])
         self.assertFalse(tracker["grant"]["is_current"])
+        self.assertEqual(tracker["grant"]["post_id"], grant_post.id)
+        self.assertEqual(tracker["grant"]["title"], grant_post.title)
+        self.assertNotIn("url", tracker["grant"])
         self.assertTrue(tracker["proposal"]["exists"])
+        self.assertEqual(tracker["proposal"]["post_id"], proposal.id)
+        self.assertEqual(tracker["proposal"]["title"], proposal.title)
+        self.assertNotIn("url", tracker["proposal"])
         self.assertTrue(tracker["registered_report"]["exists"])
         self.assertTrue(tracker["registered_report"]["is_current"])
+        self.assertEqual(tracker["registered_report"]["post_id"], report.id)
+        self.assertEqual(tracker["registered_report"]["title"], report.title)
+        self.assertNotIn("url", tracker["registered_report"])
 
     def test_reject_report_work_for_non_report(self) -> None:
         """Verify registered report work data requires a registered report."""
@@ -377,7 +385,7 @@ class CreateRegisteredReportTests(APITestCase):
         return proposal
 
     def _create_grant_post(self) -> ResearchhubPost:
-        """Create a grant post for tracker links."""
+        """Create a grant post for the tracker."""
         grant_post = create_post(
             created_by=self.user,
             document_type=GRANT,
