@@ -405,7 +405,9 @@ class _ProposalDraftRunner:
     def _complete(self) -> dict:
         self.recorder.set_step(ProposalDraft.Step.WRITING_NOTE)
         submission, _report, _scores = self.state.accepted_outcome()
-        note = write_proposal_note(submission)
+        note = write_proposal_note(
+            submission, created_by=self.recorder.draft.created_by
+        )
         return self.recorder.complete(note)
 
     def _fail(self, message: str | None = None) -> dict:
