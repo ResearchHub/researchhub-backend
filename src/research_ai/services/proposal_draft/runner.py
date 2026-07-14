@@ -177,6 +177,8 @@ class _ProposalDraftRunner:
         system_prompt = build_proposal_system_prompt(
             panel_threshold=self.config.panel_threshold,
             award=self.rfp_context,
+            min_words=self.config.min_words,
+            max_words=self.config.max_words,
         )
         user_prompt = build_proposal_user_prompt(self.expert, self.rfp_context)
         agent = self._build_agent(system_prompt)

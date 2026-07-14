@@ -1076,3 +1076,26 @@ class ProposalDraftServiceTests(TestCase):
         self.assertNotIn("judge_proposal", toolset.names)
         self.assertIn("verify_citations", toolset.names)
         self.assertIn("submit_proposal", toolset.names)
+
+    # -- the agent reads full text through the profile-scoped tool --------
+
+    def test_agent_fulltext_tool_is_the_profile_scoped_one(self):
+        # Arrange: the OpenAlex profile-builder toolset and the proposal
+        # fulltext toolset both define a get_work_fulltext tool.
+        draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            status=ProposalDraft.Status.PENDING,
+            step=ProposalDraft.Step.QUEUED,
+        )
+        runner = _ProposalDraftRunner(
+            self.search_expert, draft, oa_client=_FakeOpenAlex()
+        )
+
+        # Act
+        toolset = runner._compose_toolset()
+
+        # Assert: the composed tool is the proposal one (profile-scoped,
+        # fetch-capped), not the profile builder's OpenAlex reader.
+        tool = toolset.get("get_work_fulltext")
+        self.assertIsNotNone(tool)
+        self.assertIs(tool.handler.__self__, runner.fulltext_toolset)

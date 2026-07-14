@@ -30,6 +30,11 @@ logger = logging.getLogger(__name__)
 # Terminal tool the model calls once to hand back the finished profile.
 SUBMIT_PROFILE = "submit_profile"
 
+# The profile builder's full-text reader. The proposal agent ships a tool of
+# the same name scoped to the researcher profile's works, so composers that
+# reuse this toolset skip this one by name instead of shadowing it silently.
+GET_WORK_FULLTEXT = "get_work_fulltext"
+
 _MAX_AUTHOR_CANDIDATES = 10  # author search results surfaced to the model
 _MAX_ALTERNATIVES = 5
 _MAX_INSTITUTIONS = 5
@@ -201,7 +206,7 @@ class OpenAlexToolset:
                 handler=self._get_author_works,
             ),
             Tool(
-                name="get_work_fulltext",
+                name=GET_WORK_FULLTEXT,
                 description=(
                     "Read the full text of a work returned by get_author_works "
                     "(pass its source_url exactly). Use it to inspect Methods "

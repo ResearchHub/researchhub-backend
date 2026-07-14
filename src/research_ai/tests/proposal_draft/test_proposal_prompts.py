@@ -110,3 +110,13 @@ class BuildProposalSystemPromptTests(unittest.TestCase):
         # Assert: the general aim rule appears, placeholder still replaced.
         self.assertIn("Size the number of specific aims", prompt)
         self.assertNotIn("{{AIM_GUIDANCE}}", prompt)
+
+    def test_word_bounds_are_substituted_from_the_gate_config(self):
+        # Arrange / Act: the length-gate bounds the runner passes in.
+        prompt = build_proposal_system_prompt(min_words=300, max_words=2500)
+
+        # Assert: the prompt states the same bounds the gate enforces, and no
+        # template placeholder leaks.
+        self.assertIn("under 300 or over 2500", prompt)
+        self.assertNotIn("{{MIN_WORDS}}", prompt)
+        self.assertNotIn("{{MAX_WORDS}}", prompt)
