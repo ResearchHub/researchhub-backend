@@ -137,11 +137,8 @@ def send_monthly_preregistration_update_reminders():
 
 @app.task(queue=QUEUE_NOTIFICATION)
 def send_funding_credits_reminders():
-    """Remind users who still hold unspent funding credits to spend them.
-
-    Funding credits are locked, non-withdrawable RSC (staking yield, referral
-    bonuses, RSC purchases, promotional grants) that can only be spent by
-    supporting fundraises. We nudge holders at most once every two weeks.
+    """
+    Remind users who still hold unspent funding credits to spend them.
     """
     from user.models import User
 
