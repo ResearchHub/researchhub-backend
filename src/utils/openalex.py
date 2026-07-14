@@ -643,6 +643,25 @@ class OpenAlex:
         results = response.get("results", [])
         return results[0] if results else None
 
+    def search_works(self, query, per_page=5):
+        """Relevance-ranked, DOI-bearing works matching a free-text query.
+
+        For citation grounding: a caller that knows a paper's title but not its
+        DOI can retrieve the real record instead of guessing a DOI. Restricted
+        to works that carry a DOI (``has_doi:true``) so every result is citable.
+        Returns raw OpenAlex work entities (possibly empty).
+        """
+        query = str(query or "").strip()
+        if not query:
+            return []
+        filters = {
+            "search": query,
+            "filter": "has_doi:true",
+            "per-page": per_page,
+        }
+        response = self._get("works", filters=filters)
+        return response.get("results", []) or []
+
     @classmethod
     def normalize_dates(cls, generic_openalex_object):
         """Normalize the dates of an OpenAlex object such that

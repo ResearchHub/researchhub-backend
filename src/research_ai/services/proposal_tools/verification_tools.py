@@ -1,8 +1,15 @@
-"""Deterministic citation verification -- the loop's external grounded signal.
+"""Citation grounding against OpenAlex -- the loop's external grounded signal.
 
-The draft agent emits citations; this tool resolves each one against ground
-truth (OpenAlex by DOI) and classifies how far the *claimed* metadata drifts
-from the *resolved* record:
+Two sides of the same concern, both backed by the same OpenAlex client:
+
+- ``search_works`` *finds* a real record (with its resolved DOI) for a
+  field-level paper the agent knows by title but not by DOI, so the agent
+  retrieves a citable work instead of guessing or hand-deriving a DOI.
+- ``verify_citations`` *checks* a DOI the agent already has.
+
+The draft agent emits citations; ``verify_citations`` resolves each one against
+ground truth (OpenAlex by DOI) and classifies how far the *claimed* metadata
+drifts from the *resolved* record:
 
 - ``exact``            -- title and authors match the resolved record.
 - ``minor_drift``      -- same paper, but the claim drifted; carries the
@@ -33,6 +40,23 @@ logger = logging.getLogger(__name__)
 # Normalized-title similarity bands (difflib ratio, 0..1).
 _EXACT_TITLE = 0.92  # at/above: same title
 _MINOR_TITLE = 0.6  # at/above (but below exact): same paper, drifted metadata
+
+_MAX_WORK_RESULTS = 5  # candidate works surfaced per search_works call
+
+_SEARCH_WORKS_INPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {
+            "type": "string",
+            "description": "The paper's title (or a descriptive query).",
+        },
+        "author": {
+            "type": "string",
+            "description": "Optional author name to disambiguate the search.",
+        },
+    },
+    "required": ["title"],
+}
 
 _CITATIONS_INPUT_SCHEMA = {
     "type": "object",
@@ -130,6 +154,18 @@ class ProposalVerificationToolset:
     def build_tools(self) -> list[Tool]:
         return [
             Tool(
+                name="search_works",
+                description=(
+                    "Find a published work by title (and optional author) to get "
+                    "its real DOI for a field-level citation. Returns candidate "
+                    "works with the resolved DOI (source_url), authors, and year "
+                    "straight from OpenAlex. Use this to obtain a DOI you can "
+                    "cite -- never invent or hand-derive one from a web result."
+                ),
+                input_schema=_SEARCH_WORKS_INPUT_SCHEMA,
+                handler=self.search_works,
+            ),
+            Tool(
                 name="verify_citations",
                 description=(
                     "Verify citations against ground truth. For each citation "
@@ -146,7 +182,26 @@ class ProposalVerificationToolset:
     def as_toolset(self) -> Toolset:
         return Toolset(self.build_tools())
 
-    # -- handler ----------------------------------------------------------
+    # -- handlers ---------------------------------------------------------
+
+    def search_works(self, args: dict) -> dict:
+        title = str((args or {}).get("title") or "").strip()
+        if not title:
+            return {"error": "title is required"}
+        author = str((args or {}).get("author") or "").strip()
+        query = f"{title} {author}".strip()
+        try:
+            entities = self._oa.search_works(query, per_page=_MAX_WORK_RESULTS)
+        except Exception as exc:  # noqa: BLE001 - a search miss is not fatal
+            logger.info("OpenAlex works search failed for %r: %s", query, exc)
+            return {"results": []}
+        results = [
+            _from_openalex(entity)
+            for entity in entities or []
+            if isinstance(entity, dict)
+        ]
+        results = [r for r in results if r["source_url"]]
+        return {"results": results[:_MAX_WORK_RESULTS]}
 
     def verify_citations(self, args: dict) -> dict:
         citations = args.get("citations")

@@ -109,12 +109,14 @@ field.
 Every work, DOI, or author you cite MUST come from a tool result: either a
 work retrieved via `get_researcher_profile` or an OpenAlex tool, or a DOI that
 `verify_citations` resolved against OpenAlex as `exact` (or `minor_drift`,
-auto-corrected from source). A verified DOI is enough for a field-level paper
-outside the researcher's own works -- no need to re-fetch it through the
-author tools. Never invent a DOI, title, or author, and never attach a real
-DOI to metadata you made up: the deterministic gate re-resolves every
-citation, and a `dead` or `major_fabrication` result fails the run. When in
-doubt, drop the citation rather than guess.
+auto-corrected from source). For a field-level paper outside the researcher's
+own works, get its real DOI with `search_works` (pass the title, plus an author
+to disambiguate) and cite the record it returns -- do not derive a DOI from a
+`web_search` result or construct one by hand. A verified DOI is enough -- no
+need to re-fetch it through the author tools. Never invent a DOI, title, or
+author, and never attach a real DOI to metadata you made up: the deterministic
+gate re-resolves every citation, and a `dead` or `major_fabrication` result
+fails the run. When in doubt, drop the citation rather than guess.
 
 ## How to work (the iterate contract)
 
@@ -125,7 +127,8 @@ doubt, drop the citation rather than guess.
    must build on what they actually did, not on paper titles. Use the OpenAlex
    tools for supporting literature.
 2. Draft the proposal.
-3. Check every citation with `verify_citations`; treat dead/major_fabrication
+3. For any field-level paper you cite, get its DOI with `search_works` first,
+   then check every citation with `verify_citations`; treat dead/major_fabrication
    results as a worklist and fix them before you submit.
 4. Submit with `submit_proposal`. The deterministic gate runs verification and
    the multi-model panel, then either accepts the draft or returns the
