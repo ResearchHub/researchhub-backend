@@ -9,6 +9,8 @@ from rest_framework.test import APIClient
 
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import USD
+from purchase.related_models.constants.rsc_exchange_currency import MORALIS
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Escrow
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
@@ -35,6 +37,12 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         self.service = JourneyService()
         self.client = APIClient()
         self.client.force_authenticate(self.user)
+        RscExchangeRate.objects.create(
+            price_source=MORALIS,
+            rate=3.0,
+            real_rate=3.0,
+            target_currency=USD,
+        )
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
     def test_list_returns_registered_reports_only(self, mock_usd_to_rsc: Any) -> None:
@@ -235,7 +243,7 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
     def create_completed_fundraise(self, proposal: ResearchhubPost) -> Fundraise:
         """Create a completed fundraise for a proposal."""
         escrow = Escrow.objects.create(
-            amount_holding=Decimal("0.00"),
+            amount_holding=Decimal("100.00"),
             hold_type=Escrow.FUNDRAISE,
             created_by=self.user,
             content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),

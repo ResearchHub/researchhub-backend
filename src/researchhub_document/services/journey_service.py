@@ -35,17 +35,6 @@ class JourneyStage:
 class JourneyService:
     """Service for managing the ordered post stages in a research journey."""
 
-    def __init__(
-        self,
-        journey_model: type[ResearchJourney] | None = None,
-        post_model: type[ResearchhubPost] | None = None,
-        grant_application_model: type[GrantApplication] | None = None,
-    ) -> None:
-        """Initialize the service with optional model dependencies."""
-        self.journey_model = journey_model or ResearchJourney
-        self.post_model = post_model or ResearchhubPost
-        self.grant_application_model = grant_application_model or GrantApplication
-
     @transaction.atomic
     def get_or_create_for_preregistration(
         self, post: ResearchhubPost
@@ -56,7 +45,7 @@ class JourneyService:
             raise ValueError("Research journeys start from a preregistration post.")
 
         grant_post = self._get_grant_post_for_preregistration(post)
-        journey, _ = self.journey_model.objects.get_or_create(
+        journey, _ = ResearchJourney.objects.get_or_create(
             preregistration_post=post,
             defaults={
                 "grant_post": grant_post,
@@ -85,8 +74,8 @@ class JourneyService:
     def include_completed_fundraise_in_journal(
         self, fundraise: Fundraise
     ) -> ResearchJourney | None:
-        """Include a completed fundraise's proposal journey in the journal."""
-        # This service can be called defensively; non-completed fundraises are
+        """Include an eligible completed fundraise's journey in the journal."""
+        # This service can be called defensively; ineligible fundraises are
         # expected no-ops, not data integrity issues.
         if fundraise.status != Fundraise.COMPLETED:
             return None
@@ -102,6 +91,9 @@ class JourneyService:
             )
             return None
 
+        if not self.is_completed_fundraise_eligible(fundraise):
+            return None
+
         journey = self.ensure_approved_preregistration_has_journey(proposal)
         if journey is None:
             logger.warning(
@@ -115,6 +107,12 @@ class JourneyService:
             )
             return None
 
+        return self.include_journey_in_journal(journey)
+
+    @transaction.atomic
+    def include_journey_in_journal(self, journey: ResearchJourney) -> ResearchJourney:
+        """Include a saved eligible journey in the journal at the current time."""
+        self._require_saved_journey(journey)
         update_fields = []
         if not journey.is_in_journal:
             journey.is_in_journal = True
@@ -126,6 +124,13 @@ class JourneyService:
             journey.save(update_fields=update_fields)
 
         return journey
+
+    def is_completed_fundraise_eligible(self, fundraise: Fundraise) -> bool:
+        """Return whether a fundraise can create a registered report journey."""
+        return (
+            fundraise.status == Fundraise.COMPLETED
+            and fundraise.has_received_funding()
+        )
 
     @transaction.atomic
     def attach_stage(
@@ -159,7 +164,7 @@ class JourneyService:
         if journey.preregistration_post_id is not None:
             return journey.preregistration_post
         return (
-            self.post_model.objects.filter(
+            ResearchhubPost.objects.filter(
                 journey=journey,
                 document_type=PREREGISTRATION,
             )
@@ -171,7 +176,7 @@ class JourneyService:
         """Return the registered report post for the journey, if one exists."""
         self._require_saved_journey(journey)
         return (
-            self.post_model.objects.filter(
+            ResearchhubPost.objects.filter(
                 journey=journey,
                 document_type=REGISTERED_REPORT,
             )
@@ -212,7 +217,7 @@ class JourneyService:
     ) -> ResearchhubPost | None:
         """Return the grant post linked through the proposal's grant application."""
         application = (
-            self.grant_application_model.objects.filter(preregistration_post=post)
+            GrantApplication.objects.filter(preregistration_post=post)
             .select_related("grant__unified_document")
             .order_by("created_date", "id")
             .first()
@@ -220,7 +225,7 @@ class JourneyService:
         if application is None:
             return None
         return (
-            self.post_model.objects.filter(
+            ResearchhubPost.objects.filter(
                 unified_document=application.grant.unified_document,
             )
             .order_by("id")
@@ -232,7 +237,7 @@ class JourneyService:
     ) -> ResearchhubPost | None:
         """Return the preregistration post funded by the fundraise."""
         return (
-            self.post_model.objects.filter(
+            ResearchhubPost.objects.filter(
                 document_type=PREREGISTRATION,
                 unified_document_id=fundraise.unified_document_id,
             )
@@ -258,7 +263,7 @@ class JourneyService:
             raise ValueError("Journey already has a proposal.")
 
         linked_proposal = (
-            self.post_model.objects.filter(
+            ResearchhubPost.objects.filter(
                 journey=journey,
                 document_type=PREREGISTRATION,
             )

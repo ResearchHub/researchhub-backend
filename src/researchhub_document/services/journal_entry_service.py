@@ -1,6 +1,5 @@
 import json
 from dataclasses import dataclass
-from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -158,23 +157,9 @@ class JournalEntryService:
 
     def _validate_funded_fundraise(self, fundraise: Fundraise) -> None:
         """Validate that the completed fundraise has received funding."""
-        if self._has_rsc_funding(fundraise) or self._has_usd_funding(fundraise):
+        if self.journey_service.is_completed_fundraise_eligible(fundraise):
             return
         raise ValueError("Fundraise has no completed funding.")
-
-    def _has_rsc_funding(self, fundraise: Fundraise) -> bool:
-        """Return whether the fundraise has escrowed or paid RSC funding."""
-        if fundraise.escrow is None:
-            return False
-        funded_amount = fundraise.escrow.amount_holding + fundraise.escrow.amount_paid
-        return funded_amount > Decimal(0)
-
-    def _has_usd_funding(self, fundraise: Fundraise) -> bool:
-        """Return whether the fundraise has non-refunded USD funding."""
-        return fundraise.usd_contributions.filter(
-            amount_cents__gt=0,
-            is_refunded=False,
-        ).exists()
 
     def _get_fundraise_proposal(
         self, fundraise: Fundraise, user: User

@@ -124,6 +124,26 @@ class Fundraise(DefaultModel):
             models.Index(fields=["end_date"]),
         ]
 
+    def has_received_funding(self) -> bool:
+        """Return whether the fundraise has non-refunded RSC or USD funding."""
+        if self.escrow is not None:
+            funded_rsc = self.escrow.amount_holding + self.escrow.amount_paid
+            if funded_rsc > 0:
+                return True
+
+        funded_usd_contributions = getattr(
+            self,
+            "prefetched_eligible_usd_contributions",
+            None,
+        )
+        if funded_usd_contributions is not None:
+            return bool(funded_usd_contributions)
+
+        return self.usd_contributions.filter(
+            amount_cents__gt=0,
+            is_refunded=False,
+        ).exists()
+
     def is_expired(self):
         if self.end_date:
             return self.end_date < datetime.now(UTC)
