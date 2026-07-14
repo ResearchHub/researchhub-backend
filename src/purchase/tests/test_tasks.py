@@ -3,15 +3,17 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.test import TestCase
 
 from notification.models import Notification
 from purchase.circle.client import CircleTransferError
-from purchase.models import Fundraise, Wallet
+from purchase.models import Balance, Fundraise, Wallet
 from purchase.services.fundraise_service import FundraiseService
 from purchase.tasks import (
     complete_eligible_fundraises,
+    send_funding_credits_reminders,
     send_monthly_preregistration_update_reminders,
     sweep_deposit_to_multisig,
 )
@@ -285,3 +287,97 @@ class PreregistrationUpdateReminderTest(TestCase):
         # Assert
         self.assertEqual(result["sent_count"], 1)
         self.assertEqual(self.notif_qs.count(), 1)
+
+
+class FundingCreditsReminderTest(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = create_random_authenticated_user("funding_credits_reminder")
+        self.notif_qs = Notification.objects.filter(
+            notification_type=Notification.FUNDING_CREDITS_REMINDER,
+            recipient=self.user,
+        )
+
+    def _add_funding_credit(self, user, amount, lock_type=None):
+        lock_type = lock_type or Balance.LockType.FUNDING_CREDIT
+        return Balance.objects.create(
+            user=user,
+            content_type=ContentType.objects.get_for_model(User),
+            object_id=user.id,
+            amount=str(amount),
+            is_locked=True,
+            lock_type=lock_type,
+        )
+
+    def test_sends_when_user_has_funding_credits(self):
+        # Arrange
+        self._add_funding_credit(self.user, Decimal(50))
+        # Act
+        result = send_funding_credits_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 1)
+        self.assertEqual(self.notif_qs.count(), 1)
+        self.assertEqual(Decimal(self.notif_qs.first().extra["amount"]), Decimal(50))
+
+    def test_no_reminder_without_funding_credits(self):
+        # Arrange / Act
+        result = send_funding_credits_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 0)
+        self.assertFalse(self.notif_qs.exists())
+
+    def test_no_reminder_when_credits_fully_spent(self):
+        # Arrange
+        self._add_funding_credit(self.user, Decimal(40))
+        self._add_funding_credit(self.user, Decimal(-40))
+        # Act
+        result = send_funding_credits_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 0)
+        self.assertFalse(self.notif_qs.exists())
+
+    def test_deduplicates_within_two_weeks(self):
+        # Arrange
+        self._add_funding_credit(self.user, Decimal(25))
+        send_funding_credits_reminders()
+        # Act
+        result = send_funding_credits_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 0)
+        self.assertEqual(self.notif_qs.count(), 1)
+
+    def test_sends_again_after_two_weeks(self):
+        # Arrange
+        self._add_funding_credit(self.user, Decimal(25))
+        send_funding_credits_reminders()
+        old = datetime.now(UTC) - timedelta(days=15)
+        self.notif_qs.update(created_date=old)
+        # Act
+        result = send_funding_credits_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 1)
+        self.assertEqual(self.notif_qs.count(), 2)
+
+    def test_sends_for_promotional_only_balance(self):
+        # Arrange
+        self._add_funding_credit(
+            self.user, Decimal(60), lock_type=Balance.LockType.PROMOTIONAL
+        )
+        # Act
+        result = send_funding_credits_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 1)
+        self.assertEqual(self.notif_qs.count(), 1)
+        self.assertEqual(Decimal(self.notif_qs.first().extra["amount"]), Decimal(60))
+
+    def test_amount_combines_funding_and_promotional(self):
+        # Arrange
+        self._add_funding_credit(self.user, Decimal(40))
+        self._add_funding_credit(
+            self.user, Decimal(60), lock_type=Balance.LockType.PROMOTIONAL
+        )
+        # Act
+        result = send_funding_credits_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 1)
+        self.assertEqual(Decimal(self.notif_qs.first().extra["amount"]), Decimal(100))

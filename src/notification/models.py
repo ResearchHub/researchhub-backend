@@ -45,6 +45,7 @@ class Notification(models.Model):
     """
     PAPER_CLAIM_PAYOUT = "PAPER_CLAIM_PAYOUT"
     PREREGISTRATION_UPDATE_REMINDER = "PREREGISTRATION_UPDATE_REMINDER"
+    FUNDING_CREDITS_REMINDER = "FUNDING_CREDITS_REMINDER"
     GRANT_APPROVED = "GRANT_APPROVED"
     GRANT_DECLINED = "GRANT_DECLINED"
     CONTENT_APPROVED = "CONTENT_APPROVED"
@@ -74,6 +75,7 @@ class Notification(models.Model):
         (PAPER_CLAIM_PAYOUT, PAPER_CLAIM_PAYOUT),
         (PREREGISTRATION_UPDATE, PREREGISTRATION_UPDATE),
         (PREREGISTRATION_UPDATE_REMINDER, PREREGISTRATION_UPDATE_REMINDER),
+        (FUNDING_CREDITS_REMINDER, FUNDING_CREDITS_REMINDER),
         (GRANT_APPROVED, GRANT_APPROVED),
         (GRANT_DECLINED, GRANT_DECLINED),
         (CONTENT_APPROVED, CONTENT_APPROVED),
@@ -620,6 +622,36 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
+        ], base_url
+
+    def _format_funding_credits_reminder(self):
+        from researchhub.settings import BASE_FRONTEND_URL
+
+        base_url = f"{BASE_FRONTEND_URL}/fund"
+
+        amount = self.extra.get("amount") if self.extra else None
+        if amount is not None:
+            try:
+                amount = round(float(amount), 2)
+            except (ValueError, TypeError):
+                amount = None
+
+        amount_text = (
+            f"You have {amount} RSC in funding credits. "
+            if amount is not None
+            else "You have unspent funding credits. "
+        )
+
+        return [
+            {"type": "text", "value": amount_text, "extra": '["bold"]'},
+            {"type": "text", "value": "Put them to work by "},
+            {
+                "type": "link",
+                "value": "supporting a project",
+                "link": base_url,
+                "extra": '["link"]',
+            },
+            {"type": "text", "value": "."},
         ], base_url
 
     def _format_grant_approved(self) -> tuple[list, str | None]:

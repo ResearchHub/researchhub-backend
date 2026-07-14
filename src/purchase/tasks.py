@@ -8,7 +8,7 @@ from mailing_list.lib import base_email_context, send_email
 from notification.models import Notification
 from paper.models import Paper
 from purchase.circle.service import CircleWalletService
-from purchase.models import Fundraise, Purchase, Support
+from purchase.models import Balance, Fundraise, Purchase, Support
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
 from reputation.models import Deposit
@@ -131,6 +131,73 @@ def send_monthly_preregistration_update_reminders():
             )
 
     logger.info("Sent %d preregistration update reminders", sent_count)
+
+    return {"sent_count": sent_count}
+
+
+@app.task(queue=QUEUE_NOTIFICATION)
+def send_funding_credits_reminders():
+    """Remind users who still hold unspent funding credits to spend them.
+
+    Funding credits are locked, non-withdrawable RSC (staking yield, referral
+    bonuses, RSC purchases, promotional grants) that can only be spent by
+    supporting fundraises. We nudge holders at most once every two weeks.
+    """
+    from user.models import User
+
+    now = datetime.now(UTC)
+    reminder_cutoff = now - timedelta(days=14)
+    user_ct = ContentType.objects.get_for_model(User)
+
+    # Prefilter to users who have at least one locked, spendable balance row
+    # (funding credits or promotional). The effective balance is confirmed
+    # per-user below, since debits can zero it out even when credit rows exist.
+    candidate_user_ids = (
+        Balance.objects.filter(
+            is_locked=True,
+            lock_type__in=(
+                Balance.LockType.FUNDING_CREDIT,
+                Balance.LockType.PROMOTIONAL,
+            ),
+        )
+        .values_list("user_id", flat=True)
+        .distinct()
+    )
+
+    candidates = User.objects.filter(id__in=candidate_user_ids)
+
+    sent_count = 0
+    for user in candidates.iterator():
+        balance = user.get_funding_credits_balance() + user.get_promotional_balance()
+        if balance <= 0:
+            continue
+
+        already_sent = Notification.objects.filter(
+            notification_type=Notification.FUNDING_CREDITS_REMINDER,
+            recipient=user,
+            created_date__gte=reminder_cutoff,
+        ).exists()
+        if already_sent:
+            continue
+
+        try:
+            notification = Notification.objects.create(
+                item=user,
+                content_type=user_ct,
+                object_id=user.id,
+                action_user=user,
+                recipient=user,
+                notification_type=Notification.FUNDING_CREDITS_REMINDER,
+                extra={"amount": str(balance)},
+            )
+            notification.send_notification()
+            sent_count += 1
+        except Exception:
+            logger.exception(
+                "Error sending funding credits reminder for user %s", user.id
+            )
+
+    logger.info("Sent %d funding credits reminders", sent_count)
 
     return {"sent_count": sent_count}
 
