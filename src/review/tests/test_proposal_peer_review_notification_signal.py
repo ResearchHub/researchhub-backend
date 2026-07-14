@@ -4,7 +4,6 @@ from unittest.mock import patch
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from discussion.tests.helpers import create_paper
 from notification.models import Notification
 from purchase.models import Grant, GrantApplication
 from researchhub_comment.tests.helpers import create_rh_comment
