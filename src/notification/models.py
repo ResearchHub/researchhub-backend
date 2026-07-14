@@ -707,8 +707,7 @@ class Notification(models.Model):
             {
                 "type": "text",
                 "value": (
-                    " left a peer review on a proposal "
-                    "to your funding opportunity: "
+                    " left a peer review on a proposal to your funding opportunity: "
                 ),
             },
             {
