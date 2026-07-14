@@ -17,6 +17,7 @@ from research_ai.services.agent import Tool
 from research_ai.services.pdf_text import (
     extract_text_from_pdf_bytes,
     get_paper_pdf_bytes,
+    get_pdf_bytes_from_url,
 )
 from research_ai.services.proposal_tools.doi import strip_doi_prefix
 
@@ -178,25 +179,17 @@ class ProposalFulltextToolset:
             return ""
 
     def _pdf_text_from_url(self, pdf_url) -> str:
-        pdf_url = str(pdf_url or "").strip()
-        if not pdf_url:
+        try:
+            pdf_bytes = get_pdf_bytes_from_url(pdf_url)
+            if not pdf_bytes:
+                return ""
+            return extract_text_from_pdf_bytes(pdf_bytes, max_chars=_MAX_FULLTEXT_CHARS)
+        except Exception as exc:  # noqa: BLE001 - a bad PDF must not break the loop
+            logger.warning("get_work_fulltext: url PDF read failed: %s", exc)
             return ""
-        return self._pdf_text(None, _UrlPaper(pdf_url))
 
     @staticmethod
     def _default_paper_lookup(doi: str) -> Paper | None:
         if not doi:
             return None
         return Paper.objects.filter(doi__iexact=doi).first()
-
-
-class _UrlPaper:
-    """Minimal duck-typed paper so ``get_paper_pdf_bytes`` can fetch a bare URL."""
-
-    file = None
-    external_source = ""
-    id = None
-
-    def __init__(self, pdf_url: str):
-        self.pdf_url = pdf_url
-        self.url = pdf_url

@@ -10,8 +10,11 @@ from research_ai.prompts.proposal_draft_prompts import (
 )
 
 
-def _expert(works):
-    return SimpleNamespace(full_name="Jane Smith", profile={"works": works})
+def _expert(works, capabilities=None):
+    profile = {"works": works}
+    if capabilities is not None:
+        profile["capabilities"] = capabilities
+    return SimpleNamespace(full_name="Jane Smith", profile=profile)
 
 
 class BuildProposalUserPromptTests(unittest.TestCase):
@@ -53,6 +56,38 @@ class BuildProposalUserPromptTests(unittest.TestCase):
         # Assert
         self.assertIn("No Abstract Work", prompt)
         self.assertNotIn("Abstract:", prompt)
+
+    def test_seed_lists_lab_capabilities(self):
+        # Arrange: a profile with a demonstrated capability.
+        expert = _expert(
+            [{"title": "Folding"}],
+            capabilities=[
+                {
+                    "kind": "technique",
+                    "name": "cryo-EM",
+                    "note": "solved a channel structure",
+                    "evidence": ["https://doi.org/10.1/a"],
+                }
+            ],
+        )
+
+        # Act
+        prompt = build_proposal_user_prompt(expert, None)
+
+        # Assert: the capability and its kind seed the draft's bounds.
+        self.assertIn("Demonstrated lab capabilities", prompt)
+        self.assertIn("cryo-EM", prompt)
+        self.assertIn("[technique]", prompt)
+
+    def test_seed_omits_capability_block_when_none(self):
+        # Arrange: no capabilities on the profile.
+        expert = _expert([{"title": "Folding"}])
+
+        # Act
+        prompt = build_proposal_user_prompt(expert, None)
+
+        # Assert
+        self.assertNotIn("Demonstrated lab capabilities", prompt)
 
 
 class BuildProposalSystemPromptTests(unittest.TestCase):

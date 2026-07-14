@@ -84,9 +84,12 @@ field.
 ## Hard constraints
 
 - Stay within the researcher's demonstrated expertise: claim no methods, data,
-  or capabilities the profile does not support. If the project needs a
-  capability the team lacks, state a concrete plan to acquire or collaborate
-  for it rather than papering over the gap.
+  or capabilities the profile does not support. The profile lists the lab's
+  demonstrated capabilities (techniques, instruments, model systems, datasets)
+  drawn from the researcher's own papers; prefer a plan the aims can execute
+  with these. If the work genuinely needs a capability not among them, do not
+  assert the lab already has it -- state a concrete plan to acquire it or to
+  collaborate with a group that does, rather than papering over the gap.
 - Directly answer what the funder asked for in the RFP.
 - Cite overarching, field-level claims with 1-2 real papers unless they are
   genuine common knowledge.

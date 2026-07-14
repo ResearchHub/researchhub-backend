@@ -25,7 +25,10 @@ from research_ai.services.agent.types import (
     ToolUseBlock,
 )
 from research_ai.services.proposal_draft import run_proposal_draft
-from research_ai.services.proposal_draft.runner import _ProposalDraftRunner
+from research_ai.services.proposal_draft.runner import (
+    PROFILE_SCHEMA_VERSION,
+    _ProposalDraftRunner,
+)
 from research_ai.services.proposal_tools.assembly import assemble_proposal
 from researchhub_access_group.constants import ADMIN, NO_ACCESS
 from researchhub_document.helpers import create_post
@@ -227,6 +230,8 @@ class ProposalDraftServiceTests(TestCase):
             first_name="Jane",
             last_name="Smith",
             profile={
+                # Current schema so the run reuses it instead of rebuilding.
+                "schema_version": PROFILE_SCHEMA_VERSION,
                 "resolution": {"openalex_author_id": "A1", "confidence": 0.9},
                 "works": [
                     {

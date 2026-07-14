@@ -91,12 +91,36 @@ def _render_works_lines(works: list[dict]) -> list[str]:
     return lines
 
 
+def _render_capability_lines(capabilities: list[dict]) -> list[str]:
+    """The lab-capabilities block: the demonstrated bounds the draft stays within."""
+    capabilities = [c for c in capabilities if isinstance(c, dict)]
+    if not capabilities:
+        return []
+    lines = [
+        "",
+        "Demonstrated lab capabilities (techniques, instruments, model systems, "
+        "and datasets the works show the lab can work with -- stay within these; "
+        "for anything beyond them, state a concrete acquire/collaborate plan):",
+    ]
+    for capability in capabilities:
+        name = str(capability.get("name") or "").strip()
+        if not name:
+            continue
+        kind = str(capability.get("kind") or "").strip()
+        note = str(capability.get("note") or "").strip()
+        kind_suffix = f" [{kind}]" if kind else ""
+        note_suffix = f" -- {note}" if note else ""
+        lines.append(f"- {name}{kind_suffix}{note_suffix}")
+    return lines
+
+
 def _render_profile_summary(profile: dict | None) -> str:
     """Compact, readable summary of the persisted researcher profile."""
     profile = profile or {}
     works = [w for w in (profile.get("works") or []) if isinstance(w, dict)]
     lines = _render_resolution_lines(profile.get("resolution") or {})
     lines.extend(_render_works_lines(works))
+    lines.extend(_render_capability_lines(profile.get("capabilities") or []))
     return "\n".join(lines)
 
 

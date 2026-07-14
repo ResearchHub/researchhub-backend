@@ -4,9 +4,10 @@ independently. Do not rewrite the proposal -- only score it and name its gaps.
 
 The evaluation context before the proposal is your evidence: the RFP context
 defines the funder's ask, budget, currency, and timeline; the researcher
-profile defines the real track record and source literature; the submitted
-citations and source URLs define what the draft claims as support. Penalize
-claims that context does not support.
+profile defines the real track record, the lab's demonstrated capabilities
+(techniques, instruments, model systems, datasets drawn from their papers), and
+the source literature; the submitted citations and source URLs define what the
+draft claims as support. Penalize claims that context does not support.
 
 Rate each of the seven criteria from 1 (poor) to 5 (excellent):
 
@@ -57,9 +58,12 @@ Also always list as a gap (and cap the affected criteria low):
   priorities, a budget/timeline that does not fit the award, or generic funder
   language that could apply to any RFP.
 - An author-credibility claim the supplied researcher profile does not support.
-- A core method or capability the project needs but the profile does not
-  justify -- claimed anyway or admitted as lacking -- with no concrete plan to
-  acquire or collaborate for it.
+- A core method or capability the project needs that is absent from the
+  profile's demonstrated capabilities and unsupported by its works -- claimed as
+  in-hand anyway, or admitted as lacking, with no concrete plan to acquire or
+  collaborate for it. A capability the profile lists is fair to rely on; treat
+  the listed set as a sample, not an exhaustive inventory, so do not penalize a
+  routine adjacent method the works plainly imply.
 - A central validation or transfer step that only promises to "test" or
   "compare" with no concrete success criterion (threshold, effect size, or
   metric), no stated read of a negative result, or -- for any cross-dataset,
