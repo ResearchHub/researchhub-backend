@@ -27,6 +27,7 @@ from research_ai.services.agent.types import (
 from research_ai.services.proposal_draft import run_proposal_draft
 from research_ai.services.proposal_draft.runner import _ProposalDraftRunner
 from research_ai.services.proposal_tools.assembly import assemble_proposal
+from researchhub_access_group.constants import ADMIN, NO_ACCESS
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT
 from user.tests.helpers import create_random_default_user
@@ -265,6 +266,8 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
         note = Note.objects.get(id=result["note_id"])
         self.assertEqual(note.title, "A Study of Folding")
+        # A run without a pre-created draft has no triggering user, so the
+        # note stays ownerless (system/automatic run).
         self.assertIsNone(note.created_by)
         self.assertIsNone(note.organization)
         self.assertIsNotNone(note.latest_version)  # set by the post_save signal
@@ -318,6 +321,23 @@ class ProposalDraftServiceTests(TestCase):
         draft.refresh_from_db()
         self.assertEqual(draft.status, ProposalDraft.Status.COMPLETED)
         self.assertEqual(draft.created_by, self.user)
+
+        # The note lands privately in the triggering user's notebook: owned
+        # by them, in their personal org, admin for the user but no org access.
+        note = Note.objects.get(id=result["note_id"])
+        self.assertEqual(note.created_by, self.user)
+        self.assertEqual(note.organization, self.user.organization)
+        permissions = note.unified_document.permissions
+        self.assertTrue(
+            permissions.filter(
+                user=self.user, organization__isnull=True, access_type=ADMIN
+            ).exists()
+        )
+        self.assertTrue(
+            permissions.filter(
+                organization=self.user.organization, access_type=NO_ACCESS
+            ).exists()
+        )
 
     # -- a major_fabrication submit is blocked, gaps fed back -------------
 
