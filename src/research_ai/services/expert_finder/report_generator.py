@@ -19,7 +19,7 @@ from research_ai.constants import (
     get_choice_label,
 )
 from research_ai.models import Expert
-from research_ai.services.expert_display import ExpertDisplay
+from research_ai.services.expert_finder.display import ExpertDisplay
 
 logger = logging.getLogger(__name__)
 

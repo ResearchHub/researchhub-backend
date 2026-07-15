@@ -6,7 +6,7 @@ from django.db.models.functions import Lower
 from django.utils import timezone
 
 from research_ai.models import Expert, SearchExpert
-from research_ai.services.expert_display import ExpertDisplay
+from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.utils import trimmed_str
 
 User = get_user_model()

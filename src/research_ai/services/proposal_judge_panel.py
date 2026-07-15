@@ -30,7 +30,7 @@ import statistics
 from django.conf import settings
 
 from research_ai.services.agent import BedrockProvider, LLMProvider, Message, TextBlock
-from research_ai.services.expert_finder_json import ExpertFinderJson
+from research_ai.services.expert_finder.json_parsing import ExpertFinderJson
 
 logger = logging.getLogger(__name__)
 

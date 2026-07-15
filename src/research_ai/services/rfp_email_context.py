@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from research_ai.constants import BASE_FRONTEND_URL
 from research_ai.models import Expert, ExpertSearch, SearchExpert
-from research_ai.services.expert_display import ExpertDisplay
+from research_ai.services.expert_finder.display import ExpertDisplay
 
 logger = logging.getLogger(__name__)
 

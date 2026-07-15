@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
 
-from research_ai.services.openai_expert_finder_service import (
+from research_ai.services.expert_finder.openai_finder import (
     OPENAI_EXPERT_FINDER_MODEL,
     OpenAIExpertFinderService,
 )
@@ -22,7 +22,7 @@ class OpenAIExpertFinderServiceTests(TestCase):
         self.assertIn("OPENAI_API_KEY", str(ctx.exception))
 
     @override_settings(OPENAI_API_KEY="sk-test-key")
-    @patch("research_ai.services.openai_expert_finder_service.OpenAI")
+    @patch("research_ai.services.expert_finder.openai_finder.OpenAI")
     def test_invoke_uses_responses_api_with_web_search_and_strips_text(
         self, mock_openai_cls
     ):
@@ -55,7 +55,7 @@ class OpenAIExpertFinderServiceTests(TestCase):
         mock_client.chat.completions.create.assert_not_called()
 
     @override_settings(OPENAI_API_KEY="sk-test")
-    @patch("research_ai.services.openai_expert_finder_service.OpenAI")
+    @patch("research_ai.services.expert_finder.openai_finder.OpenAI")
     def test_invoke_returns_empty_string_when_output_text_empty(self, mock_openai_cls):
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
@@ -67,8 +67,8 @@ class OpenAIExpertFinderServiceTests(TestCase):
         self.assertEqual(svc.invoke("s", "u"), "")
 
     @override_settings(OPENAI_API_KEY="sk-test")
-    @patch("research_ai.services.openai_expert_finder_service.logger")
-    @patch("research_ai.services.openai_expert_finder_service.OpenAI")
+    @patch("research_ai.services.expert_finder.openai_finder.logger")
+    @patch("research_ai.services.expert_finder.openai_finder.OpenAI")
     def test_invoke_raises_without_ungrounded_fallback_when_responses_fails(
         self, mock_openai_cls, mock_logger
     ):

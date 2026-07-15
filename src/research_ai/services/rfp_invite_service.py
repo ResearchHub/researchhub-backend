@@ -5,8 +5,8 @@ from django.db import transaction
 from django.template.loader import render_to_string
 
 from research_ai.models import ExpertSearch, GeneratedEmail, SearchExpert
-from research_ai.services.expert_display import ExpertDisplay
-from research_ai.services.expert_persist import ExpertPersist
+from research_ai.services.expert_finder.display import ExpertDisplay
+from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.rfp_email_context import build_rfp_context
 
 logger = logging.getLogger(__name__)

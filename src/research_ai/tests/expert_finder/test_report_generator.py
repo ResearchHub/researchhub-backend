@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase
 
 from research_ai.models import Expert
-from research_ai.services.report_generator_service import (
+from research_ai.services.expert_finder.report_generator import (
     expert_to_report_row,
     generate_csv_file,
     generate_pdf_report,
@@ -73,7 +73,7 @@ class GenerateReportFromExpertModelTests(TestCase):
 
 
 class UploadReportToStorageTests(TestCase):
-    @patch("research_ai.services.report_generator_service.default_storage")
+    @patch("research_ai.services.expert_finder.report_generator.default_storage")
     def test_upload_report_returns_url(self, mock_storage):
         mock_storage.save = MagicMock()
         mock_storage.url.return_value = (

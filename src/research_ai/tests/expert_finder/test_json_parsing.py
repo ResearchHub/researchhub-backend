@@ -2,9 +2,9 @@ from django.test import TestCase
 from django.utils import timezone
 
 from research_ai.models import Expert, ExpertSearch, SearchExpert
-from research_ai.services.expert_display import ExpertDisplay
-from research_ai.services.expert_finder_json import ExpertFinderJson
-from research_ai.services.expert_persist import ExpertPersist
+from research_ai.services.expert_finder.display import ExpertDisplay
+from research_ai.services.expert_finder.json_parsing import ExpertFinderJson
+from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.utils import trimmed_str
 from user.tests.helpers import create_user
 

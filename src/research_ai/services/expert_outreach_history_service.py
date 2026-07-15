@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from research_ai.models import GeneratedEmail
-from research_ai.services.expert_display import ExpertDisplay
+from research_ai.services.expert_finder.display import ExpertDisplay
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase
 
 from research_ai.models import Expert, ExpertSearch, SearchExpert
-from research_ai.services.expert_display import ExpertDisplay
+from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.rfp_email_context import (
     build_rfp_context,
     get_expert_for_search_by_email,

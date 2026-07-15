@@ -18,7 +18,7 @@ from research_ai.models import (
     ProposalDraft,
     SearchExpert,
 )
-from research_ai.services.expert_display import ExpertDisplay
+from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_outreach_history_service import (
     ExpertOutreachHistory,
     build_expert_outreach_history_map,

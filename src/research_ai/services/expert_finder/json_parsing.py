@@ -6,7 +6,7 @@ from typing import Any
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 
-from research_ai.services.expert_display import ExpertDisplay
+from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.utils import trimmed_str
 
 logger = logging.getLogger(__name__)

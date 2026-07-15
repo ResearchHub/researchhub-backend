@@ -19,22 +19,22 @@ from research_ai.prompts.expert_finder_prompts import (
     build_system_prompt,
     build_user_prompt,
 )
-from research_ai.services.expert_display import ExpertDisplay
-from research_ai.services.expert_finder_json import ExpertFinderJson
-from research_ai.services.expert_persist import ExpertPersist
-from research_ai.services.openai_expert_finder_service import OpenAIExpertFinderService
+from research_ai.services.expert_finder.display import ExpertDisplay
+from research_ai.services.expert_finder.json_parsing import ExpertFinderJson
+from research_ai.services.expert_finder.openai_finder import OpenAIExpertFinderService
+from research_ai.services.expert_finder.persist import ExpertPersist
+from research_ai.services.expert_finder.progress import ProgressService, TaskType
+from research_ai.services.expert_finder.report_generator import (
+    expert_to_report_row,
+    generate_csv_file,
+    generate_pdf_report,
+    upload_report_to_storage,
+)
 from research_ai.services.pdf_text import (
     extract_text_from_pdf_bytes as _extract_text_from_pdf_bytes,
 )
 from research_ai.services.pdf_text import (
     get_paper_pdf_bytes as _get_paper_pdf_bytes,
-)
-from research_ai.services.progress_service import ProgressService, TaskType
-from research_ai.services.report_generator_service import (
-    expert_to_report_row,
-    generate_csv_file,
-    generate_pdf_report,
-    upload_report_to_storage,
 )
 from researchhub_document.related_models.constants.document_type import PAPER
 

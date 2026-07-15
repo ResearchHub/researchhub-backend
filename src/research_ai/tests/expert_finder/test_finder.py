@@ -4,7 +4,7 @@ from django.test import TestCase, override_settings
 
 from research_ai.constants import ExpertiseLevel, Region
 from research_ai.models import Expert, ExpertSearch, SearchExpert
-from research_ai.services.expert_finder_service import (
+from research_ai.services.expert_finder.finder import (
     PDF_TOO_LARGE_MESSAGE,
     _extract_text_from_pdf_bytes,
     _get_paper_pdf_bytes,
@@ -109,8 +109,8 @@ class GetDocumentContentTests(TestCase):
             get_document_content(unified_doc, "invalid_type")
         self.assertIn("Invalid input_type for paper", str(ctx.exception))
 
-    @patch("research_ai.services.expert_finder_service._extract_text_from_pdf_bytes")
-    @patch("research_ai.services.expert_finder_service._get_paper_pdf_bytes")
+    @patch("research_ai.services.expert_finder.finder._extract_text_from_pdf_bytes")
+    @patch("research_ai.services.expert_finder.finder._get_paper_pdf_bytes")
     def test_paper_pdf_returns_extracted_text(self, mock_get_pdf, mock_extract):
         from researchhub_document.related_models.constants.document_type import PAPER
 
@@ -126,7 +126,7 @@ class GetDocumentContentTests(TestCase):
         mock_get_pdf.assert_called_once_with(paper)
         mock_extract.assert_called_once_with(b"pdf bytes")
 
-    @patch("research_ai.services.expert_finder_service._get_paper_pdf_bytes")
+    @patch("research_ai.services.expert_finder.finder._get_paper_pdf_bytes")
     def test_paper_pdf_not_available_raises(self, mock_get_pdf):
         from researchhub_document.related_models.constants.document_type import PAPER
 
@@ -139,7 +139,7 @@ class GetDocumentContentTests(TestCase):
             get_document_content(unified_doc, "pdf")
         self.assertIn("PDF is not available", str(ctx.exception))
 
-    @patch("research_ai.services.expert_finder_service._get_paper_pdf_bytes")
+    @patch("research_ai.services.expert_finder.finder._get_paper_pdf_bytes")
     def test_paper_pdf_too_large_raises(self, mock_get_pdf):
         from research_ai.constants import MAX_PDF_SIZE_BYTES
         from researchhub_document.related_models.constants.document_type import PAPER
@@ -257,18 +257,18 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
 
     @override_settings(PRODUCTION=False, TESTING=False)
     @patch(
-        "research_ai.services.expert_finder_service.upload_report_to_storage",
+        "research_ai.services.expert_finder.finder.upload_report_to_storage",
         return_value="https://x/r",
     )
     @patch(
-        "research_ai.services.expert_finder_service.generate_csv_file",
+        "research_ai.services.expert_finder.finder.generate_csv_file",
         return_value=b"c",
     )
     @patch(
-        "research_ai.services.expert_finder_service.generate_pdf_report",
+        "research_ai.services.expert_finder.finder.generate_pdf_report",
         return_value=b"p",
     )
-    @patch("research_ai.services.expert_finder_service.OpenAIExpertFinderService")
+    @patch("research_ai.services.expert_finder.finder.OpenAIExpertFinderService")
     def test_run_success_persists_and_returns_completed(
         self, mock_openai_class, _pdf, _csv, _up
     ):
