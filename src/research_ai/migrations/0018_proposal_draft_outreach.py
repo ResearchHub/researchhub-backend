@@ -32,7 +32,7 @@ def resolve_duplicate_active_drafts(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("invite", "0009_noteinvitation_metadata_and_email_length"),
+        ("invite", "0009_alter_invitation_recipient_email"),
         ("research_ai", "0017_generatedemail_complained_at_and_more"),
     ]
 
