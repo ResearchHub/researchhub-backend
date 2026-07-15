@@ -8,6 +8,11 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AlterField(
+            model_name="organizationinvitation",
+            name="recipient_email",
+            field=models.EmailField(max_length=254),
+        ),
+        migrations.AlterField(
             model_name="noteinvitation",
             name="recipient_email",
             field=models.EmailField(max_length=254),
