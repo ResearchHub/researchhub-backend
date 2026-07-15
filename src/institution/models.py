@@ -1,3 +1,5 @@
+import contextlib
+
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
@@ -131,10 +133,8 @@ class Institution(DefaultModel):
         oa_institution = OpenAlex.normalize_dates(oa_institution)
 
         institution = None
-        try:
+        with contextlib.suppress(Institution.DoesNotExist):
             institution = Institution.objects.get(openalex_id=oa_institution["id"])
-        except Institution.DoesNotExist:
-            pass
 
         needs_update = False
         if institution and has_dates:

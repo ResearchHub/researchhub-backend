@@ -78,9 +78,13 @@ def create_feed_entry(
     metrics = serialize_feed_metrics(item, item_content_type)
 
     action_date = item.created_date
-    if action == FeedEntry.PUBLISH and item_content_type.model == "paper":
-        if item.paper_publish_date and item.paper_publish_date <= timezone.now():
-            action_date = item.paper_publish_date
+    if (
+        action == FeedEntry.PUBLISH
+        and item_content_type.model == "paper"
+        and item.paper_publish_date
+        and item.paper_publish_date <= timezone.now()
+    ):
+        action_date = item.paper_publish_date
 
     # Get authors for the item
     authors = _get_authors_for_item(item, item_content_type)

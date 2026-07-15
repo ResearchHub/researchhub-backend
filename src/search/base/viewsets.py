@@ -52,7 +52,7 @@ class ElasticsearchViewSet(GenericViewSet):
         # (for django-elasticsearch-dsl-drf compatibility)
         # Look for any parameter ending with __completion
         is_suggest_request = any(
-            param.endswith("__completion") for param in request.query_params.keys()
+            param.endswith("__completion") for param in request.query_params
         )
 
         if is_suggest_request:
@@ -61,7 +61,7 @@ class ElasticsearchViewSet(GenericViewSet):
 
             # Find which __completion parameter was used
             completion_param = None
-            for param in request.query_params.keys():
+            for param in request.query_params:
                 if param.endswith("__completion"):
                     completion_param = param
                     break

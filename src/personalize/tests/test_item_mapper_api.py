@@ -75,7 +75,7 @@ class ApiItemMappingTests(TestCase):
         for key in expected_camel_case_keys:
             self.assertIn(key, properties, f"{key} should be in properties")
 
-        uppercase_keys = [k for k in properties.keys() if k.isupper() or "_" in k]
+        uppercase_keys = [k for k in properties if k.isupper() or "_" in k]
         self.assertEqual(
             len(uppercase_keys),
             0,

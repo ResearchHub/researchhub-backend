@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from functools import partial
 
@@ -50,12 +51,10 @@ def _expert_search_task_progress_callback(
         else ExpertSearch.Status.PROCESSING
     )
     _update_search_progress(sid, percent, message, status=status)
-    try:
+    with contextlib.suppress(Exception):
         task_self.update_state(
             state="PROGRESS", meta={"progress": percent, "status": message}
         )
-    except Exception:
-        pass
 
 
 def _resolve_expert_finder_task_inputs(
@@ -301,10 +300,8 @@ def _get_bulk_emails_task_context(
         return None
     user = first.created_by
     if template_id and created_by_id:
-        try:
+        with contextlib.suppress(User.DoesNotExist):
             user = User.objects.get(id=created_by_id)
-        except User.DoesNotExist:
-            pass
     template_key, custom_use_case = _normalize_template_for_bulk(first.template)
     return (user, template_key, custom_use_case)
 
@@ -386,12 +383,10 @@ def _process_one_bulk_email(
 def _mark_generated_emails_failed(email_ids: list[int]) -> None:
     """Set all given GeneratedEmail rows to FAILED; swallow per-id errors."""
     for email_id in email_ids:
-        try:
+        with contextlib.suppress(Exception):
             GeneratedEmail.objects.filter(id=email_id).update(
                 status=GeneratedEmail.Status.FAILED
             )
-        except Exception:
-            pass
 
 
 @app.task(bind=True)

@@ -65,11 +65,14 @@ class UserCanApproveBounty(BasePermission):
             if obj.expiration_date and obj.expiration_date <= now:
                 self.message = "Bounty is expired"
                 return False
-        elif obj.status == Bounty.ASSESSMENT:
+        elif (
+            obj.status == Bounty.ASSESSMENT
+            and obj.assessment_end_date
+            and obj.assessment_end_date <= now
+        ):
             # During ASSESSMENT phase, check assessment_end_date
-            if obj.assessment_end_date and obj.assessment_end_date <= now:
-                self.message = "Bounty assessment period has expired"
-                return False
+            self.message = "Bounty assessment period has expired"
+            return False
 
         if obj.item_content_type == ContentType.objects.get_for_model(
             ResearchhubUnifiedDocument

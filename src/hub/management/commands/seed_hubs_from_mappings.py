@@ -160,7 +160,7 @@ class Command(BaseCommand):
         if hubs_existing:
             # For existing hubs, show their actual names in the list
             existing_names = []
-            for slug in hubs_existing.keys():
+            for slug in hubs_existing:
                 hub = Hub.objects.filter(slug=slug).first()
                 if hub:
                     existing_names.append(hub.name)

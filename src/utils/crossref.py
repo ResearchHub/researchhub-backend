@@ -77,20 +77,22 @@ class Crossref:
 
     def create_paper(self, is_public=False):
         Paper = apps.get_model("paper.Paper")  # noqa: N806
-        if self.data_message is not None:
-            if self.publication_type == "journal-article":
-                if self.id is not None:
-                    paper = Paper.objects.create(
-                        title=self.title,
-                        paper_title=self.title,
-                        doi=self.doi,
-                        url=self.url,
-                        paper_publish_date=self.paper_publish_date,
-                        external_source="crossref",
-                        retrieved_from_external_source=True,
-                        is_public=is_public,
-                    )
-                    return paper
+        if (
+            self.data_message is not None
+            and self.publication_type == "journal-article"
+            and self.id is not None
+        ):
+            paper = Paper.objects.create(
+                title=self.title,
+                paper_title=self.title,
+                doi=self.doi,
+                url=self.url,
+                paper_publish_date=self.paper_publish_date,
+                external_source="crossref",
+                retrieved_from_external_source=True,
+                is_public=is_public,
+            )
+            return paper
         return None
 
 

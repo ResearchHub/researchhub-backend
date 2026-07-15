@@ -1,3 +1,4 @@
+import contextlib
 import logging
 
 from django.contrib.postgres.fields import ArrayField
@@ -136,10 +137,8 @@ class Topic(DefaultModel):
         oa_topic = OpenAlex.normalize_dates(oa_topic)
 
         topic = None
-        try:
+        with contextlib.suppress(Topic.DoesNotExist):
             topic = Topic.objects.get(openalex_id=oa_topic["id"])
-        except Topic.DoesNotExist:
-            pass
 
         # if topic exists, determine if we need to update it
         needs_update = False
@@ -150,10 +149,8 @@ class Topic(DefaultModel):
 
         # Upsert domain
         domain = None
-        try:
+        with contextlib.suppress(Domain.DoesNotExist):
             domain = Domain.objects.get(openalex_id=oa_topic["domain"]["id"])
-        except Domain.DoesNotExist:
-            pass
 
         if not domain:
             domain = Domain.objects.create(
@@ -167,10 +164,8 @@ class Topic(DefaultModel):
 
         # Upsert field
         field = None
-        try:
+        with contextlib.suppress(Field.DoesNotExist):
             field = Field.objects.get(openalex_id=oa_topic["field"]["id"])
-        except Field.DoesNotExist:
-            pass
 
         if not field:
             field = Field.objects.create(
@@ -185,10 +180,8 @@ class Topic(DefaultModel):
 
         # Upsert subfield
         subfield = None
-        try:
+        with contextlib.suppress(Subfield.DoesNotExist):
             subfield = Subfield.objects.get(openalex_id=oa_topic["subfield"]["id"])
-        except Subfield.DoesNotExist:
-            pass
 
         if not subfield:
             subfield = Subfield.objects.create(
@@ -207,10 +200,8 @@ class Topic(DefaultModel):
         try:
             created = False
             hub = None
-            try:
+            with contextlib.suppress(Hub.DoesNotExist):
                 hub = Hub.get_from_subfield(subfield)
-            except Hub.DoesNotExist:
-                pass
 
             if not hub:
                 hub, created = Hub.objects.create(

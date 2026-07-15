@@ -107,12 +107,12 @@ class AmplitudeEventParser:
         if user_id_str:
             try:
                 user_id = int(user_id_str)
-                if validate_user_exists:
-                    if not User.objects.filter(id=user_id).exists():
-                        logger.warning(
-                            f"User {user_id} not found, using external_user_id"
-                        )
-                        user_id = None
+                if (
+                    validate_user_exists
+                    and not User.objects.filter(id=user_id).exists()
+                ):
+                    logger.warning(f"User {user_id} not found, using external_user_id")
+                    user_id = None
             except ValueError:
                 logger.warning(f"Invalid user_id format: '{user_id_str}'")
 

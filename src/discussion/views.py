@@ -49,12 +49,11 @@ def censor(item):
             is_removed=True, is_public=False, is_removed_date=timezone.now()
         )
 
-    if action := getattr(item, "actions", None):
-        if action.exists():
-            action = action.first()
-            action.is_removed = True
-            action.display = False
-            action.save(update_fields=["is_removed", "display"])
+    if (action := getattr(item, "actions", None)) and action.exists():
+        action = action.first()
+        action.is_removed = True
+        action.display = False
+        action.save(update_fields=["is_removed", "display"])
 
     if purchases := getattr(item, "purchases", None):
         for purchase in purchases.iterator():
