@@ -209,11 +209,6 @@ class GenerateEmailViewTests(APITestCase):
                 "expert_search_id": self.expert_search.id,
                 "expert_email": self.jane.email,
                 "proposal_draft_id": draft.id,
-                "outreach_context": {
-                    "requested_budget": "$5K",
-                    "budget_rationale": "All reanalysis, with no new data.",
-                    "highlights": ["Map where OPCs stall"],
-                },
             },
             format="json",
         )
@@ -230,7 +225,12 @@ class GenerateEmailViewTests(APITestCase):
         self.assertIn(invitation.key, response.json()["proposal_invite_url"])
         call_kwargs = mock_generate.call_args.kwargs
         self.assertEqual(call_kwargs["template"], "proposal-draft-outreach")
-        self.assertIn("$5K", call_kwargs["proposal_draft_context"])
+        self.assertIn("Map maturation arrest", call_kwargs["proposal_draft_context"])
+        self.assertIn("$5,000", call_kwargs["proposal_draft_context"])
+        self.assertIn(
+            "computational reanalysis only",
+            call_kwargs["proposal_draft_context"],
+        )
         self.assertIn(invitation.key, call_kwargs["proposal_draft_context"])
 
     @patch("research_ai.views.email_views.generate_expert_email")
@@ -846,29 +846,6 @@ class BulkGenerateEmailViewTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_post_outreach_context_without_proposal_draft_returns_400(self):
-        # Arrange
-        self.client.force_authenticate(self.moderator)
-
-        # Act
-        response = self.client.post(
-            self.url,
-            {
-                "expert_search_id": self.expert_search.id,
-                "experts": [
-                    {
-                        "expert_email": "a@x.com",
-                        "outreach_context": {"requested_budget": "$5K"},
-                    }
-                ],
-            },
-            format="json",
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertFalse(GeneratedEmail.objects.exists())
 
     @patch("research_ai.views.email_views.process_bulk_generate_emails_task")
     def test_post_template_null_stores_null_template_on_placeholder(self, mock_task):

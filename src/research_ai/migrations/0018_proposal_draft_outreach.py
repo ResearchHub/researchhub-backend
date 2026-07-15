@@ -2,34 +2,6 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
-def resolve_duplicate_active_drafts(apps, schema_editor):
-    proposal_draft = apps.get_model("research_ai", "ProposalDraft")
-    active_statuses = ["PENDING", "PROCESSING"]
-    duplicates = (
-        proposal_draft.objects.filter(status__in=active_statuses)
-        .values("search_expert_id")
-        .annotate(total=models.Count("id"))
-        .filter(total__gt=1)
-    )
-    processing_first = models.Case(
-        models.When(status="PROCESSING", then=models.Value(0)),
-        default=models.Value(1),
-        output_field=models.IntegerField(),
-    )
-    for duplicate in duplicates.iterator():
-        drafts = proposal_draft.objects.filter(
-            search_expert_id=duplicate["search_expert_id"],
-            status__in=active_statuses,
-        ).order_by(processing_first, "created_date", "id")
-        keeper_id = drafts.values_list("id", flat=True).first()
-        drafts.exclude(id=keeper_id).update(
-            status="FAILED",
-            error_message=(
-                "Superseded while enforcing one active proposal draft per expert."
-            ),
-        )
-
-
 class Migration(migrations.Migration):
     dependencies = [
         ("invite", "0009_alter_invitation_recipient_email"),
@@ -47,17 +19,6 @@ class Migration(migrations.Migration):
                 on_delete=django.db.models.deletion.SET_NULL,
                 related_name="generated_emails",
                 to="invite.noteinvitation",
-            ),
-        ),
-        migrations.AddField(
-            model_name="generatedemail",
-            name="outreach_context",
-            field=models.JSONField(
-                blank=True,
-                db_comment=(
-                    "Editor-provided proposal outreach fields used during generation."
-                ),
-                default=dict,
             ),
         ),
         migrations.AddField(
@@ -97,10 +58,6 @@ class Migration(migrations.Migration):
                 max_length=32,
                 null=True,
             ),
-        ),
-        migrations.RunPython(
-            resolve_duplicate_active_drafts,
-            reverse_code=migrations.RunPython.noop,
         ),
         migrations.AddConstraint(
             model_name="proposaldraft",

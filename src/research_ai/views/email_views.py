@@ -160,7 +160,6 @@ class GenerateEmailView(APIView):
                     expert_search=expert_search,
                     expert_email=expert.email,
                     inviter=request.user,
-                    outreach_context=data.get("outreach_context"),
                 )
             except ProposalDraftOutreachError as e:
                 return Response(
@@ -207,9 +206,6 @@ class GenerateEmailView(APIView):
             proposal_draft=(prepared_outreach.draft if prepared_outreach else None),
             note_invitation=(
                 prepared_outreach.invitation if prepared_outreach else None
-            ),
-            outreach_context=(
-                prepared_outreach.outreach_context if prepared_outreach else {}
             ),
             expert_name=format_expert_name_from_raw(resolved.get("name") or ""),
             expert_title=expert.academic_title or "",
@@ -273,7 +269,6 @@ class BulkGenerateEmailView(APIView):
                             expert_search=expert_search,
                             expert_email=expert.email,
                             inviter=request.user,
-                            outreach_context=item.get("outreach_context"),
                         )
                     email_record = GeneratedEmail.objects.create(
                         created_by=request.user,
@@ -283,11 +278,6 @@ class BulkGenerateEmailView(APIView):
                         ),
                         note_invitation=(
                             prepared_outreach.invitation if prepared_outreach else None
-                        ),
-                        outreach_context=(
-                            prepared_outreach.outreach_context
-                            if prepared_outreach
-                            else {}
                         ),
                         expert_name=format_expert_name_from_raw(ctx.get("name") or ""),
                         expert_title=expert.academic_title or "",

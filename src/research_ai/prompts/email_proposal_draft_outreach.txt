@@ -5,14 +5,15 @@
 Write an email offering the expert a proposal draft prepared specifically for
 their lab in connection with the funding round.
 
-Use this structure:
+Use this exact structure, deriving every detail from the supplied funding round,
+expert profile, and accepted proposal draft:
 - Greet the expert by their first name when it is known.
 - In one short paragraph, state the funding topic, available amount, and that a
   proposal draft was prepared for their lab.
 - In one short paragraph, explain the concrete data, methods, or prior lab asset
   the draft builds on.
-- Include two or three short hyphen-prefixed lines describing what the proposed
-  work will do. These hyphen lines are the only exception to the general rule
+- Include two or three short hyphen-prefixed lines summarizing the proposal's
+  concrete aims. These hyphen lines are the only exception to the general rule
   against bullets.
 - State the proposal's requested budget and brief budget rationale when those
   facts are available. Never substitute the total funding-round amount for the

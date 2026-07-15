@@ -643,21 +643,6 @@ class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
     sse_url = serializers.URLField(allow_null=True)
 
 
-class ProposalOutreachContextSerializer(serializers.Serializer):
-    """Optional editor-supplied facts used to shape proposal outreach."""
-
-    funding_topic = serializers.CharField(required=False, max_length=2_000)
-    fit_summary = serializers.CharField(required=False, max_length=2_000)
-    data_summary = serializers.CharField(required=False, max_length=2_000)
-    requested_budget = serializers.CharField(required=False, max_length=2_000)
-    budget_rationale = serializers.CharField(required=False, max_length=2_000)
-    highlights = serializers.ListField(
-        child=serializers.CharField(max_length=1_000),
-        required=False,
-        max_length=5,
-    )
-
-
 class GenerateEmailRequestSerializer(serializers.Serializer):
     """
     Request body for POST /expert-finder/generate-email/.
@@ -671,7 +656,6 @@ class GenerateEmailRequestSerializer(serializers.Serializer):
     proposal_draft_id = serializers.IntegerField(
         required=False, allow_null=True, min_value=1
     )
-    outreach_context = ProposalOutreachContextSerializer(required=False, default=dict)
 
     def validate(self, attrs):
         attrs = _apply_generate_template_rules(attrs, self.initial_data)
@@ -703,10 +687,6 @@ def _apply_proposal_draft_email_rules(attrs, initial_data):
             {"proposal_draft_id": "This field is required for proposal outreach."}
         )
 
-    if attrs.get("outreach_context") and draft_id is None:
-        raise serializers.ValidationError(
-            {"proposal_draft_id": "This field is required with outreach_context."}
-        )
     return attrs
 
 
@@ -720,14 +700,6 @@ class BulkGenerateEmailExpertSerializer(serializers.Serializer):
     proposal_draft_id = serializers.IntegerField(
         required=False, allow_null=True, min_value=1
     )
-    outreach_context = ProposalOutreachContextSerializer(required=False, default=dict)
-
-    def validate(self, attrs):
-        if attrs.get("outreach_context") and attrs.get("proposal_draft_id") is None:
-            raise serializers.ValidationError(
-                {"proposal_draft_id": ("This field is required with outreach_context.")}
-            )
-        return attrs
 
 
 class BulkGenerateEmailRequestSerializer(serializers.Serializer):
@@ -846,7 +818,6 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "proposal_draft",
             "note_invitation",
             "proposal_invite_url",
-            "outreach_context",
             "expert_name",
             "expert_title",
             "expert_affiliation",

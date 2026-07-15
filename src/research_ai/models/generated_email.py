@@ -49,11 +49,6 @@ class GeneratedEmail(DefaultModel):
         related_name="generated_emails",
         db_comment="Invitation link embedded in proposal-draft outreach.",
     )
-    outreach_context = models.JSONField(
-        default=dict,
-        blank=True,
-        db_comment="Editor-provided proposal outreach fields used during generation.",
-    )
     expert_name = models.CharField(max_length=255, blank=True)
     expert_title = models.CharField(max_length=255, blank=True)
     expert_affiliation = models.CharField(max_length=512, blank=True)

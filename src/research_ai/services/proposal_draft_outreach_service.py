@@ -1,6 +1,5 @@
 """Bridge completed proposal drafts into expert-finder outreach emails."""
 
-import json
 import math
 from dataclasses import dataclass
 
@@ -20,13 +19,6 @@ from user.models import User
 
 DEFAULT_INVITE_EXPIRATION_MINUTES = 60 * 24 * 30
 MAX_PROPOSAL_CONTEXT_CHARS = 20_000
-_OUTREACH_TEXT_FIELDS = (
-    "funding_topic",
-    "fit_summary",
-    "data_summary",
-    "requested_budget",
-    "budget_rationale",
-)
 
 
 class ProposalDraftOutreachError(ValueError):
@@ -38,7 +30,6 @@ class PreparedProposalOutreach:
     draft: ProposalDraft
     invitation: NoteInvitation
     prompt_context: str
-    outreach_context: dict
 
 
 def proposal_draft_invite_url(invitation: NoteInvitation) -> str:
@@ -102,26 +93,6 @@ def _invite_expiration_minutes(draft: ProposalDraft) -> int:
     return max(1, until_deadline)
 
 
-def _normalize_outreach_context(context: dict | None) -> dict:
-    raw = context if isinstance(context, dict) else {}
-    normalized = {}
-    for field in _OUTREACH_TEXT_FIELDS:
-        value = str(raw.get(field) or "").strip()
-        if value:
-            normalized[field] = value[:2_000]
-
-    highlights = raw.get("highlights") or []
-    if isinstance(highlights, list):
-        normalized_highlights = [
-            str(value).strip()[:1_000]
-            for value in highlights[:5]
-            if str(value or "").strip()
-        ]
-        if normalized_highlights:
-            normalized["highlights"] = normalized_highlights
-    return normalized
-
-
 def create_proposal_note_invitation(
     *, draft: ProposalDraft, expert_email: str, inviter
 ) -> NoteInvitation:
@@ -140,9 +111,7 @@ def build_proposal_draft_prompt_context(
     *,
     draft: ProposalDraft,
     invitation: NoteInvitation,
-    outreach_context: dict | None = None,
-) -> tuple[str, dict]:
-    overrides = _normalize_outreach_context(outreach_context)
+) -> str:
     expert_search = draft.search_expert.expert_search
     grant = resolve_grant(expert_search=expert_search)
     rfp_context = build_rfp_context(grant) if grant is not None else {}
@@ -167,13 +136,38 @@ def build_proposal_draft_prompt_context(
                 f"Funding round link: {rfp_context.get('url') or 'N/A'}",
             ]
         )
-    if overrides:
-        lines.append(
-            "Editor-provided outreach fields (prefer these exact facts):\n"
-            + json.dumps(overrides, ensure_ascii=False, indent=2)
-        )
+
+    structured_sections = (
+        ("Proposal background and hypothesis", sections.get("background")),
+        ("Proposal data and rationale", sections.get("preliminary_data")),
+        ("Why this proposal fits this lab", sections.get("why_this_team")),
+    )
+    for label, value in structured_sections:
+        text = str(value or "").strip()
+        if text:
+            lines.append(f"{label}: {text}")
+
+    aims = sections.get("aims") or []
+    if isinstance(aims, list) and aims:
+        lines.append("Proposal aims (use these for the email's short hyphen lines):")
+        for aim in aims[:3]:
+            if not isinstance(aim, dict):
+                continue
+            title = str(aim.get("title") or "").strip()
+            body = str(aim.get("body") or "").strip()
+            if title or body:
+                summary = ": ".join(part for part in (title, body) if part)
+                lines.append(f"- {summary}")
+
+    budget = str(sections.get("budget") or "").strip()
+    if budget:
+        lines.append(f"Proposal requested budget and rationale: {budget}")
+    timeline = str(sections.get("timeline") or "").strip()
+    if timeline:
+        lines.append(f"Proposal timeline: {timeline}")
+
     lines.append("Accepted proposal draft:\n" + note_text)
-    return "\n".join(lines), overrides
+    return "\n".join(lines)
 
 
 def prepare_proposal_outreach(
@@ -182,7 +176,6 @@ def prepare_proposal_outreach(
     expert_search: ExpertSearch,
     expert_email: str,
     inviter,
-    outreach_context: dict | None = None,
 ) -> PreparedProposalOutreach:
     draft = resolve_completed_proposal_draft(
         proposal_draft_id=proposal_draft_id,
@@ -194,14 +187,12 @@ def prepare_proposal_outreach(
         expert_email=expert_email,
         inviter=inviter,
     )
-    prompt_context, normalized = build_proposal_draft_prompt_context(
+    prompt_context = build_proposal_draft_prompt_context(
         draft=draft,
         invitation=invitation,
-        outreach_context=outreach_context,
     )
     return PreparedProposalOutreach(
         draft=draft,
         invitation=invitation,
         prompt_context=prompt_context,
-        outreach_context=normalized,
     )

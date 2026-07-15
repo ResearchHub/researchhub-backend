@@ -378,15 +378,10 @@ def _process_one_bulk_email(
         if rec.proposal_draft_id and not rec.note_invitation_id:
             raise ValueError("Proposal outreach invitation is missing.")
         if rec.proposal_draft_id:
-            proposal_draft_context, normalized_context = (
-                build_proposal_draft_prompt_context(
-                    draft=rec.proposal_draft,
-                    invitation=rec.note_invitation,
-                    outreach_context=rec.outreach_context,
-                )
+            proposal_draft_context = build_proposal_draft_prompt_context(
+                draft=rec.proposal_draft,
+                invitation=rec.note_invitation,
             )
-            if normalized_context != rec.outreach_context:
-                rec.outreach_context = normalized_context
         subject, body = generate_expert_email(
             resolved_expert=resolved_expert,
             template=template_key,
@@ -404,7 +399,6 @@ def _process_one_bulk_email(
                 "email_subject",
                 "email_body",
                 "status",
-                "outreach_context",
                 "updated_date",
             ]
         )
