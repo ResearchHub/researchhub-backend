@@ -154,7 +154,7 @@ jobs:
           create-application-if-not-exists: false
           create-environment-if-not-exists: false
           create-s3-bucket-if-not-exists: false
-          deployment-timeout: 300
+          deployment-timeout: 900
           max-retries: 5
 
   deploy-workers:
