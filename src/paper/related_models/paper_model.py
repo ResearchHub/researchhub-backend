@@ -24,8 +24,6 @@ from user.related_models.user_model import User
 from utils.aws import lambda_compress_and_linearize_pdf
 from utils.models import ModeratedDocumentMixin
 
-DOI_IDENTIFIER = "10."
-ARXIV_IDENTIFIER = "arXiv:"
 HOT_SCORE_WEIGHT = 5
 HELP_TEXT_IS_PUBLIC = "Hides the paper from the public."
 HELP_TEXT_IS_REMOVED = "Hides the paper because it is not allowed."
