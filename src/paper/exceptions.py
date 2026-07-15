@@ -15,10 +15,6 @@ class PaperSerializerError(Error):
         self.message = message
 
 
-class DuplicatePaperError(Exception):
-    pass
-
-
 class DOINotFoundError(Exception):
     pass
 

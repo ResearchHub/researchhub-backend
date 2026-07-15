@@ -1374,19 +1374,6 @@ wheels = [
 ]
 
 [[package]]
-name = "habanero"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "requests" },
-    { name = "tqdm" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/9f/06/da1a8275c6067934b580daf0265a4bed017ed05c1db72d6af75691634ec9/habanero-1.0.0.tar.gz", hash = "sha256:2763debc455841e28715ff20c9884249e1b2eecfd22c20967928e1eb657a0fe5", size = 45676, upload-time = "2021-11-13T00:33:18.432Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/26/9c/bb9c806269f0dfbd81ae23e616e88fb5f0b964c8f547e267898963bdea14/habanero-1.0.0-py2.py3-none-any.whl", hash = "sha256:9cd3619cfee67e4f6980b9db4b4b4b397cdb7c21876ecfc3610a0f8a58c39e38", size = 42384, upload-time = "2021-11-13T00:33:16.37Z" },
-]
-
-[[package]]
 name = "hexbytes"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2635,7 +2622,6 @@ dependencies = [
     { name = "djangorestframework" },
     { name = "elastic-apm" },
     { name = "flower" },
-    { name = "habanero" },
     { name = "humanize" },
     { name = "lxml" },
     { name = "mailchimp-marketing" },
@@ -2704,7 +2690,6 @@ requires-dist = [
     { name = "djangorestframework", specifier = "==3.16.1" },
     { name = "elastic-apm", specifier = "==6.24.0" },
     { name = "flower", specifier = ">=2.0.1,<3.0.0" },
-    { name = "habanero", specifier = "==1.0.0" },
     { name = "humanize", specifier = ">=4.12.2,<5.0.0" },
     { name = "lxml", specifier = ">=6.0.1" },
     { name = "mailchimp-marketing", specifier = ">=3.0.72,<4.0.0" },
