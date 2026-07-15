@@ -18,7 +18,6 @@ from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
-from note.models import Note
 from note.serializers import NoteSerializer
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
@@ -251,30 +250,6 @@ class ResearchhubPostViewSet(
         except (KeyError, TypeError) as exception:
             return Response(exception, status=400)
 
-    @staticmethod
-    def _validate_note_for_publication(note_id, user) -> None:
-        """Only a note editor may attach an unpublished Note to a new post."""
-        try:
-            note = Note.objects.select_related("unified_document").get(id=note_id)
-        except (Note.DoesNotExist, TypeError, ValueError) as exc:
-            raise serializers.ValidationError({"note_id": "Note not found."}) from exc
-
-        if hasattr(note, "post"):
-            raise serializers.ValidationError(
-                {"note_id": "This note has already been published."}
-            )
-
-        permissions = note.unified_document.permissions
-        can_edit = (
-            note.created_by_id == user.id
-            or permissions.has_admin_user(user)
-            or permissions.has_editor_user(user)
-        )
-        if not can_edit:
-            raise serializers.ValidationError(
-                {"note_id": "You do not have permission to publish this note."}
-            )
-
     def create_researchhub_post(self, request):
         data = request.data
         authors = data.get("authors", [])
@@ -287,9 +262,6 @@ class ResearchhubPostViewSet(
         renderable_text = data.get("renderable_text", "")
         grant_amount = data.get("grant_amount")
         grant_id = data.get("grant_id")
-
-        if note_id is not None:
-            self._validate_note_for_publication(note_id, request.user)
 
         if authors and request.user.author_profile.id not in authors:
             return Response(
