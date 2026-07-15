@@ -76,7 +76,13 @@ dev = [
 [tool.coverage.run]
 concurrency = ["multiprocessing"]
 parallel = true
-omit = ["*/setup-uv-cache/*"]
+omit = [
+    "*/migrations/*",
+    "*/setup-uv-cache/*",
+    "*/test_*.py",
+    "*/tests.py",
+    "*/tests/*",
+]
 
 [tool.ruff]
 target-version = "py313"
