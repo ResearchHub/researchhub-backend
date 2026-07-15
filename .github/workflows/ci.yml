@@ -152,7 +152,7 @@ jobs:
           use-existing-application-version-if-available: true
           create-application-if-not-exists: false
           create-environment-if-not-exists: false
-          create-s3-bucket-if-not-exists: false
+          create-s3-bucket-if-not-exists: true
           deployment-timeout: 900
           max-retries: 5
 
@@ -211,6 +211,6 @@ jobs:
           use-existing-application-version-if-available: true
           create-application-if-not-exists: false
           create-environment-if-not-exists: false
-          create-s3-bucket-if-not-exists: false
+          create-s3-bucket-if-not-exists: true
           deployment-timeout: 1800
           max-retries: 5
