@@ -192,10 +192,8 @@ def _replace_placeholders(text: str, template_data: dict) -> str:
     return result
 
 
-def _build_signature_block(
-    template_data: dict, *, closing: str = "Best regards,"
-) -> str:
-    """Build a closing and sender signature from template_data."""
+def _build_signature_block(template_data: dict) -> str:
+    """Build 'Best regards,\n\nname\ntitle\n...' from template_data."""
     parts = []
     for key in ("name", "title", "institution", "email", "phone", "website"):
         v = template_data.get(key)
@@ -203,7 +201,7 @@ def _build_signature_block(
             parts.append(str(v).strip())
     if not parts:
         return ""
-    return f"\n\n{closing}\n\n" + "\n".join(parts)
+    return "\n\nBest regards,\n\n" + "\n".join(parts)
 
 
 EMAIL_SYSTEM_PROMPT = (
