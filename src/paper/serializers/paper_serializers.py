@@ -20,7 +20,6 @@ from paper.exceptions import PaperSerializerError
 from paper.models import (
     Figure,
     Paper,
-    PaperSubmission,
     PaperVersion,
 )
 from paper.related_models.authorship_model import Authorship
