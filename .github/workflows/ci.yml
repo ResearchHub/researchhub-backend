@@ -141,20 +141,21 @@ jobs:
           role-skip-session-tagging: true
           aws-region: us-west-2
           retry-max-attempts: 3
-          output-credentials: true
 
       - name: Deploy ${{ env.DEPLOY_ENV }} Backend - API
-        uses: einaregilsson/beanstalk-deploy@a67044fa332b06e68985b06d361934c28ab09007 # v23
+        uses: aws-actions/aws-elasticbeanstalk-deploy@cfad3e5e4452cd9c8923cbee2f862e96ba4b52c4 # v1.0.6
         with:
-          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
-          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
-          application_name: backend
-          environment_name: ${{ env.DEPLOY_ENV }}-backend-api
-          version_label: ${{ env.SHORT_GIT_SHA }}
-          use_existing_version_if_available: true
-          region: us-west-2
-          deployment_package: target/deploy.zip
-          wait_for_environment_recovery: 300
+          aws-region: us-west-2
+          application-name: backend
+          environment-name: ${{ env.DEPLOY_ENV }}-backend-api
+          version-label: ${{ env.SHORT_GIT_SHA }}
+          deployment-package-path: target/deploy.zip
+          use-existing-application-version-if-available: true
+          create-application-if-not-exists: false
+          create-environment-if-not-exists: false
+          create-s3-bucket-if-not-exists: false
+          deployment-timeout: 300
+          max-retries: 5
 
   deploy-workers:
     needs: [build, deploy-api]
@@ -202,14 +203,16 @@ jobs:
           output-credentials: true
 
       - name: Deploy ${{ env.DEPLOY_ENV }} Backend - ${{ matrix.worker }} Worker
-        uses: einaregilsson/beanstalk-deploy@a67044fa332b06e68985b06d361934c28ab09007 # v23
+        uses: aws-actions/aws-elasticbeanstalk-deploy@cfad3e5e4452cd9c8923cbee2f862e96ba4b52c4 # v1.0.6
         with:
-          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
-          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
-          application_name: backend
-          environment_name: ${{ env.DEPLOY_ENV }}-backend-worker-${{ matrix.worker }}
-          version_label: ${{ env.SHORT_GIT_SHA }}
-          use_existing_version_if_available: true
-          region: us-west-2
-          deployment_package: target/deploy.zip
-          wait_for_environment_recovery: 300
+          aws-region: us-west-2
+          application-name: backend
+          environment-name: ${{ env.DEPLOY_ENV }}-backend-worker-${{ matrix.worker }}
+          version-label: ${{ env.SHORT_GIT_SHA }}
+          deployment-package-path: target/deploy.zip
+          use-existing-application-version-if-available: true
+          create-application-if-not-exists: false
+          create-environment-if-not-exists: false
+          create-s3-bucket-if-not-exists: false
+          deployment-timeout: 1800
+          max-retries: 5
