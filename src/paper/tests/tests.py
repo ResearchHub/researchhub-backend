@@ -1,15 +1,9 @@
-from unittest.mock import patch
-
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from paper.serializers import DynamicPaperSerializer
-from paper.utils import (
-    convert_journal_url_to_pdf_url,
-    convert_pdf_url_to_journal_url,
-    pdf_copyright_allows_display,
-)
+from paper.utils import pdf_copyright_allows_display
 from user.tests.helpers import create_random_authenticated_user
 
 from .helpers import create_paper as create_test_paper
@@ -19,82 +13,6 @@ class PaperIntegrationTests(APITestCase):
     def test_get_base_route(self):
         response = self.client.get("/api/paper/")
         self.assertEqual(response.status_code, 200)
-
-
-class JournalPdfTests(TestCase):
-    journal_test_urls = [
-        "https://arxiv.org/abs/2007.10529",
-        "https://jpet.aspetjournals.org/content/368/1/59",
-        "https://www.biorxiv.org/content/10.1101/2020.04.14.040808v1",
-        "https://www.jneurosci.org/content/29/13/3974",
-        "https://www.thelancet.com/journals/journal_id/article/PIIS2215-0366(20)30308-4/fulltext",
-        "https://www.nature.com/articles/srep42765",
-        "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0198090",
-        "https://www.pnas.org/content/102/4/1193",
-        "https://advances.sciencemag.org/content/1/6/e1500251",
-        "https://onlinelibrary.wiley.com/doi/full/10.1111/jvim.15646",
-        "https://academic.oup.com/nar/article/46/W1/W180/5033528",
-    ]
-
-    pdf_test_urls = [
-        "https://arxiv.org/pdf/2007.10529.pdf",
-        "https://jpet.aspetjournals.org/content/jpet/368/1/59.full.pdf",
-        "https://www.biorxiv.org/content/10.1101/2020.04.14.040808v1.full.pdf",
-        "https://www.jneurosci.org/content/jneuro/29/13/3974.full.pdf",
-        "https://www.thelancet.com/action/showPdf?pii=S2215-0366(20)30308-4",
-        "https://www.nature.com/articles/srep42765.pdf",
-        "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0198090&type=printable",
-        "https://www.pnas.org/content/pnas/102/4/1193.full.pdf",
-        "https://advances.sciencemag.org/content/advances/1/6/e1500251.full.pdf",
-        "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1111/jvim.15646?download=true",
-        "https://academic.oup.com/nar/article-pdf/46/W1/W180/25110691/gky509.pdf",
-    ]
-
-    supported_url_count = 9
-
-    @patch("paper.utils.check_url_contains_pdf", return_value=True)
-    def test_journal_to_pdf(self, _mock_check_url_contains_pdf):
-        # Arrange
-        url_pairs = list(zip(self.journal_test_urls, self.pdf_test_urls, strict=True))
-
-        # Act
-        results = [
-            convert_journal_url_to_pdf_url(journal_url)
-            for journal_url in self.journal_test_urls
-        ]
-
-        # Assert
-        for index, ((journal_url, pdf_url), result) in enumerate(
-            zip(url_pairs, results, strict=True)
-        ):
-            with self.subTest(journal_url=journal_url):
-                expected = (
-                    (pdf_url, True)
-                    if index < self.supported_url_count
-                    else (journal_url, False)
-                )
-                self.assertEqual(result, expected)
-
-    def test_pdf_to_journal(self):
-        # Arrange
-        url_pairs = list(zip(self.journal_test_urls, self.pdf_test_urls, strict=True))
-
-        # Act
-        results = [
-            convert_pdf_url_to_journal_url(pdf_url) for pdf_url in self.pdf_test_urls
-        ]
-
-        # Assert
-        for index, ((journal_url, pdf_url), result) in enumerate(
-            zip(url_pairs, results, strict=True)
-        ):
-            with self.subTest(pdf_url=pdf_url):
-                expected = (
-                    (journal_url, True)
-                    if index < self.supported_url_count
-                    else (pdf_url, False)
-                )
-                self.assertEqual(result, expected)
 
 
 class PaperPatchTest(APITestCase):

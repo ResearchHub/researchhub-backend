@@ -14,7 +14,7 @@ from discussion.models import AbstractGenericReactionModel, Vote
 from hub.models import Hub
 from paper.related_models.citation_model import Citation
 from paper.storage.figure_storage import FigureStorage
-from paper.utils import get_csl_item, populate_pdf_url_from_journal_url
+from paper.utils import get_csl_item
 from purchase.models import Purchase
 from reputation.models import Score, ScoreChange
 from reputation.related_models.paper_reward import HubCitationValue
@@ -372,18 +372,6 @@ class Paper(AbstractGenericReactionModel):
             self.pdf_license = license
             self.save()
         return license
-
-    def get_pdf_link(self, should_save=False):
-        if not self.url:
-            return None, None
-
-        metadata, converted = populate_pdf_url_from_journal_url(self.url, {})
-        pdf_url = metadata.get("pdf_url")
-        if pdf_url:
-            self.pdf_url = metadata.get("pdf_url")
-            if should_save:
-                self.save()
-        return metadata, converted
 
     def compress_and_linearize_file(self):
         file = self.file
