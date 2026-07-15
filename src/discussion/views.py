@@ -194,7 +194,7 @@ class ReactionViewActionMixin:
         item = self.get_object()
         user = request.user
         vote = retrieve_vote(user, item)
-        return get_vote_response(vote, 200)
+        return Response(VoteSerializer(vote).data, status=status.HTTP_200_OK)
 
     @user_vote.mapping.delete
     def delete_user_vote(self, request, *args, pk=None, **kwargs):
@@ -277,11 +277,6 @@ def retrieve_vote(user, item):
         )
     except Vote.DoesNotExist:
         return None
-
-
-def get_vote_response(vote, status_code):
-    serializer = VoteSerializer(vote)
-    return Response(serializer.data, status=status_code)
 
 
 def create_vote(user, item, vote_type):
@@ -456,7 +451,7 @@ def update_or_create_vote(request, user, item, vote_type):
         vote.vote_type = vote_type
         vote.save(update_fields=["updated_date", "vote_type"])
 
-        return get_vote_response(vote, 200)
+        return Response(VoteSerializer(vote).data, status=status.HTTP_200_OK)
 
     """CREATE VOTE"""
     vote = create_vote(user, item, vote_type)
@@ -474,4 +469,4 @@ def update_or_create_vote(request, user, item, vote_type):
         priority=2,
         countdown=10,
     )
-    return get_vote_response(vote, 201)
+    return Response(VoteSerializer(vote).data, status=status.HTTP_201_CREATED)
