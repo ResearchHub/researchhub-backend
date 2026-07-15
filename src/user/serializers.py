@@ -16,7 +16,7 @@ from rest_framework.serializers import (
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerializer
 from institution.serializers import DynamicInstitutionSerializer
-from paper.models import Paper, PaperSubmission
+from paper.models import Paper
 from purchase.models import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from referral.models import ReferralSignup
@@ -869,10 +869,6 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
             from researchhub_comment.serializers import DynamicRhCommentSerializer
 
             serializer = DynamicRhCommentSerializer
-        elif isinstance(item, PaperSubmission):
-            from paper.serializers import DynamicPaperSubmissionSerializer
-
-            serializer = DynamicPaperSubmissionSerializer
         elif isinstance(item, Verdict):
             serializer = DynamicVerdictSerializer
         elif isinstance(item, Bounty):

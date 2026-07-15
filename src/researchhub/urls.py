@@ -73,11 +73,6 @@ router.register(
 
 router.register(r"paper", paper_views.PaperViewSet, basename="paper")
 
-router.register(
-    r"paper_submission",
-    paper_views.PaperSubmissionViewSet,
-    basename="paper_submission",
-)
 
 router.register(r"author", author_views.AuthorViewSet, basename="author")
 

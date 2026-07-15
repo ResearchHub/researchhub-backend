@@ -20,7 +20,6 @@ from paper.exceptions import PaperSerializerError
 from paper.models import (
     Figure,
     Paper,
-    PaperSubmission,
     PaperVersion,
 )
 from paper.related_models.authorship_model import Authorship
@@ -1035,41 +1034,3 @@ class DynamicFigureSerializer(DynamicModelFieldSerializer):
     class Meta:
         fields = "__all__"
         model = Figure
-
-
-class PaperSubmissionSerializer(serializers.ModelSerializer):
-    class Meta:
-        fields = "__all__"
-        model = PaperSubmission
-        read_only_fields = [
-            "id",
-            "created_date",
-            "paper_status",
-            "updated_date",
-        ]
-
-
-class DynamicPaperSubmissionSerializer(DynamicModelFieldSerializer):
-    paper = serializers.SerializerMethodField()
-    uploaded_by = serializers.SerializerMethodField()
-
-    class Meta:
-        fields = "__all__"
-        model = PaperSubmission
-
-    def get_paper(self, paper_submission):
-        context = self.context
-        _context_fields = context.get("pap_dpss_get_paper", {})
-        serializer = DynamicPaperSerializer(
-            paper_submission.paper, context=context, **_context_fields
-        )
-        return serializer.data
-
-    def get_uploaded_by(self, paper_submission):
-        context = self.context
-        _context_fields = context.get("pap_dpss_get_uploaded_by", {})
-
-        serializer = DynamicUserSerializer(
-            paper_submission.uploaded_by, context=context, **_context_fields
-        )
-        return serializer.data
