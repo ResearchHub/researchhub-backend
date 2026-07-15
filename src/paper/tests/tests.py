@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from rest_framework.test import APITestCase
@@ -48,17 +50,52 @@ class JournalPdfTests(TestCase):
         "https://academic.oup.com/nar/article-pdf/46/W1/W180/25110691/gky509.pdf",
     ]
 
-    def test_journal_to_pdf(self):
-        for i, url in enumerate(self.journal_test_urls):
-            pdf_url, exists = convert_journal_url_to_pdf_url(url)
-            if exists:
-                self.assertEqual(pdf_url, self.pdf_test_urls[i])
+    supported_url_count = 9
+
+    @patch("paper.utils.check_url_contains_pdf", return_value=True)
+    @patch("paper.lib.check_url_contains_pdf", return_value=True)
+    def test_journal_to_pdf(self, _mock_lib_check, _mock_utils_check):
+        # Arrange
+        url_pairs = list(zip(self.journal_test_urls, self.pdf_test_urls, strict=True))
+
+        # Act
+        results = [
+            convert_journal_url_to_pdf_url(journal_url)
+            for journal_url in self.journal_test_urls
+        ]
+
+        # Assert
+        for index, ((journal_url, pdf_url), result) in enumerate(
+            zip(url_pairs, results, strict=True)
+        ):
+            with self.subTest(journal_url=journal_url):
+                expected = (
+                    (pdf_url, True)
+                    if index < self.supported_url_count
+                    else (journal_url, False)
+                )
+                self.assertEqual(result, expected)
 
     def test_pdf_to_journal(self):
-        for i, url in enumerate(self.pdf_test_urls):
-            journal_url, exists = convert_pdf_url_to_journal_url(url)
-            if exists:
-                self.assertEqual(journal_url, self.journal_test_urls[i])
+        # Arrange
+        url_pairs = list(zip(self.journal_test_urls, self.pdf_test_urls, strict=True))
+
+        # Act
+        results = [
+            convert_pdf_url_to_journal_url(pdf_url) for pdf_url in self.pdf_test_urls
+        ]
+
+        # Assert
+        for index, ((journal_url, pdf_url), result) in enumerate(
+            zip(url_pairs, results, strict=True)
+        ):
+            with self.subTest(pdf_url=pdf_url):
+                expected = (
+                    (journal_url, True)
+                    if index < self.supported_url_count
+                    else (pdf_url, False)
+                )
+                self.assertEqual(result, expected)
 
 
 class PaperPatchTest(APITestCase):
