@@ -1,7 +1,5 @@
 import logging
 
-from utils.http import check_url_contains_pdf
-
 # TODO: Create classes of url patterns to generalize this even further esp for
 # subdomains.
 
@@ -126,10 +124,7 @@ class Nature(Journal):
             uid = parts[1]
             uid = cls.remove_query(uid)
             pdf_url = f"{cls.pdf_url_base}{uid}{cls.pdf_url_suffix}"
-
-            if check_url_contains_pdf(pdf_url):
-                return pdf_url
-            return None
+            return pdf_url
         except Exception:
             logger.exception(
                 "Error converting journal URL to PDF URL for Nature: %s", journal_url

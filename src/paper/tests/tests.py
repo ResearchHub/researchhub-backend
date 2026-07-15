@@ -53,8 +53,7 @@ class JournalPdfTests(TestCase):
     supported_url_count = 9
 
     @patch("paper.utils.check_url_contains_pdf", return_value=True)
-    @patch("paper.lib.check_url_contains_pdf", return_value=True)
-    def test_journal_to_pdf(self, _mock_lib_check, _mock_utils_check):
+    def test_journal_to_pdf(self, _mock_check_url_contains_pdf):
         # Arrange
         url_pairs = list(zip(self.journal_test_urls, self.pdf_test_urls, strict=True))
 
