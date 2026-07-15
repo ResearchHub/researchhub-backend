@@ -19,7 +19,16 @@ Rate each of the seven criteria from 1 (poor) to 5 (excellent):
 - c6 -- Genuine divergence from the seed literature: a real research question,
   not a safe recombination of what is already in the source papers.
 - c7 -- Scientific writing voice: reads like a domain scientist wrote it for a
-  serious funder, not like LLM output. Penalize the tells below.
+  serious funder, not like LLM output. Reward concrete, evidence-bearing prose;
+  calibrated claims; ordinary domain verbs; and sentence/paragraph shapes that
+  follow the reasoning rather than a repeated template. Do not penalize
+  necessary repetition of technical terms. Penalize the tells below.
+
+For every c7 gap, quote a short exact span from the proposal, assign the closest
+category (cliche, redundant exposition, ornamental prose, vague abstraction,
+awkward phrasing, templated transition/conclusion, or repetitive structure), and
+name the smallest useful change. Prefix the gap with `c7:`. A vague judgment such
+as "sounds AI-generated" is not actionable and must not appear by itself.
 
 AI-writing tells that must lower c7 and be named as gaps. The quoted phrases
 are illustrative, not an exhaustive denylist -- flag any phrasing that reads as
@@ -89,5 +98,5 @@ Return ONLY a JSON object, no prose, in exactly this shape:
 
 {
   "scores": {"c1": 1-5, "c2": 1-5, "c3": 1-5, "c4": 1-5, "c5": 1-5, "c6": 1-5, "c7": 1-5},
-  "gaps": ["specific actionable gap", "..."]
+  "gaps": ["c7: exact span — category and smallest useful change", "c2: specific actionable gap", "..."]
 }

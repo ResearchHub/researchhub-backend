@@ -51,16 +51,17 @@ class _FakeOpenAlex:
 class _FakePanel:
     """A judge panel whose ``score`` returns a fixed rollup."""
 
-    def __init__(self, overall=5, gaps=None):
+    def __init__(self, overall=5, gaps=None, scores=None):
         self.model_ids = ["fake-judge"]
         self._overall = overall
         self._gaps = gaps or []
+        self._scores = scores
         self.contexts = []
 
     def score(self, _proposal, *, context=None):
         self.contexts.append(context)
         return {
-            "scores": dict.fromkeys(_CRITERIA, self._overall),
+            "scores": self._scores or dict.fromkeys(_CRITERIA, self._overall),
             "overall": self._overall,
             "gaps": self._gaps,
         }
@@ -414,6 +415,39 @@ class ProposalDraftServiceTests(TestCase):
             draft.last_submission["sections"]["title"], "A Study of Folding"
         )
         self.assertEqual(result["last_submission"], draft.last_submission)
+
+    def test_low_style_score_is_blocked_when_overall_score_passes(self):
+        # Arrange: substance lifts the mean over the general panel bar, but the
+        # scientific writing voice remains recognizably model-shaped.
+        scores = dict.fromkeys(_CRITERIA, 5)
+        scores["c7"] = 3
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+        panel = _FakePanel(
+            overall=4.71,
+            scores=scores,
+            gaps=[
+                "c7: 'This innovative study' — vague abstraction; name the "
+                "measurement instead."
+            ],
+        )
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: c7 has its own floor, so stronger criteria cannot mask it.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        panel_report = result["gate_report"]["panel"]
+        self.assertFalse(panel_report["ok"])
+        self.assertEqual(panel_report["overall"], 4.71)
+        self.assertEqual(panel_report["style_score"], 3)
+        self.assertEqual(panel_report["style_threshold"], 4.0)
+        self.assertIn("This innovative study", panel_report["gaps"][0])
+        self.assertEqual(Note.objects.count(), 0)
 
     # -- too many aims for the award size is blocked ----------------------
 

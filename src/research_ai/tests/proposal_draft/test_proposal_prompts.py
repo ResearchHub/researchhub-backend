@@ -120,3 +120,23 @@ class BuildProposalSystemPromptTests(unittest.TestCase):
         self.assertIn("under 300 or over 2500", prompt)
         self.assertNotIn("{{MIN_WORDS}}", prompt)
         self.assertNotIn("{{MAX_WORDS}}", prompt)
+
+    def test_style_bar_is_substituted_from_the_gate_config(self):
+        # Arrange / Act
+        prompt = build_proposal_system_prompt(style_threshold=4.5)
+
+        # Assert: scientific voice has an independent quality floor and no
+        # template placeholder leaks into the agent prompt.
+        self.assertIn("score at least 4.5 on c7", prompt)
+        self.assertNotIn("{{STYLE_THRESHOLD}}", prompt)
+
+    def test_prompt_requires_positive_voice_grounding_and_local_edits(self):
+        # Arrange / Act
+        prompt = build_proposal_system_prompt()
+
+        # Assert: the agent learns from real writing samples and does not use a
+        # whole-section rewrite as its default style-fixing strategy.
+        self.assertIn("working voice card", prompt)
+        self.assertIn("get_work_fulltext", prompt)
+        self.assertIn("smallest sufficient edits", prompt)
+        self.assertIn("rewrite an entire", prompt)

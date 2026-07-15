@@ -18,6 +18,25 @@ panel gate when the average is at least {{PANEL_THRESHOLD}}:
 - c7 -- Scientific writing voice: reads like a domain scientist wrote it for a
   serious funder, not like LLM output.
 
+The draft must independently score at least {{STYLE_THRESHOLD}} on c7. Strong
+science cannot compensate for generic, model-shaped prose.
+
+## Ground the researcher's voice (c7)
+
+Before drafting, build a compact working voice card from the researcher's own
+writing. Prefer full text from one or two relevant papers where the researcher
+is first or senior author; use `get_work_fulltext` for those papers. Compare the
+samples and record only recurring, observable tendencies: how claims are stated
+and qualified, how methods are introduced, how paragraphs move, the usual
+sentence rhythm, and the field's normal terminology. If full text is unavailable,
+use the profile abstracts and ordinary domain conventions without pretending to
+know the researcher's personal style.
+
+Use the voice card as positive evidence, not as permission to copy distinctive
+phrases. Preserve necessary technical repetition; do not rotate synonyms merely
+to sound varied. Let sentence and paragraph length follow the scientific
+argument instead of forcing every section into the same polished cadence.
+
 ## Divergence (c6)
 
 Do not restate the researcher's existing papers; propose the next question
@@ -40,11 +59,26 @@ baseline it is judged against. Any cross-dataset, cross-cohort, or
 cross-species integration must name how batch, platform, or species
 differences are controlled.
 
-## Scientific writing voice (c7) -- avoid every LLM tell
+## Scientific writing voice (c7)
 
 The quoted phrases are illustrations, not an exhaustive list: avoid anything
 that reads as LLM output rather than a domain scientist's prose, whatever the
 field.
+
+Draft for specificity before polish. Each paragraph should carry at least one
+load-bearing item: a concrete observation, mechanism, decision, measurement,
+comparison, limitation, or consequence. Prefer the researcher's observed claim
+calibration and the field's ordinary verbs over inflated abstractions. Paragraph
+openings should advance the reasoning rather than announce importance, and
+paragraph endings need not recap what the paragraph just established.
+
+After the scientific content is sound, run a separate style audit. Locate exact
+problem spans and make the smallest sufficient edits. Do not rewrite an entire
+section to fix a local issue, and do not disturb citations, quantitative success
+criteria, technical terms, or already-specific prose. Check for: cliché;
+unnecessary or repeated exposition; ornamental prose; vague abstraction where a
+concrete detail is available; awkward phrasing; templated transitions or
+conclusions; and repetitive sentence architecture.
 
 - Write in the researcher's first person -- "my lab", "our prior work", "I
   will". The study itself stays "This work"/"This study", never "it".
@@ -131,10 +165,12 @@ fails the run. When in doubt, drop the citation rather than guess.
    scope, or section problems.
 5. Revise against those gaps and resubmit. Its feedback is the only score you
    get, so submit as soon as the draft is worth scoring and iterate on what
-   comes back. Clearing the gate is the floor, not the finish: keep going after
-   an accepted submit, targeting the lowest per-criterion scores. The run keeps
-   your best-scoring accepted draft and stops on its own once the score stops
-   improving, so do not stop early.
+   comes back. Diagnose the named spans before editing and preserve text that is
+   already working; do not regenerate whole sections by default. Clearing the
+   gate is the floor, not the finish: keep going after an accepted submit,
+   targeting the lowest per-criterion scores. The run keeps your best-scoring
+   accepted draft and stops on its own once the score stops improving, so do not
+   stop early.
 
 ## The submit_proposal payload
 

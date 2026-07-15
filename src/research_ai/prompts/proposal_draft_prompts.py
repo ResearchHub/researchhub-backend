@@ -20,18 +20,19 @@ _MAX_SEED_ABSTRACT_CHARS = 600
 
 def build_proposal_system_prompt(
     panel_threshold: float = 4.0,
+    style_threshold: float = 4.0,
     award: dict | None = None,
     min_words: int = 250,
     max_words: int = 4000,
 ) -> str:
     """The system prompt: rubric, voice rules, grounding + iterate contract.
 
-    ``panel_threshold`` and ``min_words``/``max_words`` are substituted in so
-    the agent drafts toward the same overall bar and length bounds the gate
-    enforces; pass the runner's configured values so the prompt never drifts
-    from the gate. ``award`` is the RFP terms (``amount``/``currency``) used to
-    state, up front, how many specific aims the grant funds -- the same policy
-    the scope gate enforces.
+    ``panel_threshold``/``style_threshold`` and ``min_words``/``max_words`` are
+    substituted in so the agent drafts toward the same quality bars and length
+    bounds the gate enforces; pass the runner's configured values so the prompt
+    never drifts from the gate. ``award`` is the RFP terms
+    (``amount``/``currency``) used to state, up front, how many specific aims
+    the grant funds -- the same policy the scope gate enforces.
     """
     # Imported here (not at module scope) to avoid a prompts <-> proposal_draft
     # package import cycle.
@@ -39,9 +40,11 @@ def build_proposal_system_prompt(
 
     award = award or {}
     threshold = f"{panel_threshold:g}"
+    style_bar = f"{style_threshold:g}"
     return (
         load_template("proposal_draft_system.txt")
         .replace("{{PANEL_THRESHOLD}}", threshold)
+        .replace("{{STYLE_THRESHOLD}}", style_bar)
         .replace(
             "{{AIM_GUIDANCE}}",
             aim_scope_guidance(award.get("amount"), award.get("currency")),
