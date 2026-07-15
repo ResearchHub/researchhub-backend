@@ -16,6 +16,7 @@ agent submits only the prose that fills each heading:
        2.2 Specific Aims
            Specific Aim 1: <title>
            ...
+       2.3 Limitations, Pitfalls, and Alternative Approaches
     3. Investigator and Team Qualifications
     4. Budget and Timeline
        4.1 Budget Justification
@@ -136,10 +137,11 @@ def assemble_proposal(sections: object, citations: object = None) -> tuple[str, 
         doc.heading(2, "1. Background and Hypothesis")
         doc.body(sections.get("background"))
 
-    # 2. Research Strategy -- preliminary data + specific aims.
+    # 2. Research Strategy -- preliminary data, aims, and risk analysis.
     prelim = _split_paragraphs(sections.get("preliminary_data"))
     aims = valid_aims(sections.get("aims"))
-    if prelim or aims:
+    limitations = _split_paragraphs(sections.get("limitations"))
+    if prelim or aims or limitations:
         doc.heading(2, "2. Research Strategy")
         if prelim:
             doc.heading(3, "2.1 Preliminary Data and Rationale")
@@ -149,6 +151,9 @@ def assemble_proposal(sections: object, citations: object = None) -> tuple[str, 
             for index, aim in enumerate(aims, start=1):
                 doc.heading(4, f"Specific Aim {index}: {aim['title']}")
                 doc.body(aim["body"])
+        if limitations:
+            doc.heading(3, "2.3 Limitations, Pitfalls, and Alternative Approaches")
+            doc.body(sections.get("limitations"))
 
     # 3. Investigator and Team Qualifications
     if _split_paragraphs(sections.get("why_this_team")):

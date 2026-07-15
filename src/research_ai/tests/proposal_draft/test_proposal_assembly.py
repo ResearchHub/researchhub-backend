@@ -14,6 +14,11 @@ def _full_sections():
             {"title": "Map the trajectory", "body": "First we do A.\n\nThen we do B."},
             {"title": "Test the signal", "body": "We quantify C."},
         ],
+        "limitations": (
+            "The cohort bounds inference to adults. Low signal is a pitfall; "
+            "if detected, the prespecified aggregate analysis will replace "
+            "the cell-level comparison."
+        ),
         "why_this_team": "Jane has the track record.",
         "budget": "$50,000 across compute and storage.",
         "timeline": "24 months with monthly milestones.",
@@ -53,6 +58,7 @@ class AssembleProposalTests(unittest.TestCase):
             [
                 "2.1 Preliminary Data and Rationale",
                 "2.2 Specific Aims",
+                "2.3 Limitations, Pitfalls, and Alternative Approaches",
                 "4.1 Budget Justification",
                 "4.2 Timeline and Milestones",
             ],
@@ -73,6 +79,18 @@ class AssembleProposalTests(unittest.TestCase):
         ]
         self.assertIn("First we do A.", paragraphs)
         self.assertIn("Then we do B.", paragraphs)
+
+    def test_limitations_and_contingencies_render_in_research_strategy(self):
+        # Arrange / Act
+        plain_text, doc = assemble_proposal(_full_sections())
+
+        # Assert
+        self.assertIn(
+            "2.3 Limitations, Pitfalls, and Alternative Approaches",
+            self._headings(doc, 3),
+        )
+        self.assertIn("The cohort bounds inference to adults.", plain_text)
+        self.assertIn("the prespecified aggregate analysis", plain_text)
 
     def test_citations_render_as_numbered_references_section(self):
         # Arrange: two citations, one with a bare DOI, one with a full URL.

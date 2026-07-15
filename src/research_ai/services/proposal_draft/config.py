@@ -14,6 +14,7 @@ from django.conf import settings
 _SETTING_OVERRIDES = {
     "max_rounds": "RESEARCH_AI_PROPOSAL_MAX_ROUNDS",
     "panel_threshold": "RESEARCH_AI_PROPOSAL_PANEL_THRESHOLD",
+    "style_threshold": "RESEARCH_AI_PROPOSAL_STYLE_THRESHOLD",
     "plateau_patience": "RESEARCH_AI_PROPOSAL_PLATEAU_PATIENCE",
     "max_iterations": "RESEARCH_AI_PROPOSAL_MAX_ITERATIONS",
     "max_tokens": "RESEARCH_AI_PROPOSAL_MAX_TOKENS",
@@ -40,6 +41,9 @@ class ProposalDraftConfig:
     max_iterations: int = 100
 
     panel_threshold: float = 4.0
+    # Scientific writing voice must clear its own bar. Without this floor, a
+    # strong substance score can hide a low c7 score in the seven-part mean.
+    style_threshold: float = 4.0
     # Stop revising early once the panel is the blocker and its overall has not
     # improved for this many consecutive rounds: a deterministic single-judge
     # panel returns a near-constant score for a near-constant draft, so

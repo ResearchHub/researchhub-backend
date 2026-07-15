@@ -32,6 +32,7 @@ SUBMIT_INPUT_SCHEMA = {
                         "required": ["title", "body"],
                     },
                 },
+                "limitations": {"type": "string"},
                 "why_this_team": {"type": "string"},
                 "budget": {"type": "string"},
                 "timeline": {"type": "string"},
@@ -41,6 +42,7 @@ SUBMIT_INPUT_SCHEMA = {
                 "background",
                 "preliminary_data",
                 "aims",
+                "limitations",
                 "why_this_team",
                 "budget",
                 "timeline",
@@ -79,7 +81,8 @@ def build_submit_tool(handler) -> Tool:
         description=(
             "Submit the finished proposal for the deterministic gate. Provide "
             "`sections` (title, background, preliminary_data, aims as a list of "
-            "{title, body}, why_this_team, budget, timeline) and `citations` "
+            "{title, body}, limitations, why_this_team, budget, timeline) and "
+            "`citations` "
             "(each from a tool result); the server assembles the final numbered "
             "document from your sections. If the gate rejects the draft it "
             "returns concrete gaps -- revise and submit again."

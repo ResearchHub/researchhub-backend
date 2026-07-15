@@ -152,6 +152,7 @@ class _ProposalDraftRunner:
                 "judge_roster": list(self.panel.model_ids),
                 "max_rounds": self.config.max_rounds,
                 "panel_threshold": self.config.panel_threshold,
+                "style_threshold": self.config.style_threshold,
                 "max_iterations": self.config.max_iterations,
             }
         )
@@ -176,6 +177,7 @@ class _ProposalDraftRunner:
 
         system_prompt = build_proposal_system_prompt(
             panel_threshold=self.config.panel_threshold,
+            style_threshold=self.config.style_threshold,
             award=self.rfp_context,
             min_words=self.config.min_words,
             max_words=self.config.max_words,
@@ -371,6 +373,7 @@ class _ProposalDraftRunner:
             "scores": panel.get("scores"),
             "overall": panel.get("overall"),
             "threshold": panel.get("threshold"),
+            "style_threshold": panel.get("style_threshold"),
         }
         if accepted:
             feedback["note"] = (
