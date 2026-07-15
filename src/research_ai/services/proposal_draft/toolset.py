@@ -7,7 +7,10 @@ this module owns only the static schema and the wiring.
 """
 
 from research_ai.services.agent import Tool, Toolset
-from research_ai.services.researcher_profile.openalex_tools import SUBMIT_PROFILE
+from research_ai.services.researcher_profile.openalex_tools import (
+    GET_WORK_FULLTEXT,
+    SUBMIT_PROFILE,
+)
 
 SUBMIT_INPUT_SCHEMA = {
     "type": "object",
@@ -98,10 +101,13 @@ def compose_proposal_toolset(
 ) -> Toolset:
     """OpenAlex + context + fulltext + web + verification + submit."""
     toolset = Toolset()
-    # OpenAlex tools, minus that toolset's own terminal submit_profile -- the
-    # proposal agent has its own terminal tool.
+    # OpenAlex tools, minus the two this agent replaces: submit_profile (the
+    # proposal agent has its own terminal tool) and the profile builder's
+    # get_work_fulltext (the fulltext toolset below ships the proposal agent's
+    # version -- profile-scoped and fetch-capped -- under the same name, which
+    # would otherwise replace this one silently via ``Toolset.add``).
     for tool in openalex_toolset.build_tools():
-        if tool.name == SUBMIT_PROFILE:
+        if tool.name in (SUBMIT_PROFILE, GET_WORK_FULLTEXT):
             continue
         toolset.add(tool)
     for tool in context_toolset.build_tools():

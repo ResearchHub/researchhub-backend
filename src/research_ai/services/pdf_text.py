@@ -19,6 +19,20 @@ logger = logging.getLogger(__name__)
 _MAX_TEXT_CHARS = 200000
 
 
+def get_pdf_bytes_from_url(pdf_url: str, *, external_source: str = "") -> bytes | None:
+    """Download PDF bytes from a bare URL (no ``Paper`` record involved)."""
+    pdf_url = str(pdf_url or "").strip()
+    if not pdf_url:
+        return None
+    try:
+        url = create_download_url(pdf_url, external_source)
+        pdf_file = download_pdf_from_url(url)
+        return pdf_file.read()
+    except Exception as e:
+        logger.warning("Failed to download PDF from url %s: %s", pdf_url, e)
+        return None
+
+
 def get_paper_pdf_bytes(paper) -> bytes | None:
     """Get PDF content for a paper. Prefer ``paper.file`` (S3); fall back to URL."""
     if getattr(paper, "file", None) and getattr(paper.file, "url", None):
@@ -35,18 +49,9 @@ def get_paper_pdf_bytes(paper) -> bytes | None:
     pdf_url = getattr(paper, "pdf_url", None) or getattr(paper, "url", None)
     if not pdf_url:
         return None
-    try:
-        url = create_download_url(pdf_url, getattr(paper, "external_source", "") or "")
-        pdf_file = download_pdf_from_url(url)
-        return pdf_file.read()
-    except Exception as e:
-        logger.warning(
-            "Failed to download PDF from pdf_url for paper %s: %s",
-            getattr(paper, "id", "?"),
-            e,
-            exc_info=True,
-        )
-        return None
+    return get_pdf_bytes_from_url(
+        pdf_url, external_source=getattr(paper, "external_source", "") or ""
+    )
 
 
 def extract_text_from_pdf_bytes(

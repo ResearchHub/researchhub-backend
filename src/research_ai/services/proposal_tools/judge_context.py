@@ -36,11 +36,30 @@ def compact_rfp_context(rfp_ctx: dict, *, max_chars: int) -> dict:
     return {k: v for k, v in out.items() if v not in (None, "")}
 
 
+def compact_capabilities(capabilities: object, *, max_capabilities: int) -> list[dict]:
+    """Judge-facing lab capabilities (technique/instrument/model_system/dataset)."""
+    out = []
+    for capability in capabilities or []:
+        if not isinstance(capability, dict):
+            continue
+        compact = {
+            "kind": capability.get("kind"),
+            "name": capability.get("name"),
+            "note": capability.get("note"),
+            "evidence": capability.get("evidence") or [],
+        }
+        out.append({k: v for k, v in compact.items() if v not in (None, "", [])})
+        if len(out) >= max_capabilities:
+            break
+    return out
+
+
 def compact_profile_context(
     profile: dict,
     *,
     max_works: int,
     max_abstract_chars: int,
+    max_capabilities: int = 12,
 ) -> dict:
     """Small judge-facing researcher profile for credibility/novelty scoring."""
     profile = profile if isinstance(profile, dict) else {}
@@ -78,6 +97,9 @@ def compact_profile_context(
             and v not in (None, "")
         },
         "works": works,
+        "capabilities": compact_capabilities(
+            profile.get("capabilities"), max_capabilities=max_capabilities
+        ),
         "errors": profile.get("errors") or [],
     }
 

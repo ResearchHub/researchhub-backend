@@ -29,7 +29,7 @@ shape and length checks.
 
 import re
 
-from research_ai.services.proposal_tools.doi import doi_url
+from research_ai.services.proposal_tools.doi import doi_url, strip_doi_prefix
 
 
 def _split_paragraphs(text: object) -> list[str]:
@@ -118,7 +118,8 @@ def assemble_proposal(sections: object, citations: object = None) -> tuple[str, 
 
     ``plain_text`` is the readable proposal -- the title, then each non-empty
     section under its numbered heading, then a References list built from the
-    submitted citations. ``prosemirror`` is the matching document: an H1 title,
+    submitted citations, deduplicated by DOI so a work cited for several
+    claims renders once. ``prosemirror`` is the matching document: an H1 title,
     H2 top-level sections, H3 subsections, an H4 per specific aim, and a
     paragraph node per blank-line-separated paragraph. Empty sections (and
     containers whose subsections are all empty) are skipped.
@@ -166,9 +167,21 @@ def assemble_proposal(sections: object, citations: object = None) -> tuple[str, 
             doc.heading(3, "4.2 Timeline and Milestones")
             doc.body(sections.get("timeline"))
 
-    # 5. References -- rendered from the submitted, gate-grounded citations.
+    # 5. References -- rendered from the submitted, gate-grounded citations,
+    # one line per distinct work: a work cited for several claims may arrive
+    # as several entries (one claim_id each) but must not repeat in the list.
     citation_list = citations if isinstance(citations, list) else []
-    references = [line for line in map(_reference_line, citation_list) if line]
+    references: list[str] = []
+    seen_works: set[str] = set()
+    for citation in citation_list:
+        line = _reference_line(citation)
+        if not line:
+            continue
+        key = strip_doi_prefix(citation.get("doi")) or line.lower()
+        if key in seen_works:
+            continue
+        seen_works.add(key)
+        references.append(line)
     if references:
         doc.heading(2, "5. References")
         for index, line in enumerate(references, start=1):

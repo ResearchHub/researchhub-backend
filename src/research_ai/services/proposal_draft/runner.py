@@ -78,6 +78,9 @@ from research_ai.services.proposal_tools import (
 )
 from research_ai.services.proposal_tools.judge_context import build_judge_context
 from research_ai.services.researcher_profile import build_and_store_expert_profile
+from research_ai.services.researcher_profile.agent import (
+    SCHEMA_VERSION as PROFILE_SCHEMA_VERSION,
+)
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
 from utils.openalex import OpenAlex
 
@@ -174,6 +177,8 @@ class _ProposalDraftRunner:
         system_prompt = build_proposal_system_prompt(
             panel_threshold=self.config.panel_threshold,
             award=self.rfp_context,
+            min_words=self.config.min_words,
+            max_words=self.config.max_words,
         )
         user_prompt = build_proposal_user_prompt(self.expert, self.rfp_context)
         agent = self._build_agent(system_prompt)
@@ -415,10 +420,19 @@ class _ProposalDraftRunner:
 
 
 def _needs_profile(profile) -> bool:
-    """A profile needs (re)building when it is empty or has no resolution."""
+    """A profile needs (re)building when it is empty, unresolved, or an old schema.
+
+    An older ``schema_version`` predates a field the draft now relies on (e.g. the
+    lab capabilities added in v2), so it is rebuilt to pick that data up.
+    """
     if not isinstance(profile, dict) or not profile:
         return True
-    return not isinstance(profile.get("resolution"), dict)
+    if not isinstance(profile.get("resolution"), dict):
+        return True
+    try:
+        return int(profile.get("schema_version") or 0) < PROFILE_SCHEMA_VERSION
+    except (TypeError, ValueError):
+        return True
 
 
 def run_proposal_draft(
