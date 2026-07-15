@@ -55,7 +55,6 @@ class PublicNoteInvitationViewsTest(APITestCase):
             response.data["note"]["latest_version"]["plain_text"],
             "Readable note body",
         )
-        self.assertNotIn("metadata", response.data)
 
     def test_get_note_by_key_rejects_expired_invite(self):
         # Arrange

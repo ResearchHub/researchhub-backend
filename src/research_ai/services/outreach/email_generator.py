@@ -331,8 +331,7 @@ def _generate_with_llm(
     text = _strip_existing_signature(text, normalized or None)
     text = _replace_placeholders(text, normalized)
     if normalized:
-        closing = "Best," if template == "proposal-draft-outreach" else "Best regards,"
-        sig = _build_signature_block(normalized, closing=closing)
+        sig = _build_signature_block(normalized)
         if sig:
             text = text.rstrip() + sig
     subject, body = _parse_subject_and_body(text)

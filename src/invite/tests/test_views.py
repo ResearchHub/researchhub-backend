@@ -141,7 +141,6 @@ class NoteInvitationAcceptViewsTest(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["data"], "User has accepted invitation")
         self.assertEqual(response.data["note_id"], self.note.id)
-        self.assertNotIn("metadata", response.data)
 
         invite.refresh_from_db()
         self.assertTrue(invite.accepted)

@@ -313,7 +313,7 @@ class GenerateExpertEmailTests(TestCase):
 
     @patch("research_ai.services.outreach.email_generator.BedrockLLMService")
     @patch("research_ai.services.outreach.email_generator.build_email_prompt")
-    def test_proposal_outreach_adds_draft_context_and_short_closing(
+    def test_proposal_outreach_adds_draft_context_and_standard_closing(
         self, mock_build_prompt, mock_bedrock_class
     ):
         # Arrange
@@ -342,8 +342,7 @@ class GenerateExpertEmailTests(TestCase):
             "Draft link: https://example.com/note/join/key",
             mock_build_prompt.call_args.kwargs["document_context"],
         )
-        self.assertIn("<p>Best,</p>", body)
-        self.assertNotIn("Best regards", body)
+        self.assertIn("<p>Best regards,</p>", body)
 
     @patch(
         "research_ai.services.outreach.email_generator.resolve_expert_search_email_document_context"
