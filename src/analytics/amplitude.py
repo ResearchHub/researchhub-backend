@@ -295,9 +295,8 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
         mapping = event_to_activity_mapping[event_type]
 
         # Check condition if it exists
-        if "condition" in mapping:
-            if not mapping["condition"]():
-                return
+        if "condition" in mapping and not mapping["condition"]():
+            return
 
         # Track the user activity
         _track_activity(user, mapping["activity_type"], mapping["properties"]())
