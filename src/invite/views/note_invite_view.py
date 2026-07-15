@@ -26,10 +26,17 @@ class NoteInvitationViewSet(ListModelMixin, GenericViewSet):
         service = NoteInvitationService()
 
         try:
-            service.accept_invite(pk, request.user)
+            invitation = service.accept_invite(pk, request.user)
         except NoteInvitationExpiredError:
             return Response({"data": "Invitation has expired"}, status=403)
         except NoteInvitationRecipientMismatchError:
             return Response({"data": "Invalid invitation"}, status=400)
 
-        return Response({"data": "User has accepted invitation"}, status=200)
+        return Response(
+            {
+                "data": "User has accepted invitation",
+                "note_id": invitation.note_id,
+                "metadata": invitation.metadata or {},
+            },
+            status=200,
+        )

@@ -60,6 +60,10 @@ class EmailTemplateType(models.TextChoices):
     PEER_REVIEW = "peer-review", "peer-review"
     PUBLICATION = "publication", "publication"
     RFP_OUTREACH = "rfp-outreach", "rfp-outreach"
+    PROPOSAL_DRAFT_OUTREACH = (
+        "proposal-draft-outreach",
+        "proposal-draft-outreach",
+    )
     CUSTOM = "custom", "custom"
 
 
@@ -76,4 +80,7 @@ EMAIL_TEMPLATE_PROMPT_FILES = {
     EmailTemplateType.PEER_REVIEW.value: "email_peer_review.txt",
     EmailTemplateType.PUBLICATION.value: "email_publication.txt",
     EmailTemplateType.RFP_OUTREACH.value: "email_rfp_outreach.txt",
+    EmailTemplateType.PROPOSAL_DRAFT_OUTREACH.value: (
+        "email_proposal_draft_outreach.txt"
+    ),
 }

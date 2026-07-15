@@ -370,3 +370,17 @@ class RunProposalDraftTaskTests(TestCase):
 
         # Assert
         self.assertEqual(result, {"status": "not_found", "draft_id": 999999})
+
+    @patch("research_ai.tasks.run_proposal_draft")
+    def test_already_claimed_draft_is_not_run_twice(self, mock_run):
+        # Arrange
+        self.draft.status = ProposalDraft.Status.PROCESSING
+        self.draft.save(update_fields=["status"])
+
+        # Act
+        result = run_proposal_draft_task.apply(args=[self.draft.id]).get()
+
+        # Assert
+        mock_run.assert_not_called()
+        self.assertEqual(result["status"], ProposalDraft.Status.PROCESSING)
+        self.assertEqual(result["skipped"], "already_claimed")

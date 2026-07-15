@@ -192,8 +192,10 @@ def _replace_placeholders(text: str, template_data: dict) -> str:
     return result
 
 
-def _build_signature_block(template_data: dict) -> str:
-    """Build 'Best regards,\n\nname\ntitle\n...' from template_data."""
+def _build_signature_block(
+    template_data: dict, *, closing: str = "Best regards,"
+) -> str:
+    """Build a closing and sender signature from template_data."""
     parts = []
     for key in ("name", "title", "institution", "email", "phone", "website"):
         v = template_data.get(key)
@@ -201,7 +203,7 @@ def _build_signature_block(template_data: dict) -> str:
             parts.append(str(v).strip())
     if not parts:
         return ""
-    return "\n\nBest regards,\n\n" + "\n".join(parts)
+    return f"\n\n{closing}\n\n" + "\n".join(parts)
 
 
 EMAIL_SYSTEM_PROMPT = (
@@ -292,11 +294,18 @@ def _generate_with_llm(
     custom_use_case: str | None,
     expert_search,
     user,
+    proposal_draft_context: str | None = None,
 ) -> tuple[str, str]:
     """Generate subject/body via LLM, then post-process and append signature."""
     doc_ctx = resolve_expert_search_email_document_context(expert_search)
     sender_block = _format_sender_context_for_llm(user)
     document_block = format_document_context_for_llm(doc_ctx)
+    if proposal_draft_context and proposal_draft_context.strip():
+        document_block = "\n\n".join(
+            part
+            for part in [document_block.strip(), proposal_draft_context.strip()]
+            if part
+        )
 
     prompt = build_email_prompt(
         expert_name=expert_dict["name"] or "",
@@ -322,7 +331,8 @@ def _generate_with_llm(
     text = _strip_existing_signature(text, normalized or None)
     text = _replace_placeholders(text, normalized)
     if normalized:
-        sig = _build_signature_block(normalized)
+        closing = "Best," if template == "proposal-draft-outreach" else "Best regards,"
+        sig = _build_signature_block(normalized, closing=closing)
         if sig:
             text = text.rstrip() + sig
     subject, body = _parse_subject_and_body(text)
@@ -338,6 +348,7 @@ def generate_expert_email(
     expert_search=None,
     template_id: int | None = None,
     user=None,
+    proposal_draft_context: str | None = None,
 ) -> tuple[str, str]:
     """
     Generate subject and body for an expert outreach email.
@@ -361,4 +372,5 @@ def generate_expert_email(
         custom_use_case,
         expert_search,
         user,
+        proposal_draft_context,
     )

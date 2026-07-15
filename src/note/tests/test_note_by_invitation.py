@@ -30,13 +30,14 @@ class PublicNoteInvitationViewsTest(APITestCase):
             body="Readable note body",
         )
 
-    def _create_note_invitation(self, expiration_time=1440):
+    def _create_note_invitation(self, expiration_time=1440, metadata=None):
         return NoteInvitation.create(
             expiration_time=expiration_time,
             recipient=self.recipient,
             recipient_email=self.recipient.email,
             inviter_id=self.sender.id,
             note_id=self.note.id,
+            metadata=metadata or {},
         )
 
     def test_get_note_by_key_allows_unauthenticated_read_of_active_invite(self):
@@ -55,6 +56,21 @@ class PublicNoteInvitationViewsTest(APITestCase):
             response.data["note"]["latest_version"]["plain_text"],
             "Readable note body",
         )
+
+    def test_get_note_by_key_returns_workflow_metadata(self):
+        # Arrange
+        invite = self._create_note_invitation(
+            metadata={"kind": "proposal_draft", "grant_id": 42}
+        )
+        self.client.force_authenticate(user=None)
+
+        # Act
+        response = self.client.get(f"/api/note/{invite.key}/get_note_by_key/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["metadata"]["kind"], "proposal_draft")
+        self.assertEqual(response.data["metadata"]["grant_id"], 42)
 
     def test_get_note_by_key_rejects_expired_invite(self):
         # Arrange

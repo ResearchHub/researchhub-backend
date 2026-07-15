@@ -311,6 +311,40 @@ class GenerateExpertEmailTests(TestCase):
         self.assertNotIn("[Your Name]", body)
         self.assertNotIn("[Institution]", body)
 
+    @patch("research_ai.services.outreach.email_generator.BedrockLLMService")
+    @patch("research_ai.services.outreach.email_generator.build_email_prompt")
+    def test_proposal_outreach_adds_draft_context_and_short_closing(
+        self, mock_build_prompt, mock_bedrock_class
+    ):
+        # Arrange
+        mock_build_prompt.return_value = "user prompt"
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = "Subject: Draft proposal\n\nHi Expert,\n\nBody."
+        mock_bedrock_class.return_value = mock_llm
+        user = SimpleNamespace(
+            first_name="Jane",
+            last_name="Doe",
+            email="jane@example.com",
+            author_profile=SimpleNamespace(headline=""),
+            organization=None,
+        )
+
+        # Act
+        _, body = generate_expert_email(
+            resolved_expert={"name": "Expert"},
+            template="proposal-draft-outreach",
+            user=user,
+            proposal_draft_context="Draft link: https://example.com/note/join/key",
+        )
+
+        # Assert
+        self.assertIn(
+            "Draft link: https://example.com/note/join/key",
+            mock_build_prompt.call_args.kwargs["document_context"],
+        )
+        self.assertIn("<p>Best,</p>", body)
+        self.assertNotIn("Best regards", body)
+
     @patch(
         "research_ai.services.outreach.email_generator.resolve_expert_search_email_document_context"
     )

@@ -377,6 +377,7 @@ class NoteViewSet(ModelViewSet):
             _include_fields=[
                 "inviter",
                 "invite_type",
+                "metadata",
                 "note",
                 "recipient_email",
             ],

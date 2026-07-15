@@ -10,7 +10,8 @@ EMAIL STRUCTURE:
 
 FORMATTING RULES:
 - Write in plain text only
-- Do not use markdown, bullets, or numbered lists in the email itself
+- Do not use markdown, bullets, or numbered lists unless the selected template
+  explicitly requires a short list
 - Keep it concise, natural, and specific
 - Do not include a closing line or signature
 

@@ -1,0 +1,27 @@
+{sender_info}
+
+{common}
+
+Write an email offering the expert a proposal draft prepared specifically for
+their lab in connection with the funding round.
+
+Use this structure:
+- Greet the expert by their first name when it is known.
+- In one short paragraph, state the funding topic, available amount, and that a
+  proposal draft was prepared for their lab.
+- In one short paragraph, explain the concrete data, methods, or prior lab asset
+  the draft builds on.
+- Include two or three short hyphen-prefixed lines describing what the proposed
+  work will do. These hyphen lines are the only exception to the general rule
+  against bullets.
+- State the proposal's requested budget and brief budget rationale when those
+  facts are available. Never substitute the total funding-round amount for the
+  proposal's requested budget.
+- Include the exact draft review and application link from the supplied context.
+- End with a low-pressure invitation to apply with the draft if the lab has
+  bandwidth, and offer to answer questions.
+
+Do not describe the draft as final. Do not praise the recipient. Do not mention
+the AI or the process used to write the draft. Do not add facts that are absent
+from the supplied context. Keep the email between 120 and 190 words, excluding
+the signature.

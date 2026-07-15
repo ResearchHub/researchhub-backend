@@ -1759,6 +1759,76 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
             ).exists()
         )
 
+    def test_create_preregistration_rejects_note_without_edit_permission(self):
+        # Arrange
+        note, _ = create_note(
+            self.moderator,
+            self.moderator.organization,
+            title="Private generated proposal",
+            body="Private proposal body",
+        )
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post(
+            extra_data={"grant_id": self.grant.id, "note_id": note.id}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("note_id", response.data)
+        self.assertFalse(GrantApplication.objects.exists())
+
+    def test_invited_editor_can_publish_note_as_grant_application(self):
+        # Arrange
+        note, _ = create_note(
+            self.moderator,
+            self.moderator.organization,
+            title="Shared generated proposal",
+            body="Shared proposal body",
+        )
+        Permission.objects.create(
+            access_type="EDITOR",
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=note.unified_document_id,
+            user=self.user,
+        )
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post(
+            extra_data={"grant_id": self.grant.id, "note_id": note.id}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        application = GrantApplication.objects.get(
+            grant=self.grant,
+            applicant=self.user,
+        )
+        self.assertEqual(application.preregistration_post.note_id, note.id)
+
+    def test_create_preregistration_rejects_already_published_note(self):
+        # Arrange
+        note, _ = create_note(
+            self.user,
+            self.user.organization,
+            title="Published proposal",
+            body="Published proposal body",
+        )
+        self.client.force_authenticate(self.user)
+        first = self._create_post(extra_data={"note_id": note.id})
+        self.assertEqual(first.status_code, 200)
+
+        # Act
+        response = self._create_post(
+            extra_data={"grant_id": self.grant.id, "note_id": note.id}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("note_id", response.data)
+
     def test_create_auto_approved_preregistration_creates_journey(self) -> None:
         """Verify trusted preregistration creation creates a journey anchor."""
         # Arrange

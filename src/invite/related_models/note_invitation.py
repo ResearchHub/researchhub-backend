@@ -8,11 +8,17 @@ from researchhub_access_group.constants import ACCESS_TYPE_CHOICES, VIEWER
 
 
 class NoteInvitation(Invitation):
+    recipient_email = models.EmailField(max_length=254)
     invite_type = models.CharField(
         max_length=16, choices=ACCESS_TYPE_CHOICES, default=VIEWER
     )
     note = models.ForeignKey(
         Note, on_delete=models.CASCADE, related_name="invited_users"
+    )
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Optional context for the workflow that created the invitation.",
     )
 
     def send_invitation(self):

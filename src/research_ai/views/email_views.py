@@ -29,6 +29,10 @@ from research_ai.services.outreach.rfp_email_context import (
 )
 from research_ai.services.outreach.rfp_invite import invite_applicants
 from research_ai.services.outreach.template_variables import format_expert_name_from_raw
+from research_ai.services.proposal_draft_outreach_service import (
+    ProposalDraftOutreachError,
+    prepare_proposal_outreach,
+)
 from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
 from user.permissions import IsModerator, UserIsEditor
 
@@ -147,6 +151,22 @@ class GenerateEmailView(APIView):
 
         template_key, custom_use_case = _resolve_generate_llm_params(request.data, data)
         template_id = data.get("template_id")
+        prepared_outreach = None
+
+        if proposal_draft_id := data.get("proposal_draft_id"):
+            try:
+                prepared_outreach = prepare_proposal_outreach(
+                    proposal_draft_id=proposal_draft_id,
+                    expert_search=expert_search,
+                    expert_email=expert.email,
+                    inviter=request.user,
+                    outreach_context=data.get("outreach_context"),
+                )
+            except ProposalDraftOutreachError as e:
+                return Response(
+                    {"detail": str(e)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         try:
             subject, body = generate_expert_email(
@@ -156,23 +176,41 @@ class GenerateEmailView(APIView):
                 expert_search=expert_search,
                 template_id=template_id,
                 user=request.user,
+                proposal_draft_context=(
+                    prepared_outreach.prompt_context if prepared_outreach else None
+                ),
             )
         except ValueError as e:
+            if prepared_outreach:
+                prepared_outreach.invitation.delete()
             return Response(
                 {"detail": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except RuntimeError as e:
+            if prepared_outreach:
+                prepared_outreach.invitation.delete()
             logger.exception("Email generation failed")
             return Response(
                 {"detail": str(e)},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
+        except Exception:
+            if prepared_outreach:
+                prepared_outreach.invitation.delete()
+            raise
 
         stored_template = None if template_key is None else template_key
         email_record = GeneratedEmail.objects.create(
             created_by=request.user,
             expert_search=expert_search,
+            proposal_draft=(prepared_outreach.draft if prepared_outreach else None),
+            note_invitation=(
+                prepared_outreach.invitation if prepared_outreach else None
+            ),
+            outreach_context=(
+                prepared_outreach.outreach_context if prepared_outreach else {}
+            ),
             expert_name=format_expert_name_from_raw(resolved.get("name") or ""),
             expert_title=expert.academic_title or "",
             expert_affiliation=expert.affiliation or "",
@@ -228,9 +266,29 @@ class BulkGenerateEmailView(APIView):
                             f"{item['expert_email']}."
                         )
                     ctx = ExpertDisplay.email_generation_dict(expert)
+                    prepared_outreach = None
+                    if proposal_draft_id := item.get("proposal_draft_id"):
+                        prepared_outreach = prepare_proposal_outreach(
+                            proposal_draft_id=proposal_draft_id,
+                            expert_search=expert_search,
+                            expert_email=expert.email,
+                            inviter=request.user,
+                            outreach_context=item.get("outreach_context"),
+                        )
                     email_record = GeneratedEmail.objects.create(
                         created_by=request.user,
                         expert_search=expert_search,
+                        proposal_draft=(
+                            prepared_outreach.draft if prepared_outreach else None
+                        ),
+                        note_invitation=(
+                            prepared_outreach.invitation if prepared_outreach else None
+                        ),
+                        outreach_context=(
+                            prepared_outreach.outreach_context
+                            if prepared_outreach
+                            else {}
+                        ),
                         expert_name=format_expert_name_from_raw(ctx.get("name") or ""),
                         expert_title=expert.academic_title or "",
                         expert_affiliation=expert.affiliation or "",
@@ -382,6 +440,8 @@ class GeneratedEmailListView(APIView):
         return GeneratedEmail.objects.select_related(
             "created_by",
             "created_by__author_profile",
+            "note_invitation",
+            "proposal_draft",
         ).order_by("-created_date")
 
     def get(self, request):
@@ -435,6 +495,8 @@ class GeneratedEmailDetailView(APIView):
             email = GeneratedEmail.objects.select_related(
                 "created_by",
                 "created_by__author_profile",
+                "note_invitation",
+                "proposal_draft",
             ).get(id=int(email_id))
             return email, None
         except (ValueError, TypeError, GeneratedEmail.DoesNotExist):

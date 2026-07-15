@@ -107,6 +107,13 @@ class ProposalDraft(DefaultModel):
                 name="research_ai_pd_search_status",
             ),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["search_expert"],
+                condition=models.Q(status__in=["PENDING", "PROCESSING"]),
+                name="ra_pd_one_active_per_search_expert",
+            ),
+        ]
 
     def __str__(self):
         return f"ProposalDraft {self.id} ({self.status}/{self.step})"
