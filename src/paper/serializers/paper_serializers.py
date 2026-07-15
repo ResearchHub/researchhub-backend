@@ -1,9 +1,7 @@
 import contextlib
 import json
 import logging
-import re
 
-import requests
 import rest_framework.serializers as serializers
 from django.contrib.admin.options import get_content_type_for_model
 from django.db import IntegrityError, transaction
@@ -19,10 +17,7 @@ from discussion.serializers import (
 from feed.hot_score_utils import calculate_adjusted_score
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
-from paper.lib import journal_hosts
 from paper.models import (
-    ARXIV_IDENTIFIER,
-    DOI_IDENTIFIER,
     Figure,
     Paper,
     PaperSubmission,
@@ -563,37 +558,6 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
         raw_authors = validated_data["raw_authors"]
         json_raw_authors = list(map(json.loads, raw_authors))
         validated_data["raw_authors"] = json_raw_authors
-
-    def _check_valid_doi(self, validated_data):
-        url = validated_data.get("url", "")
-        pdf_url = validated_data.get("pdf_url", "")
-        doi = validated_data.get("doi", "")
-
-        for journal_host in journal_hosts:
-            if url and journal_host in url:
-                return True
-            if pdf_url and journal_host in pdf_url:
-                return True
-
-        regex = r"(.*doi\.org\/)(.*)"
-
-        regex_doi = re.search(regex, doi)
-        if regex_doi and len(regex_doi.groups()) > 1:
-            doi = regex_doi.groups()[-1]
-
-        has_doi = doi.startswith(DOI_IDENTIFIER)
-        has_arxiv = doi.startswith(ARXIV_IDENTIFIER)
-
-        # For pdf uploads, checks if doi has an arxiv identifer
-        if has_arxiv or has_doi:
-            return True
-
-        res = requests.get(
-            f"https://doi.org/api/handles/{doi}",
-            headers=requests.utils.default_headers(),
-            timeout=30,
-        )
-        return res.status_code >= 200 and res.status_code < 400 and has_doi
 
     def get_authors(self, paper):
         serializer = AuthorSerializer(

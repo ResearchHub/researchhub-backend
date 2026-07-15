@@ -1,7 +1,5 @@
 import logging
 
-import regex as re
-import requests
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import HashIndex
@@ -14,7 +12,6 @@ from manubot.cite.unpaywall import Unpaywall
 
 from discussion.models import AbstractGenericReactionModel, Vote
 from hub.models import Hub
-from paper.lib import journal_hosts
 from paper.related_models.citation_model import Citation
 from paper.storage.figure_storage import FigureStorage
 from paper.utils import get_csl_item, populate_pdf_url_from_journal_url
@@ -27,8 +24,6 @@ from user.related_models.user_model import User
 from utils.aws import lambda_compress_and_linearize_pdf
 from utils.models import ModeratedDocumentMixin
 
-DOI_IDENTIFIER = "10."
-ARXIV_IDENTIFIER = "arXiv:"
 HOT_SCORE_WEIGHT = 5
 HELP_TEXT_IS_PUBLIC = "Hides the paper from the public."
 HELP_TEXT_IS_REMOVED = "Hides the paper because it is not allowed."
@@ -323,45 +318,6 @@ class Paper(AbstractGenericReactionModel):
             )
         else:
             celery_extract_pdf_preview(self.id)
-
-    def check_doi(self):
-        # For url uploads, checks if url is in allowed hosts
-        for journal_host in journal_hosts:
-            if self.url and journal_host in self.url:
-                return
-            if self.pdf_url and journal_host in self.pdf_url:
-                return
-
-        regex = r"(.*doi\.org\/)(.*)"
-        doi = self.doi or ""
-
-        regex_doi = re.search(regex, doi)
-        if regex_doi and len(regex_doi.groups()) > 1:
-            doi = regex_doi.groups()[-1]
-
-        has_doi = doi.startswith(DOI_IDENTIFIER)
-        has_arxiv = doi.startswith(ARXIV_IDENTIFIER)
-
-        # For pdf uploads, checks if doi has an arxiv identifer
-        if has_arxiv:
-            return
-
-        if not doi:
-            self.is_removed = True
-
-        res = requests.get(
-            f"https://doi.org/api/handles/{doi}",
-            headers=requests.utils.default_headers(),
-            timeout=30,
-        )
-        if res.status_code >= 200 and res.status_code < 400 and has_doi:
-            self.is_removed = False
-        else:
-            self.is_removed = True
-
-        # self.save(update_fields['is_removed'])
-        self.save()
-        return self.is_removed
 
     def get_boost_amount(self):
         purchases = self.purchases.filter(
