@@ -14,12 +14,12 @@ from collections.abc import Callable
 from research_ai.models import ProposalDraft
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_draft.scope import format_award, max_aims_for_budget
-from research_ai.services.proposal_tools import (
+from research_ai.services.proposal_draft.tools import (
     ProposalVerificationToolset,
     assemble_proposal,
     valid_aims,
 )
-from research_ai.services.proposal_tools.doi import strip_doi_prefix
+from research_ai.services.proposal_draft.tools.doi import strip_doi_prefix
 
 # The gates in the order they run; also the report keys their results live
 # under (``ProposalGateRunner.run`` builds the report from this order).

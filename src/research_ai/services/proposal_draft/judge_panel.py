@@ -24,11 +24,11 @@ deterministic programmatic gates -- those stay external to it.
 
 import json
 import logging
-import os
 import statistics
 
 from django.conf import settings
 
+from research_ai.prompts._loader import load_template
 from research_ai.services.agent import BedrockProvider, LLMProvider, Message, TextBlock
 from research_ai.services.expert_finder.json_parsing import ExpertFinderJson
 
@@ -41,17 +41,6 @@ _DEFAULT_GENERATOR_MODEL_ID = "us.anthropic.claude-opus-4-8"
 _RUBRIC_CRITERIA = ("c1", "c2", "c3", "c4", "c5", "c6", "c7")
 _MIN_SCORE = 1
 _MAX_SCORE = 5
-
-_PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "prompts")
-_prompt_cache: dict[str, str] = {}
-
-
-def _load_prompt(name: str) -> str:
-    if name not in _prompt_cache:
-        path = os.path.join(_PROMPTS_DIR, name)
-        with open(path, encoding="utf-8") as f:
-            _prompt_cache[name] = f.read()
-    return _prompt_cache[name]
 
 
 def _default_generator_id() -> str:
@@ -181,7 +170,7 @@ class ProposalJudgePanel:
         with zero, the 1s in ``scores`` are empty-input defaults, not a verdict,
         and must not be read as one.
         """
-        system_prompt = _load_prompt("proposal_draft_critique.txt")
+        system_prompt = load_template("proposal_draft_critique.txt")
         user_prompt = _score_user_prompt(proposal, context)
         per_criterion: dict[str, list[int]] = {c: [] for c in _RUBRIC_CRITERIA}
         gaps: list[str] = []
@@ -213,7 +202,7 @@ class ProposalJudgePanel:
         Ties (including an all-unparseable panel) break to ``"A"`` -- the
         incumbent in the tournament's bracket.
         """
-        system_prompt = _load_prompt("proposal_pairwise.txt")
+        system_prompt = load_template("proposal_pairwise.txt")
         user_prompt = _pairwise_user_prompt(a, b, context)
         a_votes = 0
         b_votes = 0

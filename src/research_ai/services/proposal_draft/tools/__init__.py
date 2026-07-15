@@ -19,21 +19,21 @@ sections assembler:
 The draft driver wires these together; this package only builds the tools.
 """
 
-from research_ai.services.proposal_tools.assembly import (
+from research_ai.services.proposal_draft.tools.assembly import (
     assemble_proposal,
     valid_aims,
 )
-from research_ai.services.proposal_tools.context_tools import (
+from research_ai.services.proposal_draft.tools.context_tools import (
     ProposalContextToolset,
 )
-from research_ai.services.proposal_tools.fulltext_tools import (
+from research_ai.services.proposal_draft.tools.fulltext_tools import (
     ProposalFulltextToolset,
 )
-from research_ai.services.proposal_tools.judge_context import build_judge_context
-from research_ai.services.proposal_tools.verification_tools import (
+from research_ai.services.proposal_draft.tools.judge_context import build_judge_context
+from research_ai.services.proposal_draft.tools.verification_tools import (
     ProposalVerificationToolset,
 )
-from research_ai.services.proposal_tools.web_search_tools import (
+from research_ai.services.proposal_draft.tools.web_search_tools import (
     ProposalWebSearchToolset,
 )
 

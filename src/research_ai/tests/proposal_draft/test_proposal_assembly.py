@@ -2,7 +2,7 @@
 
 import unittest
 
-from research_ai.services.proposal_tools.assembly import assemble_proposal
+from research_ai.services.proposal_draft.tools.assembly import assemble_proposal
 
 
 def _full_sections():

@@ -30,7 +30,7 @@ shape and length checks.
 
 import re
 
-from research_ai.services.proposal_tools.doi import doi_url, strip_doi_prefix
+from research_ai.services.proposal_draft.tools.doi import doi_url, strip_doi_prefix
 
 
 def _split_paragraphs(text: object) -> list[str]:

@@ -2,7 +2,7 @@
 
 from unittest import TestCase
 
-from research_ai.services.proposal_tools import ProposalWebSearchToolset
+from research_ai.services.proposal_draft.tools import ProposalWebSearchToolset
 
 
 class _FakeSearchClient:

@@ -19,7 +19,7 @@ from research_ai.services.pdf_text import (
     get_paper_pdf_bytes,
     get_pdf_bytes_from_url,
 )
-from research_ai.services.proposal_tools.doi import strip_doi_prefix
+from research_ai.services.proposal_draft.tools.doi import strip_doi_prefix
 
 logger = logging.getLogger(__name__)
 
