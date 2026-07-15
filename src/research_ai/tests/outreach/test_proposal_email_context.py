@@ -1,4 +1,4 @@
-"""Tests for research_ai.services.proposal_email_context."""
+"""Tests for research_ai.services.outreach.proposal_email_context."""
 
 from datetime import datetime
 from decimal import Decimal
@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
-from research_ai.services.proposal_email_context import (
+from research_ai.services.outreach.proposal_email_context import (
     _creator_display_name,
     _format_amount_raised,
     _fundraise_email_fields,
@@ -235,7 +235,7 @@ class BuildProposalContextTests(TestCase):
         post.unified_document.frontend_view_link.return_value = "https://x"
         post.unified_document.fundraises.first.return_value = None
         with patch(
-            "research_ai.services.proposal_email_context._fundraise_email_fields",
+            "research_ai.services.outreach.proposal_email_context._fundraise_email_fields",
             side_effect=RuntimeError("boom"),
         ):
             self.assertEqual(build_proposal_context(post), {})

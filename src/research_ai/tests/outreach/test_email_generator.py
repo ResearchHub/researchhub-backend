@@ -4,7 +4,10 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase
 
 from research_ai.models import EmailTemplate
-from research_ai.services.email_generator_service import (
+from research_ai.services.outreach.document_context import (
+    ExpertSearchEmailDocumentContext,
+)
+from research_ai.services.outreach.email_generator import (
     _build_signature_block,
     _parse_subject_and_body,
     _replace_placeholders,
@@ -13,9 +16,6 @@ from research_ai.services.email_generator_service import (
     generate_expert_email,
     normalize_llm_text_for_subject,
     normalize_llm_text_to_html,
-)
-from research_ai.services.expert_search_email_document_context import (
-    ExpertSearchEmailDocumentContext,
 )
 
 
@@ -250,8 +250,8 @@ class ParseSubjectAndBodyTests(TestCase):
 
 
 class GenerateExpertEmailTests(TestCase):
-    @patch("research_ai.services.email_generator_service.BedrockLLMService")
-    @patch("research_ai.services.email_generator_service.build_email_prompt")
+    @patch("research_ai.services.outreach.email_generator.BedrockLLMService")
+    @patch("research_ai.services.outreach.email_generator.build_email_prompt")
     def test_returns_subject_and_body_from_llm_output(
         self, mock_build_prompt, mock_bedrock_class
     ):
@@ -275,8 +275,8 @@ class GenerateExpertEmailTests(TestCase):
         self.assertIn("Dear Dr. Smith", body)
         mock_llm.invoke.assert_called_once()
 
-    @patch("research_ai.services.email_generator_service.BedrockLLMService")
-    @patch("research_ai.services.email_generator_service.build_email_prompt")
+    @patch("research_ai.services.outreach.email_generator.BedrockLLMService")
+    @patch("research_ai.services.outreach.email_generator.build_email_prompt")
     def test_post_processes_with_user_signature(
         self, mock_build_prompt, mock_bedrock_class
     ):
@@ -312,9 +312,9 @@ class GenerateExpertEmailTests(TestCase):
         self.assertNotIn("[Institution]", body)
 
     @patch(
-        "research_ai.services.email_generator_service.resolve_expert_search_email_document_context"
+        "research_ai.services.outreach.email_generator.resolve_expert_search_email_document_context"
     )
-    @patch("research_ai.services.email_generator_service.get_email_template")
+    @patch("research_ai.services.outreach.email_generator.get_email_template")
     def test_fixed_template_uses_resolver_rfp_context(
         self, mock_get_template, mock_resolve_doc
     ):
@@ -350,9 +350,9 @@ class GenerateExpertEmailTests(TestCase):
         self.assertIn("March 1", body)
 
     @patch(
-        "research_ai.services.email_generator_service.resolve_expert_search_email_document_context"
+        "research_ai.services.outreach.email_generator.resolve_expert_search_email_document_context"
     )
-    @patch("research_ai.services.email_generator_service.get_email_template")
+    @patch("research_ai.services.outreach.email_generator.get_email_template")
     def test_fixed_template_uses_user_context(
         self, mock_get_template, mock_resolve_doc
     ):
@@ -389,7 +389,7 @@ class GenerateExpertEmailTests(TestCase):
         )
         self.assertIn("Body with Ada Lovelace.", body)
 
-    @patch("research_ai.services.email_generator_service.BedrockLLMService")
+    @patch("research_ai.services.outreach.email_generator.BedrockLLMService")
     def test_llm_path_with_collaboration_key(self, mock_bedrock_class):
         mock_llm = MagicMock()
         mock_llm.invoke.return_value = "Subject: Hello\n\nBody text here."

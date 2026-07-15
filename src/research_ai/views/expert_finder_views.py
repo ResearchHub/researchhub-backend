@@ -34,7 +34,7 @@ from research_ai.serializers import (
 from research_ai.services.expert_finder.finder import get_document_content
 from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.expert_finder.progress import ProgressService, TaskType
-from research_ai.services.invited_experts_service import (
+from research_ai.services.outreach.invited_experts import (
     get_expert_finder_experts_list,
     get_invited_expert_editors_overview,
     get_invited_expert_overview,

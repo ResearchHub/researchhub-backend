@@ -2,8 +2,11 @@ import logging
 from dataclasses import dataclass
 
 from research_ai.models import ExpertSearch
-from research_ai.services.proposal_email_context import build_proposal_context
-from research_ai.services.rfp_email_context import build_rfp_context, resolve_grant
+from research_ai.services.outreach.proposal_email_context import build_proposal_context
+from research_ai.services.outreach.rfp_email_context import (
+    build_rfp_context,
+    resolve_grant,
+)
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PAPER,

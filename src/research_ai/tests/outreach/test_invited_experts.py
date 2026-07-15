@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from paper.tests.helpers import create_paper
 from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
-from research_ai.services.invited_experts_service import (
+from research_ai.services.outreach.invited_experts import (
     grant_invited_expert_access_for_send,
     grant_invited_expert_access_for_signup,
 )

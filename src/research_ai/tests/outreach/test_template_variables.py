@@ -7,12 +7,12 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
-from research_ai.services.email_template_variables import (
+from research_ai.services.outreach.rfp_email_context import build_rfp_context
+from research_ai.services.outreach.template_variables import (
     build_replacement_context,
     format_expert_name_from_raw,
     replace_template_variables,
 )
-from research_ai.services.rfp_email_context import build_rfp_context
 
 
 class ReplaceTemplateVariablesTests(TestCase):
@@ -188,7 +188,7 @@ class BuildReplacementContextTests(TestCase):
 class BuildRfpContextBlurbTests(TestCase):
     """Assert build_rfp_context returns blurb key (alias for description_snippet)."""
 
-    @patch("research_ai.services.rfp_email_context.get_grant_frontend_url")
+    @patch("research_ai.services.outreach.rfp_email_context.get_grant_frontend_url")
     def test_build_rfp_context_includes_blurb_equal_to_description_snippet(
         self, mock_get_url
     ):

@@ -4,7 +4,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
-from research_ai.services.invited_experts_service import (
+from research_ai.services.outreach.invited_experts import (
     _safe_rate,
     get_expert_finder_experts_list,
     get_invited_expert_editors_overview,

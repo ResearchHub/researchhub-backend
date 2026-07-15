@@ -1,4 +1,4 @@
-"""Tests for research_ai.services.rfp_email_context."""
+"""Tests for research_ai.services.outreach.rfp_email_context."""
 
 from datetime import datetime
 from decimal import Decimal
@@ -8,7 +8,7 @@ from django.test import TestCase
 
 from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.services.expert_finder.display import ExpertDisplay
-from research_ai.services.rfp_email_context import (
+from research_ai.services.outreach.rfp_email_context import (
     build_rfp_context,
     get_expert_for_search_by_email,
     get_grant_frontend_url,
@@ -63,7 +63,7 @@ class BuildRfpContextTests(TestCase):
     def test_returns_empty_dict_when_grant_none(self):
         self.assertEqual(build_rfp_context(None), {})
 
-    @patch("research_ai.services.rfp_email_context.get_grant_frontend_url")
+    @patch("research_ai.services.outreach.rfp_email_context.get_grant_frontend_url")
     def test_returns_amount_formatted_k_and_m(self, mock_url):
         mock_url.return_value = "https://example.com/grant/1/slug"
         grant = MagicMock()
@@ -79,7 +79,7 @@ class BuildRfpContextTests(TestCase):
         self.assertEqual(result["blurb"], "Desc")
         self.assertEqual(result["description_snippet"], "Desc")
 
-    @patch("research_ai.services.rfp_email_context.get_grant_frontend_url")
+    @patch("research_ai.services.outreach.rfp_email_context.get_grant_frontend_url")
     def test_returns_amount_millions(self, mock_url):
         mock_url.return_value = ""
         grant = MagicMock()
@@ -91,7 +91,7 @@ class BuildRfpContextTests(TestCase):
         result = build_rfp_context(grant)
         self.assertEqual(result["amount"], "$2M")
 
-    @patch("research_ai.services.rfp_email_context.get_grant_frontend_url")
+    @patch("research_ai.services.outreach.rfp_email_context.get_grant_frontend_url")
     def test_returns_deadline_formatted(self, mock_url):
         mock_url.return_value = ""
         grant = MagicMock()
@@ -103,7 +103,7 @@ class BuildRfpContextTests(TestCase):
         result = build_rfp_context(grant)
         self.assertEqual(result["deadline"], "June 15, 2025")
 
-    @patch("research_ai.services.rfp_email_context.get_grant_frontend_url")
+    @patch("research_ai.services.outreach.rfp_email_context.get_grant_frontend_url")
     def test_description_snippet_length_respected(self, mock_url):
         mock_url.return_value = ""
         grant = MagicMock()
@@ -229,7 +229,7 @@ class ResolveGrantTests(TestCase):
         )
         self.assertIsNone(resolve_grant(expert_search=search))
 
-    @patch("research_ai.services.rfp_email_context.ExpertSearch")
+    @patch("research_ai.services.outreach.rfp_email_context.ExpertSearch")
     def test_returns_grant_when_unified_document_has_grants(self, mock_expert_search):
         mock_grant = MagicMock()
         mock_search = MagicMock()

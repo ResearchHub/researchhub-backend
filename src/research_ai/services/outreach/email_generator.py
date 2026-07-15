@@ -4,17 +4,17 @@ import re
 from research_ai.constants import BASE_FRONTEND_URL, DEFAULT_EMAIL_TEMPLATE_KEY
 from research_ai.prompts.email_prompts import build_email_prompt
 from research_ai.services.bedrock_llm_service import BedrockLLMService
-from research_ai.services.email_template_service import (
+from research_ai.services.outreach.document_context import (
+    format_document_context_for_llm,
+    resolve_expert_search_email_document_context,
+)
+from research_ai.services.outreach.template_service import (
     get_template as get_email_template,
 )
-from research_ai.services.email_template_variables import (
+from research_ai.services.outreach.template_variables import (
     _build_user_context,
     build_replacement_context,
     replace_template_variables,
-)
-from research_ai.services.expert_search_email_document_context import (
-    format_document_context_for_llm,
-    resolve_expert_search_email_document_context,
 )
 
 logger = logging.getLogger(__name__)

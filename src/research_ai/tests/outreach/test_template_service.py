@@ -1,7 +1,7 @@
 from django.test import TestCase
 
 from research_ai.models import EmailTemplate
-from research_ai.services import email_template_service as svc
+from research_ai.services.outreach import template_service as svc
 from user.tests.helpers import create_random_authenticated_user
 
 

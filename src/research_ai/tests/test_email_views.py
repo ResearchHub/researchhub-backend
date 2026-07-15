@@ -14,7 +14,7 @@ from research_ai.models import (
     GeneratedEmail,
     SearchExpert,
 )
-from research_ai.services.email_sending_service import send_plain_email
+from research_ai.services.outreach.email_sender import send_plain_email
 from research_ai.views.email_views import _normalize_template
 from user.tests.helpers import create_random_authenticated_user
 
@@ -807,7 +807,7 @@ class BulkGenerateEmailViewTests(APITestCase):
 class SendPlainEmailTests(APITestCase):
     """Unit tests for send_plain_email service."""
 
-    @patch("research_ai.services.email_sending_service.EmailMultiAlternatives")
+    @patch("research_ai.services.outreach.email_sender.EmailMultiAlternatives")
     def test_send_plain_email_calls_send_mail_with_plain_and_html(self, mock_email_alt):
         mock_instance = mock_email_alt.return_value
         mock_instance.extra_headers = {"message_id": "messageId1"}
@@ -830,7 +830,7 @@ class SendPlainEmailTests(APITestCase):
         mock_instance.send.assert_called_once()
         self.assertEqual(ses_message_id, "messageId1")
 
-    @patch("research_ai.services.email_sending_service.EmailMultiAlternatives")
+    @patch("research_ai.services.outreach.email_sender.EmailMultiAlternatives")
     def test_send_plain_email_with_reply_to_uses_email_multi_alternatives(
         self, mock_email_alt
     ):
@@ -847,7 +847,7 @@ class SendPlainEmailTests(APITestCase):
         mock_email_alt.return_value.attach_alternative.assert_called_once()
         mock_email_alt.return_value.send.assert_called_once()
 
-    @patch("research_ai.services.email_sending_service.EmailMultiAlternatives")
+    @patch("research_ai.services.outreach.email_sender.EmailMultiAlternatives")
     def test_send_plain_email_with_multiple_reply_to_addresses(self, mock_email_alt):
         send_plain_email(
             "to@example.com",

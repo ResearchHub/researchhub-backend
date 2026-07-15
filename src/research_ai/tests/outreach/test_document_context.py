@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 
-from research_ai.services.expert_search_email_document_context import (
+from research_ai.services.outreach.document_context import (
     ExpertSearchEmailDocumentContext,
     _build_generic_linked_document,
     _build_paper_generic,
@@ -176,10 +176,8 @@ class ResolveExpertSearchEmailDocumentContextTests(SimpleTestCase):
         self.assertIsNotNone(ctx.generic_work_context_dict)
         self.assertEqual(ctx.generic_work_context_dict["kind"], "custom_query")
 
-    @patch(
-        "research_ai.services.expert_search_email_document_context.build_rfp_context"
-    )
-    @patch("research_ai.services.expert_search_email_document_context.resolve_grant")
+    @patch("research_ai.services.outreach.document_context.build_rfp_context")
+    @patch("research_ai.services.outreach.document_context.resolve_grant")
     def test_grant_with_rfp_context(self, mock_resolve, mock_build_rfp):
         es, _ = _mock_expert_search_with_udoc(GRANT, additional_context="More nuance")
         mock_resolve.return_value = MagicMock()
@@ -190,10 +188,8 @@ class ResolveExpertSearchEmailDocumentContextTests(SimpleTestCase):
         self.assertIsNone(ctx.generic_work_context_dict)
         self.assertEqual(ctx.user_additional_context, "More nuance")
 
-    @patch(
-        "research_ai.services.expert_search_email_document_context.build_rfp_context"
-    )
-    @patch("research_ai.services.expert_search_email_document_context.resolve_grant")
+    @patch("research_ai.services.outreach.document_context.build_rfp_context")
+    @patch("research_ai.services.outreach.document_context.resolve_grant")
     def test_grant_no_grant_or_empty_rfp_falls_back(self, mock_resolve, mock_build_rfp):
         es, _ = _mock_expert_search_with_udoc(GRANT)
         es.name = "Fallback name"
@@ -204,9 +200,7 @@ class ResolveExpertSearchEmailDocumentContextTests(SimpleTestCase):
         self.assertIsNotNone(ctx.generic_work_context_dict)
         self.assertEqual(ctx.generic_work_context_dict["title"], "Fallback name")
 
-    @patch(
-        "research_ai.services.expert_search_email_document_context.build_proposal_context"
-    )
+    @patch("research_ai.services.outreach.document_context.build_proposal_context")
     def test_preregistration_with_proposal(self, mock_proposal):
         es, _ = _mock_expert_search_with_udoc(PREREGISTRATION)
         mock_proposal.return_value = {"title": "Prereg T", "blurb": "Hypothesis"}
@@ -215,9 +209,7 @@ class ResolveExpertSearchEmailDocumentContextTests(SimpleTestCase):
         self.assertEqual(ctx.proposal_context_dict["title"], "Prereg T")
         self.assertIsNone(ctx.generic_work_context_dict)
 
-    @patch(
-        "research_ai.services.expert_search_email_document_context.build_proposal_context"
-    )
+    @patch("research_ai.services.outreach.document_context.build_proposal_context")
     def test_preregistration_empty_proposal_falls_back(self, mock_proposal):
         es, _ = _mock_expert_search_with_udoc(PREREGISTRATION)
         es.name = "S"
@@ -228,7 +220,7 @@ class ResolveExpertSearchEmailDocumentContextTests(SimpleTestCase):
         self.assertIsNotNone(ctx.generic_work_context_dict)
 
     @patch(
-        "research_ai.services.expert_search_email_document_context._build_paper_generic",
+        "research_ai.services.outreach.document_context._build_paper_generic",
         return_value={"title": "Pap", "blurb": "Abst", "url": "", "kind": "paper"},
     )
     def test_paper_branch(self, _mock_paper):
@@ -237,7 +229,7 @@ class ResolveExpertSearchEmailDocumentContextTests(SimpleTestCase):
         self.assertEqual(ctx.generic_work_context_dict["kind"], "paper")
 
     @patch(
-        "research_ai.services.expert_search_email_document_context._build_paper_generic",
+        "research_ai.services.outreach.document_context._build_paper_generic",
         return_value={},
     )
     def test_paper_empty_falls_back(self, _mock_paper):
@@ -248,7 +240,7 @@ class ResolveExpertSearchEmailDocumentContextTests(SimpleTestCase):
         self.assertEqual(ctx.generic_work_context_dict["title"], "Paper fallback")
 
     @patch(
-        "research_ai.services.expert_search_email_document_context._build_generic_linked_document",
+        "research_ai.services.outreach.document_context._build_generic_linked_document",
         return_value={"title": "Note", "blurb": "Body", "url": "u", "kind": "generic"},
     )
     def test_other_document_type_uses_generic_linked(self, _mock_gen):
@@ -257,7 +249,7 @@ class ResolveExpertSearchEmailDocumentContextTests(SimpleTestCase):
         self.assertEqual(ctx.generic_work_context_dict["title"], "Note")
 
     @patch(
-        "research_ai.services.expert_search_email_document_context._build_generic_linked_document",
+        "research_ai.services.outreach.document_context._build_generic_linked_document",
         return_value={},
     )
     def test_generic_linked_empty_falls_back(self, _mock_gen):

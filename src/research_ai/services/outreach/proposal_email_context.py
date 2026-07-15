@@ -2,7 +2,10 @@ import logging
 
 from purchase.related_models.constants.currency import USD
 from research_ai.constants import BASE_FRONTEND_URL
-from research_ai.services.rfp_email_context import _format_amount, _format_deadline
+from research_ai.services.outreach.rfp_email_context import (
+    _format_amount,
+    _format_deadline,
+)
 
 logger = logging.getLogger(__name__)
 
