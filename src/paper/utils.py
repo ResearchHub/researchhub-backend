@@ -1,6 +1,4 @@
 import cloudscraper
-import regex as re
-import requests
 from bs4 import BeautifulSoup
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
@@ -18,7 +16,6 @@ from paper.lib import (
 from paper.manubot import RHCiteKey
 from utils.http import check_url_contains_pdf
 
-DOI_REGEX = r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+?(?=[\";%<>\?#&])"
 PAPER_SCORE_Q_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
     "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
 )
@@ -121,31 +118,6 @@ def get_csl_item(url) -> dict:
         return csl_item
     except Exception as e:
         raise ManubotProcessingError(e)
-
-
-def get_pdf_location_for_csl_item(csl_item):
-    """
-    Get best open access location with a PDF,
-    with preference to a location with an OA license.
-    Uses `manubot.cite.unpaywall` which currently supports
-    DOIs and arXiv IDs. Returns an Unpaywall OA Location data structure
-    described at <http://unpaywall.org/data-format#oa-location-object>.
-    """
-    from manubot.cite.unpaywall import Unpaywall
-
-    if not csl_item:
-        return None
-    # CSL_Item.url_is_unsupported_pdf is a non-standard field that
-    # upstream functions can set to specify that metadata could not
-    # be automatically generated for a PDF URL.
-    if getattr(csl_item, "url_is_unsupported_pdf", False):
-        return get_location_for_unsupported_pdf(csl_item)
-    try:
-        upw = Unpaywall.from_csl_item(csl_item)
-    except (ValueError, requests.RequestException):
-        return None
-    oa_location = upw.best_openly_licensed_pdf or upw.best_pdf
-    return oa_location
 
 
 def get_location_for_unsupported_pdf(csl_item):
@@ -256,14 +228,6 @@ def format_raw_authors(raw_authors):
             author["last_name"] = last_name
 
     return raw_authors
-
-
-def clean_dois(parsed_url, dois):
-    netloc = parsed_url.netloc
-    if "biorxiv" in netloc:
-        version_regex = r"v[0-9]+$"
-        dois = [re.sub(version_regex, "", doi) for doi in dois]
-    return dois
 
 
 def pdf_copyright_allows_display(paper):
