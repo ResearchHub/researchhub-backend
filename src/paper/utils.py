@@ -7,14 +7,7 @@ from django.db.models import Count, Q
 
 from discussion.models import Vote
 from paper.exceptions import ManubotProcessingError
-from paper.lib import (
-    journal_hosts,
-    journal_hosts_and_pdf_identifiers,
-    journal_pdf_to_url,
-    journal_url_to_pdf,
-)
 from paper.manubot import RHCiteKey
-from utils.http import check_url_contains_pdf
 
 PAPER_SCORE_Q_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
     "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
@@ -42,62 +35,6 @@ def clean_abstract(abstract):
     # cleaned_text = cleaned_text.replace('\r', ' ')
     cleaned_text = cleaned_text.lstrip()
     return cleaned_text
-
-
-def check_url_is_pdf(url):
-    """
-    Checks if the url is a from a journal and is a pdf.
-    Returns true if the above requirements are met, false
-    if the url is from the journal but not a pdf, and none
-    if both requirements are not met.
-    """
-    for host, pdf_identifier in journal_hosts_and_pdf_identifiers:
-        if host in url and pdf_identifier in url:
-            return True
-        elif host in url and pdf_identifier not in url:
-            return False
-    return None
-
-
-def populate_pdf_url_from_journal_url(url, metadata):
-    """
-    Returns tuple of:
-    metadata with pdf_url and file if pdf is found
-    and whether this fills the metadata or not.
-    """
-    url, converted = convert_journal_url_to_pdf_url(url)
-    if converted and check_url_contains_pdf(url):
-        if metadata.get("file", None) is None:
-            metadata["file"] = url
-        if metadata.get("pdf_url", None) is None:
-            metadata["pdf_url"] = url
-    return metadata, converted
-
-
-def convert_journal_url_to_pdf_url(journal_url):
-    pdf_url = None
-    for host in journal_hosts:
-        if host in journal_url and journal_url_to_pdf[host]:
-            pdf_url = journal_url_to_pdf[host](journal_url)
-            break
-    if pdf_url is not None and check_url_contains_pdf(pdf_url):
-        return pdf_url, True
-    return journal_url, False
-
-
-def convert_pdf_url_to_journal_url(pdf_url):
-    """
-    Returns the url and if it was converted as tuple. If not converted the url
-    returned is the original pdf url.
-    """
-    journal_url = None
-    for host in journal_hosts:
-        if host in pdf_url and journal_pdf_to_url[host]:
-            journal_url = journal_pdf_to_url[host](pdf_url)
-            break
-    if journal_url is not None:
-        return journal_url, True
-    return pdf_url, False
 
 
 def get_csl_item(url) -> dict:

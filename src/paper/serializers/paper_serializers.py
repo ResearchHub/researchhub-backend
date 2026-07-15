@@ -26,10 +26,7 @@ from paper.related_models.authorship_model import Authorship
 from paper.tasks import download_pdf
 from paper.utils import (
     check_file_is_url,
-    check_url_is_pdf,
     clean_abstract,
-    convert_journal_url_to_pdf_url,
-    convert_pdf_url_to_journal_url,
     pdf_copyright_allows_display,
 )
 from purchase.models import Purchase
@@ -49,7 +46,7 @@ from user.serializers import (
     DynamicUserSerializer,
     UserSerializer,
 )
-from utils.http import check_url_contains_pdf, get_user_from_request
+from utils.http import get_user_from_request
 
 logger = logging.getLogger(__name__)
 
@@ -523,29 +520,11 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
                 download_pdf(paper_id)
 
     def _add_url(self, file, validated_data):
+        # `file` accepts a URL string.
+        # Keep it out of the FileField and store it as the paper's URL instead.
         if check_file_is_url(file):
             validated_data["file"] = None
-            contains_pdf = check_url_contains_pdf(file)
-            is_journal_pdf = check_url_is_pdf(file)
-
-            if contains_pdf:
-                validated_data["url"] = file
-                validated_data["pdf_url"] = file
-
-            if is_journal_pdf is True:
-                pdf_url = file
-                journal_url, converted = convert_pdf_url_to_journal_url(file)
-            elif is_journal_pdf is False:
-                journal_url = file
-                pdf_url, converted = convert_journal_url_to_pdf_url(file)
-            else:
-                validated_data["url"] = file
-                return
-
-            if converted:
-                validated_data["url"] = journal_url
-                validated_data["pdf_url"] = pdf_url
-        return
+            validated_data["url"] = file
 
     def _clean_abstract(self, data):
         abstract = data.get("abstract")
