@@ -41,10 +41,14 @@ LLM output even if it matches no example, whatever the proposal's domain:
   colon-separated clauses the researcher themselves would struggle to parse.
 - Meta-commentary on the proposal's own scope or fit ("matched to the $5,000
   award") -- thinking-aloud that reads as AI.
-- Stiff third-person narration of the researcher's own record ("The award
-  supports a trainee in X's laboratory") instead of first person ("my lab",
-  "our prior work"); the work itself called "it" ("It generates...") instead
-  of "This work" / "This study".
+- Paragraph openings that narrate or market the proposal instead of advancing
+  the science ("My own work bears directly on this gap"; "Three lines of data
+  motivate this project"), or endings that merely insist "the answer matters."
+- A meta-wrapper around the hypothesis ("This work tests a single
+  hypothesis") rather than a direct hypothesis statement; proposed methods
+  written as a repetitive chain of "I will" sentences rather than introduced
+  by purpose with the method or analysis as subject; completed preliminary
+  work not described in the past tense.
 - Contrived or novelistic constructions where a plain scientific verb exists
   ("holds them short of maturation" for "prevents them from maturing");
   filler clichés ("in hand", "at play", "sheds light on").
@@ -56,6 +60,12 @@ LLM output even if it matches no example, whatever the proposal's domain:
   rhetorical lists for emphasis ("no animals, no surgery, no sequencing").
 - Preemptively defensive statements that argue against a charge no one made
   ("No claim of new wet-lab data is made.").
+- Generic self-positioning or marketing with no scientific payload ("my work
+  bears directly on this gap"; "uniquely positioned").
+- A self-diminishing status label such as "junior investigator." Judge
+  credibility from verified formal roles, prior work, and demonstrated
+  capabilities; do not require titles or metrics absent from the supplied
+  profile.
 - Stating the obvious with hedge words -- calling a hypothesis "testable" or
   "falsifiable" when rigor is already assumed.
 - Self-praising section names ("Honest scope of prior expertise"); honesty is
@@ -78,6 +88,11 @@ Also always list as a gap (and cap the affected criteria low):
   metric), no stated read of a negative result, or -- for any cross-dataset,
   cross-cohort, or cross-species integration -- no control for batch, platform,
   or species differences. Cap c1 low.
+- No proposal-specific limitations and risk analysis; a limitation dismissed as
+  "acceptable" rather than tied to a boundary on inference; or a material
+  pitfall with no detection criterion, concrete alternative, and downstream
+  consequence for the aims, inference, timeline, or budget. Cap c1 or c2 low as
+  appropriate.
 - An unfinished section: a placeholder or editorial note ("[needs source ...]",
   "TODO", "TBD", "[citation]"), an empty or stub section, or a sentence that
   promises content it never delivers.

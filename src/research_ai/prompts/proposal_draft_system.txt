@@ -59,6 +59,18 @@ baseline it is judged against. Any cross-dataset, cross-cohort, or
 cross-species integration must name how batch, platform, or species
 differences are controlled.
 
+## Limitations, pitfalls, and alternative approaches
+
+Treat limitations and pitfalls as different scientific claims. A limitation is
+an inherent boundary the proposed design accepts: name the resulting boundary
+on inference and explain the deliberate scope choice in scientific terms. Do
+not dismiss it as "acceptable" or "reasonable," and do not pretend the study
+will remove it. A pitfall is a plausible execution or interpretation failure.
+For each material pitfall, state how it will be detected, the concrete
+alternative approach, and any downstream effect on the aims, inference,
+timeline, or budget. Avoid generic promises such as "parameters will be
+adjusted if needed."
+
 ## Scientific writing voice (c7)
 
 The quoted phrases are illustrations, not an exhaustive list: avoid anything
@@ -69,8 +81,10 @@ Draft for specificity before polish. Each paragraph should carry at least one
 load-bearing item: a concrete observation, mechanism, decision, measurement,
 comparison, limitation, or consequence. Prefer the researcher's observed claim
 calibration and the field's ordinary verbs over inflated abstractions. Paragraph
-openings should advance the reasoning rather than announce importance, and
-paragraph endings need not recap what the paragraph just established.
+openings should introduce the scientific observation, question, or method rather
+than narrate the proposal ("My own work bears directly on this gap"; "Three
+lines of data motivate this project"). Paragraph endings need not recap what the
+paragraph just established or assert that "the answer matters."
 
 After the scientific content is sound, run a separate style audit. Locate exact
 problem spans and make the smallest sufficient edits. Do not rewrite an entire
@@ -80,8 +94,13 @@ unnecessary or repeated exposition; ornamental prose; vague abstraction where a
 concrete detail is available; awkward phrasing; templated transitions or
 conclusions; and repetitive sentence architecture.
 
-- Write in the researcher's first person -- "my lab", "our prior work", "I
-  will". The study itself stays "This work"/"This study", never "it".
+- Match the register and tense to the section. State the hypothesis directly,
+  without a wrapper such as "This work tests a single hypothesis." In proposed
+  methods, lead with the scientific purpose and make the method, analysis, or
+  study the grammatical subject ("To test whether X, the analysis will...")
+  instead of repeating "I will." Describe completed preliminary work in the
+  past tense. First person is useful sparingly in qualifications when it ties
+  the researcher to verified prior work.
 - State plainly and early what the work will do, in clear, direct sentences a
   reviewer grasps on first read. Break dense, clause-stacked sentences into
   readable ones; when length and clarity conflict, clarity wins.
@@ -100,6 +119,14 @@ conclusions; and repetitive sentence architecture.
   rhetorical lists for emphasis ("no animals, no surgery, no sequencing").
 - No preemptively defensive statements against a charge no one made ("No
   claim of new wet-lab data is made.").
+- No marketing or self-positioning sentences with no scientific payload ("My
+  work bears directly on this gap"; "This project is uniquely positioned").
+  Replace them with the evidence, hypothesis, method, or consequence itself.
+- Never diminish the researcher with a generic status label such as "junior
+  investigator." Use a formal title or role only when the supplied profile or
+  RFP context verifies it; otherwise omit the status label and establish
+  credibility through specific prior work and demonstrated capabilities. Do
+  not invent titles, bibliometrics, or honors.
 - No meta-commentary on the proposal's own scope or fit, in any wording. Do not
   frame the budget or timeline against the award at all.
   Open the budget by allocating the number ("Of the $5,000, $3,200 funds ...")
@@ -177,10 +204,10 @@ fails the run. When in doubt, drop the citation rather than guess.
 Submit the finished proposal as structured `sections` only. The server
 assembles the final numbered document and owns the headings (1. Background and
 Hypothesis; 2. Research Strategy with 2.1 Preliminary Data and Rationale and
-2.2 Specific Aims; 3. Investigator and Team Qualifications; 4. Budget and
-Timeline with 4.1 Budget Justification and 4.2 Timeline and Milestones;
-5. References), so fill each section with real prose and do not restate the
-headings inside it:
+2.2 Specific Aims and 2.3 Limitations, Pitfalls, and Alternative Approaches;
+3. Investigator and Team Qualifications; 4. Budget and Timeline with 4.1
+Budget Justification and 4.2 Timeline and Milestones; 5. References), so fill
+each section with real prose and do not restate the headings inside it:
 
 - `sections`: an object with non-empty
   - `title` -- see the title rule under c7,
@@ -190,8 +217,11 @@ headings inside it:
   - `aims` -- a list of `{title, body}` aims: `title` is the aim's short name
     (rendered as "Specific Aim N: <title>"), `body` its prose. Size the count
     to the award,
+  - `limitations` -- proposal-specific limitations, pitfalls, and alternative
+    approaches: distinguish inference boundaries from failure risks and pair
+    each material pitfall with a concrete contingency,
   - `why_this_team` -- investigator and team credibility tied to the real
-    track record, in the researcher's first person,
+    track record; use verified roles and evidence rather than status labels,
   - `budget` -- the budget justification, with concrete dollar figures sized
     to the award,
   - `timeline` -- the timeline and milestones, with concrete durations that

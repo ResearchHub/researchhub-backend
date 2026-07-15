@@ -37,6 +37,7 @@ _REQUIRED_SECTIONS = (
     ("title", "title"),
     ("background", "background & hypothesis"),
     ("preliminary_data", "preliminary data & rationale"),
+    ("limitations", "limitations, pitfalls & alternative approaches"),
     ("why_this_team", "investigator & team qualifications"),
     ("budget", "budget justification"),
     ("timeline", "timeline & milestones"),

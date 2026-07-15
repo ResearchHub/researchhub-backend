@@ -140,3 +140,27 @@ class BuildProposalSystemPromptTests(unittest.TestCase):
         self.assertIn("get_work_fulltext", prompt)
         self.assertIn("smallest sufficient edits", prompt)
         self.assertIn("rewrite an entire", prompt)
+
+    def test_prompt_uses_scientific_register_instead_of_proposal_narration(self):
+        # Arrange / Act
+        prompt = build_proposal_system_prompt()
+        normalized = " ".join(prompt.split())
+
+        # Assert: methods lead with purpose, completed work uses past tense, and
+        # unsupported status labels are excluded from the qualifications case.
+        self.assertIn("make the method, analysis, or", normalized)
+        self.assertIn('instead of repeating "I will."', normalized)
+        self.assertIn("completed preliminary work", normalized)
+        self.assertIn('"junior', normalized)
+        self.assertIn("Do not invent titles, bibliometrics, or honors", normalized)
+
+    def test_prompt_requires_limitations_pitfalls_and_alternatives(self):
+        # Arrange / Act
+        prompt = build_proposal_system_prompt()
+        normalized = " ".join(prompt.split())
+
+        # Assert
+        self.assertIn("Treat limitations and pitfalls as different", normalized)
+        self.assertIn("resulting boundary", normalized)
+        self.assertIn("concrete alternative approach", normalized)
+        self.assertIn("`limitations`", normalized)
