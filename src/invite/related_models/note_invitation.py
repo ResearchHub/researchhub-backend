@@ -14,11 +14,6 @@ class NoteInvitation(Invitation):
     note = models.ForeignKey(
         Note, on_delete=models.CASCADE, related_name="invited_users"
     )
-    metadata = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text="Optional context for the workflow that created the invitation.",
-    )
 
     def send_invitation(self):
         key = self.key

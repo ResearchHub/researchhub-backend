@@ -13,7 +13,6 @@ from research_ai.models import ExpertSearch, ProposalDraft
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.outreach.rfp_email_context import (
     build_rfp_context,
-    get_grant_frontend_url,
     resolve_grant,
 )
 from researchhub_access_group.constants import EDITOR
@@ -123,19 +122,6 @@ def _normalize_outreach_context(context: dict | None) -> dict:
     return normalized
 
 
-def _invitation_metadata(draft: ProposalDraft) -> dict:
-    expert_search = draft.search_expert.expert_search
-    grant = resolve_grant(expert_search=expert_search)
-    return {
-        "kind": "proposal_draft",
-        "proposal_draft_id": draft.id,
-        "expert_search_id": expert_search.id,
-        "note_id": draft.note_id,
-        "grant_id": grant.id if grant is not None else None,
-        "grant_url": get_grant_frontend_url(grant) if grant is not None else None,
-    }
-
-
 def create_proposal_note_invitation(
     *, draft: ProposalDraft, expert_email: str, inviter
 ) -> NoteInvitation:
@@ -147,7 +133,6 @@ def create_proposal_note_invitation(
         inviter=inviter,
         note=draft.note,
         invite_type=EDITOR,
-        metadata=_invitation_metadata(draft),
     )
 
 

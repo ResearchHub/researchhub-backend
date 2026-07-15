@@ -36,7 +36,6 @@ class NoteInvitationViewSet(ListModelMixin, GenericViewSet):
             {
                 "data": "User has accepted invitation",
                 "note_id": invitation.note_id,
-                "metadata": invitation.metadata or {},
             },
             status=200,
         )

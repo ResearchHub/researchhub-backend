@@ -227,10 +227,6 @@ class GenerateEmailViewTests(APITestCase):
         self.assertEqual(invitation.note, draft.note)
         self.assertEqual(invitation.recipient_email, self.jane.email)
         self.assertEqual(invitation.invite_type, "EDITOR")
-        self.assertEqual(
-            invitation.metadata["grant_id"],
-            draft.search_expert.expert_search.unified_document.grants.get().id,
-        )
         self.assertIn(invitation.key, response.json()["proposal_invite_url"])
         call_kwargs = mock_generate.call_args.kwargs
         self.assertEqual(call_kwargs["template"], "proposal-draft-outreach")
