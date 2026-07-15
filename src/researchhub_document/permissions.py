@@ -7,18 +7,15 @@ class HasDocumentEditingPermission(AuthorizationBasedPermission):
 
     def has_permission(self, request, view):
         if (
-            (
-                view.action == "create"
-                or view.action == "update"
-                or view.action == "upsert"
-            )
-            and request.data.get("post_id") is not None
-        ):
+            view.action == "create"
+            or view.action == "update"
+            or view.action == "upsert"
+        ) and request.data.get("post_id") is not None:
             post = ResearchhubPost.objects.get(id=request.data.get("post_id"))
-                if post.created_by_id == request.user.id or request.user.moderator:
-                    return True
-                if post.note_id is not None:
-                    return post.note.organization.org_has_member_user(request.user)
-                return False
+            if post.created_by_id == request.user.id or request.user.moderator:
+                return True
+            if post.note_id is not None:
+                return post.note.organization.org_has_member_user(request.user)
+            return False
 
         return True
