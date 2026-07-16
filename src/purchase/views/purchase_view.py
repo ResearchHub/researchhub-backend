@@ -5,8 +5,7 @@ import time
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from rest_framework import status, viewsets
-from rest_framework.decorators import action
+from rest_framework import viewsets
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -209,24 +208,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             countdown=10,
         )
         return Response(serializer_data, status=201)
-
-    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
-    def user_promotions(self, request, pk=None):
-        context = self.get_serializer_context()
-        context["purchase_minimal_serialization"] = True
-
-        user = User.objects.get(id=pk)
-        queryset = Purchase.objects.filter(user=user).order_by(
-            "-created_date", "object_id"
-        )
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.serializer_class(page, many=True, context=context)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def send_purchase_notification(
         self, purchase, unified_doc, recipient, notification_type
