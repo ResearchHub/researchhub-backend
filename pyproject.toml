@@ -45,7 +45,6 @@ dependencies = [
     "manubot==0.5.3",
     "openai>=1.45.0",
     "opensearch-py==3.0.0",
-    "pandas>=2.2.3,<3.0.0",
     "pillow>=12.0.0",
     "psycopg[binary,pool]>=3.2.3,<4.0.0",
     "pyjwt>=2.12.0",
