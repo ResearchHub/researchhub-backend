@@ -167,28 +167,25 @@ class HubModelsTests(TestCase):
         )
 
         # Act & Assert - Test lowercase version
-        with transaction.atomic():
-            with self.assertRaises(IntegrityError):
-                Hub.objects.create(
-                    name="nature medicine",
-                    namespace=Hub.Namespace.JOURNAL,
-                )
+        with transaction.atomic(), self.assertRaises(IntegrityError):
+            Hub.objects.create(
+                name="nature medicine",
+                namespace=Hub.Namespace.JOURNAL,
+            )
 
         # Act & Assert - Test uppercase version
-        with transaction.atomic():
-            with self.assertRaises(IntegrityError):
-                Hub.objects.create(
-                    name="NATURE MEDICINE",
-                    namespace=Hub.Namespace.JOURNAL,
-                )
+        with transaction.atomic(), self.assertRaises(IntegrityError):
+            Hub.objects.create(
+                name="NATURE MEDICINE",
+                namespace=Hub.Namespace.JOURNAL,
+            )
 
         # Act & Assert - Test mixed case version
-        with transaction.atomic():
-            with self.assertRaises(IntegrityError):
-                Hub.objects.create(
-                    name="NaTuRe MeDiCiNe",
-                    namespace=Hub.Namespace.JOURNAL,
-                )
+        with transaction.atomic(), self.assertRaises(IntegrityError):
+            Hub.objects.create(
+                name="NaTuRe MeDiCiNe",
+                namespace=Hub.Namespace.JOURNAL,
+            )
 
     def test_can_create_same_name_with_different_namespace(self):
         """Test that same name can exist with different namespaces"""

@@ -279,13 +279,15 @@ class TestArXivClient(TestCase):
 
     def test_rate_limiter(self):
         """Test that rate limiter enforces delays between requests."""
-        with patch("time.sleep") as mock_sleep:
-            with patch.object(self.client, "fetch") as mock_fetch:
-                mock_fetch.return_value = self.sample_xml_response
+        with (
+            patch("time.sleep") as mock_sleep,
+            patch.object(self.client, "fetch") as mock_fetch,
+        ):
+            mock_fetch.return_value = self.sample_xml_response
 
-                # Make two rapid requests
-                self.client.fetch_with_rate_limit("/query")
-                self.client.fetch_with_rate_limit("/query")
+            # Make two rapid requests
+            self.client.fetch_with_rate_limit("/query")
+            self.client.fetch_with_rate_limit("/query")
 
-                # Should have slept to respect rate limit
-                mock_sleep.assert_called()
+            # Should have slept to respect rate limit
+            mock_sleep.assert_called()

@@ -211,17 +211,20 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
             status=GeneratedEmail.Status.PROCESSING,
         )
         mock_generate.return_value = ("Subj", "Body")
-        with patch(
-            "research_ai.tasks.User.objects.get", side_effect=RuntimeError("DB error")
+        with (
+            patch(
+                "research_ai.tasks.User.objects.get",
+                side_effect=RuntimeError("DB error"),
+            ),
+            self.assertRaises(RuntimeError),
         ):
-            with self.assertRaises(RuntimeError):
-                process_bulk_generate_emails_task.apply(
-                    kwargs={
-                        "generated_email_ids": [rec.id],
-                        "template_id": 1,
-                        "created_by_id": self.user.id,
-                    }
-                ).get()
+            process_bulk_generate_emails_task.apply(
+                kwargs={
+                    "generated_email_ids": [rec.id],
+                    "template_id": 1,
+                    "created_by_id": self.user.id,
+                }
+            ).get()
         rec.refresh_from_db()
         self.assertEqual(rec.status, GeneratedEmail.Status.FAILED)
         mock_logger.exception.assert_called_once()

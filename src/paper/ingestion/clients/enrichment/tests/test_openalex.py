@@ -526,15 +526,17 @@ class TestOpenAlexClient(TestCase):
         Test that rate limiter enforces delays between requests.
         """
         # Arrange
-        with patch("time.sleep") as mock_sleep:
-            with patch.object(self.client, "fetch") as mock_fetch:
-                mock_fetch.return_value = self.sample_list_response
+        with (
+            patch("time.sleep") as mock_sleep,
+            patch.object(self.client, "fetch") as mock_fetch,
+        ):
+            mock_fetch.return_value = self.sample_list_response
 
-                # Act
-                self.client.fetch_with_rate_limit("/works")
-                self.client.fetch_with_rate_limit("/works")
+            # Act
+            self.client.fetch_with_rate_limit("/works")
+            self.client.fetch_with_rate_limit("/works")
 
-                # Assert
-                # Should have slept to respect rate limit
-                # (10 requests/second = 0.1s delay)
-                mock_sleep.assert_called()
+            # Assert
+            # Should have slept to respect rate limit
+            # (10 requests/second = 0.1s delay)
+            mock_sleep.assert_called()
