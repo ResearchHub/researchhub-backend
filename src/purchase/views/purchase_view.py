@@ -6,6 +6,7 @@ import time
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from rest_framework import viewsets
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -59,22 +60,17 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         recipient = None
 
         if user.probable_spammer:
-            return Response(
-                {
-                    "detail": "Account under review. Please contact support.",
-                },
-                status=403,
-            )
+            raise PermissionDenied("Account under review. Please contact support.")
 
         if content_type_str not in self.ALLOWED_CONTENT_TYPES:
-            return Response(status=400)
+            raise ValidationError("Invalid content type")
 
         if purchase_method != Purchase.OFF_CHAIN:
-            return Response(status=400)
+            raise ValidationError("Invalid purchase method")
 
         decimal_amount = decimal.Decimal(amount)
         if decimal_amount <= 0:
-            return Response(status=400)
+            raise ValidationError("Invalid amount")
 
         content_type = ContentType.objects.get(model=content_type_str)
         with transaction.atomic():
@@ -92,14 +88,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 decimal_amount < MINIMUM_SUPPORT_AMOUNT_RSC
                 or decimal_amount > MAXIMUM_SUPPORT_AMOUNT_RSC
             ):
-                return Response(
-                    {
-                        "detail": (
-                            f"Invalid amount. Minimum of "
-                            f"{MINIMUM_SUPPORT_AMOUNT_RSC} RSC."
-                        ),
-                    },
-                    status=400,
+                raise ValidationError(
+                    f"Invalid amount. Minimum of {MINIMUM_SUPPORT_AMOUNT_RSC} RSC."
                 )
 
             user_balance = user.get_balance()
@@ -110,7 +100,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 current_support_fee,
             ) = calculate_support_fees(decimal_amount)
             if user_balance - (decimal_amount + total_fee) < 0:
-                return Response("Insufficient Funds", status=402)
+                raise ValidationError("Insufficient funds")
 
             # Deduct fees from the gross amount of the purchase.
             deduct_support_fees(user, total_fee, rh_fee, dao_fee, current_support_fee)
