@@ -49,7 +49,7 @@ def doi_updated(update_fields):
 @receiver(post_save, sender=Bounty, dispatch_uid="create_bounty_action")
 def create_action(sender, instance, created, **kwargs):
     if created:
-        if sender == Paper or sender == PaperSubmission:
+        if sender in (Paper, PaperSubmission):
             user = instance.uploaded_by
         else:
             user = instance.created_by

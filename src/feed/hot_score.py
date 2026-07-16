@@ -264,7 +264,7 @@ def calculate_hot_score_for_item(feed_entry):
     post_ct = get_content_type_for_model(ResearchhubPost)
     paper_ct = get_content_type_for_model(Paper)
 
-    if item_content_type == post_ct or item_content_type == paper_ct:
+    if item_content_type in (post_ct, paper_ct):
         return calculate_hot_score(feed_entry, item_content_type)
     else:
         return 0
