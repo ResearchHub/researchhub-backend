@@ -5,11 +5,12 @@ import time
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from rest_framework import viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.mixins import CreateModelMixin, ListModelMixin
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.viewsets import GenericViewSet
 
 from analytics.amplitude import track_event
 from analytics.tasks import track_revenue_event
@@ -34,7 +35,7 @@ from utils.throttles import THROTTLE_CLASSES
 logger = logging.getLogger(__name__)
 
 
-class PurchaseViewSet(viewsets.ModelViewSet):
+class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
     queryset = Purchase.objects.all()
     serializer_class = PurchaseSerializer
     permission_classes = [IsAuthenticated, CreateOrReadOnly]
