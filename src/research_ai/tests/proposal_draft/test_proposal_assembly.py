@@ -2,7 +2,7 @@
 
 import unittest
 
-from research_ai.services.proposal_tools.assembly import assemble_proposal
+from research_ai.services.proposal_draft.tools.assembly import assemble_proposal
 
 
 def _full_sections():
@@ -14,6 +14,11 @@ def _full_sections():
             {"title": "Map the trajectory", "body": "First we do A.\n\nThen we do B."},
             {"title": "Test the signal", "body": "We quantify C."},
         ],
+        "limitations": (
+            "The cohort bounds inference to adults. Low signal is a pitfall; "
+            "if detected, the prespecified aggregate analysis will replace "
+            "the cell-level comparison."
+        ),
         "why_this_team": "Jane has the track record.",
         "budget": "$50,000 across compute and storage.",
         "timeline": "24 months with monthly milestones.",
@@ -53,6 +58,7 @@ class AssembleProposalTests(unittest.TestCase):
             [
                 "2.1 Preliminary Data and Rationale",
                 "2.2 Specific Aims",
+                "2.3 Limitations, Pitfalls, and Alternative Approaches",
                 "4.1 Budget Justification",
                 "4.2 Timeline and Milestones",
             ],
@@ -73,6 +79,18 @@ class AssembleProposalTests(unittest.TestCase):
         ]
         self.assertIn("First we do A.", paragraphs)
         self.assertIn("Then we do B.", paragraphs)
+
+    def test_limitations_and_contingencies_render_in_research_strategy(self):
+        # Arrange / Act
+        plain_text, doc = assemble_proposal(_full_sections())
+
+        # Assert
+        self.assertIn(
+            "2.3 Limitations, Pitfalls, and Alternative Approaches",
+            self._headings(doc, 3),
+        )
+        self.assertIn("The cohort bounds inference to adults.", plain_text)
+        self.assertIn("the prespecified aggregate analysis", plain_text)
 
     def test_citations_render_as_numbered_references_section(self):
         # Arrange: two citations, one with a bare DOI, one with a full URL.
@@ -119,6 +137,41 @@ class AssembleProposalTests(unittest.TestCase):
             "1. Ada Lovelace (2019). First Paper. https://doi.org/10.1/abc",
             plain_text,
         )
+
+    def test_same_work_cited_for_two_claims_renders_one_reference(self):
+        # Arrange: the same DOI submitted under two claim_ids (bare and URL
+        # forms), plus a distinct second work.
+        citations = [
+            {"claim_id": "c1", "doi": "10.1/abc", "title": "First Paper"},
+            {
+                "claim_id": "c2",
+                "doi": "https://doi.org/10.1/ABC",
+                "title": "First Paper",
+            },
+            {"claim_id": "c3", "doi": "10.2/xyz", "title": "Second"},
+        ]
+
+        # Act
+        plain_text, _doc = assemble_proposal(_full_sections(), citations)
+
+        # Assert: the duplicated work renders once and numbering stays
+        # contiguous for the next distinct work.
+        self.assertEqual(plain_text.count("First Paper"), 1)
+        self.assertIn("1. First Paper. https://doi.org/10.1/abc", plain_text)
+        self.assertIn("2. Second. https://doi.org/10.2/xyz", plain_text)
+
+    def test_doiless_duplicates_dedupe_on_the_rendered_line(self):
+        # Arrange: two DOI-less entries rendering to the same reference line.
+        citations = [
+            {"claim_id": "c1", "title": "Same Work", "authors": ["Ada Lovelace"]},
+            {"claim_id": "c2", "title": "Same Work", "authors": ["Ada Lovelace"]},
+        ]
+
+        # Act
+        plain_text, _doc = assemble_proposal(_full_sections(), citations)
+
+        # Assert
+        self.assertEqual(plain_text.count("Same Work"), 1)
 
     def test_no_citations_yields_no_references_section(self):
         # Arrange / Act

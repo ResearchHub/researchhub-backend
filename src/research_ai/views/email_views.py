@@ -20,13 +20,15 @@ from research_ai.serializers import (
     PreviewEmailRequestSerializer,
     SendEmailRequestSerializer,
 )
-from research_ai.services.email_generator_service import generate_expert_email
-from research_ai.services.email_sending_service import send_plain_email
-from research_ai.services.email_template_variables import format_expert_name_from_raw
-from research_ai.services.expert_display import ExpertDisplay
-from research_ai.services.expert_persist import ExpertPersist
-from research_ai.services.rfp_email_context import get_expert_for_search_by_email
-from research_ai.services.rfp_invite_service import invite_applicants
+from research_ai.services.expert_finder.display import ExpertDisplay
+from research_ai.services.expert_finder.persist import ExpertPersist
+from research_ai.services.outreach.email_generator import generate_expert_email
+from research_ai.services.outreach.email_sender import send_plain_email
+from research_ai.services.outreach.rfp_email_context import (
+    get_expert_for_search_by_email,
+)
+from research_ai.services.outreach.rfp_invite import invite_applicants
+from research_ai.services.outreach.template_variables import format_expert_name_from_raw
 from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
 from user.permissions import IsModerator, UserIsEditor
 

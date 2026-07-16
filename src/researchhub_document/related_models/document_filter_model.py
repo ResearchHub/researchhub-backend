@@ -97,32 +97,32 @@ class DocumentFilter(DefaultModel):
         updates = []
         update_fields = []
         if document_type == PAPER:
-            if update_type == FILTER_OPEN_ACCESS or update_type == FILTER_ALL:
+            if update_type in (FILTER_OPEN_ACCESS, FILTER_ALL):
                 updates.append(self.update_open_access)
-            if update_type == FILTER_PEER_REVIEWED or update_type == FILTER_ALL:
+            if update_type in (FILTER_PEER_REVIEWED, FILTER_ALL):
                 updates.append(self.update_peer_reviewed)
         elif document_type == NOTE:
             return
         else:
-            if update_type == FILTER_ANSWERED or update_type == FILTER_ALL:
+            if update_type in (FILTER_ANSWERED, FILTER_ALL):
                 updates.append(self.update_answered)
-            if update_type == FILTER_PEER_REVIEWED or update_type == FILTER_ALL:
+            if update_type in (FILTER_PEER_REVIEWED, FILTER_ALL):
                 updates.append(self.update_peer_reviewed)
 
-        if update_type == FILTER_BOUNTY_OPEN or update_type == FILTER_ALL:
+        if update_type in (FILTER_BOUNTY_OPEN, FILTER_ALL):
             updates.append(self.update_bounty_open)
-        if update_type == FILTER_BOUNTY_CLOSED or update_type == FILTER_ALL:
+        if update_type in (FILTER_BOUNTY_CLOSED, FILTER_ALL):
             updates.append(self.update_bounty_closed)
-        if update_type == FILTER_BOUNTY_EXPIRED or update_type == FILTER_ALL:
+        if update_type in (FILTER_BOUNTY_EXPIRED, FILTER_ALL):
             updates.append(self.update_bounty_expired)
-        if update_type == FILTER_HAS_BOUNTY or update_type == FILTER_ALL:
+        if update_type in (FILTER_HAS_BOUNTY, FILTER_ALL):
             updates.append(self.update_has_bounty)
-        if update_type == SORT_BOUNTY_EXPIRATION_DATE or update_type == FILTER_ALL:
+        if update_type in (SORT_BOUNTY_EXPIRATION_DATE, FILTER_ALL):
             updates.append(self.update_bounty_expiration_date)
-        if update_type == SORT_BOUNTY_TOTAL_AMOUNT or update_type == FILTER_ALL:
+        if update_type in (SORT_BOUNTY_TOTAL_AMOUNT, FILTER_ALL):
             updates.append(self.update_bounty_total_amount)
 
-        if update_type == SORT_DISCUSSED or update_type == FILTER_ALL:
+        if update_type in (SORT_DISCUSSED, FILTER_ALL):
             updates.append(self.update_discussed_today)
             updates.append(self.update_discussed_week)
             updates.append(self.update_discussed_month)
@@ -130,7 +130,7 @@ class DocumentFilter(DefaultModel):
             updates.append(self.update_discussed_all)
             updates.append(self.update_discussed_date)
 
-        if update_type == SORT_UPVOTED or update_type == FILTER_ALL:
+        if update_type in (SORT_UPVOTED, FILTER_ALL):
             updates.append(self.update_upvoted_today)
             updates.append(self.update_upvoted_week)
             updates.append(self.update_upvoted_month)

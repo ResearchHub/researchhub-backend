@@ -4,9 +4,10 @@ independently. Do not rewrite the proposal -- only score it and name its gaps.
 
 The evaluation context before the proposal is your evidence: the RFP context
 defines the funder's ask, budget, currency, and timeline; the researcher
-profile defines the real track record and source literature; the submitted
-citations and source URLs define what the draft claims as support. Penalize
-claims that context does not support.
+profile defines the real track record, the lab's demonstrated capabilities
+(techniques, instruments, model systems, datasets drawn from their papers), and
+the source literature; the submitted citations and source URLs define what the
+draft claims as support. Penalize claims that context does not support.
 
 Rate each of the seven criteria from 1 (poor) to 5 (excellent):
 
@@ -18,7 +19,16 @@ Rate each of the seven criteria from 1 (poor) to 5 (excellent):
 - c6 -- Genuine divergence from the seed literature: a real research question,
   not a safe recombination of what is already in the source papers.
 - c7 -- Scientific writing voice: reads like a domain scientist wrote it for a
-  serious funder, not like LLM output. Penalize the tells below.
+  serious funder, not like LLM output. Reward concrete, evidence-bearing prose;
+  calibrated claims; ordinary domain verbs; and sentence/paragraph shapes that
+  follow the reasoning rather than a repeated template. Do not penalize
+  necessary repetition of technical terms. Penalize the tells below.
+
+For every c7 gap, quote a short exact span from the proposal, assign the closest
+category (cliche, redundant exposition, ornamental prose, vague abstraction,
+awkward phrasing, templated transition/conclusion, or repetitive structure), and
+name the smallest useful change. Prefix the gap with `c7:`. A vague judgment such
+as "sounds AI-generated" is not actionable and must not appear by itself.
 
 AI-writing tells that must lower c7 and be named as gaps. The quoted phrases
 are illustrative, not an exhaustive denylist -- flag any phrasing that reads as
@@ -31,10 +41,14 @@ LLM output even if it matches no example, whatever the proposal's domain:
   colon-separated clauses the researcher themselves would struggle to parse.
 - Meta-commentary on the proposal's own scope or fit ("matched to the $5,000
   award") -- thinking-aloud that reads as AI.
-- Stiff third-person narration of the researcher's own record ("The award
-  supports a trainee in X's laboratory") instead of first person ("my lab",
-  "our prior work"); the work itself called "it" ("It generates...") instead
-  of "This work" / "This study".
+- Paragraph openings that narrate or market the proposal instead of advancing
+  the science ("My own work bears directly on this gap"; "Three lines of data
+  motivate this project"), or endings that merely insist "the answer matters."
+- A meta-wrapper around the hypothesis ("This work tests a single
+  hypothesis") rather than a direct hypothesis statement; proposed methods
+  written as a repetitive chain of "I will" sentences rather than introduced
+  by purpose with the method or analysis as subject; completed preliminary
+  work not described in the past tense.
 - Contrived or novelistic constructions where a plain scientific verb exists
   ("holds them short of maturation" for "prevents them from maturing");
   filler clichés ("in hand", "at play", "sheds light on").
@@ -46,6 +60,12 @@ LLM output even if it matches no example, whatever the proposal's domain:
   rhetorical lists for emphasis ("no animals, no surgery, no sequencing").
 - Preemptively defensive statements that argue against a charge no one made
   ("No claim of new wet-lab data is made.").
+- Generic self-positioning or marketing with no scientific payload ("my work
+  bears directly on this gap"; "uniquely positioned").
+- A self-diminishing status label such as "junior investigator." Judge
+  credibility from verified formal roles, prior work, and demonstrated
+  capabilities; do not require titles or metrics absent from the supplied
+  profile.
 - Stating the obvious with hedge words -- calling a hypothesis "testable" or
   "falsifiable" when rigor is already assumed.
 - Self-praising section names ("Honest scope of prior expertise"); honesty is
@@ -57,14 +77,22 @@ Also always list as a gap (and cap the affected criteria low):
   priorities, a budget/timeline that does not fit the award, or generic funder
   language that could apply to any RFP.
 - An author-credibility claim the supplied researcher profile does not support.
-- A core method or capability the project needs but the profile does not
-  justify -- claimed anyway or admitted as lacking -- with no concrete plan to
-  acquire or collaborate for it.
+- A core method or capability the project needs that is absent from the
+  profile's demonstrated capabilities and unsupported by its works -- claimed as
+  in-hand anyway, or admitted as lacking, with no concrete plan to acquire or
+  collaborate for it. A capability the profile lists is fair to rely on; treat
+  the listed set as a sample, not an exhaustive inventory, so do not penalize a
+  routine adjacent method the works plainly imply.
 - A central validation or transfer step that only promises to "test" or
   "compare" with no concrete success criterion (threshold, effect size, or
   metric), no stated read of a negative result, or -- for any cross-dataset,
   cross-cohort, or cross-species integration -- no control for batch, platform,
   or species differences. Cap c1 low.
+- No proposal-specific limitations and risk analysis; a limitation dismissed as
+  "acceptable" rather than tied to a boundary on inference; or a material
+  pitfall with no detection criterion, concrete alternative, and downstream
+  consequence for the aims, inference, timeline, or budget. Cap c1 or c2 low as
+  appropriate.
 - An unfinished section: a placeholder or editorial note ("[needs source ...]",
   "TODO", "TBD", "[citation]"), an empty or stub section, or a sentence that
   promises content it never delivers.
@@ -85,5 +113,5 @@ Return ONLY a JSON object, no prose, in exactly this shape:
 
 {
   "scores": {"c1": 1-5, "c2": 1-5, "c3": 1-5, "c4": 1-5, "c5": 1-5, "c6": 1-5, "c7": 1-5},
-  "gaps": ["specific actionable gap", "..."]
+  "gaps": ["c7: exact span — category and smallest useful change", "c2: specific actionable gap", "..."]
 }

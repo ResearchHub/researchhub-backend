@@ -5,22 +5,22 @@ import time
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from rest_framework import status, viewsets
-from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.mixins import CreateModelMixin, ListModelMixin
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.viewsets import GenericViewSet
 
 from analytics.amplitude import track_event
 from analytics.tasks import track_revenue_event
 from notification.models import Notification
-from paper.models import Paper
-from purchase.models import AggregatePurchase, Balance, Purchase, RscExchangeRate
+from purchase.models import Balance, Purchase, RscExchangeRate
 from purchase.related_models.constants.support import (
     MAXIMUM_SUPPORT_AMOUNT_RSC,
     MINIMUM_SUPPORT_AMOUNT_RSC,
 )
-from purchase.serializers import AggregatePurchaseSerializer, PurchaseSerializer
+from purchase.serializers import PurchaseSerializer
 from purchase.tasks import send_support_email
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
@@ -28,7 +28,6 @@ from reputation.models import Contribution, SupportFee
 from reputation.tasks import create_contribution
 from reputation.utils import calculate_support_fees, deduct_support_fees
 from researchhub.settings import BASE_FRONTEND_URL
-from researchhub_document.models import ResearchhubPost
 from user.models import Action, User
 from utils.permissions import CreateOrReadOnly
 from utils.throttles import THROTTLE_CLASSES
@@ -36,7 +35,7 @@ from utils.throttles import THROTTLE_CLASSES
 logger = logging.getLogger(__name__)
 
 
-class PurchaseViewSet(viewsets.ModelViewSet):
+class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
     queryset = Purchase.objects.all()
     serializer_class = PurchaseSerializer
     permission_classes = [IsAuthenticated, CreateOrReadOnly]
@@ -62,22 +61,17 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         recipient = None
 
         if user.probable_spammer:
-            return Response(
-                {
-                    "detail": "Account under review. Please contact support.",
-                },
-                status=403,
-            )
+            raise PermissionDenied("Account under review. Please contact support.")
 
         if content_type_str not in self.ALLOWED_CONTENT_TYPES:
-            return Response(status=400)
+            raise ValidationError("Invalid content type")
 
         if purchase_method != Purchase.OFF_CHAIN:
-            return Response(status=400)
+            raise ValidationError("Invalid purchase method")
 
         decimal_amount = decimal.Decimal(amount)
         if decimal_amount <= 0:
-            return Response(status=400)
+            raise ValidationError("Invalid amount")
 
         content_type = ContentType.objects.get(model=content_type_str)
         with transaction.atomic():
@@ -95,14 +89,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 decimal_amount < MINIMUM_SUPPORT_AMOUNT_RSC
                 or decimal_amount > MAXIMUM_SUPPORT_AMOUNT_RSC
             ):
-                return Response(
-                    {
-                        "detail": (
-                            f"Invalid amount. Minimum of "
-                            f"{MINIMUM_SUPPORT_AMOUNT_RSC} RSC."
-                        ),
-                    },
-                    status=400,
+                raise ValidationError(
+                    f"Invalid amount. Minimum of {MINIMUM_SUPPORT_AMOUNT_RSC} RSC."
                 )
 
             user_balance = user.get_balance()
@@ -113,7 +101,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 current_support_fee,
             ) = calculate_support_fees(decimal_amount)
             if user_balance - (decimal_amount + total_fee) < 0:
-                return Response("Insufficient Funds", status=402)
+                raise ValidationError("Insufficient funds")
 
             # Deduct fees from the gross amount of the purchase.
             deduct_support_fees(user, total_fee, rh_fee, dao_fee, current_support_fee)
@@ -211,44 +199,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             countdown=10,
         )
         return Response(serializer_data, status=201)
-
-    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
-    def aggregate_user_promotions(self, request, pk=None):
-        user = User.objects.get(id=pk)
-        context = self.get_serializer_context()
-        context["purchase_minimal_serialization"] = True
-        paper_content_type_id = ContentType.objects.get_for_model(Paper).id
-        post_content_type_id = ContentType.objects.get_for_model(ResearchhubPost).id
-        groups = AggregatePurchase.objects.filter(
-            user=user,
-            content_type_id__in=[paper_content_type_id, post_content_type_id],
-        )
-
-        page = self.paginate_queryset(groups)
-        if page is not None:
-            serializer = AggregatePurchaseSerializer(page, many=True, context=context)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = AggregatePurchaseSerializer(groups, context=context, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
-    def user_promotions(self, request, pk=None):
-        context = self.get_serializer_context()
-        context["purchase_minimal_serialization"] = True
-
-        user = User.objects.get(id=pk)
-        queryset = Purchase.objects.filter(user=user).order_by(
-            "-created_date", "object_id"
-        )
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.serializer_class(page, many=True, context=context)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def send_purchase_notification(
         self, purchase, unified_doc, recipient, notification_type

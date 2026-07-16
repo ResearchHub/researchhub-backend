@@ -18,14 +18,14 @@ from research_ai.models import (
     ProposalDraft,
     SearchExpert,
 )
-from research_ai.services.expert_display import ExpertDisplay
-from research_ai.services.expert_outreach_history_service import (
-    ExpertOutreachHistory,
-    build_expert_outreach_history_map,
-)
-from research_ai.services.invited_experts_service import (
+from research_ai.services.expert_finder.display import ExpertDisplay
+from research_ai.services.outreach.invited_experts import (
     EDITOR_SORT_FIELDS,
     default_overview_date_range,
+)
+from research_ai.services.outreach.outreach_history import (
+    ExpertOutreachHistory,
+    build_expert_outreach_history_map,
 )
 from research_ai.utils import trimmed_str
 from researchhub_document.related_models.constants.document_type import PAPER

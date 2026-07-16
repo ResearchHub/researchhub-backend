@@ -197,12 +197,16 @@ class ExportService:
         items = []
         for unified_doc in chunk:
             # Pre-filter papers by publish date
-            if unified_doc.document_type == "PAPER" and self.since_publish_date:
-                if hasattr(unified_doc, "paper") and unified_doc.paper:
-                    paper_date = unified_doc.paper.paper_publish_date
-                    if paper_date and paper_date < self.since_publish_date:
-                        self.filtered_by_date_ids.append(unified_doc.id)
-                        continue  # Skip - filtered by publish date
+            paper = getattr(unified_doc, "paper", None)
+            if (
+                unified_doc.document_type == "PAPER"
+                and self.since_publish_date
+                and paper
+            ):
+                paper_date = paper.paper_publish_date
+                if paper_date and paper_date < self.since_publish_date:
+                    self.filtered_by_date_ids.append(unified_doc.id)
+                    continue  # Skip - filtered by publish date
 
             try:
                 item_row = self.mapper.map_to_csv_item(

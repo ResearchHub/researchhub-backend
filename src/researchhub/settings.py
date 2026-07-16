@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
+import contextlib
 import os
 import sys
 
@@ -166,10 +167,9 @@ if DJANGO_ALLOWED_HOSTS:
         if host.endswith("elasticbeanstalk.com"):
             import socket
 
-            try:
+            ips = []
+            with contextlib.suppress(Exception):
                 ips = list({info[4][0] for info in socket.getaddrinfo(host, None)})
-            except Exception:
-                pass
             ALLOWED_HOSTS += ips
 
 

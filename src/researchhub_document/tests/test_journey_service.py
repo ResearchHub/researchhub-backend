@@ -342,13 +342,15 @@ class JourneyServiceTests(TestCase):
         registered_report = self._create_post(REGISTERED_REPORT)
 
         # Act / Assert
-        with patch.object(
-            registered_report,
-            "save",
-            side_effect=IntegrityError("duplicate registered report"),
+        with (
+            patch.object(
+                registered_report,
+                "save",
+                side_effect=IntegrityError("duplicate registered report"),
+            ),
+            self.assertRaises(ValueError),
         ):
-            with self.assertRaises(ValueError):
-                self.service.attach_stage(journey, registered_report)
+            self.service.attach_stage(journey, registered_report)
 
     def test_attach_stage_rejects_second_proposal(self) -> None:
         """Verify a journey cannot have two proposals."""

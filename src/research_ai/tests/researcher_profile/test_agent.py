@@ -107,7 +107,7 @@ class RunProfileAgentTests(SimpleTestCase):
         # Act
         profile = run_profile_agent(make_expert(), provider=provider, oa_client=client)
         # Assert
-        self.assertEqual(profile["schema_version"], 1)
+        self.assertEqual(profile["schema_version"], 2)
         self.assertEqual(
             profile["resolution"]["openalex_author_id"], "https://openalex.org/A123"
         )
@@ -253,6 +253,114 @@ class RunProfileAgentTests(SimpleTestCase):
         # Assert
         self.assertIsNone(profile["resolution"]["openalex_author_id"])
         self.assertTrue(any("did not submit" in e for e in profile["errors"]))
+
+    def test_keeps_capability_grounded_in_a_returned_work(self):
+        # Arrange: the model submits a capability whose evidence is a real work url.
+        work = _work()
+        client = _oa_client_returning(work)
+        url = work.as_dict()["source_url"]
+        provider = _scripted_provider(
+            [
+                ("get_author_works", {"openalex_author_id": "A123"}),
+                (
+                    "submit_profile",
+                    {
+                        "resolution": {"openalex_author_id": "A123", "confidence": 0.9},
+                        "works": [_as_submitted_work(work)],
+                        "capabilities": [
+                            {
+                                "kind": "technique",
+                                "name": "single-cell RNA-seq",
+                                "note": "profiled tumor cells",
+                                "evidence": [url],
+                            }
+                        ],
+                    },
+                ),
+            ]
+        )
+        # Act
+        profile = run_profile_agent(make_expert(), provider=provider, oa_client=client)
+        # Assert
+        self.assertEqual(len(profile["capabilities"]), 1)
+        capability = profile["capabilities"][0]
+        self.assertEqual(capability["name"], "single-cell RNA-seq")
+        self.assertEqual(capability["evidence"], [url])
+
+    def test_drops_capability_with_no_grounded_evidence(self):
+        # Arrange: evidence points at a url the tools never returned.
+        work = _work()
+        client = _oa_client_returning(work)
+        provider = _scripted_provider(
+            [
+                ("get_author_works", {"openalex_author_id": "A123"}),
+                (
+                    "submit_profile",
+                    {
+                        "resolution": {"openalex_author_id": "A123", "confidence": 0.9},
+                        "works": [_as_submitted_work(work)],
+                        "capabilities": [
+                            {
+                                "kind": "instrument",
+                                "name": "cryo-EM",
+                                "evidence": ["https://doi.org/10.1/never-returned"],
+                            }
+                        ],
+                    },
+                ),
+            ]
+        )
+        # Act
+        profile = run_profile_agent(make_expert(), provider=provider, oa_client=client)
+        # Assert: the ungrounded capability is dropped and the drop recorded.
+        self.assertEqual(profile["capabilities"], [])
+        self.assertTrue(any("ungrounded capability" in e for e in profile["errors"]))
+
+    def test_drops_capability_with_invalid_kind(self):
+        # Arrange: an unknown kind is not a real capability category.
+        work = _work()
+        client = _oa_client_returning(work)
+        url = work.as_dict()["source_url"]
+        provider = _scripted_provider(
+            [
+                ("get_author_works", {"openalex_author_id": "A123"}),
+                (
+                    "submit_profile",
+                    {
+                        "resolution": {"openalex_author_id": "A123", "confidence": 0.9},
+                        "works": [_as_submitted_work(work)],
+                        "capabilities": [
+                            {"kind": "vibes", "name": "good energy", "evidence": [url]}
+                        ],
+                    },
+                ),
+            ]
+        )
+        # Act
+        profile = run_profile_agent(make_expert(), provider=provider, oa_client=client)
+        # Assert
+        self.assertEqual(profile["capabilities"], [])
+
+    def test_capabilities_default_empty_when_omitted(self):
+        # Arrange: a submission with no capabilities key still yields the field.
+        work = _work()
+        client = _oa_client_returning(work)
+        provider = _scripted_provider(
+            [
+                ("get_author_works", {"openalex_author_id": "A123"}),
+                (
+                    "submit_profile",
+                    {
+                        "resolution": {"openalex_author_id": "A123", "confidence": 0.9},
+                        "works": [_as_submitted_work(work)],
+                    },
+                ),
+            ]
+        )
+        # Act
+        profile = run_profile_agent(make_expert(), provider=provider, oa_client=client)
+        # Assert
+        self.assertEqual(profile["capabilities"], [])
 
     def test_agent_failure_is_recorded_not_raised(self):
         # Arrange: the provider blows up mid-run.

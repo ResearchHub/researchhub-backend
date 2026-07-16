@@ -147,7 +147,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         data = request.data
         user = request.user
 
-        fundraise_id = kwargs.get("pk", None)
+        fundraise_id = kwargs.get("pk")
         amount = data.get("amount", None)
         amount_currency = data.get("amount_currency", RSC)
         origin_fund_id = data.get("origin_fund_id") or None
@@ -262,7 +262,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         permission_classes=[AllowAny],
     )
     def contributions(self, request, *args, **kwargs):
-        fundraise_id = kwargs.get("pk", None)
+        fundraise_id = kwargs.get("pk")
 
         # Get fundraise object
         try:
@@ -289,7 +289,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         Only works if the fundraise is in OPEN status and has escrow funds.
         Only accessible to moderators.
         """
-        fundraise_id = kwargs.get("pk", None)
+        fundraise_id = kwargs.get("pk")
 
         # Get fundraise object
         try:
@@ -321,7 +321,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         `duration_days` days from now. Only accessible to moderators.
         Cannot reopen fundraises that have already paid out (COMPLETED).
         """
-        fundraise_id = kwargs.get("pk", None)
+        fundraise_id = kwargs.get("pk")
 
         try:
             fundraise = Fundraise.objects.get(id=fundraise_id)
@@ -355,7 +355,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         Close a fundraise and refund all contributions to their contributors.
         Only works if the fundraise is in OPEN status and has escrow funds.
         """
-        fundraise_id = kwargs.get("pk", None)
+        fundraise_id = kwargs.get("pk")
 
         # Get fundraise object
         try:

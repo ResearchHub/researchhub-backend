@@ -1,6 +1,4 @@
 import cloudscraper
-import regex as re
-import requests
 from bs4 import BeautifulSoup
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
@@ -9,16 +7,8 @@ from django.db.models import Count, Q
 
 from discussion.models import Vote
 from paper.exceptions import ManubotProcessingError
-from paper.lib import (
-    journal_hosts,
-    journal_hosts_and_pdf_identifiers,
-    journal_pdf_to_url,
-    journal_url_to_pdf,
-)
 from paper.manubot import RHCiteKey
-from utils.http import check_url_contains_pdf
 
-DOI_REGEX = r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+?(?=[\";%<>\?#&])"
 PAPER_SCORE_Q_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
     "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
 )
@@ -47,64 +37,6 @@ def clean_abstract(abstract):
     return cleaned_text
 
 
-def check_url_is_pdf(url):
-    """
-    Checks if the url is a from a journal and is a pdf.
-    Returns true if the above requirements are met, false
-    if the url is from the journal but not a pdf, and none
-    if both requirements are not met.
-    """
-    for host, pdf_identifier in journal_hosts_and_pdf_identifiers:
-        if host in url and pdf_identifier in url:
-            return True
-        elif host in url and pdf_identifier not in url:
-            return False
-    return None
-
-
-def populate_pdf_url_from_journal_url(url, metadata):
-    """
-    Returns tuple of:
-    metadata with pdf_url and file if pdf is found
-    and whether this fills the metadata or not.
-    """
-    url, converted = convert_journal_url_to_pdf_url(url)
-    if converted and check_url_contains_pdf(url):
-        if metadata.get("file", None) is None:
-            metadata["file"] = url
-        if metadata.get("pdf_url", None) is None:
-            metadata["pdf_url"] = url
-    return metadata, converted
-
-
-def convert_journal_url_to_pdf_url(journal_url):
-    pdf_url = None
-    for host in journal_hosts:
-        if host in journal_url:
-            if journal_url_to_pdf[host]:
-                pdf_url = journal_url_to_pdf[host](journal_url)
-                break
-    if pdf_url is not None and check_url_contains_pdf(pdf_url):
-        return pdf_url, True
-    return journal_url, False
-
-
-def convert_pdf_url_to_journal_url(pdf_url):
-    """
-    Returns the url and if it was converted as tuple. If not converted the url
-    returned is the original pdf url.
-    """
-    journal_url = None
-    for host in journal_hosts:
-        if host in pdf_url:
-            if journal_pdf_to_url[host]:
-                journal_url = journal_pdf_to_url[host](pdf_url)
-                break
-    if journal_url is not None:
-        return journal_url, True
-    return pdf_url, False
-
-
 def get_csl_item(url) -> dict:
     """
     Generate a CSL JSON item for a URL. Currently, does not work
@@ -123,31 +55,6 @@ def get_csl_item(url) -> dict:
         return csl_item
     except Exception as e:
         raise ManubotProcessingError(e)
-
-
-def get_pdf_location_for_csl_item(csl_item):
-    """
-    Get best open access location with a PDF,
-    with preference to a location with an OA license.
-    Uses `manubot.cite.unpaywall` which currently supports
-    DOIs and arXiv IDs. Returns an Unpaywall OA Location data structure
-    described at <http://unpaywall.org/data-format#oa-location-object>.
-    """
-    from manubot.cite.unpaywall import Unpaywall
-
-    if not csl_item:
-        return None
-    # CSL_Item.url_is_unsupported_pdf is a non-standard field that
-    # upstream functions can set to specify that metadata could not
-    # be automatically generated for a PDF URL.
-    if getattr(csl_item, "url_is_unsupported_pdf", False):
-        return get_location_for_unsupported_pdf(csl_item)
-    try:
-        upw = Unpaywall.from_csl_item(csl_item)
-    except (ValueError, requests.RequestException):
-        return None
-    oa_location = upw.best_openly_licensed_pdf or upw.best_pdf
-    return oa_location
 
 
 def get_location_for_unsupported_pdf(csl_item):
@@ -260,14 +167,6 @@ def format_raw_authors(raw_authors):
     return raw_authors
 
 
-def clean_dois(parsed_url, dois):
-    netloc = parsed_url.netloc
-    if "biorxiv" in netloc:
-        version_regex = r"v[0-9]+$"
-        dois = [re.sub(version_regex, "", doi) for doi in dois]
-    return dois
-
-
 def pdf_copyright_allows_display(paper):
     """
     Returns True if the paper can be displayed on our site.
@@ -300,8 +199,7 @@ def pdf_copyright_allows_display(paper):
 
     # only rely on oa_status if license is null or unknown
     # otherwise license is non-usable for us
-    if license in [None, "", "unknown", "unspecified-oa"]:
-        if oa_status in [None, "", "green", "gold"]:
-            return True
-
-    return False
+    return bool(
+        license in [None, "", "unknown", "unspecified-oa"]
+        and oa_status in [None, "", "green", "gold"]
+    )

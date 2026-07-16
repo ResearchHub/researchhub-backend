@@ -373,10 +373,11 @@ class OrcidFetchService:
                 .first()
             )
 
-            if paper_authorship:
-                if self._link_authorship_to_user(paper_authorship, user_author):
-                    linked_author_ids.add(user_author.id)
-                    linked_author_ids.add(paper_authorship.author_id)
+            if paper_authorship and self._link_authorship_to_user(
+                paper_authorship, user_author
+            ):
+                linked_author_ids.add(user_author.id)
+                linked_author_ids.add(paper_authorship.author_id)
 
         return linked_author_ids
 

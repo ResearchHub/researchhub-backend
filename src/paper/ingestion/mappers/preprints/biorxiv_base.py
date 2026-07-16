@@ -318,7 +318,7 @@ class BioRxivBaseMapper(BaseMapper):
         hubs = []
 
         if self._hub_mapper:
-            category = record.get("category", None)
+            category = record.get("category")
             hubs = self._hub_mapper.map(category, self.default_server)
 
         if self.preprint_hub and self.preprint_hub not in hubs:

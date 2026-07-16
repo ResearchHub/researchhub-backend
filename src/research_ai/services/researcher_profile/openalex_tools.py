@@ -16,8 +16,13 @@ final profile from these records so a hallucinated citation cannot survive.
 """
 
 import logging
+from collections.abc import Callable
 
 from research_ai.services.agent import Tool, Toolset
+from research_ai.services.pdf_text import (
+    extract_text_from_pdf_bytes,
+    get_pdf_bytes_from_url,
+)
 from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
@@ -25,11 +30,18 @@ logger = logging.getLogger(__name__)
 # Terminal tool the model calls once to hand back the finished profile.
 SUBMIT_PROFILE = "submit_profile"
 
+# The profile builder's full-text reader. The proposal agent ships a tool of
+# the same name scoped to the researcher profile's works, so composers that
+# reuse this toolset skip this one by name instead of shadowing it silently.
+GET_WORK_FULLTEXT = "get_work_fulltext"
+
 _MAX_AUTHOR_CANDIDATES = 10  # author search results surfaced to the model
 _MAX_ALTERNATIVES = 5
 _MAX_INSTITUTIONS = 5
 _MAX_TOPICS = 8
 _MAX_WORKS_PER_CALL = 50  # ceiling on a single get_author_works fetch
+_MAX_FULLTEXT_FETCHES = 6  # per-run ceiling on full-text reads
+_MAX_FULLTEXT_CHARS = 24000  # per-read character ceiling (~6k tokens)
 
 
 def _institution_names(record: dict) -> list[str]:
@@ -74,8 +86,17 @@ class OpenAlexToolset:
     abort the agent run.
     """
 
-    def __init__(self, *, client: OpenAlex | None = None):
+    def __init__(
+        self,
+        *,
+        client: OpenAlex | None = None,
+        pdf_text_fetcher: Callable[[str], str] | None = None,
+        max_fulltext_fetches: int = _MAX_FULLTEXT_FETCHES,
+    ):
         self._oa = client or OpenAlex()
+        self._pdf_text_fetcher = pdf_text_fetcher or self._fetch_pdf_text
+        self._max_fulltext_fetches = max_fulltext_fetches
+        self._fulltext_fetches_used = 0
         # Full ground-truth work record for every work handed to the model,
         # keyed by source_url. The profile is materialized from these rather
         # than from the model's (often mangled) copy of each work.
@@ -185,12 +206,39 @@ class OpenAlexToolset:
                 handler=self._get_author_works,
             ),
             Tool(
+                name=GET_WORK_FULLTEXT,
+                description=(
+                    "Read the full text of a work returned by get_author_works "
+                    "(pass its source_url exactly). Use it to inspect Methods "
+                    "sections for the lab's actual techniques, instruments, "
+                    "model systems, and datasets. Falls back to the abstract "
+                    "when no readable PDF exists. Limited to "
+                    f"{self._max_fulltext_fetches} reads per run -- spend them "
+                    "on the works that best evidence what the lab can do."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "source_url": {
+                            "type": "string",
+                            "description": (
+                                "The work's source_url, exactly as returned by "
+                                "get_author_works."
+                            ),
+                        }
+                    },
+                    "required": ["source_url"],
+                },
+                handler=self._get_work_fulltext,
+            ),
+            Tool(
                 name=SUBMIT_PROFILE,
                 description=(
                     "Submit the finished profile. Call exactly once when done. "
                     "Set resolution.openalex_author_id to null if you could not "
                     "confidently identify the author. Every work must be copied "
-                    "from a get_author_works result."
+                    "from a get_author_works result, and every capability's "
+                    "evidence must be source_urls from get_author_works results."
                 ),
                 input_schema=_SUBMIT_INPUT_SCHEMA,
                 handler=self._submit_profile,
@@ -272,6 +320,62 @@ class OpenAlexToolset:
             payload.append(data)
         return {"works": payload}
 
+    def _get_work_fulltext(self, args: dict) -> dict:
+        source_url = str((args or {}).get("source_url") or "").strip()
+        if not source_url:
+            return {"error": "source_url is required"}
+        work = self.returned_works.get(source_url)
+        if work is None:
+            return {
+                "error": (
+                    "Unknown source_url -- it must match a work returned by "
+                    "get_author_works."
+                )
+            }
+        if self._fulltext_fetches_used >= self._max_fulltext_fetches:
+            return {
+                "error": (
+                    "Full-text read budget exhausted "
+                    f"({self._max_fulltext_fetches} reads). Work from the "
+                    "abstracts already returned."
+                )
+            }
+        self._fulltext_fetches_used += 1
+
+        text = self._pdf_text_fetcher(str(work.get("pdf_url") or "").strip())
+        content_type = "pdf"
+        if not text:
+            text = str(work.get("abstract") or "").strip()
+            content_type = "abstract"
+        if not text:
+            return {
+                "source_url": source_url,
+                "content_type": "none",
+                "error": "No readable full text or abstract available for this work.",
+            }
+        truncated = len(text) > _MAX_FULLTEXT_CHARS
+        return {
+            "source_url": source_url,
+            "title": str(work.get("title") or "").strip(),
+            "content_type": content_type,
+            "truncated": truncated,
+            "text": text[:_MAX_FULLTEXT_CHARS] if truncated else text,
+        }
+
+    @staticmethod
+    def _fetch_pdf_text(pdf_url: str) -> str:
+        """Best-effort PDF text for a URL; ``""`` when unavailable or unreadable."""
+        try:
+            pdf_bytes = get_pdf_bytes_from_url(pdf_url)
+            if not pdf_bytes:
+                return ""
+            return extract_text_from_pdf_bytes(pdf_bytes, max_chars=_MAX_FULLTEXT_CHARS)
+        except Exception as exc:  # noqa: BLE001 - a bad PDF must not break the loop
+            logger.warning(
+                "get_work_fulltext: PDF read failed for %s: %s", pdf_url, exc
+            )
+            return ""
+
 
 # JSON Schema for the terminal submit_profile tool's input. Mirrors the profile
 # schema the agent assembles (built_at/errors are added server-side).
@@ -287,6 +391,42 @@ _WORK_SCHEMA = {
         "is_oa": {"type": "boolean"},
     },
     "required": ["title", "source_url"],
+}
+
+# A lab capability the researcher's works evidence: a technique, instrument /
+# platform, model system, or dataset the lab can actually work with. ``evidence``
+# is the source_urls of the works that demonstrate it (grounded like ``works``).
+_CAPABILITY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "kind": {
+            "type": "string",
+            "enum": ["technique", "instrument", "model_system", "dataset"],
+            "description": (
+                "technique (assay/method), instrument (equipment/platform), "
+                "model_system (organism/cell line/cohort), or dataset."
+            ),
+        },
+        "name": {
+            "type": "string",
+            "description": "Short name, e.g. 'single-cell RNA-seq' or 'cryo-EM'.",
+        },
+        "note": {
+            "type": "string",
+            "description": (
+                "One phrase on how the lab used it, grounded in the evidence works."
+            ),
+        },
+        "evidence": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": (
+                "source_urls of get_author_works works that demonstrate this "
+                "capability. At least one; weight first/last-author works."
+            ),
+        },
+    },
+    "required": ["kind", "name", "evidence"],
 }
 
 _SUBMIT_INPUT_SCHEMA = {
@@ -310,6 +450,7 @@ _SUBMIT_INPUT_SCHEMA = {
             "required": ["openalex_author_id", "confidence"],
         },
         "works": {"type": "array", "items": _WORK_SCHEMA},
+        "capabilities": {"type": "array", "items": _CAPABILITY_SCHEMA},
     },
     "required": ["resolution"],
 }

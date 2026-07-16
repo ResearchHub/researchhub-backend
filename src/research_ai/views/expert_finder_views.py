@@ -31,16 +31,16 @@ from research_ai.serializers import (
     _get_user_with_author_payload,
     resolve_work_for_unified_document,
 )
-from research_ai.services.expert_finder_service import get_document_content
-from research_ai.services.expert_persist import ExpertPersist
-from research_ai.services.invited_experts_service import (
+from research_ai.services.expert_finder.finder import get_document_content
+from research_ai.services.expert_finder.persist import ExpertPersist
+from research_ai.services.expert_finder.progress import ProgressService, TaskType
+from research_ai.services.outreach.invited_experts import (
     get_expert_finder_experts_list,
     get_invited_expert_editors_overview,
     get_invited_expert_overview,
     invited_stats_cache_key,
     load_editor_users,
 )
-from research_ai.services.progress_service import ProgressService, TaskType
 from research_ai.tasks import run_expert_finder_search
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.permissions import IsModerator, UserIsEditor

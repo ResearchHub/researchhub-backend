@@ -24,9 +24,12 @@ from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # v2 adds grounded lab capabilities
 _MAX_WORKS = 5  # works kept on the profile after grounding
-_DEFAULT_MAX_ITERATIONS = 12  # tool turns before the agent loop gives up
+_MAX_CAPABILITIES = 12  # capabilities kept on the profile after grounding
+_MAX_EVIDENCE_PER_CAPABILITY = 3  # evidence source_urls kept per capability
+_VALID_CAPABILITY_KINDS = ("technique", "instrument", "model_system", "dataset")
+_DEFAULT_MAX_ITERATIONS = 16  # tool turns before the agent loop gives up
 
 _SYSTEM_PROMPT = """\
 You identify a researcher in OpenAlex and summarize their best work.
@@ -52,12 +55,22 @@ How to work:
   eligible papers, favor recent and relevant work. Only keep papers with a
   pdf_url (readable full text); aim for five, but return fewer rather than
   padding with papers that lack one.
+- Then map the lab's capabilities. Call get_work_fulltext on the most relevant
+  works (prefer first/last-author ones) and read their Methods for the concrete
+  techniques, instruments/platforms, model systems, and datasets the lab
+  actually works with -- the real bounds of what a proposal for this researcher
+  could credibly do. Submit these as `capabilities`. A capability that appears
+  only in a paper where the researcher is a middle author is the collaboration's,
+  not necessarily this lab's -- include it only when the Methods make the lab's
+  own hands-on role clear, and lean on first/last-author works. Prefer omitting
+  a capability over asserting one the works do not clearly support.
 
-Grounding rule: every work you submit MUST come from a get_author_works result.
-Only its source_url is used to look the work up -- copy that exactly and never
-invent or edit a URL (the title and other fields are taken from the tool data,
-so do not worry about reproducing them perfectly). Finish by calling
-submit_profile exactly once.
+Grounding rule: every work you submit MUST come from a get_author_works result,
+and every capability's `evidence` MUST be source_urls of get_author_works
+results. Only a work's source_url is used to look it up -- copy that exactly and
+never invent or edit a URL (other fields are taken from the tool data, so do not
+worry about reproducing them perfectly). Finish by calling submit_profile
+exactly once.
 """
 
 
@@ -117,6 +130,59 @@ def _ground_works(works, toolset: OpenAlexToolset) -> tuple[list[dict], list[str
     return kept, errors
 
 
+def _ground_capabilities(
+    capabilities, toolset: OpenAlexToolset, valid_urls: set[str]
+) -> tuple[list[dict], list[str]]:
+    """Keep only capabilities whose evidence is grounded in returned works.
+
+    Each capability's ``evidence`` is filtered to source_urls the tools actually
+    returned (``valid_urls``); a capability with no grounded evidence left is
+    dropped. This mirrors ``_ground_works``: the model's judgment of *what* a lab
+    can do is kept, but every claim must point at a real paper. Returns
+    ``(kept_capabilities, errors)``.
+    """
+    kept: list[dict] = []
+    errors: list[str] = []
+    if not isinstance(capabilities, list):
+        if capabilities:
+            errors.append(
+                f"submitted capabilities was {type(capabilities).__name__}, "
+                "not a list; dropped"
+            )
+        return kept, errors
+    for capability in capabilities:
+        if not isinstance(capability, dict):
+            continue
+        name = str(capability.get("name") or "").strip()
+        kind = str(capability.get("kind") or "").strip()
+        if not name or kind not in _VALID_CAPABILITY_KINDS:
+            continue
+        raw_evidence = capability.get("evidence")
+        evidence: list[str] = []
+        seen: set[str] = set()
+        for url in raw_evidence if isinstance(raw_evidence, list) else []:
+            url = str(url or "").strip()
+            if url and url in valid_urls and url not in seen:
+                seen.add(url)
+                evidence.append(url)
+            if len(evidence) >= _MAX_EVIDENCE_PER_CAPABILITY:
+                break
+        if not evidence:
+            errors.append(f"dropped ungrounded capability: {name!r}")
+            continue
+        kept.append(
+            {
+                "kind": kind,
+                "name": name,
+                "note": str(capability.get("note") or "").strip(),
+                "evidence": evidence,
+            }
+        )
+        if len(kept) >= _MAX_CAPABILITIES:
+            break
+    return kept, errors
+
+
 def _resolution(submitted: dict) -> dict:
     raw = submitted.get("resolution") if isinstance(submitted, dict) else None
     raw = raw or {}
@@ -164,17 +230,25 @@ def run_profile_agent(
         errors.append("agent: did not submit a profile")
         resolution = _resolution({})
         works: list[dict] = []
+        capabilities: list[dict] = []
     else:
         resolution = _resolution(toolset.submitted)
         works, work_errors = _ground_works(
             toolset.submitted.get("works") or [], toolset
         )
         errors.extend(work_errors)
+        capabilities, cap_errors = _ground_capabilities(
+            toolset.submitted.get("capabilities"),
+            toolset,
+            set(toolset.returned_works),
+        )
+        errors.extend(cap_errors)
 
     return {
         "schema_version": SCHEMA_VERSION,
         "built_at": timezone.now().isoformat(),
         "resolution": resolution,
         "works": works,
+        "capabilities": capabilities,
         "errors": errors,
     }

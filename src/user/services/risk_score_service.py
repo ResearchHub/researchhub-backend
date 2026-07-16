@@ -57,9 +57,11 @@ class RiskScoreService:
                 user=user
             )
 
-            if event_type in RiskScoreEvent.ONE_TIME_TYPES:
-                if self._one_time_event_exists(user, event_type):
-                    return None
+            if (
+                event_type in RiskScoreEvent.ONE_TIME_TYPES
+                and self._one_time_event_exists(user, event_type)
+            ):
+                return None
 
             if source is not None and self._source_event_exists(
                 user, event_type, source_ct, source_id

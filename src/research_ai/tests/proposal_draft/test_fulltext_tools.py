@@ -4,12 +4,12 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from research_ai.services.proposal_tools.fulltext_tools import (
+from research_ai.services.proposal_draft.tools.fulltext_tools import (
     ProposalFulltextToolset,
     _doi_from_source_url,
 )
 
-_PATCH_BASE = "research_ai.services.proposal_tools.fulltext_tools"
+_PATCH_BASE = "research_ai.services.proposal_draft.tools.fulltext_tools"
 
 
 def _search_expert(works):
@@ -110,7 +110,7 @@ class GetWorkFulltextTests(unittest.TestCase):
         self.assertEqual(result["text"], "ResearchHub stored abstract.")
 
     @patch(f"{_PATCH_BASE}.extract_text_from_pdf_bytes", return_value="OA PDF TEXT")
-    @patch(f"{_PATCH_BASE}.get_paper_pdf_bytes", return_value=b"%PDF-bytes")
+    @patch(f"{_PATCH_BASE}.get_pdf_bytes_from_url", return_value=b"%PDF-bytes")
     def test_falls_back_to_openalex_pdf_when_no_local_paper(self, _bytes, _extract):
         # Arrange: no local Paper, but the work carries an OA pdf_url.
         self.work["pdf_url"] = "https://example.edu/a.pdf"

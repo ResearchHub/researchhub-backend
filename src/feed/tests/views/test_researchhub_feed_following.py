@@ -1,3 +1,5 @@
+import contextlib
+
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.urls import reverse
@@ -376,10 +378,8 @@ class FollowingFeedTests(APITestCase):
             slug="other-hub", defaults={"name": "Other Hub"}
         )
 
-        try:
+        with contextlib.suppress(Exception):
             create_follow(self.user, non_preprint_hub)
-        except Exception:
-            pass  # Already following
 
         # Paper only in non-preprint hub (should be excluded)
         non_preprint = self._create_paper_with_feed_entry(

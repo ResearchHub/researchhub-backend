@@ -70,9 +70,7 @@ class DeleteUserPermission(BasePermission):
         user = request.user
         user_is_moderator = user.moderator
 
-        if request.method == "DELETE" and (user_is_moderator or user == obj):
-            return True
-        return False
+        return bool(request.method == "DELETE" and (user_is_moderator or user == obj))
 
 
 class DeleteAuthorPermission(BasePermission):
@@ -82,9 +80,7 @@ class DeleteAuthorPermission(BasePermission):
         user = request.user
         user_is_moderator = user.moderator
 
-        if request.method == "DELETE" and user_is_moderator:
-            return True
-        return False
+        return bool(request.method == "DELETE" and user_is_moderator)
 
 
 class IsVerifiedUser(BasePermission):

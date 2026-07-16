@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from functools import partial
 
@@ -5,18 +6,20 @@ from django.utils import timezone
 
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft
-from research_ai.services import expert_finder_service as expert_finder_service_mod
-from research_ai.services.email_generator_service import generate_expert_email
-from research_ai.services.email_sending_service import send_plain_email
-from research_ai.services.expert_display import ExpertDisplay
-from research_ai.services.expert_persist import ExpertPersist
-from research_ai.services.invited_experts_service import (
+from research_ai.services.expert_finder import finder as expert_finder_mod
+from research_ai.services.expert_finder.display import ExpertDisplay
+from research_ai.services.expert_finder.persist import ExpertPersist
+from research_ai.services.outreach.email_generator import generate_expert_email
+from research_ai.services.outreach.email_sender import send_plain_email
+from research_ai.services.outreach.invited_experts import (
     grant_invited_expert_access_for_send,
     link_experts_for_new_user,
 )
+from research_ai.services.outreach.rfp_email_context import (
+    get_expert_for_search_by_email,
+)
 from research_ai.services.proposal_draft import run_proposal_draft
-from research_ai.services.rfp_email_context import get_expert_for_search_by_email
-from researchhub.celery import app
+from researchhub.celery import QUEUE_AGENTS, app
 from user.models import User
 
 logger = logging.getLogger(__name__)
@@ -50,12 +53,10 @@ def _expert_search_task_progress_callback(
         else ExpertSearch.Status.PROCESSING
     )
     _update_search_progress(sid, percent, message, status=status)
-    try:
+    with contextlib.suppress(Exception):
         task_self.update_state(
             state="PROGRESS", meta={"progress": percent, "status": message}
         )
-    except Exception:
-        pass
 
 
 def _resolve_expert_finder_task_inputs(
@@ -191,7 +192,7 @@ def run_expert_finder_search(
             status=ExpertSearch.Status.PROCESSING,
         )
         start_time = timezone.now()
-        result = expert_finder_service_mod.run_expert_finder_search(
+        result = expert_finder_mod.run_expert_finder_search(
             search_id=search_id,
             query=query,
             config=config,
@@ -231,7 +232,7 @@ def run_expert_finder_search(
         raise
 
 
-@app.task
+@app.task(queue=QUEUE_AGENTS)
 def run_proposal_draft_task(draft_id: int):
     """
     Background task to run one headless proposal-drafting job.
@@ -301,10 +302,8 @@ def _get_bulk_emails_task_context(
         return None
     user = first.created_by
     if template_id and created_by_id:
-        try:
+        with contextlib.suppress(User.DoesNotExist):
             user = User.objects.get(id=created_by_id)
-        except User.DoesNotExist:
-            pass
     template_key, custom_use_case = _normalize_template_for_bulk(first.template)
     return (user, template_key, custom_use_case)
 
@@ -386,12 +385,10 @@ def _process_one_bulk_email(
 def _mark_generated_emails_failed(email_ids: list[int]) -> None:
     """Set all given GeneratedEmail rows to FAILED; swallow per-id errors."""
     for email_id in email_ids:
-        try:
+        with contextlib.suppress(Exception):
             GeneratedEmail.objects.filter(id=email_id).update(
                 status=GeneratedEmail.Status.FAILED
             )
-        except Exception:
-            pass
 
 
 @app.task(bind=True)

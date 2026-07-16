@@ -17,6 +17,7 @@ app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()
 
 # Queues
+QUEUE_AGENTS = "agents"
 QUEUE_CACHES = "caches"
 QUEUE_HOT_SCORE = "hot_score"
 QUEUE_ELASTIC_SEARCH = "elastic_search"
@@ -78,6 +79,16 @@ app.conf.beat_schedule = {
     "purchase_send-monthly-preregistration-update-reminders": {
         "task": "purchase.tasks.send_monthly_preregistration_update_reminders",
         "schedule": crontab(day_of_month=1, hour=16, minute=0),
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_NOTIFICATION,
+        },
+    },
+    "purchase_send-funding-credits-reminders": {
+        "task": "purchase.tasks.send_funding_credits_reminders",
+        # Runs on the 1st and 15th; the task itself dedupes to at most one
+        # reminder per user every 14 days.
+        "schedule": crontab(day_of_month="1,15", hour=16, minute=0),
         "options": {
             "priority": 3,
             "queue": QUEUE_NOTIFICATION,

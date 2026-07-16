@@ -10,8 +10,11 @@ from research_ai.prompts.proposal_draft_prompts import (
 )
 
 
-def _expert(works):
-    return SimpleNamespace(full_name="Jane Smith", profile={"works": works})
+def _expert(works, capabilities=None):
+    profile = {"works": works}
+    if capabilities is not None:
+        profile["capabilities"] = capabilities
+    return SimpleNamespace(full_name="Jane Smith", profile=profile)
 
 
 class BuildProposalUserPromptTests(unittest.TestCase):
@@ -54,6 +57,38 @@ class BuildProposalUserPromptTests(unittest.TestCase):
         self.assertIn("No Abstract Work", prompt)
         self.assertNotIn("Abstract:", prompt)
 
+    def test_seed_lists_lab_capabilities(self):
+        # Arrange: a profile with a demonstrated capability.
+        expert = _expert(
+            [{"title": "Folding"}],
+            capabilities=[
+                {
+                    "kind": "technique",
+                    "name": "cryo-EM",
+                    "note": "solved a channel structure",
+                    "evidence": ["https://doi.org/10.1/a"],
+                }
+            ],
+        )
+
+        # Act
+        prompt = build_proposal_user_prompt(expert, None)
+
+        # Assert: the capability and its kind seed the draft's bounds.
+        self.assertIn("Demonstrated lab capabilities", prompt)
+        self.assertIn("cryo-EM", prompt)
+        self.assertIn("[technique]", prompt)
+
+    def test_seed_omits_capability_block_when_none(self):
+        # Arrange: no capabilities on the profile.
+        expert = _expert([{"title": "Folding"}])
+
+        # Act
+        prompt = build_proposal_user_prompt(expert, None)
+
+        # Assert
+        self.assertNotIn("Demonstrated lab capabilities", prompt)
+
 
 class BuildProposalSystemPromptTests(unittest.TestCase):
     def test_award_sizes_the_aim_guidance_and_replaces_placeholder(self):
@@ -75,3 +110,57 @@ class BuildProposalSystemPromptTests(unittest.TestCase):
         # Assert: the general aim rule appears, placeholder still replaced.
         self.assertIn("Size the number of specific aims", prompt)
         self.assertNotIn("{{AIM_GUIDANCE}}", prompt)
+
+    def test_word_bounds_are_substituted_from_the_gate_config(self):
+        # Arrange / Act: the length-gate bounds the runner passes in.
+        prompt = build_proposal_system_prompt(min_words=300, max_words=2500)
+
+        # Assert: the prompt states the same bounds the gate enforces, and no
+        # template placeholder leaks.
+        self.assertIn("under 300 or over 2500", prompt)
+        self.assertNotIn("{{MIN_WORDS}}", prompt)
+        self.assertNotIn("{{MAX_WORDS}}", prompt)
+
+    def test_style_bar_is_substituted_from_the_gate_config(self):
+        # Arrange / Act
+        prompt = build_proposal_system_prompt(style_threshold=4.5)
+
+        # Assert: scientific voice has an independent quality floor and no
+        # template placeholder leaks into the agent prompt.
+        self.assertIn("score at least 4.5 on c7", prompt)
+        self.assertNotIn("{{STYLE_THRESHOLD}}", prompt)
+
+    def test_prompt_requires_positive_voice_grounding_and_local_edits(self):
+        # Arrange / Act
+        prompt = build_proposal_system_prompt()
+
+        # Assert: the agent learns from real writing samples and does not use a
+        # whole-section rewrite as its default style-fixing strategy.
+        self.assertIn("working voice card", prompt)
+        self.assertIn("get_work_fulltext", prompt)
+        self.assertIn("smallest sufficient edits", prompt)
+        self.assertIn("rewrite an entire", prompt)
+
+    def test_prompt_uses_scientific_register_instead_of_proposal_narration(self):
+        # Arrange / Act
+        prompt = build_proposal_system_prompt()
+        normalized = " ".join(prompt.split())
+
+        # Assert: methods lead with purpose, completed work uses past tense, and
+        # unsupported status labels are excluded from the qualifications case.
+        self.assertIn("make the method, analysis, or", normalized)
+        self.assertIn('instead of repeating "I will."', normalized)
+        self.assertIn("completed preliminary work", normalized)
+        self.assertIn('"junior', normalized)
+        self.assertIn("Do not invent titles, bibliometrics, or honors", normalized)
+
+    def test_prompt_requires_limitations_pitfalls_and_alternatives(self):
+        # Arrange / Act
+        prompt = build_proposal_system_prompt()
+        normalized = " ".join(prompt.split())
+
+        # Assert
+        self.assertIn("Treat limitations and pitfalls as different", normalized)
+        self.assertIn("resulting boundary", normalized)
+        self.assertIn("concrete alternative approach", normalized)
+        self.assertIn("`limitations`", normalized)

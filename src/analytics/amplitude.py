@@ -3,16 +3,22 @@ import json
 import logging
 
 import requests
+from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
-
-from researchhub.settings import AMPLITUDE_API_KEY, DEVELOPMENT
 
 logger = logging.getLogger(__name__)
 
 
 class Amplitude:
-    api_key = AMPLITUDE_API_KEY
-    api_url = "https://api.amplitude.com/2/httpapi"
+    _api_url = "https://api.amplitude.com/2/httpapi"
+
+    def __init__(self, enabled=None):
+        self._api_key = settings.AMPLITUDE_API_KEY
+        self.enabled = (
+            not (settings.DEVELOPMENT or settings.TESTING)
+            if enabled is None
+            else enabled
+        )
 
     def _build_event_properties(self, view):
         data = view.__dict__
@@ -74,7 +80,7 @@ class Amplitude:
             data["event_properties"].update(extra_data)
 
         hit = {
-            "api_key": self.api_key,
+            "api_key": self._api_key,
             "events": [data],
         }
         hit = json.dumps(hit, cls=DjangoJSONEncoder)
@@ -104,7 +110,7 @@ class Amplitude:
             "revenueType": revenue_type,
         }
         hit = {
-            "api_key": self.api_key,
+            "api_key": self._api_key,
             "events": [data],
         }
         hit = json.dumps(hit, cls=DjangoJSONEncoder)
@@ -139,15 +145,19 @@ class Amplitude:
             },
         }
         hit = {
-            "api_key": self.api_key,
+            "api_key": self._api_key,
             "events": [data],
         }
         hit = json.dumps(hit, cls=DjangoJSONEncoder)
         return self.forward_event(hit)
 
     def forward_event(self, hit):
+        if not self.enabled:
+            logger.debug("Amplitude tracking disabled, skipping event")
+            return None
+
         headers = {"Content-Type": "application/json", "Accept": "*/*"}
-        request = requests.post(self.api_url, data=hit, headers=headers, timeout=10)
+        request = requests.post(self._api_url, data=hit, headers=headers, timeout=10)
         res = request.json()
         if request.status_code != 200:
             logger.error("Failed to send event to Amplitude: %s", res)
@@ -161,7 +171,7 @@ def track_event(func):
         amp = None
 
         try:
-            if res.status_code >= 200 and res.status_code <= 299 and not DEVELOPMENT:
+            if res.status_code >= 200 and res.status_code <= 299:
                 amp = Amplitude()
                 amp.build_hit(res, *args, **kwargs)
 
@@ -247,16 +257,6 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
                 "object_id": res.data.get("object_id"),
             },
         },
-        # Paper submissions
-        "papersubmission_create": {
-            "activity_type": UserActivityTypes.JOURNAL_SUBMISSION,
-            "properties": lambda: {
-                "submission_id": res.data.get("id"),
-                "paper_status": res.data.get("paper_status"),
-                "doi": res.data.get("doi"),
-                "url": res.data.get("url"),
-            },
-        },
         # ResearchHub paper creation
         "paper_create_researchhub_paper": {
             "activity_type": UserActivityTypes.JOURNAL_SUBMISSION,
@@ -295,9 +295,8 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
         mapping = event_to_activity_mapping[event_type]
 
         # Check condition if it exists
-        if "condition" in mapping:
-            if not mapping["condition"]():
-                return
+        if "condition" in mapping and not mapping["condition"]():
+            return
 
         # Track the user activity
         _track_activity(user, mapping["activity_type"], mapping["properties"]())
@@ -366,9 +365,8 @@ def track_user_activity(user, activity_type: str, additional_properties: dict = 
         additional_properties = {}
 
     try:
-        if not DEVELOPMENT:
-            amp = Amplitude()
-            amp._track_user_activity_event(user, activity_type, additional_properties)
+        amp = Amplitude()
+        amp._track_user_activity_event(user, activity_type, additional_properties)
     except Exception:
         logger.exception(
             "Failed to track user activity event",

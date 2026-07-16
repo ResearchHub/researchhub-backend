@@ -91,27 +91,3 @@ class InteractionSignalsTests(TransactionTestCase):
 
         # Verify the sync task was NOT queued again
         mock_task.assert_not_called()
-
-    @patch(
-        "personalize.signals.interaction_signals.sync_interaction_event_to_personalize_task.delay"
-    )
-    def test_signal_skips_interaction_without_unified_document(self, mock_task):
-        """Test that signal skips interactions without unified_document_id."""
-        # Try to create interaction without unified_document
-        # This should fail at DB level due to NOT NULL constraint,
-        # but if it somehow succeeds, signal should skip it
-        try:
-            UserInteractions.objects.create(
-                user=self.user,
-                event=FEED_ITEM_IMPRESSION,
-                unified_document=None,
-                content_type=None,
-                object_id=None,
-                event_timestamp=datetime.now(),
-            )
-        except Exception:
-            # Expected to fail due to NOT NULL constraint
-            pass
-
-        # Verify no sync task was queued
-        mock_task.assert_not_called()

@@ -435,7 +435,7 @@ class ChemRxivMapper(BaseMapper):
         """
         hubs = []
 
-        categories = record.get("categories", None)
+        categories = record.get("categories")
 
         if self._hub_mapper and categories:
             for category in categories:

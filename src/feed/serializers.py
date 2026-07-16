@@ -804,9 +804,12 @@ class FeedEntrySerializer(serializers.ModelSerializer):
         Return external_metadata from Paper if content is a Paper.
         Returns None for non-paper content.
         """
-        if obj.item and obj.content_type.model == "paper":
-            if hasattr(obj.item, "external_metadata"):
-                return obj.item.external_metadata
+        if (
+            obj.item
+            and obj.content_type.model == "paper"
+            and hasattr(obj.item, "external_metadata")
+        ):
+            return obj.item.external_metadata
         return None
 
     # Known preprint sources for journal fallback
@@ -934,11 +937,14 @@ def serialize_feed_metrics(item, item_content_type):
             metrics["citations"] = item.citations
 
     # Include external metrics (X/Twitter data, etc.) for Papers
-    if item_content_type == ContentType.objects.get_for_model(Paper):
-        if hasattr(item, "external_metadata") and item.external_metadata:
-            external_metrics = item.external_metadata.get("metrics", {})
-            if external_metrics:
-                metrics["external"] = external_metrics
+    if (
+        item_content_type == ContentType.objects.get_for_model(Paper)
+        and hasattr(item, "external_metadata")
+        and item.external_metadata
+    ):
+        external_metrics = item.external_metadata.get("metrics", {})
+        if external_metrics:
+            metrics["external"] = external_metrics
 
     return metrics
 

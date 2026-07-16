@@ -1,3 +1,5 @@
+import contextlib
+
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
@@ -288,10 +290,8 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             return None
         profile_image = None
         if author.profile_image:
-            try:
+            with contextlib.suppress(ValueError):
                 profile_image = author.profile_image.url
-            except ValueError:
-                pass
         return {
             "id": author.id,
             "first_name": author.first_name,
