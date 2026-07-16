@@ -10,10 +10,7 @@ class IsObjectOwner(BasePermission):
 
         user = request.user
         obj_user = getattr(obj, "created_by", None) or getattr(obj, "user", None)
-        if obj_user == user:
-            return True
-
-        return False
+        return obj_user == user
 
 
 class IsObjectOwnerOrModerator(IsObjectOwner):

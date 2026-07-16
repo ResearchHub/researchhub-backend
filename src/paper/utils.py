@@ -199,12 +199,7 @@ def pdf_copyright_allows_display(paper):
 
     # only rely on oa_status if license is null or unknown
     # otherwise license is non-usable for us
-    if license in [None, "", "unknown", "unspecified-oa"] and oa_status in [
-        None,
-        "",
-        "green",
-        "gold",
-    ]:
-        return True
-
-    return False
+    return bool(
+        license in [None, "", "unknown", "unspecified-oa"]
+        and oa_status in [None, "", "green", "gold"]
+    )

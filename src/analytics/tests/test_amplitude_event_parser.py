@@ -454,13 +454,15 @@ class AmplitudeEventParserTests(TestCase):
         mock_datetime.fromtimestamp.side_effect = Exception("Unexpected error")
         mock_datetime.now.return_value = timezone.now()
 
-        with patch(
-            "analytics.interactions.amplitude_event_parser.datetime", mock_datetime
-        ):
-            with self.assertLogs(
+        with (
+            patch(
+                "analytics.interactions.amplitude_event_parser.datetime", mock_datetime
+            ),
+            self.assertLogs(
                 "analytics.interactions.amplitude_event_parser", level=logging.ERROR
-            ) as log:
-                interaction = self.parser.parse_amplitude_event(event)
+            ) as log,
+        ):
+            interaction = self.parser.parse_amplitude_event(event)
 
         self.assertIsNone(interaction)
         self.assertIn("Unexpected error parsing event", log.output[0])

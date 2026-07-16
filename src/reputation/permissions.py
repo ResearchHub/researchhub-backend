@@ -33,21 +33,17 @@ class AllowWithdrawalIfNotSuspecious(BasePermission):
     message = "Cannot withdraw funds at this time."
 
     def has_permission(self, request, view):
-        if (
-            (request.method == "POST" or request.method == "PATCH")
+        return not (
+            request.method in ("POST", "PATCH")
             and request.user.is_authenticated
             and (request.user.is_suspended or request.user.probable_spammer)
-        ):
-            return False
-        return True
+        )
 
 
 class UserCanApproveBounty(BasePermission):
     def has_permission(self, request, view):
         method = request.method
-        if method == "POST" or method == "DELETE":
-            return True
-        return False
+        return bool(method == "POST" or method == "DELETE")
 
     def has_object_permission(self, request, view, obj):
         self.message = "Invalid Bounty user"
@@ -84,9 +80,7 @@ class UserCanApproveBounty(BasePermission):
 class UserCanCancelBounty(BasePermission):
     def has_permission(self, request, view):
         method = request.method
-        if method == "POST" or method == "DELETE":
-            return True
-        return False
+        return bool(method == "POST" or method == "DELETE")
 
     def has_object_permission(self, request, view, obj):
         self.message = "Invalid Bounty user"

@@ -248,16 +248,14 @@ def create_flag(user, item, reason, reason_choice, reason_memo=None):
         return flag, serializer.data
 
 
-def find_vote(user, item, vote_type):
+def find_vote(user, item, vote_type) -> bool:
     vote = Vote.objects.filter(
         object_id=item.id,
         content_type=get_content_type_for_model(item),
         created_by=user,
         vote_type=vote_type,
     )
-    if vote:
-        return True
-    return False
+    return bool(vote)
 
 
 def retrieve_flag(user, item):

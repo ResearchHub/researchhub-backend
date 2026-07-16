@@ -304,14 +304,16 @@ class DistributeStakingYieldTaskTest(TestCase):
             yield_amount=Decimal(0),
         )
 
-        with patch.object(
-            StakingYieldRecord,
-            "save",
-            autospec=True,
-            side_effect=RuntimeError("save failed"),
+        with (
+            patch.object(
+                StakingYieldRecord,
+                "save",
+                autospec=True,
+                side_effect=RuntimeError("save failed"),
+            ),
+            self.assertRaises(RuntimeError),
         ):
-            with self.assertRaises(RuntimeError):
-                distribute_staking_yield()
+            distribute_staking_yield()
 
         self.assertEqual(
             Distribution.objects.filter(
