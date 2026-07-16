@@ -852,7 +852,7 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
         invitation = getattr(obj, "note_invitation", None)
         if invitation is None:
             return None
-        from research_ai.services.proposal_draft_outreach_service import (
+        from research_ai.services.outreach.proposal_draft_outreach import (
             proposal_draft_invite_url,
         )
 

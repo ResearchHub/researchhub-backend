@@ -15,13 +15,13 @@ from research_ai.services.outreach.invited_experts import (
     grant_invited_expert_access_for_send,
     link_experts_for_new_user,
 )
+from research_ai.services.outreach.proposal_draft_outreach import (
+    build_proposal_draft_prompt_context,
+)
 from research_ai.services.outreach.rfp_email_context import (
     get_expert_for_search_by_email,
 )
 from research_ai.services.proposal_draft import run_proposal_draft
-from research_ai.services.proposal_draft_outreach_service import (
-    build_proposal_draft_prompt_context,
-)
 from researchhub.celery import QUEUE_AGENTS, app
 from user.models import User
 
