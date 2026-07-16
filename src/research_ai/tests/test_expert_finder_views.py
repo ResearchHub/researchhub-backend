@@ -248,7 +248,7 @@ class ExpertSearchAddExpertViewTests(APITestCase):
         )
         self.assertEqual(Expert.objects.filter(email="alice@example.com").count(), 1)
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_manual_expert_can_have_email_generated(self, mock_generate):
         mock_generate.return_value = ("Subject", "Body")
         self.client.force_authenticate(self.moderator)

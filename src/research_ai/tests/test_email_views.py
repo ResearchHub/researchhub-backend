@@ -166,7 +166,7 @@ class GenerateEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_success_creates_record_and_returns_201(self, mock_generate):
         mock_generate.return_value = ("Subject here", "Body here")
         self.client.force_authenticate(self.moderator)
@@ -193,7 +193,7 @@ class GenerateEmailViewTests(APITestCase):
         rec = GeneratedEmail.objects.get()
         self.assertEqual(rec.created_by, self.moderator)
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_with_proposal_creates_note_invite_and_links_email(
         self, mock_generate
     ):
@@ -233,7 +233,7 @@ class GenerateEmailViewTests(APITestCase):
         )
         self.assertIn(invitation.key, call_kwargs["proposal_draft_context"])
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_with_failed_proposal_is_rejected_without_invite(self, mock_generate):
         # Arrange
         draft = self._completed_proposal_draft()
@@ -258,7 +258,57 @@ class GenerateEmailViewTests(APITestCase):
         self.assertFalse(GeneratedEmail.objects.exists())
         mock_generate.assert_not_called()
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
+    def test_post_generation_failure_deletes_proposal_invite(self, mock_generate):
+        # Arrange
+        draft = self._completed_proposal_draft()
+        mock_generate.side_effect = RuntimeError("LLM unavailable")
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": self.jane.email,
+                "proposal_draft_id": draft.id,
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertFalse(NoteInvitation.objects.exists())
+        self.assertFalse(GeneratedEmail.objects.exists())
+
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
+    def test_post_record_create_failure_deletes_proposal_invite(self, mock_generate):
+        # Arrange
+        draft = self._completed_proposal_draft()
+        mock_generate.return_value = ("Subject", "Body")
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        with patch.object(
+            GeneratedEmail.objects,
+            "create",
+            side_effect=RuntimeError("db unavailable"),
+        ):
+            response = self.client.post(
+                self.url,
+                {
+                    "expert_search_id": self.expert_search.id,
+                    "expert_email": self.jane.email,
+                    "proposal_draft_id": draft.id,
+                },
+                format="json",
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertFalse(NoteInvitation.objects.exists())
+
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_runtime_error_returns_503(self, mock_generate):
         mock_generate.side_effect = RuntimeError("LLM unavailable")
         self.client.force_authenticate(self.moderator)
@@ -274,7 +324,7 @@ class GenerateEmailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertIn("LLM unavailable", response.json().get("detail", ""))
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_with_expert_search_id_links_record(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         search = ExpertSearch.objects.create(
@@ -305,7 +355,7 @@ class GenerateEmailViewTests(APITestCase):
         rec = GeneratedEmail.objects.get()
         self.assertEqual(rec.expert_search_id, search.id)
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_with_template_id_passes_template_id_and_user(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         self.client.force_authenticate(self.moderator)
@@ -325,7 +375,7 @@ class GenerateEmailViewTests(APITestCase):
         self.assertEqual(call_kw["user"], self.moderator)
         self.assertEqual(call_kw["template"], "collaboration")
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_template_null_requires_template_id(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         self.client.force_authenticate(self.moderator)
@@ -340,7 +390,7 @@ class GenerateEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_template_null_with_template_id_fixed_path(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         t = EmailTemplate.objects.create(
@@ -420,7 +470,7 @@ class GenerateEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_resolve_passes_normalized_email_to_llm(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         self.client.force_authenticate(self.moderator)

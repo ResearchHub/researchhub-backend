@@ -22,10 +22,9 @@ from research_ai.serializers import (
 )
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
-from research_ai.services.outreach.email_generator import generate_expert_email
+from research_ai.services.outreach.email_generator import create_expert_email_draft
 from research_ai.services.outreach.email_sender import send_plain_email
 from research_ai.services.outreach.proposal_draft_outreach import (
-    ProposalDraftOutreachError,
     prepare_proposal_outreach,
 )
 from research_ai.services.outreach.rfp_email_context import (
@@ -147,77 +146,29 @@ class GenerateEmailView(APIView):
                 {"detail": "Expert not found in search results for this email."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        resolved = ExpertDisplay.email_generation_dict(expert)
-
         template_key, custom_use_case = _resolve_generate_llm_params(request.data, data)
-        template_id = data.get("template_id")
-        prepared_outreach = None
-
-        if proposal_draft_id := data.get("proposal_draft_id"):
-            try:
-                prepared_outreach = prepare_proposal_outreach(
-                    proposal_draft_id=proposal_draft_id,
-                    expert_search=expert_search,
-                    expert_email=expert.email,
-                    inviter=request.user,
-                )
-            except ProposalDraftOutreachError as e:
-                return Response(
-                    {"detail": str(e)},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
 
         try:
-            subject, body = generate_expert_email(
-                resolved_expert=resolved,
+            email_record = create_expert_email_draft(
+                expert_search=expert_search,
+                expert=expert,
                 template=template_key,
                 custom_use_case=custom_use_case,
-                expert_search=expert_search,
-                template_id=template_id,
+                template_id=data.get("template_id"),
                 user=request.user,
-                proposal_draft_context=(
-                    prepared_outreach.prompt_context if prepared_outreach else None
-                ),
+                proposal_draft_id=data.get("proposal_draft_id"),
             )
         except ValueError as e:
-            if prepared_outreach:
-                prepared_outreach.invitation.delete()
             return Response(
                 {"detail": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except RuntimeError as e:
-            if prepared_outreach:
-                prepared_outreach.invitation.delete()
             logger.exception("Email generation failed")
             return Response(
                 {"detail": str(e)},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        except Exception:
-            if prepared_outreach:
-                prepared_outreach.invitation.delete()
-            raise
-
-        stored_template = None if template_key is None else template_key
-        email_record = GeneratedEmail.objects.create(
-            created_by=request.user,
-            expert_search=expert_search,
-            proposal_draft=(prepared_outreach.draft if prepared_outreach else None),
-            note_invitation=(
-                prepared_outreach.invitation if prepared_outreach else None
-            ),
-            expert_name=format_expert_name_from_raw(resolved.get("name") or ""),
-            expert_title=expert.academic_title or "",
-            expert_affiliation=expert.affiliation or "",
-            expert_email=(expert.email or "").strip(),
-            expertise=expert.expertise or "",
-            email_subject=subject,
-            email_body=body,
-            template=stored_template,
-            status="draft",
-            notes=expert.notes or "",
-        )
 
         out = GeneratedEmailSerializer(email_record)
         return Response(out.data, status=status.HTTP_201_CREATED)
