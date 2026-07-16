@@ -127,10 +127,7 @@ class JourneyService:
 
     def is_completed_fundraise_eligible(self, fundraise: Fundraise) -> bool:
         """Return whether a fundraise can create a registered report journey."""
-        return (
-            fundraise.status == Fundraise.COMPLETED
-            and fundraise.has_received_funding()
-        )
+        return fundraise.status == Fundraise.COMPLETED and fundraise.has_received_funding()
 
     @transaction.atomic
     def attach_stage(

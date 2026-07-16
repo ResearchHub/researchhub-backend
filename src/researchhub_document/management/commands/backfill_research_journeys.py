@@ -9,6 +9,8 @@ from researchhub_document.services.research_journey_backfill_service import (
     ResearchJourneyBackfillStats,
 )
 
+# TODO: Remove this one-off command and its service after the production backfill.
+
 
 class Command(BaseCommand):
     """Backfill journeys for existing approved preregistration proposals."""

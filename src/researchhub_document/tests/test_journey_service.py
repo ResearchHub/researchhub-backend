@@ -458,9 +458,7 @@ class JourneyServiceTests(TestCase):
         )
         return grant, grant_post
 
-    def _attach_fundraise_escrow(
-        self, fundraise: Fundraise, amount: Decimal
-    ) -> None:
+    def _attach_fundraise_escrow(self, fundraise: Fundraise, amount: Decimal) -> None:
         """Attach escrowed RSC funding to a fundraise."""
         fundraise.escrow = Escrow.objects.create(
             created_by=self.user,
