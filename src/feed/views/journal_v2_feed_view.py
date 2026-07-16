@@ -1,10 +1,10 @@
 """
-Post-based journal feed for completed proposals and registered reports.
+Post-based journal feed for registered reports.
 """
 
 from typing import Any
 
-from django.db.models import Exists, OuterRef, Prefetch, Q
+from django.db.models import Exists, OuterRef, Prefetch
 from django.db.models.query import QuerySet
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.request import Request
@@ -21,7 +21,6 @@ from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.related_models.fundraise_model import Fundraise
 from reputation.related_models.bounty import Bounty
 from researchhub_document.related_models.constants.document_type import (
-    PREREGISTRATION,
     REGISTERED_REPORT,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -29,6 +28,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from review.models import Review
+from user.models import Author
 
 from .common import FeedPagination
 
@@ -52,7 +52,7 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
         return context
 
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
-        """Return paginated journal cards for latest included journey stages."""
+        """Return paginated journal cards for registered reports."""
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
 
@@ -77,26 +77,8 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
         return Response(response_data)
 
     def get_queryset(self) -> QuerySet:
-        """Return the latest visible stage for each journal-included journey."""
-        registered_report_for_journey = ResearchhubPost.objects.filter(
-            journey_id=OuterRef("journey_id"),
-            document_type=REGISTERED_REPORT,
-            unified_document__is_removed=False,
-            unified_document__status=ResearchhubUnifiedDocument.APPROVED,
-        )
-
-        queryset = (
-            self._build_journal_stage_queryset()
-            .annotate(has_registered_report=Exists(registered_report_for_journey))
-            .filter(
-                Q(document_type=REGISTERED_REPORT)
-                | Q(
-                    document_type=PREREGISTRATION,
-                    has_registered_report=False,
-                )
-            )
-        )
-        return queryset
+        """Return visible registered reports for journal-included journeys."""
+        return self._build_journal_stage_queryset()
 
     def _build_journal_stage_queryset(self) -> QuerySet:
         """Build the base queryset for public journal stages."""
@@ -106,10 +88,16 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
             ),
             status=Fundraise.COMPLETED,
         )
+        public_grant_post = ResearchhubPost.objects.publicly_visible().filter(
+            pk=OuterRef("journey__grant_post_id"),
+        )
         source_proposal_prefetches = [
-            "journey__preregistration_post__authors",
-            "journey__preregistration_post__unified_document__hubs",
-            "journey__preregistration_post__unified_document__fundraises",
+            Prefetch(
+                "journey__preregistration_post__unified_document__fundraises",
+                queryset=Fundraise.objects.filter(status=Fundraise.COMPLETED)
+                .select_related("created_by", "escrow")
+                .order_by("-created_date", "-id"),
+            ),
             Prefetch(
                 "journey__preregistration_post__unified_document__reviews",
                 queryset=Review.objects.filter(is_removed=False).select_related(
@@ -141,34 +129,16 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
                 "unified_document",
             )
             .prefetch_related(
-                "authors",
-                "unified_document__hubs",
-                "unified_document__fundraises",
-                Prefetch(
-                    "unified_document__reviews",
-                    queryset=Review.objects.filter(is_removed=False).select_related(
-                        "created_by__author_profile"
-                    ),
-                ),
-                Prefetch(
-                    "unified_document__related_bounties",
-                    queryset=Bounty.objects.filter(parent__isnull=True)
-                    .select_related("created_by")
-                    .prefetch_related(
-                        Prefetch(
-                            "children",
-                            queryset=Bounty.objects.select_related(
-                                "created_by__author_profile"
-                            ),
-                        )
-                    ),
-                ),
+                Prefetch("authors", queryset=Author.objects.select_related("user")),
                 *source_proposal_prefetches,
             )
-            .annotate(has_completed_source_fundraise=Exists(completed_source_fundraise))
+            .annotate(
+                has_completed_source_fundraise=Exists(completed_source_fundraise),
+                has_public_grant_post=Exists(public_grant_post),
+            )
             .publicly_visible()
             .filter(
-                document_type__in=[PREREGISTRATION, REGISTERED_REPORT],
+                document_type=REGISTERED_REPORT,
                 has_completed_source_fundraise=True,
                 journey__is_in_journal=True,
                 journey__preregistration_post__isnull=False,
