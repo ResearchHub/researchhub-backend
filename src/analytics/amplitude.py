@@ -10,10 +10,10 @@ logger = logging.getLogger(__name__)
 
 
 class Amplitude:
-    api_key = AMPLITUDE_API_KEY
-    api_url = "https://api.amplitude.com/2/httpapi"
+    _api_url = "https://api.amplitude.com/2/httpapi"
 
     def __init__(self, enabled=None):
+        self._api_key = settings.AMPLITUDE_API_KEY
         self.enabled = (
             not (settings.DEVELOPMENT or settings.TESTING)
             if enabled is None
@@ -80,7 +80,7 @@ class Amplitude:
             data["event_properties"].update(extra_data)
 
         hit = {
-            "api_key": self.api_key,
+            "api_key": self._api_key,
             "events": [data],
         }
         hit = json.dumps(hit, cls=DjangoJSONEncoder)
@@ -110,7 +110,7 @@ class Amplitude:
             "revenueType": revenue_type,
         }
         hit = {
-            "api_key": self.api_key,
+            "api_key": self._api_key,
             "events": [data],
         }
         hit = json.dumps(hit, cls=DjangoJSONEncoder)
@@ -145,7 +145,7 @@ class Amplitude:
             },
         }
         hit = {
-            "api_key": self.api_key,
+            "api_key": self._api_key,
             "events": [data],
         }
         hit = json.dumps(hit, cls=DjangoJSONEncoder)
@@ -157,7 +157,7 @@ class Amplitude:
             return None
 
         headers = {"Content-Type": "application/json", "Accept": "*/*"}
-        request = requests.post(self.api_url, data=hit, headers=headers, timeout=10)
+        request = requests.post(self._api_url, data=hit, headers=headers, timeout=10)
         res = request.json()
         if request.status_code != 200:
             logger.error("Failed to send event to Amplitude: %s", res)
@@ -171,7 +171,7 @@ def track_event(func):
         amp = None
 
         try:
-            if res.status_code >= 200 and res.status_code <= 299 and not DEVELOPMENT:
+            if res.status_code >= 200 and res.status_code <= 299:
                 amp = Amplitude()
                 amp.build_hit(res, *args, **kwargs)
 
