@@ -14,9 +14,7 @@ class UserNotSpammer(BasePermission):
 class CreateOrUpdateIfAllowed(BasePermission):
     def has_permission(self, request, view):
         if (request.method not in SAFE_METHODS) and request.user.is_authenticated:
-            if not request.user.is_active or request.user.is_suspended:
-                return False
-            return True
+            return request.user.is_active and not request.user.is_suspended
         return True
 
 

@@ -102,6 +102,7 @@ extend-select = [
     "RSE",   # flake8-raise
     "S113",  # flake8-bandit: request-without-timeout
     "SIM102",  # flake8-simplify
+    "SIM103",  # flake8-simplify
     "SIM105",  # flake8-simplify
     "SIM117",  # flake8-simplify
     "SIM118",  # flake8-simplify

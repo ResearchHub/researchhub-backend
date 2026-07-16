@@ -112,10 +112,7 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
 
         # Page limit check
         page_num = int(request.query_params.get("page", "1"))
-        if page_num > FEED_DEFAULTS["cache"]["num_pages_to_cache"]:
-            return False
-
-        return True
+        return not page_num > FEED_DEFAULTS["cache"]["num_pages_to_cache"]
 
     def _feed_allows_caching(self, request, feed_config):
         """
