@@ -8,6 +8,7 @@ from research_ai.models import (
     Expert,
     ExpertSearch,
     GeneratedEmail,
+    ProposalDraft,
     SearchExpert,
 )
 from research_ai.serializers import (
@@ -135,7 +136,9 @@ class ExpertSearchDetailSerializerTests(TestCase):
             status=ExpertSearch.Status.COMPLETED,
         )
         ex = Expert.objects.create(email="v2@x.edu", first_name="Vi", last_name="Two")
-        SearchExpert.objects.create(expert_search=self.search, expert=ex, position=0)
+        self.search_expert = SearchExpert.objects.create(
+            expert_search=self.search, expert=ex, position=0
+        )
 
     def test_detail_has_experts_array(self):
         ser = ExpertSearchDetailSerializer(self.search)
@@ -146,6 +149,33 @@ class ExpertSearchDetailSerializerTests(TestCase):
         self.assertIsNone(ser.data["experts"][0]["last_email_sent_at"])
         self.assertIsNone(ser.data["experts"][0]["emailed_for_current_document"])
         self.assertEqual(ser.data["experts"][0]["emailed_on_other_documents"], [])
+        self.assertEqual(
+            ser.data["experts"][0]["search_expert_id"], self.search_expert.id
+        )
+        self.assertIsNone(ser.data["experts"][0]["proposal_draft"])
+
+    def test_detail_includes_latest_proposal_draft_for_search_expert(self):
+        # Arrange
+        older = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.user,
+            status=ProposalDraft.Status.FAILED,
+        )
+        latest = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.user,
+            status=ProposalDraft.Status.COMPLETED,
+        )
+
+        # Act
+        row = ExpertSearchDetailSerializer(self.search).data["experts"][0]
+
+        # Assert
+        self.assertNotEqual(older.id, latest.id)
+        self.assertEqual(row["proposal_draft"]["id"], latest.id)
+        self.assertEqual(
+            row["proposal_draft"]["status"], ProposalDraft.Status.COMPLETED
+        )
 
     def test_manually_added_experts_returned_first(self):
         # Existing setUp seeded a non-manual expert at position 0.

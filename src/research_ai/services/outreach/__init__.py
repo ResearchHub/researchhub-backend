@@ -9,6 +9,8 @@
 - ``rfp_email_context`` / ``proposal_email_context`` -- RFP- and
   proposal-specific context builders on top of ``document_context``.
 - ``rfp_invite`` -- invite flow for RFP outreach.
+- ``proposal_draft_outreach`` -- bridges completed proposal drafts into
+  outreach emails (invite links and prompt context).
 - ``invited_experts`` -- invited-expert listings, stats, and access grants.
 - ``outreach_history`` -- per-expert outreach history rollups.
 """

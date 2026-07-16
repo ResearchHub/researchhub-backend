@@ -2,11 +2,16 @@ import logging
 import re
 
 from research_ai.constants import BASE_FRONTEND_URL, DEFAULT_EMAIL_TEMPLATE_KEY
+from research_ai.models import GeneratedEmail
 from research_ai.prompts.email_prompts import build_email_prompt
 from research_ai.services.bedrock_llm_service import BedrockLLMService
+from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.outreach.document_context import (
     format_document_context_for_llm,
     resolve_expert_search_email_document_context,
+)
+from research_ai.services.outreach.proposal_draft_outreach import (
+    prepare_proposal_outreach,
 )
 from research_ai.services.outreach.template_service import (
     get_template as get_email_template,
@@ -14,6 +19,7 @@ from research_ai.services.outreach.template_service import (
 from research_ai.services.outreach.template_variables import (
     _build_user_context,
     build_replacement_context,
+    format_expert_name_from_raw,
     replace_template_variables,
 )
 
@@ -292,11 +298,18 @@ def _generate_with_llm(
     custom_use_case: str | None,
     expert_search,
     user,
+    proposal_draft_context: str | None = None,
 ) -> tuple[str, str]:
     """Generate subject/body via LLM, then post-process and append signature."""
     doc_ctx = resolve_expert_search_email_document_context(expert_search)
     sender_block = _format_sender_context_for_llm(user)
     document_block = format_document_context_for_llm(doc_ctx)
+    if proposal_draft_context and proposal_draft_context.strip():
+        document_block = "\n\n".join(
+            part
+            for part in [document_block.strip(), proposal_draft_context.strip()]
+            if part
+        )
 
     prompt = build_email_prompt(
         expert_name=expert_dict["name"] or "",
@@ -338,6 +351,7 @@ def generate_expert_email(
     expert_search=None,
     template_id: int | None = None,
     user=None,
+    proposal_draft_context: str | None = None,
 ) -> tuple[str, str]:
     """
     Generate subject and body for an expert outreach email.
@@ -361,4 +375,69 @@ def generate_expert_email(
         custom_use_case,
         expert_search,
         user,
+        proposal_draft_context,
     )
+
+
+def create_expert_email_draft(
+    *,
+    expert_search,
+    expert,
+    template: str | None,
+    custom_use_case: str | None,
+    template_id: int | None,
+    user,
+    proposal_draft_id: int | None = None,
+) -> GeneratedEmail:
+    """
+    Generate an outreach email for an expert and persist it as a draft
+    GeneratedEmail.
+
+    When proposal_draft_id is given, a note invitation is created for the
+    draft and linked to the record; if generation or persistence fails after
+    that, the invitation is deleted so no orphaned invite link remains.
+    """
+    prepared_outreach = None
+    if proposal_draft_id:
+        prepared_outreach = prepare_proposal_outreach(
+            proposal_draft_id=proposal_draft_id,
+            expert_search=expert_search,
+            expert_email=expert.email,
+            inviter=user,
+        )
+
+    resolved = ExpertDisplay.email_generation_dict(expert)
+    try:
+        subject, body = generate_expert_email(
+            resolved_expert=resolved,
+            template=template,
+            custom_use_case=custom_use_case,
+            expert_search=expert_search,
+            template_id=template_id,
+            user=user,
+            proposal_draft_context=(
+                prepared_outreach.prompt_context if prepared_outreach else None
+            ),
+        )
+        return GeneratedEmail.objects.create(
+            created_by=user,
+            expert_search=expert_search,
+            proposal_draft=(prepared_outreach.draft if prepared_outreach else None),
+            note_invitation=(
+                prepared_outreach.invitation if prepared_outreach else None
+            ),
+            expert_name=format_expert_name_from_raw(resolved.get("name") or ""),
+            expert_title=expert.academic_title or "",
+            expert_affiliation=expert.affiliation or "",
+            expert_email=(expert.email or "").strip(),
+            expertise=expert.expertise or "",
+            email_subject=subject,
+            email_body=body,
+            template=template,
+            status="draft",
+            notes=expert.notes or "",
+        )
+    except Exception:
+        if prepared_outreach is not None:
+            prepared_outreach.invitation.delete()
+        raise

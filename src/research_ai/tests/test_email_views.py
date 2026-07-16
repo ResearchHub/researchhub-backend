@@ -7,15 +7,21 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from invite.models import NoteInvitation
+from purchase.models import Grant
 from research_ai.models import (
     EmailTemplate,
     Expert,
     ExpertSearch,
     GeneratedEmail,
+    ProposalDraft,
     SearchExpert,
 )
 from research_ai.services.outreach.email_sender import send_plain_email
+from research_ai.services.proposal_draft.note_writer import write_proposal_note
 from research_ai.views.email_views import _normalize_template
+from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import GRANT
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -79,10 +85,51 @@ class GenerateEmailViewTests(APITestCase):
             expertise="ML",
             notes="",
         )
-        SearchExpert.objects.create(
+        self.search_expert = SearchExpert.objects.create(
             expert_search=self.expert_search,
             expert=self.jane,
             position=0,
+        )
+
+    def _completed_proposal_draft(self):
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=GRANT
+        )
+        Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=unified_document,
+            amount=25000,
+            organization="ResearchHub",
+            short_title="Remyelination in MS",
+            description="Funding for focused remyelination studies.",
+            status=Grant.OPEN,
+        )
+        self.expert_search.unified_document = unified_document
+        self.expert_search.save(update_fields=["unified_document"])
+        submitted = {
+            "sections": {
+                "title": "Mapping oligodendrocyte maturation failure",
+                "aims": [
+                    {
+                        "title": "Map maturation arrest",
+                        "body": "Reanalyse three open single-nucleus datasets.",
+                    }
+                ],
+                "budget": "$5,000 supports computational reanalysis only.",
+            },
+            "plain_text": (
+                "Mapping oligodendrocyte maturation failure. Reanalyse three open "
+                "single-nucleus datasets. The requested budget is $5,000."
+            ),
+        }
+        note = write_proposal_note(submitted, created_by=self.moderator)
+        return ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.moderator,
+            note=note,
+            status=ProposalDraft.Status.COMPLETED,
+            step=ProposalDraft.Step.DONE,
+            last_submission=submitted,
         )
 
     def test_post_requires_authentication(self):
@@ -119,7 +166,7 @@ class GenerateEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_success_creates_record_and_returns_201(self, mock_generate):
         mock_generate.return_value = ("Subject here", "Body here")
         self.client.force_authenticate(self.moderator)
@@ -146,7 +193,122 @@ class GenerateEmailViewTests(APITestCase):
         rec = GeneratedEmail.objects.get()
         self.assertEqual(rec.created_by, self.moderator)
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
+    def test_post_with_proposal_creates_note_invite_and_links_email(
+        self, mock_generate
+    ):
+        # Arrange
+        draft = self._completed_proposal_draft()
+        mock_generate.return_value = ("Proposal for your lab", "Body")
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": self.jane.email,
+                "proposal_draft_id": draft.id,
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        email = GeneratedEmail.objects.get()
+        invitation = NoteInvitation.objects.get()
+        self.assertEqual(email.proposal_draft, draft)
+        self.assertEqual(email.note_invitation, invitation)
+        self.assertEqual(invitation.note, draft.note)
+        self.assertEqual(invitation.recipient_email, self.jane.email)
+        self.assertEqual(invitation.invite_type, "EDITOR")
+        self.assertIn(invitation.key, response.json()["proposal_invite_url"])
+        call_kwargs = mock_generate.call_args.kwargs
+        self.assertEqual(call_kwargs["template"], "proposal-draft-outreach")
+        self.assertIn("Map maturation arrest", call_kwargs["proposal_draft_context"])
+        self.assertIn("$5,000", call_kwargs["proposal_draft_context"])
+        self.assertIn(
+            "computational reanalysis only",
+            call_kwargs["proposal_draft_context"],
+        )
+        self.assertIn(invitation.key, call_kwargs["proposal_draft_context"])
+
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
+    def test_post_with_failed_proposal_is_rejected_without_invite(self, mock_generate):
+        # Arrange
+        draft = self._completed_proposal_draft()
+        draft.status = ProposalDraft.Status.FAILED
+        draft.save(update_fields=["status"])
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": self.jane.email,
+                "proposal_draft_id": draft.id,
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(NoteInvitation.objects.exists())
+        self.assertFalse(GeneratedEmail.objects.exists())
+        mock_generate.assert_not_called()
+
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
+    def test_post_generation_failure_deletes_proposal_invite(self, mock_generate):
+        # Arrange
+        draft = self._completed_proposal_draft()
+        mock_generate.side_effect = RuntimeError("LLM unavailable")
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(
+            self.url,
+            {
+                "expert_search_id": self.expert_search.id,
+                "expert_email": self.jane.email,
+                "proposal_draft_id": draft.id,
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertFalse(NoteInvitation.objects.exists())
+        self.assertFalse(GeneratedEmail.objects.exists())
+
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
+    def test_post_record_create_failure_deletes_proposal_invite(self, mock_generate):
+        # Arrange
+        draft = self._completed_proposal_draft()
+        mock_generate.return_value = ("Subject", "Body")
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        with patch.object(
+            GeneratedEmail.objects,
+            "create",
+            side_effect=RuntimeError("db unavailable"),
+        ):
+            response = self.client.post(
+                self.url,
+                {
+                    "expert_search_id": self.expert_search.id,
+                    "expert_email": self.jane.email,
+                    "proposal_draft_id": draft.id,
+                },
+                format="json",
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertFalse(NoteInvitation.objects.exists())
+
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_runtime_error_returns_503(self, mock_generate):
         mock_generate.side_effect = RuntimeError("LLM unavailable")
         self.client.force_authenticate(self.moderator)
@@ -162,7 +324,7 @@ class GenerateEmailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertIn("LLM unavailable", response.json().get("detail", ""))
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_with_expert_search_id_links_record(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         search = ExpertSearch.objects.create(
@@ -193,7 +355,7 @@ class GenerateEmailViewTests(APITestCase):
         rec = GeneratedEmail.objects.get()
         self.assertEqual(rec.expert_search_id, search.id)
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_with_template_id_passes_template_id_and_user(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         self.client.force_authenticate(self.moderator)
@@ -213,7 +375,7 @@ class GenerateEmailViewTests(APITestCase):
         self.assertEqual(call_kw["user"], self.moderator)
         self.assertEqual(call_kw["template"], "collaboration")
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_template_null_requires_template_id(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         self.client.force_authenticate(self.moderator)
@@ -228,7 +390,7 @@ class GenerateEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_template_null_with_template_id_fixed_path(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         t = EmailTemplate.objects.create(
@@ -308,7 +470,7 @@ class GenerateEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("research_ai.views.email_views.generate_expert_email")
+    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_resolve_passes_normalized_email_to_llm(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         self.client.force_authenticate(self.moderator)

@@ -33,6 +33,22 @@ class GeneratedEmail(DefaultModel):
         blank=True,
         related_name="generated_emails",
     )
+    proposal_draft = models.ForeignKey(
+        "research_ai.ProposalDraft",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="generated_emails",
+        db_comment="Expert-specific proposal draft referenced by this outreach email.",
+    )
+    note_invitation = models.ForeignKey(
+        "invite.NoteInvitation",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="generated_emails",
+        db_comment="Invitation link embedded in proposal-draft outreach.",
+    )
     expert_name = models.CharField(max_length=255, blank=True)
     expert_title = models.CharField(max_length=255, blank=True)
     expert_affiliation = models.CharField(max_length=512, blank=True)

@@ -15,6 +15,9 @@ from research_ai.services.outreach.invited_experts import (
     grant_invited_expert_access_for_send,
     link_experts_for_new_user,
 )
+from research_ai.services.outreach.proposal_draft_outreach import (
+    build_proposal_draft_prompt_context,
+)
 from research_ai.services.outreach.rfp_email_context import (
     get_expert_for_search_by_email,
 )
@@ -243,6 +246,22 @@ def run_proposal_draft_task(draft_id: int):
         logger.warning("Proposal draft not found", extra={"draft_id": draft_id})
         return {"status": "not_found", "draft_id": draft_id}
 
+    claimed = ProposalDraft.objects.filter(
+        id=draft_id,
+        status=ProposalDraft.Status.PENDING,
+    ).update(status=ProposalDraft.Status.PROCESSING)
+    if not claimed:
+        draft.refresh_from_db(fields=["status"])
+        logger.info(
+            "Proposal draft task skipped because the job was already claimed",
+            extra={"draft_id": draft_id, "status": draft.status},
+        )
+        return {
+            "status": draft.status,
+            "draft_id": draft_id,
+            "skipped": "already_claimed",
+        }
+
     logger.info("Starting proposal draft", extra={"draft_id": draft_id})
     start_time = timezone.now()
     try:
@@ -343,13 +362,26 @@ def _process_one_bulk_email(
             id=email_id,
             status=GeneratedEmail.Status.PROCESSING,
         )
-        .select_related("expert_search")
+        .select_related(
+            "expert_search",
+            "proposal_draft__note__latest_version",
+            "proposal_draft__search_expert__expert_search__unified_document",
+            "note_invitation",
+        )
         .first()
     )
     if not rec:
         return 0, 0
     try:
         resolved_expert = _resolved_expert_dict_for_bulk(rec)
+        proposal_draft_context = None
+        if rec.proposal_draft_id and not rec.note_invitation_id:
+            raise ValueError("Proposal outreach invitation is missing.")
+        if rec.proposal_draft_id:
+            proposal_draft_context = build_proposal_draft_prompt_context(
+                draft=rec.proposal_draft,
+                invitation=rec.note_invitation,
+            )
         subject, body = generate_expert_email(
             resolved_expert=resolved_expert,
             template=template_key,
@@ -357,6 +389,7 @@ def _process_one_bulk_email(
             expert_search=rec.expert_search,
             template_id=template_id,
             user=user,
+            proposal_draft_context=proposal_draft_context,
         )
         rec.email_subject = subject
         rec.email_body = body
