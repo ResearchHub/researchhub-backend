@@ -5,7 +5,7 @@ import logging
 import requests
 from django.core.serializers.json import DjangoJSONEncoder
 
-from researchhub.settings import AMPLITUDE_API_KEY, DEVELOPMENT
+from researchhub.settings import AMPLITUDE_API_KEY, DEVELOPMENT, TESTING
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +146,9 @@ class Amplitude:
         return self.forward_event(hit)
 
     def forward_event(self, hit):
+        if DEVELOPMENT or TESTING:
+            logger.debug("Skipping Amplitude event in development/testing")
+            return None
         headers = {"Content-Type": "application/json", "Accept": "*/*"}
         request = requests.post(self.api_url, data=hit, headers=headers, timeout=10)
         res = request.json()
@@ -355,9 +358,8 @@ def track_user_activity(user, activity_type: str, additional_properties: dict = 
         additional_properties = {}
 
     try:
-        if not DEVELOPMENT:
-            amp = Amplitude()
-            amp._track_user_activity_event(user, activity_type, additional_properties)
+        amp = Amplitude()
+        amp._track_user_activity_event(user, activity_type, additional_properties)
     except Exception:
         logger.exception(
             "Failed to track user activity event",
