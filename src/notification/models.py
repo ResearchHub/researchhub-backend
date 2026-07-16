@@ -48,6 +48,8 @@ class Notification(models.Model):
     FUNDING_CREDITS_REMINDER = "FUNDING_CREDITS_REMINDER"
     GRANT_APPROVED = "GRANT_APPROVED"
     GRANT_DECLINED = "GRANT_DECLINED"
+    GRANT_APPLICATION_SUBMITTED = "GRANT_APPLICATION_SUBMITTED"
+    PROPOSAL_PEER_REVIEW = "PROPOSAL_PEER_REVIEW"
     CONTENT_APPROVED = "CONTENT_APPROVED"
     CONTENT_DECLINED = "CONTENT_DECLINED"
 
@@ -78,6 +80,8 @@ class Notification(models.Model):
         (FUNDING_CREDITS_REMINDER, FUNDING_CREDITS_REMINDER),
         (GRANT_APPROVED, GRANT_APPROVED),
         (GRANT_DECLINED, GRANT_DECLINED),
+        (GRANT_APPLICATION_SUBMITTED, GRANT_APPLICATION_SUBMITTED),
+        (PROPOSAL_PEER_REVIEW, PROPOSAL_PEER_REVIEW),
         (CONTENT_APPROVED, CONTENT_APPROVED),
         (CONTENT_DECLINED, CONTENT_DECLINED),
     )
@@ -659,6 +663,60 @@ class Notification(models.Model):
 
     def _format_grant_declined(self) -> tuple[list, str | None]:
         return self._format_reviewed("grant", "has been declined by a moderator.")
+
+    def _format_grant_application_submitted(self) -> tuple[list, str | None]:
+        action_user = self.action_user
+        action_user_name = action_user.first_name
+        document = self.unified_document.get_document()
+        doc_title = self._truncate_title(document.title)
+        base_url = self._create_frontend_doc_link()
+
+        return [
+            {
+                "type": "link",
+                "value": f"{action_user_name}",
+                "extra": '["bold", "link"]',
+                "link": action_user.frontend_view_link(),
+            },
+            {
+                "type": "text",
+                "value": " submitted a new proposal to your funding opportunity: ",
+            },
+            {
+                "type": "link",
+                "value": doc_title,
+                "link": base_url,
+                "extra": '["link"]',
+            },
+        ], base_url
+
+    def _format_proposal_peer_review(self) -> tuple[list, str | None]:
+        action_user = self.action_user
+        action_user_name = action_user.first_name
+        document = self.unified_document.get_document()
+        doc_title = self._truncate_title(document.title)
+        base_url = self._create_frontend_doc_link()
+
+        return [
+            {
+                "type": "link",
+                "value": f"{action_user_name}",
+                "extra": '["bold", "link"]',
+                "link": action_user.frontend_view_link(),
+            },
+            {
+                "type": "text",
+                "value": (
+                    " left a peer review on a proposal to your funding opportunity: "
+                ),
+            },
+            {
+                "type": "link",
+                "value": doc_title,
+                "link": base_url,
+                "extra": '["link"]',
+            },
+        ], base_url
 
     def _format_content_approved(self) -> tuple[list, str | None]:
         return self._format_reviewed(
