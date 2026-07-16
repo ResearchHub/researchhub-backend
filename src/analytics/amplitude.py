@@ -3,9 +3,8 @@ import json
 import logging
 
 import requests
+from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
-
-from researchhub.settings import AMPLITUDE_API_KEY, DEVELOPMENT, TESTING
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +14,11 @@ class Amplitude:
     api_url = "https://api.amplitude.com/2/httpapi"
 
     def __init__(self, enabled=None):
-        self.enabled = not (DEVELOPMENT or TESTING) if enabled is None else enabled
+        self.enabled = (
+            not (settings.DEVELOPMENT or settings.TESTING)
+            if enabled is None
+            else enabled
+        )
 
     def _build_event_properties(self, view):
         data = view.__dict__
