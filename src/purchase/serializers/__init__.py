@@ -6,7 +6,6 @@ from .grant_create_serializer import GrantCreateSerializer
 from .grant_overview_serializer import GrantOverviewSerializer
 from .grant_serializer import DynamicGrantSerializer, GrantSerializer
 from .purchase_serializer import (
-    AggregatePurchaseSerializer,
     DynamicPurchaseSerializer,
     PurchaseSerializer,
 )
@@ -15,7 +14,6 @@ from .usd_fundraise_contribution_serializer import UsdFundraiseContributionSeria
 from .wallet_serializer import WalletSerializer
 
 __all__ = [
-    "AggregatePurchaseSerializer",
     "BalanceSerializer",
     "BalanceSourceRelatedField",
     "DynamicFundraiseSerializer",
