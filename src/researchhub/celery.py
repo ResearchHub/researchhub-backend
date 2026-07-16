@@ -17,6 +17,7 @@ app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()
 
 # Queues
+QUEUE_AGENTS = "agents"
 QUEUE_CACHES = "caches"
 QUEUE_HOT_SCORE = "hot_score"
 QUEUE_ELASTIC_SEARCH = "elastic_search"

@@ -17,7 +17,7 @@ from research_ai.services.invited_experts_service import (
 )
 from research_ai.services.proposal_draft import run_proposal_draft
 from research_ai.services.rfp_email_context import get_expert_for_search_by_email
-from researchhub.celery import app
+from researchhub.celery import QUEUE_AGENTS, app
 from user.models import User
 
 logger = logging.getLogger(__name__)
@@ -230,7 +230,7 @@ def run_expert_finder_search(
         raise
 
 
-@app.task
+@app.task(queue=QUEUE_AGENTS)
 def run_proposal_draft_task(draft_id: int):
     """
     Background task to run one headless proposal-drafting job.
