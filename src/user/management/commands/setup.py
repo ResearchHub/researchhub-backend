@@ -1,6 +1,6 @@
+import csv
 import os
 
-import pandas as pd
 from allauth.socialaccount.models import SocialApp
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.conf import settings
@@ -43,12 +43,14 @@ class Command(BaseCommand):
         manage_py_path = os.path.join(settings.BASE_DIR, "manage.py")
 
         hub_csv_path = os.path.join(settings.BASE_DIR, "..", "misc", "hub_hub.csv")
-        hub_df = pd.read_csv(hub_csv_path)
-        hub_df = hub_df.drop("slug_index", axis=1)
-        hub_df = hub_df.drop("acronym", axis=1)
-        hub_df = hub_df.drop("hub_image", axis=1)
-        hub_df = hub_df.drop("category_id", axis=1)
-        hubs = [Hub(**row.to_dict()) for _, row in hub_df.iterrows()]
+        hubs = []
+        with open(hub_csv_path, newline="") as csv_file:
+            for row in csv.DictReader(csv_file):
+                for column in ("slug_index", "acronym", "hub_image", "category_id"):
+                    del row[column]
+                row["is_locked"] = row["is_locked"] == "TRUE"
+                row["is_removed"] = row["is_removed"] == "TRUE"
+                hubs.append(Hub(**row))
         Hub.objects.bulk_create(hubs)
 
         os.system(f"python {manage_py_path} search_index --rebuild -f")
