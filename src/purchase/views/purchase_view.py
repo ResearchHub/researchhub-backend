@@ -14,13 +14,12 @@ from rest_framework.response import Response
 from analytics.amplitude import track_event
 from analytics.tasks import track_revenue_event
 from notification.models import Notification
-from paper.models import Paper
-from purchase.models import AggregatePurchase, Balance, Purchase, RscExchangeRate
+from purchase.models import Balance, Purchase, RscExchangeRate
 from purchase.related_models.constants.support import (
     MAXIMUM_SUPPORT_AMOUNT_RSC,
     MINIMUM_SUPPORT_AMOUNT_RSC,
 )
-from purchase.serializers import AggregatePurchaseSerializer, PurchaseSerializer
+from purchase.serializers import PurchaseSerializer
 from purchase.tasks import send_support_email
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
@@ -28,7 +27,6 @@ from reputation.models import Contribution, SupportFee
 from reputation.tasks import create_contribution
 from reputation.utils import calculate_support_fees, deduct_support_fees
 from researchhub.settings import BASE_FRONTEND_URL
-from researchhub_document.models import ResearchhubPost
 from user.models import Action, User
 from utils.permissions import CreateOrReadOnly
 from utils.throttles import THROTTLE_CLASSES
@@ -211,26 +209,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             countdown=10,
         )
         return Response(serializer_data, status=201)
-
-    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
-    def aggregate_user_promotions(self, request, pk=None):
-        user = User.objects.get(id=pk)
-        context = self.get_serializer_context()
-        context["purchase_minimal_serialization"] = True
-        paper_content_type_id = ContentType.objects.get_for_model(Paper).id
-        post_content_type_id = ContentType.objects.get_for_model(ResearchhubPost).id
-        groups = AggregatePurchase.objects.filter(
-            user=user,
-            content_type_id__in=[paper_content_type_id, post_content_type_id],
-        )
-
-        page = self.paginate_queryset(groups)
-        if page is not None:
-            serializer = AggregatePurchaseSerializer(page, many=True, context=context)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = AggregatePurchaseSerializer(groups, context=context, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
     def user_promotions(self, request, pk=None):
