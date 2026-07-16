@@ -2,7 +2,7 @@
 
 import unittest
 
-from research_ai.services.proposal_tools.judge_context import (
+from research_ai.services.proposal_draft.tools.judge_context import (
     compact_capabilities,
     compact_profile_context,
 )

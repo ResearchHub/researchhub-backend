@@ -8,8 +8,10 @@ from django.utils import timezone
 
 from purchase.models import Grant
 from research_ai.models import Expert, ExpertSearch, SearchExpert
-from research_ai.services.proposal_tools.context_tools import ProposalContextToolset
-from research_ai.services.proposal_tools.verification_tools import (
+from research_ai.services.proposal_draft.tools.context_tools import (
+    ProposalContextToolset,
+)
+from research_ai.services.proposal_draft.tools.verification_tools import (
     ProposalVerificationToolset,
 )
 from researchhub_document.helpers import create_post

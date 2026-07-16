@@ -4,12 +4,12 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from research_ai.services.proposal_tools.fulltext_tools import (
+from research_ai.services.proposal_draft.tools.fulltext_tools import (
     ProposalFulltextToolset,
     _doi_from_source_url,
 )
 
-_PATCH_BASE = "research_ai.services.proposal_tools.fulltext_tools"
+_PATCH_BASE = "research_ai.services.proposal_draft.tools.fulltext_tools"
 
 
 def _search_expert(works):

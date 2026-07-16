@@ -37,7 +37,7 @@ bookkeeping and failure-reason taxonomy), ``draft_recorder`` (every
 ``ProposalDraft`` write and progress emission), ``toolset`` (the submit tool
 and toolset composition), and ``note_writer`` (the headless ``Note`` write).
 Judge-facing context compaction lives with the other tool code in
-``research_ai.services.proposal_tools.judge_context``.
+``research_ai.services.proposal_draft.tools.judge_context``.
 """
 
 import logging
@@ -62,21 +62,21 @@ from research_ai.services.proposal_draft.gates import (
     ProposalGateRunner,
     failing_gates,
 )
+from research_ai.services.proposal_draft.judge_panel import ProposalJudgePanel
 from research_ai.services.proposal_draft.note_writer import write_proposal_note
 from research_ai.services.proposal_draft.run_state import ProposalRunState
-from research_ai.services.proposal_draft.toolset import (
-    build_submit_tool,
-    compose_proposal_toolset,
-)
-from research_ai.services.proposal_judge_panel import ProposalJudgePanel
-from research_ai.services.proposal_tools import (
+from research_ai.services.proposal_draft.tools import (
     ProposalContextToolset,
     ProposalFulltextToolset,
     ProposalVerificationToolset,
     ProposalWebSearchToolset,
     assemble_proposal,
 )
-from research_ai.services.proposal_tools.judge_context import build_judge_context
+from research_ai.services.proposal_draft.tools.judge_context import build_judge_context
+from research_ai.services.proposal_draft.toolset import (
+    build_submit_tool,
+    compose_proposal_toolset,
+)
 from research_ai.services.researcher_profile import build_and_store_expert_profile
 from research_ai.services.researcher_profile.agent import (
     SCHEMA_VERSION as PROFILE_SCHEMA_VERSION,

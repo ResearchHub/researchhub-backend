@@ -9,7 +9,7 @@ from rest_framework.test import APITestCase
 from hub.tests.helpers import create_hub
 from purchase.models import Grant, GrantApplication
 from research_ai.models import ExpertSearch, GeneratedEmail
-from research_ai.services.invited_experts_service import (
+from research_ai.services.outreach.invited_experts import (
     grant_invited_expert_access_for_signup,
 )
 from researchhub_access_group.constants import VIEWER

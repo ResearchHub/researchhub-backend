@@ -29,7 +29,7 @@ from research_ai.services.proposal_draft.runner import (
     PROFILE_SCHEMA_VERSION,
     _ProposalDraftRunner,
 )
-from research_ai.services.proposal_tools.assembly import assemble_proposal
+from research_ai.services.proposal_draft.tools.assembly import assemble_proposal
 from researchhub_access_group.constants import ADMIN, NO_ACCESS
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT

@@ -8,6 +8,8 @@
 - ``toolset`` -- the submit tool and the agent's toolset composition.
 - ``config`` -- the settings-backed knobs for one run.
 - ``note_writer`` -- persists the accepted proposal as a ``Note``.
+- ``judge_panel`` -- the roster of judges that scores each submitted draft.
+- ``tools`` -- the proposal-specific tools the draft agent calls.
 """
 
 from research_ai.services.proposal_draft.runner import run_proposal_draft

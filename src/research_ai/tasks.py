@@ -6,17 +6,19 @@ from django.utils import timezone
 
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft
-from research_ai.services import expert_finder_service as expert_finder_service_mod
-from research_ai.services.email_generator_service import generate_expert_email
-from research_ai.services.email_sending_service import send_plain_email
-from research_ai.services.expert_display import ExpertDisplay
-from research_ai.services.expert_persist import ExpertPersist
-from research_ai.services.invited_experts_service import (
+from research_ai.services.expert_finder import finder as expert_finder_mod
+from research_ai.services.expert_finder.display import ExpertDisplay
+from research_ai.services.expert_finder.persist import ExpertPersist
+from research_ai.services.outreach.email_generator import generate_expert_email
+from research_ai.services.outreach.email_sender import send_plain_email
+from research_ai.services.outreach.invited_experts import (
     grant_invited_expert_access_for_send,
     link_experts_for_new_user,
 )
+from research_ai.services.outreach.rfp_email_context import (
+    get_expert_for_search_by_email,
+)
 from research_ai.services.proposal_draft import run_proposal_draft
-from research_ai.services.rfp_email_context import get_expert_for_search_by_email
 from researchhub.celery import QUEUE_AGENTS, app
 from user.models import User
 
@@ -190,7 +192,7 @@ def run_expert_finder_search(
             status=ExpertSearch.Status.PROCESSING,
         )
         start_time = timezone.now()
-        result = expert_finder_service_mod.run_expert_finder_search(
+        result = expert_finder_mod.run_expert_finder_search(
             search_id=search_id,
             query=query,
             config=config,
