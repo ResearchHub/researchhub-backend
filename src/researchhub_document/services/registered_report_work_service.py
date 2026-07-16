@@ -28,7 +28,7 @@ class RegisteredReportWorkService:
         self.journey_service = journey_service or JourneyService()
 
     def get_work_payload(
-        self, post_id: str | int, user: User | None
+        self, post_id: int, user: User | None
     ) -> RegisteredReportWorkPayload:
         """Return a visible report and the stages visible to the requester."""
         report = (
