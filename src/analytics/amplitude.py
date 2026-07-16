@@ -14,6 +14,9 @@ class Amplitude:
     api_key = AMPLITUDE_API_KEY
     api_url = "https://api.amplitude.com/2/httpapi"
 
+    def __init__(self, enabled=None):
+        self.enabled = not (DEVELOPMENT or TESTING) if enabled is None else enabled
+
     def _build_event_properties(self, view):
         data = view.__dict__
         event_type = f"{data['basename']}_{data['action']}"
@@ -146,9 +149,10 @@ class Amplitude:
         return self.forward_event(hit)
 
     def forward_event(self, hit):
-        if DEVELOPMENT or TESTING:
-            logger.debug("Skipping Amplitude event in development/testing")
+        if not self.enabled:
+            logger.debug("Amplitude tracking disabled, skipping event")
             return None
+
         headers = {"Content-Type": "application/json", "Accept": "*/*"}
         request = requests.post(self.api_url, data=hit, headers=headers, timeout=10)
         res = request.json()
