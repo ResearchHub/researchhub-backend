@@ -7,7 +7,8 @@ from django.http import Http404
 from django.utils.text import slugify
 from rest_framework import serializers, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.exceptions import APIException, PermissionDenied
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -18,8 +19,6 @@ from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from hub.models import Hub
-from hub.serializers import SimpleHubSerializer
-from note.serializers import NoteSerializer
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
@@ -46,18 +45,19 @@ from researchhub_document.serializers.registered_report_work_serializer import (
     RegisteredReportWorkSerializer,
 )
 from researchhub_document.serializers.researchhub_post_serializer import (
-    JournalEntryAcceptSerializer,
     RegisteredReportPublishSerializer,
     ResearchhubPostSerializer,
 )
-from researchhub_document.services.journal_entry_service import JournalEntryService
+from researchhub_document.services.journal_entry_service import (
+    JournalEntryService,
+    RegisteredReportDOIRegistrationError,
+)
 from researchhub_document.services.journey_service import JourneyService
 from researchhub_document.services.registered_report_work_service import (
     RegisteredReportWorkService,
 )
 from user.content_moderation_mixin import ContentModerationActionsMixin
-from user.models import Author, User
-from user.serializers import AuthorSerializer
+from user.models import User
 from user.services.risk_score_service import RiskScoreService
 from utils.throttles import THROTTLE_CLASSES
 
@@ -65,6 +65,14 @@ logger = logging.getLogger(__name__)
 
 MIN_POST_TITLE_LENGTH = 20
 MIN_POST_BODY_LENGTH = 50
+
+
+class RegisteredReportDOIRegistrationFailed(APIException):
+    """Return an upstream-service error when Crossref rejects a report DOI."""
+
+    status_code = status.HTTP_502_BAD_GATEWAY
+    default_detail = "Unable to register a DOI for the registered report."
+    default_code = "registered_report_doi_registration_failed"
 
 
 class ResearchhubPostViewSet(
@@ -115,90 +123,6 @@ class ResearchhubPostViewSet(
             context={"request": request},
         )
         return Response(serializer.data, status=200)
-
-    @action(
-        detail=False,
-        methods=["post"],
-        permission_classes=[IsAuthenticated],
-        url_name="accept-journal-entry",
-        url_path="accept_journal_entry",
-    )
-    def accept_journal_entry(self, request: Request) -> Response:
-        """Create a registered report note draft for a completed fundraise."""
-        try:
-            data = self.build_journal_entry_accept_data(request)
-        except ValueError as error:
-            return Response({"error": str(error)}, status=400)
-        serializer = JournalEntryAcceptSerializer(data=data)
-        serializer.is_valid(raise_exception=True)
-
-        try:
-            accepted_entry = JournalEntryService().accept_journal_entry(
-                request.user,
-                serializer.validated_data["user_id"],
-                serializer.validated_data["fundraise_id"],
-            )
-        except ValueError as error:
-            return Response({"error": str(error)}, status=400)
-
-        response_data = NoteSerializer(
-            accepted_entry.note, context={"request": request}
-        ).data
-        response_data["fundraise_id"] = accepted_entry.fundraise.id
-        response_data["journey_id"] = accepted_entry.journey.id
-        response_data["proposal_id"] = accepted_entry.proposal.id
-        response_data["registered_report_prefill"] = (
-            self.build_registered_report_prefill(accepted_entry.proposal)
-        )
-        return Response(response_data, status=200)
-
-    def build_journal_entry_accept_data(self, request: Request) -> dict[str, object]:
-        """Build accept data and reject conflicting query/body ids."""
-        data = request.query_params.dict()
-        for field in ("fundraise_id", "user_id"):
-            body_value = request.data.get(field)
-            query_value = data.get(field)
-            if body_value is None:
-                continue
-            if query_value is not None and str(query_value) != str(body_value):
-                raise ValueError(f"{field} does not match the request query.")
-            data[field] = body_value
-        return data
-
-    def build_registered_report_prefill(
-        self, proposal: ResearchhubPost
-    ) -> dict[str, object]:
-        """Build editable registered report defaults from a proposal."""
-        authors = self.get_registered_report_authors(proposal)
-        hubs = proposal.unified_document.hubs.all()
-        hub_ids = list(hubs.values_list("id", flat=True))
-        hub_data = SimpleHubSerializer(
-            hubs,
-            context={"request": self.request},
-            many=True,
-        ).data
-        return {
-            "author_ids": [author.id for author in authors],
-            "authors": AuthorSerializer(
-                authors,
-                context={"request": self.request},
-                many=True,
-            ).data,
-            "image": proposal.image,
-            "preview_img": proposal.preview_img,
-            "proposal_id": proposal.id,
-            "hub_ids": hub_ids,
-            "hubs": hub_data,
-        }
-
-    def get_registered_report_authors(self, proposal: ResearchhubPost) -> list[Author]:
-        """Return proposal authors for registered report defaults."""
-        authors = list(proposal.authors.all())
-        if authors:
-            return authors
-        if proposal.created_by is not None:
-            return [proposal.created_by.author_profile]
-        return []
 
     def validate_post_content(
         self, title: object, renderable_text: object
@@ -291,7 +215,14 @@ class ResearchhubPostViewSet(
         grant_amount = data.get("grant_amount")
         grant_id = data.get("grant_id")
 
-        if authors and request.user.author_profile.id not in authors:
+        if document_type == REGISTERED_REPORT and not request.user.moderator:
+            raise PermissionDenied("Only moderators can publish registered reports.")
+
+        if (
+            document_type != REGISTERED_REPORT
+            and authors
+            and request.user.author_profile.id not in authors
+        ):
             return Response(
                 {"msg": "You must include yourself in the authors list"},
                 status=400,
@@ -306,6 +237,7 @@ class ResearchhubPostViewSet(
                 created_by = request.user
                 journey_service = JourneyService()
                 registered_report_proposal = None
+                journal_entry_service = None
                 if document_type == REGISTERED_REPORT:
                     serializer = RegisteredReportPublishSerializer(data=data)
                     serializer.is_valid(raise_exception=True)
@@ -314,7 +246,6 @@ class ResearchhubPostViewSet(
                     )
                     registered_report_proposal = (
                         journal_entry_service.get_registered_report_proposal(
-                            created_by,
                             serializer.validated_data["proposal_id"],
                         )
                     )
@@ -332,7 +263,7 @@ class ResearchhubPostViewSet(
                         serializer.validated_data["full_json"],
                     )
                     if not authors:
-                        authors = self.get_registered_report_authors(
+                        authors = journal_entry_service.get_registered_report_authors(
                             registered_report_proposal
                         )
                     if image is None:
@@ -406,6 +337,7 @@ class ResearchhubPostViewSet(
                         registered_report_proposal.journey,
                         rh_post,
                     )
+                    journal_entry_service.register_registered_report_doi(rh_post)
 
                 fundraise = None
                 if goal_amount := data.get("fundraise_goal_amount"):
@@ -581,6 +513,8 @@ class ResearchhubPostViewSet(
 
         except serializers.ValidationError as e:
             return Response({"error": e.detail}, status=400)
+        except RegisteredReportDOIRegistrationError as error:
+            raise RegisteredReportDOIRegistrationFailed from error
         except ValueError as e:
             return Response({"error": str(e)}, status=400)
         except (KeyError, TypeError) as e:

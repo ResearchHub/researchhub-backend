@@ -12,8 +12,12 @@ from feed.models import FeedEntry
 from feed.serializers import ModeratorFeedEntrySerializer
 from feed.views.common import FeedPagination as BaseFeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
+from note.serializers import NoteSerializer
 from paper.related_models.paper_model import Paper
 from purchase.models import Grant
+from researchhub_document.serializers.researchhub_post_serializer import (
+    RegisteredReportDraftSerializer,
+)
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     PREREGISTRATION,
@@ -22,6 +26,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.journal_entry_service import JournalEntryService
 from user.permissions import IsModerator
 from user.related_models.risk_score_model import RiskScore
 
@@ -37,7 +42,7 @@ class ModeratorFeedPagination(BaseFeedPagination):
 
 
 class ModeratorFeedViewSet(FeedViewMixin, GenericViewSet):
-    """Moderator-only feeds: the moderation queue and its per-type counts.
+    """Moderator-only dashboard feeds for moderation and registered reports.
 
     Kept separate from the public ``FeedViewSet`` so moderator concerns never
     complicate the public feed. Access is enforced once at the class level.
@@ -104,6 +109,64 @@ class ModeratorFeedViewSet(FeedViewMixin, GenericViewSet):
                 "journal_entries": self._pending_papers_queryset().count(),
             }
         )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="registered_report_candidates",
+        url_name="registered-report-candidates",
+    )
+    def list_registered_report_candidates(self, request: Request) -> Response:
+        """Return eligible registered report proposals in the moderator feed shape."""
+        proposals = (
+            JournalEntryService()
+            .list_registered_report_candidates()
+            .select_related(
+                "created_by", "created_by__author_profile", "unified_document"
+            )
+            .prefetch_related("unified_document__hubs")
+            .order_by("-created_date")
+        )
+        page = self.paginate_queryset(proposals)
+        authors = [proposal.created_by for proposal in page]
+        feed_entries = [
+            self.build_unsaved_feed_entry(proposal, self._post_content_type, author)
+            for proposal, author in zip(page, authors)
+        ]
+        context = {
+            **self.get_serializer_context(),
+            "risk_score_by_user_id": self._risk_score_by_user_id(authors),
+        }
+        serializer = self.get_serializer(feed_entries, many=True, context=context)
+        return self.get_paginated_response(serializer.data)
+
+    @action(
+        detail=False,
+        methods=["post"],
+        permission_classes=[IsModerator],
+        url_path="create_registered_report_draft",
+    )
+    def create_registered_report_draft(self, request: Request) -> Response:
+        """Create a moderator-owned registered report notebook draft."""
+        serializer = RegisteredReportDraftSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            draft = JournalEntryService().create_registered_report_draft(
+                request.user,
+                serializer.validated_data["proposal_id"],
+            )
+        except ValueError as error:
+            return Response(
+                {"error": str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        response_data = NoteSerializer(draft.note, context={"request": request}).data
+        response_data["fundraise_id"] = draft.fundraise.id
+        response_data["journey_id"] = draft.journey.id
+        response_data["proposal_id"] = draft.proposal.id
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
     @staticmethod
     def _risk_score_by_user_id(authors: list[Any]) -> dict[int, int]:

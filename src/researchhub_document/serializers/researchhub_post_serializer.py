@@ -44,11 +44,10 @@ from utils.http import get_user_from_request
 logger = logging.getLogger(__name__)
 
 
-class JournalEntryAcceptSerializer(Serializer):
-    """Validate a journal entry acceptance request."""
+class RegisteredReportDraftSerializer(Serializer):
+    """Validate a moderator registered report draft request."""
 
-    fundraise_id = IntegerField()
-    user_id = IntegerField()
+    proposal_id = IntegerField()
 
 
 class RegisteredReportPublishSerializer(Serializer):
