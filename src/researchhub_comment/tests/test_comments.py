@@ -394,6 +394,9 @@ class CommentViewTests(APITestCase):
         ).last()
 
         self.assertEqual(notification.notification_type, Notification.BOUNTY_FOR_YOU)
+        self.assertEqual(
+            notification.extra["bounty_creator_id"], str(self.foundation.id)
+        )
 
     def test_do_not_notify_unqualified_users_about_bounty(self):
 
