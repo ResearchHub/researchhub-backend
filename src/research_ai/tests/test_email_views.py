@@ -521,6 +521,41 @@ class GeneratedEmailListViewTests(APITestCase):
         self.assertEqual(data["total"], 1)
         self.assertEqual(len(data["emails"]), 1)
         self.assertEqual(data["emails"][0]["expert_name"], "Dr. One")
+        self.assertEqual(data["emails"][0]["email_body"], "B1")
+        self.assertEqual(data["emails"][0]["sources"], [])
+
+    def test_get_includes_sources_from_search_expert(self):
+        search = _make_expert_search(self.moderator)
+        sources = [{"text": "Paper", "url": "https://doi.org/10.1/x"}]
+        expert = Expert.objects.create(
+            email="sourced@uni.edu",
+            first_name="Sourced",
+            last_name="Expert",
+            sources=sources,
+        )
+        SearchExpert.objects.create(
+            expert_search=search,
+            expert=expert,
+            position=0,
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=search,
+            expert_name="Sourced Expert",
+            expert_email="sourced@uni.edu",
+            email_subject="Hi",
+            email_body="Hello body",
+        )
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(self.url + f"?search_id={search.id}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["total"], 1)
+        row = data["emails"][0]
+        self.assertEqual(row["email_body"], "Hello body")
+        self.assertEqual(row["sources"], sources)
 
     def test_get_respects_limit_and_offset(self):
         for i in range(5):
@@ -646,6 +681,37 @@ class GeneratedEmailDetailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json()["id"], email.id)
         self.assertEqual(response.json()["expert_name"], "Dr. Test")
+        self.assertEqual(response.json()["email_body"], "Body")
+        self.assertEqual(response.json()["sources"], [])
+
+    def test_get_includes_sources_from_search_expert(self):
+        search = _make_expert_search(self.moderator)
+        sources = [{"text": "Profile", "url": "https://orcid.org/0000-0001-2345-6789"}]
+        expert = Expert.objects.create(
+            email="detail@uni.edu",
+            first_name="Detail",
+            last_name="Expert",
+            sources=sources,
+        )
+        SearchExpert.objects.create(
+            expert_search=search,
+            expert=expert,
+            position=0,
+        )
+        email = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_search=search,
+            expert_name="Detail Expert",
+            expert_email="DETAIL@uni.edu",
+            email_subject="Subj",
+            email_body="Detail body",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(f"/api/research_ai/expert-finder/emails/{email.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertEqual(body["email_body"], "Detail body")
+        self.assertEqual(body["sources"], sources)
 
     def test_get_includes_list_navigation_single_email_in_search(self):
         search = _make_expert_search(self.moderator)

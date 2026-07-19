@@ -808,6 +808,7 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
     created_at = serializers.DateTimeField(source="created_date", read_only=True)
     updated_at = serializers.DateTimeField(source="updated_date", read_only=True)
     proposal_invite_url = serializers.SerializerMethodField()
+    sources = serializers.SerializerMethodField()
 
     class Meta:
         model = GeneratedEmail
@@ -823,6 +824,7 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "expert_affiliation",
             "expert_email",
             "expertise",
+            "sources",
             "email_subject",
             "email_body",
             "template",
@@ -857,6 +859,29 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
         )
 
         return proposal_draft_invite_url(invitation)
+
+    def get_sources(self, obj):
+        email = ExpertDisplay.normalize_email(getattr(obj, "expert_email", "") or "")
+        search_id = getattr(obj, "expert_search_id", None)
+        if not search_id or not email:
+            return []
+
+        by_key = self.context.get("expert_sources_by_key")
+        if by_key is not None:
+            return by_key.get((search_id, email), [])
+
+        from research_ai.services.outreach.rfp_email_context import (
+            get_expert_for_search_by_email,
+        )
+
+        expert = get_expert_for_search_by_email(
+            getattr(obj, "expert_search", None),
+            email,
+        )
+        if expert is None:
+            return []
+        sources = expert.sources
+        return sources if isinstance(sources, list) else []
 
 
 class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):

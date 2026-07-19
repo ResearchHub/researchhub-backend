@@ -28,6 +28,7 @@ from research_ai.services.outreach.proposal_draft_outreach import (
     prepare_proposal_outreach,
 )
 from research_ai.services.outreach.rfp_email_context import (
+    build_expert_sources_map_for_emails,
     get_expert_for_search_by_email,
 )
 from research_ai.services.outreach.rfp_invite import invite_applicants
@@ -75,8 +76,17 @@ def _list_navigation_for_generated_email(email):
     }
 
 
+def _generated_email_serializer_context(emails):
+    return {
+        "expert_sources_by_key": build_expert_sources_map_for_emails(emails),
+    }
+
+
 def _generated_email_detail_response(email):
-    data = GeneratedEmailSerializer(email).data
+    data = GeneratedEmailSerializer(
+        email,
+        context=_generated_email_serializer_context([email]),
+    ).data
     data["list_navigation"] = _list_navigation_for_generated_email(email)
     return data
 
@@ -399,7 +409,11 @@ class GeneratedEmailListView(APIView):
                 qs = qs.filter(expert_search_id=sid)
         total = qs.count()
         items = list(qs[offset : offset + limit])
-        ser = GeneratedEmailSerializer(items, many=True)
+        ser = GeneratedEmailSerializer(
+            items,
+            many=True,
+            context=_generated_email_serializer_context(items),
+        )
         return Response(
             {
                 "emails": ser.data,

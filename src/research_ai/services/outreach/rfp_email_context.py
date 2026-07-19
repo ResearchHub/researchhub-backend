@@ -113,6 +113,36 @@ def get_expert_for_search_by_email(
     return se.expert
 
 
+def build_expert_sources_map_for_emails(
+    emails,
+) -> dict[tuple[int, str], list]:
+    """
+    Map ``(expert_search_id, normalized_email)`` → ``Expert.sources`` for the given
+    ``GeneratedEmail`` rows, using ``SearchExpert`` membership in those searches.
+    """
+    search_ids = {
+        email.expert_search_id
+        for email in emails
+        if email.expert_search_id and (email.expert_email or "").strip()
+    }
+    if not search_ids:
+        return {}
+
+    result: dict[tuple[int, str], list] = {}
+    qs = SearchExpert.objects.filter(expert_search_id__in=search_ids).select_related(
+        "expert"
+    )
+    for se in qs:
+        email = ExpertDisplay.normalize_email(getattr(se.expert, "email", "") or "")
+        if not email:
+            continue
+        sources = se.expert.sources
+        result[(se.expert_search_id, email)] = (
+            sources if isinstance(sources, list) else []
+        )
+    return result
+
+
 def resolve_grant(*, expert_search: ExpertSearch | None = None):
     """
     Resolve a Grant from expert_search's unified_document.

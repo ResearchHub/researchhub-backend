@@ -440,6 +440,32 @@ class GeneratedEmailSerializerTests(TestCase):
         ser = GeneratedEmailSerializer(email)
         self.assertEqual(ser.data["expert_name"], "Dr. Foo")
         self.assertEqual(ser.data["expert_email"], "foo@bar.com")
+        self.assertEqual(ser.data["email_body"], "Body")
+        self.assertEqual(ser.data["sources"], [])
+
+    def test_serialize_includes_sources_from_search_expert(self):
+        sources = [{"text": "Keep", "url": "https://keep.example"}]
+        expert = Expert.objects.create(
+            email="foo@bar.com",
+            first_name="Foo",
+            last_name="Bar",
+            sources=sources,
+        )
+        SearchExpert.objects.create(
+            expert_search=self.search,
+            expert=expert,
+            position=0,
+        )
+        email = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_search=self.search,
+            expert_name="Dr. Foo",
+            expert_email="foo@bar.com",
+            email_subject="Hi",
+            email_body="Body",
+        )
+        ser = GeneratedEmailSerializer(email)
+        self.assertEqual(ser.data["sources"], sources)
 
     def test_created_by_payload_has_user_id_and_author_key(self):
         email = GeneratedEmail.objects.create(
