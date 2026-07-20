@@ -35,7 +35,6 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
                     "discussion_count",
                     "file",
                     "first_preview",
-                    "hot_score",
                     "id",
                     "external_source",
                     "paper_publish_date",
