@@ -19,10 +19,10 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
     REGISTERED_REPORT,
 )
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.services.journey_service import JourneyService
 from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.related_models.risk_score_model import RiskScore
@@ -194,7 +194,7 @@ class RegisteredReportCandidateFeedTests(TestCase):
         """Verify the dashboard only returns actionable registered report proposals."""
         # Arrange
         candidate = self._create_proposal("candidate")
-        self._create_completed_fundraise(candidate, Decimal("100"))
+        self._create_completed_fundraise(candidate, 100)
         self._create_completed_fundraise(
             self._create_proposal("unfunded"),
             Decimal(0),
@@ -202,10 +202,10 @@ class RegisteredReportCandidateFeedTests(TestCase):
         self._create_fundraise(
             self._create_proposal("open"),
             Fundraise.OPEN,
-            Decimal("100"),
+            100,
         )
         reported = self._create_proposal("reported")
-        fundraise = self._create_completed_fundraise(reported, Decimal("100"))
+        fundraise = self._create_completed_fundraise(reported, 100)
         journey = self.journey_service.include_completed_fundraise_in_journal(fundraise)
         report = create_post(
             created_by=self.author,

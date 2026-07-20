@@ -15,9 +15,6 @@ from feed.views.feed_view_mixin import FeedViewMixin
 from note.serializers import NoteSerializer
 from paper.related_models.paper_model import Paper
 from purchase.models import Grant
-from researchhub_document.serializers.researchhub_post_serializer import (
-    RegisteredReportDraftSerializer,
-)
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     PREREGISTRATION,
@@ -25,6 +22,9 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
+)
+from researchhub_document.serializers.researchhub_post_serializer import (
+    RegisteredReportDraftSerializer,
 )
 from researchhub_document.services.journal_entry_service import JournalEntryService
 from user.permissions import IsModerator

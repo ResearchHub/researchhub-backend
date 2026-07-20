@@ -204,9 +204,7 @@ class CreateRegisteredReportTests(APITestCase):
         # Assert
         self.assertEqual(publish_response.status_code, status.HTTP_200_OK)
         report = ResearchhubPost.objects.get(id=publish_response.data["id"])
-        note_content_count = NoteContent.objects.filter(
-            note=draft.note
-        ).count()
+        note_content_count = NoteContent.objects.filter(note=draft.note).count()
 
         # Act
         note_response = self.client.post(

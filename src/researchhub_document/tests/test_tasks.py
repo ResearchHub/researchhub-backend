@@ -10,6 +10,7 @@ from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
+    REGISTERED_REPORT,
 )
 from researchhub_document.tasks import (
     assign_preregistration_dois,

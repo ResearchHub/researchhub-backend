@@ -103,9 +103,7 @@ class JournalEntryService:
             unified_document__status=ResearchhubUnifiedDocument.APPROVED,
         ).filter(Exists(funded_fundraises), ~Exists(registered_reports))
 
-    def get_registered_report_authors(
-        self, proposal: ResearchhubPost
-    ) -> list[Author]:
+    def get_registered_report_authors(self, proposal: ResearchhubPost) -> list[Author]:
         """Return proposal authors or its creator for a registered report."""
         authors = list(proposal.authors.all())
         if authors:
