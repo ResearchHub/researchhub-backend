@@ -1,10 +1,9 @@
 import logging
 from datetime import timedelta
 
-from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
-from researchhub.celery import QUEUE_HOT_SCORE, QUEUE_PAPER_MISC, app
+from researchhub.celery import QUEUE_PAPER_MISC, app
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
@@ -51,12 +50,8 @@ def assign_preregistration_dois() -> None:
                 )
         except Exception:
             logger.exception(f"Failed to assign DOI to post {post.id}")
-
-    logger.info(
-        "Assigned DOIs to %s/%s eligible preregistrations",
-        assigned_count,
-        total,
-    )
+ 
+    logger.info(f"Assigned DOIs to {assigned_count}/{total} eligible preregistrations")
 
 
 @app.task(queue=QUEUE_HOT_SCORE)

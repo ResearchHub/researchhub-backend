@@ -1,48 +1,13 @@
 import logging
 
-from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from discussion.models import Vote
 from paper.models import Paper
-from reputation.related_models.bounty import Bounty
-from reputation.related_models.contribution import Contribution
 from researchhub_comment.models import RhCommentModel
-from researchhub_document.tasks import recalc_hot_score_task
 
 logger = logging.getLogger(__name__)
-
-
-@receiver(post_save, sender=Vote, dispatch_uid="recalc_hot_score_on_vote")
-def recalc_hot_score(instance, sender, **kwargs):
-    try:
-        recalc_hot_score_task.apply_async(
-            (
-                instance.content_type_id,
-                instance.object_id,
-            ),
-            priority=2,
-            countdown=5,
-        )
-    except Exception:
-        logger.exception("Failed to recalculate hot score for vote %s", instance.id)
-
-
-@receiver(post_save, sender=RhCommentModel, dispatch_uid="recalc_hot_score_on_comment")
-@receiver(
-    post_save, sender=Contribution, dispatch_uid="recalc_hot_score_on_contribution"
-)
-@receiver(post_save, sender=Bounty, dispatch_uid="recalc_hot_score_on_bounty")
-def recalc_hot_score_on_instance(instance, **kwargs):
-    try:
-        recalc_hot_score_task.apply_async(
-            (ContentType.objects.get_for_model(instance).id, instance.id),
-            priority=2,
-            countdown=5,
-        )
-    except Exception:
-        logger.exception("Failed to recalculate hot score for instance %s", instance.id)
 
 
 @receiver(

@@ -263,12 +263,6 @@ class Paper(AbstractGenericReactionModel):
             )
         ]
 
-    @property
-    def hot_score(self):
-        if self.unified_document is None:
-            return self.score
-        return self.unified_document.hot_score
-
     def raw_author_count(self):
         raw_author_count = 0
 

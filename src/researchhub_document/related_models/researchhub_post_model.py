@@ -246,12 +246,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
     def is_removed(self):
         return self.unified_document.is_removed
 
-    @property
-    def hot_score(self):
-        if not hasattr(self, "unified_document") or self.unified_document is None:
-            return 0
-        return self.unified_document.hot_score
-
     def get_document_slug_type(self):
         if self.document_type == "BOUNTY":
             return "bounty"
