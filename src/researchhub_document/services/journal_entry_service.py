@@ -60,11 +60,11 @@ class JournalEntryService:
 
     @transaction.atomic
     def create_registered_report_draft(
-        self, moderator: User, proposal_id: int
+        self, creator: User, proposal_id: int
     ) -> RegisteredReportDraft:
-        """Create a moderator-owned draft from an eligible proposal."""
+        """Create an editor- or moderator-owned draft from an eligible proposal."""
         proposal, fundraise, journey = self._get_registered_report_context(proposal_id)
-        note = self._create_registered_report_note(moderator, proposal)
+        note = self._create_registered_report_note(creator, proposal)
         return RegisteredReportDraft(
             fundraise=fundraise,
             journey=journey,
@@ -138,11 +138,11 @@ class JournalEntryService:
         report.save(update_fields=["doi"])
 
     def get_registered_report_note(
-        self, moderator: User, note_id: int, proposal: ResearchhubPost
+        self, creator: User, note_id: int, proposal: ResearchhubPost
     ) -> Note:
-        """Return the moderator's unpublished draft for the requested proposal."""
+        """Return the creator's unpublished draft for the requested proposal."""
         note = Note.objects.filter(
-            created_by=moderator,
+            created_by=creator,
             document_type=REGISTERED_REPORT,
             id=note_id,
             unified_document__is_removed=False,
@@ -217,21 +217,21 @@ class JournalEntryService:
         raise ValueError("Proposal is not funded.")
 
     def _create_registered_report_note(
-        self, moderator: User, proposal: ResearchhubPost
+        self, creator: User, proposal: ResearchhubPost
     ) -> Note:
-        """Create a private moderator-owned report note from a proposal."""
+        """Create a private editor- or moderator-owned report note from a proposal."""
         unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type=NOTE,
         )
         unified_document.hubs.set(proposal.unified_document.hubs.all())
         note = Note.objects.create(
-            created_by=moderator,
+            created_by=creator,
             document_type=REGISTERED_REPORT,
-            organization=moderator.organization,
+            organization=creator.organization,
             title=f"Registered Report: {proposal.title}",
             unified_document=unified_document,
         )
-        self._create_private_permissions(moderator, unified_document)
+        self._create_private_permissions(creator, unified_document)
         NoteContent.objects.create(
             note=note,
             json=self._get_proposal_note_json(proposal),
@@ -292,20 +292,20 @@ class JournalEntryService:
         return paragraph
 
     def _create_private_permissions(
-        self, moderator: User, unified_document: ResearchhubUnifiedDocument
+        self, creator: User, unified_document: ResearchhubUnifiedDocument
     ) -> None:
-        """Grant the moderator private admin access to a note document."""
+        """Grant the creator private admin access to a note document."""
         content_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
         Permission.objects.create(
             access_type=ADMIN,
             content_type=content_type,
             object_id=unified_document.id,
-            user=moderator,
+            user=creator,
         )
         Permission.objects.create(
             access_type=NO_ACCESS,
             content_type=content_type,
             object_id=unified_document.id,
-            organization=moderator.organization,
-            user=moderator,
+            organization=creator.organization,
+            user=creator,
         )

@@ -28,7 +28,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from researchhub_document.services.journey_service import JourneyService
 from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.related_models.risk_score_model import RiskScore
-from user.tests.helpers import create_random_default_user
+from user.tests.helpers import create_hub_editor, create_random_default_user
 
 
 class PendingModerationFeedTests(TestCase):
@@ -126,7 +126,8 @@ class PendingModerationFeedTests(TestCase):
         self.assertEqual(scores[authors[1].id], 20)
         self.assertNotIn(authors[2].id, scores)
 
-    def test_non_moderator_cannot_access_pending_moderation(self):
+    def test_rejects_regular_users_from_pending_moderation(self) -> None:
+        """Verify regular users cannot access the pending moderation dashboard."""
         # Arrange
         regular = create_random_default_user("regular")
         self.client.force_authenticate(user=regular)
@@ -136,6 +137,18 @@ class PendingModerationFeedTests(TestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_allows_hub_editors_to_access_pending_moderation(self) -> None:
+        """Verify hub editors can access the pending moderation dashboard."""
+        # Arrange
+        editor, _ = create_hub_editor("pending_moderation_editor", "Editor Hub")
+        self.client.force_authenticate(user=editor)
+
+        # Act
+        response = self.client.get(self.url, {"content_type": "PREREGISTRATION"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 class PendingModerationCountsTests(TestCase):
@@ -232,7 +245,7 @@ class RegisteredReportCandidateFeedTests(TestCase):
             {candidate.id},
         )
 
-    def test_rejects_non_moderators(self) -> None:
+    def test_rejects_regular_users(self) -> None:
         """Verify regular users cannot view registered report candidates."""
         # Arrange
         self.client.force_authenticate(user=self.author)
@@ -242,6 +255,18 @@ class RegisteredReportCandidateFeedTests(TestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_allows_hub_editors_to_view_registered_report_candidates(self) -> None:
+        """Verify hub editors can view registered report candidates."""
+        # Arrange
+        editor, _ = create_hub_editor("candidate_editor", "Candidate Editor Hub")
+        self.client.force_authenticate(user=editor)
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def _create_proposal(self, title: str) -> ResearchhubPost:
         """Create an approved proposal owned by the test author."""

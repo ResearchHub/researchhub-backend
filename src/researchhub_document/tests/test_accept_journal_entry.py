@@ -22,7 +22,7 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.services.journey_service import JourneyService
 from user.models import User
-from user.tests.helpers import create_random_default_user
+from user.tests.helpers import create_hub_editor, create_random_default_user
 
 
 class CreateRegisteredReportDraftTests(APITestCase):
@@ -138,6 +138,26 @@ class CreateRegisteredReportDraftTests(APITestCase):
             proposal.id,
         )
         self.assertTrue(proposal.journey.is_in_journal)
+
+    def test_allows_hub_editors_to_create_registered_report_drafts(self) -> None:
+        """Verify hub editors can create registered report drafts."""
+        # Arrange
+        proposal = self._create_proposal(self.user)
+        self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
+        editor, _ = create_hub_editor("journal_entry_editor", "Editor Hub")
+        self.client.force_authenticate(editor)
+
+        # Act
+        response = self.client.post(
+            self.draft_url,
+            self._build_draft_payload(proposal),
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        note = Note.objects.get(id=response.data["id"])
+        self.assertEqual(note.created_by, editor)
 
     def test_preserves_proposal_note_json_in_registered_report_draft(self) -> None:
         """Verify a draft preserves structured proposal notebook content."""
@@ -350,7 +370,7 @@ class CreateRegisteredReportDraftTests(APITestCase):
             0,
         )
 
-    def test_rejects_non_moderator(self) -> None:
+    def test_rejects_regular_users(self) -> None:
         """Verify proposal owners cannot create registered report drafts."""
         # Arrange
         proposal = self._create_proposal(self.user)

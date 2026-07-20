@@ -27,7 +27,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
     RegisteredReportDraftSerializer,
 )
 from researchhub_document.services.journal_entry_service import JournalEntryService
-from user.permissions import IsModerator
+from user.permissions import IsModerator, UserIsEditor
 from user.related_models.risk_score_model import RiskScore
 
 
@@ -42,15 +42,16 @@ class ModeratorFeedPagination(BaseFeedPagination):
 
 
 class ModeratorFeedViewSet(FeedViewMixin, GenericViewSet):
-    """Moderator-only dashboard feeds for moderation and registered reports.
+    """Moderator and editor dashboard feeds for moderation and registered reports.
 
     Kept separate from the public ``FeedViewSet`` so moderator concerns never
-    complicate the public feed. Access is enforced once at the class level.
+    complicate the public feed. Moderators and hub editors share access to this
+    workflow, which is enforced once at the class level.
     """
 
     queryset = FeedEntry.objects.none()
     serializer_class = ModeratorFeedEntrySerializer
-    permission_classes = [IsModerator]
+    permission_classes = [UserIsEditor | IsModerator]
     pagination_class = ModeratorFeedPagination
 
     def get_serializer_context(self) -> dict[str, Any]:
@@ -91,8 +92,8 @@ class ModeratorFeedViewSet(FeedViewMixin, GenericViewSet):
     def pending_moderation_counts(self, request: Request) -> Response:
         """Return counts of works awaiting moderation, grouped by tab.
 
-        Mirrors the pending queue querysets so tab badges match the rows the
-        moderator can load. Grants gate on ``Grant.status``.
+        Mirrors the pending queue querysets so tab badges match the rows
+        moderators and editors can load. Grants gate on ``Grant.status``.
         """
         post_counts = dict(
             self._pending_posts_queryset(
@@ -143,11 +144,11 @@ class ModeratorFeedViewSet(FeedViewMixin, GenericViewSet):
     @action(
         detail=False,
         methods=["post"],
-        permission_classes=[IsModerator],
+        permission_classes=[UserIsEditor | IsModerator],
         url_path="create_registered_report_draft",
     )
     def create_registered_report_draft(self, request: Request) -> Response:
-        """Create a moderator-owned registered report notebook draft."""
+        """Create an editor- or moderator-owned registered report notebook draft."""
         serializer = RegisteredReportDraftSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
