@@ -185,24 +185,6 @@ class ResearchhubUnifiedDocument(
 
         return f"{BASE_FRONTEND_URL}/{doc_url}/{doc.id}/{doc.slug}"
 
-    def get_client_doc_type(self):
-        if self.document_type == PAPER:
-            return "paper"
-        elif self.document_type == DISCUSSION:
-            return "post"
-        elif self.document_type == PREREGISTRATION:
-            return "preregistration"
-        elif self.document_type == GRANT:
-            return "grant"
-        elif self.document_type == QUESTION:
-            return "question"
-        elif self.document_type == NOTE:
-            return "note"
-        elif self.document_type == BOUNTY:
-            return "bounty"
-        else:
-            raise Exception(f"Unrecognized document_type: {self.document_type}")
-
     def get_hub_names(self):
         return ",".join(self.hubs.values_list("name", flat=True))
 
