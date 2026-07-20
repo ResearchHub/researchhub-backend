@@ -10,7 +10,9 @@ from rest_framework.test import APIClient, APIRequestFactory
 from feed.serializers import FeedEntrySerializer, ModeratorFeedEntrySerializer
 from feed.views.moderator_feed_view import ModeratorFeedViewSet
 from paper.tests.helpers import create_paper
-from purchase.models import Fundraise, Grant
+from purchase.models import Fundraise, Grant, RscExchangeRate
+from purchase.related_models.constants.currency import USD
+from purchase.related_models.constants.rsc_exchange_currency import MORALIS
 from reputation.models import Escrow
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
@@ -189,6 +191,12 @@ class RegisteredReportCandidateFeedTests(TestCase):
         self.client.force_authenticate(user=self.moderator)
         self.url = reverse("moderator_feed-registered-report-candidates")
         self.journey_service = JourneyService()
+        RscExchangeRate.objects.create(
+            price_source=MORALIS,
+            rate=3.0,
+            real_rate=3.0,
+            target_currency=USD,
+        )
 
     def test_returns_only_funded_completed_proposals_without_reports(self) -> None:
         """Verify the dashboard only returns actionable registered report proposals."""
