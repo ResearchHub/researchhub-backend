@@ -19,6 +19,7 @@ from research_ai.serializers import (
     InviteRfpApplicantsSerializer,
     PreviewEmailRequestSerializer,
     SendEmailRequestSerializer,
+    build_expert_sources_map_for_emails,
 )
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
@@ -28,7 +29,6 @@ from research_ai.services.outreach.proposal_draft_outreach import (
     prepare_proposal_outreach,
 )
 from research_ai.services.outreach.rfp_email_context import (
-    build_expert_sources_map_for_emails,
     get_expert_for_search_by_email,
 )
 from research_ai.services.outreach.rfp_invite import invite_applicants

@@ -29,6 +29,9 @@ from research_ai.services.outreach.outreach_history import (
     ExpertOutreachHistory,
     build_expert_outreach_history_map,
 )
+from research_ai.services.outreach.rfp_email_context import (
+    get_expert_for_search_by_email,
+)
 from research_ai.utils import trimmed_str
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import ResearchhubPostSerializer
@@ -803,6 +806,36 @@ class InviteRfpApplicantsSerializer(serializers.Serializer):
     )
 
 
+def build_expert_sources_map_for_emails(
+    emails,
+) -> dict[tuple[int, str], list]:
+    """
+    Map ``(expert_search_id, normalized_email)`` → ``Expert.sources`` for the given
+    ``GeneratedEmail`` rows, using ``SearchExpert`` membership in those searches.
+    """
+    search_ids = {
+        email.expert_search_id
+        for email in emails
+        if email.expert_search_id and (email.expert_email or "").strip()
+    }
+    if not search_ids:
+        return {}
+
+    result: dict[tuple[int, str], list] = {}
+    qs = SearchExpert.objects.filter(expert_search_id__in=search_ids).select_related(
+        "expert"
+    )
+    for se in qs:
+        email = ExpertDisplay.normalize_email(getattr(se.expert, "email", "") or "")
+        if not email:
+            continue
+        sources = se.expert.sources
+        result[(se.expert_search_id, email)] = (
+            sources if isinstance(sources, list) else []
+        )
+    return result
+
+
 class GeneratedEmailSerializer(serializers.ModelSerializer):
     created_by = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(source="created_date", read_only=True)
@@ -869,10 +902,6 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
         by_key = self.context.get("expert_sources_by_key")
         if by_key is not None:
             return by_key.get((search_id, email), [])
-
-        from research_ai.services.outreach.rfp_email_context import (
-            get_expert_for_search_by_email,
-        )
 
         expert = get_expert_for_search_by_email(
             getattr(obj, "expert_search", None),
