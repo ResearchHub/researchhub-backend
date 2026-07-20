@@ -194,7 +194,7 @@ class RegisteredReportCandidateFeedTests(TestCase):
         """Verify the dashboard only returns actionable registered report proposals."""
         # Arrange
         candidate = self._create_proposal("candidate")
-        self._create_completed_fundraise(candidate, 100)
+        self._create_completed_fundraise(candidate, Decimal(100))
         self._create_completed_fundraise(
             self._create_proposal("unfunded"),
             Decimal(0),
@@ -202,10 +202,10 @@ class RegisteredReportCandidateFeedTests(TestCase):
         self._create_fundraise(
             self._create_proposal("open"),
             Fundraise.OPEN,
-            100,
+            Decimal(100),
         )
         reported = self._create_proposal("reported")
-        fundraise = self._create_completed_fundraise(reported, 100)
+        fundraise = self._create_completed_fundraise(reported, Decimal(100))
         journey = self.journey_service.include_completed_fundraise_in_journal(fundraise)
         report = create_post(
             created_by=self.author,
