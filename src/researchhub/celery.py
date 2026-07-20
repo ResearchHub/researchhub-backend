@@ -19,7 +19,6 @@ app.autodiscover_tasks()
 # Queues
 QUEUE_AGENTS = "agents"
 QUEUE_CACHES = "caches"
-QUEUE_HOT_SCORE = "hot_score"
 QUEUE_ELASTIC_SEARCH = "elastic_search"
 QUEUE_EXTERNAL_REPORTING = "external_reporting"
 QUEUE_NOTIFICATION = "notifications"
