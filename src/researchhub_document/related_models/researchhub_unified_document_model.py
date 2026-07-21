@@ -392,22 +392,6 @@ class ResearchhubUnifiedDocument(
             Q(comment_type=PEER_REVIEW) | Q(comment_type=COMMUNITY_REVIEW)
         )
 
-    def get_regular_comments(self):
-        """
-        Get all regular comments (excluding peer reviews).
-
-        Returns:
-            QuerySet of RhCommentModel instances
-        """
-        from researchhub_comment.constants.rh_comment_thread_types import (
-            COMMUNITY_REVIEW,
-            PEER_REVIEW,
-        )
-
-        return self.get_all_comments().exclude(
-            Q(comment_type=PEER_REVIEW) | Q(comment_type=COMMUNITY_REVIEW)
-        )
-
     def get_comment_upvote_sum(self):
         """
         Get sum of all upvotes on comments.
