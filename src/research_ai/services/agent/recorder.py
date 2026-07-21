@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Protocol
 from research_ai.services.agent.types import AssistantTurn, Message
 
 if TYPE_CHECKING:
-    from research_ai.services.agent.errors import AgentRunError
     from research_ai.services.agent.loop import AgentResult
 
 
@@ -40,6 +39,6 @@ class AgentRecorder(Protocol):
         """The run completed; every message was already recorded."""
         ...
 
-    def on_run_failed(self, error: AgentRunError) -> None:
+    def on_run_failed(self, error: Exception) -> None:
         """The run failed; every message up to the failure was recorded."""
         ...

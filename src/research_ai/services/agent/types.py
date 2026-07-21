@@ -7,8 +7,9 @@ them from) its own wire format. Keeping the core neutral is what lets a later
 PR run the same conversation through multiple providers (e.g. a judge panel).
 
 Every block carries a ``type`` discriminator and is JSON round-trippable via
-``serialize_messages`` / ``deserialize_messages`` -- that JSON shape is exactly
-what a future ``AgentMessage.JSONField`` will persist. No Django models here.
+``serialize_messages`` / ``deserialize_messages``. Unknown additive block types
+round-trip as ``UnknownBlock`` so older workers can inspect newer traces without
+discarding data. No Django models live here.
 
 Id-correlation invariant: a ``ToolUseBlock.id`` emitted by the assistant is
 echoed back as the ``ToolResultBlock.tool_use_id`` of its result. Adapters must
@@ -60,8 +61,19 @@ class ToolResultBlock:
     type: str = "tool_result"
 
 
-# A content block is one of the three block types above.
-Block = TextBlock | ToolUseBlock | ToolResultBlock
+@dataclass(frozen=True)
+class UnknownBlock:
+    """Opaque future protocol block preserved across persistence round trips."""
+
+    raw: dict
+
+    @property
+    def type(self) -> str:
+        return str(self.raw.get("type") or "unknown")
+
+
+# Unknown blocks are retained rather than making old readers reject new data.
+Block = TextBlock | ToolUseBlock | ToolResultBlock | UnknownBlock
 
 
 @dataclass(frozen=True)
@@ -127,6 +139,8 @@ def _serialize_block(block: Block) -> dict:
             "content": block.content,
             "is_error": block.is_error,
         }
+    if isinstance(block, UnknownBlock):
+        return dict(block.raw)
     raise TypeError(f"unserializable block: {block!r}")
 
 
@@ -142,7 +156,7 @@ def _deserialize_block(data: dict) -> Block:
             content=data["content"],
             is_error=data.get("is_error", False),
         )
-    raise ValueError(f"unknown block type: {block_type!r}")
+    return UnknownBlock(raw=dict(data))
 
 
 def serialize_messages(messages: list[Message]) -> list[dict]:

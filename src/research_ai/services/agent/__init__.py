@@ -3,8 +3,9 @@
 Public surface:
 
 - Neutral types: ``Message``, ``TextBlock``, ``ToolUseBlock``,
-  ``ToolResultBlock``, ``AssistantTurn``, ``TurnUsage``, ``StopReason``, and
-  the ``serialize_messages`` / ``deserialize_messages`` helpers.
+  ``ToolResultBlock``, ``UnknownBlock``, ``AssistantTurn``, ``TurnUsage``,
+  ``StopReason``, and the ``serialize_messages`` / ``deserialize_messages``
+  helpers.
 - Tools: ``Tool``, ``Toolset``.
 - Providers: ``LLMProvider`` (ABC), ``BedrockProvider``.
 - Loop: ``Agent``, ``AgentResult``.
@@ -37,6 +38,7 @@ from research_ai.services.agent.types import (
     ToolResultBlock,
     ToolUseBlock,
     TurnUsage,
+    UnknownBlock,
     deserialize_messages,
     serialize_messages,
 )
@@ -61,6 +63,7 @@ __all__ = [
     "ToolUseBlock",
     "Toolset",
     "TurnUsage",
+    "UnknownBlock",
     "deserialize_messages",
     "serialize_messages",
 ]

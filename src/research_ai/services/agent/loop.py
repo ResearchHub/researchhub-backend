@@ -166,6 +166,10 @@ class Agent:
             exc.messages = messages
             exc.iterations = iteration - 1
             raise
+        except InterruptedError:
+            # Preserve an explicit interruption so persistence can distinguish
+            # it from an ordinary provider failure.
+            raise
         except Exception as exc:
             # A provider that leaks a foreign exception still surfaces as
             # the typed contract, transcript attached.
@@ -208,6 +212,12 @@ class Agent:
         except AgentRunError as error:
             # Every message up to the failure was already recorded as it was
             # appended; this only marks the terminal outcome.
+            self._record("on_run_failed", error)
+            raise
+        except Exception as error:
+            # Setup/core failures outside the typed provider contract (for
+            # example tool-spec rendering) must also terminate an observational
+            # execution instead of leaving it permanently RUNNING.
             self._record("on_run_failed", error)
             raise
         self._record("on_run_finished", result)

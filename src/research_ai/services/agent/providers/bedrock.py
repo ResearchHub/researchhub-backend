@@ -22,6 +22,7 @@ from research_ai.services.agent.types import (
     ToolResultBlock,
     ToolUseBlock,
     TurnUsage,
+    UnknownBlock,
 )
 from utils.aws import bedrock_runtime_client
 
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 # Default generator model. Bedrock requires the cross-region inference profile
 # (the ``us.`` prefix); the bare ``anthropic.claude-opus-4-8`` is provisioned-
 # throughput only. Override per environment via RESEARCH_AI_GENERATOR_MODEL_ID.
-_DEFAULT_MODEL_ID = "us.anthropic.claude-opus-4-8"
+DEFAULT_MODEL_ID = "us.anthropic.claude-opus-4-8"
 
 # Opus 4.7+ and Fable reject sampling params (temperature/top_p/top_k) with a
 # 400 ("`temperature` is deprecated for this model"). Match by substring so the
@@ -57,10 +58,14 @@ _STOP_REASONS = {
 class BedrockProvider(LLMProvider):
     """Adapts the neutral agent types to the Bedrock Converse API."""
 
+    default_model_id = DEFAULT_MODEL_ID
+
     def __init__(self, *, client: Any = None, model_id: str | None = None):
         self._client = client or bedrock_runtime_client()
-        self.model_id = model_id or getattr(
-            settings, "RESEARCH_AI_GENERATOR_MODEL_ID", _DEFAULT_MODEL_ID
+        self.model_id = (
+            model_id
+            or getattr(settings, "RESEARCH_AI_GENERATOR_MODEL_ID", None)
+            or DEFAULT_MODEL_ID
         )
         # Prompt caching is the dominant cost lever for this uncached, ever-growing
         # tool loop: the tools+system prefix is byte-identical every turn and the
@@ -173,6 +178,12 @@ class BedrockProvider(LLMProvider):
             if block.is_error:
                 tool_result["status"] = "error"
             return {"toolResult": tool_result}
+        if isinstance(block, UnknownBlock):
+            # Preserve resumability when a newer protocol wrote a block this
+            # adapter does not understand yet. The raw block remains in the DB;
+            # the provider receives an explicit placeholder instead of an
+            # invalid wire object.
+            return {"text": f"[Unsupported historical block: {block.type}]"}
         raise TypeError(f"unrenderable block: {block!r}")
 
     def _parse_turn(self, response: dict) -> AssistantTurn:
