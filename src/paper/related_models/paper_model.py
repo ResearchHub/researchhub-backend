@@ -250,18 +250,6 @@ class Paper(AbstractGenericReactionModel):
     def created_by(self):
         return self.uploaded_by
 
-    @property
-    def users_to_notify(self):
-        return [
-            author.user
-            for author in self.authors.all()
-            if (
-                author.user
-                and author.user.emailrecipient.paper_subscription.threads
-                and not author.user.emailrecipient.paper_subscription.none
-            )
-        ]
-
     def raw_author_count(self):
         raw_author_count = 0
 
