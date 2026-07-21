@@ -1,4 +1,6 @@
 name: Continuous Integration
+run-name: Deploy to ${{ github.event.inputs.deploy_env || 'staging' }} (${{ github.event.inputs.git_ref || 'main' }})
+
 
 on:
   workflow_run:
