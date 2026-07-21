@@ -172,19 +172,6 @@ class ResearchhubUnifiedDocument(
             return author
         return Author.objects.none()
 
-    def get_url(self):
-        if self.document_type == PAPER:
-            doc_url = "paper"
-        elif self.document_type == DISCUSSION:
-            doc_url = "post"
-        else:
-            # TODO: fill this with proper url for other doc types
-            return None
-
-        doc = self.get_document()
-
-        return f"{BASE_FRONTEND_URL}/{doc_url}/{doc.id}/{doc.slug}"
-
     def get_hub_names(self):
         return ",".join(self.hubs.values_list("name", flat=True))
 
