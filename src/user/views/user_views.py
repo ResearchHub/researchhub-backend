@@ -74,7 +74,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
             return self.serializer_class
 
     def get_serializer_context(self):
-        return {"get_subscribed": True, "get_balance": True, "user": self.request.user}
+        return {"get_balance": True, "user": self.request.user}
 
     def get_queryset(self):
         # TODO: Remove this override
