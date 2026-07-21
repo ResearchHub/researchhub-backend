@@ -139,10 +139,7 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
             return Response(cached)
 
         days = HISTORY_RANGE_DAYS[range_param]
-        if days is None:
-            start_date = None
-        else:
-            start_date = date_cls.today() - timedelta(days=days)
+        start_date = None if days is None else date_cls.today() - timedelta(days=days)
 
         rows = StakingYieldService.build_history(start_date=start_date, end_date=None)
         data = {
