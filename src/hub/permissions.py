@@ -2,7 +2,7 @@ from rest_framework.permissions import BasePermission
 
 from user.constants.gatekeeper_constants import PERMISSIONS_DASH
 from user.related_models.gatekeeper_model import Gatekeeper
-from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
+from utils.permissions import RuleBasedPermission
 
 
 class CreateHub(RuleBasedPermission):
@@ -26,20 +26,6 @@ class UpdateHub(RuleBasedPermission):
             )
         else:
             return True
-
-
-class IsSubscribed(AuthorizationBasedPermission):
-    message = "Must be subscribed."
-
-    def is_authorized(self, request, view, obj):
-        return request.user in obj.subscribers.all()
-
-
-class IsNotSubscribed(AuthorizationBasedPermission):
-    message = "Must not be subscribed."
-
-    def is_authorized(self, request, view, obj):
-        return request.user not in obj.subscribers.all()
 
 
 class IsModerator(BasePermission):
