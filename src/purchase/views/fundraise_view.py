@@ -188,10 +188,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                 )
 
         # Convert amount to appropriate type
-        if amount_currency == USD:
-            amount = int(amount)
-        else:
-            amount = Decimal(amount)
+        amount = int(amount) if amount_currency == USD else Decimal(amount)
 
         # Create contribution via service
         _, error = self.fundraise_service.create_contribution(

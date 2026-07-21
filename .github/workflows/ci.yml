@@ -1,4 +1,6 @@
 name: Continuous Integration
+run-name: Deploy to ${{ github.event.inputs.deploy_env || 'staging' }} (${{ github.event.inputs.git_ref || 'main' }})
+
 
 on:
   workflow_run:
@@ -153,7 +155,7 @@ jobs:
           create-application-if-not-exists: false
           create-environment-if-not-exists: false
           create-s3-bucket-if-not-exists: true
-          deployment-timeout: 900
+          deployment-timeout: 1800
           max-retries: 5
 
   deploy-workers:

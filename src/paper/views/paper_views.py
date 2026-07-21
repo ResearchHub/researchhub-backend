@@ -821,18 +821,18 @@ class PaperViewSet(
                     rh_author_last_name = (rh_author.last_name or "").lower()
 
                     if (
-                        rh_author_first_name == openalex_author_name[0]
-                        and rh_author_last_name == openalex_author_name[-1]
-                    ):
-                        found_openalex_author = openalex_author
-                    elif (
-                        found_openalex_author is None
-                        and rh_author_last_name == openalex_author_name[0]
-                    ):
-                        found_openalex_author = openalex_author
-                    elif (
-                        found_openalex_author is None
-                        and rh_author_first_name == openalex_author_name[-1]
+                        (
+                            rh_author_first_name == openalex_author_name[0]
+                            and rh_author_last_name == openalex_author_name[-1]
+                        )
+                        or (
+                            found_openalex_author is None
+                            and rh_author_last_name == openalex_author_name[0]
+                        )
+                        or (
+                            found_openalex_author is None
+                            and rh_author_first_name == openalex_author_name[-1]
+                        )
                     ):
                         found_openalex_author = openalex_author
 

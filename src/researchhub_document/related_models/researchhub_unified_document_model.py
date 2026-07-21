@@ -19,7 +19,6 @@ from hub.models import Hub
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_access_group.models import Permission
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-from researchhub_document.hot_score_mixin import HotScoreMixin
 from researchhub_document.related_models.constants.document_type import (
     BOUNTY,
     DISCUSSION,
@@ -38,7 +37,7 @@ from utils.models import DefaultModel, ModeratedDocumentMixin, SoftDeletableMode
 
 
 class ResearchhubUnifiedDocument(
-    ModeratedDocumentMixin, SoftDeletableModel, HotScoreMixin, DefaultModel
+    ModeratedDocumentMixin, SoftDeletableModel, DefaultModel
 ):
     document_type = models.CharField(
         choices=DOCUMENT_TYPES,
@@ -52,9 +51,6 @@ class ResearchhubUnifiedDocument(
         default=0,
         db_index=True,
         help_text="Another feed ranking score.",
-    )
-    hot_score = models.IntegerField(
-        default=0, help_text="Feed ranking score.", db_index=True
     )
     permissions = GenericRelation(
         Permission,
@@ -111,9 +107,6 @@ class ResearchhubUnifiedDocument(
                 ),
             ),
             models.Index(
-                fields=["document_type", "-hot_score"], name="doc_type_hot_score_idx"
-            ),
-            models.Index(
                 fields=("document_type",),
                 name="uni_doc_cond_idx",
                 condition=Q(is_removed=False)
@@ -121,22 +114,8 @@ class ResearchhubUnifiedDocument(
                 & Q(document_filter__isnull=False),
             ),
             models.Index(
-                fields=[
-                    "is_removed",
-                    "document_type",
-                    "hot_score",
-                    "document_filter",
-                ],
-                name="idx_paper_filter_sort",
-                condition=Q(document_type="PAPER"),
-            ),
-            models.Index(
-                fields=["hot_score"],
-                name="idx_unified_doc_hot_score",
-            ),
-            models.Index(
-                fields=["is_removed", "document_type", "hot_score"],
-                name="idx_document_type_hot_score",
+                fields=["is_removed", "document_type"],
+                name="idx_is_removed_doc_type",
             ),
             models.Index(fields=["document_type"], name="idx_document_type"),
         )
@@ -193,37 +172,6 @@ class ResearchhubUnifiedDocument(
             return author
         return Author.objects.none()
 
-    def get_url(self):
-        if self.document_type == PAPER:
-            doc_url = "paper"
-        elif self.document_type == DISCUSSION:
-            doc_url = "post"
-        else:
-            # TODO: fill this with proper url for other doc types
-            return None
-
-        doc = self.get_document()
-
-        return f"{BASE_FRONTEND_URL}/{doc_url}/{doc.id}/{doc.slug}"
-
-    def get_client_doc_type(self):
-        if self.document_type == PAPER:
-            return "paper"
-        elif self.document_type == DISCUSSION:
-            return "post"
-        elif self.document_type == PREREGISTRATION:
-            return "preregistration"
-        elif self.document_type == GRANT:
-            return "grant"
-        elif self.document_type == QUESTION:
-            return "question"
-        elif self.document_type == NOTE:
-            return "note"
-        elif self.document_type == BOUNTY:
-            return "bounty"
-        else:
-            raise Exception(f"Unrecognized document_type: {self.document_type}")
-
     def get_hub_names(self):
         return ",".join(self.hubs.values_list("name", flat=True))
 
@@ -273,32 +221,29 @@ class ResearchhubUnifiedDocument(
 
         for hub in journal_hubs:
             journal_hub = hub
-            if int(hub.id) == int(settings.RESEARCHHUB_JOURNAL_ID):
-                break
-            elif hub.slug in preprint_slugs:
+            if (
+                int(hub.id) == int(settings.RESEARCHHUB_JOURNAL_ID)
+                or hub.slug in preprint_slugs
+            ):
                 break
 
         return journal_hub
 
     def get_document(self):
+        if self.document_type == NOTE:
+            return self.note
         if self.document_type == PAPER:
             return self.paper
-        elif self.document_type == DISCUSSION:
+        if self.document_type in (
+            BOUNTY,
+            DISCUSSION,
+            GRANT,
+            QUESTION,
+            REGISTERED_REPORT,
+            PREREGISTRATION,
+        ):
             return self.posts.first()
-        elif self.document_type == NOTE:
-            return self.note
-        elif self.document_type == QUESTION:
-            return self.posts.first()
-        elif self.document_type == BOUNTY:
-            return self.posts.first()
-        elif self.document_type == PREREGISTRATION:
-            return self.posts.first()
-        elif self.document_type == REGISTERED_REPORT:
-            return self.posts.first()
-        elif self.document_type == GRANT:
-            return self.posts.first()
-        else:
-            raise Exception(f"Unrecognized document_type: {self.document_type}")
+        raise ValueError(f"Unrecognized document_type: {self.document_type}")
 
     def get_display_title(self, *, max_length: int = 512) -> str:
         """Return the user-facing title of the underlying document."""
@@ -428,22 +373,6 @@ class ResearchhubUnifiedDocument(
         )
 
         return self.get_all_comments().filter(
-            Q(comment_type=PEER_REVIEW) | Q(comment_type=COMMUNITY_REVIEW)
-        )
-
-    def get_regular_comments(self):
-        """
-        Get all regular comments (excluding peer reviews).
-
-        Returns:
-            QuerySet of RhCommentModel instances
-        """
-        from researchhub_comment.constants.rh_comment_thread_types import (
-            COMMUNITY_REVIEW,
-            PEER_REVIEW,
-        )
-
-        return self.get_all_comments().exclude(
             Q(comment_type=PEER_REVIEW) | Q(comment_type=COMMUNITY_REVIEW)
         )
 

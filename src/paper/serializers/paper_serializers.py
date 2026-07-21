@@ -356,10 +356,7 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
 
     def create(self, validated_data):
         request = self.context.get("request", None)
-        if request:
-            user = request.user
-        else:
-            user = None
+        user = request.user if request else None
         validated_data["uploaded_by"] = user
 
         # Prepare validated_data by removing m2m

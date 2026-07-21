@@ -17,7 +17,6 @@ from paper.storage.figure_storage import FigureStorage
 from paper.utils import get_csl_item
 from purchase.models import Purchase
 from reputation.models import Score, ScoreChange
-from reputation.related_models.paper_reward import HubCitationValue
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.user_model import User
@@ -251,24 +250,6 @@ class Paper(AbstractGenericReactionModel):
     def created_by(self):
         return self.uploaded_by
 
-    @property
-    def users_to_notify(self):
-        return [
-            author.user
-            for author in self.authors.all()
-            if (
-                author.user
-                and author.user.emailrecipient.paper_subscription.threads
-                and not author.user.emailrecipient.paper_subscription.none
-            )
-        ]
-
-    @property
-    def hot_score(self):
-        if self.unified_document is None:
-            return self.score
-        return self.unified_document.hot_score
-
     def raw_author_count(self):
         raw_author_count = 0
 
@@ -416,10 +397,6 @@ class Paper(AbstractGenericReactionModel):
                 citation.id,
                 self.work_type,
             )
-
-    @property
-    def paper_rewards(self):
-        return HubCitationValue.calculate_base_claim_rsc_reward(self)
 
     @property
     def hubs(self):

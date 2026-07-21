@@ -35,10 +35,7 @@ class CoinbaseService:
     @staticmethod
     def _is_origin_allowed_by_regex(origin: str) -> bool:
         allowed_regexes = getattr(settings, "CORS_ALLOWED_ORIGIN_REGEXES", [])
-        for regex_pattern in allowed_regexes:
-            if re.match(regex_pattern, origin):
-                return True
-        return False
+        return any(re.match(regex_pattern, origin) for regex_pattern in allowed_regexes)
 
     @staticmethod
     def _is_origin_approved(origin: str) -> bool:
