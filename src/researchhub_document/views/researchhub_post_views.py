@@ -166,9 +166,7 @@ class ResearchhubPostViewSet(
             query_set = (
                 ResearchhubPost.objects.visible_to(request.user)
                 .annotate(
-                    registered_report_id=Subquery(
-                        registered_reports.values("id")[:1]
-                    )
+                    registered_report_id=Subquery(registered_reports.values("id")[:1])
                 )
                 .select_related("unified_document")
                 .prefetch_related(
