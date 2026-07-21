@@ -243,7 +243,7 @@ class ResearchhubUnifiedDocument(
             PREREGISTRATION,
         ):
             return self.posts.first()
-        raise Exception(f"Unrecognized document_type: {self.document_type}")
+        raise ValueError(f"Unrecognized document_type: {self.document_type}")
 
     def get_display_title(self, *, max_length: int = 512) -> str:
         """Return the user-facing title of the underlying document."""
