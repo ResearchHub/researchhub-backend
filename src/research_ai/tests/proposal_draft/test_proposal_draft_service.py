@@ -17,12 +17,23 @@ from django.utils import timezone
 
 from note.models import Note
 from purchase.models import Grant
-from research_ai.models import Expert, ExpertSearch, ProposalDraft, SearchExpert
+from research_ai.models import (
+    AgentExecution,
+    AgentExecutionMessage,
+    Expert,
+    ExpertSearch,
+    ProposalDraft,
+    SearchExpert,
+)
 from research_ai.services.agent.types import (
     AssistantTurn,
     StopReason,
     TextBlock,
     ToolUseBlock,
+)
+from research_ai.services.agent_persistence import (
+    AgentRetentionService,
+    NoteAgentConversationService,
 )
 from research_ai.services.proposal_draft import run_proposal_draft
 from research_ai.services.proposal_draft.runner import (
@@ -296,6 +307,21 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(draft.step, ProposalDraft.Step.DONE)
         self.assertEqual(draft.final_scores["overall"], 5)
         self.assertEqual(draft.rounds_used, 1)
+        self.assertIsNotNone(draft.agent_conversation_id)
+        self.assertEqual(draft.agent_conversation.workflow, "proposal_draft")
+        self.assertEqual(draft.agent_conversation.chat_messages.count(), 0)
+        execution = draft.agent_conversation.executions.get()
+        self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
+        self.assertEqual(
+            execution.messages.first().provenance,
+            AgentExecutionMessage.Provenance.BACKEND,
+        )
+        self.assertEqual(draft.agent_conversation.proposal_draft, draft)
+        self.assertEqual(execution.configuration, draft.run_config)
+        self.assertEqual(
+            list(NoteAgentConversationService().for_note(note)),
+            [draft.agent_conversation],
+        )
         self.assertTrue(panel.contexts)  # panel was scored at least once
         self.assertEqual(
             panel.contexts[0]["rfp"]["organization"],
@@ -305,6 +331,68 @@ class ProposalDraftServiceTests(TestCase):
             panel.contexts[0]["researcher_profile"]["works"][0]["source_url"],
             "https://doi.org/10.1/a",
         )
+
+        # Debug retention removes the trace, never the shipped proposal.
+        AgentRetentionService().delete_conversation_debug(draft.agent_conversation)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.COMPLETED)
+        self.assertTrue(Note.objects.filter(id=note.id).exists())
+        retained_execution = draft.agent_conversation.executions.get()
+        self.assertEqual(retained_execution.messages.count(), 0)
+        self.assertGreater(retained_execution.context_messages.count(), 0)
+        self.assertEqual(
+            note.agent_conversation_links.get().conversation_id,
+            draft.agent_conversation_id,
+        )
+
+    def test_note_attachment_failure_does_not_break_proposal(self):
+        # Arrange
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        with patch.object(
+            NoteAgentConversationService,
+            "attach",
+            side_effect=RuntimeError("association database unavailable"),
+        ):
+            result = run_proposal_draft(
+                self.search_expert.id,
+                provider=provider,
+                panel=_FakePanel(overall=5),
+                oa_client=_FakeOpenAlex(),
+            )
+
+        # Assert
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.assertEqual(draft.status, ProposalDraft.Status.COMPLETED)
+        self.assertIsNotNone(draft.note_id)
+        self.assertIsNotNone(draft.agent_conversation_id)
+        self.assertFalse(draft.note.agent_conversation_links.exists())
+        self.assertEqual(
+            list(NoteAgentConversationService().for_note(draft.note)),
+            [draft.agent_conversation],
+        )
+
+    def test_trace_initialization_failure_does_not_break_proposal(self):
+        # Arrange
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        with patch(
+            "research_ai.services.proposal_draft.runner.AgentExecutionService.start",
+            side_effect=RuntimeError("trace database unavailable"),
+        ):
+            result = run_proposal_draft(
+                self.search_expert.id,
+                provider=provider,
+                panel=_FakePanel(overall=5),
+                oa_client=_FakeOpenAlex(),
+            )
+
+        # Assert
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.assertTrue(Note.objects.filter(id=result["note_id"]).exists())
 
     @override_settings(RESEARCH_AI_PROPOSAL_MAX_ROUNDS=1)
     def test_missing_limitations_section_is_blocked(self):
