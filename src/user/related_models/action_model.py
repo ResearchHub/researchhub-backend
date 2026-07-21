@@ -73,10 +73,7 @@ class Action(DefaultModel):
         doc_type_icon = ""
         verb = "done a noteworthy action on"
         if act.content_type_name == "rh comment model":
-            if action_item.parent:
-                verb = "replied to"
-            else:
-                verb = "commented on"
+            verb = "replied to" if action_item.parent else "commented on"
         elif act.content_type_name == "summary":
             verb = "edited"
         elif act.content_type_name == "researchhub post":
@@ -88,10 +85,7 @@ class Action(DefaultModel):
 
         noun = ""
         if act.content_type_name == "rh comment model":
-            if action_item.parent:
-                noun = "your comment"
-            else:
-                noun = f"your {self.doc_type}"
+            noun = "your comment" if action_item.parent else f"your {self.doc_type}"
 
         act.label = f"has {verb} {noun}"
 
