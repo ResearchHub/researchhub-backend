@@ -2,7 +2,7 @@ import logging
 
 from django.core.files.base import ContentFile
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import OuterRef, Prefetch, Subquery
 from django.http import Http404
 from django.utils.text import slugify
 from rest_framework import serializers, status
@@ -155,8 +155,21 @@ class ResearchhubPostViewSet(
     def get_queryset(self):
         request = self.request
         try:
+            registered_reports = (
+                ResearchhubPost.objects.visible_to(request.user)
+                .filter(
+                    document_type=REGISTERED_REPORT,
+                    journey_id=OuterRef("journey_id"),
+                )
+                .order_by("id")
+            )
             query_set = (
                 ResearchhubPost.objects.visible_to(request.user)
+                .annotate(
+                    registered_report_id=Subquery(
+                        registered_reports.values("id")[:1]
+                    )
+                )
                 .select_related("unified_document")
                 .prefetch_related(
                     Prefetch(
