@@ -218,47 +218,11 @@ def send_support_email(
     if content_type == "rhcommentmodel":
         paper = Paper.objects.get(id=paper_id)
         url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">thread</a>
-        """
         object_supported = "thread"
-    elif content_type == "thread":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">thread</a>
-        """
-        object_supported = "thread"
-    elif content_type == "comment":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">comment</a>
-        """
-    elif content_type == "reply":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">reply</a>
-        """
-    elif content_type == "summary":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#summary"
-        object_supported = f"""
-            <a href="{url}" class="header-link">summary</a>
-        """
-    elif content_type == "bulletpoint":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#takeaways"
-        object_supported = f"""
-            <a href="{url}" class="header-link">key takeaway</a>
-        """
     elif content_type == "researchhubpost":
         post = ResearchhubPost.objects.get(id=object_id)
         url = f"{BASE_FRONTEND_URL}/post/{post.id}/{post.slug}"
-        object_supported = f"""
-            <a href="{url}" class="header-link">key takeaway</a>
-        """
+        object_supported = "post"
 
     if payment_type == Support.PAYPAL:
         payment_type = "Paypal"
