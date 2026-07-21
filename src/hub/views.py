@@ -182,9 +182,6 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         serialized = HubSerializer(hub, context=self.get_serializer_context())
         return Response(serialized.data, status=status_code)
 
-    def _is_subscribed(self, user, hub):
-        return user in hub.subscribers.all()
-
     @action(detail=True, methods=["POST"])
     def invite_to_hub(self, request, pk=None):
         recipients = request.data.get("emails", [])
