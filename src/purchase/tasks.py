@@ -8,7 +8,7 @@ from mailing_list.lib import base_email_context, send_email
 from notification.models import Notification
 from paper.models import Paper
 from purchase.circle.service import CircleWalletService
-from purchase.models import Balance, Fundraise, Purchase, Support
+from purchase.models import Balance, Fundraise, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
 from reputation.models import Deposit
@@ -224,15 +224,7 @@ def send_support_email(
         url = f"{BASE_FRONTEND_URL}/post/{post.id}/{post.slug}"
         object_supported = "post"
 
-    if payment_type == Support.PAYPAL:
-        payment_type = "Paypal"
-    elif payment_type == Support.ETH:
-        payment_type = "Ethereum"
-    elif payment_type == Support.BTC:
-        payment_type = "Bitcoin"
-    elif payment_type in Support.RSC_ON_CHAIN:
-        payment_type = "RSC"
-    elif payment_type in Support.RSC_OFF_CHAIN:
+    if payment_type == Purchase.OFF_CHAIN:
         payment_type = "RSC"
 
     context = {
