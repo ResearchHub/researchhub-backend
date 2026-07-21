@@ -188,27 +188,21 @@ class Action(DefaultModel):
             if isinstance(item, ResearchhubUnifiedDocument):
                 item = item.get_document()
 
-        if isinstance(item, Paper):
-            link += f"/paper/{item.id}/"
-        elif isinstance(item, RhCommentModel):
-            uni_doc = self.item.unified_document
-            doc_type = uni_doc.document_type
-            doc = uni_doc.get_document()
+        match item:
+            case Paper():
+                link += f"/paper/{item.id}/"
+            case RhCommentModel():
+                uni_doc = self.item.unified_document
+                doc = uni_doc.get_document()
 
-            if (
-                doc_type == "DISCUSSION"
-                or doc_type == "QUESTION"
-                or doc_type == "BOUNTY"
-            ):
-                link += f"/post/{doc.id}/{doc.slug}#comments"
-            else:
-                link += f"/paper/{doc.id}/{doc.slug}#comments"
-        elif isinstance(item, ResearchhubPost):
-            link += f"/post/{item.id}/{item.title}"
-        elif isinstance(item, Withdrawal):
-            link = ""
-        elif isinstance(item, PaperSubmission):
-            link = ""
-        else:
-            raise Exception("frontend_view_link not implemented")
+                if uni_doc.document_type in ("DISCUSSION", "QUESTION", "BOUNTY"):
+                    link += f"/post/{doc.id}/{doc.slug}#comments"
+                else:
+                    link += f"/paper/{doc.id}/{doc.slug}#comments"
+            case ResearchhubPost():
+                link += f"/post/{item.id}/{item.title}"
+            case Withdrawal() | PaperSubmission():
+                link = ""
+            case _:
+                raise Exception("frontend_view_link not implemented")
         return link
