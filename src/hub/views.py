@@ -8,7 +8,6 @@ from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import (
     AllowAny,
-    IsAuthenticated,
     IsAuthenticatedOrReadOnly,
 )
 from rest_framework.response import Response
@@ -35,8 +34,6 @@ from .models import Hub
 from .permissions import (
     CreateHub,
     IsModeratorOrSuperEditor,
-    IsNotSubscribed,
-    IsSubscribed,
     UpdateHub,
 )
 from .serializers import HubSerializer
@@ -129,54 +126,6 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         cache.set(cache_key, serializer.data, timeout=3600)
 
         return Response(serializer.data)
-
-    @action(
-        detail=True,
-        methods=["GET"],
-        permission_classes=[IsAuthenticated],
-    )
-    def check_subscribed(self, request, pk=None):
-        hub = self.get_object()
-        user_is_subscribed = hub.subscribers.filter(id=request.user.id).exists()
-        return Response({"is_subscribed": user_is_subscribed})
-
-    @action(
-        detail=True,
-        methods=["POST", "PUT", "PATCH"],
-        permission_classes=[IsAuthenticated & IsNotSubscribed],
-    )
-    def subscribe(self, request, pk=None):
-        hub = self.get_object()
-        try:
-            hub.subscribers.add(request.user)
-            hub.subscriber_count = hub.get_subscribers_count()
-            hub.save(update_fields=["subscriber_count"])
-
-            if hub.is_locked and (len(hub.subscribers.all()) > Hub.UNLOCK_AFTER):
-                hub.unlock()
-
-            return self._get_hub_serialized_response(hub, 200)
-        except Exception as e:
-            return Response(str(e), status=400)
-
-    @action(
-        detail=True,
-        methods=["POST", "PUT", "PATCH"],
-        permission_classes=[IsSubscribed],
-    )
-    def unsubscribe(self, request, pk=None):
-        hub = self.get_object()
-        try:
-            hub.subscribers.remove(request.user)
-            hub.subscriber_count = hub.get_subscribers_count()
-            hub.save(update_fields=["subscriber_count"])
-            return self._get_hub_serialized_response(hub, 200)
-        except Exception as e:
-            return Response(str(e), status=400)
-
-    def _get_hub_serialized_response(self, hub, status_code):
-        serialized = HubSerializer(hub, context=self.get_serializer_context())
-        return Response(serialized.data, status=status_code)
 
     @action(
         detail=False,
