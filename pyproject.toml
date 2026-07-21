@@ -105,6 +105,7 @@ extend-select = [
     "SIM103",  # flake8-simplify
     "SIM105",  # flake8-simplify
     "SIM109",  # flake8-simplify
+    "SIM114",  # flake8-simplify
     "SIM117",  # flake8-simplify
     "SIM118",  # flake8-simplify
     "SIM910",  # flake8-simplify
