@@ -35,7 +35,3 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
 
     class Meta:
         ordering = ["-updated_date"]
-
-    @property
-    def users_to_notify(self):
-        return [self.user]

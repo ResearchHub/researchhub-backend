@@ -231,10 +231,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
         return JOURNEY_STAGE_BY_DOCUMENT_TYPE.get(self.document_type)
 
     @property
-    def users_to_notify(self):
-        return [self.created_by]
-
-    @property
     def paper(self):
         return None
 
