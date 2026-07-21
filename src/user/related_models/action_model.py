@@ -174,7 +174,7 @@ class Action(DefaultModel):
         return summary
 
     @property
-    def frontend_view_link(self):
+    def frontend_view_link(self) -> str:
         from researchhub_document.models import (
             ResearchhubPost,
             ResearchhubUnifiedDocument,
