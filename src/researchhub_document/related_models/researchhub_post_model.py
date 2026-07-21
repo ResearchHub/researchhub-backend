@@ -246,16 +246,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
     def is_removed(self):
         return self.unified_document.is_removed
 
-    def get_document_slug_type(self):
-        if self.document_type == "BOUNTY":
-            return "bounty"
-        elif self.document_type == "DISCUSSION":
-            return "post"
-        elif self.document_type == "QUESTION":
-            return "question"
-
-        return "post"
-
     def get_boost_amount(self):
         purchases = self.purchases.filter(
             paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
