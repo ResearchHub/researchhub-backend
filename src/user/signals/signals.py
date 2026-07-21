@@ -35,12 +35,6 @@ def add_organization_slug(sender, instance, update_fields, **kwargs):
         instance.slug = slug
 
 
-def doi_updated(update_fields):
-    if update_fields is not None:
-        return "doi" in update_fields
-    return False
-
-
 @receiver(post_save, sender=RhCommentModel, dispatch_uid="creation_rh_comment")
 @receiver(post_save, sender=Paper, dispatch_uid="paper_upload_action")
 @receiver(post_save, sender=Vote, dispatch_uid="discussion_vote_action")
