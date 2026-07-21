@@ -221,32 +221,29 @@ class ResearchhubUnifiedDocument(
 
         for hub in journal_hubs:
             journal_hub = hub
-            if int(hub.id) == int(settings.RESEARCHHUB_JOURNAL_ID):
-                break
-            elif hub.slug in preprint_slugs:
+            if (
+                int(hub.id) == int(settings.RESEARCHHUB_JOURNAL_ID)
+                or hub.slug in preprint_slugs
+            ):
                 break
 
         return journal_hub
 
     def get_document(self):
+        if self.document_type == NOTE:
+            return self.note
         if self.document_type == PAPER:
             return self.paper
-        elif self.document_type == DISCUSSION:
+        if self.document_type in (
+            BOUNTY,
+            DISCUSSION,
+            GRANT,
+            QUESTION,
+            REGISTERED_REPORT,
+            PREREGISTRATION,
+        ):
             return self.posts.first()
-        elif self.document_type == NOTE:
-            return self.note
-        elif self.document_type == QUESTION:
-            return self.posts.first()
-        elif self.document_type == BOUNTY:
-            return self.posts.first()
-        elif self.document_type == PREREGISTRATION:
-            return self.posts.first()
-        elif self.document_type == REGISTERED_REPORT:
-            return self.posts.first()
-        elif self.document_type == GRANT:
-            return self.posts.first()
-        else:
-            raise Exception(f"Unrecognized document_type: {self.document_type}")
+        raise Exception(f"Unrecognized document_type: {self.document_type}")
 
     def get_display_title(self, *, max_length: int = 512) -> str:
         """Return the user-facing title of the underlying document."""
