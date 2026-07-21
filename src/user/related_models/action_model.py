@@ -204,5 +204,5 @@ class Action(DefaultModel):
             case Withdrawal() | PaperSubmission():
                 link = ""
             case _:
-                raise Exception("frontend_view_link not implemented")
+                raise ValueError("frontend_view_link not implemented")
         return link
