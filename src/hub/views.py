@@ -475,22 +475,3 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         cache.set(cache_key, response_data, timeout=60 * 60 * 24)
 
         return Response(response_data, status=200)
-
-    def _build_subcategory_mapping(self):
-        """Build mapping of subcategory slug -> category slug from all sources."""
-
-        all_mappings = [
-            ARXIV_MAPPINGS,
-            BIORXIV_MAPPINGS,
-            CHEMRXIV_MAPPINGS,
-            MEDRXIV_MAPPINGS,
-        ]
-
-        mapping = {
-            subcategory_slug: category_slug
-            for source in all_mappings
-            for category_slug, subcategory_slug in source.values()
-            if category_slug and subcategory_slug
-        }
-
-        return mapping
