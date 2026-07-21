@@ -13,7 +13,9 @@ from research_ai.services.agent import Message, deserialize_messages
 
 def build_context(conversation: AgentConversation) -> list[Message]:
     """Rebuild the provider message list from ``conversation``'s stored rows."""
-    rows = conversation.messages.order_by("sequence").values_list("role", "content")
+    rows = conversation.transcript_entries.order_by("sequence").values_list(
+        "role", "content"
+    )
     return deserialize_messages(
         [{"role": role, "content": content} for role, content in rows],
         ignore_unknown_blocks=True,

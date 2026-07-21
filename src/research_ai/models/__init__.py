@@ -1,6 +1,7 @@
+from .agent_chat_message import AgentChatMessage
 from .agent_conversation import AgentConversation
-from .agent_message import AgentMessage
 from .agent_run import AgentRun
+from .agent_transcript_entry import AgentTranscriptEntry
 from .email_template import EmailTemplate
 from .expert import Expert
 from .expert_search import ExpertSearch
@@ -10,8 +11,9 @@ from .search_expert import SearchExpert
 
 __all__ = [
     "AgentConversation",
-    "AgentMessage",
+    "AgentChatMessage",
     "AgentRun",
+    "AgentTranscriptEntry",
     "EmailTemplate",
     "Expert",
     "ExpertSearch",

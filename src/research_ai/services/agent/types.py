@@ -7,8 +7,8 @@ them from) its own wire format. Keeping the core neutral is what lets a later
 PR run the same conversation through multiple providers (e.g. a judge panel).
 
 Every block carries a ``type`` discriminator and is JSON round-trippable via
-``serialize_messages`` / ``deserialize_messages`` -- that JSON shape is exactly
-what a future ``AgentMessage.JSONField`` will persist. No Django models here.
+``serialize_messages`` / ``deserialize_messages`` -- that JSON shape is what
+``AgentTranscriptEntry.content`` persists. No Django models live here.
 
 Id-correlation invariant: a ``ToolUseBlock.id`` emitted by the assistant is
 echoed back as the ``ToolResultBlock.tool_use_id`` of its result. Adapters must
@@ -150,7 +150,7 @@ def _deserialize_block(
 
 
 def serialize_messages(messages: list[Message]) -> list[dict]:
-    """Render a conversation to the JSON shape an ``AgentMessage`` would store."""
+    """Render messages to the JSON shape transcript entries store."""
     return [
         {"role": m.role, "content": [_serialize_block(b) for b in m.content]}
         for m in messages

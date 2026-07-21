@@ -419,10 +419,21 @@ class ProposalDraftServiceTests(TestCase):
         # user prompt, the submit call, its feedback, the closing text turn --
         # in order (an accepted submit keeps the loop going until it plateaus,
         # and the scripted provider then answers in plain text).
-        roles = list(
-            conversation.messages.order_by("sequence").values_list("role", flat=True)
+        rows = list(
+            conversation.transcript_entries.order_by("sequence").values_list(
+                "role", "source"
+            )
         )
-        self.assertEqual(roles, ["user", "assistant", "user", "assistant"])
+        self.assertEqual(
+            rows,
+            [
+                # The seed prompt is backend-composed, not a human message.
+                ("user", "backend"),
+                ("assistant", "agent"),
+                ("user", "tool"),
+                ("assistant", "agent"),
+            ],
+        )
 
     # -- a major_fabrication submit is blocked, gaps fed back -------------
 

@@ -6,7 +6,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("research_ai", "0018_proposal_draft_outreach"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
@@ -145,6 +144,17 @@ class Migration(migrations.Migration):
                         to="research_ai.agentconversation",
                     ),
                 ),
+                (
+                    "retry_of",
+                    models.ForeignKey(
+                        blank=True,
+                        db_comment="Earlier execution attempt retried by this run.",
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="retry_runs",
+                        to="research_ai.agentrun",
+                    ),
+                ),
             ],
             options={
                 "db_table": "research_ai_agent_run",
@@ -152,7 +162,7 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.CreateModel(
-            name="AgentMessage",
+            name="AgentTranscriptEntry",
             fields=[
                 (
                     "id",
@@ -168,7 +178,7 @@ class Migration(migrations.Migration):
                 (
                     "sequence",
                     models.PositiveIntegerField(
-                        db_comment="Per-conversation position, allocated under a conversation row lock."
+                        db_comment="Per-conversation transcript position, allocated under a conversation row lock."
                     ),
                 ),
                 (
@@ -179,16 +189,29 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
+                    "source",
+                    models.CharField(
+                        choices=[
+                            ("human", "Human"),
+                            ("backend", "Backend"),
+                            ("tool", "Tool"),
+                            ("agent", "Agent"),
+                        ],
+                        db_comment="Provenance of the provider-context entry: human chat input, a backend-composed prompt, tool results, or the agent itself.",
+                        max_length=16,
+                    ),
+                ),
+                (
                     "content",
                     models.JSONField(
-                        db_comment="The exact serialize_messages block list. The block vocabulary is additive: consumers must route on `type` and tolerate types they don't recognize."
+                        db_comment="The serialized provider-neutral block list. The block vocabulary is additive; consumers must tolerate unrecognized block types."
                     ),
                 ),
                 (
                     "meta",
                     models.JSONField(
                         blank=True,
-                        db_comment="Message-level annotations that are not content blocks (kept separate so `content` stays exactly the wire shape). Empty in v1.",
+                        db_comment="Internal annotations that are not provider content blocks.",
                         null=True,
                     ),
                 ),
@@ -202,7 +225,7 @@ class Migration(migrations.Migration):
                     "conversation",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name="messages",
+                        related_name="transcript_entries",
                         to="research_ai.agentconversation",
                     ),
                 ),
@@ -210,20 +233,117 @@ class Migration(migrations.Migration):
                     "run",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name="messages",
+                        related_name="transcript_entries",
                         to="research_ai.agentrun",
                     ),
                 ),
             ],
             options={
-                "db_table": "research_ai_agent_message",
+                "db_table": "research_ai_agent_transcript_entry",
                 "ordering": ["conversation", "sequence"],
                 "constraints": [
                     models.UniqueConstraint(
                         fields=("conversation", "sequence"),
-                        name="research_ai_am_conv_seq_unique",
+                        name="research_ai_ate_conv_seq_unique",
                     )
                 ],
             },
+        ),
+        migrations.CreateModel(
+            name="AgentChatMessage",
+            fields=[
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_date", models.DateTimeField(auto_now_add=True)),
+                ("updated_date", models.DateTimeField(auto_now=True)),
+                (
+                    "sequence",
+                    models.PositiveIntegerField(
+                        db_comment="Independent position in the user-facing conversation."
+                    ),
+                ),
+                (
+                    "role",
+                    models.CharField(
+                        choices=[("user", "User"), ("assistant", "Assistant")],
+                        max_length=16,
+                    ),
+                ),
+                (
+                    "content",
+                    models.JSONField(
+                        db_comment="Structured content rendered by the product chat interface."
+                    ),
+                ),
+                (
+                    "conversation",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="chat_messages",
+                        to="research_ai.agentconversation",
+                    ),
+                ),
+                (
+                    "produced_by_run",
+                    models.ForeignKey(
+                        blank=True,
+                        db_comment="Execution that produced an assistant message; null for users.",
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="output_chat_messages",
+                        to="research_ai.agentrun",
+                    ),
+                ),
+                (
+                    "reply_to",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="replies",
+                        to="research_ai.agentchatmessage",
+                    ),
+                ),
+                (
+                    "transcript_entry",
+                    models.OneToOneField(
+                        blank=True,
+                        db_comment="Internal transcript entry from which this message was derived.",
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="chat_message",
+                        to="research_ai.agenttranscriptentry",
+                    ),
+                ),
+            ],
+            options={
+                "db_table": "research_ai_agent_chat_message",
+                "ordering": ["conversation", "sequence"],
+                "constraints": [
+                    models.UniqueConstraint(
+                        fields=("conversation", "sequence"),
+                        name="research_ai_acm_conv_seq_unique",
+                    )
+                ],
+            },
+        ),
+        migrations.AddField(
+            model_name="agentrun",
+            name="trigger_message",
+            field=models.ForeignKey(
+                blank=True,
+                db_comment="User chat message that triggered this run; null for headless runs.",
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="triggered_runs",
+                to="research_ai.agentchatmessage",
+            ),
         ),
     ]

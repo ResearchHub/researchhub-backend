@@ -8,7 +8,12 @@ not the recorder's methods in isolation.
 from django.db import DataError, transaction
 from django.test import TestCase
 
-from research_ai.models import AgentConversation, AgentMessage, AgentRun
+from research_ai.models import (
+    AgentChatMessage,
+    AgentConversation,
+    AgentRun,
+    AgentTranscriptEntry,
+)
 from research_ai.services.agent import (
     Agent,
     AgentResult,
@@ -26,7 +31,11 @@ from research_ai.services.agent import (
     serialize_messages,
 )
 from research_ai.services.agent.providers.base import LLMProvider
-from research_ai.services.agent_transcript import DatabaseAgentRecorder, build_context
+from research_ai.services.agent_transcript import (
+    DatabaseAgentRecorder,
+    build_chat_view,
+    build_context,
+)
 
 
 class FakeProvider(LLMProvider):
@@ -153,11 +162,15 @@ class DatabaseAgentRecorderTests(TestCase):
         result = agent.run("find jane")
 
         # Assert: the stored rows are exactly the run's transcript, in order.
-        rows = list(conversation.messages.order_by("sequence"))
+        rows = list(conversation.transcript_entries.order_by("sequence"))
         self.assertEqual([r.sequence for r in rows], [0, 1, 2, 3])
         self.assertEqual(
             [{"role": r.role, "content": r.content} for r in rows],
             serialize_messages(result.messages),
+        )
+        # Provenance: backend seed, agent turn, tool results, agent answer.
+        self.assertEqual(
+            [r.source for r in rows], ["backend", "agent", "tool", "agent"]
         )
         # Assistant rows carry the per-turn metadata; user rows carry none.
         assistant_first = rows[1]
@@ -206,21 +219,23 @@ class DatabaseAgentRecorderTests(TestCase):
         # contains only a future block that cannot be sent to this provider.
         conversation = _make_conversation()
         recorder = DatabaseAgentRecorder(conversation)
-        AgentMessage.objects.create(
+        AgentTranscriptEntry.objects.create(
             conversation=conversation,
             run=recorder.run,
             sequence=0,
             role="user",
+            source=AgentTranscriptEntry.Source.BACKEND,
             content=[
                 {"type": "future_block", "payload": {"value": 1}},
                 {"type": "text", "text": "known content"},
             ],
         )
-        AgentMessage.objects.create(
+        AgentTranscriptEntry.objects.create(
             conversation=conversation,
             run=recorder.run,
             sequence=1,
             role="assistant",
+            source=AgentTranscriptEntry.Source.AGENT,
             content=[{"type": "future_block", "payload": {"value": 2}}],
         )
 
@@ -245,7 +260,7 @@ class DatabaseAgentRecorderTests(TestCase):
             agent.run("hi")
 
         # Assert: every message up to the failure is persisted.
-        rows = list(conversation.messages.order_by("sequence"))
+        rows = list(conversation.transcript_entries.order_by("sequence"))
         self.assertEqual(
             [{"role": r.role, "content": r.content} for r in rows],
             serialize_messages(ctx.exception.messages),
@@ -275,7 +290,7 @@ class DatabaseAgentRecorderTests(TestCase):
         self.assertEqual(run.status, AgentRun.Status.FAILED)
         self.assertEqual(run.iterations, 0)
         self.assertEqual(run.error_message, "tool rendering exploded")
-        self.assertEqual(conversation.messages.count(), 1)
+        self.assertEqual(conversation.transcript_entries.count(), 1)
 
     def test_incomplete_turn_failure_records_its_stop_reason(self):
         # Arrange: the provider truncates without answering or calling a tool.
@@ -315,7 +330,7 @@ class DatabaseAgentRecorderTests(TestCase):
         )
 
         # Assert: the nested string is capped and the block marked truncated.
-        block = conversation.messages.get().content[0]
+        block = conversation.transcript_entries.get().content[0]
         self.assertEqual(block["content"]["pdf"]["text"], "x" * 20)
         self.assertEqual(block["content"]["pages"], 3)
         self.assertIs(block["truncated"], True)
@@ -329,7 +344,7 @@ class DatabaseAgentRecorderTests(TestCase):
         recorder.record_message(Message(role="user", content=[TextBlock(text="short")]))
 
         # Assert
-        block = conversation.messages.get().content[0]
+        block = conversation.transcript_entries.get().content[0]
         self.assertEqual(block, {"type": "text", "text": "short"})
         self.assertNotIn("truncated", block)
 
@@ -349,7 +364,7 @@ class DatabaseAgentRecorderTests(TestCase):
         )
 
         # Assert: one unbroken sequence across two runs, no duplicated history.
-        rows = list(conversation.messages.order_by("sequence"))
+        rows = list(conversation.transcript_entries.order_by("sequence"))
         self.assertEqual([r.sequence for r in rows], [0, 1, 2, 3])
         self.assertEqual([r.run_id for r in rows[:2]], [first.run.id] * 2)
         self.assertEqual([r.run_id for r in rows[2:]], [second.run.id] * 2)
@@ -371,7 +386,7 @@ class DatabaseAgentRecorderTests(TestCase):
         )
 
         # Assert: each run received a distinct position in the shared log.
-        rows = list(conversation.messages.order_by("sequence"))
+        rows = list(conversation.transcript_entries.order_by("sequence"))
         self.assertEqual([row.sequence for row in rows], [0, 1])
         self.assertEqual([row.run_id for row in rows], [first.run.id, second.run.id])
 
@@ -423,3 +438,159 @@ class DatabaseAgentRecorderTests(TestCase):
         self.assertEqual(run.iterations, 1)
         self.assertEqual(run.input_tokens, 9)
         self.assertEqual(run.output_tokens, 4)
+
+    def test_human_prompt_source_labels_the_prompt_turn(self):
+        # Arrange: a chat-style run whose prompt is the user's verbatim text.
+        conversation = _make_conversation(kind=AgentConversation.Kind.NOTEBOOK_CHAT)
+        recorder = DatabaseAgentRecorder(
+            conversation, prompt_source=AgentTranscriptEntry.Source.HUMAN
+        )
+        provider = FakeProvider([_build_text_turn("hello back")])
+        agent = _build_agent(provider, recorder=recorder)
+
+        # Act
+        agent.run("hello")
+
+        # Assert: the prompt row is human-authored; no wrapped text to carry.
+        rows = list(conversation.transcript_entries.order_by("sequence"))
+        self.assertEqual([r.source for r in rows], ["human", "agent"])
+        self.assertIsNone(rows[0].meta)
+        chat_messages = list(conversation.chat_messages.order_by("sequence"))
+        self.assertEqual(
+            [message.role for message in chat_messages],
+            [AgentChatMessage.Role.USER, AgentChatMessage.Role.ASSISTANT],
+        )
+        self.assertEqual(recorder.run.trigger_message, chat_messages[0])
+        self.assertEqual(chat_messages[1].produced_by_run, recorder.run)
+        self.assertEqual(chat_messages[1].reply_to, chat_messages[0])
+
+    def test_wrapped_prompt_stores_human_text_as_a_chat_message(self):
+        # Arrange: a backend template embedding the user's words.
+        conversation = _make_conversation(kind=AgentConversation.Kind.NOTEBOOK_CHAT)
+        recorder = DatabaseAgentRecorder(
+            conversation, human_text="find papers on froth flotation"
+        )
+        provider = FakeProvider([_build_tool_turn("t1"), _build_text_turn("done")])
+        agent = _build_agent(provider, recorder=recorder)
+
+        # Act
+        agent.run(
+            "Notebook context: ...\nThe user says: find papers on froth flotation"
+        )
+
+        # Assert: the product chat record carries the user's words while the
+        # internal transcript retains the backend-templated provider prompt.
+        rows = list(conversation.transcript_entries.order_by("sequence"))
+        self.assertIsNone(rows[0].meta)
+        self.assertIn("Notebook context", rows[0].content[0]["text"])
+        self.assertEqual([r.meta for r in rows[1:]], [None, None, None])
+        user_message = conversation.chat_messages.get(role="user")
+        self.assertEqual(
+            user_message.content,
+            [{"type": "text", "text": "find papers on froth flotation"}],
+        )
+        self.assertEqual(user_message.transcript_entry, rows[0])
+
+    def test_retry_reuses_the_trigger_without_duplicating_the_user_message(self):
+        # Arrange: persist the product message before starting its first run.
+        conversation = _make_conversation(kind=AgentConversation.Kind.NOTEBOOK_CHAT)
+        trigger = AgentChatMessage.objects.create(
+            conversation=conversation,
+            sequence=0,
+            role=AgentChatMessage.Role.USER,
+            content=[{"type": "text", "text": "hello"}],
+        )
+        first = DatabaseAgentRecorder(
+            conversation,
+            trigger_message=trigger,
+            prompt_source=AgentTranscriptEntry.Source.HUMAN,
+        )
+        _build_agent(
+            FakeProvider([_build_text_turn("first answer")]), recorder=first
+        ).run("hello")
+
+        # Act: retry the same product message as a distinct execution.
+        retry = DatabaseAgentRecorder(
+            conversation,
+            trigger_message=trigger,
+            retry_of=first.run,
+            prompt_source=AgentTranscriptEntry.Source.HUMAN,
+        )
+        _build_agent(
+            FakeProvider([_build_text_turn("retry answer")]), recorder=retry
+        ).run("hello")
+
+        # Assert: both attempts have lineage to one user message.
+        retry.run.refresh_from_db()
+        trigger.refresh_from_db()
+        self.assertEqual(retry.run.trigger_message, trigger)
+        self.assertEqual(retry.run.retry_of, first.run)
+        self.assertEqual(
+            trigger.transcript_entry,
+            first.run.transcript_entries.order_by("sequence").first(),
+        )
+        chat_messages = list(conversation.chat_messages.order_by("sequence"))
+        self.assertEqual(
+            [message.role for message in chat_messages],
+            ["user", "assistant", "assistant"],
+        )
+        self.assertEqual(
+            [message.reply_to_id for message in chat_messages[1:]],
+            [trigger.id, trigger.id],
+        )
+
+
+class BuildChatViewTests(TestCase):
+    def test_shows_human_words_and_agent_answers_only(self):
+        # Arrange: a wrapped prompt, a tool round, then a text answer.
+        conversation = _make_conversation(kind=AgentConversation.Kind.NOTEBOOK_CHAT)
+        recorder = DatabaseAgentRecorder(conversation, human_text="what the user said")
+        provider = FakeProvider(
+            [_build_tool_turn("t1"), _build_text_turn("here is your answer")]
+        )
+        _build_agent(provider, recorder=recorder).run("templated prompt")
+
+        # Act
+        view = build_chat_view(conversation)
+
+        # Assert: scaffolding and tool traffic are gone; the wrapped prompt
+        # renders as the user's words, in sequence order.
+        self.assertEqual(
+            [(entry["sender"], entry["text"]) for entry in view],
+            [("user", "what the user said"), ("agent", "here is your answer")],
+        )
+        self.assertEqual([entry["sequence"] for entry in view], [0, 1])
+        for entry in view:
+            self.assertIn("id", entry)
+            self.assertIn("timestamp", entry)
+
+    def test_renders_a_verbatim_human_turn_from_its_content(self):
+        # Arrange: chat-style run -- the prompt is the human's own text.
+        conversation = _make_conversation(kind=AgentConversation.Kind.NOTEBOOK_CHAT)
+        recorder = DatabaseAgentRecorder(
+            conversation, prompt_source=AgentTranscriptEntry.Source.HUMAN
+        )
+        provider = FakeProvider([_build_text_turn("hi")])
+        _build_agent(provider, recorder=recorder).run("hello there")
+
+        # Act
+        view = build_chat_view(conversation)
+
+        # Assert
+        self.assertEqual(
+            [(entry["sender"], entry["text"]) for entry in view],
+            [("user", "hello there"), ("agent", "hi")],
+        )
+
+    def test_headless_run_does_not_create_product_chat_messages(self):
+        # Arrange: a headless run -- the seed is pure scaffolding.
+        conversation = _make_conversation()
+        recorder = DatabaseAgentRecorder(conversation)
+        provider = FakeProvider([_build_text_turn("drafted")])
+        _build_agent(provider, recorder=recorder).run("system-composed prompt")
+
+        # Act
+        view = build_chat_view(conversation)
+
+        # Assert: a headless workflow has an internal transcript but no chat.
+        self.assertEqual(view, [])

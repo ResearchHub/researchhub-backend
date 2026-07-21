@@ -24,6 +24,22 @@ class AgentRun(DefaultModel):
         on_delete=models.CASCADE,
         related_name="runs",
     )
+    trigger_message = models.ForeignKey(
+        "research_ai.AgentChatMessage",
+        on_delete=models.SET_NULL,
+        related_name="triggered_runs",
+        null=True,
+        blank=True,
+        db_comment="User chat message that triggered this run; null for headless runs.",
+    )
+    retry_of = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        related_name="retry_runs",
+        null=True,
+        blank=True,
+        db_comment="Earlier execution attempt retried by this run.",
+    )
     status = models.CharField(
         max_length=16,
         choices=Status.choices,

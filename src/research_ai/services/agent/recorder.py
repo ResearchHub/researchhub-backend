@@ -6,7 +6,7 @@ An ``AgentRecorder`` observes a run as it happens: the loop calls
 one of ``on_run_finished`` / ``on_run_failed`` when the run ends.
 
 This module defines only the protocol -- implementations live outside the
-``agent`` package (e.g. a Django recorder persisting ``AgentMessage`` rows) and
+``agent`` package (e.g. a Django recorder persisting transcript entries) and
 are injected by callers, keeping the core Django-free. The loop wraps every
 recorder call: a raising recorder is logged and ignored, never fatal to the
 run (a transcript is observability, same contract as ``progress_callback``).
