@@ -21,10 +21,7 @@ def create_email_recipient(
     user=None,
     thread_subscription=None,
 ):
-    if not user:
-        email = TestData.valid_email
-    else:
-        email = user.email
+    email = TestData.valid_email if not user else user.email
 
     return EmailRecipient.objects.create(
         email=email, user=user, thread_subscription=thread_subscription

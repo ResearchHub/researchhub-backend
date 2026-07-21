@@ -45,10 +45,7 @@ def create_feed_entry(
 
     # Get the actual model instances
     item = item_content_type.get_object_for_this_type(id=item_id)
-    if user_id:
-        user = User.objects.get(id=user_id)
-    else:
-        user = None
+    user = User.objects.get(id=user_id) if user_id else None
 
     unified_document = _get_unified_document(item, item_content_type)
 

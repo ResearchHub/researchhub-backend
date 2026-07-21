@@ -172,19 +172,6 @@ class ResearchhubUnifiedDocument(
             return author
         return Author.objects.none()
 
-    def get_url(self):
-        if self.document_type == PAPER:
-            doc_url = "paper"
-        elif self.document_type == DISCUSSION:
-            doc_url = "post"
-        else:
-            # TODO: fill this with proper url for other doc types
-            return None
-
-        doc = self.get_document()
-
-        return f"{BASE_FRONTEND_URL}/{doc_url}/{doc.id}/{doc.slug}"
-
     def get_hub_names(self):
         return ",".join(self.hubs.values_list("name", flat=True))
 
@@ -234,32 +221,29 @@ class ResearchhubUnifiedDocument(
 
         for hub in journal_hubs:
             journal_hub = hub
-            if int(hub.id) == int(settings.RESEARCHHUB_JOURNAL_ID):
-                break
-            elif hub.slug in preprint_slugs:
+            if (
+                int(hub.id) == int(settings.RESEARCHHUB_JOURNAL_ID)
+                or hub.slug in preprint_slugs
+            ):
                 break
 
         return journal_hub
 
     def get_document(self):
+        if self.document_type == NOTE:
+            return self.note
         if self.document_type == PAPER:
             return self.paper
-        elif self.document_type == DISCUSSION:
+        if self.document_type in (
+            BOUNTY,
+            DISCUSSION,
+            GRANT,
+            QUESTION,
+            REGISTERED_REPORT,
+            PREREGISTRATION,
+        ):
             return self.posts.first()
-        elif self.document_type == NOTE:
-            return self.note
-        elif self.document_type == QUESTION:
-            return self.posts.first()
-        elif self.document_type == BOUNTY:
-            return self.posts.first()
-        elif self.document_type == PREREGISTRATION:
-            return self.posts.first()
-        elif self.document_type == REGISTERED_REPORT:
-            return self.posts.first()
-        elif self.document_type == GRANT:
-            return self.posts.first()
-        else:
-            raise Exception(f"Unrecognized document_type: {self.document_type}")
+        raise ValueError(f"Unrecognized document_type: {self.document_type}")
 
     def get_display_title(self, *, max_length: int = 512) -> str:
         """Return the user-facing title of the underlying document."""
@@ -389,22 +373,6 @@ class ResearchhubUnifiedDocument(
         )
 
         return self.get_all_comments().filter(
-            Q(comment_type=PEER_REVIEW) | Q(comment_type=COMMUNITY_REVIEW)
-        )
-
-    def get_regular_comments(self):
-        """
-        Get all regular comments (excluding peer reviews).
-
-        Returns:
-            QuerySet of RhCommentModel instances
-        """
-        from researchhub_comment.constants.rh_comment_thread_types import (
-            COMMUNITY_REVIEW,
-            PEER_REVIEW,
-        )
-
-        return self.get_all_comments().exclude(
             Q(comment_type=PEER_REVIEW) | Q(comment_type=COMMUNITY_REVIEW)
         )
 

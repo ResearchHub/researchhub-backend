@@ -428,18 +428,15 @@ def create_automated_bounty(item):
 def update_or_create_vote(request, user, item, vote_type):
     """UPDATE VOTE"""
     vote = retrieve_vote(user, item)
-    if vote_type == Vote.UPVOTE and vote and vote.vote_type == vote.DOWNVOTE:
-        item.score += 2
-    elif vote_type == Vote.DOWNVOTE and vote and vote.vote_type == vote.UPVOTE:
-        item.score -= 2
-    elif vote_type == Vote.UPVOTE:
-        item.score += 1
-    elif vote_type == Vote.DOWNVOTE:
-        item.score -= 1
-    elif vote_type == Vote.NEUTRAL and vote and vote.vote_type == Vote.UPVOTE:
-        item.score -= 1
-    elif vote_type == Vote.NEUTRAL and vote and vote.vote_type == Vote.DOWNVOTE:
-        item.score += 1
+
+    vote_scores = {
+        Vote.UPVOTE: 1,
+        Vote.NEUTRAL: 0,
+        Vote.DOWNVOTE: -1,
+    }
+
+    previous_vote_type = vote.vote_type if vote else Vote.NEUTRAL
+    item.score += vote_scores[vote_type] - vote_scores[previous_vote_type]
 
     item.save()
 
