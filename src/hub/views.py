@@ -4,7 +4,6 @@ from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import (
@@ -18,7 +17,6 @@ from hub.mappers.arxiv_mappings import ARXIV_MAPPINGS
 from hub.mappers.biorxiv_mappings import BIORXIV_MAPPINGS
 from hub.mappers.chemrxiv_mappings import CHEMRXIV_MAPPINGS
 from hub.mappers.medrxiv_mappings import MEDRXIV_MAPPINGS
-from mailing_list.lib import send_email
 from mailing_list.models import EmailRecipient, HubSubscription
 from paper.utils import get_cache_key
 from researchhub_access_group.constants import (
@@ -179,48 +177,6 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
     def _get_hub_serialized_response(self, hub, status_code):
         serialized = HubSerializer(hub, context=self.get_serializer_context())
         return Response(serialized.data, status=status_code)
-
-    @action(detail=True, methods=["POST"])
-    def invite_to_hub(self, request, pk=None):
-        recipients = request.data.get("emails", [])
-
-        if len(recipients) < 1:
-            message = "Field `emails` can not be empty"
-            error = ValidationError(message)
-            return Response(error.detail, status=400)
-
-        subject = "Researchhub Hub Invitation"
-        hub = Hub.objects.filter(is_removed=False).get(id=pk)
-
-        base_url = request.META["HTTP_ORIGIN"]
-
-        email_context = {
-            "hub_name": hub.name.capitalize(),
-            "link": base_url + f"/hubs/{hub.name}/",
-            "opt_out": base_url + "/email/opt-out/",
-        }
-
-        subscriber_emails = hub.subscribers.all().values_list("email", flat=True)
-
-        # Don't send to hub subscribers
-        if len(subscriber_emails) > 0:
-            for recipient in recipients:
-                if recipient in subscriber_emails:
-                    recipients.remove(recipient)
-
-        result = send_email(
-            recipients,
-            "invite_to_hub_email.txt",
-            subject,
-            email_context,
-            "invite_to_hub_email.html",
-        )
-
-        response = {"email_sent": False, "result": result}
-        if len(result["success"]) > 0:
-            response = {"email_sent": True, "result": result}
-
-        return Response(response, status=200)
 
     @action(
         detail=False,
