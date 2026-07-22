@@ -19,7 +19,6 @@ from analytics.models import UserInteractions
 from analytics.services.insights.endowment import get_endowment_metrics
 from analytics.services.insights.expert_finder import get_expert_finder_metrics
 from analytics.services.insights.funding import get_funding_metrics
-from analytics.services.insights.fundraise_snapshot import get_fundraise_snapshot
 from analytics.services.insights.pages import get_page_metrics
 from analytics.services.insights.peer_reviews import get_peer_review_metrics
 from analytics.services.insights.period import ReportPeriod, resolve_period
@@ -230,45 +229,10 @@ class BusinessInsightMetricTests(TestCase):
             funded["payment_methods"],
             {
                 "rsc": Decimal(0),
-                "stripe": Decimal("176.84"),
+                "cc_via_stripe": Decimal("176.84"),
                 "daf": Decimal(0),
                 "funding_credits": Decimal(100),
                 "promotional_credits": Decimal(0),
-            },
-        )
-
-    def test_fundraise_snapshot_returns_totals_for_period(self):
-        # Arrange
-        post = create_post(
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-        )
-        fundraise = Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=post.unified_document,
-            goal_amount=Decimal(1000),
-            goal_currency="USD",
-        )
-        escrow = Escrow.objects.create(
-            created_by=self.user,
-            hold_type=Escrow.FUNDRAISE,
-            content_type=ContentType.objects.get_for_model(Fundraise),
-            object_id=fundraise.id,
-            amount_holding=Decimal("125.25"),
-            amount_paid=Decimal("50.50"),
-        )
-        fundraise.escrow = escrow
-        fundraise.save(update_fields=["escrow"])
-
-        # Act
-        snapshot = get_fundraise_snapshot(self.period)
-
-        # Assert
-        self.assertEqual(
-            snapshot,
-            {
-                "holding_rsc": Decimal("125.25"),
-                "distributed_rsc": Decimal("50.50"),
             },
         )
 
@@ -346,8 +310,8 @@ class BusinessInsightMetricTests(TestCase):
         self.assertGreater(metrics["current_yield_apy_percent"], 0)
         self.assertEqual(metrics["unique_earners"], 1)
 
-    def test_peer_reviews_calculates_tip_or_award_after_bounty_expiry(self):
-        # Arrange
+    def test_peer_reviews_counts_tip_after_bounty_expiry(self):
+        # Arrange: bounty expired; RHF tip still assesses the review.
         post = create_post(created_by=self.user)
         post_content_type = ContentType.objects.get_for_model(post)
         escrow = Escrow.objects.create(
@@ -383,14 +347,23 @@ class BusinessInsightMetricTests(TestCase):
             content_type=comment_content_type,
             object_id=comment.id,
             unified_document=post.unified_document,
+            is_assessed=True,
         )
         BountySolution.objects.create(
             bounty=bounty,
-            status=BountySolution.Status.AWARDED,
-            awarded_amount=Decimal(100),
+            status=BountySolution.Status.SUBMITTED,
             created_by=reviewer,
             content_type=comment_content_type,
             object_id=comment.id,
+        )
+        Purchase.objects.create(
+            user=self.user,
+            content_type=comment_content_type,
+            object_id=comment.id,
+            purchase_type=Purchase.BOOST,
+            purchase_method=Purchase.OFF_CHAIN,
+            paid_status=Purchase.PAID,
+            amount=10,
         )
 
         # Act
@@ -399,6 +372,44 @@ class BusinessInsightMetricTests(TestCase):
         # Assert
         self.assertEqual(metrics["assessed_reviews"], 1)
         self.assertEqual(metrics["avg_review_assessment_days"], 13)
+
+    def test_peer_reviews_ignores_ai_reviews(self):
+        # Arrange
+        from user.related_models.user_model import AI_EXPERT_EMAIL
+
+        ai_user = User.objects.create_user(
+            username="ai-reviewer",
+            email=AI_EXPERT_EMAIL,
+        )
+        post = create_post(created_by=self.user)
+        comment = create_rh_comment(post=post, created_by=ai_user)
+        comment.comment_type = "REVIEW"
+        comment.save(update_fields=["comment_type"])
+        comment_content_type = ContentType.objects.get_for_model(comment)
+        Review.objects.create(
+            created_by=ai_user,
+            content_type=comment_content_type,
+            object_id=comment.id,
+            unified_document=post.unified_document,
+            is_assessed=True,
+        )
+        Purchase.objects.create(
+            user=self.user,
+            content_type=comment_content_type,
+            object_id=comment.id,
+            purchase_type=Purchase.BOOST,
+            purchase_method=Purchase.OFF_CHAIN,
+            paid_status=Purchase.PAID,
+            amount=10,
+        )
+
+        # Act
+        metrics = get_peer_review_metrics(self.period)
+
+        # Assert
+        self.assertEqual(metrics["submitted_reviews"], 0)
+        self.assertEqual(metrics["assessed_reviews"], 0)
+        self.assertIsNone(metrics["avg_review_assessment_days"])
 
     def test_wac_counts_active_and_verified_user(self):
         # Arrange
@@ -467,7 +478,6 @@ class BusinessInsightMetricTests(TestCase):
 
         # Assert
         self.assertEqual(metrics["verified_users"], 1)
-        self.assertEqual(metrics["social_accounts_added"], 1)
         self.assertEqual(
             metrics["newly_created"],
             {

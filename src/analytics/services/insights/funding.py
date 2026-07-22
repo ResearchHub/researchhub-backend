@@ -179,7 +179,7 @@ def get_funding_metrics(period):
             "unique_funders": len(unique_funders),
             "payment_methods": {
                 "rsc": researchcoin_balance,
-                "stripe": Decimal(stripe_rsc_purchases["total_cents"]) / 100,
+                "cc_via_stripe": Decimal(stripe_rsc_purchases["total_cents"]) / 100,
                 "daf": Decimal(usd_totals["endaoment_cents"]) / 100,
                 "funding_credits": funding_credits,
                 "promotional_credits": promotional_credits,

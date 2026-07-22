@@ -44,10 +44,6 @@ def get_user_metrics(period):
             updated_date__lt=period.end,
         ).count(),
         "orcid_connected": orcid_connected,
-        "social_accounts_added": SocialAccount.objects.filter(
-            date_joined__gte=period.start,
-            date_joined__lt=period.end,
-        ).count(),
         "newly_created": {
             "total": len(new_user_ids),
             "via_email": {
