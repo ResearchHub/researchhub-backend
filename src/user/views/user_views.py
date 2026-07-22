@@ -1,8 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from allauth.account.models import EmailAddress
-from django.db.models import Exists, F, OuterRef, Q, Sum
-from django.db.models.functions import Coalesce
+from django.db.models import Exists, OuterRef
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
@@ -17,9 +16,6 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
-from paper.models import Paper
-from paper.serializers import DynamicPaperSerializer
-from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from purchase.related_models.grant_model import Grant
 from reputation.serializers import (
     DynamicBountySerializer,
@@ -36,7 +32,6 @@ from user.permissions import (
     UserIsEditor,
 )
 from user.serializers import (
-    AuthorSerializer,
     MajorSerializer,
     UniversitySerializer,
     UserEditableSerializer,
@@ -200,179 +195,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                 f"Failed to update user: {exception}",
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-    @method_decorator(cache_page(60 * 60 * 6))
-    @action(
-        detail=False,
-        methods=["GET"],
-    )
-    def leaderboard(self, request):
-        """
-        Leaderboard serves both Papers and Users
-        """
-        hub_id = request.GET.get("hub_id")
-        if hub_id:
-            hub_id = int(hub_id)
-
-        leaderboard_type = request.GET.get("type", "users")
-        """
-        createdByOptions can be values:
-        1. created_date
-        2. published_date
-        """
-        created_by_options = request.GET.get("dateOption", "created_date")
-
-        """
-        Timeframe can be values:
-        1. all_time
-        2. today
-        3. past_week
-        4. past_month
-        5. past_year
-        """
-        timeframe = request.GET.get("timeframe", "all_time")
-
-        context = {"request": request}
-        serializer_kwargs = {}
-        time_filter = {}
-        if leaderboard_type == "papers":
-            if created_by_options == "created_date":
-                keyword = "created_date__gte"
-            else:
-                keyword = "paper_publish_date__gte"
-        elif leaderboard_type == "users":
-            keyword = "reputation_records__created_date__gte"
-        else:
-            keyword = "created_date__gte"
-
-        if timeframe == "today":
-            time_filter = {keyword: timezone.now().date()}
-        elif timeframe == "past_week":
-            time_filter = {keyword: timezone.now().date() - timedelta(days=7)}
-        elif timeframe == "past_month":
-            time_filter = {keyword: timezone.now().date() - timedelta(days=30)}
-        elif timeframe == "past_year":
-            time_filter = {keyword: timezone.now().date() - timedelta(days=365)}
-        elif timeframe == "all_time":
-            time_filter = {keyword: datetime(year=2019, month=1, day=1)}
-
-        items = []
-        serializer_class = None
-        if leaderboard_type == "papers":
-            serializer_class = DynamicPaperSerializer
-            if hub_id and hub_id != 0:
-                items = (
-                    Paper.objects.exclude(
-                        is_public=False,
-                    )
-                    .annotate(paper_score=PAPER_SCORE_Q_ANNOTATION)
-                    .filter(**time_filter, hubs__in=[hub_id], is_removed=False)
-                    .order_by("-paper_score")
-                )
-            else:
-                items = (
-                    Paper.objects.exclude(is_public=False)
-                    .annotate(paper_score=PAPER_SCORE_Q_ANNOTATION)
-                    .filter(**time_filter, is_removed=False)
-                    .order_by("-paper_score")
-                )
-            serializer_kwargs = {
-                "_include_fields": [
-                    "id",
-                    "abstract",
-                    "boost_amount",
-                    "discussion_count",
-                    "file",
-                    "hubs",
-                    "paper_title",
-                    "score",
-                    "title",
-                    "slug",
-                    "uploaded_by",
-                    "uploaded_date",
-                ]
-            }
-        elif leaderboard_type == "users":
-            serializer_class = UserSerializer
-            items = User.objects.filter(
-                is_active=True,
-                is_suspended=False,
-                probable_spammer=False,
-            )
-
-            if hub_id != 0 and hub_id:
-                items = items.annotate(
-                    hub_rep=Coalesce(
-                        Sum(
-                            "reputation_records__reputation_amount",
-                            filter=Q(
-                                **time_filter,
-                                reputation_records__hubs__in=[hub_id],
-                            )
-                            & ~Q(
-                                reputation_records__distribution_type__in=[
-                                    "REFERRAL",
-                                    "PURCHASE",
-                                    "REWARD",
-                                    "EDITOR_COMPENSATION",
-                                    "EDITOR_PAYOUT",
-                                    "MOD_PAYOUT",
-                                    "CREATE_BULLET_POINT",
-                                    "CREATE_SUMMARY",
-                                    "SUMMARY_UPVOTED",
-                                    "BULLET_POINT_UPVOTED",
-                                    "CREATE_FIRST_SUMMARY",
-                                    "REFERRAL_APPROVED",
-                                    "BOUNTY_DAO_FEE",
-                                ]
-                            ),
-                        ),
-                        0,
-                    )
-                ).order_by(F("hub_rep").desc(nulls_last=True), "-reputation")
-            else:
-                if timeframe == "all_time":
-                    items = items.order_by("-reputation")
-                else:
-                    items = items.annotate(
-                        time_rep=Coalesce(
-                            Sum(
-                                "reputation_records__reputation_amount",
-                                filter=Q(
-                                    **time_filter,
-                                )
-                                & ~Q(
-                                    reputation_records__distribution_type__in=[
-                                        "REFERRAL",
-                                        "PURCHASE",
-                                        "REWARD",
-                                        "EDITOR_COMPENSATION",
-                                        "EDITOR_PAYOUT",
-                                        "MOD_PAYOUT",
-                                        "CREATE_BULLET_POINT",
-                                        "CREATE_SUMMARY",
-                                        "SUMMARY_UPVOTED",
-                                        "BULLET_POINT_UPVOTED",
-                                        "CREATE_FIRST_SUMMARY",
-                                        "REFERRAL_APPROVED",
-                                    ]
-                                ),
-                            ),
-                            0,
-                        )
-                    ).order_by(F("time_rep").desc(nulls_last=True), "-reputation")
-        elif leaderboard_type == "authors":
-            serializer_class = AuthorSerializer
-            items = Author.objects.filter(user__is_suspended=False).order_by(
-                "-author_score"
-            )
-
-        page = self.paginate_queryset(items)
-        serializer = serializer_class(
-            page, many=True, context=context, **serializer_kwargs
-        )
-
-        return self.get_paginated_response(serializer.data)
 
     @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
     def bounties(self, request, pk=None):
