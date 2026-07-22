@@ -839,13 +839,19 @@ class GeneratedEmailDetailViewTests(APITestCase):
         self.client.force_authenticate(self.moderator)
         response = self.client.patch(
             f"/api/research_ai/expert-finder/emails/{email.id}/",
-            {"email_body": "Updated body", "status": "sent"},
+            {
+                "email_body": "Updated body",
+                "status": "sent",
+                "channel": "linkedin",
+            },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         email.refresh_from_db()
         self.assertEqual(email.email_body, "Updated body")
         self.assertEqual(email.status, "sent")
+        self.assertEqual(email.channel, "linkedin")
+        self.assertEqual(response.json()["channel"], "linkedin")
         expert.refresh_from_db()
         self.assertIsNotNone(expert.last_email_sent_at)
 
@@ -1280,5 +1286,6 @@ class SendEmailViewTests(APITestCase):
         self.assertEqual(result["failed"], 0)
         email_rec.refresh_from_db()
         self.assertEqual(email_rec.status, "sent")
+        self.assertEqual(email_rec.channel, GeneratedEmail.Channel.EMAIL)
         self.assertEqual(email_rec.ses_message_id, "ses-msg-id-123")
         mock_send.assert_called_once()

@@ -862,6 +862,7 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "email_body",
             "template",
             "status",
+            "channel",
             "notes",
             "opened_at",
             "open_count",
@@ -929,6 +930,7 @@ class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
             "email_body",
             "template",
             "status",
+            "channel",
             "notes",
         ]
         extra_kwargs = {
@@ -942,8 +944,30 @@ class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
             "email_body": {"required": False},
             "template": {"required": False},
             "status": {"required": False},
+            "channel": {"required": False, "allow_blank": True},
             "notes": {"required": False},
         }
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        new_status = attrs.get(
+            "status",
+            getattr(self.instance, "status", GeneratedEmail.Status.DRAFT),
+        )
+        channel = attrs.get(
+            "channel",
+            getattr(self.instance, "channel", "") if self.instance else "",
+        )
+        if new_status == GeneratedEmail.Status.SENT and not channel:
+            raise serializers.ValidationError(
+                {
+                    "channel": (
+                        "Required when marking outreach as sent. "
+                        "Use one of: email, linkedin, x, other."
+                    )
+                }
+            )
+        return attrs
 
 
 class EmailTemplateSerializer(serializers.ModelSerializer):
