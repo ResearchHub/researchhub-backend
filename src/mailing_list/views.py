@@ -21,7 +21,6 @@ from mailing_list.models import (
     EmailRecipient,
     HubSubscription,
     PaperSubscription,
-    ReplySubscription,
     ThreadSubscription,
 )
 from mailing_list.serializers import EmailRecipientSerializer
@@ -53,7 +52,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         email_recipient.paper_subscription = PaperSubscription.objects.create()
         email_recipient.thread_subscription = ThreadSubscription.objects.create()
         email_recipient.comment_subscription = CommentSubscription.objects.create()
-        email_recipient.reply_subscription = ReplySubscription.objects.create()
         email_recipient.save()
 
         return Response(EmailRecipientSerializer(email_recipient).data, status=201)
@@ -86,7 +84,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         self._update_subscription(request, "paper_subscription")
         self._update_subscription(request, "thread_subscription")
         self._update_subscription(request, "comment_subscription")
-        self._update_subscription(request, "reply_subscription")
         self._update_subscription(request, "hub_subscription")
 
         return Response(EmailRecipientSerializer(email_recipient).data, status=200)
@@ -113,9 +110,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         elif subscription_name == "comment_subscription":
             sub_id = email_recipient.comment_subscription.id
             model = CommentSubscription
-        elif subscription_name == "reply_subscription":
-            sub_id = email_recipient.reply_subscription.id
-            model = ReplySubscription
         elif subscription_name == "hub_subscription":
             sub_id = email_recipient.hub_subscription.id
             model = HubSubscription

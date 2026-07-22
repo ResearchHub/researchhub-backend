@@ -7,7 +7,6 @@ from mailing_list.models import (
     EmailRecipient,
     HubSubscription,
     PaperSubscription,
-    ReplySubscription,
     ThreadSubscription,
 )
 
@@ -29,7 +28,6 @@ _SUBSCRIPTION_SERIALIZERS = {
         DigestSubscription,
         HubSubscription,
         PaperSubscription,
-        ReplySubscription,
         ThreadSubscription,
     )
 }
@@ -42,7 +40,6 @@ class EmailRecipientSerializer(serializers.ModelSerializer):
     hub_subscription = serializers.SerializerMethodField()
     thread_subscription = serializers.SerializerMethodField()
     comment_subscription = serializers.SerializerMethodField()
-    reply_subscription = serializers.SerializerMethodField()
     user = serializers.CurrentUserDefault()
 
     class Meta:
@@ -57,7 +54,6 @@ class EmailRecipientSerializer(serializers.ModelSerializer):
             "paper_subscription",
             "thread_subscription",
             "comment_subscription",
-            "reply_subscription",
             "user",
         ]
         read_only_fields = [
@@ -86,9 +82,6 @@ class EmailRecipientSerializer(serializers.ModelSerializer):
 
     def get_comment_subscription(self, obj):
         return self._get_subscription(CommentSubscription, obj)
-
-    def get_reply_subscription(self, obj):
-        return self._get_subscription(ReplySubscription, obj)
 
     def _get_subscription(self, model, obj):
         try:
