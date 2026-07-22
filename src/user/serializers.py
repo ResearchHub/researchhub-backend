@@ -348,7 +348,6 @@ class AuthorEditableSerializer(ModelSerializer):
         model = Author
         fields = [field.name for field in Author._meta.fields] + ["university"]
         read_only_fields = [
-            "academic_verification",
             "author_score",
             "created_date",
             "claimed",
