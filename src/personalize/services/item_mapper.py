@@ -277,7 +277,7 @@ class ItemMapper:
         }
 
     @staticmethod
-    def _datetime_to_epoch_seconds(dt):
+    def _datetime_to_epoch_seconds(dt) -> int | None:
         """
         Convert a datetime to Unix epoch seconds.
 
