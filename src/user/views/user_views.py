@@ -246,18 +246,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         detail=False,
         methods=["PATCH"],
     )
-    def has_completed_onboarding(self, request):
-        user = request.user
-        user = User.objects.get(pk=user.id)
-        user.has_completed_onboarding = True
-        user.save()
-        serialized = UserSerializer(user)
-        return Response(serialized.data, status=200)
-
-    @action(
-        detail=False,
-        methods=["PATCH"],
-    )
     def set_staking_opted_in(self, request):
         user = request.user
         user = User.objects.get(pk=user.id)
