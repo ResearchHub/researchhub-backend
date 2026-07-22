@@ -28,7 +28,6 @@ from user.permissions import (
     Censor,
     DeleteUserPermission,
     IsModerator,
-    RequestorIsOwnUser,
     UserIsEditor,
 )
 from user.serializers import (
@@ -172,29 +171,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         return Response(
             {"message": "User flagged as probable spammer"}, status=status.HTTP_200_OK
         )
-
-    @action(
-        detail=True,
-        methods=["POST"],
-        permission_classes=[RequestorIsOwnUser],
-    )
-    def set_should_display_rsc_balance(self, request, pk=None):
-        try:
-            user = User.objects.get(id=request.user.id)
-            target_value = request.data.get("should_display_rsc_balance_home")
-            user.should_display_rsc_balance_home = target_value
-            user.save()
-            return Response(
-                {
-                    "user_id": request.user.id,
-                    "should_display_rsc_balance_home": target_value,
-                }
-            )
-        except Exception as exception:
-            return Response(
-                f"Failed to update user: {exception}",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
     @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
     def bounties(self, request, pk=None):
