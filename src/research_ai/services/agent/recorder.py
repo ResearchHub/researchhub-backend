@@ -6,10 +6,10 @@ An ``AgentRecorder`` observes a run as it happens: the loop calls
 one of ``on_run_finished`` / ``on_run_failed`` when the run ends.
 
 This module defines only the protocol -- implementations live outside the
-``agent`` package (e.g. a Django recorder persisting ``AgentMessage`` rows) and
-are injected by callers, keeping the core Django-free. The loop wraps every
-recorder call: a raising recorder is logged and ignored, never fatal to the
-run (a transcript is observability, same contract as ``progress_callback``).
+``agent`` package and are injected by callers, keeping the core Django-free.
+Message-hook failures are best-effort unless an implementation opts into the
+``requires_durable_messages`` contract; terminal-hook failures are logged
+without masking the original run outcome.
 """
 
 from __future__ import annotations
@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Protocol
 from research_ai.services.agent.types import AssistantTurn, Message
 
 if TYPE_CHECKING:
-    from research_ai.services.agent.errors import AgentRunError
     from research_ai.services.agent.loop import AgentResult
 
 
@@ -32,7 +31,9 @@ class AgentRecorder(Protocol):
         """Record one appended message.
 
         ``turn`` is set only for assistant messages, carrying the per-turn
-        metadata (usage, latency, stop reason) alongside the content.
+        metadata (usage, latency, stop reason) alongside the content. A recorder
+        that sets ``requires_durable_messages`` may propagate required-write
+        failures; optional writes should be isolated by the implementation.
         """
         ...
 
@@ -40,6 +41,6 @@ class AgentRecorder(Protocol):
         """The run completed; every message was already recorded."""
         ...
 
-    def on_run_failed(self, error: AgentRunError) -> None:
+    def on_run_failed(self, error: Exception) -> None:
         """The run failed; every message up to the failure was recorded."""
         ...
