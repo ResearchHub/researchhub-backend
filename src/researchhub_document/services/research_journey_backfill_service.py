@@ -15,6 +15,17 @@ from researchhub_document.related_models.constants.document_type import PREREGIS
 from researchhub_document.services.journey_service import JourneyService
 
 
+# This command is a one-off registered report backfill. Keep the target set
+# explicit so it cannot affect newly approved proposals when it is rerun.
+REGISTERED_REPORT_BACKFILL_POST_IDS = (
+    4261,
+    4344,
+    4456,
+    5094,
+    5526,
+)
+
+
 @dataclass(frozen=True)
 class ResearchJourneyBackfillFailure:
     """Describe one proposal that could not be backfilled."""
@@ -73,7 +84,7 @@ class ResearchJourneyBackfillService:
         return stats
 
     def _get_approved_proposals(self) -> QuerySet[ResearchhubPost]:
-        """Return approved proposals with their completed funding context."""
+        """Return allowlisted approved proposals with completed funding context."""
         completed_fundraises = (
             Fundraise.objects.filter(status=Fundraise.COMPLETED)
             .select_related("escrow")
@@ -92,6 +103,7 @@ class ResearchJourneyBackfillService:
 
         return (
             ResearchhubPost.objects.filter(
+                id__in=REGISTERED_REPORT_BACKFILL_POST_IDS,
                 document_type=PREREGISTRATION,
                 unified_document__is_removed=False,
                 unified_document__status=ResearchhubUnifiedDocument.APPROVED,
