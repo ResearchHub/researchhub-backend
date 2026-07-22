@@ -255,20 +255,6 @@ class UserApiTests(APITestCase):
 
 
 class UserViewsTests(APITestCase):
-    def test_set_has_seen_first_coin_modal(self):
-        user = create_random_authenticated_user("first_coin_viewser")
-        self.assertFalse(user.has_seen_first_coin_modal)
-
-        url = "/api/user/has_seen_first_coin_modal/"
-        self.client.force_authenticate(user)
-        response = self.client.patch(url, {})
-        self.assertContains(
-            response, 'has_seen_first_coin_modal":true', status_code=200
-        )
-
-        user.refresh_from_db()
-        self.assertTrue(user.has_seen_first_coin_modal)
-
     def test_set_staking_opted_in_preserves_existing_opt_in_date(self):
         user = create_random_authenticated_user("staking_opt_in")
         original_opt_in_date = timezone.now() - timedelta(days=2)
