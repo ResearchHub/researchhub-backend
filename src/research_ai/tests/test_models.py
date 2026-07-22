@@ -1,8 +1,14 @@
 """Unit tests for research_ai models."""
 
-from django.test import SimpleTestCase
+from django.core.exceptions import ValidationError
+from django.test import SimpleTestCase, TestCase
 
-from research_ai.models import Expert
+from research_ai.models import (
+    AgentConversation,
+    AgentExecution,
+    AgentExecutionMessage,
+    Expert,
+)
 
 
 class ExpertOrcidTests(SimpleTestCase):
@@ -25,3 +31,30 @@ class ExpertOrcidTests(SimpleTestCase):
         orcid = expert.orcid
         # Assert
         self.assertIsNone(orcid)
+
+
+class AgentExecutionMessageTests(TestCase):
+    def test_rejects_conversation_that_does_not_match_execution(self):
+        # Arrange
+        execution_conversation = AgentConversation.objects.create()
+        other_conversation = AgentConversation.objects.create()
+        execution = AgentExecution.objects.create(
+            conversation=execution_conversation,
+            attempt=1,
+        )
+
+        # Act / Assert
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Must match the conversation associated with execution.",
+        ):
+            AgentExecutionMessage.objects.create(
+                conversation=other_conversation,
+                execution=execution,
+                sequence=1,
+                execution_sequence=1,
+                role="user",
+                provenance=AgentExecutionMessage.Provenance.BACKEND,
+                content=[],
+            )
+        self.assertFalse(AgentExecutionMessage.objects.exists())
