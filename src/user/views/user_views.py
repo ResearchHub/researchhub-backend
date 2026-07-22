@@ -17,10 +17,6 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 
 from purchase.related_models.grant_model import Grant
-from reputation.serializers import (
-    DynamicBountySerializer,
-)
-from reputation.views import BountyViewSet
 from user.earning_overview_serializer import EarningOverviewSerializer
 from user.filters import UserFilter
 from user.models import Author, Major, University, User
@@ -171,30 +167,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         return Response(
             {"message": "User flagged as probable spammer"}, status=status.HTTP_200_OK
         )
-
-    @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
-    def bounties(self, request, pk=None):
-        user = self.get_object()
-        bounties = user.bounties.all().order_by("-created_date")
-        page = self.paginate_queryset(bounties)
-        bounty_view = BountyViewSet()
-        context = bounty_view._get_retrieve_context()
-        serializer = DynamicBountySerializer(
-            page,
-            _include_fields=[
-                "amount",
-                "content_type",
-                "created_date",
-                "created_by",
-                "expiration_date",
-                "id",
-                "status",
-            ],
-            context=context,
-            many=True,
-        )
-        response = self.get_paginated_response(serializer.data)
-        return response
 
     @action(
         detail=False,
