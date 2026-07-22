@@ -23,7 +23,6 @@ from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from purchase.related_models.grant_model import Grant
 from reputation.serializers import (
     DynamicBountySerializer,
-    DynamicBountySolutionSerializer,
 )
 from reputation.views import BountyViewSet
 from user.earning_overview_serializer import EarningOverviewSerializer
@@ -392,56 +391,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                 "expiration_date",
                 "id",
                 "status",
-            ],
-            context=context,
-            many=True,
-        )
-        response = self.get_paginated_response(serializer.data)
-        return response
-
-    @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
-    def awarded_bounties(self, request, pk=None):
-        user = self.get_object()
-        solutions = user.solutions.all().order_by("-created_date")
-        page = self.paginate_queryset(solutions)
-        context = {
-            "rep_dbss_get_bounty": {
-                "_include_fields": ("content_type", "item", "solutions")
-            },
-            "rep_dbs_get_solutions": {
-                "_include_fields": (
-                    "content_type",
-                    "item",
-                )
-            },
-            "rep_dbs_get_item": {
-                "_include_fields": (
-                    "document_type",
-                    "documents",
-                    "text",
-                )
-            },
-            "rep_dbss_get_item": {
-                "_include_fields": (
-                    "id",
-                    "text",
-                    "discussion_post_type",
-                )
-            },
-            "doc_duds_get_documents": {
-                "_include_fields": (
-                    "id",
-                    "title",
-                    "post_title",
-                    "slug",
-                    "renderable_text",
-                )
-            },
-        }
-        serializer = DynamicBountySolutionSerializer(
-            page,
-            _include_fields=[
-                "bounty",
             ],
             context=context,
             many=True,
