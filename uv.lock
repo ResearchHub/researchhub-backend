@@ -136,7 +136,7 @@ wheels = [
 
 [[package]]
 name = "atproto"
-version = "0.0.65"
+version = "0.0.69"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -148,9 +148,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b2/0f/b6e26f99ef730f1e5779f5833ba794343df78ee1e02041d3b05bd5005066/atproto-0.0.65.tar.gz", hash = "sha256:027c6ed98746a9e6f1bb24bc18db84b80b386037709ff3af9ef927dce3dd4938", size = 210996, upload-time = "2025-12-08T15:53:44.585Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/f1/1fdb52c089358c6e09c5f77d99a8bdcbb71127449cabedcc9a2e314c0cea/atproto-0.0.69.tar.gz", hash = "sha256:3b42d495f95a5e8dbfc6abec4308552b07d8f73da96536fff1c7b2fcc5befe0d", size = 256971, upload-time = "2026-06-24T15:54:55.924Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e3/d9/360149e7bd9bac580496ce9fddc0ef320b3813aadd72be6abc011600862d/atproto-0.0.65-py3-none-any.whl", hash = "sha256:ea53dea57454c9e56318b5d25ceb35854d60ba238b38b0e5ca79aa1a2df85846", size = 446650, upload-time = "2025-12-08T15:53:43.029Z" },
+    { url = "https://files.pythonhosted.org/packages/9a/6c/f2c8ceb89f78dbbb9deffad5e9998682c321ae91fd853deab13342f9bc01/atproto-0.0.69-py3-none-any.whl", hash = "sha256:fe902039142d26ca6543c9381713479cd7c13ff6b20dd0622b9cdfbf62f1e61d", size = 553225, upload-time = "2026-06-24T15:54:54.146Z" },
 ]
 
 [[package]]
@@ -2588,7 +2588,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "arxiv", specifier = ">=1.4.8,<2.0.0" },
-    { name = "atproto", specifier = ">=0.0.63" },
+    { name = "atproto", specifier = ">=0.0.69" },
     { name = "authlib", specifier = ">=1.3.0,<2.0.0" },
     { name = "beautifulsoup4", specifier = "==4.12.2" },
     { name = "boto3", specifier = ">=1.43.38,<2" },
