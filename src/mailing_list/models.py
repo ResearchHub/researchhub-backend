@@ -51,9 +51,6 @@ class EmailRecipient(models.Model):
     thread_subscription = SubscriptionField(
         "mailing_list.ThreadSubscription", related_name="email_recipient"
     )
-    reply_subscription = SubscriptionField(
-        "mailing_list.ReplySubscription", related_name="email_recipient"
-    )
     bounced_date = models.DateTimeField(default=None, null=True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -82,12 +79,8 @@ class EmailRecipient(models.Model):
             self.bounty_digest_subscription = BountyDigestSubscription.objects.create()
         if self.paper_subscription is None:
             self.paper_subscription = PaperSubscription.objects.create()
-        if self.thread_subscription is None:
-            self.thread_subscription = ThreadSubscription.objects.create()
         if self.comment_subscription is None:
             self.comment_subscription = CommentSubscription.objects.create()
-        if self.reply_subscription is None:
-            self.reply_subscription = ReplySubscription.objects.create()
         return super().save(*args, **kwargs)
 
     def bounced(self):
@@ -155,16 +148,6 @@ class PaperSubscription(BaseSubscription):
     threads = models.BooleanField(default=True)
 
 
-class ThreadSubscription(BaseSubscription):
-    none = models.BooleanField(default=False)
-    comments = models.BooleanField(default=True)
-
-
 class CommentSubscription(BaseSubscription):
-    none = models.BooleanField(default=False)
-    replies = models.BooleanField(default=True)
-
-
-class ReplySubscription(BaseSubscription):
     none = models.BooleanField(default=False)
     replies = models.BooleanField(default=True)
