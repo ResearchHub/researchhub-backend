@@ -42,7 +42,6 @@ from personalize.config.constants import (
     X_TOTAL_REPOSTS,
 )
 from personalize.utils.item_utils import prepare_text_for_personalize
-from utils.time import datetime_to_epoch_seconds
 
 
 @runtime_checkable
@@ -169,9 +168,9 @@ class ItemMapper:
             and hasattr(document, "paper_publish_date")
             and document.paper_publish_date
         ):
-            timestamp = datetime_to_epoch_seconds(document.paper_publish_date)
+            timestamp = self._datetime_to_epoch_seconds(document.paper_publish_date)
         else:
-            timestamp = datetime_to_epoch_seconds(prefetched_doc.created_date)
+            timestamp = self._datetime_to_epoch_seconds(prefetched_doc.created_date)
 
         # Hub processing
         from personalize.config.constants import MAX_HUB_IDS
@@ -276,3 +275,19 @@ class ItemMapper:
             TITLE: prepare_text_for_personalize(title),
             TEXT: prepare_text_for_personalize(text_concat),
         }
+
+    @staticmethod
+    def _datetime_to_epoch_seconds(dt) -> int | None:
+        """
+        Convert a datetime to Unix epoch seconds.
+
+        Args:
+            dt: Datetime object (can be timezone-aware or naive)
+
+        Returns:
+            Unix timestamp as integer, or None if dt is None
+        """
+        if dt is None:
+            return None
+
+        return int(dt.timestamp())

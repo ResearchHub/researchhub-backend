@@ -11,11 +11,10 @@ from django.db.models.functions import Cast, Coalesce, Lower
 from django.utils import timezone
 
 from hub.models import Hub
-from mailing_list.lib import send_email
 from mailing_list.models import EmailRecipient
 from purchase.related_models.balance_model import Balance
 from reputation.models import Distribution, PaidStatusModelMixin, Withdrawal
-from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
+from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
     ASSOCIATE_EDITOR,
@@ -471,23 +470,6 @@ class User(AbstractUser):
             )
 
         return allocations
-
-    def notify_inactivity(self, paper_count=0, comment_count=0):
-        recipient = [self.email]
-        subject = "[Editor] Weekly Inactivity"
-        email_context = {
-            "assets_base_url": ASSETS_BASE_URL,
-            "name": f"{self.first_name} {self.last_name}",
-            "paper_count": paper_count,
-            "comment_count": comment_count,
-        }
-        send_email(
-            recipient,
-            "editor_inactivity.txt",
-            subject,
-            email_context,
-            "editor_inactivity.html",
-        )
 
     def is_hub_editor(self):
         hub_content_type = ContentType.objects.get_for_model(Hub)
