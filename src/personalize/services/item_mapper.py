@@ -276,7 +276,8 @@ class ItemMapper:
             TEXT: prepare_text_for_personalize(text_concat),
         }
 
-    def _datetime_to_epoch_seconds(self, dt):
+    @staticmethod
+    def _datetime_to_epoch_seconds(dt):
         """
         Convert a datetime to Unix epoch seconds.
 
