@@ -161,7 +161,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                 "documents",
                 "document_filter",
                 "document_type",
-                "hot_score",
                 "hubs",
                 "reviews",
                 "score",

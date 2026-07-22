@@ -1,11 +1,13 @@
 from datetime import datetime, time
 
+from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework import serializers
 
 from paper.serializers import PaperSerializer
 from research_ai.constants import (
     EXPERT_FINDER_DEFAULT_STATE,
+    EmailTemplateType,
     ExpertiseLevel,
     Gender,
     Region,
@@ -18,14 +20,14 @@ from research_ai.models import (
     ProposalDraft,
     SearchExpert,
 )
-from research_ai.services.expert_display import ExpertDisplay
-from research_ai.services.expert_outreach_history_service import (
-    ExpertOutreachHistory,
-    build_expert_outreach_history_map,
-)
-from research_ai.services.invited_experts_service import (
+from research_ai.services.expert_finder.display import ExpertDisplay
+from research_ai.services.outreach.invited_experts import (
     EDITOR_SORT_FIELDS,
     default_overview_date_range,
+)
+from research_ai.services.outreach.outreach_history import (
+    ExpertOutreachHistory,
+    build_expert_outreach_history_map,
 )
 from research_ai.utils import trimmed_str
 from researchhub_document.related_models.constants.document_type import PAPER
@@ -450,22 +452,41 @@ class ExpertSearchDetailSerializer(serializers.ModelSerializer):
         qs = (
             SearchExpert.objects.filter(expert_search_id=obj.id)
             .select_related("expert")
+            .prefetch_related(
+                Prefetch(
+                    "proposal_drafts",
+                    queryset=ProposalDraft.objects.select_related("note").order_by(
+                        "-created_date"
+                    ),
+                    to_attr="ordered_proposal_drafts",
+                )
+            )
             .order_by("-expert__is_manually_added", "position")
         )
-        experts = [se.expert for se in qs]
+        search_experts = list(qs)
+        experts = [se.expert for se in search_experts]
         outreach_by_email = build_expert_outreach_history_map(
             expert_emails=[e.email for e in experts],
             current_unified_document_id=obj.unified_document_id,
         )
 
-        return ExpertSerializer(
-            experts,
-            many=True,
-            context={
-                **self.context,
-                "expert_outreach_by_email": outreach_by_email,
-            },
-        ).data
+        rows = list(
+            ExpertSerializer(
+                experts,
+                many=True,
+                context={
+                    **self.context,
+                    "expert_outreach_by_email": outreach_by_email,
+                },
+            ).data
+        )
+        for row, search_expert in zip(rows, search_experts, strict=True):
+            row["search_expert_id"] = search_expert.id
+            drafts = search_expert.ordered_proposal_drafts
+            row["proposal_draft"] = (
+                ProposalDraftSerializer(drafts[0]).data if drafts else None
+            )
+        return rows
 
     def get_report_urls(self, obj):
         out = {}
@@ -632,9 +653,41 @@ class GenerateEmailRequestSerializer(serializers.Serializer):
     expert_email = serializers.EmailField()
     template = serializers.CharField(required=False, allow_null=True)
     template_id = serializers.IntegerField(required=False, allow_null=True)
+    proposal_draft_id = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1
+    )
 
     def validate(self, attrs):
-        return _apply_generate_template_rules(attrs, self.initial_data)
+        attrs = _apply_generate_template_rules(attrs, self.initial_data)
+        return _apply_proposal_draft_email_rules(attrs, self.initial_data)
+
+
+def _apply_proposal_draft_email_rules(attrs, initial_data):
+    """Require the proposal outreach template and draft to be selected together."""
+    draft_id = attrs.get("proposal_draft_id")
+    raw_template = (initial_data or {}).get("template")
+    proposal_template = EmailTemplateType.PROPOSAL_DRAFT_OUTREACH
+
+    if draft_id is not None:
+        if raw_template is None and "template" in (initial_data or {}):
+            raise serializers.ValidationError(
+                {"template": "Fixed templates cannot be used with a proposal draft."}
+            )
+        if raw_template is not None and str(raw_template).strip() != proposal_template:
+            raise serializers.ValidationError(
+                {
+                    "template": (
+                        f"Must be '{proposal_template}' when proposal_draft_id is set."
+                    )
+                }
+            )
+        attrs["template"] = proposal_template
+    elif attrs.get("template") == proposal_template:
+        raise serializers.ValidationError(
+            {"proposal_draft_id": "This field is required for proposal outreach."}
+        )
+
+    return attrs
 
 
 class BulkGenerateEmailExpertSerializer(serializers.Serializer):
@@ -644,6 +697,9 @@ class BulkGenerateEmailExpertSerializer(serializers.Serializer):
     """
 
     expert_email = serializers.EmailField()
+    proposal_draft_id = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1
+    )
 
 
 class BulkGenerateEmailRequestSerializer(serializers.Serializer):
@@ -659,7 +715,38 @@ class BulkGenerateEmailRequestSerializer(serializers.Serializer):
     template_id = serializers.IntegerField(required=False, allow_null=True)
 
     def validate(self, attrs):
-        return _apply_generate_template_rules(attrs, self.initial_data)
+        attrs = _apply_generate_template_rules(attrs, self.initial_data)
+        proposal_template = EmailTemplateType.PROPOSAL_DRAFT_OUTREACH
+        has_drafts = any(
+            item.get("proposal_draft_id") is not None
+            for item in attrs.get("experts") or []
+        )
+        if has_drafts and "template" not in (self.initial_data or {}):
+            attrs["template"] = proposal_template
+        if attrs.get("template") == proposal_template:
+            missing = [
+                index
+                for index, item in enumerate(attrs.get("experts") or [])
+                if item.get("proposal_draft_id") is None
+            ]
+            if missing:
+                raise serializers.ValidationError(
+                    {
+                        "experts": (
+                            "proposal_draft_id is required for every expert when "
+                            f"template is '{proposal_template}'."
+                        )
+                    }
+                )
+        elif has_drafts:
+            raise serializers.ValidationError(
+                {
+                    "template": (
+                        f"Must be '{proposal_template}' when proposal_draft_id is set."
+                    )
+                }
+            )
+        return attrs
 
 
 class PreviewEmailRequestSerializer(serializers.Serializer):
@@ -720,6 +807,7 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
     created_by = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(source="created_date", read_only=True)
     updated_at = serializers.DateTimeField(source="updated_date", read_only=True)
+    proposal_invite_url = serializers.SerializerMethodField()
 
     class Meta:
         model = GeneratedEmail
@@ -727,6 +815,9 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "id",
             "created_by",
             "expert_search",
+            "proposal_draft",
+            "note_invitation",
+            "proposal_invite_url",
             "expert_name",
             "expert_title",
             "expert_affiliation",
@@ -756,6 +847,16 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
 
     def get_created_by(self, obj):
         return _get_created_by_payload(obj)
+
+    def get_proposal_invite_url(self, obj):
+        invitation = getattr(obj, "note_invitation", None)
+        if invitation is None:
+            return None
+        from research_ai.services.outreach.proposal_draft_outreach import (
+            proposal_draft_invite_url,
+        )
+
+        return proposal_draft_invite_url(invitation)
 
 
 class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):

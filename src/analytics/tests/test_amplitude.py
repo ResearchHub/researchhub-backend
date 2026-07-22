@@ -63,6 +63,23 @@ class AmplitudeTests(TestCase):
         self.assertFalse(user_properties["is_hub_editor"])
         self.assertFalse(user_properties["is_verified"])
 
+    @patch("analytics.amplitude.requests.post")
+    def test_forward_event_sends_when_enabled(self, mock_post):
+        """Test that forward_event calls Amplitude when the client is enabled."""
+        # Arrange
+        mock_post.return_value = MagicMock(
+            status_code=200, json=MagicMock(return_value={"code": 200})
+        )
+        amplitude = Amplitude(enabled=True)
+        hit = '{"api_key": "key1", "events": []}'
+
+        # Act
+        result = amplitude.forward_event(hit)
+
+        # Assert
+        self.assertEqual(result, {"code": 200})
+        mock_post.assert_called_once()
+
 
 class TrackEventDecoratorTests(TestCase):
     def setUp(self):
@@ -84,7 +101,6 @@ class TrackEventDecoratorTests(TestCase):
         self.mock_request.user = self.user
         self.mock_request.path = "/api/papers/"
 
-    @patch("analytics.amplitude.DEVELOPMENT", False)
     @patch("analytics.amplitude.Amplitude.build_hit")
     @patch("analytics.amplitude.track_user_activity")
     def test_track_event_upvote_triggers_user_activity(
@@ -111,7 +127,6 @@ class TrackEventDecoratorTests(TestCase):
             {"content_type": "paper", "object_id": 123},
         )
 
-    @patch("analytics.amplitude.DEVELOPMENT", False)
     @patch("analytics.amplitude.Amplitude.build_hit")
     @patch("analytics.amplitude.track_user_activity")
     def test_track_event_comment_triggers_user_activity(
@@ -156,7 +171,6 @@ class TrackEventDecoratorTests(TestCase):
             {"comment_id": 456, "comment_type": "GENERAL", "thread_id": 789},
         )
 
-    @patch("analytics.amplitude.DEVELOPMENT", False)
     @patch("analytics.amplitude.Amplitude.build_hit")
     @patch("analytics.amplitude.track_user_activity")
     def test_track_event_peer_review_comment_not_tracked(
@@ -195,7 +209,6 @@ class TrackEventDecoratorTests(TestCase):
         # Should not call track_user_activity for peer review comments
         mock_track_activity.assert_not_called()
 
-    @patch("analytics.amplitude.DEVELOPMENT", False)
     @patch("analytics.amplitude.Amplitude.build_hit")
     @patch("analytics.amplitude.track_user_activity")
     def test_track_event_review_comment_not_tracked(
@@ -234,7 +247,6 @@ class TrackEventDecoratorTests(TestCase):
         # Should not call track_user_activity for review comments
         mock_track_activity.assert_not_called()
 
-    @patch("analytics.amplitude.DEVELOPMENT", False)
     @patch("analytics.amplitude.Amplitude.build_hit")
     @patch("analytics.amplitude.track_user_activity")
     def test_track_event_review_create_triggers_user_activity(
@@ -283,7 +295,6 @@ class TrackEventDecoratorTests(TestCase):
             },
         )
 
-    @patch("analytics.amplitude.DEVELOPMENT", False)
     @patch("analytics.amplitude.Amplitude.build_hit")
     @patch("analytics.amplitude.track_user_activity")
     def test_track_event_fundraise_contribution_triggers_user_activity(
@@ -326,7 +337,6 @@ class TrackEventDecoratorTests(TestCase):
             },
         )
 
-    @patch("analytics.amplitude.DEVELOPMENT", False)
     @patch("analytics.amplitude.Amplitude.build_hit")
     @patch("analytics.amplitude.track_user_activity")
     def test_track_event_boost_purchase_triggers_user_activity(
@@ -377,7 +387,6 @@ class TrackEventDecoratorTests(TestCase):
             },
         )
 
-    @patch("analytics.amplitude.DEVELOPMENT", False)
     @patch("analytics.amplitude.Amplitude.build_hit")
     @patch("analytics.amplitude.track_user_activity")
     def test_track_event_non_boost_purchase_not_tracked(
@@ -416,56 +425,6 @@ class TrackEventDecoratorTests(TestCase):
         # Should not call track_user_activity for non-boost purchases
         mock_track_activity.assert_not_called()
 
-    @patch("analytics.amplitude.DEVELOPMENT", False)
-    @patch("analytics.amplitude.Amplitude.build_hit")
-    @patch("analytics.amplitude.track_user_activity")
-    def test_track_event_paper_submission_triggers_user_activity(
-        self, mock_track_activity, mock_build_hit
-    ):
-        """
-        Test that @track_event on paper submission method triggers JOURNAL_SUBMISSION
-        user activity.
-        """
-        # Arrange
-        mock_view = MagicMock()
-        mock_view.__class__.__name__ = "PaperSubmissionViewSet"
-        mock_view.basename = "papersubmission"
-        mock_view.action = "create"
-
-        mock_response = Response(
-            {
-                "id": 707,
-                "paper_status": "INITIATED",
-                "doi": "10.1234/test.123",
-                "url": "https://example.com/paper.pdf",
-            },
-            status=status.HTTP_200_OK,
-        )
-
-        mock_build_hit.return_value = None
-
-        @track_event
-        def create_submission_method(self, request, *args, **kwargs):
-            return mock_response
-
-        # Act
-        result = create_submission_method(mock_view, self.mock_request)
-
-        # Assert
-        self.assertEqual(result, mock_response)
-        mock_build_hit.assert_called_once()
-        mock_track_activity.assert_called_once_with(
-            self.user,
-            UserActivityTypes.JOURNAL_SUBMISSION,
-            {
-                "submission_id": 707,
-                "paper_status": "INITIATED",
-                "doi": "10.1234/test.123",
-                "url": "https://example.com/paper.pdf",
-            },
-        )
-
-    @patch("analytics.amplitude.DEVELOPMENT", False)
     @patch("analytics.amplitude.Amplitude.build_hit")
     @patch("analytics.amplitude.track_user_activity")
     def test_track_event_anonymous_user_not_tracked(
@@ -492,7 +451,6 @@ class TrackEventDecoratorTests(TestCase):
         # Should not call track_user_activity for anonymous users
         mock_track_activity.assert_not_called()
 
-    @patch("analytics.amplitude.DEVELOPMENT", False)
     @patch("analytics.amplitude.track_user_activity")
     def test_track_event_error_response_not_tracked(self, mock_track_activity):
         """Test that error responses don't trigger user activity tracking."""
@@ -513,10 +471,9 @@ class TrackEventDecoratorTests(TestCase):
         # Should not call track_user_activity for error responses
         mock_track_activity.assert_not_called()
 
-    @patch("analytics.amplitude.DEVELOPMENT", True)
-    @patch("analytics.amplitude.track_user_activity")
-    def test_track_event_development_mode_not_tracked(self, mock_track_activity):
-        """Test that DEVELOPMENT mode doesn't trigger tracking."""
+    @patch("analytics.amplitude.requests.post")
+    def test_track_event_disabled_client_sends_nothing(self, mock_post):
+        """Test that no events are sent to Amplitude when the client is disabled."""
         # Arrange
         mock_response = Response({"id": 123}, status=status.HTTP_200_OK)
 
@@ -529,5 +486,5 @@ class TrackEventDecoratorTests(TestCase):
 
         # Assert
         self.assertEqual(result, mock_response)
-        # Should not call track_user_activity in development mode
-        mock_track_activity.assert_not_called()
+        # The client is disabled during tests, so no HTTP request is made
+        mock_post.assert_not_called()

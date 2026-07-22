@@ -1,7 +1,5 @@
 from paper.related_models.citation_model import Citation
 from paper.related_models.paper_model import (
-    ARXIV_IDENTIFIER,
-    DOI_IDENTIFIER,
     Figure,
     Paper,
     PaperFetchLog,
@@ -14,8 +12,6 @@ from paper.related_models.paper_version import (
 )
 
 __all__ = [
-    "ARXIV_IDENTIFIER",
-    "DOI_IDENTIFIER",
     "Citation",
     "Figure",
     "Paper",

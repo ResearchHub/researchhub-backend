@@ -1089,7 +1089,7 @@ class DefaultValuesTests(TestCase):
         )
 
         # Assert - all fields from FIELD_DEFAULTS should be in result
-        for field in FIELD_DEFAULTS.keys():
+        for field in FIELD_DEFAULTS:
             self.assertIn(
                 field,
                 result,

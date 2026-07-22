@@ -51,18 +51,6 @@ class UserIsEditor(BasePermission):
         return user.is_hub_editor()
 
 
-class RequestorIsOwnUser(BasePermission):
-    message = "Permission Denied: Not own user"
-
-    def has_permission(self, request, view):
-        requestor = request.user
-        if requestor.is_anonymous:
-            return False
-
-        target_user_id = request.data.get("target_user_id")
-        return target_user_id == requestor.id
-
-
 class DeleteUserPermission(BasePermission):
     message = "Permission Denied: Not own user or moderator"
 
@@ -70,9 +58,7 @@ class DeleteUserPermission(BasePermission):
         user = request.user
         user_is_moderator = user.moderator
 
-        if request.method == "DELETE" and (user_is_moderator or user == obj):
-            return True
-        return False
+        return bool(request.method == "DELETE" and (user_is_moderator or user == obj))
 
 
 class DeleteAuthorPermission(BasePermission):
@@ -82,9 +68,7 @@ class DeleteAuthorPermission(BasePermission):
         user = request.user
         user_is_moderator = user.moderator
 
-        if request.method == "DELETE" and user_is_moderator:
-            return True
-        return False
+        return bool(request.method == "DELETE" and user_is_moderator)
 
 
 class IsVerifiedUser(BasePermission):

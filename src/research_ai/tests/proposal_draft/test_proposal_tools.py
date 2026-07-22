@@ -8,8 +8,10 @@ from django.utils import timezone
 
 from purchase.models import Grant
 from research_ai.models import Expert, ExpertSearch, SearchExpert
-from research_ai.services.proposal_tools.context_tools import ProposalContextToolset
-from research_ai.services.proposal_tools.verification_tools import (
+from research_ai.services.proposal_draft.tools.context_tools import (
+    ProposalContextToolset,
+)
+from research_ai.services.proposal_draft.tools.verification_tools import (
     ProposalVerificationToolset,
 )
 from researchhub_document.helpers import create_post
@@ -20,11 +22,15 @@ from user.tests.helpers import create_random_default_user
 class _FakeOpenAlex:
     """Stand-in for ``utils.openalex.OpenAlex`` keyed by DOI."""
 
-    def __init__(self, by_doi):
+    def __init__(self, by_doi, *, works_by_query=None):
         self._by_doi = by_doi
+        self._works_by_query = works_by_query or {}
 
     def get_work_by_doi(self, doi):
         return self._by_doi.get(doi)
+
+    def search_works(self, query, per_page=5):
+        return self._works_by_query.get(query, [])[:per_page]
 
 
 def _build_openalex_work(title, authors, *, year=2020, doi="https://doi.org/10.1/x"):
@@ -143,6 +149,58 @@ class ProposalToolsTestCase(TestCase):
         )
 
     # -- verification tool ------------------------------------------------
+
+    # -- search_works -----------------------------------------------------
+
+    def test_search_works_returns_grounded_candidates(self):
+        # Arrange: a title query resolves to a real DOI-bearing record.
+        oa = _FakeOpenAlex(
+            {},
+            works_by_query={
+                "Pericytes Stimulate Oligodendrocyte Differentiation": [
+                    _build_openalex_work(
+                        "Pericytes Stimulate Oligodendrocyte Differentiation",
+                        ["De La Fuente"],
+                        doi="https://doi.org/10.1016/j.celrep.2017.08.007",
+                    )
+                ]
+            },
+        )
+        tool = ProposalVerificationToolset(oa_client=oa)
+
+        # Act
+        out = tool.search_works(
+            {"title": "Pericytes Stimulate Oligodendrocyte Differentiation"}
+        )
+
+        # Assert: the resolved DOI comes back as source_url, not invented.
+        self.assertEqual(len(out["results"]), 1)
+        result = out["results"][0]
+        self.assertEqual(
+            result["source_url"], "https://doi.org/10.1016/j.celrep.2017.08.007"
+        )
+        self.assertEqual(result["authors"], ["De La Fuente"])
+        self.assertEqual(result["year"], 2020)
+
+    def test_search_works_requires_title(self):
+        # Arrange
+        tool = ProposalVerificationToolset(oa_client=_FakeOpenAlex({}))
+
+        # Act
+        out = tool.search_works({"title": "  "})
+
+        # Assert
+        self.assertIn("error", out)
+
+    def test_search_works_empty_when_no_matches(self):
+        # Arrange: the client returns nothing for an unknown query.
+        tool = ProposalVerificationToolset(oa_client=_FakeOpenAlex({}))
+
+        # Act
+        out = tool.search_works({"title": "a paper that does not exist"})
+
+        # Assert
+        self.assertEqual(out["results"], [])
 
     def test_verify_citations_exact_on_match(self):
         # Arrange

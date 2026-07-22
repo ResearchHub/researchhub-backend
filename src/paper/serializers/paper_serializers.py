@@ -1,8 +1,7 @@
+import contextlib
 import json
 import logging
-import re
 
-import requests
 import rest_framework.serializers as serializers
 from django.contrib.admin.options import get_content_type_for_model
 from django.db import IntegrityError, transaction
@@ -18,23 +17,16 @@ from discussion.serializers import (
 from feed.hot_score_utils import calculate_adjusted_score
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
-from paper.lib import journal_hosts
 from paper.models import (
-    ARXIV_IDENTIFIER,
-    DOI_IDENTIFIER,
     Figure,
     Paper,
-    PaperSubmission,
     PaperVersion,
 )
 from paper.related_models.authorship_model import Authorship
 from paper.tasks import download_pdf
 from paper.utils import (
     check_file_is_url,
-    check_url_is_pdf,
     clean_abstract,
-    convert_journal_url_to_pdf_url,
-    convert_pdf_url_to_journal_url,
     pdf_copyright_allows_display,
 )
 from purchase.models import Purchase
@@ -54,7 +46,7 @@ from user.serializers import (
     DynamicUserSerializer,
     UserSerializer,
 )
-from utils.http import check_url_contains_pdf, get_user_from_request
+from utils.http import get_user_from_request
 
 logger = logging.getLogger(__name__)
 
@@ -131,10 +123,8 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             data (dict)
         """
         file = None
-        try:
+        with contextlib.suppress(KeyError):
             file = data.pop("file")
-        except KeyError:
-            pass
 
         data = data.copy()
         data["file"] = file
@@ -366,10 +356,7 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
 
     def create(self, validated_data):
         request = self.context.get("request", None)
-        if request:
-            user = request.user
-        else:
-            user = None
+        user = request.user if request else None
         validated_data["uploaded_by"] = user
 
         # Prepare validated_data by removing m2m
@@ -530,29 +517,11 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
                 download_pdf(paper_id)
 
     def _add_url(self, file, validated_data):
+        # `file` accepts a URL string.
+        # Keep it out of the FileField and store it as the paper's URL instead.
         if check_file_is_url(file):
             validated_data["file"] = None
-            contains_pdf = check_url_contains_pdf(file)
-            is_journal_pdf = check_url_is_pdf(file)
-
-            if contains_pdf:
-                validated_data["url"] = file
-                validated_data["pdf_url"] = file
-
-            if is_journal_pdf is True:
-                pdf_url = file
-                journal_url, converted = convert_pdf_url_to_journal_url(file)
-            elif is_journal_pdf is False:
-                journal_url = file
-                pdf_url, converted = convert_journal_url_to_pdf_url(file)
-            else:
-                validated_data["url"] = file
-                return
-
-            if converted:
-                validated_data["url"] = journal_url
-                validated_data["pdf_url"] = pdf_url
-        return
+            validated_data["url"] = file
 
     def _clean_abstract(self, data):
         abstract = data.get("abstract")
@@ -564,40 +533,6 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
         raw_authors = validated_data["raw_authors"]
         json_raw_authors = list(map(json.loads, raw_authors))
         validated_data["raw_authors"] = json_raw_authors
-
-    def _check_valid_doi(self, validated_data):
-        url = validated_data.get("url", "")
-        pdf_url = validated_data.get("pdf_url", "")
-        doi = validated_data.get("doi", "")
-
-        for journal_host in journal_hosts:
-            if url and journal_host in url:
-                return True
-            if pdf_url and journal_host in pdf_url:
-                return True
-
-        regex = r"(.*doi\.org\/)(.*)"
-
-        regex_doi = re.search(regex, doi)
-        if regex_doi and len(regex_doi.groups()) > 1:
-            doi = regex_doi.groups()[-1]
-
-        has_doi = doi.startswith(DOI_IDENTIFIER)
-        has_arxiv = doi.startswith(ARXIV_IDENTIFIER)
-
-        # For pdf uploads, checks if doi has an arxiv identifer
-        if has_arxiv or has_doi:
-            return True
-
-        res = requests.get(
-            f"https://doi.org/api/handles/{doi}",
-            headers=requests.utils.default_headers(),
-            timeout=30,
-        )
-        if res.status_code >= 200 and res.status_code < 400 and has_doi:
-            return True
-        else:
-            return False
 
     def get_authors(self, paper):
         serializer = AuthorSerializer(
@@ -1075,41 +1010,3 @@ class DynamicFigureSerializer(DynamicModelFieldSerializer):
     class Meta:
         fields = "__all__"
         model = Figure
-
-
-class PaperSubmissionSerializer(serializers.ModelSerializer):
-    class Meta:
-        fields = "__all__"
-        model = PaperSubmission
-        read_only_fields = [
-            "id",
-            "created_date",
-            "paper_status",
-            "updated_date",
-        ]
-
-
-class DynamicPaperSubmissionSerializer(DynamicModelFieldSerializer):
-    paper = serializers.SerializerMethodField()
-    uploaded_by = serializers.SerializerMethodField()
-
-    class Meta:
-        fields = "__all__"
-        model = PaperSubmission
-
-    def get_paper(self, paper_submission):
-        context = self.context
-        _context_fields = context.get("pap_dpss_get_paper", {})
-        serializer = DynamicPaperSerializer(
-            paper_submission.paper, context=context, **_context_fields
-        )
-        return serializer.data
-
-    def get_uploaded_by(self, paper_submission):
-        context = self.context
-        _context_fields = context.get("pap_dpss_get_uploaded_by", {})
-
-        serializer = DynamicUserSerializer(
-            paper_submission.uploaded_by, context=context, **_context_fields
-        )
-        return serializer.data

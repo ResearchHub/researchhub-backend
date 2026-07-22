@@ -49,12 +49,11 @@ def censor(item):
             is_removed=True, is_public=False, is_removed_date=timezone.now()
         )
 
-    if action := getattr(item, "actions", None):
-        if action.exists():
-            action = action.first()
-            action.is_removed = True
-            action.display = False
-            action.save(update_fields=["is_removed", "display"])
+    if (action := getattr(item, "actions", None)) and action.exists():
+        action = action.first()
+        action.is_removed = True
+        action.display = False
+        action.save(update_fields=["is_removed", "display"])
 
     if purchases := getattr(item, "purchases", None):
         for purchase in purchases.iterator():
@@ -249,16 +248,14 @@ def create_flag(user, item, reason, reason_choice, reason_memo=None):
         return flag, serializer.data
 
 
-def find_vote(user, item, vote_type):
+def find_vote(user, item, vote_type) -> bool:
     vote = Vote.objects.filter(
         object_id=item.id,
         content_type=get_content_type_for_model(item),
         created_by=user,
         vote_type=vote_type,
     )
-    if vote:
-        return True
-    return False
+    return bool(vote)
 
 
 def retrieve_flag(user, item):
@@ -431,18 +428,15 @@ def create_automated_bounty(item):
 def update_or_create_vote(request, user, item, vote_type):
     """UPDATE VOTE"""
     vote = retrieve_vote(user, item)
-    if vote_type == Vote.UPVOTE and vote and vote.vote_type == vote.DOWNVOTE:
-        item.score += 2
-    elif vote_type == Vote.DOWNVOTE and vote and vote.vote_type == vote.UPVOTE:
-        item.score -= 2
-    elif vote_type == Vote.UPVOTE:
-        item.score += 1
-    elif vote_type == Vote.DOWNVOTE:
-        item.score -= 1
-    elif vote_type == Vote.NEUTRAL and vote and vote.vote_type == Vote.UPVOTE:
-        item.score -= 1
-    elif vote_type == Vote.NEUTRAL and vote and vote.vote_type == Vote.DOWNVOTE:
-        item.score += 1
+
+    vote_scores = {
+        Vote.UPVOTE: 1,
+        Vote.NEUTRAL: 0,
+        Vote.DOWNVOTE: -1,
+    }
+
+    previous_vote_type = vote.vote_type if vote else Vote.NEUTRAL
+    item.score += vote_scores[vote_type] - vote_scores[previous_vote_type]
 
     item.save()
 

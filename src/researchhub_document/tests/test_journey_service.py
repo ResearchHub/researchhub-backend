@@ -1,11 +1,13 @@
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 
 from purchase.models import Fundraise, Grant, GrantApplication
+from reputation.models import Escrow
 from researchhub_document.helpers import create_post
 from researchhub_document.models import (
     ResearchhubPost,
@@ -148,6 +150,7 @@ class JourneyServiceTests(TestCase):
             goal_currency="USD",
             status=Fundraise.COMPLETED,
         )
+        self._attach_fundraise_escrow(fundraise, Decimal("100.00"))
 
         # Act
         journey = self.service.include_completed_fundraise_in_journal(fundraise)
@@ -158,6 +161,25 @@ class JourneyServiceTests(TestCase):
         self.assertEqual(proposal.journey, journey)
         self.assertTrue(journey.is_in_journal)
         self.assertIsNotNone(journey.journal_included_date)
+
+    def test_skip_journal_for_unfunded_completed_fundraise(self) -> None:
+        """Verify unfunded completed fundraises do not enter the journal."""
+        # Arrange
+        proposal = self._create_post(PREREGISTRATION)
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+            status=Fundraise.COMPLETED,
+        )
+
+        # Act
+        journey = self.service.include_completed_fundraise_in_journal(fundraise)
+
+        # Assert
+        self.assertIsNone(journey)
+        self.assertFalse(ResearchJourney.objects.exists())
 
     def test_keep_existing_journal_date(self) -> None:
         """Verify repeated inclusion keeps the original journal date."""
@@ -178,6 +200,7 @@ class JourneyServiceTests(TestCase):
             goal_currency="USD",
             status=Fundraise.COMPLETED,
         )
+        self._attach_fundraise_escrow(fundraise, Decimal("100.00"))
 
         # Act
         included_journey = self.service.include_completed_fundraise_in_journal(
@@ -246,6 +269,7 @@ class JourneyServiceTests(TestCase):
             goal_currency="USD",
             status=Fundraise.COMPLETED,
         )
+        self._attach_fundraise_escrow(fundraise, Decimal("100.00"))
 
         # Act
         with self.assertLogs(
@@ -318,13 +342,15 @@ class JourneyServiceTests(TestCase):
         registered_report = self._create_post(REGISTERED_REPORT)
 
         # Act / Assert
-        with patch.object(
-            registered_report,
-            "save",
-            side_effect=IntegrityError("duplicate registered report"),
+        with (
+            patch.object(
+                registered_report,
+                "save",
+                side_effect=IntegrityError("duplicate registered report"),
+            ),
+            self.assertRaises(ValueError),
         ):
-            with self.assertRaises(ValueError):
-                self.service.attach_stage(journey, registered_report)
+            self.service.attach_stage(journey, registered_report)
 
     def test_attach_stage_rejects_second_proposal(self) -> None:
         """Verify a journey cannot have two proposals."""
@@ -431,3 +457,14 @@ class JourneyServiceTests(TestCase):
             description="Funding for the proposal.",
         )
         return grant, grant_post
+
+    def _attach_fundraise_escrow(self, fundraise: Fundraise, amount: Decimal) -> None:
+        """Attach escrowed RSC funding to a fundraise."""
+        fundraise.escrow = Escrow.objects.create(
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=fundraise.id,
+            hold_type=Escrow.FUNDRAISE,
+            amount_holding=amount,
+        )
+        fundraise.save(update_fields=["escrow"])

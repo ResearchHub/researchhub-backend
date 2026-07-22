@@ -40,7 +40,8 @@ class Distributor:
         timestamp,
         giver=None,
         hubs=None,
-        is_locked=False,
+        is_locked: bool = False,
+        lock_type: str | None = None,
     ):
         self.distribution = distribution
         self.recipient = recipient
@@ -49,6 +50,7 @@ class Distributor:
         self.giver = giver
         self.hubs = hubs
         self.is_locked = is_locked
+        self.lock_type = lock_type
 
     @staticmethod
     def generate_proof(db_record, timestamp):
@@ -123,7 +125,7 @@ class Distributor:
                 users.update(reputation=models.F("reputation") + rep)
             self._record_balance(record, is_locked=self.is_locked)
 
-    def _record_balance(self, distribution, is_locked=False):
+    def _record_balance(self, distribution, is_locked: bool = False) -> None:
         content_type = ContentType.objects.get_for_model(distribution)
         Balance.objects.create(
             user=self.recipient,
@@ -131,6 +133,7 @@ class Distributor:
             object_id=distribution.id,
             amount=self.distribution.amount,  # db converts integer to string
             is_locked=is_locked,
+            lock_type=self.lock_type if is_locked else None,
         )
 
     def distribute_locked_balance(self):

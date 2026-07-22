@@ -14,12 +14,12 @@ from collections.abc import Callable
 from research_ai.models import ProposalDraft
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_draft.scope import format_award, max_aims_for_budget
-from research_ai.services.proposal_tools import (
+from research_ai.services.proposal_draft.tools import (
     ProposalVerificationToolset,
     assemble_proposal,
     valid_aims,
 )
-from research_ai.services.proposal_tools.doi import strip_doi_prefix
+from research_ai.services.proposal_draft.tools.doi import strip_doi_prefix
 
 # The gates in the order they run; also the report keys their results live
 # under (``ProposalGateRunner.run`` builds the report from this order).
@@ -37,6 +37,7 @@ _REQUIRED_SECTIONS = (
     ("title", "title"),
     ("background", "background & hypothesis"),
     ("preliminary_data", "preliminary data & rationale"),
+    ("limitations", "limitations, pitfalls & alternative approaches"),
     ("why_this_team", "investigator & team qualifications"),
     ("budget", "budget justification"),
     ("timeline", "timeline & milestones"),
@@ -347,20 +348,46 @@ class ProposalGateRunner:
                 "gaps": ["The judge panel returned no scores (judge failure)."],
             }
         overall = rollup.get("overall", 0)
-        ok = overall >= self.config.panel_threshold
+        scores = rollup.get("scores")
+        scores = scores if isinstance(scores, dict) else {}
+        style_score = scores.get("c7", 0)
+        overall_ok = overall >= self.config.panel_threshold
+        style_ok = (
+            isinstance(style_score, (int, float))
+            and style_score >= self.config.style_threshold
+        )
+        ok = overall_ok and style_ok
         gaps = []
-        if not ok:
+        if not overall_ok:
             gaps.append(
                 f"The judge panel scored this {overall} overall, below the "
                 f"{self.config.panel_threshold} bar. Close these gaps: "
                 + "; ".join(rollup.get("gaps", []) or ["raise overall quality"])
                 + "."
             )
+        if not style_ok:
+            style_gaps = [
+                str(gap)
+                for gap in rollup.get("gaps", []) or []
+                if str(gap).lower().startswith("c7:")
+            ]
+            detail = (
+                " Close these style gaps: " + "; ".join(style_gaps) + "."
+                if style_gaps
+                else " Revise the exact spans that read as generic model prose."
+            )
+            gaps.append(
+                f"Scientific writing voice scored {style_score}, below the "
+                f"{self.config.style_threshold} c7 bar.{detail}"
+            )
         return {
             "ok": ok,
             "overall": overall,
-            "scores": rollup.get("scores"),
+            "scores": scores,
             "threshold": self.config.panel_threshold,
+            "style_score": style_score,
+            "style_threshold": self.config.style_threshold,
+            "style_ok": style_ok,
             "rollup": rollup,
             "gaps": gaps,
         }

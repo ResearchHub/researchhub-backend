@@ -7,7 +7,10 @@ this module owns only the static schema and the wiring.
 """
 
 from research_ai.services.agent import Tool, Toolset
-from research_ai.services.researcher_profile.openalex_tools import SUBMIT_PROFILE
+from research_ai.services.researcher_profile.openalex_tools import (
+    GET_WORK_FULLTEXT,
+    SUBMIT_PROFILE,
+)
 
 SUBMIT_INPUT_SCHEMA = {
     "type": "object",
@@ -29,6 +32,7 @@ SUBMIT_INPUT_SCHEMA = {
                         "required": ["title", "body"],
                     },
                 },
+                "limitations": {"type": "string"},
                 "why_this_team": {"type": "string"},
                 "budget": {"type": "string"},
                 "timeline": {"type": "string"},
@@ -38,6 +42,7 @@ SUBMIT_INPUT_SCHEMA = {
                 "background",
                 "preliminary_data",
                 "aims",
+                "limitations",
                 "why_this_team",
                 "budget",
                 "timeline",
@@ -76,7 +81,8 @@ def build_submit_tool(handler) -> Tool:
         description=(
             "Submit the finished proposal for the deterministic gate. Provide "
             "`sections` (title, background, preliminary_data, aims as a list of "
-            "{title, body}, why_this_team, budget, timeline) and `citations` "
+            "{title, body}, limitations, why_this_team, budget, timeline) and "
+            "`citations` "
             "(each from a tool result); the server assembles the final numbered "
             "document from your sections. If the gate rejects the draft it "
             "returns concrete gaps -- revise and submit again."
@@ -98,10 +104,13 @@ def compose_proposal_toolset(
 ) -> Toolset:
     """OpenAlex + context + fulltext + web + verification + submit."""
     toolset = Toolset()
-    # OpenAlex tools, minus that toolset's own terminal submit_profile -- the
-    # proposal agent has its own terminal tool.
+    # OpenAlex tools, minus the two this agent replaces: submit_profile (the
+    # proposal agent has its own terminal tool) and the profile builder's
+    # get_work_fulltext (the fulltext toolset below ships the proposal agent's
+    # version -- profile-scoped and fetch-capped -- under the same name, which
+    # would otherwise replace this one silently via ``Toolset.add``).
     for tool in openalex_toolset.build_tools():
-        if tool.name == SUBMIT_PROFILE:
+        if tool.name in (SUBMIT_PROFILE, GET_WORK_FULLTEXT):
             continue
         toolset.add(tool)
     for tool in context_toolset.build_tools():

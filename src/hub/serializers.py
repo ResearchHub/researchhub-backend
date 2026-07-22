@@ -1,12 +1,10 @@
 import logging
 
 from rest_framework.serializers import (
-    IntegerField,
     ModelSerializer,
     SerializerMethodField,
 )
 
-from reputation.models import Contribution
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 
@@ -94,67 +92,6 @@ class HubSerializer(ModelSerializer):
             context=context,
             many=True,
         ).data
-
-
-class HubContributionSerializer(ModelSerializer):
-    comment_count = IntegerField(read_only=True)
-    latest_comment_date = SerializerMethodField(read_only=True)
-    latest_submission_date = SerializerMethodField(read_only=True)
-    submission_count = IntegerField(read_only=True)
-    support_count = IntegerField(read_only=True)
-    total_contribution_count = IntegerField(read_only=True)
-
-    class Meta:
-        model = Hub
-        fields = [
-            "comment_count",
-            "hub_image",
-            "id",
-            "latest_comment_date",
-            "latest_submission_date",
-            "name",
-            "namespace",
-            "submission_count",
-            "support_count",
-            "total_contribution_count",
-        ]
-        read_only_fields = [
-            "comment_count",
-            "hub_image",
-            "id",
-            "name",
-            "submission_count",
-            "support_count",
-            "total_contribution_count",
-        ]
-
-    def get_latest_comment_date(self, hub):
-        try:
-            return (
-                Contribution.objects.filter(
-                    contribution_type=Contribution.COMMENTER,
-                    unified_document__hubs=hub.id,
-                )
-                .latest("created_date")
-                .created_date
-            )
-        except Exception:
-            logger.exception("Failed to get latest comment date for hub %s", hub.id)
-            return None
-
-    def get_latest_submission_date(self, hub):
-        try:
-            return (
-                Contribution.objects.filter(
-                    contribution_type=Contribution.SUBMITTER,
-                    unified_document__hubs=hub.id,
-                )
-                .latest("created_date")
-                .created_date
-            )
-        except Exception:
-            logger.exception("Failed to get latest submission date for hub %s", hub.id)
-            return None
 
 
 class DynamicHubSerializer(DynamicModelFieldSerializer):

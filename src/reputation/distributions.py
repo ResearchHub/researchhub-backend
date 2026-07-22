@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+
 class Distribution:
     def __init__(self, name, amount, give_rep=True, reputation=1):
         self._name = name
@@ -102,6 +105,11 @@ def create_staking_yield_distribution(amount):
     return distribution
 
 
+def create_promotional_credit_distribution(amount: Decimal) -> Distribution:
+    distribution = Distribution("PROMOTIONAL_CREDIT", amount, give_rep=False)
+    return distribution
+
+
 DISTRIBUTION_TYPE_CHOICES = [
     (FlagPaper.name, FlagPaper.name),
     ("STORED_PAPER_POT", "STORED_PAPER_POT"),
@@ -122,4 +130,5 @@ DISTRIBUTION_TYPE_CHOICES = [
     ),
     ("PREREGISTRATION_UPDATE_REWARD", "PREREGISTRATION_UPDATE_REWARD"),
     ("STAKING_YIELD", "STAKING_YIELD"),
+    ("PROMOTIONAL_CREDIT", "PROMOTIONAL_CREDIT"),
 ]

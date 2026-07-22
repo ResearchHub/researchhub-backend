@@ -767,6 +767,34 @@ class PaymentServiceTest(TestCase):
         locked_balance = self.user.get_locked_balance()
         self.assertEqual(locked_balance, expected_locked_balance)
 
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_process_payment_intent_preserves_decimal_balance_precision(
+        self, mock_stripe_retrieve
+    ):
+        # Arrange: converting this gross credit to float rounds it down, which
+        # would leave the purchased balance short of its exact fundraise cost.
+        locked_rsc_amount = Decimal("10000000.00000004")
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "succeeded"
+        mock_payment_intent.amount = 1000
+        mock_payment_intent.currency = "usd"
+        mock_payment_intent.id = "pi_decimal_precision"
+        mock_payment_intent.metadata = {
+            "user_id": str(self.user.id),
+            "purpose": PaymentPurpose.RSC_PURCHASE,
+            "locked_rsc_amount": str(locked_rsc_amount),
+            "platform_fees_rsc": "0.00",
+        }
+        mock_stripe_retrieve.return_value = mock_payment_intent
+
+        # Act
+        self.service.process_payment_intent_confirmation("pi_decimal_precision")
+
+        # Assert: the immediate 2% fee is deducted, leaving the requested RSC
+        # plus the exact 7% reserved for a future fundraise fee.
+        expected_balance = locked_rsc_amount * Decimal("1.07")
+        self.assertEqual(self.user.get_locked_balance(), expected_balance)
+
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_with_fundraise_id(
         self, mock_stripe_payment_intent_create

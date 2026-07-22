@@ -26,9 +26,6 @@ from rest_framework.request import Request
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_application_model import approved_proposal_filters
 from purchase.related_models.grant_model import Grant
-from researchhub_document.related_models.constants.document_type import (
-    REGISTERED_REPORT,
-)
 
 
 class FundOrderingFilter(OrderingFilter):
@@ -329,7 +326,7 @@ class FundOrderingFilter(OrderingFilter):
 
 
 class JournalFeedOrderingFilter(FundOrderingFilter):
-    """Order journal cards by stage first, then the requested feed ranking."""
+    """Order registered report journal cards by the requested feed ranking."""
 
     peer_review_score_ordering = "peer_review_score"
 
@@ -381,63 +378,32 @@ class JournalFeedOrderingFilter(FundOrderingFilter):
         queryset: QuerySet,
         model_config: dict[str, type[Grant] | type[Fundraise] | str],
     ) -> QuerySet:
-        """Sort each journal stage by newest post first."""
-        return self._order_by_stage(queryset, "-created_date")
+        """Sort registered reports by newest post first."""
+        return queryset.order_by("-created_date")
 
     def _apply_best_sorting(
         self,
         queryset: QuerySet,
         model_config: dict[str, type[Grant] | type[Fundraise] | str],
     ) -> QuerySet:
-        """Sort each journal stage by source proposal peer review score."""
+        """Sort registered reports by source proposal peer review score."""
         return self._apply_peer_review_score_sorting(queryset)
 
     def _apply_peer_review_score_sorting(self, queryset: QuerySet) -> QuerySet:
-        """Sort each journal stage by source proposal average peer review score."""
-        proposal_reviews = "unified_document__reviews"
+        """Sort registered reports by source proposal average peer review score."""
         report_reviews = "journey__preregistration_post__unified_document__reviews"
         queryset = queryset.annotate(
-            proposal_review_score=Avg(
-                f"{proposal_reviews}__score",
-                filter=Q(
-                    **{
-                        f"{proposal_reviews}__is_removed": False,
-                    }
-                ),
-            ),
-            report_review_score=Avg(
-                f"{report_reviews}__score",
-                filter=Q(
-                    **{
-                        f"{report_reviews}__is_removed": False,
-                    }
-                ),
-            ),
-        ).annotate(
             peer_review_score=Coalesce(
-                Case(
-                    When(
-                        document_type=REGISTERED_REPORT,
-                        then=F("report_review_score"),
+                Avg(
+                    f"{report_reviews}__score",
+                    filter=Q(
+                        **{
+                            f"{report_reviews}__is_removed": False,
+                        }
                     ),
-                    default=F("proposal_review_score"),
-                    output_field=FloatField(),
                 ),
                 0.0,
                 output_field=FloatField(),
             )
         )
-        return self._order_by_stage(queryset, "-peer_review_score", "-created_date")
-
-    def _order_by_stage(self, queryset: QuerySet, *fields: str) -> QuerySet:
-        """Put registered reports before completed proposals, then sort fields."""
-        return queryset.annotate(
-            journal_stage_priority=Case(
-                When(
-                    document_type=REGISTERED_REPORT,
-                    then=Value(0),
-                ),
-                default=Value(1),
-                output_field=IntegerField(),
-            )
-        ).order_by("journal_stage_priority", *fields)
+        return queryset.order_by("-peer_review_score", "-created_date")

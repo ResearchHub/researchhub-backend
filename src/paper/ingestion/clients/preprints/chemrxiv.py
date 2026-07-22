@@ -153,10 +153,7 @@ class ChemRxivClient(BaseClient):
         page_size = self.config.page_size
 
         # Determine total results to fetch
-        if max_results:
-            total_to_fetch = max_results
-        else:
-            total_to_fetch = float("inf")
+        total_to_fetch = max_results or float("inf")
 
         while len(all_papers) < total_to_fetch:
             # Calculate how many to fetch in this request

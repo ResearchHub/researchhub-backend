@@ -7,12 +7,10 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from feed.feed_list_dto import (
-    JOURNAL_STATE_COMPLETED_PROPOSAL,
-    JOURNAL_STATE_REGISTERED_REPORT,
-)
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import USD
+from purchase.related_models.constants.rsc_exchange_currency import MORALIS
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Escrow
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
@@ -39,12 +37,16 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         self.service = JourneyService()
         self.client = APIClient()
         self.client.force_authenticate(self.user)
+        RscExchangeRate.objects.create(
+            price_source=MORALIS,
+            rate=3.0,
+            real_rate=3.0,
+            target_currency=USD,
+        )
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
-    def test_list_returns_registered_reports_before_completed_proposals(
-        self, mock_usd_to_rsc: Any
-    ) -> None:
-        """Verify the journal feed groups reports before completed proposals."""
+    def test_list_returns_registered_reports_only(self, mock_usd_to_rsc: Any) -> None:
+        """Verify the journal feed excludes completed proposal cards."""
         # Arrange
         mock_usd_to_rsc.return_value = 100
         proposal_with_report = self.create_completed_proposal("Proposal With Report")
@@ -67,12 +69,13 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         results = response.data["results"]
         post_ids = [entry["content_object"]["id"] for entry in results]
-        self.assertEqual(post_ids, [registered_report.id, completed_proposal.id])
+        self.assertEqual(post_ids, [registered_report.id])
         self.assertNotIn(proposal_with_report.id, post_ids)
+        self.assertNotIn(completed_proposal.id, post_ids)
 
         report_card = results[0]["content_object"]
         self.assertEqual(report_card["type"], REGISTERED_REPORT)
-        self.assertEqual(report_card["journal_state"], JOURNAL_STATE_REGISTERED_REPORT)
+        self.assertEqual(report_card["journal_state"], "registered_report")
         self.assertEqual(report_card["proposal"]["id"], proposal_with_report.id)
         self.assertNotIn("review_metrics", results[0]["metrics"])
         self.assertEqual(report_card["fundraise"]["status"], Fundraise.COMPLETED)
@@ -83,22 +86,9 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
                 "proposal_post_id": proposal_with_report.id,
             },
         )
-        self.assertEqual(
-            results[1]["post_ids"],
-            {
-                "grant_post_id": None,
-                "proposal_post_id": completed_proposal.id,
-            },
-        )
         self.assertNotIn("associated_grants", results[0])
         self.assertNotIn("is_nonprofit", results[0])
         self.assertNotIn("nonprofit", results[0])
-
-        proposal_card = results[1]["content_object"]
-        self.assertEqual(proposal_card["type"], PREREGISTRATION)
-        self.assertEqual(
-            proposal_card["journal_state"], JOURNAL_STATE_COMPLETED_PROPOSAL
-        )
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
     def test_list_excludes_journeys_outside_the_journal(
@@ -108,6 +98,7 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         # Arrange
         mock_usd_to_rsc.return_value = 100
         included_proposal = self.create_completed_proposal("Included Proposal")
+        included_report = self.create_registered_report(included_proposal)
         excluded_proposal = create_post(
             title="Excluded Proposal",
             created_by=self.user,
@@ -121,14 +112,15 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         post_ids = [entry["content_object"]["id"] for entry in response.data["results"]]
-        self.assertIn(included_proposal.id, post_ids)
+        self.assertIn(included_report.id, post_ids)
+        self.assertNotIn(included_proposal.id, post_ids)
         self.assertNotIn(excluded_proposal.id, post_ids)
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
-    def test_list_excludes_private_completed_proposals_but_keeps_reports(
+    def test_list_redacts_private_source_proposals_from_reports(
         self, mock_usd_to_rsc: Any
     ) -> None:
-        """Verify private proposals are hidden unless shown as reports."""
+        """Verify public reports do not expose private source proposal data."""
         # Arrange
         mock_usd_to_rsc.return_value = 100
         private_proposal = self.create_completed_proposal("Private Proposal")
@@ -148,6 +140,20 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         self.assertNotIn(private_proposal.id, post_ids)
         self.assertNotIn(private_report_proposal.id, post_ids)
         self.assertIn(registered_report.id, post_ids)
+        report_entry = next(
+            entry
+            for entry in response.data["results"]
+            if entry["content_object"]["id"] == registered_report.id
+        )
+        report_card = report_entry["content_object"]
+        self.assertIsNone(report_card["proposal"])
+        self.assertIsNone(report_card["fundraise"])
+        self.assertEqual(report_card["reviews"], [])
+        self.assertEqual(report_card["bounties"], [])
+        self.assertEqual(
+            report_entry["post_ids"],
+            {"grant_post_id": None, "proposal_post_id": None},
+        )
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
     def test_list_orders_by_average_peer_review_score(
@@ -157,13 +163,15 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         # Arrange
         mock_usd_to_rsc.return_value = 100
         lower_scored_proposal = self.create_completed_proposal("Lower Score")
+        lower_scored_report = self.create_registered_report(lower_scored_proposal)
         higher_scored_proposal = self.create_completed_proposal("Higher Score")
+        higher_scored_report = self.create_registered_report(higher_scored_proposal)
         self.create_proposal_review(lower_scored_proposal, score=3)
         self.create_proposal_review(higher_scored_proposal, score=9)
-        ResearchhubPost.objects.filter(id=lower_scored_proposal.id).update(
+        ResearchhubPost.objects.filter(id=lower_scored_report.id).update(
             created_date=timezone.now()
         )
-        ResearchhubPost.objects.filter(id=higher_scored_proposal.id).update(
+        ResearchhubPost.objects.filter(id=higher_scored_report.id).update(
             created_date=timezone.now() - timezone.timedelta(days=2)
         )
 
@@ -174,8 +182,44 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         post_ids = [entry["content_object"]["id"] for entry in response.data["results"]]
         self.assertLess(
-            post_ids.index(higher_scored_proposal.id),
-            post_ids.index(lower_scored_proposal.id),
+            post_ids.index(higher_scored_report.id),
+            post_ids.index(lower_scored_report.id),
+        )
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_list_uses_the_completed_source_fundraise(
+        self, mock_usd_to_rsc: Any
+    ) -> None:
+        """Verify journal cards do not select a newer non-completed fundraise."""
+        # Arrange
+        mock_usd_to_rsc.return_value = 100
+        proposal = self.create_completed_proposal("Completed Fundraise Source")
+        completed_fundraise = Fundraise.objects.get(
+            unified_document=proposal.unified_document,
+            status=Fundraise.COMPLETED,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=proposal.unified_document,
+            status=Fundraise.OPEN,
+            goal_amount=Decimal("200.00"),
+            goal_currency=USD,
+        )
+        report = self.create_registered_report(proposal)
+
+        # Act
+        response = self.client.get("/api/journal_v2_feed/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        report_entry = next(
+            entry
+            for entry in response.data["results"]
+            if entry["content_object"]["id"] == report.id
+        )
+        self.assertEqual(
+            report_entry["content_object"]["fundraise"]["id"],
+            completed_fundraise.id,
         )
 
     def create_completed_proposal(self, title: str) -> ResearchhubPost:
@@ -199,7 +243,7 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
     def create_completed_fundraise(self, proposal: ResearchhubPost) -> Fundraise:
         """Create a completed fundraise for a proposal."""
         escrow = Escrow.objects.create(
-            amount_holding=Decimal("0.00"),
+            amount_holding=Decimal("100.00"),
             hold_type=Escrow.FUNDRAISE,
             created_by=self.user,
             content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),

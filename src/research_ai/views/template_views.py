@@ -9,7 +9,7 @@ from research_ai.serializers import (
     EmailTemplateSerializer,
     EmailTemplateUpdateSerializer,
 )
-from research_ai.services.email_template_service import (
+from research_ai.services.outreach.template_service import (
     create_template,
     delete_template,
     get_template,

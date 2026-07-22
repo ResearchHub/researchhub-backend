@@ -5,7 +5,7 @@ import json
 from django.test import SimpleTestCase
 
 from research_ai.services.agent.types import AssistantTurn, StopReason, TextBlock
-from research_ai.services.proposal_judge_panel import ProposalJudgePanel
+from research_ai.services.proposal_draft.judge_panel import ProposalJudgePanel
 
 
 class _FakeProvider:

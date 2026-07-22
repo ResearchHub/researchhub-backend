@@ -1,5 +1,6 @@
 import logging
 
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -16,6 +17,26 @@ from research_ai.tasks import run_proposal_draft_task
 from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
+
+
+def _active_draft_for(search_expert):
+    return ProposalDraft.objects.filter(
+        search_expert=search_expert,
+        status__in=[
+            ProposalDraft.Status.PENDING,
+            ProposalDraft.Status.PROCESSING,
+        ],
+    ).first()
+
+
+def _active_draft_conflict(active):
+    return Response(
+        {
+            "detail": "A proposal draft is already in progress for this expert",
+            "proposal_draft_id": active.id,
+        },
+        status=status.HTTP_409_CONFLICT,
+    )
 
 
 class ProposalDraftCreateView(APIView):
@@ -41,30 +62,23 @@ class ProposalDraftCreateView(APIView):
 
         search_expert = get_object_or_404(SearchExpert, id=search_expert_id)
 
-        active = ProposalDraft.objects.filter(
-            search_expert=search_expert,
-            status__in=[
-                ProposalDraft.Status.PENDING,
-                ProposalDraft.Status.PROCESSING,
-            ],
-        ).first()
+        active = _active_draft_for(search_expert)
         if active is not None:
-            return Response(
-                {
-                    "detail": (
-                        "A proposal draft is already in progress for this expert"
-                    ),
-                    "proposal_draft_id": active.id,
-                },
-                status=status.HTTP_409_CONFLICT,
-            )
+            return _active_draft_conflict(active)
 
-        draft = ProposalDraft.objects.create(
-            search_expert=search_expert,
-            created_by=request.user,
-            status=ProposalDraft.Status.PENDING,
-            step=ProposalDraft.Step.QUEUED,
-        )
+        try:
+            with transaction.atomic():
+                draft = ProposalDraft.objects.create(
+                    search_expert=search_expert,
+                    created_by=request.user,
+                    status=ProposalDraft.Status.PENDING,
+                    step=ProposalDraft.Step.QUEUED,
+                )
+        except IntegrityError:
+            active = _active_draft_for(search_expert)
+            if active is not None:
+                return _active_draft_conflict(active)
+            raise
         run_proposal_draft_task.delay(draft.id)
 
         return Response(

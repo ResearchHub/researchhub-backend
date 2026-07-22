@@ -9,6 +9,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Count, Q
 
+from purchase.related_models.balance_model import Balance
 from purchase.related_models.constants.rsc_exchange_currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import create_staking_yield_distribution
@@ -107,7 +108,7 @@ class StakingYieldService:
         that tier transition date, assuming balances don't change before
         then.
         """
-        lots = user.get_unlocked_balance_lots_lifo()
+        lots = user.get_yield_eligible_balance_lots_lifo()
         opt_in_date = (
             user.staking_opted_in_date.date() if user.staking_opted_in_date else None
         )
@@ -338,6 +339,7 @@ class StakingYieldService:
             user,
             accrual,
             time.time(),
+            lock_type=Balance.LockType.FUNDING_CREDIT,
         )
         record = distributor.distribute_locked_balance()
         return record
@@ -383,7 +385,7 @@ class StakingYieldService:
         position_rows = []
 
         for user in eligible_users:
-            user_lots = user.get_unlocked_balance_lots_lifo()
+            user_lots = user.get_yield_eligible_balance_lots_lifo()
             user_opt_in_date = (
                 user.staking_opted_in_date.date()
                 if user.staking_opted_in_date

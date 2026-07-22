@@ -45,10 +45,7 @@ def create_feed_entry(
 
     # Get the actual model instances
     item = item_content_type.get_object_for_this_type(id=item_id)
-    if user_id:
-        user = User.objects.get(id=user_id)
-    else:
-        user = None
+    user = User.objects.get(id=user_id) if user_id else None
 
     unified_document = _get_unified_document(item, item_content_type)
 
@@ -80,9 +77,13 @@ def create_feed_entry(
     action_date = item.created_date
     if item_content_type.model == "fundingactivity":
         action_date = item.activity_date
-    elif action == FeedEntry.PUBLISH and item_content_type.model == "paper":
-        if item.paper_publish_date and item.paper_publish_date <= timezone.now():
-            action_date = item.paper_publish_date
+    elif (
+        action == FeedEntry.PUBLISH
+        and item_content_type.model == "paper"
+        and item.paper_publish_date
+        and item.paper_publish_date <= timezone.now()
+    ):
+        action_date = item.paper_publish_date
 
     # Get authors for the item
     authors = _get_authors_for_item(item, item_content_type)

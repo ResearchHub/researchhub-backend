@@ -1,6 +1,7 @@
 from typing import Any
 
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.files.storage import default_storage
 from rest_framework import serializers
 
 from ai_peer_review.serializers import ProposalKeyInsightSerializer
@@ -18,9 +19,14 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
-    REGISTERED_REPORT,
+)
+from researchhub_document.related_models.constants.journey_stage import (
+    JOURNEY_STAGE_REGISTERED_REPORT,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.serializers import DynamicUserSerializer
 
 
@@ -72,17 +78,6 @@ def serialize_fund_feed_metrics(item, item_content_type):
     return metrics
 
 
-JOURNAL_STATE_COMPLETED_PROPOSAL = "completed_proposal"
-JOURNAL_STATE_REGISTERED_REPORT = "registered_report"
-
-
-def get_journal_state(post: ResearchhubPost) -> str:
-    """Return the journal feed state represented by the given post."""
-    if post.document_type == REGISTERED_REPORT:
-        return JOURNAL_STATE_REGISTERED_REPORT
-    return JOURNAL_STATE_COMPLETED_PROPOSAL
-
-
 def get_journal_source_proposal(post: ResearchhubPost) -> ResearchhubPost | None:
     """Return the proposal that owns a journal feed card's review context."""
     if post.document_type == PREREGISTRATION:
@@ -91,6 +86,19 @@ def get_journal_source_proposal(post: ResearchhubPost) -> ResearchhubPost | None
     if journey is None:
         return None
     return getattr(journey, "preregistration_post", None)
+
+
+def is_public_journal_source(proposal: ResearchhubPost | None) -> bool:
+    """Return whether source-proposal data is safe in a public journal response."""
+    if proposal is None:
+        return False
+
+    document = proposal.unified_document
+    return (
+        document.is_public
+        and not document.is_removed
+        and document.status == ResearchhubUnifiedDocument.APPROVED
+    )
 
 
 def serialize_journal_feed_metrics(
@@ -351,22 +359,47 @@ class FundingFeedPostSerializer(serializers.Serializer):
         return data
 
 
-class JournalFeedPostSerializer(FundingFeedPostSerializer):
+class JournalFeedPostSerializer(serializers.Serializer):
     """Minimal post payload for journal feed list responses."""
 
     def to_representation(self, post: ResearchhubPost) -> dict[str, Any]:
-        """Serialize completed proposals and registered reports consistently."""
-        data = super().to_representation(post)
+        """Serialize a registered report with source proposal context."""
+        data = {
+            "id": post.id,
+            "slug": post.slug,
+            "title": post.title,
+            "type": post.document_type,
+            "image_url": self._get_image_url(post),
+            "institution": getattr(post, "institution", None),
+            "unified_document_id": post.unified_document_id or None,
+            "authors": self.serialize_authors(post),
+            "bounties": [],
+            "reviews": [],
+            "fundraise": None,
+            "journal_state": JOURNEY_STAGE_REGISTERED_REPORT,
+            "proposal": None,
+        }
         proposal = get_journal_source_proposal(post)
+        if not is_public_journal_source(proposal):
+            return data
 
-        data["journal_state"] = get_journal_state(post)
         data["proposal"] = self.serialize_proposal_reference(proposal)
-
-        if post.document_type == REGISTERED_REPORT and proposal is not None:
-            data["fundraise"] = self.serialize_proposal_fundraise(proposal)
-            data["reviews"] = self.serialize_proposal_reviews(proposal)
+        data["bounties"] = _serialize_slim_bounties(proposal)
+        data["fundraise"] = self.serialize_proposal_fundraise(proposal)
+        data["reviews"] = self.serialize_proposal_reviews(proposal)
 
         return data
+
+    def serialize_authors(self, post: ResearchhubPost) -> list[dict[str, Any]]:
+        """Serialize the registered report's authors."""
+        return SimpleAuthorSerializer(post.authors.all(), many=True).data
+
+    @staticmethod
+    def _get_image_url(post: ResearchhubPost) -> str | None:
+        """Return the registered report image URL."""
+        if not post.image:
+            return None
+        return default_storage.url(post.image)
 
     def serialize_proposal_reference(
         self, proposal: ResearchhubPost | None
@@ -384,16 +417,16 @@ class JournalFeedPostSerializer(FundingFeedPostSerializer):
     def serialize_proposal_fundraise(
         self, proposal: ResearchhubPost
     ) -> dict[str, Any] | None:
-        """Serialize the source proposal fundraise for a journal card."""
-        if not (
-            proposal.unified_document
-            and hasattr(proposal.unified_document, "fundraises")
-            and proposal.unified_document.fundraises.exists()
+        """Serialize the newest completed source fundraise for a journal card."""
+        if not proposal.unified_document or not hasattr(
+            proposal.unified_document, "fundraises"
         ):
             return None
-        return _serialize_slim_fundraise(
-            proposal.unified_document.fundraises.first(), self.context
-        )
+
+        fundraises = list(proposal.unified_document.fundraises.all())
+        if not fundraises:
+            return None
+        return _serialize_slim_fundraise(fundraises[0], self.context)
 
     def serialize_proposal_reviews(self, proposal: ResearchhubPost) -> list[dict]:
         """Serialize assessed reviews from the source proposal."""
@@ -460,9 +493,18 @@ class FundFeedListEntrySerializer(serializers.ModelSerializer):
     def get_post_ids(self, obj: FeedEntry) -> dict[str, int | None]:
         """Return post ids used by frontend work-page routing."""
         proposal = get_journal_source_proposal(obj.item)
+        if not is_public_journal_source(proposal):
+            return {
+                "grant_post_id": None,
+                "proposal_post_id": None,
+            }
         journey = getattr(proposal, "journey", None) if proposal is not None else None
         return {
-            "grant_post_id": getattr(journey, "grant_post_id", None),
+            "grant_post_id": (
+                getattr(journey, "grant_post_id", None)
+                if getattr(obj.item, "has_public_grant_post", False)
+                else None
+            ),
             "proposal_post_id": proposal.id if proposal is not None else None,
         }
 

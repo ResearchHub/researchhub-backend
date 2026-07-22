@@ -21,7 +21,7 @@ class Invitation(DefaultModel):
     recipient = models.ForeignKey(
         User, null=True, related_name="%(class)s_invitations", on_delete=models.CASCADE
     )
-    recipient_email = models.CharField(max_length=64)
+    recipient_email = models.EmailField(max_length=254)
 
     @classmethod
     def create(cls, expiration_time=1440, recipient=None, **kwargs):

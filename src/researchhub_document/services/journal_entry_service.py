@@ -1,6 +1,5 @@
 import json
 from dataclasses import dataclass
-from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -16,6 +15,7 @@ from researchhub_document.models import (
 )
 from researchhub_document.registered_report_note_metadata import (
     add_registered_report_prefill_metadata,
+    get_registered_report_prefill_metadata,
     parse_note_json,
 )
 from researchhub_document.related_models.constants.document_type import (
@@ -87,8 +87,10 @@ class JournalEntryService:
             raise ValueError("Proposal already has a registered report.")
         return proposal
 
-    def get_registered_report_note(self, user: User, note_id: int) -> Note:
-        """Return the user's unpublished registered report note."""
+    def get_registered_report_note(
+        self, user: User, note_id: int, proposal: ResearchhubPost
+    ) -> Note:
+        """Return the user's unpublished draft for the requested proposal."""
         note = Note.objects.filter(
             created_by=user,
             document_type=REGISTERED_REPORT,
@@ -99,7 +101,26 @@ class JournalEntryService:
             raise ValueError("Registered report note not found.")
         if hasattr(note, "post"):
             raise ValueError("Registered report note is already published.")
+        if note.latest_version is None:
+            raise ValueError("Registered report note has no content.")
+
+        metadata = get_registered_report_prefill_metadata(note.latest_version.json)
+        if metadata.get("proposal_id") != proposal.id:
+            raise ValueError("Registered report note does not belong to this proposal.")
         return note
+
+    def persist_registered_report_content(
+        self,
+        note: Note,
+        plain_text: str,
+        document: dict[str, object],
+    ) -> None:
+        """Save the final immutable editor document before publishing its report."""
+        NoteContent.objects.create(
+            note=note,
+            plain_text=plain_text,
+            json=document,
+        )
 
     def _validate_user_id(self, user: User, user_id: int) -> None:
         """Validate that the requested user is real and matches the requester."""
@@ -136,23 +157,9 @@ class JournalEntryService:
 
     def _validate_funded_fundraise(self, fundraise: Fundraise) -> None:
         """Validate that the completed fundraise has received funding."""
-        if self._has_rsc_funding(fundraise) or self._has_usd_funding(fundraise):
+        if self.journey_service.is_completed_fundraise_eligible(fundraise):
             return
         raise ValueError("Fundraise has no completed funding.")
-
-    def _has_rsc_funding(self, fundraise: Fundraise) -> bool:
-        """Return whether the fundraise has escrowed or paid RSC funding."""
-        if fundraise.escrow is None:
-            return False
-        funded_amount = fundraise.escrow.amount_holding + fundraise.escrow.amount_paid
-        return funded_amount > Decimal(0)
-
-    def _has_usd_funding(self, fundraise: Fundraise) -> bool:
-        """Return whether the fundraise has non-refunded USD funding."""
-        return fundraise.usd_contributions.filter(
-            amount_cents__gt=0,
-            is_refunded=False,
-        ).exists()
 
     def _get_fundraise_proposal(
         self, fundraise: Fundraise, user: User

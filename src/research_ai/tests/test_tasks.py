@@ -211,17 +211,20 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
             status=GeneratedEmail.Status.PROCESSING,
         )
         mock_generate.return_value = ("Subj", "Body")
-        with patch(
-            "research_ai.tasks.User.objects.get", side_effect=RuntimeError("DB error")
+        with (
+            patch(
+                "research_ai.tasks.User.objects.get",
+                side_effect=RuntimeError("DB error"),
+            ),
+            self.assertRaises(RuntimeError),
         ):
-            with self.assertRaises(RuntimeError):
-                process_bulk_generate_emails_task.apply(
-                    kwargs={
-                        "generated_email_ids": [rec.id],
-                        "template_id": 1,
-                        "created_by_id": self.user.id,
-                    }
-                ).get()
+            process_bulk_generate_emails_task.apply(
+                kwargs={
+                    "generated_email_ids": [rec.id],
+                    "template_id": 1,
+                    "created_by_id": self.user.id,
+                }
+            ).get()
         rec.refresh_from_db()
         self.assertEqual(rec.status, GeneratedEmail.Status.FAILED)
         mock_logger.exception.assert_called_once()
@@ -367,3 +370,17 @@ class RunProposalDraftTaskTests(TestCase):
 
         # Assert
         self.assertEqual(result, {"status": "not_found", "draft_id": 999999})
+
+    @patch("research_ai.tasks.run_proposal_draft")
+    def test_already_claimed_draft_is_not_run_twice(self, mock_run):
+        # Arrange
+        self.draft.status = ProposalDraft.Status.PROCESSING
+        self.draft.save(update_fields=["status"])
+
+        # Act
+        result = run_proposal_draft_task.apply(args=[self.draft.id]).get()
+
+        # Assert
+        mock_run.assert_not_called()
+        self.assertEqual(result["status"], ProposalDraft.Status.PROCESSING)
+        self.assertEqual(result["skipped"], "already_claimed")

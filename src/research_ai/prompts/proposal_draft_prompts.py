@@ -19,15 +19,20 @@ _MAX_SEED_ABSTRACT_CHARS = 600
 
 
 def build_proposal_system_prompt(
-    panel_threshold: float = 4.0, award: dict | None = None
+    panel_threshold: float = 4.0,
+    style_threshold: float = 4.0,
+    award: dict | None = None,
+    min_words: int = 250,
+    max_words: int = 4000,
 ) -> str:
     """The system prompt: rubric, voice rules, grounding + iterate contract.
 
-    ``panel_threshold`` is substituted into the rubric so the agent drafts toward
-    the same overall bar the gate enforces; pass the runner's configured value so
-    the prompt never drifts from the gate. ``award`` is the RFP terms
-    (``amount``/``currency``) used to state, up front, how many specific aims the
-    grant funds -- the same policy the scope gate enforces.
+    ``panel_threshold``/``style_threshold`` and ``min_words``/``max_words`` are
+    substituted in so the agent drafts toward the same quality bars and length
+    bounds the gate enforces; pass the runner's configured values so the prompt
+    never drifts from the gate. ``award`` is the RFP terms
+    (``amount``/``currency``) used to state, up front, how many specific aims
+    the grant funds -- the same policy the scope gate enforces.
     """
     # Imported here (not at module scope) to avoid a prompts <-> proposal_draft
     # package import cycle.
@@ -35,13 +40,17 @@ def build_proposal_system_prompt(
 
     award = award or {}
     threshold = f"{panel_threshold:g}"
+    style_bar = f"{style_threshold:g}"
     return (
         load_template("proposal_draft_system.txt")
         .replace("{{PANEL_THRESHOLD}}", threshold)
+        .replace("{{STYLE_THRESHOLD}}", style_bar)
         .replace(
             "{{AIM_GUIDANCE}}",
             aim_scope_guidance(award.get("amount"), award.get("currency")),
         )
+        .replace("{{MIN_WORDS}}", str(min_words))
+        .replace("{{MAX_WORDS}}", str(max_words))
     )
 
 
@@ -91,12 +100,36 @@ def _render_works_lines(works: list[dict]) -> list[str]:
     return lines
 
 
+def _render_capability_lines(capabilities: list[dict]) -> list[str]:
+    """The lab-capabilities block: the demonstrated bounds the draft stays within."""
+    capabilities = [c for c in capabilities if isinstance(c, dict)]
+    if not capabilities:
+        return []
+    lines = [
+        "",
+        "Demonstrated lab capabilities (techniques, instruments, model systems, "
+        "and datasets the works show the lab can work with -- stay within these; "
+        "for anything beyond them, state a concrete acquire/collaborate plan):",
+    ]
+    for capability in capabilities:
+        name = str(capability.get("name") or "").strip()
+        if not name:
+            continue
+        kind = str(capability.get("kind") or "").strip()
+        note = str(capability.get("note") or "").strip()
+        kind_suffix = f" [{kind}]" if kind else ""
+        note_suffix = f" -- {note}" if note else ""
+        lines.append(f"- {name}{kind_suffix}{note_suffix}")
+    return lines
+
+
 def _render_profile_summary(profile: dict | None) -> str:
     """Compact, readable summary of the persisted researcher profile."""
     profile = profile or {}
     works = [w for w in (profile.get("works") or []) if isinstance(w, dict)]
     lines = _render_resolution_lines(profile.get("resolution") or {})
     lines.extend(_render_works_lines(works))
+    lines.extend(_render_capability_lines(profile.get("capabilities") or []))
     return "\n".join(lines)
 
 

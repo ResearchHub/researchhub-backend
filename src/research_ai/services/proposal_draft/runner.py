@@ -37,7 +37,7 @@ bookkeeping and failure-reason taxonomy), ``draft_recorder`` (every
 ``ProposalDraft`` write and progress emission), ``toolset`` (the submit tool
 and toolset composition), and ``note_writer`` (the headless ``Note`` write).
 Judge-facing context compaction lives with the other tool code in
-``research_ai.services.proposal_tools.judge_context``.
+``research_ai.services.proposal_draft.tools.judge_context``.
 """
 
 import logging
@@ -62,22 +62,25 @@ from research_ai.services.proposal_draft.gates import (
     ProposalGateRunner,
     failing_gates,
 )
+from research_ai.services.proposal_draft.judge_panel import ProposalJudgePanel
 from research_ai.services.proposal_draft.note_writer import write_proposal_note
 from research_ai.services.proposal_draft.run_state import ProposalRunState
-from research_ai.services.proposal_draft.toolset import (
-    build_submit_tool,
-    compose_proposal_toolset,
-)
-from research_ai.services.proposal_judge_panel import ProposalJudgePanel
-from research_ai.services.proposal_tools import (
+from research_ai.services.proposal_draft.tools import (
     ProposalContextToolset,
     ProposalFulltextToolset,
     ProposalVerificationToolset,
     ProposalWebSearchToolset,
     assemble_proposal,
 )
-from research_ai.services.proposal_tools.judge_context import build_judge_context
+from research_ai.services.proposal_draft.tools.judge_context import build_judge_context
+from research_ai.services.proposal_draft.toolset import (
+    build_submit_tool,
+    compose_proposal_toolset,
+)
 from research_ai.services.researcher_profile import build_and_store_expert_profile
+from research_ai.services.researcher_profile.agent import (
+    SCHEMA_VERSION as PROFILE_SCHEMA_VERSION,
+)
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
 from utils.openalex import OpenAlex
 
@@ -149,6 +152,7 @@ class _ProposalDraftRunner:
                 "judge_roster": list(self.panel.model_ids),
                 "max_rounds": self.config.max_rounds,
                 "panel_threshold": self.config.panel_threshold,
+                "style_threshold": self.config.style_threshold,
                 "max_iterations": self.config.max_iterations,
             }
         )
@@ -173,7 +177,10 @@ class _ProposalDraftRunner:
 
         system_prompt = build_proposal_system_prompt(
             panel_threshold=self.config.panel_threshold,
+            style_threshold=self.config.style_threshold,
             award=self.rfp_context,
+            min_words=self.config.min_words,
+            max_words=self.config.max_words,
         )
         user_prompt = build_proposal_user_prompt(self.expert, self.rfp_context)
         agent = self._build_agent(system_prompt)
@@ -366,6 +373,7 @@ class _ProposalDraftRunner:
             "scores": panel.get("scores"),
             "overall": panel.get("overall"),
             "threshold": panel.get("threshold"),
+            "style_threshold": panel.get("style_threshold"),
         }
         if accepted:
             feedback["note"] = (
@@ -405,7 +413,9 @@ class _ProposalDraftRunner:
     def _complete(self) -> dict:
         self.recorder.set_step(ProposalDraft.Step.WRITING_NOTE)
         submission, _report, _scores = self.state.accepted_outcome()
-        note = write_proposal_note(submission)
+        note = write_proposal_note(
+            submission, created_by=self.recorder.draft.created_by
+        )
         return self.recorder.complete(note)
 
     def _fail(self, message: str | None = None) -> dict:
@@ -413,10 +423,19 @@ class _ProposalDraftRunner:
 
 
 def _needs_profile(profile) -> bool:
-    """A profile needs (re)building when it is empty or has no resolution."""
+    """A profile needs (re)building when it is empty, unresolved, or an old schema.
+
+    An older ``schema_version`` predates a field the draft now relies on (e.g. the
+    lab capabilities added in v2), so it is rebuilt to pick that data up.
+    """
     if not isinstance(profile, dict) or not profile:
         return True
-    return not isinstance(profile.get("resolution"), dict)
+    if not isinstance(profile.get("resolution"), dict):
+        return True
+    try:
+        return int(profile.get("schema_version") or 0) < PROFILE_SCHEMA_VERSION
+    except (TypeError, ValueError):
+        return True
 
 
 def run_proposal_draft(

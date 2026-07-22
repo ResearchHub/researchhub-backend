@@ -36,8 +36,6 @@ class Hub(models.Model):
         CATEGORY = "category", _("Category")
         SUBCATEGORY = "subcategory", _("Subcategory")
 
-    UNLOCK_AFTER = 14
-
     name = models.CharField(max_length=1024, unique=False)
     description = models.TextField(default="")
     hub_image = models.FileField(
@@ -177,10 +175,6 @@ class Hub(models.Model):
     @property
     def editor_permission_groups(self):
         return self.get_editor_permission_groups()
-
-    def unlock(self):
-        self.is_locked = False
-        self.save(update_fields=["is_locked"])
 
 
 class HubMembership(models.Model):

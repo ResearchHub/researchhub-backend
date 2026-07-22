@@ -16,7 +16,7 @@ from rest_framework.serializers import (
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerializer
 from institution.serializers import DynamicInstitutionSerializer
-from paper.models import Paper, PaperSubmission
+from paper.models import Paper
 from purchase.models import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from referral.models import ReferralSignup
@@ -72,6 +72,10 @@ def compute_user_balances(user):
     return {
         "rsc": rsc,
         "rsc_locked": rsc_locked,
+        # Subset of rsc_locked that does not earn yield.
+        "rsc_funding_credits": user.get_funding_credits_balance(),
+        # Subset of rsc_locked that earns yield (not withdrawable).
+        "rsc_promotional": user.get_promotional_balance(),
         "total_rsc": float(total_rsc),
         "total_usd_cents": rsc_as_usd_cents,
     }
@@ -344,7 +348,6 @@ class AuthorEditableSerializer(ModelSerializer):
         model = Author
         fields = [field.name for field in Author._meta.fields] + ["university"]
         read_only_fields = [
-            "academic_verification",
             "author_score",
             "created_date",
             "claimed",
@@ -473,7 +476,6 @@ class UserSerializer(ModelSerializer):
     balance = SerializerMethodField(read_only=True)
     balances = SerializerMethodField(read_only=True)
     is_funder = SerializerMethodField()
-    subscribed = SerializerMethodField(read_only=True)
     hub_rep = SerializerMethodField()
     time_rep = SerializerMethodField()
     is_verified = SerializerMethodField()
@@ -495,7 +497,6 @@ class UserSerializer(ModelSerializer):
             "is_verified",
             "moderator",
             "reputation",
-            "subscribed",
             "updated_date",
             "upload_tutorial_complete",
             "hub_rep",
@@ -514,7 +515,6 @@ class UserSerializer(ModelSerializer):
             "is_verified",
             "moderator",
             "reputation",
-            "subscribed",
             "updated_date",
             "upload_tutorial_complete",
             "hub_rep",
@@ -540,14 +540,6 @@ class UserSerializer(ModelSerializer):
         ):
             return compute_user_balances(obj)
         return None
-
-    def get_subscribed(self, obj):
-        if self.context.get("get_subscribed"):
-            hub_context = {
-                "hub_shs_get_editor_permission_groups": {"_exclude_fields": "__all__"}
-            }
-            subscribed_query = obj.subscribed_hubs.all()
-            return HubSerializer(subscribed_query, many=True, context=hub_context).data
 
     def get_hub_rep(self, obj):
         try:
@@ -589,10 +581,10 @@ class UserEditableSerializer(ModelSerializer):
     balances = SerializerMethodField()
     is_funder = SerializerMethodField()
     locked_balance = SerializerMethodField()
+    promotional_balance = SerializerMethodField()
     balance_history = SerializerMethodField()
     email = SerializerMethodField()
     organization_slug = SerializerMethodField()
-    subscribed = SerializerMethodField()
     auth_provider = SerializerMethodField()
     is_verified = SerializerMethodField()
 
@@ -650,6 +642,13 @@ class UserEditableSerializer(ModelSerializer):
             return user.get_locked_balance()
         return None
 
+    def get_promotional_balance(self, user):
+        context = self.context
+        request_user = context.get("user", None)
+        if request_user and request_user == user:
+            return user.get_promotional_balance()
+        return None
+
     def get_balance_history(self, user):
         context = self.context
         request_user = context.get("user", None)
@@ -681,17 +680,6 @@ class UserEditableSerializer(ModelSerializer):
         except Exception:
             logger.exception("Error getting organization slug for user %s", user.id)
             return None
-
-    def get_subscribed(self, user):
-        if self.context.get("get_subscribed"):
-            subscribed_query = user.subscribed_hubs.filter(is_removed=False)
-            context = {
-                "rag_dps_get_user": {
-                    "_include_fields": {"id", "first_name", "last_name"}
-                },
-                "hub_shs_get_editor_permission_groups": {"_exclude_fields": ["source"]},
-            }
-            return HubSerializer(subscribed_query, context=context, many=True).data
 
 
 class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
@@ -857,10 +845,6 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
             from researchhub_comment.serializers import DynamicRhCommentSerializer
 
             serializer = DynamicRhCommentSerializer
-        elif isinstance(item, PaperSubmission):
-            from paper.serializers import DynamicPaperSubmissionSerializer
-
-            serializer = DynamicPaperSubmissionSerializer
         elif isinstance(item, Verdict):
             serializer = DynamicVerdictSerializer
         elif isinstance(item, Bounty):

@@ -14,6 +14,18 @@ the funder's ask; author credibility tied to a real track record; a clear case
 for why the work matters; and genuine divergence from the seed literature rather
 than a safe recombination of it.
 
+Prefer a draft that distinguishes inherent limitations from plausible
+pitfalls, states the resulting boundaries on inference, and pairs material
+failure modes with concrete alternative approaches and downstream
+consequences.
+
+Also compare scientific writing voice. Prefer concrete, claim-calibrated prose
+whose structure follows the scientific reasoning. Penalize generic importance
+framing, redundant explanation, ornamental abstraction, canned transitions or
+conclusions, rhetorical symmetry, repeated paragraph cadence, proposal
+narration, marketing statements, and chains of "I will" method sentences.
+Necessary technical repetition is not a fault.
+
 Pick exactly one winner. If the two are genuinely indistinguishable, still pick
 the one with the marginally stronger case rather than declaring a tie.
 

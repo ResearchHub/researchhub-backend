@@ -3,8 +3,9 @@ import logging
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Prefetch
+from django.http import Http404
 from django.utils.text import slugify
-from rest_framework import serializers
+from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.request import Request
@@ -41,6 +42,9 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
 from researchhub_document.related_models.constants.editor_type import CK_EDITOR
+from researchhub_document.serializers.registered_report_work_serializer import (
+    RegisteredReportWorkSerializer,
+)
 from researchhub_document.serializers.researchhub_post_serializer import (
     JournalEntryAcceptSerializer,
     RegisteredReportPublishSerializer,
@@ -48,6 +52,9 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 )
 from researchhub_document.services.journal_entry_service import JournalEntryService
 from researchhub_document.services.journey_service import JourneyService
+from researchhub_document.services.registered_report_work_service import (
+    RegisteredReportWorkService,
+)
 from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.models import Author, User
 from user.serializers import AuthorSerializer
@@ -87,6 +94,27 @@ class ResearchhubPostViewSet(
 
     def update(self, request, *args, **kwargs):
         return self.upsert_researchhub_posts(request)
+
+    @action(detail=True, methods=["get"])
+    def registered_report_work(
+        self, request: Request, pk: str | None = None
+    ) -> Response:
+        """Return registered report work-page data and tracker post references."""
+        if pk is None:
+            raise Http404
+
+        try:
+            payload = RegisteredReportWorkService().get_work_payload(pk, request.user)
+        except ResearchhubPost.DoesNotExist as error:
+            raise Http404 from error
+        if payload.report.document_type != REGISTERED_REPORT:
+            raise Http404
+
+        serializer = RegisteredReportWorkSerializer(
+            payload,
+            context={"request": request},
+        )
+        return Response(serializer.data, status=200)
 
     @action(
         detail=False,
@@ -284,15 +312,24 @@ class ResearchhubPostViewSet(
                     journal_entry_service = JournalEntryService(
                         journey_service=journey_service
                     )
-                    journal_entry_service.get_registered_report_note(
-                        created_by,
-                        serializer.validated_data["note_id"],
-                    )
                     registered_report_proposal = (
                         journal_entry_service.get_registered_report_proposal(
                             created_by,
                             serializer.validated_data["proposal_id"],
                         )
+                    )
+                    registered_report_note = (
+                        journal_entry_service.get_registered_report_note(
+                            created_by,
+                            serializer.validated_data["note_id"],
+                            registered_report_proposal,
+                        )
+                    )
+                    note_id = serializer.validated_data["note_id"]
+                    journal_entry_service.persist_registered_report_content(
+                        registered_report_note,
+                        serializer.validated_data["renderable_text"],
+                        serializer.validated_data["full_json"],
                     )
                     if not authors:
                         authors = self.get_registered_report_authors(
@@ -557,6 +594,11 @@ class ResearchhubPostViewSet(
             authors = data.get("authors", [])
             rh_post_id = data.get("post_id", None)
             rh_post = ResearchhubPost.objects.get(id=rh_post_id)
+            if rh_post.document_type == REGISTERED_REPORT:
+                return Response(
+                    {"detail": "Published registered reports cannot be edited."},
+                    status=status.HTTP_409_CONFLICT,
+                )
 
             if authors and request.user.author_profile.id not in authors:
                 return Response(

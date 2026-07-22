@@ -334,10 +334,37 @@ class UserBalancesSerializerTests(TestCase):
 
         self.assertEqual(balances["rsc"], 1000)
         self.assertEqual(balances["rsc_locked"], 200)
+        self.assertEqual(balances["rsc_funding_credits"], 200)
+        self.assertEqual(balances["rsc_promotional"], 0)
         # total_rsc = 1200 RSC
         self.assertEqual(balances["total_rsc"], 1200)
         # total_usd_cents = 1200 RSC * 0.5 * 100 = 60000
         self.assertEqual(balances["total_usd_cents"], 60000)
+
+    def test_balances_with_promotional_rsc(self):
+        """Promotional RSC is reported both in rsc_locked and its own field"""
+        # Arrange
+        Balance.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Distribution),
+            object_id=1,
+            amount=200,
+            is_locked=True,
+            lock_type=Balance.LockType.PROMOTIONAL,
+        )
+
+        # Act
+        serializer = UserEditableSerializer(
+            self.user,
+            context={"user": self.user},
+        )
+        data = serializer.data
+
+        # Assert
+        self.assertEqual(data["balances"]["rsc_locked"], 200)
+        self.assertEqual(data["balances"]["rsc_funding_credits"], 0)
+        self.assertEqual(data["balances"]["rsc_promotional"], 200)
+        self.assertEqual(data["promotional_balance"], 200)
 
     def test_balances_with_zero_balances(self):
         """Balances should work correctly with zero balances"""
@@ -353,6 +380,8 @@ class UserBalancesSerializerTests(TestCase):
         self.assertIsNotNone(balances)
         self.assertEqual(balances["rsc"], 0)
         self.assertEqual(balances["rsc_locked"], 0)
+        self.assertEqual(balances["rsc_funding_credits"], 0)
+        self.assertEqual(balances["rsc_promotional"], 0)
         self.assertEqual(balances["total_rsc"], 0)
         self.assertEqual(balances["total_usd_cents"], 0)
 

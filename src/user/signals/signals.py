@@ -35,12 +35,6 @@ def add_organization_slug(sender, instance, update_fields, **kwargs):
         instance.slug = slug
 
 
-def doi_updated(update_fields):
-    if update_fields is not None:
-        return "doi" in update_fields
-    return False
-
-
 @receiver(post_save, sender=RhCommentModel, dispatch_uid="creation_rh_comment")
 @receiver(post_save, sender=Paper, dispatch_uid="paper_upload_action")
 @receiver(post_save, sender=Vote, dispatch_uid="discussion_vote_action")
@@ -49,29 +43,17 @@ def doi_updated(update_fields):
 @receiver(post_save, sender=Bounty, dispatch_uid="create_bounty_action")
 def create_action(sender, instance, created, **kwargs):
     if created:
-        if sender == Paper or sender == PaperSubmission:
+        if sender in (Paper, PaperSubmission):
             user = instance.uploaded_by
         else:
             user = instance.created_by
 
-        vote_types = [Vote]
-        display = (
-            False
-            if (
-                sender in vote_types
-                or sender == PaperSubmission
-                or (
-                    sender != Vote
-                    and (hasattr(instance, "is_removed") and instance.is_removed)
-                )
-                or (sender == RhCommentModel and not instance.is_public)
-                or (
-                    sender == ResearchhubPost
-                    and not instance.unified_document.is_public
-                )
-                or (sender == Bounty and instance.parent)  # Only show parent bounties
-            )
-            else True
+        display = not (
+            sender in (PaperSubmission, Vote)
+            or getattr(instance, "is_removed", False)
+            or (sender == RhCommentModel and not instance.is_public)
+            or (sender == ResearchhubPost and not instance.unified_document.is_public)
+            or (sender == Bounty and instance.parent)  # Only show parent bounties
         )
 
         action = Action.objects.create(item=instance, user=user, display=display)

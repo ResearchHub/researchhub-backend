@@ -4,10 +4,12 @@ from django.db.models import Count
 from rest_framework.serializers import (
     CharField,
     IntegerField,
+    JSONField,
     ListField,
     ModelSerializer,
     Serializer,
     SerializerMethodField,
+    ValidationError,
 )
 
 from ai_peer_review.models import ProposalReview
@@ -24,6 +26,7 @@ from researchhub.serializers import (
     ModeratedDocumentStatusSerializerMixin,
 )
 from researchhub_document.models import ResearchhubPost
+from researchhub_document.registered_report_note_metadata import parse_note_json
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
@@ -55,10 +58,18 @@ class RegisteredReportPublishSerializer(Serializer):
     title = CharField()
     renderable_text = CharField()
     full_src = CharField()
+    full_json = JSONField()
     authors = ListField(child=IntegerField(), required=False)
     editor_type = CharField(required=False, allow_blank=True, allow_null=True)
     image = CharField(required=False, allow_blank=True, allow_null=True)
     preview_img = CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate_full_json(self, value: object) -> dict[str, object]:
+        """Return the required editor JSON document as an object."""
+        document = parse_note_json(value)
+        if document is None:
+            raise ValidationError("full_json must be a JSON object.")
+        return document
 
 
 class ResearchhubPostSerializer(

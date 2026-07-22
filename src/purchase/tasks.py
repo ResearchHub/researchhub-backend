@@ -8,7 +8,7 @@ from mailing_list.lib import base_email_context, send_email
 from notification.models import Notification
 from paper.models import Paper
 from purchase.circle.service import CircleWalletService
-from purchase.models import Fundraise, Purchase, Support
+from purchase.models import Balance, Fundraise, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
 from reputation.models import Deposit
@@ -136,6 +136,70 @@ def send_monthly_preregistration_update_reminders():
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
+def send_funding_credits_reminders():
+    """
+    Remind users who still hold unspent funding credits to spend them.
+    """
+    from user.models import User
+
+    now = datetime.now(UTC)
+    reminder_cutoff = now - timedelta(days=14)
+    user_ct = ContentType.objects.get_for_model(User)
+
+    # Prefilter to users who have at least one locked, spendable balance row
+    # (funding credits or promotional). The effective balance is confirmed
+    # per-user below, since debits can zero it out even when credit rows exist.
+    candidate_user_ids = (
+        Balance.objects.filter(
+            is_locked=True,
+            lock_type__in=(
+                Balance.LockType.FUNDING_CREDIT,
+                Balance.LockType.PROMOTIONAL,
+            ),
+        )
+        .values_list("user_id", flat=True)
+        .distinct()
+    )
+
+    candidates = User.objects.filter(id__in=candidate_user_ids)
+
+    sent_count = 0
+    for user in candidates.iterator():
+        balance = user.get_funding_credits_balance() + user.get_promotional_balance()
+        if balance <= 0:
+            continue
+
+        already_sent = Notification.objects.filter(
+            notification_type=Notification.FUNDING_CREDITS_REMINDER,
+            recipient=user,
+            created_date__gte=reminder_cutoff,
+        ).exists()
+        if already_sent:
+            continue
+
+        try:
+            notification = Notification.objects.create(
+                item=user,
+                content_type=user_ct,
+                object_id=user.id,
+                action_user=user,
+                recipient=user,
+                notification_type=Notification.FUNDING_CREDITS_REMINDER,
+                extra={"amount": str(balance)},
+            )
+            notification.send_notification()
+            sent_count += 1
+        except Exception:
+            logger.exception(
+                "Error sending funding credits reminder for user %s", user.id
+            )
+
+    logger.info("Sent %d funding credits reminders", sent_count)
+
+    return {"sent_count": sent_count}
+
+
+@app.task(queue=QUEUE_NOTIFICATION)
 def send_support_email(
     profile_url,
     sender_name,
@@ -154,57 +218,13 @@ def send_support_email(
     if content_type == "rhcommentmodel":
         paper = Paper.objects.get(id=paper_id)
         url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">thread</a>
-        """
         object_supported = "thread"
-    elif content_type == "thread":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">thread</a>
-        """
-        object_supported = "thread"
-    elif content_type == "comment":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">comment</a>
-        """
-    elif content_type == "reply":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">reply</a>
-        """
-    elif content_type == "summary":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#summary"
-        object_supported = f"""
-            <a href="{url}" class="header-link">summary</a>
-        """
-    elif content_type == "bulletpoint":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#takeaways"
-        object_supported = f"""
-            <a href="{url}" class="header-link">key takeaway</a>
-        """
     elif content_type == "researchhubpost":
         post = ResearchhubPost.objects.get(id=object_id)
         url = f"{BASE_FRONTEND_URL}/post/{post.id}/{post.slug}"
-        object_supported = f"""
-            <a href="{url}" class="header-link">key takeaway</a>
-        """
+        object_supported = "post"
 
-    if payment_type == Support.PAYPAL:
-        payment_type = "Paypal"
-    elif payment_type == Support.ETH:
-        payment_type = "Ethereum"
-    elif payment_type == Support.BTC:
-        payment_type = "Bitcoin"
-    elif payment_type in Support.RSC_ON_CHAIN:
-        payment_type = "RSC"
-    elif payment_type in Support.RSC_OFF_CHAIN:
+    if payment_type == Purchase.OFF_CHAIN:
         payment_type = "RSC"
 
     context = {

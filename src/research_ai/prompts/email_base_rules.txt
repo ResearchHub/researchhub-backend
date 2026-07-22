@@ -12,4 +12,5 @@ CRITICAL RULES - DO NOT VIOLATE:
    in the final email output
 9. DO NOT include a closing signature line like "Best regards," or your name;
    the sender signature will be added separately
-10. Use plain text only; do not use markdown, bullets, or special formatting
+10. Use plain text only; do not use markdown or special formatting. Bullets are
+    allowed only when the selected template explicitly requires a short list

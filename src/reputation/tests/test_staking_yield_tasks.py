@@ -211,7 +211,10 @@ class DistributeStakingYieldTaskTest(TestCase):
             object_id=dist.id,
         ).first()
         self.assertIsNotNone(balance)
+        # Yield is always paid as locked funding credits: non-withdrawable
+        # and not yield-eligible itself (no compounding).
         self.assertTrue(balance.is_locked)
+        self.assertEqual(balance.lock_type, Balance.LockType.FUNDING_CREDIT)
 
     def test_idempotent_distribution(self):
         distribute_staking_yield()
@@ -301,14 +304,16 @@ class DistributeStakingYieldTaskTest(TestCase):
             yield_amount=Decimal(0),
         )
 
-        with patch.object(
-            StakingYieldRecord,
-            "save",
-            autospec=True,
-            side_effect=RuntimeError("save failed"),
+        with (
+            patch.object(
+                StakingYieldRecord,
+                "save",
+                autospec=True,
+                side_effect=RuntimeError("save failed"),
+            ),
+            self.assertRaises(RuntimeError),
         ):
-            with self.assertRaises(RuntimeError):
-                distribute_staking_yield()
+            distribute_staking_yield()
 
         self.assertEqual(
             Distribution.objects.filter(
