@@ -90,9 +90,7 @@ def _average_assessment_days(assessment_events, comment_content_type):
     ).values_list("object_id", "bounty__assessment_end_date")
 
     for comment_id, assessment_end_date in bounty_solutions:
-        assessment_start = assessment_end_date - timedelta(
-            days=ASSESSMENT_PERIOD_DAYS
-        )
+        assessment_start = assessment_end_date - timedelta(days=ASSESSMENT_PERIOD_DAYS)
         event_date = assessment_events[comment_id]
         if assessment_start > event_date:
             continue
