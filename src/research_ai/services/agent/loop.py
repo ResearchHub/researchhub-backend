@@ -23,6 +23,7 @@ from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.recorder import AgentRecorder
 from research_ai.services.agent.tools import Toolset
 from research_ai.services.agent.types import (
+    AssistantTurn,
     Message,
     StopReason,
     TextBlock,
@@ -120,8 +121,7 @@ class Agent:
     def run(self, user_prompt: str) -> AgentResult:
         """Drive a fresh conversation from ``user_prompt`` to completion."""
         seed = Message(role="user", content=[TextBlock(text=user_prompt)])
-        self._record("record_message", seed)
-        return self._drive([seed])
+        return self._drive([seed], new_message=seed)
 
     def continue_conversation(
         self,
@@ -135,20 +135,33 @@ class Agent:
         recorded by the runs that produced it.
         """
         appended = Message(role="user", content=[TextBlock(text=user_message)])
-        self._record("record_message", appended)
-        return self._drive(list(messages) + [appended])
+        return self._drive(list(messages) + [appended], new_message=appended)
 
-    def _record(self, hook: str, *args, **kwargs) -> None:
-        """Invoke a recorder hook; a raising recorder never breaks the run.
+    def _record_message(
+        self, message: Message, *, turn: AssistantTurn | None = None
+    ) -> None:
+        """Persist an appended message before the run advances.
 
-        The transcript is observability -- persistence failing must not kill
-        the run it observes (same contract as ``progress_callback``).
+        Ordinary observers remain best-effort. A recorder may opt into required
+        message persistence with ``requires_durable_messages``; the database
+        recorder uses that contract while isolating its optional trace writes.
         """
         if self.recorder is None:
             return
         try:
-            getattr(self.recorder, hook)(*args, **kwargs)
-        except Exception:  # noqa: BLE001 - recording must not break the run
+            self.recorder.record_message(message, turn=turn)
+        except Exception:  # noqa: BLE001 - observer failures are best-effort
+            if getattr(self.recorder, "requires_durable_messages", False):
+                raise
+            logger.warning("agent recorder record_message failed", exc_info=True)
+
+    def _record_terminal(self, hook: str, *args) -> None:
+        """Best-effort terminal observation must not mask the run outcome."""
+        if self.recorder is None:
+            return
+        try:
+            getattr(self.recorder, hook)(*args)
+        except Exception:  # noqa: BLE001 - preserve the original run outcome
             logger.warning("agent recorder %s failed", hook, exc_info=True)
 
     def _complete_turn(self, messages, rendered_tools, iteration):
@@ -165,6 +178,10 @@ class Agent:
             # conversation resumable via ``continue_conversation``.
             exc.messages = messages
             exc.iterations = iteration - 1
+            raise
+        except InterruptedError:
+            # Preserve an explicit interruption so persistence can distinguish
+            # it from an ordinary provider failure.
             raise
         except Exception as exc:
             # A provider that leaks a foreign exception still surfaces as
@@ -202,15 +219,16 @@ class Agent:
             )
         return result_blocks, stop
 
-    def _drive(self, messages: list[Message]) -> AgentResult:
+    def _drive(self, messages: list[Message], *, new_message: Message) -> AgentResult:
         try:
+            self._record_message(new_message)
             result = self._loop(messages)
-        except AgentRunError as error:
+        except Exception as error:
             # Every message up to the failure was already recorded as it was
             # appended; this only marks the terminal outcome.
-            self._record("on_run_failed", error)
+            self._record_terminal("on_run_failed", error)
             raise
-        self._record("on_run_finished", result)
+        self._record_terminal("on_run_finished", result)
         return result
 
     def _loop(self, messages: list[Message]) -> AgentResult:
@@ -228,7 +246,7 @@ class Agent:
                 content=[*turn.text_blocks, *turn.tool_calls],
             )
             messages.append(assistant_message)
-            self._record("record_message", assistant_message, turn=turn)
+            self._record_message(assistant_message, turn=turn)
 
             # The assistant's text on a tool-calling turn is its stated reason for
             # the calls -- log it so the trace shows *why* a tool was picked.
@@ -256,7 +274,7 @@ class Agent:
             result_blocks, stop = self._dispatch_tool_calls(turn.tool_calls, iteration)
             tool_result_message = Message(role="user", content=result_blocks)
             messages.append(tool_result_message)
-            self._record("record_message", tool_result_message)
+            self._record_message(tool_result_message)
 
             if stop:
                 logger.info("iter %d stop_tool: terminal tool ended the run", iteration)
