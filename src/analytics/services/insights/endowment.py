@@ -34,9 +34,7 @@ def get_endowment_metrics(period):
         tvl_rsc = Decimal(0)
         accrual_date = None
     else:
-        current_yield_apy_percent = StakingYieldService.compute_apy_for_snapshot(
-            latest
-        )
+        current_yield_apy_percent = StakingYieldService.compute_apy_for_snapshot(latest)
         tvl_rsc = latest.total_staked
         accrual_date = latest.accrual_date
 

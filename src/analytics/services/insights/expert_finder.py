@@ -39,10 +39,7 @@ def get_expert_finder_metrics(period):
     # LinkedIn, X, or another external channel.
     return {
         "experts_generated_outreach_for": (
-            emails.exclude(expert_email="")
-            .values("expert_email")
-            .distinct()
-            .count()
+            emails.exclude(expert_email="").values("expert_email").distinct().count()
         ),
         "invited_experts": invited_experts,
         "auto_drafted_proposals": drafts_completed.count(),
