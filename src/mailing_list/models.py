@@ -48,9 +48,6 @@ class EmailRecipient(models.Model):
     comment_subscription = SubscriptionField(
         "mailing_list.CommentSubscription", related_name="email_recipient"
     )
-    thread_subscription = SubscriptionField(
-        "mailing_list.ThreadSubscription", related_name="email_recipient"
-    )
     bounced_date = models.DateTimeField(default=None, null=True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
