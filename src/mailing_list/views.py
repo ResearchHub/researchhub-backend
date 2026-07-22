@@ -21,7 +21,6 @@ from mailing_list.models import (
     EmailRecipient,
     HubSubscription,
     PaperSubscription,
-    ThreadSubscription,
 )
 from mailing_list.serializers import EmailRecipientSerializer
 from utils.parsers import PlainTextParser
@@ -50,7 +49,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
 
         email_recipient.digest_subscription = DigestSubscription.objects.create()
         email_recipient.paper_subscription = PaperSubscription.objects.create()
-        email_recipient.thread_subscription = ThreadSubscription.objects.create()
         email_recipient.comment_subscription = CommentSubscription.objects.create()
         email_recipient.save()
 
@@ -82,7 +80,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         self._update_subscription(request, "digest_subscription")
         self._update_subscription(request, "bounty_digest_subscription")
         self._update_subscription(request, "paper_subscription")
-        self._update_subscription(request, "thread_subscription")
         self._update_subscription(request, "comment_subscription")
         self._update_subscription(request, "hub_subscription")
 
@@ -104,9 +101,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         elif subscription_name == "paper_subscription":
             sub_id = email_recipient.paper_subscription.id
             model = PaperSubscription
-        elif subscription_name == "thread_subscription":
-            sub_id = email_recipient.thread_subscription.id
-            model = ThreadSubscription
         elif subscription_name == "comment_subscription":
             sub_id = email_recipient.comment_subscription.id
             model = CommentSubscription
