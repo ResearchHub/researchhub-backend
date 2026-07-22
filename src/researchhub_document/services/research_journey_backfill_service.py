@@ -14,7 +14,6 @@ from researchhub_document.models import (
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.services.journey_service import JourneyService
 
-
 # This command is a one-off registered report backfill. Keep the target set
 # explicit so it cannot affect newly approved proposals when it is rerun.
 REGISTERED_REPORT_BACKFILL_POST_IDS = (
