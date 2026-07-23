@@ -49,9 +49,6 @@ WEB3_BASE_PROVIDER_URL = os.environ.get("WEB3_BASE_PROVIDER_URL", "")
 CROSSREF_LOGIN_ID = os.environ.get("CROSSREF_LOGIN_ID", "")
 CROSSREF_LOGIN_PASSWORD = os.environ.get("CROSSREF_LOGIN_PASSWORD", "")
 
-MJML_APP_ID = os.environ.get("MJML_APP_ID", "")
-MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", "")
-
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
 
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", "")
