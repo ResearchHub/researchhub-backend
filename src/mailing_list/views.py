@@ -71,22 +71,13 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
             email_recipient.is_opted_out = is_opted_out
             email_recipient.save()
 
-        self._update_subscription(request, "comment_subscription")
+        comment_data = request.data.get("comment_subscription")
+        if comment_data:
+            CommentSubscription.objects.update_or_create(
+                id=email_recipient.comment_subscription.id, defaults=comment_data
+            )
 
         return Response(EmailRecipientSerializer(email_recipient).data, status=200)
-
-    def _update_subscription(self, request, subscription_name):
-        email_recipient = self.get_object()
-
-        data = request.data.get(subscription_name)
-        if not data:
-            return
-
-        if subscription_name == "comment_subscription":
-            sub_id = email_recipient.comment_subscription.id
-            model = CommentSubscription
-
-        model.objects.update_or_create(id=sub_id, defaults=data)
 
     @action(detail=False, methods=["POST"], permission_classes=[AllowAny])
     def update_or_create_email_preference(self, request):
