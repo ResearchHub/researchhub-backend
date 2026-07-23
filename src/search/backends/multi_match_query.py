@@ -37,7 +37,7 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
         if not options:
             options = {}
 
-        field_name = options["field"] if "field" in options else field
+        field_name = options.get("field", field)
 
         if "boost" in options:
             return "{}^{}".format(field_name, options["boost"])

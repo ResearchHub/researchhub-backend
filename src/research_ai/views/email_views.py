@@ -19,6 +19,7 @@ from research_ai.serializers import (
     InviteRfpApplicantsSerializer,
     PreviewEmailRequestSerializer,
     SendEmailRequestSerializer,
+    build_expert_sources_map_for_emails,
 )
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
@@ -75,8 +76,17 @@ def _list_navigation_for_generated_email(email):
     }
 
 
+def _generated_email_serializer_context(emails):
+    return {
+        "expert_sources_by_key": build_expert_sources_map_for_emails(emails),
+    }
+
+
 def _generated_email_detail_response(email):
-    data = GeneratedEmailSerializer(email).data
+    data = GeneratedEmailSerializer(
+        email,
+        context=_generated_email_serializer_context([email]),
+    ).data
     data["list_navigation"] = _list_navigation_for_generated_email(email)
     return data
 
@@ -399,7 +409,11 @@ class GeneratedEmailListView(APIView):
                 qs = qs.filter(expert_search_id=sid)
         total = qs.count()
         items = list(qs[offset : offset + limit])
-        ser = GeneratedEmailSerializer(items, many=True)
+        ser = GeneratedEmailSerializer(
+            items,
+            many=True,
+            context=_generated_email_serializer_context(items),
+        )
         return Response(
             {
                 "emails": ser.data,

@@ -274,11 +274,7 @@ class NoteViewSet(ModelViewSet):
         recipient_email = data.get("email")
         time_to_expire = int(data.get("expire", 1440))
 
-        recipient = User.objects.filter(email=recipient_email)
-        if recipient.exists():
-            recipient = recipient.first()
-        else:
-            recipient = None
+        recipient = User.objects.filter(email=recipient_email).first()
 
         invite = NoteInvitation.create(
             inviter=inviter,

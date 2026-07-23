@@ -240,8 +240,6 @@ INSTALLED_APPS = [
     "channels",
     # Django Celery Results
     "django_celery_results",
-    # MJML
-    "mjml",
     # Custom apps
     "analytics",
     "personalize",
@@ -872,19 +870,6 @@ WEB3_KEYSTORE_PASSWORD_SECRET_ID = os.environ.get(
     "WEB3_KEYSTORE_PASSWORD_SECRET_ID", keys.WEB3_KEYSTORE_PASSWORD_SECRET_ID
 )
 WEB3_WALLET_ADDRESS = os.environ.get("WEB3_WALLET_ADDRESS", keys.WEB3_WALLET_ADDRESS)
-
-
-# MJML
-MJML_APP_ID = os.environ.get("MJML_APP_ID", keys.MJML_APP_ID)
-MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", keys.MJML_SECRET_KEY)
-MJML_BACKEND_MODE = "httpserver"
-MJML_HTTPSERVERS = [
-    {
-        "URL": "https://api.mjml.io/v1/render",  # official MJML API
-        "HTTP_AUTH": (MJML_APP_ID, MJML_SECRET_KEY),
-    },
-]
-
 
 # Transpose API
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)

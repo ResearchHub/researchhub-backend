@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.contrib.postgres.indexes import BrinIndex
 from django.db import models
 from django.db.models import DecimalField, Sum
@@ -13,7 +14,6 @@ from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
 from researchhub_comment.models import RhCommentModel
 from user.related_models.user_model import User
 from utils.models import DefaultModel
-from utils.time import time_since
 
 
 class Action(DefaultModel):
@@ -73,10 +73,7 @@ class Action(DefaultModel):
         doc_type_icon = ""
         verb = "done a noteworthy action on"
         if act.content_type_name == "rh comment model":
-            if action_item.parent:
-                verb = "replied to"
-            else:
-                verb = "commented on"
+            verb = "replied to" if action_item.parent else "commented on"
         elif act.content_type_name == "summary":
             verb = "edited"
         elif act.content_type_name == "researchhub post":
@@ -88,10 +85,7 @@ class Action(DefaultModel):
 
         noun = ""
         if act.content_type_name == "rh comment model":
-            if action_item.parent:
-                noun = "your comment"
-            else:
-                noun = f"your {self.doc_type}"
+            noun = "your comment" if action_item.parent else f"your {self.doc_type}"
 
         act.label = f"has {verb} {noun}"
 
@@ -119,7 +113,7 @@ class Action(DefaultModel):
             act.document_type = uni_doc.fe_document_type.title()
             act.link = uni_doc.frontend_view_link()
 
-        act.time_since = time_since(action_item.created_date)
+        act.time_since = naturaltime(action_item.created_date)
         act.document_type_icon = doc_type_icon
 
         return act
@@ -180,7 +174,7 @@ class Action(DefaultModel):
         return summary
 
     @property
-    def frontend_view_link(self):
+    def frontend_view_link(self) -> str:
         from researchhub_document.models import (
             ResearchhubPost,
             ResearchhubUnifiedDocument,
@@ -194,27 +188,21 @@ class Action(DefaultModel):
             if isinstance(item, ResearchhubUnifiedDocument):
                 item = item.get_document()
 
-        if isinstance(item, Paper):
-            link += f"/paper/{item.id}/"
-        elif isinstance(item, RhCommentModel):
-            uni_doc = self.item.unified_document
-            doc_type = uni_doc.document_type
-            doc = uni_doc.get_document()
+        match item:
+            case Paper():
+                link += f"/paper/{item.id}/"
+            case RhCommentModel():
+                uni_doc = self.item.unified_document
+                doc = uni_doc.get_document()
 
-            if (
-                doc_type == "DISCUSSION"
-                or doc_type == "QUESTION"
-                or doc_type == "BOUNTY"
-            ):
-                link += f"/post/{doc.id}/{doc.slug}#comments"
-            else:
-                link += f"/paper/{doc.id}/{doc.slug}#comments"
-        elif isinstance(item, ResearchhubPost):
-            link += f"/post/{item.id}/{item.title}"
-        elif isinstance(item, Withdrawal):
-            link = ""
-        elif isinstance(item, PaperSubmission):
-            link = ""
-        else:
-            raise Exception("frontend_view_link not implemented")
+                if uni_doc.document_type in ("DISCUSSION", "QUESTION", "BOUNTY"):
+                    link += f"/post/{doc.id}/{doc.slug}#comments"
+                else:
+                    link += f"/paper/{doc.id}/{doc.slug}#comments"
+            case ResearchhubPost():
+                link += f"/post/{item.id}/{item.title}"
+            case Withdrawal() | PaperSubmission():
+                link = ""
+            case _:
+                raise ValueError("frontend_view_link not implemented")
         return link

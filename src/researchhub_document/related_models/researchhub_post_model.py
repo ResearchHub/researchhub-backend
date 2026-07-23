@@ -231,10 +231,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
         return JOURNEY_STAGE_BY_DOCUMENT_TYPE.get(self.document_type)
 
     @property
-    def users_to_notify(self):
-        return [self.created_by]
-
-    @property
     def paper(self):
         return None
 
@@ -245,16 +241,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
     @property
     def is_removed(self):
         return self.unified_document.is_removed
-
-    def get_document_slug_type(self):
-        if self.document_type == "BOUNTY":
-            return "bounty"
-        elif self.document_type == "DISCUSSION":
-            return "post"
-        elif self.document_type == "QUESTION":
-            return "question"
-
-        return "post"
 
     def get_boost_amount(self):
         purchases = self.purchases.filter(

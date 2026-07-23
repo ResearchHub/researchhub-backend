@@ -32,6 +32,17 @@ class ProposalDraft(DefaultModel):
         on_delete=models.CASCADE,
         related_name="proposal_drafts",
     )
+    agent_conversation = models.OneToOneField(
+        "research_ai.AgentConversation",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="proposal_draft",
+        db_comment=(
+            "Durable agent history for this draft. SET_NULL keeps the completed "
+            "proposal when trace data is deleted."
+        ),
+    )
     created_by = models.ForeignKey(
         "user.User",
         on_delete=models.SET_NULL,
