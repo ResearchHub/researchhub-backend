@@ -16,8 +16,7 @@ def _get_model_serializer(model_arg):
 
 
 _SUBSCRIPTION_SERIALIZERS = {
-    model: _get_model_serializer(model)
-    for model in (CommentSubscription,)
+    model: _get_model_serializer(model) for model in (CommentSubscription,)
 }
 
 
