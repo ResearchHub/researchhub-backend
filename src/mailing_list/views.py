@@ -19,7 +19,6 @@ from mailing_list.models import (
     CommentSubscription,
     DigestSubscription,
     EmailRecipient,
-    HubSubscription,
 )
 from mailing_list.serializers import EmailRecipientSerializer
 from utils.parsers import PlainTextParser
@@ -78,7 +77,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         self._update_subscription(request, "digest_subscription")
         self._update_subscription(request, "bounty_digest_subscription")
         self._update_subscription(request, "comment_subscription")
-        self._update_subscription(request, "hub_subscription")
 
         return Response(EmailRecipientSerializer(email_recipient).data, status=200)
 
@@ -98,9 +96,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         elif subscription_name == "comment_subscription":
             sub_id = email_recipient.comment_subscription.id
             model = CommentSubscription
-        elif subscription_name == "hub_subscription":
-            sub_id = email_recipient.hub_subscription.id
-            model = HubSubscription
 
         model.objects.update_or_create(id=sub_id, defaults=data)
 

@@ -39,9 +39,6 @@ class EmailRecipient(models.Model):
     bounty_digest_subscription = SubscriptionField(
         "mailing_list.BountyDigestSubscription", related_name="email_recipient"
     )
-    hub_subscription = SubscriptionField(
-        "mailing_list.HubSubscription", related_name="email_recipient"
-    )
     comment_subscription = SubscriptionField(
         "mailing_list.CommentSubscription", related_name="email_recipient"
     )
@@ -128,10 +125,6 @@ class BountyDigestSubscription(BaseSubscription):
         default=NotificationFrequencies.WEEKLY,
         choices=BaseSubscription.NOTIFICATION_FREQUENCY_CHOICES,
     )
-    none = models.BooleanField(default=False)
-
-
-class HubSubscription(BaseSubscription):
     none = models.BooleanField(default=False)
 
 

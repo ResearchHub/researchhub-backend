@@ -16,7 +16,6 @@ from hub.mappers.arxiv_mappings import ARXIV_MAPPINGS
 from hub.mappers.biorxiv_mappings import BIORXIV_MAPPINGS
 from hub.mappers.chemrxiv_mappings import CHEMRXIV_MAPPINGS
 from hub.mappers.medrxiv_mappings import MEDRXIV_MAPPINGS
-from mailing_list.models import EmailRecipient, HubSubscription
 from paper.utils import get_cache_key
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
@@ -124,14 +123,6 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                 user=target_user,
             )
 
-            email_recipient = EmailRecipient.objects.filter(email=target_user.email)
-            if email_recipient.exists():
-                email_recipient = email_recipient.first()
-                subscription = HubSubscription.objects.create(
-                    none=False, notification_frequency=10080
-                )
-                email_recipient.hub_subscription = subscription
-                email_recipient.save()
             return Response("OK", status=200)
         except Exception as e:
             return Response(str(e), status=500)
@@ -158,12 +149,6 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
 
             for permission in target_editors_permissions:
                 permission.delete()
-
-            email_recipient = EmailRecipient.objects.filter(email=target_user.email)
-            if email_recipient.exists():
-                email_recipient = email_recipient.first()
-                hub_subscription = email_recipient.hub_subscription
-                hub_subscription.delete()
 
             return Response("OK", status=200)
         except Exception as e:
