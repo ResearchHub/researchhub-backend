@@ -33,6 +33,14 @@ def _serialization_error(value: Any) -> dict[str, bool | str]:
     }
 
 
+def _add_truncated_items_marker(result: dict[str, Any], omitted_items: int) -> None:
+    """Add a truncation marker without overwriting a retained dictionary key."""
+    marker_key = "_truncated_items"
+    while marker_key in result:
+        marker_key = f"_{marker_key}"
+    result[marker_key] = omitted_items
+
+
 def _json_safe(
     value: Any,
     *,
@@ -67,11 +75,14 @@ def _json_safe(
             )
         return value, False
     if isinstance(value, dict):
-        result = {}
+        result: dict[str, Any] = {}
         was_lossy = False
         for index, (key, item) in enumerate(value.items()):
             if index >= max_collection_items:
-                result["_truncated_items"] = len(value) - max_collection_items
+                _add_truncated_items_marker(
+                    result,
+                    len(value) - max_collection_items,
+                )
                 was_lossy = True
                 break
             safe_key = _try_stringify(key)

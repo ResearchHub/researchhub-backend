@@ -80,7 +80,8 @@ def serialize_trace_message(message: Message) -> tuple[list[dict], bool, int]:
     )
     safe_blocks = serialize_messages([limited_message])[0]["content"]
     original_size = 0
-    truncated = block_count > len(safe_blocks)
+    omitted_blocks = block_count - len(safe_blocks)
+    truncated = omitted_blocks > 0
     bounded_blocks: list[dict] = []
 
     for raw_block in safe_blocks:
@@ -129,23 +130,17 @@ def serialize_trace_message(message: Message) -> tuple[list[dict], bool, int]:
 
         candidate = [*bounded_blocks, block]
         if json_size_bytes(candidate) > MAX_TRACE_MESSAGE_BYTES:
-            bounded_blocks.append(
-                {
-                    "type": "trace_truncated",
-                    "_truncated": True,
-                    "omitted_blocks": len(safe_blocks) - len(bounded_blocks),
-                }
-            )
+            omitted_blocks += len(safe_blocks) - len(bounded_blocks)
             truncated = True
             break
         bounded_blocks.append(block)
 
-    if block_count > len(safe_blocks):
+    if omitted_blocks:
         bounded_blocks.append(
             {
                 "type": "trace_truncated",
                 "_truncated": True,
-                "omitted_blocks": block_count - len(safe_blocks),
+                "omitted_blocks": omitted_blocks,
             }
         )
     if json_size_bytes(bounded_blocks) > MAX_TRACE_MESSAGE_BYTES:

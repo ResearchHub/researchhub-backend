@@ -64,6 +64,26 @@ class BoundedJSONValueTests(TestCase):
         self.assertTrue(is_truncated)
         self.assertEqual(safe, [0, 1, 2, {"_truncated_items": 7}])
 
+    def test_dict_truncation_marker_does_not_overwrite_retained_data(self):
+        # Arrange
+        value = {
+            "_truncated_items": "user data",
+            "kept": True,
+            "omitted": True,
+        }
+
+        # Act
+        safe, is_truncated, _original_size = bounded_json_value(
+            value,
+            max_bytes=1024,
+            max_collection_items=2,
+        )
+
+        # Assert
+        self.assertTrue(is_truncated)
+        self.assertEqual(safe["_truncated_items"], "user data")
+        self.assertEqual(safe["__truncated_items"], 1)
+
     def test_bounds_cyclic_values_by_nesting_depth(self):
         # Arrange
         value = {}

@@ -28,6 +28,28 @@ class AgentPersistenceContentTests(TestCase):
         self.assertEqual(original_size, len(text.encode("utf-8")))
         self.assertLessEqual(json_size_bytes(content), MAX_TRACE_MESSAGE_BYTES)
 
+    def test_trace_combines_item_and_size_truncation_markers(self):
+        # Arrange
+        text = "x" * MAX_TRACE_MESSAGE_BYTES
+        block_count = MAX_COLLECTION_ITEMS + 1
+        message = Message(
+            role="assistant",
+            content=[TextBlock(text=text) for _ in range(block_count)],
+        )
+
+        # Act
+        content, is_truncated, _original_size = serialize_trace_message(message)
+
+        # Assert
+        markers = [block for block in content if block["type"] == "trace_truncated"]
+        retained_block_count = len(content) - len(markers)
+        self.assertTrue(is_truncated)
+        self.assertEqual(len(markers), 1)
+        self.assertEqual(
+            markers[0]["omitted_blocks"],
+            block_count - retained_block_count,
+        )
+
     def test_context_with_excessive_blocks_compacts_before_serialization(self):
         # Arrange
         message = Message(
