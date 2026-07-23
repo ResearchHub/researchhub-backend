@@ -2,74 +2,130 @@
 
 from unittest import TestCase
 
-from research_ai.services.agent.types import Message, TextBlock, ToolUseBlock
+from research_ai.services.agent.types import (
+    Message,
+    TextBlock,
+    ToolUseBlock,
+    deserialize_messages,
+    serialize_messages,
+)
 from research_ai.services.agent_persistence.content import (
-    MAX_CONTEXT_BLOCK_PAYLOAD_BYTES,
+    MAX_BLOCK_PAYLOAD_BYTES,
+    MAX_CONTEXT_MESSAGE_BYTES,
     MAX_TRACE_MESSAGE_BYTES,
+    bounded_payload,
+    json_size_bytes,
     serialize_context_message,
     serialize_final_output,
     serialize_trace_message,
 )
-from utils.json import json_size_bytes
 
 
 class AgentPersistenceContentTests(TestCase):
-    def test_trace_text_is_bounded_by_serialized_bytes(self):
+    def test_bounded_payload_keeps_native_json(self):
         # Arrange
-        text = "🧪" * MAX_TRACE_MESSAGE_BYTES
-        message = Message(role="assistant", content=[TextBlock(text=text)])
+        value = {"enabled": True, "items": [1, "two", None]}
+
+        # Act
+        safe, was_replaced, original_size = bounded_payload(value)
+
+        # Assert
+        self.assertFalse(was_replaced)
+        self.assertEqual(safe, value)
+        self.assertEqual(original_size, json_size_bytes(value))
+
+    def test_bounded_payload_replaces_invalid_json(self):
+        # Arrange
+        value = {"raw": b"not json"}
+
+        # Act
+        safe, was_replaced, original_size = bounded_payload(value)
+
+        # Assert
+        self.assertTrue(was_replaced)
+        self.assertEqual(safe, {"_serialization_error": True})
+        self.assertEqual(original_size, 0)
+
+    def test_bounded_payload_replaces_non_native_json(self):
+        # Arrange
+        value = {"items": (1, 2)}
+
+        # Act
+        safe, was_replaced, original_size = bounded_payload(value)
+
+        # Assert
+        self.assertTrue(was_replaced)
+        self.assertEqual(safe, {"_serialization_error": True})
+        self.assertEqual(original_size, json_size_bytes(value))
+
+    def test_bounded_payload_replaces_oversized_json(self):
+        # Arrange
+        value = {"body": "x" * MAX_BLOCK_PAYLOAD_BYTES}
+
+        # Act
+        safe, was_replaced, original_size = bounded_payload(value)
+
+        # Assert
+        self.assertTrue(was_replaced)
+        self.assertTrue(safe["_truncated"])
+        self.assertEqual(safe["original_size_bytes"], original_size)
+        self.assertLessEqual(len(safe["preview"]), 2048)
+        self.assertLessEqual(json_size_bytes(safe), MAX_BLOCK_PAYLOAD_BYTES)
+
+    def test_trace_keeps_complete_message_within_limit(self):
+        # Arrange
+        message = Message(role="assistant", content=[TextBlock(text="complete")])
+        blocks = serialize_messages([message])[0]["content"]
 
         # Act
         content, is_truncated, original_size = serialize_trace_message(message)
 
         # Assert
-        self.assertTrue(is_truncated)
-        self.assertEqual(original_size, len(text.encode("utf-8")))
-        self.assertLessEqual(json_size_bytes(content), MAX_TRACE_MESSAGE_BYTES)
+        self.assertFalse(is_truncated)
+        self.assertEqual(content, blocks)
+        self.assertEqual(original_size, json_size_bytes(blocks))
 
-    def test_trace_uses_one_marker_when_size_limit_is_hit(self):
+    def test_trace_replaces_complete_message_over_limit(self):
         # Arrange
-        text = "x" * MAX_TRACE_MESSAGE_BYTES
-        block_count = 10
+        block_count = 3
         message = Message(
             role="assistant",
-            content=[TextBlock(text=text) for _ in range(block_count)],
+            content=[
+                TextBlock(text="x" * MAX_TRACE_MESSAGE_BYTES)
+                for _ in range(block_count)
+            ],
         )
+        blocks = serialize_messages([message])[0]["content"]
 
         # Act
         content, is_truncated, original_size = serialize_trace_message(message)
 
         # Assert
-        markers = [block for block in content if block["type"] == "trace_truncated"]
-        retained_block_count = len(content) - len(markers)
         self.assertTrue(is_truncated)
-        self.assertEqual(len(markers), 1)
-        self.assertEqual(
-            markers[0]["omitted_blocks"],
-            block_count - retained_block_count,
-        )
-        self.assertEqual(
-            original_size,
-            len(text.encode("utf-8")) * block_count,
-        )
+        self.assertEqual(content[0]["type"], "text")
+        self.assertTrue(content[0]["_truncated"])
+        self.assertEqual(content[0]["omitted_blocks"], block_count)
+        self.assertEqual(original_size, json_size_bytes(blocks))
+        self.assertLessEqual(json_size_bytes(content), MAX_TRACE_MESSAGE_BYTES)
+        deserialize_messages([{"role": message.role, "content": content}])
 
-    def test_context_keeps_many_blocks_when_they_fit_the_byte_limit(self):
+    def test_context_keeps_complete_message_within_limit(self):
         # Arrange
-        block_count = 501
         message = Message(
             role="user",
-            content=[TextBlock(text="x") for _ in range(block_count)],
+            content=[TextBlock(text="x") for _ in range(501)],
         )
+        blocks = serialize_messages([message])[0]["content"]
 
         # Act
         content, is_compacted, original_size = serialize_context_message(message)
 
         # Assert
         self.assertFalse(is_compacted)
-        self.assertEqual(original_size, block_count)
-        self.assertEqual(len(content), block_count)
+        self.assertEqual(content, blocks)
+        self.assertEqual(original_size, json_size_bytes(blocks))
 
-    def test_large_context_payload_keeps_a_typed_tool_block(self):
+    def test_context_compacts_complete_message_over_limit(self):
         # Arrange
         message = Message(
             role="assistant",
@@ -77,18 +133,21 @@ class AgentPersistenceContentTests(TestCase):
                 ToolUseBlock(
                     id="call-1",
                     name="lookup",
-                    input={"body": "x" * (MAX_CONTEXT_BLOCK_PAYLOAD_BYTES * 2)},
+                    input={"body": "x" * MAX_CONTEXT_MESSAGE_BYTES},
                 )
             ],
         )
+        blocks = serialize_messages([message])[0]["content"]
 
         # Act
         content, is_compacted, original_size = serialize_context_message(message)
 
         # Assert
         self.assertTrue(is_compacted)
-        self.assertGreater(original_size, MAX_CONTEXT_BLOCK_PAYLOAD_BYTES)
-        self.assertEqual(content[0]["type"], "tool_use")
+        self.assertEqual(content[0]["type"], "text")
+        self.assertEqual(original_size, json_size_bytes(blocks))
+        self.assertLessEqual(json_size_bytes(content), MAX_CONTEXT_MESSAGE_BYTES)
+        deserialize_messages([{"role": message.role, "content": content}])
 
     def test_final_output_remains_repairable_when_truncated(self):
         # Arrange
