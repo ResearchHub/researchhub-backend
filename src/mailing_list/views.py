@@ -15,12 +15,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import Response
 
 from mailing_list.models import (
-    BountyDigestSubscription,
     CommentSubscription,
-    DigestSubscription,
     EmailRecipient,
-    HubSubscription,
-    PaperSubscription,
 )
 from mailing_list.serializers import EmailRecipientSerializer
 from utils.parsers import PlainTextParser
@@ -47,8 +43,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         if not created:
             return Response("Already exists", status=400)
 
-        email_recipient.digest_subscription = DigestSubscription.objects.create()
-        email_recipient.paper_subscription = PaperSubscription.objects.create()
         email_recipient.comment_subscription = CommentSubscription.objects.create()
         email_recipient.save()
 
@@ -77,55 +71,19 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
             email_recipient.is_opted_out = is_opted_out
             email_recipient.save()
 
-        self._update_subscription(request, "digest_subscription")
-        self._update_subscription(request, "bounty_digest_subscription")
-        self._update_subscription(request, "paper_subscription")
-        self._update_subscription(request, "comment_subscription")
-        self._update_subscription(request, "hub_subscription")
+        comment_data = request.data.get("comment_subscription")
+        if comment_data:
+            CommentSubscription.objects.update_or_create(
+                id=email_recipient.comment_subscription.id, defaults=comment_data
+            )
 
         return Response(EmailRecipientSerializer(email_recipient).data, status=200)
-
-    def _update_subscription(self, request, subscription_name):
-        email_recipient = self.get_object()
-
-        data = request.data.get(subscription_name)
-        if not data:
-            return
-
-        if subscription_name == "digest_subscription":
-            sub_id = email_recipient.digest_subscription.id
-            model = DigestSubscription
-        elif subscription_name == "bounty_digest_subscription":
-            sub_id = email_recipient.bounty_digest_subscription.id
-            model = BountyDigestSubscription
-        elif subscription_name == "paper_subscription":
-            sub_id = email_recipient.paper_subscription.id
-            model = PaperSubscription
-        elif subscription_name == "comment_subscription":
-            sub_id = email_recipient.comment_subscription.id
-            model = CommentSubscription
-        elif subscription_name == "hub_subscription":
-            sub_id = email_recipient.hub_subscription.id
-            model = HubSubscription
-
-        model.objects.update_or_create(id=sub_id, defaults=data)
 
     @action(detail=False, methods=["POST"], permission_classes=[AllowAny])
     def update_or_create_email_preference(self, request):
         """Enables anonymous users to unsubscribe."""
 
         email = request.data.get("email")
-
-        # TODO: Uncomment to restrict to anonymous users
-        # if EmailRecipient.objects.filter(
-        #     email=email,
-        #     user__isnull=False
-        # ).exists():
-        #     return Response(
-        #         'This route is only for anonymous users',
-        #         status=400
-        #     )
-
         email_recipient, created = EmailRecipient.objects.get_or_create(email=email)
 
         is_opted_out = request.data.get("opt_out")

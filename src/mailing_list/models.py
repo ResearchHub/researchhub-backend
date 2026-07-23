@@ -33,18 +33,6 @@ class EmailRecipient(models.Model):
     user = models.OneToOneField(
         "user.User", on_delete=models.CASCADE, default=None, null=True
     )
-    digest_subscription = SubscriptionField(
-        "mailing_list.DigestSubscription", related_name="email_recipient"
-    )
-    bounty_digest_subscription = SubscriptionField(
-        "mailing_list.BountyDigestSubscription", related_name="email_recipient"
-    )
-    hub_subscription = SubscriptionField(
-        "mailing_list.HubSubscription", related_name="email_recipient"
-    )
-    paper_subscription = SubscriptionField(
-        "mailing_list.PaperSubscription", related_name="email_recipient"
-    )
     comment_subscription = SubscriptionField(
         "mailing_list.CommentSubscription", related_name="email_recipient"
     )
@@ -70,12 +58,6 @@ class EmailRecipient(models.Model):
         return f"{self.email}"
 
     def save(self, *args, **kwargs):
-        if self.digest_subscription is None:
-            self.digest_subscription = DigestSubscription.objects.create()
-        if self.bounty_digest_subscription is None:
-            self.bounty_digest_subscription = BountyDigestSubscription.objects.create()
-        if self.paper_subscription is None:
-            self.paper_subscription = PaperSubscription.objects.create()
         if self.comment_subscription is None:
             self.comment_subscription = CommentSubscription.objects.create()
         return super().save(*args, **kwargs)
@@ -118,31 +100,6 @@ class BaseSubscription(models.Model):
     def unsubscribe(self):
         self.none = True
         self.save()
-
-
-class DigestSubscription(BaseSubscription):
-    notification_frequency = models.IntegerField(
-        default=NotificationFrequencies.WEEKLY,
-        choices=BaseSubscription.NOTIFICATION_FREQUENCY_CHOICES,
-    )
-    none = models.BooleanField(default=False)
-
-
-class BountyDigestSubscription(BaseSubscription):
-    notification_frequency = models.IntegerField(
-        default=NotificationFrequencies.WEEKLY,
-        choices=BaseSubscription.NOTIFICATION_FREQUENCY_CHOICES,
-    )
-    none = models.BooleanField(default=False)
-
-
-class HubSubscription(BaseSubscription):
-    none = models.BooleanField(default=False)
-
-
-class PaperSubscription(BaseSubscription):
-    none = models.BooleanField(default=False)
-    threads = models.BooleanField(default=True)
 
 
 class CommentSubscription(BaseSubscription):
