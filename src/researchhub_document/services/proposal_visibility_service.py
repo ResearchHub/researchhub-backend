@@ -41,7 +41,6 @@ class ProposalVisibilityService:
         that requires private applications must remain private.
         """
         grant_linked = False
-        changed = False
         with transaction.atomic():
             proposal = (
                 ResearchhubPost.objects.select_for_update()
@@ -59,33 +58,33 @@ class ProposalVisibilityService:
                 )
             if unified_document.is_removed:
                 raise ValueError("Removed proposals cannot be made public.")
-            if unified_document.is_public:
-                return proposal
-            if proposal.grant_applications.filter(
-                grant__application_visibility=Grant.APPLICATION_VISIBILITY_PRIVATE
-            ).exists():
-                raise ValueError(
-                    "This proposal is an application to a grant that requires "
-                    "applications to be private."
-                )
+            if not unified_document.is_public:
+                if proposal.grant_applications.filter(
+                    grant__application_visibility=Grant.APPLICATION_VISIBILITY_PRIVATE
+                ).exists():
+                    raise ValueError(
+                        "This proposal is an application to a grant that requires "
+                        "applications to be private."
+                    )
 
-            unified_document.is_public = True
-            unified_document.save(update_fields=["is_public"])
+                unified_document.is_public = True
+                unified_document.save(update_fields=["is_public"])
 
-            post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-            Action.objects.filter(
-                content_type=post_content_type,
-                object_id=proposal.id,
-            ).update(display=True)
+                post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+                Action.objects.filter(
+                    content_type=post_content_type,
+                    object_id=proposal.id,
+                ).update(display=True)
 
             grant_linked = proposal.grant_applications.exists()
-            changed = True
 
-        if changed:
-            self._publish(proposal)
-            self.funding_cache_invalidator()
-            if grant_linked:
-                self.grant_cache_invalidator()
+        # These operations are idempotent and intentionally replayed for an
+        # already-public proposal so a client retry can recover from an earlier
+        # broker, process, or cache-invalidation failure.
+        self._publish(proposal)
+        self.funding_cache_invalidator()
+        if grant_linked:
+            self.grant_cache_invalidator()
 
         return proposal
 

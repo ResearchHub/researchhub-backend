@@ -185,8 +185,16 @@ class MakeProposalPublicTests(AWSMockTestCase):
         self.assertTrue(self.action.display)
         publish_to_feed_mock.assert_called_once_with(self.post, self.author.id)
 
+    @patch(
+        "researchhub_document.services.proposal_visibility_service."
+        "FundingCacheMixin.invalidate_funding_feed_cache"
+    )
     @patch("researchhub_document.services.proposal_visibility_service.publish_to_feed")
-    def test_making_public_proposal_public_is_idempotent(self, publish_to_feed_mock):
+    def test_public_proposal_retry_replays_side_effects(
+        self,
+        publish_to_feed_mock,
+        invalidate_funding_cache_mock,
+    ):
         # Arrange
         self.post.unified_document.is_public = True
         self.post.unified_document.save(update_fields=["is_public"])
@@ -196,7 +204,8 @@ class MakeProposalPublicTests(AWSMockTestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        publish_to_feed_mock.assert_not_called()
+        publish_to_feed_mock.assert_called_once_with(self.post, self.author.id)
+        invalidate_funding_cache_mock.assert_called_once_with()
 
     def test_outsider_cannot_make_private_proposal_public(self):
         # Arrange
