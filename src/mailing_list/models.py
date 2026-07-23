@@ -42,9 +42,6 @@ class EmailRecipient(models.Model):
     hub_subscription = SubscriptionField(
         "mailing_list.HubSubscription", related_name="email_recipient"
     )
-    paper_subscription = SubscriptionField(
-        "mailing_list.PaperSubscription", related_name="email_recipient"
-    )
     comment_subscription = SubscriptionField(
         "mailing_list.CommentSubscription", related_name="email_recipient"
     )
@@ -74,8 +71,6 @@ class EmailRecipient(models.Model):
             self.digest_subscription = DigestSubscription.objects.create()
         if self.bounty_digest_subscription is None:
             self.bounty_digest_subscription = BountyDigestSubscription.objects.create()
-        if self.paper_subscription is None:
-            self.paper_subscription = PaperSubscription.objects.create()
         if self.comment_subscription is None:
             self.comment_subscription = CommentSubscription.objects.create()
         return super().save(*args, **kwargs)
@@ -138,11 +133,6 @@ class BountyDigestSubscription(BaseSubscription):
 
 class HubSubscription(BaseSubscription):
     none = models.BooleanField(default=False)
-
-
-class PaperSubscription(BaseSubscription):
-    none = models.BooleanField(default=False)
-    threads = models.BooleanField(default=True)
 
 
 class CommentSubscription(BaseSubscription):

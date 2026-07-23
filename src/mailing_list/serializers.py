@@ -6,7 +6,6 @@ from mailing_list.models import (
     DigestSubscription,
     EmailRecipient,
     HubSubscription,
-    PaperSubscription,
 )
 
 
@@ -26,7 +25,6 @@ _SUBSCRIPTION_SERIALIZERS = {
         CommentSubscription,
         DigestSubscription,
         HubSubscription,
-        PaperSubscription,
     )
 }
 
@@ -34,7 +32,6 @@ _SUBSCRIPTION_SERIALIZERS = {
 class EmailRecipientSerializer(serializers.ModelSerializer):
     digest_subscription = serializers.SerializerMethodField()
     bounty_digest_subscription = serializers.SerializerMethodField()
-    paper_subscription = serializers.SerializerMethodField()
     hub_subscription = serializers.SerializerMethodField()
     comment_subscription = serializers.SerializerMethodField()
     user = serializers.CurrentUserDefault()
@@ -48,7 +45,6 @@ class EmailRecipientSerializer(serializers.ModelSerializer):
             "digest_subscription",
             "bounty_digest_subscription",
             "hub_subscription",
-            "paper_subscription",
             "comment_subscription",
             "user",
         ]
@@ -66,9 +62,6 @@ class EmailRecipientSerializer(serializers.ModelSerializer):
 
     def get_bounty_digest_subscription(self, obj):
         return self._get_subscription(BountyDigestSubscription, obj)
-
-    def get_paper_subscription(self, obj):
-        return self._get_subscription(PaperSubscription, obj)
 
     def get_hub_subscription(self, obj):
         return self._get_subscription(HubSubscription, obj)

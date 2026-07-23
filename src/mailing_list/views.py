@@ -20,7 +20,6 @@ from mailing_list.models import (
     DigestSubscription,
     EmailRecipient,
     HubSubscription,
-    PaperSubscription,
 )
 from mailing_list.serializers import EmailRecipientSerializer
 from utils.parsers import PlainTextParser
@@ -48,7 +47,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
             return Response("Already exists", status=400)
 
         email_recipient.digest_subscription = DigestSubscription.objects.create()
-        email_recipient.paper_subscription = PaperSubscription.objects.create()
         email_recipient.comment_subscription = CommentSubscription.objects.create()
         email_recipient.save()
 
@@ -79,7 +77,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
 
         self._update_subscription(request, "digest_subscription")
         self._update_subscription(request, "bounty_digest_subscription")
-        self._update_subscription(request, "paper_subscription")
         self._update_subscription(request, "comment_subscription")
         self._update_subscription(request, "hub_subscription")
 
@@ -98,9 +95,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         elif subscription_name == "bounty_digest_subscription":
             sub_id = email_recipient.bounty_digest_subscription.id
             model = BountyDigestSubscription
-        elif subscription_name == "paper_subscription":
-            sub_id = email_recipient.paper_subscription.id
-            model = PaperSubscription
         elif subscription_name == "comment_subscription":
             sub_id = email_recipient.comment_subscription.id
             model = CommentSubscription
