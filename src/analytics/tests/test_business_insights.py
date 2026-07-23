@@ -50,8 +50,8 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
-from user.models import UserVerification
 from review.models import Review
+from user.models import UserVerification
 
 User = get_user_model()
 
