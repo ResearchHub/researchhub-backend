@@ -109,7 +109,7 @@ class ResearchhubPostViewSet(
         proposal = self.get_object()
         try:
             proposal = ProposalVisibilityService().make_public(
-                proposal,
+                proposal.id,
                 request.user,
             )
         except PermissionError as error:

@@ -34,27 +34,26 @@ class ProposalVisibilityService:
             grant_cache_invalidator or GrantCacheMixin.invalidate_grant_feed_cache
         )
 
-    def make_public(self, proposal: ResearchhubPost, user: User) -> ResearchhubPost:
-        """Make ``proposal`` public.
+    def make_public(self, proposal_id: int, user: User) -> ResearchhubPost:
+        """Make the proposal identified by ``proposal_id`` public.
 
         Publishing is intentionally one-way. Proposals submitted to an RFP
         that requires private applications must remain private.
         """
-        if proposal.document_type != PREREGISTRATION:
-            raise ValueError("Only proposals can be made public.")
-        if proposal.created_by_id != user.id:
-            raise PermissionError("Only the proposal owner can make it public.")
-
         grant_linked = False
         changed = False
         with transaction.atomic():
             proposal = (
                 ResearchhubPost.objects.select_for_update()
                 .select_related("unified_document")
-                .get(pk=proposal.pk)
+                .get(pk=proposal_id)
             )
             unified_document = proposal.unified_document
 
+            if proposal.document_type != PREREGISTRATION:
+                raise ValueError("Only proposals can be made public.")
+            if proposal.created_by_id != user.id:
+                raise PermissionError("Only the proposal owner can make it public.")
             if unified_document.is_removed:
                 raise ValueError("Removed proposals cannot be made public.")
             if unified_document.is_public:
