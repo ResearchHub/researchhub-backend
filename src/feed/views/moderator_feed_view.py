@@ -12,7 +12,6 @@ from feed.models import FeedEntry
 from feed.serializers import ModeratorFeedEntrySerializer
 from feed.views.common import FeedPagination as BaseFeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
-from note.serializers import NoteSerializer
 from paper.related_models.paper_model import Paper
 from purchase.models import Grant
 from researchhub_document.related_models.constants.document_type import (
@@ -22,9 +21,6 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
-)
-from researchhub_document.serializers.researchhub_post_serializer import (
-    RegisteredReportDraftSerializer,
 )
 from researchhub_document.services.journal_entry_service import JournalEntryService
 from user.permissions import IsModerator, UserIsEditor
@@ -140,34 +136,6 @@ class ModeratorFeedViewSet(FeedViewMixin, GenericViewSet):
         }
         serializer = self.get_serializer(feed_entries, many=True, context=context)
         return self.get_paginated_response(serializer.data)
-
-    @action(
-        detail=False,
-        methods=["post"],
-        permission_classes=[UserIsEditor | IsModerator],
-        url_path="create_registered_report_draft",
-    )
-    def create_registered_report_draft(self, request: Request) -> Response:
-        """Create an editor- or moderator-owned registered report notebook draft."""
-        serializer = RegisteredReportDraftSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        try:
-            draft = JournalEntryService().create_registered_report_draft(
-                request.user,
-                serializer.validated_data["proposal_id"],
-            )
-        except ValueError as error:
-            return Response(
-                {"error": str(error)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        response_data = NoteSerializer(draft.note, context={"request": request}).data
-        response_data["fundraise_id"] = draft.fundraise.id
-        response_data["journey_id"] = draft.journey.id
-        response_data["proposal_id"] = draft.proposal.id
-        return Response(response_data, status=status.HTTP_201_CREATED)
 
     @staticmethod
     def _risk_score_by_user_id(authors: list[Any]) -> dict[int, int]:
