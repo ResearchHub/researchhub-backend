@@ -115,6 +115,11 @@ def _serialize_trace_block(raw_block: Any) -> tuple[dict, bool, int]:
     return payload, was_truncated, original_size
 
 
+def _trace_original_size(raw_blocks: list[Any]) -> int:
+    """Return the original payload size for trace blocks."""
+    return sum(_serialize_trace_block(block)[2] for block in raw_blocks)
+
+
 def serialize_trace_message(message: Message) -> tuple[list[dict], bool, int]:
     """Serialize one protocol message while enforcing a hard row-size budget."""
     block_count = len(message.content)
@@ -132,6 +137,9 @@ def serialize_trace_message(message: Message) -> tuple[list[dict], bool, int]:
         candidate = [*bounded_blocks, block]
         if json_size_bytes(candidate) > MAX_TRACE_MESSAGE_BYTES:
             omitted_blocks += len(safe_blocks) - len(bounded_blocks)
+            original_size += _trace_original_size(
+                safe_blocks[len(bounded_blocks) + 1 :]
+            )
             truncated = True
             break
         bounded_blocks.append(block)

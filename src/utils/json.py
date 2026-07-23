@@ -43,13 +43,13 @@ def bounded_json_value(
     JSON types; unsupported values are replaced rather than coerced.
     """
     if not isinstance(max_bytes, int) or isinstance(max_bytes, bool) or max_bytes < 1:
-        raise ValueError("JSON bounds must be positive integers")
+        raise ValueError("max_bytes must be a positive integer")
     if (
         not isinstance(preview_chars, int)
         or isinstance(preview_chars, bool)
         or preview_chars < 1
     ):
-        raise ValueError("JSON bounds must be positive integers")
+        raise ValueError("preview_chars must be a positive integer")
 
     minimal_marker = {"_truncated": True}
     if json_size_bytes(minimal_marker) > max_bytes:

@@ -103,5 +103,19 @@ class BoundedJSONValueTests(TestCase):
         value = {}
 
         # Act / Assert
-        with self.assertRaisesRegex(ValueError, "positive integers"):
+        with self.assertRaisesRegex(
+            ValueError,
+            "max_bytes must be a positive integer",
+        ):
             bounded_json_value(value, max_bytes=0)
+
+    def test_rejects_non_positive_preview_chars(self):
+        # Arrange
+        value = {}
+
+        # Act / Assert
+        with self.assertRaisesRegex(
+            ValueError,
+            "preview_chars must be a positive integer",
+        ):
+            bounded_json_value(value, max_bytes=1024, preview_chars=0)

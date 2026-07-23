@@ -37,7 +37,7 @@ class AgentPersistenceContentTests(TestCase):
         )
 
         # Act
-        content, is_truncated, _original_size = serialize_trace_message(message)
+        content, is_truncated, original_size = serialize_trace_message(message)
 
         # Assert
         markers = [block for block in content if block["type"] == "trace_truncated"]
@@ -47,6 +47,10 @@ class AgentPersistenceContentTests(TestCase):
         self.assertEqual(
             markers[0]["omitted_blocks"],
             block_count - retained_block_count,
+        )
+        self.assertEqual(
+            original_size,
+            len(text.encode("utf-8")) * block_count,
         )
 
     def test_context_keeps_many_blocks_when_they_fit_the_byte_limit(self):
