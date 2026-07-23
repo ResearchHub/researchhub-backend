@@ -53,6 +53,9 @@ from researchhub_document.services.journal_entry_service import (
     RegisteredReportDOIRegistrationError,
 )
 from researchhub_document.services.journey_service import JourneyService
+from researchhub_document.services.proposal_visibility_service import (
+    ProposalVisibilityService,
+)
 from researchhub_document.services.registered_report_work_service import (
     RegisteredReportWorkService,
 )
@@ -102,6 +105,39 @@ class ResearchhubPostViewSet(
 
     def update(self, request, *args, **kwargs):
         return self.upsert_researchhub_posts(request)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated],
+        url_path="make_public",
+    )
+    def make_public(self, request: Request, pk: str | None = None) -> Response:
+        """Permanently make a private proposal public."""
+        proposal = self.get_object()
+        try:
+            proposal = ProposalVisibilityService().make_public(
+                proposal.id,
+                request.user,
+            )
+        except PermissionError as error:
+            return Response(
+                {"detail": str(error)},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        except ValueError as error:
+            return Response(
+                {"detail": str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            ResearchhubPostSerializer(
+                proposal,
+                context={"request": request},
+            ).data,
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=["get"])
     def registered_report_work(
