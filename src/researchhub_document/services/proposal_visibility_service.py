@@ -52,8 +52,11 @@ class ProposalVisibilityService:
 
             if proposal.document_type != PREREGISTRATION:
                 raise ValueError("Only proposals can be made public.")
-            if proposal.created_by_id != user.id:
-                raise PermissionError("Only the proposal owner can make it public.")
+            if proposal.created_by_id != user.id and not user.is_moderator_or_editor():
+                raise PermissionError(
+                    "Only the proposal owner, a moderator, or an editor can make "
+                    "it public."
+                )
             if unified_document.is_removed:
                 raise ValueError("Removed proposals cannot be made public.")
             if unified_document.is_public:
