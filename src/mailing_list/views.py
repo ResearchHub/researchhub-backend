@@ -84,17 +84,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         """Enables anonymous users to unsubscribe."""
 
         email = request.data.get("email")
-
-        # TODO: Uncomment to restrict to anonymous users
-        # if EmailRecipient.objects.filter(
-        #     email=email,
-        #     user__isnull=False
-        # ).exists():
-        #     return Response(
-        #         'This route is only for anonymous users',
-        #         status=400
-        #     )
-
         email_recipient, created = EmailRecipient.objects.get_or_create(email=email)
 
         is_opted_out = request.data.get("opt_out")
