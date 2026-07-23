@@ -262,8 +262,13 @@ class ResearchhubPostViewSet(
         grant_amount = data.get("grant_amount")
         grant_id = data.get("grant_id")
 
-        if document_type == REGISTERED_REPORT and not request.user.moderator:
-            raise PermissionDenied("Only moderators can publish registered reports.")
+        if (
+            document_type == REGISTERED_REPORT
+            and not request.user.is_moderator_or_editor()
+        ):
+            raise PermissionDenied(
+                "Only moderators or hub editors can publish registered reports."
+            )
 
         if (
             document_type != REGISTERED_REPORT

@@ -27,7 +27,11 @@ from researchhub_document.services.journal_entry_service import JournalEntryServ
 from researchhub_document.services.journey_service import JourneyService
 from review.models import Review
 from user.models import User
-from user.tests.helpers import create_organization, create_random_default_user
+from user.tests.helpers import (
+    create_hub_editor,
+    create_organization,
+    create_random_default_user,
+)
 
 
 class CreateRegisteredReportTests(APITestCase):
@@ -321,7 +325,30 @@ class CreateRegisteredReportTests(APITestCase):
             ResearchhubPost.objects.filter(document_type=REGISTERED_REPORT).exists()
         )
 
-    def test_reject_non_moderator(self) -> None:
+    def test_hub_editor_can_publish_registered_report(self) -> None:
+        """Verify hub editors can publish their registered report drafts."""
+        # Arrange
+        proposal = self._create_completed_proposal(self.user)
+        editor, _ = create_hub_editor("rr_editor", "Registered Report Editor Hub")
+        draft = JournalEntryService().create_registered_report_draft(
+            editor,
+            proposal.id,
+        )
+        self.client.force_authenticate(editor)
+
+        # Act
+        response = self.client.post(
+            self.create_url,
+            self._build_payload(proposal, note_id=draft.note.id),
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        report = ResearchhubPost.objects.get(id=response.data["id"])
+        self.assertEqual(report.created_by, editor)
+
+    def test_reject_regular_user(self) -> None:
         """Verify proposal owners cannot publish registered reports."""
         # Arrange
         proposal = self._create_completed_proposal(self.user)
