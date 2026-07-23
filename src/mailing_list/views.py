@@ -15,7 +15,6 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import Response
 
 from mailing_list.models import (
-    BountyDigestSubscription,
     CommentSubscription,
     EmailRecipient,
 )
@@ -72,7 +71,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
             email_recipient.is_opted_out = is_opted_out
             email_recipient.save()
 
-        self._update_subscription(request, "bounty_digest_subscription")
         self._update_subscription(request, "comment_subscription")
 
         return Response(EmailRecipientSerializer(email_recipient).data, status=200)
@@ -84,10 +82,7 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         if not data:
             return
 
-        if subscription_name == "bounty_digest_subscription":
-            sub_id = email_recipient.bounty_digest_subscription.id
-            model = BountyDigestSubscription
-        elif subscription_name == "comment_subscription":
+        if subscription_name == "comment_subscription":
             sub_id = email_recipient.comment_subscription.id
             model = CommentSubscription
 
