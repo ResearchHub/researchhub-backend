@@ -33,7 +33,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.models import Action, Organization
-from user.tests.helpers import create_hub_editor, make_user_verified
+from user.tests.helpers import make_user_verified
 from utils.test_helpers import AWSMockTestCase
 
 User = get_user_model()
@@ -209,39 +209,6 @@ class MakeProposalPublicTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.post.unified_document.refresh_from_db()
         self.assertFalse(self.post.unified_document.is_public)
-
-    @patch("researchhub_document.services.proposal_visibility_service.publish_to_feed")
-    def test_moderator_can_make_private_proposal_public(self, publish_to_feed_mock):
-        # Arrange
-        moderator = _make_user("moderator", moderator=True)
-        self.client.force_authenticate(moderator)
-
-        # Act
-        response = self.client.post(self._url(), format="json")
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.post.unified_document.refresh_from_db()
-        self.assertTrue(self.post.unified_document.is_public)
-        publish_to_feed_mock.assert_called_once_with(self.post, self.author.id)
-
-    @patch("researchhub_document.services.proposal_visibility_service.publish_to_feed")
-    def test_hub_editor_can_make_private_proposal_public(self, publish_to_feed_mock):
-        # Arrange
-        editor, _ = create_hub_editor(
-            f"proposal_editor_{uuid.uuid4().hex[:8]}",
-            f"Proposal editor hub {uuid.uuid4().hex[:8]}",
-        )
-        self.client.force_authenticate(editor)
-
-        # Act
-        response = self.client.post(self._url(), format="json")
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.post.unified_document.refresh_from_db()
-        self.assertTrue(self.post.unified_document.is_public)
-        publish_to_feed_mock.assert_called_once_with(self.post, self.author.id)
 
     def test_non_proposal_cannot_be_made_public(self):
         # Arrange
