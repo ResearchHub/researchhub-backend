@@ -66,6 +66,55 @@ def serialize_final_output(text: str) -> tuple[dict[str, Any], bool, int]:
     return {**base, "text": best}, True, original_size
 
 
+def _serialize_trace_text_block(block: dict) -> tuple[dict, bool, int]:
+    text = str(block.get("text") or "")
+    text, was_truncated, original_size = _truncate_utf8(
+        text,
+        MAX_TRACE_TEXT_BYTES,
+        suffix="…",
+    )
+    if was_truncated:
+        block["text"] = text
+        block["_truncated"] = True
+    return block, was_truncated, original_size
+
+
+def _serialize_trace_payload_block(
+    block: dict,
+    payload_field: str,
+) -> tuple[dict, bool, int]:
+    payload, was_truncated, original_size = bounded_payload(
+        block.get(payload_field) or {}
+    )
+    block[payload_field] = payload
+    return block, was_truncated, original_size
+
+
+def _serialize_trace_block(raw_block: Any) -> tuple[dict, bool, int]:
+    block = (
+        dict(raw_block)
+        if isinstance(raw_block, dict)
+        else {"type": "unknown", "value": raw_block}
+    )
+    block_type = block.get("type")
+    if block_type == "text":
+        return _serialize_trace_text_block(block)
+
+    payload_field = {
+        "tool_use": "input",
+        "tool_result": "content",
+    }.get(block_type)
+    if payload_field:
+        return _serialize_trace_payload_block(block, payload_field)
+
+    payload, was_truncated, original_size = bounded_payload(block)
+    if not isinstance(payload, dict):
+        payload = {"type": "unknown", "value": payload}
+        was_truncated = True
+    payload.setdefault("type", str(block_type or "unknown"))
+    return payload, was_truncated, original_size
+
+
 def serialize_trace_message(message: Message) -> tuple[list[dict], bool, int]:
     """Serialize one protocol message while enforcing a hard row-size budget."""
     block_count = len(message.content)
@@ -76,48 +125,9 @@ def serialize_trace_message(message: Message) -> tuple[list[dict], bool, int]:
     bounded_blocks: list[dict] = []
 
     for raw_block in safe_blocks:
-        block = (
-            dict(raw_block)
-            if isinstance(raw_block, dict)
-            else {
-                "type": "unknown",
-                "value": raw_block,
-            }
-        )
-        block_type = block.get("type")
-        if block_type == "text":
-            text = str(block.get("text") or "")
-            text, text_was_truncated, text_size = _truncate_utf8(
-                text,
-                MAX_TRACE_TEXT_BYTES,
-                suffix="…",
-            )
-            original_size += text_size
-            if text_was_truncated:
-                block["text"] = text
-                block["_truncated"] = True
-                truncated = True
-        elif block_type == "tool_use":
-            payload, was_truncated, payload_size = bounded_payload(
-                block.get("input") or {}
-            )
-            block["input"] = payload
-            original_size += payload_size
-            truncated = truncated or was_truncated
-        elif block_type == "tool_result":
-            payload, was_truncated, payload_size = bounded_payload(
-                block.get("content") or {}
-            )
-            block["content"] = payload
-            original_size += payload_size
-            truncated = truncated or was_truncated
-        else:
-            payload, was_truncated, payload_size = bounded_payload(block)
-            block = payload
-            if isinstance(block, dict) and "type" not in block:
-                block["type"] = str(block_type or "unknown")
-            original_size += payload_size
-            truncated = truncated or was_truncated
+        block, block_was_truncated, block_size = _serialize_trace_block(raw_block)
+        original_size += block_size
+        truncated = truncated or block_was_truncated
 
         candidate = [*bounded_blocks, block]
         if json_size_bytes(candidate) > MAX_TRACE_MESSAGE_BYTES:

@@ -58,7 +58,7 @@ def bounded_json_value(
     try:
         encoded = _encode_json(value)
         encoded_bytes = encoded.encode("utf-8")
-    except (TypeError, ValueError, RecursionError, UnicodeError) as error:
+    except (TypeError, ValueError, RecursionError) as error:
         marker = _marker_within_limit(
             {
                 "_serialization_error": True,
