@@ -12,7 +12,7 @@ from feed.views.moderator_feed_view import ModeratorFeedViewSet
 from paper.tests.helpers import create_paper
 from purchase.models import Fundraise, Grant, RscExchangeRate
 from purchase.related_models.constants.currency import USD
-from purchase.related_models.constants.rsc_exchange_currency import MORALIS
+from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from reputation.models import Escrow
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
@@ -205,7 +205,7 @@ class RegisteredReportCandidateFeedTests(TestCase):
         self.url = reverse("moderator_feed-registered-report-candidates")
         self.journey_service = JourneyService()
         RscExchangeRate.objects.create(
-            price_source=MORALIS,
+            price_source=COIN_GECKO,
             rate=3.0,
             real_rate=3.0,
             target_currency=USD,
