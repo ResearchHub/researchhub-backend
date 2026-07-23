@@ -17,7 +17,6 @@ from rest_framework.views import Response
 from mailing_list.models import (
     BountyDigestSubscription,
     CommentSubscription,
-    DigestSubscription,
     EmailRecipient,
 )
 from mailing_list.serializers import EmailRecipientSerializer
@@ -45,7 +44,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         if not created:
             return Response("Already exists", status=400)
 
-        email_recipient.digest_subscription = DigestSubscription.objects.create()
         email_recipient.comment_subscription = CommentSubscription.objects.create()
         email_recipient.save()
 
@@ -74,7 +72,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
             email_recipient.is_opted_out = is_opted_out
             email_recipient.save()
 
-        self._update_subscription(request, "digest_subscription")
         self._update_subscription(request, "bounty_digest_subscription")
         self._update_subscription(request, "comment_subscription")
 
@@ -87,10 +84,7 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         if not data:
             return
 
-        if subscription_name == "digest_subscription":
-            sub_id = email_recipient.digest_subscription.id
-            model = DigestSubscription
-        elif subscription_name == "bounty_digest_subscription":
+        if subscription_name == "bounty_digest_subscription":
             sub_id = email_recipient.bounty_digest_subscription.id
             model = BountyDigestSubscription
         elif subscription_name == "comment_subscription":

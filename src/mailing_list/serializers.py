@@ -3,7 +3,6 @@ from rest_framework import serializers
 from mailing_list.models import (
     BountyDigestSubscription,
     CommentSubscription,
-    DigestSubscription,
     EmailRecipient,
 )
 
@@ -22,13 +21,11 @@ _SUBSCRIPTION_SERIALIZERS = {
     for model in (
         BountyDigestSubscription,
         CommentSubscription,
-        DigestSubscription,
     )
 }
 
 
 class EmailRecipientSerializer(serializers.ModelSerializer):
-    digest_subscription = serializers.SerializerMethodField()
     bounty_digest_subscription = serializers.SerializerMethodField()
     comment_subscription = serializers.SerializerMethodField()
     user = serializers.CurrentUserDefault()
@@ -39,7 +36,6 @@ class EmailRecipientSerializer(serializers.ModelSerializer):
             "id",
             "email",
             "is_opted_out",
-            "digest_subscription",
             "bounty_digest_subscription",
             "comment_subscription",
             "user",
@@ -52,9 +48,6 @@ class EmailRecipientSerializer(serializers.ModelSerializer):
             "updated_date",
             "next_cursor",
         ]
-
-    def get_digest_subscription(self, obj):
-        return self._get_subscription(DigestSubscription, obj)
 
     def get_bounty_digest_subscription(self, obj):
         return self._get_subscription(BountyDigestSubscription, obj)
