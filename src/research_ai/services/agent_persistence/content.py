@@ -11,8 +11,6 @@ MAX_TRACE_TEXT_BYTES = 32 * 1024
 MAX_CONTEXT_MESSAGE_BYTES = 512 * 1024
 MAX_CONTEXT_BLOCK_PAYLOAD_BYTES = 128 * 1024
 MAX_CONTEXT_TEXT_BYTES = 128 * 1024
-MAX_COLLECTION_ITEMS = 500
-MAX_NESTING_DEPTH = 20
 _PREVIEW_CHARS = 2048
 _CONTEXT_TEXT_SUFFIX = "\n[Earlier text compacted for durable model context.]"
 _FINAL_OUTPUT_SUFFIX = "\n[Response truncated for durable storage.]"
@@ -25,9 +23,6 @@ def bounded_payload(
     return bounded_json_value(
         value,
         max_bytes=limit,
-        max_string_bytes=limit,
-        max_collection_items=MAX_COLLECTION_ITEMS,
-        max_nesting_depth=MAX_NESTING_DEPTH,
         preview_chars=_PREVIEW_CHARS,
     )
 
@@ -74,11 +69,7 @@ def serialize_final_output(text: str) -> tuple[dict[str, Any], bool, int]:
 def serialize_trace_message(message: Message) -> tuple[list[dict], bool, int]:
     """Serialize one protocol message while enforcing a hard row-size budget."""
     block_count = len(message.content)
-    limited_message = Message(
-        role=message.role,
-        content=message.content[:MAX_COLLECTION_ITEMS],
-    )
-    safe_blocks = serialize_messages([limited_message])[0]["content"]
+    safe_blocks = serialize_messages([message])[0]["content"]
     original_size = 0
     omitted_blocks = block_count - len(safe_blocks)
     truncated = omitted_blocks > 0
@@ -167,21 +158,6 @@ def serialize_context_message(
     explaining that the historical message was compacted. The result therefore
     always remains deserializable and provider-neutral.
     """
-    if len(message.content) > MAX_COLLECTION_ITEMS:
-        return (
-            [
-                {
-                    "type": "text",
-                    "text": (
-                        "[Earlier model-context message compacted because it "
-                        "contained too many content blocks.]"
-                    ),
-                }
-            ],
-            True,
-            None,
-        )
-
     raw_blocks = serialize_messages([message])[0]["content"]
     original_size = 0
     compacted = False

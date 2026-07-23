@@ -4,7 +4,6 @@ from unittest import TestCase
 
 from research_ai.services.agent.types import Message, TextBlock, ToolUseBlock
 from research_ai.services.agent_persistence.content import (
-    MAX_COLLECTION_ITEMS,
     MAX_CONTEXT_BLOCK_PAYLOAD_BYTES,
     MAX_TRACE_MESSAGE_BYTES,
     serialize_context_message,
@@ -28,10 +27,10 @@ class AgentPersistenceContentTests(TestCase):
         self.assertEqual(original_size, len(text.encode("utf-8")))
         self.assertLessEqual(json_size_bytes(content), MAX_TRACE_MESSAGE_BYTES)
 
-    def test_trace_combines_item_and_size_truncation_markers(self):
+    def test_trace_uses_one_marker_when_size_limit_is_hit(self):
         # Arrange
         text = "x" * MAX_TRACE_MESSAGE_BYTES
-        block_count = MAX_COLLECTION_ITEMS + 1
+        block_count = 10
         message = Message(
             role="assistant",
             content=[TextBlock(text=text) for _ in range(block_count)],
@@ -50,21 +49,21 @@ class AgentPersistenceContentTests(TestCase):
             block_count - retained_block_count,
         )
 
-    def test_context_with_excessive_blocks_compacts_before_serialization(self):
+    def test_context_keeps_many_blocks_when_they_fit_the_byte_limit(self):
         # Arrange
+        block_count = 501
         message = Message(
             role="user",
-            content=[TextBlock(text="x") for _ in range(MAX_COLLECTION_ITEMS + 1)],
+            content=[TextBlock(text="x") for _ in range(block_count)],
         )
 
         # Act
         content, is_compacted, original_size = serialize_context_message(message)
 
         # Assert
-        self.assertTrue(is_compacted)
-        self.assertIsNone(original_size)
-        self.assertEqual(len(content), 1)
-        self.assertEqual(content[0]["type"], "text")
+        self.assertFalse(is_compacted)
+        self.assertEqual(original_size, block_count)
+        self.assertEqual(len(content), block_count)
 
     def test_large_context_payload_keeps_a_typed_tool_block(self):
         # Arrange
