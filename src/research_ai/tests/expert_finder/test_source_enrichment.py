@@ -321,17 +321,16 @@ class SourceEnrichmentServiceTests(TestCase):
 
     def test_enrich_experts_respects_web_search_budget(self):
         # Arrange
-        experts = []
-        for i in range(3):
-            experts.append(
-                Expert.objects.create(
-                    email=f"e{i}@uni.edu",
-                    first_name="Ada",
-                    last_name=f"Lovelace{i}",
-                    affiliation="Uni",
-                    sources=[],
-                )
+        experts = [
+            Expert.objects.create(
+                email=f"e{i}@uni.edu",
+                first_name="Ada",
+                last_name=f"Lovelace{i}",
+                affiliation="Uni",
+                sources=[],
             )
+            for i in range(3)
+        ]
         web = MagicMock()
         web.configured = True
         web.search.return_value = [
