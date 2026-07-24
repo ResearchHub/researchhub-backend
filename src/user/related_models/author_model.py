@@ -17,6 +17,7 @@ from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
 from user.related_models.user_model import User
+from utils.models import SoftDeletableModel
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 fs = ProfileImageStorage()
 
 
-class Author(models.Model):
+class Author(SoftDeletableModel):
     SOURCE_OPENALEX = "OPENALEX"
     SOURCE_RESEARCHHUB = "RESEARCHHUB"
     SOURCE_CHOICES = [

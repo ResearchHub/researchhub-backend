@@ -352,6 +352,9 @@ class AuthorEditableSerializer(ModelSerializer):
             "created_date",
             "claimed",
             "id",
+            "is_removed",
+            "is_removed_date",
+            "is_public",
             "merged_with",
             "orcid",
             "orcid_account",
@@ -602,7 +605,14 @@ class UserEditableSerializer(ModelSerializer):
             "last_login",
             "date_joined",
         ]
-        read_only_fields = ["moderator", "referral_code"]
+        read_only_fields = [
+            "is_active",
+            "is_removed",
+            "is_removed_date",
+            "is_public",
+            "moderator",
+            "referral_code",
+        ]
 
     def get_is_funder(self, obj):
         return getattr(obj, "is_funder", False)
@@ -704,7 +714,7 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
         email = super().validate_email(email)
         # Since User.save() sets username=email, we need to check for existing
         # users with this email as username to avoid IntegrityError
-        if email and User.objects.filter(username=email).exists():
+        if email and User.all_objects.filter(username=email).exists():
             raise serializers.ValidationError(
                 "A user is already registered with this e-mail address."
             )

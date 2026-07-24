@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from django.contrib.auth.models import AbstractUser, UserManager
+from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import UserManager as DjangoUserManager
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Count, DecimalField, Q, Sum, Value
@@ -20,6 +21,8 @@ from researchhub_access_group.constants import (
     ASSOCIATE_EDITOR,
     SENIOR_EDITOR,
 )
+from utils.managers import SoftDeletableManagerMixin
+from utils.models import SoftDeletableModel
 from utils.throttles import UserSustainedRateThrottle
 
 FOUNDATION_EMAIL = "main@researchhub.foundation"
@@ -33,7 +36,7 @@ class UnlockedBalanceLot:
     created_date: date
 
 
-class UserManager(UserManager):
+class UserManager(SoftDeletableManagerMixin, DjangoUserManager):
     def editors(self):
         editors = self.filter(
             (
@@ -86,7 +89,7 @@ User objects have the following fields by default:
 """
 
 
-class User(AbstractUser):
+class User(SoftDeletableModel, AbstractUser):
     agreed_to_terms = models.BooleanField(default=False)
     clicked_on_balance_date = models.DateTimeField(auto_now_add=True)
     country_code = models.CharField(max_length=4, null=True, blank=True)
