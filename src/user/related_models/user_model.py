@@ -37,12 +37,6 @@ class UnlockedBalanceLot:
 
 
 class UserManager(SoftDeletableManagerMixin, DjangoUserManager):
-    def get_queryset(self):
-        field_names = {field.name for field in self.model._meta.get_fields()}
-        if "is_removed" not in field_names:
-            return DjangoUserManager.get_queryset(self)
-        return super().get_queryset()
-
     def editors(self):
         editors = self.filter(
             (
