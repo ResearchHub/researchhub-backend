@@ -13,8 +13,8 @@ from research_ai.services.expert_finder.source_enrichment import (
     canonicalize_scholar_url,
     canonicalize_sources_for_expert,
     collect_profile_candidates,
-    dedupe_sources_one_per_kind,
     merge_sources,
+    source_kind_for_url,
     source_kinds_present,
 )
 
@@ -40,7 +40,7 @@ def _web_search_with_results(results_by_query: dict[str, list[dict]]):
 def _judge_picks_first():
     judge = MagicMock()
 
-    def _pick(*, expert, kind, candidates):
+    def _pick(*, expert, kind, candidates, expert_name=None):
         return candidates[0]["url"] if candidates else None
 
     judge.pick.side_effect = _pick
@@ -147,7 +147,26 @@ class SourceLinkHelpersTests(UnitTestCase):
             ],
         )
 
-    def test_dedupe_sources_one_per_kind(self):
+    def test_source_kind_for_url_uses_host_not_substring(self):
+        self.assertEqual(
+            source_kind_for_url("https://x.com/jane"),
+            "x",
+        )
+        self.assertEqual(
+            source_kind_for_url("https://twitter.com/jane"),
+            "x",
+        )
+        self.assertIsNone(
+            source_kind_for_url("https://example.edu/blog/about-x.com/jane")
+        )
+        self.assertIsNone(source_kind_for_url("https://notlinkedin.com/in/jane"))
+        self.assertEqual(
+            source_kind_for_url("https://uk.linkedin.com/in/jane"),
+            "linkedin",
+        )
+        self.assertIsNone(source_kind_for_url("https://www.linkedin.com/company/acme"))
+
+    def test_canonicalize_sources_keeps_first_per_kind(self):
         sources = [
             {"text": "Faculty", "url": "https://mit.edu/jane"},
             {"text": "X", "url": "https://x.com/janedoe"},
@@ -155,21 +174,18 @@ class SourceLinkHelpersTests(UnitTestCase):
             {"text": "ORCID", "url": "https://orcid.org/0000-0002-1825-0097"},
             {"text": "ORCID", "url": "https://orcid.org/0000-0002-1825-0098"},
         ]
-        deduped = dedupe_sources_one_per_kind(sources)
-        self.assertEqual(len(deduped), 3)
-        self.assertEqual(source_kinds_present(deduped), {"x", "orcid"})
-
-    def test_canonicalize_sources_keeps_first_per_kind(self):
-        cleaned = canonicalize_sources_for_expert(
-            [
-                {"text": "X", "url": "https://x.com/MIT"},
-                {"text": "X", "url": "https://x.com/janedoe"},
-                {"text": "ORCID", "url": "https://orcid.org/0000-0002-1825-0097"},
-                {"text": "ORCID", "url": "https://orcid.org/0000-0002-1825-0098"},
-            ]
-        )
+        cleaned = canonicalize_sources_for_expert(sources)
+        self.assertEqual(len(cleaned), 3)
+        self.assertEqual(source_kinds_present(cleaned), {"x", "orcid"})
         self.assertEqual(
-            cleaned,
+            canonicalize_sources_for_expert(
+                [
+                    {"text": "X", "url": "https://x.com/MIT"},
+                    {"text": "X", "url": "https://x.com/janedoe"},
+                    {"text": "ORCID", "url": "https://orcid.org/0000-0002-1825-0097"},
+                    {"text": "ORCID", "url": "https://orcid.org/0000-0002-1825-0098"},
+                ]
+            ),
             [
                 {"text": "X", "url": "https://x.com/MIT"},
                 {"text": "ORCID", "url": "https://orcid.org/0000-0002-1825-0097"},
@@ -271,7 +287,7 @@ class SourceEnrichmentServiceTests(TestCase):
         )
         judge = MagicMock()
 
-        def _pick(*, expert, kind, candidates):
+        def _pick(*, expert, kind, candidates, expert_name=None):
             if kind == "x":
                 return "https://x.com/janedoe"
             return candidates[0]["url"]
@@ -293,10 +309,13 @@ class SourceEnrichmentServiceTests(TestCase):
         )
         self.assertEqual(web.search.call_count, 3)
         self.assertEqual(judge.pick.call_count, 3)
+        for call in judge.pick.call_args_list:
+            self.assertEqual(call.kwargs.get("expert_name"), "Jane Q Doe")
         x_urls = [
             item["url"]
             for item in expert.sources
-            if isinstance(item, dict) and "x.com/" in item.get("url", "")
+            if isinstance(item, dict)
+            and source_kind_for_url(item.get("url", "")) == "x"
         ]
         self.assertEqual(x_urls, ["https://x.com/janedoe"])
 

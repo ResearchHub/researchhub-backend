@@ -72,6 +72,8 @@ class ProfileJudge:
     """Ask Bedrock which social-profile candidate (if any) belongs to the expert."""
 
     def __init__(self, llm: BedrockLLMService | None = None):
+        # Lazy: Bedrock clients are heavier than Brave; skip init when a mock
+        # is injected or pick() never runs (e.g. no candidates / search disabled).
         self._llm = llm
 
     def _get_llm(self) -> BedrockLLMService:
@@ -85,11 +87,14 @@ class ProfileJudge:
         expert: Expert,
         kind: str,
         candidates: list[dict[str, str]],
+        expert_name: str | None = None,
     ) -> str | None:
         """Return the chosen candidate URL, or None when no confident match."""
         if not candidates:
             return None
-        name = ExpertDisplay.personal_name_for(expert) or (expert.full_name or "")
+        name = (expert_name or "").strip() or (
+            ExpertDisplay.personal_name_for(expert) or (expert.full_name or "")
+        ).strip()
         user_prompt = build_profile_match_user_prompt(
             expert_name=name,
             academic_title=(expert.academic_title or "").strip(),

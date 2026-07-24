@@ -56,18 +56,32 @@ def _normalize_url_key(url: str) -> str:
     return (url or "").strip().rstrip("/").lower()
 
 
+def _url_from_source(item) -> str:
+    """Extract a URL string from a sources list entry (dict or bare string)."""
+    if isinstance(item, dict):
+        return str(item.get("url") or "").strip()
+    if isinstance(item, str):
+        return item.strip()
+    return ""
+
+
 def source_kind_for_url(url: str) -> str | None:
-    """Classify a URL into a profile kind, or None for generic sources."""
-    low = (url or "").strip().lower()
-    if not low:
+    """Classify a URL into a profile kind via host/path, or None for generic sources."""
+    raw = (url or "").strip()
+    if not raw:
         return None
-    if "orcid.org/" in low:
+    parsed = urlparse(raw if "://" in raw else f"https://{raw}")
+    host = (parsed.netloc or "").lower().removeprefix("www.")
+    path = (parsed.path or "").lower()
+    query = (parsed.query or "").lower()
+
+    if host == "orcid.org" or host.endswith(".orcid.org"):
         return "orcid"
-    if "linkedin.com/in/" in low:
-        return "linkedin"
-    if "x.com/" in low or "twitter.com/" in low:
+    if host == "linkedin.com" or host.endswith(".linkedin.com"):
+        return "linkedin" if "/in/" in path else None
+    if host in {"x.com", "twitter.com"} or host.endswith((".x.com", ".twitter.com")):
         return "x"
-    if "scholar.google." in low and "user=" in low:
+    if "scholar.google." in host and "user=" in query:
         return "google_scholar"
     return None
 
@@ -76,28 +90,18 @@ def source_kinds_present(sources: list) -> set[str]:
     """Return which known profile kinds already appear in ``sources``."""
     kinds: set[str] = set()
     for item in sources or []:
-        url = ""
-        if isinstance(item, dict):
-            url = str(item.get("url") or "").strip()
-        elif isinstance(item, str):
-            url = item.strip()
-        kind = source_kind_for_url(url)
+        kind = source_kind_for_url(_url_from_source(item))
         if kind:
             kinds.add(kind)
     return kinds
 
 
-def dedupe_sources_one_per_kind(sources: list) -> list:
+def canonicalize_sources_for_expert(sources: list) -> list:
     """Keep at most one ORCID / LinkedIn / X / Google Scholar URL; preserve others."""
     out: list = []
     seen_kinds: set[str] = set()
     for item in sources or []:
-        url = ""
-        if isinstance(item, dict):
-            url = str(item.get("url") or "").strip()
-        elif isinstance(item, str):
-            url = item.strip()
-        kind = source_kind_for_url(url)
+        kind = source_kind_for_url(_url_from_source(item))
         if kind:
             if kind in seen_kinds:
                 continue
@@ -106,23 +110,13 @@ def dedupe_sources_one_per_kind(sources: list) -> list:
     return out
 
 
-def canonicalize_sources_for_expert(sources: list) -> list:
-    """Enforce at most one URL per known profile kind."""
-    return dedupe_sources_one_per_kind(sources)
-
-
 def merge_sources(existing: list, additions: list[dict[str, str]]) -> list:
     """Append new ``{text, url}`` entries; at most one URL per profile kind."""
     out: list = list(existing) if isinstance(existing, list) else []
     seen_urls = {
-        _normalize_url_key(str(item.get("url") or ""))
+        _normalize_url_key(_url_from_source(item))
         for item in out
-        if isinstance(item, dict)
-    }
-    seen_urls |= {
-        _normalize_url_key(item)
-        for item in out
-        if isinstance(item, str) and item.strip()
+        if _url_from_source(item)
     }
     present_kinds = source_kinds_present(out)
     for entry in additions:
@@ -350,4 +344,9 @@ class SourceEnrichmentService:
         candidates = collect_profile_candidates(results, kind=kind)
         if not candidates:
             return None
-        return self._profile_judge.pick(expert=expert, kind=kind, candidates=candidates)
+        return self._profile_judge.pick(
+            expert=expert,
+            kind=kind,
+            candidates=candidates,
+            expert_name=name,
+        )
