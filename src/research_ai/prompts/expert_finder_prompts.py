@@ -7,6 +7,10 @@ from research_ai.constants import (
 )
 from research_ai.prompts._loader import load_template
 
+PROFILE_MATCH_SYSTEM_PROMPT = load_template(
+    "expert_finder_profile_match_system.txt"
+).strip()
+
 # Descriptions for prompt building; keys are choice values from constants.
 EXPERTISE_DESCRIPTIONS: dict[str, str] = {
     ExpertiseLevel.PHD_POSTDOCS: "Early-stage researchers including PhD students in their final years, recent PhD graduates, and current postdoctoral researchers. These individuals typically have 0-3 years of research experience and are building their expertise in specific areas.",  # noqa: E501
@@ -187,4 +191,38 @@ def build_user_prompt(
         expertise_level=expertise_level_display,
         region_text=region_text,
         additional_context_section=additional_context_section,
+    )
+
+
+def build_profile_match_user_prompt(
+    *,
+    expert_name: str,
+    academic_title: str = "",
+    affiliation: str = "",
+    expertise: str = "",
+    email: str = "",
+    notes: str = "",
+    profile_kind: str,
+    candidates: list[dict],
+) -> str:
+    """Build the user prompt for Bedrock social-profile matching."""
+    lines: list[str] = []
+    for i, row in enumerate(candidates or [], start=1):
+        title = str((row or {}).get("title") or "").strip() or "(no title)"
+        url = str((row or {}).get("url") or "").strip() or "(no url)"
+        description = str((row or {}).get("description") or "").strip() or "(no snippet)"
+        lines.append(
+            f"{i}. title: {title}\n   url: {url}\n   snippet: {description}"
+        )
+    candidates_block = "\n".join(lines) if lines else "(no candidates)"
+    template = load_template("expert_finder_profile_match_user.txt")
+    return template.format(
+        expert_name=expert_name or "(unknown)",
+        academic_title=academic_title or "(unknown)",
+        affiliation=affiliation or "(unknown)",
+        expertise=expertise or "(unknown)",
+        email=email or "(unknown)",
+        notes=notes or "(none)",
+        profile_kind=profile_kind,
+        candidates_block=candidates_block,
     )
