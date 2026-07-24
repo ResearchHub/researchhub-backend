@@ -30,6 +30,7 @@ from researchhub_document.models import ResearchhubPost
 from researchhub_document.registered_report_note_metadata import parse_note_json
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
+    REGISTERED_REPORT,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
 from review.serializers.review_serializer import DynamicReviewSerializer
@@ -42,13 +43,6 @@ from user.serializers import (
 from utils.http import get_user_from_request
 
 logger = logging.getLogger(__name__)
-
-
-class JournalEntryAcceptSerializer(Serializer):
-    """Validate a journal entry acceptance request."""
-
-    fundraise_id = IntegerField()
-    user_id = IntegerField()
 
 
 class RegisteredReportPublishSerializer(Serializer):
@@ -104,6 +98,7 @@ class ResearchhubPostSerializer(
             "peer_reviews",
             "post_src",
             "preview_img",
+            "registered_report_id",
             "renderable_text",
             "reviewed_by",
             "reviewed_date",
@@ -152,6 +147,7 @@ class ResearchhubPostSerializer(
     is_removed = SerializerMethodField()
     note = SerializerMethodField()
     post_src = SerializerMethodField(method_name="get_post_src")
+    registered_report_id = SerializerMethodField()
     unified_document = SerializerMethodField()
     unified_document_id = SerializerMethodField(method_name="get_unified_document_id")
 
@@ -199,6 +195,26 @@ class ResearchhubPostSerializer(
         if note:
             return NoteSerializer(instance.note, context=self.context).data
         return None
+
+    def get_registered_report_id(self, post: ResearchhubPost) -> int | None:
+        """Return the visible registered report identifier for a proposal."""
+        if post.document_type != PREREGISTRATION or post.journey_id is None:
+            return None
+
+        if hasattr(post, "registered_report_id"):
+            return post.registered_report_id
+
+        user = get_user_from_request(self.context)
+        return (
+            ResearchhubPost.objects.visible_to(user)
+            .filter(
+                document_type=REGISTERED_REPORT,
+                journey_id=post.journey_id,
+            )
+            .order_by("id")
+            .values_list("id", flat=True)
+            .first()
+        )
 
     def get_unified_document_id(self, instance):
         unified_document = instance.unified_document

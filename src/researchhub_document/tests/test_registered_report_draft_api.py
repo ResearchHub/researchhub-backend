@@ -22,36 +22,43 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.services.journey_service import JourneyService
 from user.models import User
-from user.tests.helpers import create_random_default_user
+from user.tests.helpers import create_hub_editor, create_random_default_user
 
 
-class AcceptJournalEntryTests(APITestCase):
-    accept_url = "/api/researchhubpost/accept_journal_entry/"
+class CreateRegisteredReportDraftTests(APITestCase):
+    draft_url = "/api/researchhubpost/create_registered_report_draft/"
 
     def setUp(self) -> None:
-        """Create users and authenticate the journal entry owner."""
+        """Create proposal owners and authenticate a moderator."""
         self.user = create_random_default_user("journal_entry_owner")
         self.other_user = create_random_default_user("journal_entry_other")
+        self.moderator = create_random_default_user(
+            "journal_entry_moderator",
+            moderator=True,
+        )
         self.hub = create_hub("journal entry hub")
         self.journey_service = JourneyService()
-        self.client.force_authenticate(self.user)
+        self.client.force_authenticate(self.moderator)
 
-    def test_accept_journal_entry_creates_registered_report_note(self) -> None:
-        """Verify accepting a funded proposal creates an unpublished report note."""
+    def test_creates_registered_report_draft_in_moderator_notebook(self) -> None:
+        """Verify a moderator creates an unpublished draft for another user."""
         # Arrange
         proposal = self._create_proposal(self.user)
         fundraise = self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
 
         # Act
         response = self.client.post(
-            self._build_accept_url(self.user.id, fundraise.id),
+            self.draft_url,
+            self._build_draft_payload(proposal),
+            format="json",
         )
 
         # Assert
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 201)
         note = Note.objects.get(id=response.data["id"])
         proposal.refresh_from_db()
-        self.assertEqual(note.created_by, self.user)
+        self.assertEqual(note.created_by, self.moderator)
+        self.assertEqual(note.organization, self.moderator.organization)
         self.assertEqual(note.document_type, REGISTERED_REPORT)
         self.assertEqual(note.unified_document.document_type, NOTE)
         self.assertEqual(note.latest_version.plain_text, proposal.renderable_text)
@@ -97,6 +104,10 @@ class AcceptJournalEntryTests(APITestCase):
             [self.hub.id],
         )
         self.assertEqual(
+            response.data["registered_report_prefill"]["image"],
+            proposal.image,
+        )
+        self.assertEqual(
             response.data["registered_report_prefill"]["preview_img"],
             proposal.preview_img,
         )
@@ -115,6 +126,10 @@ class AcceptJournalEntryTests(APITestCase):
             [self.hub.id],
         )
         self.assertEqual(
+            note_response.data["registered_report_prefill"]["image"],
+            proposal.image,
+        )
+        self.assertEqual(
             note_response.data["registered_report_prefill"]["preview_img"],
             proposal.preview_img,
         )
@@ -124,8 +139,28 @@ class AcceptJournalEntryTests(APITestCase):
         )
         self.assertTrue(proposal.journey.is_in_journal)
 
-    def test_accept_journal_entry_preserves_proposal_note_json(self) -> None:
-        """Verify accepting a journal entry copies the proposal notebook content."""
+    def test_allows_hub_editors_to_create_registered_report_drafts(self) -> None:
+        """Verify hub editors can create registered report drafts."""
+        # Arrange
+        proposal = self._create_proposal(self.user)
+        self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
+        editor, _ = create_hub_editor("journal_entry_editor", "Editor Hub")
+        self.client.force_authenticate(editor)
+
+        # Act
+        response = self.client.post(
+            self.draft_url,
+            self._build_draft_payload(proposal),
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        note = Note.objects.get(id=response.data["id"])
+        self.assertEqual(note.created_by, editor)
+
+    def test_preserves_proposal_note_json_in_registered_report_draft(self) -> None:
+        """Verify a draft preserves structured proposal notebook content."""
         # Arrange
         proposal = self._create_proposal(self.user)
         source_note, _ = create_note(self.user, self.user.organization)
@@ -168,15 +203,17 @@ class AcceptJournalEntryTests(APITestCase):
         source_note.refresh_from_db()
         proposal.note = source_note
         proposal.save(update_fields=["note"])
-        fundraise = self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
+        self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
 
         # Act
         response = self.client.post(
-            self._build_accept_url(self.user.id, fundraise.id),
+            self.draft_url,
+            self._build_draft_payload(proposal),
+            format="json",
         )
 
         # Assert
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 201)
         note = Note.objects.get(id=response.data["id"])
         note_json = json.loads(note.latest_version.json)
         formatted_data = json.loads(formatted_json)
@@ -191,125 +228,122 @@ class AcceptJournalEntryTests(APITestCase):
             "Abstract\nPreserve formatting.",
         )
 
-    def test_accept_journal_entry_creates_private_permissions(self) -> None:
-        """Verify accepting a journal entry creates private note permissions."""
+    def test_creates_private_permissions_for_moderator_draft(self) -> None:
+        """Verify a draft grants private access to its moderator creator."""
         # Arrange
         proposal = self._create_proposal(self.user)
-        fundraise = self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
+        self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
 
         # Act
         response = self.client.post(
-            self._build_accept_url(self.user.id, fundraise.id),
+            self.draft_url,
+            self._build_draft_payload(proposal),
+            format="json",
         )
 
         # Assert
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 201)
         note = Note.objects.get(id=response.data["id"])
         permissions = note.unified_document.permissions
         self.assertTrue(
             permissions.filter(
                 access_type=ADMIN,
-                user=self.user,
+                user=self.moderator,
                 organization__isnull=True,
             ).exists()
         )
         self.assertTrue(
             permissions.filter(
                 access_type=NO_ACCESS,
-                user=self.user,
-                organization=self.user.organization,
+                user=self.moderator,
+                organization=self.moderator.organization,
             ).exists()
         )
 
-    def test_accept_journal_entry_rejects_other_users_fundraise(self) -> None:
-        """Verify users cannot accept fundraises they do not own."""
+    def test_creates_draft_for_another_users_proposal(self) -> None:
+        """Verify moderators can create drafts for proposals they do not own."""
         # Arrange
         proposal = self._create_proposal(self.other_user)
-        fundraise = self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
+        self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
 
         # Act
         response = self.client.post(
-            self._build_accept_url(self.user.id, fundraise.id),
+            self.draft_url,
+            self._build_draft_payload(proposal),
+            format="json",
         )
 
         # Assert
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 201)
+        note = Note.objects.get(id=response.data["id"])
+        self.assertEqual(note.created_by, self.moderator)
         self.assertEqual(
-            Note.objects.filter(document_type=REGISTERED_REPORT).count(),
-            0,
+            response.data["registered_report_prefill"]["proposal_id"],
+            proposal.id,
         )
 
-    def test_accept_journal_entry_rejects_open_fundraise(self) -> None:
-        """Verify open fundraises cannot create registered report notes."""
+    def test_rejects_open_fundraise(self) -> None:
+        """Verify proposals without completed fundraises cannot create drafts."""
         # Arrange
         proposal = self._create_proposal(self.user)
-        fundraise = self._create_fundraise(proposal, Fundraise.OPEN, Decimal(100))
+        self._create_fundraise(proposal, Fundraise.OPEN, Decimal(100))
 
         # Act
         response = self.client.post(
-            self._build_accept_url(self.user.id, fundraise.id),
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(
-            Note.objects.filter(document_type=REGISTERED_REPORT).count(),
-            0,
-        )
-
-    def test_accept_journal_entry_rejects_unfunded_fundraise(self) -> None:
-        """Verify completed fundraises need funding before note creation."""
-        # Arrange
-        proposal = self._create_proposal(self.user)
-        fundraise = self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(0))
-
-        # Act
-        response = self.client.post(
-            self._build_accept_url(self.user.id, fundraise.id),
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(
-            Note.objects.filter(document_type=REGISTERED_REPORT).count(),
-            0,
-        )
-
-    def test_accept_journal_entry_rejects_conflicting_fundraise_ids(self) -> None:
-        """Verify the body cannot override the requested fundraise id."""
-        # Arrange
-        proposal = self._create_proposal(self.user)
-        requested_fundraise = self._create_fundraise(
-            proposal,
-            Fundraise.COMPLETED,
-            Decimal(100),
-        )
-        body_fundraise = self._create_fundraise(
-            proposal,
-            Fundraise.COMPLETED,
-            Decimal(100),
-        )
-
-        # Act
-        response = self.client.post(
-            self._build_accept_url(self.user.id, requested_fundraise.id),
-            {"fundraise_id": body_fundraise.id, "user_id": self.user.id},
+            self.draft_url,
+            self._build_draft_payload(proposal),
             format="json",
         )
 
         # Assert
         self.assertEqual(response.status_code, 400)
         self.assertEqual(
-            response.data["error"],
-            "fundraise_id does not match the request query.",
+            Note.objects.filter(document_type=REGISTERED_REPORT).count(),
+            0,
         )
+
+    def test_rejects_unfunded_fundraise(self) -> None:
+        """Verify completed fundraises need funding before draft creation."""
+        # Arrange
+        proposal = self._create_proposal(self.user)
+        self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(0))
+
+        # Act
+        response = self.client.post(
+            self.draft_url,
+            self._build_draft_payload(proposal),
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
         self.assertEqual(
             Note.objects.filter(document_type=REGISTERED_REPORT).count(),
             0,
         )
 
-    def test_accept_journal_entry_rejects_reported_fundraise(self) -> None:
-        """Verify fundraises with registered reports cannot create another note."""
+    def test_requires_proposal_id(self) -> None:
+        """Verify a moderator must select a proposal to create a draft."""
+        # Arrange
+        note_count = Note.objects.filter(document_type=REGISTERED_REPORT).count()
+
+        # Act
+        response = self.client.post(
+            self.draft_url,
+            {},
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("proposal_id", response.data)
+        self.assertEqual(
+            Note.objects.filter(document_type=REGISTERED_REPORT).count(),
+            note_count,
+        )
+
+    def test_rejects_proposal_with_registered_report(self) -> None:
+        """Verify proposals with reports cannot create another draft."""
         # Arrange
         proposal = self._create_proposal(self.user)
         fundraise = self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
@@ -324,7 +358,9 @@ class AcceptJournalEntryTests(APITestCase):
 
         # Act
         response = self.client.post(
-            self._build_accept_url(self.user.id, fundraise.id),
+            self.draft_url,
+            self._build_draft_payload(proposal),
+            format="json",
         )
 
         # Assert
@@ -334,28 +370,30 @@ class AcceptJournalEntryTests(APITestCase):
             0,
         )
 
-    def test_accept_journal_entry_requires_authentication(self) -> None:
-        """Verify anonymous users cannot accept journal entries."""
+    def test_rejects_regular_users(self) -> None:
+        """Verify proposal owners cannot create registered report drafts."""
         # Arrange
         proposal = self._create_proposal(self.user)
-        fundraise = self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
-        self.client.force_authenticate(None)
+        self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
+        self.client.force_authenticate(self.user)
 
         # Act
         response = self.client.post(
-            self._build_accept_url(self.user.id, fundraise.id),
+            self.draft_url,
+            self._build_draft_payload(proposal),
+            format="json",
         )
 
         # Assert
-        self.assertIn(response.status_code, (401, 403))
+        self.assertEqual(response.status_code, 403)
         self.assertEqual(
             Note.objects.filter(document_type=REGISTERED_REPORT).count(),
             0,
         )
 
-    def _build_accept_url(self, user_id: int, fundraise_id: int) -> str:
-        """Build the journal entry acceptance URL."""
-        return f"{self.accept_url}?user_id={user_id}&fundraise_id={fundraise_id}"
+    def _build_draft_payload(self, proposal: ResearchhubPost) -> dict[str, int]:
+        """Build a registered report draft request for a proposal."""
+        return {"proposal_id": proposal.id}
 
     def _create_proposal(self, user: User) -> ResearchhubPost:
         """Create an approved proposal post with journal context."""
@@ -367,8 +405,9 @@ class AcceptJournalEntryTests(APITestCase):
         )
         proposal.unified_document.hubs.add(self.hub)
         proposal.authors.add(user.author_profile)
+        proposal.image = "proposal-cover-image-key"
         proposal.preview_img = "https://example.com/proposal-preview.png"
-        proposal.save(update_fields=["preview_img"])
+        proposal.save(update_fields=["image", "preview_img"])
         return proposal
 
     def _create_fundraise(

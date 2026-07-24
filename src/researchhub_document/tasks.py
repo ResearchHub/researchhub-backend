@@ -14,16 +14,21 @@ logger = logging.getLogger(__name__)
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
-def assign_preregistration_dois():
+def assign_preregistration_dois() -> None:
+    """Assign DOIs to eligible preregistrations."""
     week_ago = timezone.now() - timedelta(days=7)
 
-    eligible_posts = ResearchhubPost.objects.filter(
-        document_type=PREREGISTRATION,
-        doi__isnull=True,
-        created_date__lte=week_ago,
-        unified_document__is_removed=False,
-        flags__isnull=True,
-    ).select_related("created_by__author_profile", "unified_document")
+    eligible_posts = (
+        ResearchhubPost.objects.filter(
+            document_type=PREREGISTRATION,
+            doi__isnull=True,
+            created_date__lte=week_ago,
+            unified_document__is_removed=False,
+            flags__isnull=True,
+        )
+        .select_related("created_by__author_profile", "unified_document")
+        .order_by("id")
+    )
 
     total = eligible_posts.count()
     assigned_count = 0
