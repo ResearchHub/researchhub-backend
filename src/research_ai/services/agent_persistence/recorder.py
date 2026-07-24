@@ -58,6 +58,53 @@ def _is_terminal(status: str) -> bool:
     }
 
 
+def _turn_trace_fields(turn: AssistantTurn | None) -> dict:
+    usage = turn.usage if turn else None
+    return {
+        "provider_stop_reason": turn.stop_reason.value if turn else "",
+        "input_tokens": usage.input_tokens if usage else None,
+        "output_tokens": usage.output_tokens if usage else None,
+        "cache_read_tokens": usage.cache_read_tokens if usage else None,
+        "cache_write_tokens": usage.cache_write_tokens if usage else None,
+        "latency_ms": turn.latency_ms if turn else None,
+    }
+
+
+def _apply_turn_metrics(
+    execution: AgentExecution,
+    turn: AssistantTurn | None,
+    trace_fields: dict,
+) -> list[str]:
+    if turn is None:
+        return []
+    execution.iterations += 1
+    execution.stop_reason = turn.stop_reason.value
+    execution.input_tokens = _add_optional(
+        execution.input_tokens, trace_fields["input_tokens"]
+    )
+    execution.output_tokens = _add_optional(
+        execution.output_tokens, trace_fields["output_tokens"]
+    )
+    execution.cache_read_tokens = _add_optional(
+        execution.cache_read_tokens, trace_fields["cache_read_tokens"]
+    )
+    execution.cache_write_tokens = _add_optional(
+        execution.cache_write_tokens, trace_fields["cache_write_tokens"]
+    )
+    execution.total_latency_ms = _add_optional(
+        execution.total_latency_ms, turn.latency_ms
+    )
+    return [
+        "iterations",
+        "stop_reason",
+        "input_tokens",
+        "output_tokens",
+        "cache_read_tokens",
+        "cache_write_tokens",
+        "total_latency_ms",
+    ]
+
+
 class DatabaseAgentRecorder:
     """Persist required context and isolate optional observational trace writes."""
 
@@ -170,7 +217,7 @@ class DatabaseAgentRecorder:
             global_sequence = conversation.next_trace_sequence
             execution_sequence = execution.next_message_sequence
 
-            usage = turn.usage if turn else None
+            turn_fields = _turn_trace_fields(turn)
             AgentExecutionMessage.objects.create(
                 conversation=conversation,
                 execution=execution,
@@ -179,14 +226,9 @@ class DatabaseAgentRecorder:
                 role=message.role,
                 provenance=provenance,
                 content=content,
-                provider_stop_reason=turn.stop_reason.value if turn else "",
-                input_tokens=usage.input_tokens if usage else None,
-                output_tokens=usage.output_tokens if usage else None,
-                cache_read_tokens=usage.cache_read_tokens if usage else None,
-                cache_write_tokens=usage.cache_write_tokens if usage else None,
-                latency_ms=turn.latency_ms if turn else None,
                 is_truncated=is_truncated,
                 original_size_bytes=original_size if is_truncated else None,
+                **turn_fields,
             )
 
             conversation.next_trace_sequence += 1
@@ -199,39 +241,7 @@ class DatabaseAgentRecorder:
                 "last_activity_at",
                 "updated_date",
             ]
-            if turn:
-                execution.iterations += 1
-                execution.stop_reason = turn.stop_reason.value
-                execution.input_tokens = _add_optional(
-                    execution.input_tokens,
-                    usage.input_tokens if usage else None,
-                )
-                execution.output_tokens = _add_optional(
-                    execution.output_tokens,
-                    usage.output_tokens if usage else None,
-                )
-                execution.cache_read_tokens = _add_optional(
-                    execution.cache_read_tokens,
-                    usage.cache_read_tokens if usage else None,
-                )
-                execution.cache_write_tokens = _add_optional(
-                    execution.cache_write_tokens,
-                    usage.cache_write_tokens if usage else None,
-                )
-                execution.total_latency_ms = _add_optional(
-                    execution.total_latency_ms, turn.latency_ms
-                )
-                update_fields.extend(
-                    [
-                        "iterations",
-                        "stop_reason",
-                        "input_tokens",
-                        "output_tokens",
-                        "cache_read_tokens",
-                        "cache_write_tokens",
-                        "total_latency_ms",
-                    ]
-                )
+            update_fields.extend(_apply_turn_metrics(execution, turn, turn_fields))
             execution.save(update_fields=update_fields)
 
     def on_run_finished(self, result) -> None:
