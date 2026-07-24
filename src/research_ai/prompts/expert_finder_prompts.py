@@ -210,10 +210,10 @@ def build_profile_match_user_prompt(
     for i, row in enumerate(candidates or [], start=1):
         title = str((row or {}).get("title") or "").strip() or "(no title)"
         url = str((row or {}).get("url") or "").strip() or "(no url)"
-        description = str((row or {}).get("description") or "").strip() or "(no snippet)"
-        lines.append(
-            f"{i}. title: {title}\n   url: {url}\n   snippet: {description}"
+        description = (
+            str((row or {}).get("description") or "").strip() or "(no snippet)"
         )
+        lines.append(f"{i}. title: {title}\n   url: {url}\n   snippet: {description}")
     candidates_block = "\n".join(lines) if lines else "(no candidates)"
     template = load_template("expert_finder_profile_match_user.txt")
     return template.format(

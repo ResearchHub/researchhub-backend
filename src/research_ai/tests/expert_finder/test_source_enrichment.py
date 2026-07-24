@@ -4,7 +4,9 @@ from unittest.mock import MagicMock
 from django.test import TestCase
 
 from research_ai.models import Expert
-from research_ai.services.expert_finder.profile_match import parse_profile_match_response
+from research_ai.services.expert_finder.profile_match import (
+    parse_profile_match_response,
+)
 from research_ai.services.expert_finder.source_enrichment import (
     SourceEnrichmentService,
     build_web_profile_query,
@@ -233,9 +235,7 @@ class SourceEnrichmentServiceTests(TestCase):
         linkedin_q = build_web_profile_query(
             "linkedin", "Jane Q Doe", "Associate Professor", "MIT"
         )
-        x_q = build_web_profile_query(
-            "x", "Jane Q Doe", "Associate Professor", "MIT"
-        )
+        x_q = build_web_profile_query("x", "Jane Q Doe", "Associate Professor", "MIT")
         scholar_q = build_web_profile_query(
             "google_scholar", "Jane Q Doe", "Associate Professor", "MIT"
         )

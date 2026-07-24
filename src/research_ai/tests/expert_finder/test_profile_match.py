@@ -1,7 +1,9 @@
 from unittest import TestCase
 
 from research_ai.prompts.expert_finder_prompts import build_profile_match_user_prompt
-from research_ai.services.expert_finder.profile_match import parse_profile_match_response
+from research_ai.services.expert_finder.profile_match import (
+    parse_profile_match_response,
+)
 
 
 class ProfileMatchPromptTests(TestCase):
@@ -36,4 +38,6 @@ class ProfileMatchPromptTests(TestCase):
     def test_parse_accepts_fenced_json(self):
         candidates = [{"url": "https://x.com/a", "title": "", "description": ""}]
         raw = 'Here you go:\n```json\n{"selected_index": 1}\n```'
-        self.assertEqual(parse_profile_match_response(raw, candidates), "https://x.com/a")
+        self.assertEqual(
+            parse_profile_match_response(raw, candidates), "https://x.com/a"
+        )
