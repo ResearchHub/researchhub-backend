@@ -45,12 +45,6 @@ from utils.http import get_user_from_request
 logger = logging.getLogger(__name__)
 
 
-class RegisteredReportDraftRequestSerializer(Serializer):
-    """Validate an editor or moderator registered report draft request."""
-
-    proposal_id = IntegerField()
-
-
 class RegisteredReportPublishSerializer(Serializer):
     """Validate a registered report publish request."""
 

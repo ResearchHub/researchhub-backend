@@ -42,6 +42,10 @@ class RegisteredReportDraft:
     proposal: ResearchhubPost
 
 
+class RegisteredReportDraftValidationError(ValueError):
+    """Raised when a proposal is ineligible for a registered report draft."""
+
+
 class RegisteredReportDOIRegistrationError(Exception):
     """Raised when Crossref cannot register a registered report DOI."""
 
@@ -180,9 +184,13 @@ class JournalEntryService:
         fundraise = self._get_funded_completed_fundraise(proposal)
         journey = self.journey_service.include_completed_fundraise_in_journal(fundraise)
         if journey is None:
-            raise ValueError("Proposal is not eligible for a registered report.")
+            raise RegisteredReportDraftValidationError(
+                "Proposal is not eligible for a registered report."
+            )
         if self.journey_service.has_registered_report(journey):
-            raise ValueError("Proposal already has a registered report.")
+            raise RegisteredReportDraftValidationError(
+                "Proposal already has a registered report."
+            )
         return proposal, fundraise, journey
 
     def _get_approved_proposal(self, proposal_id: int) -> ResearchhubPost:
@@ -198,7 +206,9 @@ class JournalEntryService:
             .first()
         )
         if proposal is None:
-            raise ValueError("Proposal is not eligible for a registered report.")
+            raise RegisteredReportDraftValidationError(
+                "Proposal is not eligible for a registered report."
+            )
         return proposal
 
     def _get_funded_completed_fundraise(self, proposal: ResearchhubPost) -> Fundraise:
@@ -214,7 +224,7 @@ class JournalEntryService:
         for fundraise in fundraises:
             if self.journey_service.is_completed_fundraise_eligible(fundraise):
                 return fundraise
-        raise ValueError("Proposal is not funded.")
+        raise RegisteredReportDraftValidationError("Proposal is not funded.")
 
     def _create_registered_report_note(
         self, creator: User, proposal: ResearchhubPost

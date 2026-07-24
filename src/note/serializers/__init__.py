@@ -3,7 +3,6 @@ from note.serializers.note_serializer import (
     DynamicNoteSerializer,
     NoteContentSerializer,
     NoteSerializer,
-    RegisteredReportDraftResponseSerializer,
 )
 from note.serializers.note_template_serializer import (
     DynamicNoteTemplateSerializer,
@@ -16,6 +15,5 @@ __all__ = [
     "DynamicNoteTemplateSerializer",
     "NoteContentSerializer",
     "NoteSerializer",
-    "RegisteredReportDraftResponseSerializer",
     "NoteTemplateSerializer",
 ]

@@ -26,7 +26,7 @@ from user.tests.helpers import create_hub_editor, create_random_default_user
 
 
 class CreateRegisteredReportDraftTests(APITestCase):
-    draft_url = "/api/note/create_registered_report_draft/"
+    draft_url = "/api/researchhubpost/create_registered_report_draft/"
 
     def setUp(self) -> None:
         """Create proposal owners and authenticate a moderator."""
