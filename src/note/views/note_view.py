@@ -20,6 +20,7 @@ from note.serializers import (
     DynamicNoteSerializer,
     NoteContentSerializer,
     NoteSerializer,
+    RegisteredReportDraftResponseSerializer,
 )
 from researchhub.pagination import MediumPageLimitPagination
 from researchhub.settings import TESTING
@@ -45,7 +46,7 @@ from researchhub_document.related_models.constants.document_type import (
     REGISTERED_REPORT,
 )
 from researchhub_document.serializers.researchhub_post_serializer import (
-    RegisteredReportDraftSerializer,
+    RegisteredReportDraftRequestSerializer,
 )
 from researchhub_document.services.journal_entry_service import JournalEntryService
 from user.models import Organization, User
@@ -199,13 +200,13 @@ class NoteViewSet(ModelViewSet):
     )
     def create_registered_report_draft(self, request: Request) -> Response:
         """Create an editor- or moderator-owned registered report notebook draft."""
-        serializer = RegisteredReportDraftSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        request_serializer = RegisteredReportDraftRequestSerializer(data=request.data)
+        request_serializer.is_valid(raise_exception=True)
 
         try:
             draft = JournalEntryService().create_registered_report_draft(
                 request.user,
-                serializer.validated_data["proposal_id"],
+                request_serializer.validated_data["proposal_id"],
             )
         except ValueError as error:
             return Response(
@@ -213,11 +214,11 @@ class NoteViewSet(ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        response_data = NoteSerializer(draft.note, context={"request": request}).data
-        response_data["fundraise_id"] = draft.fundraise.id
-        response_data["journey_id"] = draft.journey.id
-        response_data["proposal_id"] = draft.proposal.id
-        return Response(response_data, status=status.HTTP_201_CREATED)
+        response_serializer = RegisteredReportDraftResponseSerializer(
+            draft,
+            context={"request": request},
+        )
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
     def _create_unified_doc(self, request):
         data = request.data

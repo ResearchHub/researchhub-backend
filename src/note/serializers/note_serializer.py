@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from django.db.models import Q
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
@@ -28,6 +29,11 @@ from user.serializers import (
     DynamicUserSerializer,
     OrganizationSerializer,
 )
+
+if TYPE_CHECKING:
+    from researchhub_document.services.journal_entry_service import (
+        RegisteredReportDraft,
+    )
 
 
 class NoteContentSerializer(ModelSerializer):
@@ -181,6 +187,18 @@ class NoteSerializer(ModelSerializer):
             note.unified_document, _include_fields=["id", "is_removed"]
         )
         return serializer.data
+
+
+class RegisteredReportDraftResponseSerializer(NoteSerializer):
+    """Serialize a newly created registered report notebook draft."""
+
+    def to_representation(self, draft: "RegisteredReportDraft") -> dict[str, Any]:
+        """Return the note payload augmented with registered report identifiers."""
+        response_data = super().to_representation(draft.note)
+        response_data["fundraise_id"] = draft.fundraise.id
+        response_data["journey_id"] = draft.journey.id
+        response_data["proposal_id"] = draft.proposal.id
+        return response_data
 
 
 class DynamicNoteSerializer(DynamicModelFieldSerializer):
