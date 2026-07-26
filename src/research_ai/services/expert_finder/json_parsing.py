@@ -7,6 +7,9 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 
 from research_ai.services.expert_finder.display import ExpertDisplay
+from research_ai.services.expert_finder.source_enrichment import (
+    canonicalize_sources_for_expert,
+)
 from research_ai.utils import trimmed_str
 
 logger = logging.getLogger(__name__)
@@ -36,7 +39,7 @@ class ExpertFinderJson:
             t = trimmed_str(item.get("text", ""))
             u = trimmed_str(item.get("url", ""))
             out.append({"text": t, "url": u})
-        return out
+        return canonicalize_sources_for_expert(out)
 
     @staticmethod
     def parse_text(text: str) -> dict:
