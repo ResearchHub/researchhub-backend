@@ -7,6 +7,7 @@ from research_ai.services.agent.types import (
     Message,
     StopReason,
     TextBlock,
+    ThinkingBlock,
     ToolResultBlock,
     ToolUseBlock,
     deserialize_messages,
@@ -16,12 +17,15 @@ from research_ai.services.agent.types import (
 
 class TypesTests(SimpleTestCase):
     def test_serialize_deserialize_round_trips_every_block_type(self):
-        # Arrange: a conversation containing all three block types.
+        # Arrange: a conversation containing all four block types.
         messages = [
             Message(role="user", content=[TextBlock(text="find jane")]),
             Message(
                 role="assistant",
                 content=[
+                    ThinkingBlock(
+                        data={"type": "thinking", "thinking": "hm", "signature": "sig"}
+                    ),
                     TextBlock(text="searching"),
                     ToolUseBlock(id="t1", name="search", input={"q": "jane"}),
                 ],
@@ -67,6 +71,19 @@ class TypesTests(SimpleTestCase):
         self.assertEqual(block["id"], "t1")
         self.assertEqual(block["name"], "search")
         self.assertEqual(block["input"], {"q": 1})
+
+    def test_thinking_block_serializes_its_provider_payload_whole(self):
+        # Arrange: the payload is signed, so it round-trips uninspected.
+        payload = {"type": "thinking", "thinking": "hm", "signature": "sig"}
+        messages = [
+            Message(role="assistant", content=[ThinkingBlock(data=payload)]),
+        ]
+
+        # Act
+        block = serialize_messages(messages)[0]["content"][0]
+
+        # Assert
+        self.assertEqual(block, {"type": "thinking", "data": payload})
 
     def test_assistant_turn_text_joins_text_blocks(self):
         # Arrange

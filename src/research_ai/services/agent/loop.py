@@ -223,9 +223,12 @@ class Agent:
 
         for iteration in range(1, self.max_iterations + 1):
             turn = self._complete_turn(messages, rendered_tools, iteration)
+            # Reasoning blocks lead the turn: a provider that thinks alongside
+            # tool use requires the assistant turn to be replayed with them
+            # intact and first, so the run cannot re-order or drop them here.
             assistant_message = Message(
                 role="assistant",
-                content=[*turn.text_blocks, *turn.tool_calls],
+                content=[*turn.thinking_blocks, *turn.text_blocks, *turn.tool_calls],
             )
             messages.append(assistant_message)
             self._record("record_message", assistant_message, turn=turn)

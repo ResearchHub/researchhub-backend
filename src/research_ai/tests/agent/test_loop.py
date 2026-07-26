@@ -15,6 +15,7 @@ from research_ai.services.agent.types import (
     Message,
     StopReason,
     TextBlock,
+    ThinkingBlock,
     ToolUseBlock,
 )
 
@@ -136,6 +137,33 @@ class AgentLoopTests(SimpleTestCase):
         self.assertEqual(seen, [("search", {"q": "jane"}), ("submit", {"done": True})])
         self.assertEqual(result.stop_reason, "stop_tool")
         self.assertEqual(result.iterations, 2)
+
+    def test_thinking_blocks_lead_the_replayed_assistant_turn(self):
+        # Arrange: a turn that thinks, narrates, then calls a tool.
+        thinking = ThinkingBlock(data={"type": "thinking", "signature": "sig"})
+        provider = FakeProvider(
+            [
+                AssistantTurn(
+                    text_blocks=[TextBlock(text="searching")],
+                    thinking_blocks=[thinking],
+                    tool_calls=[
+                        ToolUseBlock(id="t1", name="search", input={"q": "jane"})
+                    ],
+                    stop_reason=StopReason.TOOL_USE,
+                ),
+                _build_text_turn("done"),
+            ]
+        )
+        agent = _build_agent(provider, _build_toolset())
+
+        # Act
+        result = agent.run("find jane")
+
+        # Assert: the signed reasoning block is replayed first, intact.
+        assistant_message = result.messages[1]
+        self.assertEqual(assistant_message.content[0], thinking)
+        self.assertIsInstance(assistant_message.content[1], TextBlock)
+        self.assertIsInstance(assistant_message.content[2], ToolUseBlock)
 
     def test_tool_use_and_result_ids_correlate(self):
         # Arrange

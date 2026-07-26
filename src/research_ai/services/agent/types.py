@@ -41,6 +41,21 @@ class TextBlock:
 
 
 @dataclass(frozen=True)
+class ThinkingBlock:
+    """A provider's reasoning block, carried through the run verbatim.
+
+    ``data`` is the provider's own block, unmodified. Reasoning blocks are
+    signed: a provider that thinks alongside tool use rejects the next turn if
+    the assistant turn it replays has them dropped or edited. The agent core
+    never looks inside ``data`` -- it only round-trips it, which is also why it
+    is serialized whole rather than field by field.
+    """
+
+    data: dict
+    type: str = "thinking"
+
+
+@dataclass(frozen=True)
 class ToolUseBlock:
     """The model's request to call a tool. ``id`` correlates with the result."""
 
@@ -60,8 +75,8 @@ class ToolResultBlock:
     type: str = "tool_result"
 
 
-# A content block is one of the three block types above.
-Block = TextBlock | ToolUseBlock | ToolResultBlock
+# A content block is one of the four block types above.
+Block = TextBlock | ThinkingBlock | ToolUseBlock | ToolResultBlock
 
 
 @dataclass(frozen=True)
@@ -94,7 +109,9 @@ class AssistantTurn:
     ``raw`` keeps the untouched provider response for logging/debugging; it is
     intentionally excluded from JSON serialization of conversations. ``usage``
     and ``latency_ms`` are per-turn metadata for recorders; ``None`` when the
-    provider does not report them.
+    provider does not report them. ``thinking_blocks`` holds the turn's
+    reasoning blocks (empty for providers that do not return any); the loop
+    replays them at the head of the assistant message.
     """
 
     text_blocks: list[TextBlock]
@@ -103,6 +120,7 @@ class AssistantTurn:
     raw: dict = field(default_factory=dict)
     usage: TurnUsage | None = None
     latency_ms: int | None = None
+    thinking_blocks: list[ThinkingBlock] = field(default_factory=list)
 
     @property
     def text(self) -> str:
@@ -113,6 +131,8 @@ class AssistantTurn:
 def _serialize_block(block: Block) -> dict:
     if isinstance(block, TextBlock):
         return {"type": "text", "text": block.text}
+    if isinstance(block, ThinkingBlock):
+        return {"type": "thinking", "data": block.data}
     if isinstance(block, ToolUseBlock):
         return {
             "type": "tool_use",
@@ -134,6 +154,8 @@ def _deserialize_block(data: dict) -> Block:
     block_type = data.get("type")
     if block_type == "text":
         return TextBlock(text=data["text"])
+    if block_type == "thinking":
+        return ThinkingBlock(data=data["data"])
     if block_type == "tool_use":
         return ToolUseBlock(id=data["id"], name=data["name"], input=data["input"])
     if block_type == "tool_result":

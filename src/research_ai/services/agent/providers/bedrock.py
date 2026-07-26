@@ -38,6 +38,11 @@ _DEFAULT_MODEL_ID = "us.anthropic.claude-opus-4-8"
 _NO_SAMPLING_PARAMS = ("opus-4-7", "opus-4-8", "fable")
 
 
+def default_model_id() -> str:
+    """The Bedrock model id from settings (the constructor default)."""
+    return getattr(settings, "RESEARCH_AI_GENERATOR_MODEL_ID", _DEFAULT_MODEL_ID)
+
+
 def _accepts_sampling_params(model_id: str) -> bool:
     mid = model_id.lower()
     return not any(tag in mid for tag in _NO_SAMPLING_PARAMS)
@@ -59,9 +64,7 @@ class BedrockProvider(LLMProvider):
 
     def __init__(self, *, client: Any = None, model_id: str | None = None):
         self._client = client or bedrock_runtime_client()
-        self.model_id = model_id or getattr(
-            settings, "RESEARCH_AI_GENERATOR_MODEL_ID", _DEFAULT_MODEL_ID
-        )
+        self.model_id = model_id or default_model_id()
         # Prompt caching is the dominant cost lever for this uncached, ever-growing
         # tool loop: the tools+system prefix is byte-identical every turn and the
         # conversation only grows by appending, so cache points turn full-price
