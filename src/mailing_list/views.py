@@ -14,10 +14,7 @@ from rest_framework.exceptions import ParseError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import Response
 
-from mailing_list.models import (
-    CommentSubscription,
-    EmailRecipient,
-)
+from mailing_list.models import EmailRecipient
 from mailing_list.serializers import EmailRecipientSerializer
 from utils.parsers import PlainTextParser
 
@@ -43,9 +40,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         if not created:
             return Response("Already exists", status=400)
 
-        email_recipient.comment_subscription = CommentSubscription.objects.create()
-        email_recipient.save()
-
         return Response(EmailRecipientSerializer(email_recipient).data, status=201)
 
     def destroy(self, *args, **kwargs):
@@ -70,12 +64,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         if is_opted_out is not None:
             email_recipient.is_opted_out = is_opted_out
             email_recipient.save()
-
-        comment_data = request.data.get("comment_subscription")
-        if comment_data:
-            CommentSubscription.objects.update_or_create(
-                id=email_recipient.comment_subscription.id, defaults=comment_data
-            )
 
         return Response(EmailRecipientSerializer(email_recipient).data, status=200)
 
