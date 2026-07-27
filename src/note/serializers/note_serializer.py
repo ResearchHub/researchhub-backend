@@ -14,10 +14,12 @@ from researchhub_access_group.constants import (
     SHARED,
     WORKSPACE,
 )
+from researchhub_document.models import ResearchhubPost
 from researchhub_document.registered_report_note_metadata import (
     get_registered_report_prefill_metadata,
 )
 from researchhub_document.related_models.constants.document_type import (
+    PREREGISTRATION,
     REGISTERED_REPORT,
 )
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
@@ -366,6 +368,7 @@ def build_registered_report_prefill(
     hubs = note.unified_document.hubs.all()
     hub_ids = list(hubs.values_list("id", flat=True))
     hub_data = SimpleHubSerializer(hubs, context=context, many=True).data
+    image, preview_img = _get_registered_report_images(metadata)
 
     return {
         "author_ids": author_ids,
@@ -374,12 +377,44 @@ def build_registered_report_prefill(
             context=context,
             many=True,
         ).data,
-        "image": metadata.get("image"),
-        "preview_img": metadata.get("preview_img"),
+        "image": image,
+        "preview_img": preview_img,
         "proposal_id": metadata.get("proposal_id"),
         "hub_ids": hub_ids,
         "hubs": hub_data,
     }
+
+
+def _get_registered_report_images(
+    metadata: dict[str, object],
+) -> tuple[str | None, str | None]:
+    """Return draft images, filling missing values from the live proposal."""
+    image = metadata.get("image")
+    preview_img = metadata.get("preview_img")
+    image = image if isinstance(image, str) else None
+    preview_img = preview_img if isinstance(preview_img, str) else None
+    if image is not None and preview_img is not None:
+        return image, preview_img
+
+    proposal_id = metadata.get("proposal_id")
+    if not isinstance(proposal_id, int):
+        return image, preview_img
+
+    proposal = (
+        ResearchhubPost.objects.filter(
+            document_type=PREREGISTRATION,
+            id=proposal_id,
+        )
+        .only("image", "preview_img")
+        .first()
+    )
+    if proposal is None:
+        return image, preview_img
+
+    return (
+        image if image is not None else proposal.image,
+        preview_img if preview_img is not None else proposal.preview_img,
+    )
 
 
 def get_registered_report_author_ids(metadata: dict[str, object]) -> list[int]:

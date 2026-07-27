@@ -4,12 +4,15 @@ from dataclasses import dataclass
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Exists, OuterRef, Q, QuerySet
+from django.db.models import Exists, F, OuterRef, QuerySet
 from requests.exceptions import RequestException
 
 from note.models import Note, NoteContent
 from paper.related_models.paper_version import PaperVersion
-from purchase.models import Fundraise, UsdFundraiseContribution
+from purchase.models import Fundraise
+from purchase.services.fundraise_eligibility_service import (
+    filter_fundraises_with_funding,
+)
 from researchhub_access_group.constants import ADMIN, NO_ACCESS
 from researchhub_access_group.models import Permission
 from researchhub_document.models import (
@@ -82,27 +85,20 @@ class JournalEntryService:
         return proposal
 
     def list_registered_report_candidates(self) -> QuerySet:
-        """Return funded proposals that do not yet have a registered report."""
-        funded_fundraises = Fundraise.objects.filter(
-            unified_document_id=OuterRef("unified_document_id"),
-            status=Fundraise.COMPLETED,
-        ).filter(
-            Q(escrow__amount_holding__gt=0)
-            | Q(escrow__amount_paid__gt=0)
-            | Exists(
-                UsdFundraiseContribution.objects.filter(
-                    fundraise_id=OuterRef("pk"),
-                    amount_cents__gt=0,
-                    is_refunded=False,
-                )
+        """Return funded proposals with valid journeys and no registered report."""
+        funded_fundraises = filter_fundraises_with_funding(
+            Fundraise.objects.filter(
+                unified_document_id=OuterRef("unified_document_id"),
+                status=Fundraise.COMPLETED,
             )
         )
         registered_reports = ResearchhubPost.objects.filter(
             document_type=REGISTERED_REPORT,
-            journey__preregistration_post_id=OuterRef("pk"),
+            journey_id=OuterRef("journey_id"),
         )
         return ResearchhubPost.objects.filter(
             document_type=PREREGISTRATION,
+            journey__preregistration_post_id=F("pk"),
             unified_document__is_removed=False,
             unified_document__status=ResearchhubUnifiedDocument.APPROVED,
         ).filter(Exists(funded_fundraises), ~Exists(registered_reports))
@@ -182,7 +178,9 @@ class JournalEntryService:
         """Return the eligible proposal, fundraise, and journey for a report."""
         proposal = self._get_approved_proposal(proposal_id)
         fundraise = self._get_funded_completed_fundraise(proposal)
-        journey = self.journey_service.include_completed_fundraise_in_journal(fundraise)
+        journey = self.journey_service.ensure_approved_preregistration_has_journey(
+            proposal
+        )
         if journey is None:
             raise RegisteredReportDraftValidationError(
                 "Proposal is not eligible for a registered report."
@@ -213,18 +211,20 @@ class JournalEntryService:
 
     def _get_funded_completed_fundraise(self, proposal: ResearchhubPost) -> Fundraise:
         """Return the newest completed fundraise with non-refunded funding."""
-        fundraises = (
-            Fundraise.objects.select_related("escrow", "unified_document")
-            .filter(
-                status=Fundraise.COMPLETED,
-                unified_document=proposal.unified_document,
+        fundraise = (
+            filter_fundraises_with_funding(
+                Fundraise.objects.filter(
+                    status=Fundraise.COMPLETED,
+                    unified_document=proposal.unified_document,
+                )
             )
+            .select_related("escrow", "unified_document")
             .order_by("-created_date", "-id")
+            .first()
         )
-        for fundraise in fundraises:
-            if self.journey_service.is_completed_fundraise_eligible(fundraise):
-                return fundraise
-        raise RegisteredReportDraftValidationError("Proposal is not funded.")
+        if fundraise is None:
+            raise RegisteredReportDraftValidationError("Proposal is not funded.")
+        return fundraise
 
     def _create_registered_report_note(
         self, creator: User, proposal: ResearchhubPost

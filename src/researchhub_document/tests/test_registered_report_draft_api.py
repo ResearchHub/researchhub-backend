@@ -137,7 +137,6 @@ class CreateRegisteredReportDraftTests(APITestCase):
             note_response.data["registered_report_prefill"]["proposal_id"],
             proposal.id,
         )
-        self.assertTrue(proposal.journey.is_in_journal)
 
     def test_allows_hub_editors_to_create_registered_report_drafts(self) -> None:
         """Verify hub editors can create registered report drafts."""
@@ -346,8 +345,8 @@ class CreateRegisteredReportDraftTests(APITestCase):
         """Verify proposals with reports cannot create another draft."""
         # Arrange
         proposal = self._create_proposal(self.user)
-        fundraise = self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
-        self.journey_service.include_completed_fundraise_in_journal(fundraise)
+        self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
+        self.journey_service.ensure_approved_preregistration_has_journey(proposal)
         proposal.refresh_from_db()
         report = create_post(
             created_by=self.user,

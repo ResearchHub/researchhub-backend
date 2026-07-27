@@ -18,7 +18,10 @@ from feed.feed_list_dto import (
 )
 from feed.filters import JournalFeedOrderingFilter
 from feed.views.feed_view_mixin import FeedViewMixin
-from purchase.related_models.fundraise_model import Fundraise
+from purchase.models import Fundraise
+from purchase.services.fundraise_eligibility_service import (
+    filter_fundraises_with_funding,
+)
 from reputation.related_models.bounty import Bounty
 from researchhub_document.related_models.constants.document_type import (
     REGISTERED_REPORT,
@@ -77,16 +80,18 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
         return Response(response_data)
 
     def get_queryset(self) -> QuerySet:
-        """Return visible registered reports for journal-included journeys."""
+        """Return visible registered reports backed by funded proposals."""
         return self._build_journal_stage_queryset()
 
     def _build_journal_stage_queryset(self) -> QuerySet:
         """Build the base queryset for public journal stages."""
-        completed_source_fundraise = Fundraise.objects.filter(
+        funded_completed_fundraises = filter_fundraises_with_funding(
+            Fundraise.objects.filter(status=Fundraise.COMPLETED)
+        )
+        funded_completed_source_fundraise = funded_completed_fundraises.filter(
             unified_document_id=OuterRef(
                 "journey__preregistration_post__unified_document_id"
             ),
-            status=Fundraise.COMPLETED,
         )
         public_grant_post = ResearchhubPost.objects.publicly_visible().filter(
             pk=OuterRef("journey__grant_post_id"),
@@ -94,9 +99,10 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
         source_proposal_prefetches = [
             Prefetch(
                 "journey__preregistration_post__unified_document__fundraises",
-                queryset=Fundraise.objects.filter(status=Fundraise.COMPLETED)
-                .select_related("created_by", "escrow")
-                .order_by("-created_date", "-id"),
+                queryset=funded_completed_fundraises.select_related(
+                    "created_by",
+                    "escrow",
+                ).order_by("-created_date", "-id"),
             ),
             Prefetch(
                 "journey__preregistration_post__unified_document__reviews",
@@ -133,14 +139,15 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
                 *source_proposal_prefetches,
             )
             .annotate(
-                has_completed_source_fundraise=Exists(completed_source_fundraise),
+                has_funded_completed_source_fundraise=Exists(
+                    funded_completed_source_fundraise
+                ),
                 has_public_grant_post=Exists(public_grant_post),
             )
             .publicly_visible()
             .filter(
                 document_type=REGISTERED_REPORT,
-                has_completed_source_fundraise=True,
-                journey__is_in_journal=True,
+                has_funded_completed_source_fundraise=True,
                 journey__preregistration_post__isnull=False,
                 journey__preregistration_post__unified_document__is_removed=False,
                 journey__preregistration_post__unified_document__status=(
