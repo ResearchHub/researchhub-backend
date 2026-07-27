@@ -3,19 +3,6 @@ from django.db.models import Q
 from django.utils import timezone
 
 
-class SubscriptionField(models.OneToOneField):
-    """Retained only for historical migrations that reference it.
-
-    No model uses this field type anymore; the per-category subscription
-    models it was created for have all been removed.
-    """
-
-    def __init__(self, *args, **kwargs):
-        kwargs["on_delete"] = models.CASCADE
-        kwargs["null"] = True
-        return super().__init__(*args, **kwargs)
-
-
 class EmailRecipient(models.Model):
     """Tracks an email address and whether it should receive mail."""
 
