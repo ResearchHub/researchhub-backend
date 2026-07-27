@@ -1,5 +1,7 @@
 import datetime
 from calendar import monthrange
+from unittest import TestCase
+from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import F
@@ -17,9 +19,31 @@ from researchhub_access_group.constants import (
     SENIOR_EDITOR,
 )
 from researchhub_access_group.models import Permission
+from user import editor_payout_tasks
 from user.editor_payout_tasks import get_daily_rsc_payout_amount_from_coin_gecko
 from user.models import User
 from user.tests.helpers import create_random_default_user
+
+
+class EditorDailyPayoutTaskTest(TestCase):
+    @patch.object(editor_payout_tasks.DistributionModel.objects, "filter")
+    @patch.object(
+        editor_payout_tasks,
+        "get_daily_rsc_payout_amount_from_coin_gecko",
+        return_value=None,
+    )
+    def test_skips_payout_when_no_recent_coin_gecko_rate(
+        self, get_payout_amount, filter_distributions
+    ):
+        # Arrange
+        filter_distributions.return_value.exists.return_value = False
+
+        # Act
+        result = editor_payout_tasks.editor_daily_payout_task()
+
+        # Assert
+        self.assertIsNone(result)
+        get_payout_amount.assert_called_once()
 
 
 class PayoutTests(APITestCase):

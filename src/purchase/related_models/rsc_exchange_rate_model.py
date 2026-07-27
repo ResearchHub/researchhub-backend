@@ -4,7 +4,7 @@ from django.core.cache import cache
 from django.db import models
 
 from purchase.related_models.constants.rsc_exchange_currency import (
-    MORALIS,
+    COIN_GECKO,
     PRICE_SOURCES,
     RSC_EXCHANGE_CURRENCY,
 )
@@ -18,7 +18,7 @@ class RscExchangeRate(DefaultModel):
     price_source = models.CharField(
         blank=False,
         choices=PRICE_SOURCES,
-        default=MORALIS,
+        default=COIN_GECKO,
         help_text="API used to get the price",
         max_length=255,
         null=True,
@@ -60,7 +60,7 @@ class RscExchangeRate(DefaultModel):
             cached_rate = cache.get(cls._LATEST_EXCHANGE_RATE_CACHE_KEY)
             if cached_rate is not None:
                 return cached_rate
-        rate = cls.objects.last().rate
+        rate = cls.objects.filter(price_source=COIN_GECKO).last().rate
         cache.set(
             cls._LATEST_EXCHANGE_RATE_CACHE_KEY,
             rate,

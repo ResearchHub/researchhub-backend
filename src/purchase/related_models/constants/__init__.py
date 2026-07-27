@@ -8,10 +8,8 @@ from .fundraise import (
 )
 from .rsc_exchange_currency import (
     COIN_GECKO,
-    MORALIS,
     PRICE_SOURCES,
     RSC_EXCHANGE_CURRENCY,
-    UNI_SWAP,
 )
 from .support import MAXIMUM_SUPPORT_AMOUNT_RSC, MINIMUM_SUPPORT_AMOUNT_RSC
 
@@ -24,11 +22,9 @@ __all__ = [
     "MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC",
     "MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_USD_CENTS",
     "MINIMUM_SUPPORT_AMOUNT_RSC",
-    "MORALIS",
     "PRICE_SOURCES",
     "RSC_EXCHANGE_CURRENCY",
     "RSC",
-    "UNI_SWAP",
     "USD_FUNDRAISE_FEE_PERCENT",
     "USD",
 ]

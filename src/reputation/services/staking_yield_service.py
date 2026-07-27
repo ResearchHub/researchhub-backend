@@ -10,7 +10,7 @@ from django.db import transaction
 from django.db.models import Count, Q
 
 from purchase.related_models.balance_model import Balance
-from purchase.related_models.constants.rsc_exchange_currency import USD
+from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import create_staking_yield_distribution
 from reputation.distributor import Distributor
@@ -260,6 +260,7 @@ class StakingYieldService:
         rate_lookup_end = snapshots[-1].accrual_date
         rates = list(
             RscExchangeRate.objects.filter(
+                price_source=COIN_GECKO,
                 target_currency=USD,
                 created_date__date__lte=rate_lookup_end,
             )

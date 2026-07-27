@@ -13,7 +13,7 @@ from rest_framework.test import APIClient, APIRequestFactory
 from discussion.models import Vote
 from hub.models import Hub
 from purchase.related_models.constants.currency import USD
-from purchase.related_models.constants.rsc_exchange_currency import MORALIS
+from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
@@ -125,7 +125,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
 
         # Create an exchange rate for converting currency
         self.exchange_rate = RscExchangeRate.objects.create(
-            price_source=MORALIS,
+            price_source=COIN_GECKO,
             rate=3.0,
             real_rate=3.0,
             target_currency=USD,
