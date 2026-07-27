@@ -9,7 +9,7 @@ from rest_framework.test import APIClient
 
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import USD
-from purchase.related_models.constants.rsc_exchange_currency import MORALIS
+from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Escrow
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
@@ -38,7 +38,7 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         self.client = APIClient()
         self.client.force_authenticate(self.user)
         RscExchangeRate.objects.create(
-            price_source=MORALIS,
+            price_source=COIN_GECKO,
             rate=3.0,
             real_rate=3.0,
             target_currency=USD,

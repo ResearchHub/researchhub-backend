@@ -830,8 +830,6 @@ MAILCHIMP_KEY = os.environ.get("MAILCHIMP_KEY", keys.MAILCHIMP_KEY)
 MAILCHIMP_LIST_ID = os.environ.get("MAILCHIMP_LIST_ID", keys.MAILCHIMP_LIST_ID)
 MAILCHIMP_SERVER = "us4"
 
-MORALIS_API_KEY = os.environ.get("MORALIS_API_KEY", keys.MORALIS_API_KEY)
-
 # Recaptcha
 RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify"
 RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", keys.RECAPTCHA_SECRET_KEY)
