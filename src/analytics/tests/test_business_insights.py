@@ -166,8 +166,45 @@ class BusinessInsightMetricTests(TestCase):
         self.assertEqual(proposals["submitted"], 2)
         self.assertEqual(proposals["tied_to_opportunity"], 1)
         self.assertEqual(proposals["independent"], 1)
+        self.assertEqual(
+            proposals["independent"] + proposals["tied_to_opportunity"],
+            proposals["submitted"],
+        )
         self.assertEqual(proposals["public"], 1)
         self.assertEqual(proposals["private"], 1)
+
+    def test_funding_tied_only_counts_proposals_created_in_period(self):
+        # Arrange: application in period for an older proposal should not count.
+        applicant = User.objects.create_user(
+            username="old-proposal-applicant",
+            email="old-proposal-applicant@example.com",
+        )
+        grant_post = create_post(created_by=self.user, document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_post.unified_document,
+            amount=Decimal(1000),
+            description="Test opportunity",
+        )
+        old_proposal = create_post(
+            created_by=applicant,
+            document_type=PREREGISTRATION,
+        )
+        old_proposal.created_date = self.period.start - timedelta(days=30)
+        old_proposal.save(update_fields=["created_date"])
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=old_proposal,
+            applicant=applicant,
+        )
+
+        # Act
+        proposals = get_funding_metrics(self.period)["proposals"]
+
+        # Assert
+        self.assertEqual(proposals["submitted"], 0)
+        self.assertEqual(proposals["tied_to_opportunity"], 0)
+        self.assertEqual(proposals["independent"], 0)
 
     def test_funding_classifies_credit_contribution_without_fees(self):
         # Arrange
@@ -239,6 +276,9 @@ class BusinessInsightMetricTests(TestCase):
     def test_pages_returns_top_documents(self):
         # Arrange
         post = create_post(created_by=self.user)
+        post.slug = "top-page-slug"
+        post.preview_img = "https://example.com/preview.png"
+        post.save(update_fields=["slug", "preview_img"])
         UserInteractions.objects.create(
             user=self.user,
             external_user_id="insights-user",
@@ -254,7 +294,16 @@ class BusinessInsightMetricTests(TestCase):
 
         # Assert
         self.assertEqual(len(metrics["top_documents"]), 1)
-        self.assertEqual(metrics["top_documents"][0]["views"], 1)
+        self.assertEqual(
+            metrics["top_documents"][0],
+            {
+                "document_id": post.unified_document_id,
+                "document_type": post.unified_document.document_type,
+                "views": 1,
+                "slug": "top-page-slug",
+                "preview_img": "https://example.com/preview.png",
+            },
+        )
 
     def test_expert_finder_counts_registered_invited_experts(self):
         # Arrange
@@ -264,6 +313,14 @@ class BusinessInsightMetricTests(TestCase):
             expert_email="expert@example.com",
             template="collaboration",
             status=GeneratedEmail.Status.SENT,
+            channel=GeneratedEmail.Channel.EMAIL,
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_email="linkedin-expert@example.com",
+            template="collaboration",
+            status=GeneratedEmail.Status.SENT,
+            channel=GeneratedEmail.Channel.LINKEDIN,
         )
         invited_user = User.objects.create_user(
             username="invited-expert",
@@ -279,9 +336,15 @@ class BusinessInsightMetricTests(TestCase):
         self.assertEqual(
             metrics,
             {
-                "experts_generated_outreach_for": 1,
+                "experts_generated_outreach_for": 2,
                 "invited_experts": 1,
                 "auto_drafted_proposals": 0,
+                "outreach_by_channel": {
+                    "email": 1,
+                    "linkedin": 1,
+                    "x": 0,
+                    "other": 0,
+                },
             },
         )
 
@@ -472,12 +535,18 @@ class BusinessInsightMetricTests(TestCase):
             provider="google",
             uid="google-signup",
         )
+        SocialAccount.objects.create(
+            user=self.user,
+            provider="orcid",
+            uid="0000-0001-2345-6789",
+        )
 
         # Act
         metrics = get_user_metrics(self.period)
 
         # Assert
         self.assertEqual(metrics["verified_users"], 1)
+        self.assertEqual(metrics["orcid_connected"], 1)
         self.assertEqual(
             metrics["newly_created"],
             {
