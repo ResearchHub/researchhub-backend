@@ -26,6 +26,7 @@ from rest_framework.request import Request
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_application_model import approved_proposal_filters
 from purchase.related_models.grant_model import Grant
+from review.models import Review
 
 
 class FundOrderingFilter(OrderingFilter):
@@ -378,8 +379,11 @@ class JournalFeedOrderingFilter(FundOrderingFilter):
         queryset: QuerySet,
         model_config: dict[str, type[Grant] | type[Fundraise] | str],
     ) -> QuerySet:
-        """Sort registered reports by newest post first."""
-        return queryset.order_by("-created_date")
+        """Sort reviewed reports by newest post and place unreviewed reports last."""
+        return self._annotate_peer_review_presence(queryset).order_by(
+            "-has_peer_reviews",
+            "-created_date",
+        )
 
     def _apply_best_sorting(
         self,
@@ -392,18 +396,28 @@ class JournalFeedOrderingFilter(FundOrderingFilter):
     def _apply_peer_review_score_sorting(self, queryset: QuerySet) -> QuerySet:
         """Sort registered reports by source proposal average peer review score."""
         report_reviews = "journey__preregistration_post__unified_document__reviews"
-        queryset = queryset.annotate(
-            peer_review_score=Coalesce(
-                Avg(
-                    f"{report_reviews}__score",
-                    filter=Q(
-                        **{
-                            f"{report_reviews}__is_removed": False,
-                        }
-                    ),
+        queryset = self._annotate_peer_review_presence(queryset).annotate(
+            peer_review_score=Avg(
+                f"{report_reviews}__score",
+                filter=Q(
+                    **{
+                        f"{report_reviews}__is_removed": False,
+                    }
                 ),
-                0.0,
                 output_field=FloatField(),
             )
         )
-        return queryset.order_by("-peer_review_score", "-created_date")
+        return queryset.order_by(
+            "-has_peer_reviews",
+            F("peer_review_score").desc(nulls_last=True),
+            "-created_date",
+        )
+
+    def _annotate_peer_review_presence(self, queryset: QuerySet) -> QuerySet:
+        """Mark reports whose source proposal has an active peer review."""
+        source_reviews = Review.objects.filter(
+            unified_document_id=OuterRef(
+                "journey__preregistration_post__unified_document_id"
+            )
+        )
+        return queryset.annotate(has_peer_reviews=Exists(source_reviews))

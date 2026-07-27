@@ -633,7 +633,7 @@ class CreateRegisteredReportTests(APITestCase):
             amount_holding=Decimal(100),
         )
         fundraise.save(update_fields=["escrow"])
-        self.service.include_completed_fundraise_in_journal(fundraise)
+        self.service.ensure_approved_preregistration_has_journey(proposal)
         proposal.refresh_from_db()
         return proposal
 

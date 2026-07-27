@@ -2,6 +2,7 @@ import json
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.files.storage import default_storage
 from rest_framework.test import APITestCase
 
 from hub.tests.helpers import create_hub
@@ -109,7 +110,7 @@ class CreateRegisteredReportDraftTests(APITestCase):
         )
         self.assertEqual(
             response.data["registered_report_prefill"]["preview_img"],
-            proposal.preview_img,
+            default_storage.url(proposal.image),
         )
         self.assertEqual(
             response.data["registered_report_prefill"]["proposal_id"],
@@ -131,13 +132,36 @@ class CreateRegisteredReportDraftTests(APITestCase):
         )
         self.assertEqual(
             note_response.data["registered_report_prefill"]["preview_img"],
-            proposal.preview_img,
+            default_storage.url(proposal.image),
         )
         self.assertEqual(
             note_response.data["registered_report_prefill"]["proposal_id"],
             proposal.id,
         )
-        self.assertTrue(proposal.journey.is_in_journal)
+
+    def test_returns_storage_url_when_proposal_preview_image_is_missing(self) -> None:
+        """Verify drafts derive a preview URL from the proposal cover image."""
+        # Arrange
+        proposal = self._create_proposal(self.user)
+        proposal.preview_img = None
+        proposal.save(update_fields=["preview_img"])
+        self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
+
+        # Act
+        response = self.client.post(
+            self.draft_url,
+            self._build_draft_payload(proposal),
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        prefill = response.data["registered_report_prefill"]
+        self.assertEqual(prefill["image"], proposal.image)
+        self.assertEqual(
+            prefill["preview_img"],
+            default_storage.url(proposal.image),
+        )
 
     def test_allows_hub_editors_to_create_registered_report_drafts(self) -> None:
         """Verify hub editors can create registered report drafts."""
@@ -346,8 +370,8 @@ class CreateRegisteredReportDraftTests(APITestCase):
         """Verify proposals with reports cannot create another draft."""
         # Arrange
         proposal = self._create_proposal(self.user)
-        fundraise = self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
-        self.journey_service.include_completed_fundraise_in_journal(fundraise)
+        self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
+        self.journey_service.ensure_approved_preregistration_has_journey(proposal)
         proposal.refresh_from_db()
         report = create_post(
             created_by=self.user,

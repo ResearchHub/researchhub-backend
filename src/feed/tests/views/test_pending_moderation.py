@@ -15,6 +15,7 @@ from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from reputation.models import Escrow
 from researchhub_document.helpers import create_post
+from researchhub_document.models import ResearchJourney
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     GRANT,
@@ -216,18 +217,25 @@ class RegisteredReportCandidateFeedTests(TestCase):
         # Arrange
         candidate = self._create_proposal("candidate")
         self._create_completed_fundraise(candidate, Decimal(100))
+        self.journey_service.ensure_approved_preregistration_has_journey(candidate)
+        unfunded = self._create_proposal("unfunded")
         self._create_completed_fundraise(
-            self._create_proposal("unfunded"),
+            unfunded,
             Decimal(0),
         )
+        self.journey_service.ensure_approved_preregistration_has_journey(unfunded)
+        open_proposal = self._create_proposal("open")
         self._create_fundraise(
-            self._create_proposal("open"),
+            open_proposal,
             Fundraise.OPEN,
             Decimal(100),
         )
+        self.journey_service.ensure_approved_preregistration_has_journey(open_proposal)
         reported = self._create_proposal("reported")
-        fundraise = self._create_completed_fundraise(reported, Decimal(100))
-        journey = self.journey_service.include_completed_fundraise_in_journal(fundraise)
+        self._create_completed_fundraise(reported, Decimal(100))
+        journey = self.journey_service.ensure_approved_preregistration_has_journey(
+            reported
+        )
         report = create_post(
             created_by=self.author,
             document_type=REGISTERED_REPORT,
@@ -244,6 +252,32 @@ class RegisteredReportCandidateFeedTests(TestCase):
             {item["content_object"]["id"] for item in response.data["results"]},
             {candidate.id},
         )
+
+    def test_excludes_funded_proposals_without_matching_journeys(self) -> None:
+        """Verify candidates require matching post and journey relationships."""
+        # Arrange
+        missing_journey = self._create_proposal("missing journey")
+        self._create_completed_fundraise(missing_journey, Decimal(100))
+
+        one_way_journey = self._create_proposal("one-way journey")
+        self._create_completed_fundraise(one_way_journey, Decimal(100))
+        ResearchJourney.objects.create(preregistration_post=one_way_journey)
+
+        mismatched_journey = self._create_proposal("mismatched journey")
+        self._create_completed_fundraise(mismatched_journey, Decimal(100))
+        other_proposal = self._create_proposal("other proposal")
+        other_journey = self.journey_service.get_or_create_for_preregistration(
+            other_proposal
+        )
+        mismatched_journey.journey = other_journey
+        mismatched_journey.save(update_fields=["journey"])
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["results"], [])
 
     def test_rejects_regular_users(self) -> None:
         """Verify regular users cannot view registered report candidates."""
