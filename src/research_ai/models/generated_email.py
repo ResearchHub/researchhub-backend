@@ -21,6 +21,12 @@ class GeneratedEmail(DefaultModel):
         SEND_FAILED = "send_failed", "send_failed"
         CLOSED = "closed", "closed"
 
+    class Channel(models.TextChoices):
+        EMAIL = "email", "Email"
+        LINKEDIN = "linkedin", "LinkedIn"
+        X = "x", "X"
+        OTHER = "other", "Other"
+
     created_by = models.ForeignKey(
         "user.User",
         on_delete=models.CASCADE,
@@ -70,6 +76,16 @@ class GeneratedEmail(DefaultModel):
         max_length=16,
         choices=Status.choices,
         default=Status.DRAFT,
+    )
+    channel = models.CharField(
+        max_length=16,
+        choices=Channel.choices,
+        blank=True,
+        default="",
+        db_comment=(
+            "Outreach channel when marked sent "
+            "(email / linkedin / x / other). Empty until sent."
+        ),
     )
     notes = models.TextField(blank=True)
     ses_message_id = models.CharField(

@@ -202,6 +202,11 @@ urlpatterns = [
         + (settings.HEALTH_CHECK_TOKEN + "/" if settings.HEALTH_CHECK_TOKEN else ""),
         include("health_check.urls"),
     ),
+    path(
+        "api/researchhubpost/create_registered_report_draft/",
+        researchhub_document_views.RegisteredReportDraftView.as_view(),
+        name="registered-report-draft",
+    ),
     re_path(r"^api/", include(router.urls)),
     # Nested routes for list items
     path(
@@ -306,7 +311,6 @@ urlpatterns = [
         PasswordResetConfirmView.as_view(),
         name="password_reset_confirm",
     ),
-    path("email_notifications/", mailing_list.views.email_notifications),
     path("", researchhub.views.index, name="index"),
     path(
         "api/asset/upload/",

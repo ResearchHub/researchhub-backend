@@ -35,7 +35,6 @@ APM_URL = os.environ.get("APM_URL", "NOT_REAL")
 
 OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "localhost:9200")
 
-MORALIS_API_KEY = os.environ.get("MORALIS_API_KEY", "")
 WEB3_NETWORK = os.environ.get("WEB3_NETWORK", "")
 WEB3_RSC_ADDRESS = os.environ.get("WEB3_RSC_ADDRESS", "")
 WEB3_BASE_RSC_ADDRESS = os.environ.get("WEB3_BASE_RSC_ADDRESS", "")
@@ -48,9 +47,6 @@ WEB3_PROVIDER_URL = os.environ.get("WEB3_PROVIDER_URL", "")
 WEB3_BASE_PROVIDER_URL = os.environ.get("WEB3_BASE_PROVIDER_URL", "")
 CROSSREF_LOGIN_ID = os.environ.get("CROSSREF_LOGIN_ID", "")
 CROSSREF_LOGIN_PASSWORD = os.environ.get("CROSSREF_LOGIN_PASSWORD", "")
-
-MJML_APP_ID = os.environ.get("MJML_APP_ID", "")
-MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", "")
 
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
 

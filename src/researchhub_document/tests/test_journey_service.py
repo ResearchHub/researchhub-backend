@@ -1,13 +1,10 @@
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError
 from django.test import TestCase
-from django.utils import timezone
 
-from purchase.models import Fundraise, Grant, GrantApplication
-from reputation.models import Escrow
+from purchase.models import Grant, GrantApplication
 from researchhub_document.helpers import create_post
 from researchhub_document.models import (
     ResearchhubPost,
@@ -138,152 +135,6 @@ class JourneyServiceTests(TestCase):
         # Assert
         self.assertIsNone(journey)
         self.assertFalse(ResearchJourney.objects.exists())
-
-    def test_include_funded_proposal_in_journal(self) -> None:
-        """Verify completed fundraises include their proposal journey."""
-        # Arrange
-        proposal = self._create_post(PREREGISTRATION)
-        fundraise = Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=proposal.unified_document,
-            goal_amount=Decimal("1000.00"),
-            goal_currency="USD",
-            status=Fundraise.COMPLETED,
-        )
-        self._attach_fundraise_escrow(fundraise, Decimal("100.00"))
-
-        # Act
-        journey = self.service.include_completed_fundraise_in_journal(fundraise)
-
-        # Assert
-        proposal.refresh_from_db()
-        self.assertEqual(journey.preregistration_post, proposal)
-        self.assertEqual(proposal.journey, journey)
-        self.assertTrue(journey.is_in_journal)
-        self.assertIsNotNone(journey.journal_included_date)
-
-    def test_skip_journal_for_unfunded_completed_fundraise(self) -> None:
-        """Verify unfunded completed fundraises do not enter the journal."""
-        # Arrange
-        proposal = self._create_post(PREREGISTRATION)
-        fundraise = Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=proposal.unified_document,
-            goal_amount=Decimal("1000.00"),
-            goal_currency="USD",
-            status=Fundraise.COMPLETED,
-        )
-
-        # Act
-        journey = self.service.include_completed_fundraise_in_journal(fundraise)
-
-        # Assert
-        self.assertIsNone(journey)
-        self.assertFalse(ResearchJourney.objects.exists())
-
-    def test_keep_existing_journal_date(self) -> None:
-        """Verify repeated inclusion keeps the original journal date."""
-        # Arrange
-        proposal = self._create_post(PREREGISTRATION)
-        included_date = timezone.now()
-        journey = ResearchJourney.objects.create(
-            preregistration_post=proposal,
-            is_in_journal=True,
-            journal_included_date=included_date,
-        )
-        proposal.journey = journey
-        proposal.save(update_fields=["journey"])
-        fundraise = Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=proposal.unified_document,
-            goal_amount=Decimal("1000.00"),
-            goal_currency="USD",
-            status=Fundraise.COMPLETED,
-        )
-        self._attach_fundraise_escrow(fundraise, Decimal("100.00"))
-
-        # Act
-        included_journey = self.service.include_completed_fundraise_in_journal(
-            fundraise
-        )
-
-        # Assert
-        self.assertEqual(included_journey, journey)
-        self.assertEqual(included_journey.journal_included_date, included_date)
-
-    def test_skip_journal_for_open_fundraise(self) -> None:
-        """Verify open fundraises do not include their journey in the journal."""
-        # Arrange
-        proposal = self._create_post(PREREGISTRATION)
-        fundraise = Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=proposal.unified_document,
-            goal_amount=Decimal("1000.00"),
-            goal_currency="USD",
-            status=Fundraise.OPEN,
-        )
-
-        # Act
-        journey = self.service.include_completed_fundraise_in_journal(fundraise)
-
-        # Assert
-        self.assertIsNone(journey)
-        self.assertFalse(ResearchJourney.objects.exists())
-
-    def test_log_completed_fundraise_without_proposal(self) -> None:
-        """Verify completed fundraises without proposals are logged."""
-        # Arrange
-        post = self._create_post(DISCUSSION)
-        fundraise = Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=post.unified_document,
-            goal_amount=Decimal("1000.00"),
-            goal_currency="USD",
-            status=Fundraise.COMPLETED,
-        )
-
-        # Act
-        with self.assertLogs(
-            "researchhub_document.services.journey_service",
-            level="WARNING",
-        ) as logs:
-            journey = self.service.include_completed_fundraise_in_journal(fundraise)
-
-        # Assert
-        self.assertIsNone(journey)
-        self.assertIn(
-            "Completed fundraise has no preregistration post.",
-            logs.output[0],
-        )
-
-    def test_log_completed_fundraise_with_ineligible_proposal(self) -> None:
-        """Verify completed fundraises with ineligible proposals are logged."""
-        # Arrange
-        proposal = self._create_post(PREREGISTRATION)
-        proposal.unified_document.status = ResearchhubUnifiedDocument.PENDING
-        proposal.unified_document.save(update_fields=["status"])
-        fundraise = Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=proposal.unified_document,
-            goal_amount=Decimal("1000.00"),
-            goal_currency="USD",
-            status=Fundraise.COMPLETED,
-        )
-        self._attach_fundraise_escrow(fundraise, Decimal("100.00"))
-
-        # Act
-        with self.assertLogs(
-            "researchhub_document.services.journey_service",
-            level="WARNING",
-        ) as logs:
-            journey = self.service.include_completed_fundraise_in_journal(fundraise)
-
-        # Assert
-        self.assertIsNone(journey)
-        self.assertIn(
-            "Completed fundraise preregistration was not eligible for a journey.",
-            logs.output[0],
-        )
 
     def test_attach_stage_attaches_registered_report(self) -> None:
         """Verify registered reports attach to journeys with proposals."""
@@ -457,14 +308,3 @@ class JourneyServiceTests(TestCase):
             description="Funding for the proposal.",
         )
         return grant, grant_post
-
-    def _attach_fundraise_escrow(self, fundraise: Fundraise, amount: Decimal) -> None:
-        """Attach escrowed RSC funding to a fundraise."""
-        fundraise.escrow = Escrow.objects.create(
-            created_by=self.user,
-            content_type=ContentType.objects.get_for_model(Fundraise),
-            object_id=fundraise.id,
-            hold_type=Escrow.FUNDRAISE,
-            amount_holding=amount,
-        )
-        fundraise.save(update_fields=["escrow"])

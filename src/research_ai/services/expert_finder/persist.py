@@ -7,6 +7,9 @@ from django.utils import timezone
 
 from research_ai.models import Expert, SearchExpert
 from research_ai.services.expert_finder.display import ExpertDisplay
+from research_ai.services.expert_finder.source_enrichment import (
+    canonicalize_sources_for_expert,
+)
 from research_ai.utils import trimmed_str
 
 User = get_user_model()
@@ -30,6 +33,7 @@ class ExpertPersist:
         sources = d.get("sources")
         if not isinstance(sources, list):
             sources = []
+        sources = canonicalize_sources_for_expert(sources)
 
         candidate = {
             "honorific": trimmed_str(d.get("honorific"), max_len=64),

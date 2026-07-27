@@ -1,4 +1,5 @@
 import uuid
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -141,6 +142,130 @@ class PrivatePreregistrationCreateTests(AWSMockTestCase):
         self.assertEqual(response.status_code, 200)
         post = ResearchhubPost.objects.get(id=response.data["id"])
         self.assertTrue(post.unified_document.is_public)
+
+
+class MakeProposalPublicTests(AWSMockTestCase):
+    def setUp(self):
+        super().setUp()
+        self.author = _make_user("author")
+        self.outsider = _make_user("outsider")
+        self.post = create_post(
+            created_by=self.author,
+            document_type=PREREGISTRATION,
+            title=LONG_TITLE,
+        )
+        self.post.unified_document.is_public = False
+        self.post.unified_document.save(update_fields=["is_public"])
+        self.action = Action.objects.get(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=self.post.id,
+        )
+        self.action.display = False
+        self.action.save(update_fields=["display"])
+        self.client = APIClient()
+        self.client.force_authenticate(self.author)
+
+    def _url(self, post=None):
+        post = post or self.post
+        return f"/api/researchhubpost/{post.id}/make_public/"
+
+    @patch("researchhub_document.services.proposal_visibility_service.publish_to_feed")
+    def test_owner_can_make_private_proposal_public(self, publish_to_feed_mock):
+        # Arrange
+
+        # Act
+        response = self.client.post(self._url(), format="json")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.post.unified_document.refresh_from_db()
+        self.action.refresh_from_db()
+        self.assertTrue(self.post.unified_document.is_public)
+        self.assertTrue(response.data["unified_document"]["is_public"])
+        self.assertTrue(self.action.display)
+        publish_to_feed_mock.assert_called_once_with(self.post, self.author.id)
+
+    @patch(
+        "researchhub_document.services.proposal_visibility_service."
+        "FundingCacheMixin.invalidate_funding_feed_cache"
+    )
+    @patch("researchhub_document.services.proposal_visibility_service.publish_to_feed")
+    def test_public_proposal_retry_replays_side_effects(
+        self,
+        publish_to_feed_mock,
+        invalidate_funding_cache_mock,
+    ):
+        # Arrange
+        self.post.unified_document.is_public = True
+        self.post.unified_document.save(update_fields=["is_public"])
+
+        # Act
+        response = self.client.post(self._url(), format="json")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        publish_to_feed_mock.assert_called_once_with(self.post, self.author.id)
+        invalidate_funding_cache_mock.assert_called_once_with()
+
+    def test_outsider_cannot_make_private_proposal_public(self):
+        # Arrange
+        self.client.force_authenticate(self.outsider)
+
+        # Act
+        response = self.client.post(self._url(), format="json")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.post.unified_document.refresh_from_db()
+        self.assertFalse(self.post.unified_document.is_public)
+
+    def test_non_proposal_cannot_be_made_public(self):
+        # Arrange
+        discussion = create_post(
+            created_by=self.author,
+            document_type="DISCUSSION",
+            title=LONG_TITLE,
+        )
+
+        # Act
+        response = self.client.post(self._url(discussion), format="json")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["detail"], "Only proposals can be made public.")
+
+    def test_proposal_for_private_required_grant_cannot_be_made_public(self):
+        # Arrange
+        grant_owner = _make_user("grant_owner")
+        grant_post = create_post(
+            created_by=grant_owner,
+            document_type="GRANT",
+            title="Private application grant",
+        )
+        grant = Grant.objects.create(
+            created_by=grant_owner,
+            unified_document=grant_post.unified_document,
+            amount=1000,
+            currency=USD,
+            organization="Org",
+            description="desc",
+            status=Grant.OPEN,
+            application_visibility=Grant.APPLICATION_VISIBILITY_PRIVATE,
+        )
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=self.post,
+            applicant=self.author,
+        )
+
+        # Act
+        response = self.client.post(self._url(), format="json")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.post.unified_document.refresh_from_db()
+        self.assertFalse(self.post.unified_document.is_public)
+        self.assertIn("requires applications to be private", response.data["detail"])
 
 
 class VisibleToQuerySetTests(AWSMockTestCase):

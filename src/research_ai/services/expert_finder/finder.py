@@ -30,6 +30,7 @@ from research_ai.services.expert_finder.report_generator import (
     generate_pdf_report,
     upload_report_to_storage,
 )
+from research_ai.services.expert_finder.source_enrichment import SourceEnrichmentService
 from research_ai.services.pdf_text import (
     extract_text_from_pdf_bytes as _extract_text_from_pdf_bytes,
 )
@@ -556,6 +557,11 @@ class ExpertFinderService:
             data_persisted = True
 
             experts = load_experts_for_expert_search(expert_search_id)
+            publish_progress("Enriching expert profile links...", 72)
+            try:
+                SourceEnrichmentService().enrich_experts(experts)
+            except Exception:
+                logger.exception("Source enrichment failed search_id=%s", search_id)
             publish_progress("Generating PDF report...", 80)
             rows = [expert_to_report_row(e) for e in experts]
             pdf_bytes = generate_pdf_report(rows, query, config)

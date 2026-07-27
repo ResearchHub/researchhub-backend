@@ -1,31 +1,14 @@
-import json
 import logging
 
-import requests
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets
 from rest_framework.decorators import (
     action,
-    api_view,
-    parser_classes,
-    permission_classes,
 )
-from rest_framework.exceptions import ParseError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import Response
 
-from mailing_list.models import (
-    BountyDigestSubscription,
-    CommentSubscription,
-    DigestSubscription,
-    EmailRecipient,
-    HubSubscription,
-    PaperSubscription,
-    ReplySubscription,
-    ThreadSubscription,
-)
+from mailing_list.models import EmailRecipient
 from mailing_list.serializers import EmailRecipientSerializer
-from utils.parsers import PlainTextParser
 
 logger = logging.getLogger(__name__)
 
@@ -48,13 +31,6 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
         )
         if not created:
             return Response("Already exists", status=400)
-
-        email_recipient.digest_subscription = DigestSubscription.objects.create()
-        email_recipient.paper_subscription = PaperSubscription.objects.create()
-        email_recipient.thread_subscription = ThreadSubscription.objects.create()
-        email_recipient.comment_subscription = CommentSubscription.objects.create()
-        email_recipient.reply_subscription = ReplySubscription.objects.create()
-        email_recipient.save()
 
         return Response(EmailRecipientSerializer(email_recipient).data, status=201)
 
@@ -81,63 +57,13 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
             email_recipient.is_opted_out = is_opted_out
             email_recipient.save()
 
-        self._update_subscription(request, "digest_subscription")
-        self._update_subscription(request, "bounty_digest_subscription")
-        self._update_subscription(request, "paper_subscription")
-        self._update_subscription(request, "thread_subscription")
-        self._update_subscription(request, "comment_subscription")
-        self._update_subscription(request, "reply_subscription")
-        self._update_subscription(request, "hub_subscription")
-
         return Response(EmailRecipientSerializer(email_recipient).data, status=200)
-
-    def _update_subscription(self, request, subscription_name):
-        email_recipient = self.get_object()
-
-        data = request.data.get(subscription_name)
-        if not data:
-            return
-
-        if subscription_name == "digest_subscription":
-            sub_id = email_recipient.digest_subscription.id
-            model = DigestSubscription
-        elif subscription_name == "bounty_digest_subscription":
-            sub_id = email_recipient.bounty_digest_subscription.id
-            model = BountyDigestSubscription
-        elif subscription_name == "paper_subscription":
-            sub_id = email_recipient.paper_subscription.id
-            model = PaperSubscription
-        elif subscription_name == "thread_subscription":
-            sub_id = email_recipient.thread_subscription.id
-            model = ThreadSubscription
-        elif subscription_name == "comment_subscription":
-            sub_id = email_recipient.comment_subscription.id
-            model = CommentSubscription
-        elif subscription_name == "reply_subscription":
-            sub_id = email_recipient.reply_subscription.id
-            model = ReplySubscription
-        elif subscription_name == "hub_subscription":
-            sub_id = email_recipient.hub_subscription.id
-            model = HubSubscription
-
-        model.objects.update_or_create(id=sub_id, defaults=data)
 
     @action(detail=False, methods=["POST"], permission_classes=[AllowAny])
     def update_or_create_email_preference(self, request):
         """Enables anonymous users to unsubscribe."""
 
         email = request.data.get("email")
-
-        # TODO: Uncomment to restrict to anonymous users
-        # if EmailRecipient.objects.filter(
-        #     email=email,
-        #     user__isnull=False
-        # ).exists():
-        #     return Response(
-        #         'This route is only for anonymous users',
-        #         status=400
-        #     )
-
         email_recipient, created = EmailRecipient.objects.get_or_create(email=email)
 
         is_opted_out = request.data.get("opt_out")
@@ -150,68 +76,3 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
             status = 201
 
         return Response("success", status=status)
-
-
-@api_view(["POST"])
-@permission_classes(())  # Override default permission classes
-@parser_classes([PlainTextParser])
-@csrf_exempt
-def email_notifications(request):
-    """Handles AWS SNS email notifications."""
-
-    data = request.data
-    if type(request.data) is not dict:
-        data = json.loads(request.data)
-
-    data_type = None
-    try:
-        data_type = data["Type"]
-    except KeyError:
-        raise ParseError(f"Did not find key `Type` in {data}")
-
-    if data_type == "SubscriptionConfirmation":
-        url = data["SubscribeURL"]
-        resp = requests.get(url, timeout=30)
-        if resp.status_code != 200:
-            logger.exception("Failed to subscribe to SNS. Response: %s", resp.text)
-
-    elif data_type == "Notification":
-        data_message = json.loads(data["Message"])
-        notification_type = data_message["notificationType"]
-
-        if notification_type == "Bounce":
-            bounced_recipients = data_message["bounce"]["bouncedRecipients"]
-            for b_r in bounced_recipients:
-                email_address = b_r["emailAddress"]
-                # TODO: Sanitize email address before putting it in the db
-                try:
-                    recipient, created = EmailRecipient.objects.get_or_create(
-                        email=email_address
-                    )
-                    recipient.bounced()
-                except Exception:
-                    logger.exception(
-                        "Failed handling bounced recipient: %s", email_address
-                    )
-
-        elif notification_type == "Complaint":
-            complained_recipients = data_message.get("complaint", {}).get(
-                "complainedRecipients", []
-            )
-            for c_r in complained_recipients:
-                email_address = c_r["emailAddress"]
-                try:
-                    recipient, created = EmailRecipient.objects.get_or_create(
-                        email=email_address
-                    )
-                    recipient.do_not_email = True
-                    recipient.save(update_fields=["do_not_email"])
-                except Exception:
-                    logger.exception(
-                        "Failed handling complained recipient: %s", email_address
-                    )
-
-    else:
-        logger.warning("Received unsupported notification type: %s", data_type)
-
-    return Response({})

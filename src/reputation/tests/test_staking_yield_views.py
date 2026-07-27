@@ -399,6 +399,25 @@ class StakingStatsEndpointTest(StakingPublicStatsTestBase):
             Decimal(resp.data["total_value_locked_usd"]), Decimal("500.00")
         )
 
+    def test_tvl_ignores_legacy_moralis_rate(self):
+        snap = self._create_global_snapshot(
+            date(2026, 4, 20), total_staked=Decimal(1000)
+        )
+        self._add_user_snapshot(snap, Decimal(1000), label="solo")
+        self._create_usd_rate(Decimal("0.50"), on_date=date(2026, 4, 20))
+        RscExchangeRate.objects.create(
+            rate=1,
+            real_rate=1,
+            price_source="MORALIS",
+            target_currency="USD",
+        )
+
+        resp = self.client.get("/api/staking_yield/stats/")
+
+        self.assertEqual(
+            Decimal(resp.data["total_value_locked_usd"]), Decimal("500.00")
+        )
+
     def test_issued_today_matches_daily_emission(self):
         accrual_date = date(2026, 4, 20)
         snap = self._create_global_snapshot(accrual_date, total_staked=Decimal(1000))
@@ -488,6 +507,29 @@ class StakingHistoryEndpointTest(StakingPublicStatsTestBase):
         )
         self.assertEqual(
             Decimal(rows["2026-04-16"]["total_value_locked_usd"]), Decimal("600.00")
+        )
+
+    def test_tvl_ignores_legacy_moralis_rate(self):
+        snapshot_date = date(2026, 4, 15)
+        snap = self._create_global_snapshot(snapshot_date, total_staked=Decimal(1000))
+        self._add_user_snapshot(snap, Decimal(1000), label="solo")
+        self._create_usd_rate(Decimal("0.08"), on_date=snapshot_date)
+        moralis_rate = RscExchangeRate.objects.create(
+            rate=0.1,
+            real_rate=0.08,
+            price_source="MORALIS",
+            target_currency="USD",
+        )
+        forced_dt = datetime.combine(snapshot_date, datetime.max.time(), tzinfo=UTC)
+        RscExchangeRate.objects.filter(pk=moralis_rate.pk).update(
+            created_date=forced_dt
+        )
+
+        resp = self.client.get("/api/staking_yield/history/?range=all")
+
+        self.assertEqual(
+            Decimal(resp.data["results"][0]["total_value_locked_usd"]),
+            Decimal("80.00"),
         )
 
     def test_tvl_null_when_no_rate_exists(self):

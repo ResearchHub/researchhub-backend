@@ -1,5 +1,6 @@
 import json
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
@@ -25,14 +26,22 @@ from researchhub_document.services.journal_entry_service import JournalEntryServ
 from researchhub_document.services.journey_service import JourneyService
 from review.models import Review
 from user.models import User
-from user.tests.helpers import create_organization, create_random_default_user
+from user.tests.helpers import (
+    create_hub_editor,
+    create_organization,
+    create_random_default_user,
+)
+
+# TODO: Re-enable these imports after paper DOI migration.
+# from unittest.mock import MagicMock
+# from paper.related_models.paper_version import PaperVersion
 
 
 class CreateRegisteredReportTests(APITestCase):
     create_url = "/api/researchhubpost/"
 
     def setUp(self) -> None:
-        """Create users and proposal context for registered report tests."""
+        """Create users and authenticate a registered report moderator."""
         self.user = create_random_default_user("rr_owner")
         self.moderator = create_random_default_user("rr_moderator", moderator=True)
         self.hub = create_hub("registered report hub")
@@ -41,10 +50,20 @@ class CreateRegisteredReportTests(APITestCase):
             slug="registered-report-org",
         )
         self.service = JourneyService()
-        self.client.force_authenticate(self.user)
+        self.doi_patcher = patch(
+            "researchhub_document.services.journal_entry_service.DOI"
+        )
+        self.mock_doi_cls = self.doi_patcher.start()
+        self.addCleanup(self.doi_patcher.stop)
+        # TODO: Re-enable DOI mock setup after paper DOI migration.
+        # self.mock_doi = MagicMock()
+        # self.mock_doi.doi = "10.55277/rhj.registered-report.1"
+        # self.mock_doi.register_doi_for_post.return_value = MagicMock(status_code=200)
+        # self.mock_doi_cls.return_value = self.mock_doi
+        self.client.force_authenticate(self.moderator)
 
     def test_create_report_attaches_proposal(self) -> None:
-        """Verify a completed proposal owner can create a registered report."""
+        """Verify a moderator can publish a report for an eligible proposal."""
         # Arrange
         proposal = self._create_completed_proposal(self.user)
         note = self._create_registered_report_note(proposal)
@@ -58,7 +77,7 @@ class CreateRegisteredReportTests(APITestCase):
         report = ResearchhubPost.objects.get(id=response.data["id"])
         proposal.refresh_from_db()
         self.assertEqual(report.document_type, REGISTERED_REPORT)
-        self.assertEqual(report.created_by, self.user)
+        self.assertEqual(report.created_by, self.moderator)
         self.assertEqual(report.note_id, note.id)
         self.assertEqual(report.journey, proposal.journey)
         self.assertEqual(self.service.get_registered_report(proposal.journey), report)
@@ -74,6 +93,42 @@ class CreateRegisteredReportTests(APITestCase):
         )
         self.assertEqual(report.image, proposal.image)
         self.assertEqual(report.preview_img, proposal.preview_img)
+        self.assertIsNone(report.doi)
+        self.assertIsNone(response.data["doi"])
+        self.mock_doi_cls.assert_not_called()
+        # TODO: Re-enable DOI assertions after paper DOI migration.
+        # self.assertEqual(report.doi, self.mock_doi.doi)
+        # self.assertEqual(response.data["doi"], self.mock_doi.doi)
+        # self.mock_doi_cls.assert_called_once_with(
+        #     journal=PaperVersion.RESEARCHHUB,
+        #     version=report.version_number,
+        # )
+        # self.mock_doi.register_doi_for_post.assert_called_once_with(
+        #     list(report.authors.all()),
+        #     report.title,
+        #     report,
+        # )
+
+    # TODO: Re-enable this test after paper DOI migration.
+    # def test_rejects_report_when_journal_doi_registration_fails(self) -> None:
+    #     """Verify Crossref failures do not publish a report without its DOI."""
+    #     # Arrange
+    #     proposal = self._create_completed_proposal(self.user)
+    #     note = self._create_registered_report_note(proposal)
+    #     self.mock_doi.register_doi_for_post.return_value = MagicMock(status_code=500)
+    #
+    #     # Act
+    #     response = self.client.post(
+    #         self.create_url,
+    #         self._build_payload(proposal, note_id=note.id),
+    #         format="json",
+    #     )
+    #
+    #     # Assert
+    #     self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
+    #     self.assertFalse(
+    #         ResearchhubPost.objects.filter(document_type=REGISTERED_REPORT).exists()
+    #     )
 
     def test_create_report_uses_edited_metadata(self) -> None:
         """Verify publishing uses edited registered report authors and image."""
@@ -82,7 +137,7 @@ class CreateRegisteredReportTests(APITestCase):
         note = self._create_registered_report_note(proposal)
         payload = self._build_payload(
             proposal,
-            authors=[self.user.author_profile.id, self.moderator.author_profile.id],
+            authors=[self.user.author_profile.id],
             note_id=note.id,
             preview_img="https://example.com/edited-preview.png",
         )
@@ -95,7 +150,7 @@ class CreateRegisteredReportTests(APITestCase):
         report = ResearchhubPost.objects.get(id=response.data["id"])
         self.assertCountEqual(
             report.authors.all(),
-            [self.user.author_profile, self.moderator.author_profile],
+            [self.user.author_profile],
         )
         self.assertEqual(report.preview_img, "https://example.com/edited-preview.png")
 
@@ -147,35 +202,28 @@ class CreateRegisteredReportTests(APITestCase):
         """Verify publishing freezes both the report and its source note."""
         # Arrange
         proposal = self._create_completed_proposal(self.user)
-        fundraise = Fundraise.objects.get(
-            unified_document=proposal.unified_document,
-            status=Fundraise.COMPLETED,
-        )
-        accepted_entry = JournalEntryService().accept_journal_entry(
-            self.user,
-            self.user.id,
-            fundraise.id,
+        draft = JournalEntryService().create_registered_report_draft(
+            self.moderator,
+            proposal.id,
         )
 
         # Act
         publish_response = self.client.post(
             self.create_url,
-            self._build_payload(proposal, note_id=accepted_entry.note.id),
+            self._build_payload(proposal, note_id=draft.note.id),
             format="json",
         )
 
         # Assert
         self.assertEqual(publish_response.status_code, status.HTTP_200_OK)
         report = ResearchhubPost.objects.get(id=publish_response.data["id"])
-        note_content_count = NoteContent.objects.filter(
-            note=accepted_entry.note
-        ).count()
+        note_content_count = NoteContent.objects.filter(note=draft.note).count()
 
         # Act
         note_response = self.client.post(
             "/api/note_content/",
             {
-                "note": accepted_entry.note.id,
+                "note": draft.note.id,
                 "plain_text": "Attempted published content change.",
                 "full_json": {"type": "doc", "content": []},
             },
@@ -199,7 +247,7 @@ class CreateRegisteredReportTests(APITestCase):
             "Published registered reports cannot be edited.",
         )
         self.assertEqual(
-            NoteContent.objects.filter(note=accepted_entry.note).count(),
+            NoteContent.objects.filter(note=draft.note).count(),
             note_content_count,
         )
 
@@ -216,6 +264,7 @@ class CreateRegisteredReportTests(APITestCase):
             object_id=note.unified_document_id,
             user=self.user,
         )
+        self.client.force_authenticate(self.user)
 
         # Act
         response = self.client.post(
@@ -285,21 +334,45 @@ class CreateRegisteredReportTests(APITestCase):
             ResearchhubPost.objects.filter(document_type=REGISTERED_REPORT).exists()
         )
 
-    def test_reject_moderator_for_other_owner(self) -> None:
-        """Verify moderators cannot create reports for another user's proposal."""
+    def test_hub_editor_can_publish_registered_report(self) -> None:
+        """Verify hub editors can publish their registered report drafts."""
         # Arrange
         proposal = self._create_completed_proposal(self.user)
-        self.client.force_authenticate(self.moderator)
+        editor, _ = create_hub_editor("rr_editor", "Registered Report Editor Hub")
+        draft = JournalEntryService().create_registered_report_draft(
+            editor,
+            proposal.id,
+        )
+        self.client.force_authenticate(editor)
 
         # Act
         response = self.client.post(
             self.create_url,
-            self._build_payload(proposal),
+            self._build_payload(proposal, note_id=draft.note.id),
             format="json",
         )
 
         # Assert
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        report = ResearchhubPost.objects.get(id=response.data["id"])
+        self.assertEqual(report.created_by, editor)
+
+    def test_reject_regular_user(self) -> None:
+        """Verify proposal owners cannot publish registered reports."""
+        # Arrange
+        proposal = self._create_completed_proposal(self.user)
+        note = self._create_registered_report_note(proposal)
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.post(
+            self.create_url,
+            self._build_payload(proposal, note_id=note.id),
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(
             ResearchhubPost.objects.filter(document_type=REGISTERED_REPORT).exists()
         )
@@ -308,11 +381,12 @@ class CreateRegisteredReportTests(APITestCase):
         """Verify proposals without completed fundraises cannot create reports."""
         # Arrange
         proposal = self._create_open_proposal(self.user)
+        note = self._create_registered_report_note(proposal)
 
         # Act
         response = self.client.post(
             self.create_url,
-            self._build_payload(proposal),
+            self._build_payload(proposal, note_id=note.id),
             format="json",
         )
 
@@ -332,11 +406,12 @@ class CreateRegisteredReportTests(APITestCase):
             title="Existing registered report",
         )
         self.service.attach_stage(proposal.journey, report)
+        note = self._create_registered_report_note(proposal)
 
         # Act
         response = self.client.post(
             self.create_url,
-            self._build_payload(proposal),
+            self._build_payload(proposal, note_id=note.id),
             format="json",
         )
 
@@ -538,7 +613,7 @@ class CreateRegisteredReportTests(APITestCase):
 
     def _create_registered_report_note(self, proposal: ResearchhubPost) -> Note:
         """Create a registered report note draft for the given proposal."""
-        note, _ = create_note(self.user, self.organization)
+        note, _ = create_note(self.moderator, self.moderator.organization)
         note.document_type = REGISTERED_REPORT
         note.save(update_fields=["document_type"])
         note.refresh_from_db()
@@ -567,7 +642,7 @@ class CreateRegisteredReportTests(APITestCase):
             amount_holding=Decimal(100),
         )
         fundraise.save(update_fields=["escrow"])
-        self.service.include_completed_fundraise_in_journal(fundraise)
+        self.service.ensure_approved_preregistration_has_journey(proposal)
         proposal.refresh_from_db()
         return proposal
 

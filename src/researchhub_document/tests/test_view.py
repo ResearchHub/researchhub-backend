@@ -20,10 +20,12 @@ from researchhub_document.models import ResearchhubUnifiedDocument, ResearchJour
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
+    REGISTERED_REPORT,
 )
 from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
 )
+from researchhub_document.services.journey_service import JourneyService
 from researchhub_document.views.researchhub_post_views import (
     MIN_POST_BODY_LENGTH,
     MIN_POST_TITLE_LENGTH,
@@ -1961,6 +1963,25 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         response = self.client.get(f"/api/researchhubpost/{discussion.id}/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["grants"], [])
+
+    def test_returns_registered_report_id_for_completed_proposal(self) -> None:
+        """Verify completed proposal work data includes its registered report ID."""
+        # Arrange
+        journey_service = JourneyService()
+        journey = journey_service.get_or_create_for_preregistration(self.prereg_post)
+        registered_report = create_post(
+            created_by=self.moderator,
+            document_type=REGISTERED_REPORT,
+            title="Registered report for preregistration grants payload",
+        )
+        journey_service.attach_stage(journey, registered_report)
+
+        # Act
+        response = self.client.get(f"/api/researchhubpost/{self.prereg_post.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["registered_report_id"], registered_report.id)
 
 
 class PostPeerReviewTests(TestCase):
