@@ -389,7 +389,8 @@ class ResearchhubPostViewSet(
                         registered_report_proposal.journey,
                         rh_post,
                     )
-                    journal_entry_service.register_registered_report_doi(rh_post)
+                    # TODO: Re-enable DOI registration after paper DOI migration.
+                    # journal_entry_service.register_registered_report_doi(rh_post)
 
                 fundraise = None
                 if goal_amount := data.get("fundraise_goal_amount"):

@@ -1,6 +1,9 @@
 import json
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+
+# TODO: Re-enable these imports after paper DOI migration.
+# from unittest.mock import MagicMock
 
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
@@ -9,7 +12,8 @@ from rest_framework.test import APITestCase
 from hub.tests.helpers import create_hub
 from note.models import Note, NoteContent
 from note.tests.helpers import create_note
-from paper.related_models.paper_version import PaperVersion
+# TODO: Re-enable this import after paper DOI migration.
+# from paper.related_models.paper_version import PaperVersion
 from purchase.models import Fundraise, Grant
 from reputation.models import Escrow
 from researchhub_access_group.models import Permission
@@ -52,10 +56,11 @@ class CreateRegisteredReportTests(APITestCase):
         )
         self.mock_doi_cls = self.doi_patcher.start()
         self.addCleanup(self.doi_patcher.stop)
-        self.mock_doi = MagicMock()
-        self.mock_doi.doi = "10.55277/rhj.registered-report.1"
-        self.mock_doi.register_doi_for_post.return_value = MagicMock(status_code=200)
-        self.mock_doi_cls.return_value = self.mock_doi
+        # TODO: Re-enable DOI mock setup after paper DOI migration.
+        # self.mock_doi = MagicMock()
+        # self.mock_doi.doi = "10.55277/rhj.registered-report.1"
+        # self.mock_doi.register_doi_for_post.return_value = MagicMock(status_code=200)
+        # self.mock_doi_cls.return_value = self.mock_doi
         self.client.force_authenticate(self.moderator)
 
     def test_create_report_attaches_proposal(self) -> None:
@@ -89,37 +94,42 @@ class CreateRegisteredReportTests(APITestCase):
         )
         self.assertEqual(report.image, proposal.image)
         self.assertEqual(report.preview_img, proposal.preview_img)
-        self.assertEqual(report.doi, self.mock_doi.doi)
-        self.assertEqual(response.data["doi"], self.mock_doi.doi)
-        self.mock_doi_cls.assert_called_once_with(
-            journal=PaperVersion.RESEARCHHUB,
-            version=report.version_number,
-        )
-        self.mock_doi.register_doi_for_post.assert_called_once_with(
-            list(report.authors.all()),
-            report.title,
-            report,
-        )
+        self.assertIsNone(report.doi)
+        self.assertIsNone(response.data["doi"])
+        self.mock_doi_cls.assert_not_called()
+        # TODO: Re-enable DOI assertions after paper DOI migration.
+        # self.assertEqual(report.doi, self.mock_doi.doi)
+        # self.assertEqual(response.data["doi"], self.mock_doi.doi)
+        # self.mock_doi_cls.assert_called_once_with(
+        #     journal=PaperVersion.RESEARCHHUB,
+        #     version=report.version_number,
+        # )
+        # self.mock_doi.register_doi_for_post.assert_called_once_with(
+        #     list(report.authors.all()),
+        #     report.title,
+        #     report,
+        # )
 
-    def test_rejects_report_when_journal_doi_registration_fails(self) -> None:
-        """Verify Crossref failures do not publish a report without its DOI."""
-        # Arrange
-        proposal = self._create_completed_proposal(self.user)
-        note = self._create_registered_report_note(proposal)
-        self.mock_doi.register_doi_for_post.return_value = MagicMock(status_code=500)
-
-        # Act
-        response = self.client.post(
-            self.create_url,
-            self._build_payload(proposal, note_id=note.id),
-            format="json",
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
-        self.assertFalse(
-            ResearchhubPost.objects.filter(document_type=REGISTERED_REPORT).exists()
-        )
+    # TODO: Re-enable this test after paper DOI migration.
+    # def test_rejects_report_when_journal_doi_registration_fails(self) -> None:
+    #     """Verify Crossref failures do not publish a report without its DOI."""
+    #     # Arrange
+    #     proposal = self._create_completed_proposal(self.user)
+    #     note = self._create_registered_report_note(proposal)
+    #     self.mock_doi.register_doi_for_post.return_value = MagicMock(status_code=500)
+    #
+    #     # Act
+    #     response = self.client.post(
+    #         self.create_url,
+    #         self._build_payload(proposal, note_id=note.id),
+    #         format="json",
+    #     )
+    #
+    #     # Assert
+    #     self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
+    #     self.assertFalse(
+    #         ResearchhubPost.objects.filter(document_type=REGISTERED_REPORT).exists()
+    #     )
 
     def test_create_report_uses_edited_metadata(self) -> None:
         """Verify publishing uses edited registered report authors and image."""
