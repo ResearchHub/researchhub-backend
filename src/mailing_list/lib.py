@@ -8,14 +8,6 @@ from researchhub.settings import (
 )
 from utils.message import deliver_email
 
-
-class NotificationFrequencies:
-    IMMEDIATE = 0
-    DAILY = 1440
-    THREE_HOUR = 180
-    WEEKLY = 10080
-
-
 base_email_context = {
     "assets_base_url": ASSETS_BASE_URL,
     "opt_out": BASE_FRONTEND_URL + "/email/opt-out/",
