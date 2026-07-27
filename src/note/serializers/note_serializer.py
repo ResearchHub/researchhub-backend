@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from django.core.files.storage import default_storage
 from django.db.models import Q
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
@@ -369,6 +370,8 @@ def build_registered_report_prefill(
     hub_ids = list(hubs.values_list("id", flat=True))
     hub_data = SimpleHubSerializer(hubs, context=context, many=True).data
     image, preview_img = _get_registered_report_images(metadata)
+    if image:
+        preview_img = default_storage.url(image)
 
     return {
         "author_ids": author_ids,
