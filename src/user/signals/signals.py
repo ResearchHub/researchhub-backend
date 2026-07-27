@@ -62,44 +62,7 @@ def create_action(sender, instance, created, **kwargs):
         if hubs:
             action.hubs.add(*hubs)
 
-        send_discussion_email_notification(instance, sender, action)
         return action
-
-
-def send_discussion_email_notification(instance, sender, action):
-    if sender != RhCommentModel:
-        return
-
-    for recipient in instance.users_to_notify:
-        creator = instance.created_by
-        if recipient != creator:
-            email_preference = getattr(recipient, "emailrecipient", None)
-            subscription = None
-            try:
-                # Checks if the recipient has an email recipient obj
-                if not email_preference:
-                    return
-
-                subscription = email_preference.comment_subscription
-                subject = "ResearchHub | Someone created a discussion on your post"
-                if (
-                    email_preference.receives_notifications
-                    and subscription
-                    and not subscription.none
-                ):
-                    context = {
-                        **base_email_context,
-                        "actions": [action.email_context()],
-                    }
-                    send_email(
-                        recipient.email,
-                        "notification_email.txt",
-                        subject,
-                        context,
-                        html_template="notification_email.html",
-                    )
-            except Exception:
-                logger.exception("Failed to send discussion email notification")
 
 
 @receiver(post_delete, sender=Paper, dispatch_uid="paper_delete_action")
