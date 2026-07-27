@@ -45,21 +45,34 @@ logger = logging.getLogger(__name__)
 
 # Default generator model. Bare first-party id -- Claude Platform is
 # Anthropic-operated, so it takes no provider prefix and no date suffix.
-# Override per environment via RESEARCH_AI_CLAUDE_PLATFORM_MODEL_ID.
-_DEFAULT_MODEL_ID = "claude-opus-5"
+# Callers that want a different model pass ``model_id``.
+MODEL_ID = "claude-opus-5"
 
 # How much the model may deliberate and spend per turn: low | medium | high |
 # xhigh | max. ``high`` is the API default and the closest match to the prior
-# Bedrock behaviour; ``xhigh`` trades tokens for depth on agentic work. Set the
-# setting to "" to omit the parameter entirely (models older than 4.5 reject it).
-_DEFAULT_EFFORT = "high"
+# Bedrock behaviour; ``xhigh`` trades tokens for depth on agentic work, and
+# medium/low are the cost lever. "" omits the parameter entirely (models older
+# than 4.5 reject it).
+EFFORT = "high"
 
 # Adaptive thinking lets the model choose its own reasoning depth per turn; it
 # is the only supported on-mode from Opus 4.6 onward and is already the default
-# on Opus 5. Sent explicitly so the loop behaves the same if the configured
-# model changes. Set the setting to "" to omit it, or "disabled" to turn
-# thinking off (Opus 5 accepts that only at effort ``high`` or below).
-_DEFAULT_THINKING = "adaptive"
+# on Opus 5. Sent explicitly so the loop behaves the same if the model changes.
+# "" omits it; "disabled" turns thinking off (Opus 5 accepts that only at
+# effort ``high`` or below).
+THINKING = "adaptive"
+
+# Prompt caching is the dominant cost lever for this uncached, ever-growing tool
+# loop: the tools+system prefix is byte-identical every turn and the conversation
+# only grows by appending, so cache breakpoints turn full-price re-reads into
+# ~0.1x cache reads.
+PROMPT_CACHING = True
+
+# An agent turn that thinks and writes a full proposal section runs long; an
+# explicit timeout also suppresses the SDK's non-streaming duration guard.
+# Retries absorb transient throttling so one 429 does not kill a long run.
+TIMEOUT_SECONDS = 600.0
+MAX_RETRIES = 8
 
 # Models that reject sampling params (temperature/top_p/top_k) with a 400.
 # Everything from Opus 4.7 on dropped them; the loop's temperature is simply
@@ -89,11 +102,6 @@ _STOP_REASONS = {
 _THINKING_BLOCK_TYPES = ("thinking", "redacted_thinking")
 
 
-def default_model_id() -> str:
-    """The Claude Platform model id from settings (the constructor default)."""
-    return getattr(settings, "RESEARCH_AI_CLAUDE_PLATFORM_MODEL_ID", _DEFAULT_MODEL_ID)
-
-
 def _accepts_sampling_params(model_id: str) -> bool:
     mid = model_id.lower()
     return not any(tag in mid for tag in _NO_SAMPLING_PARAMS)
@@ -108,19 +116,15 @@ def _build_client() -> AnthropicAWS | None:
     The two values are checked here rather than left to the SDK because it
     raises on a missing one, which would move the failure into a constructor.
     """
-    workspace_id = getattr(settings, "ANTHROPIC_AWS_WORKSPACE_ID", "") or ""
-    region = getattr(settings, "AWS_REGION_NAME", "") or ""
+    workspace_id = settings.ANTHROPIC_AWS_WORKSPACE_ID
+    region = settings.AWS_REGION_NAME
     if not (workspace_id and region):
         return None
     return AnthropicAWS(
         aws_region=region,
         workspace_id=workspace_id,
-        # An agent turn that thinks and writes a full proposal section runs
-        # long; an explicit timeout also suppresses the SDK's non-streaming
-        # duration guard. Retries absorb transient throttling so one 429 does
-        # not kill a long multi-turn run.
-        timeout=float(getattr(settings, "ANTHROPIC_AWS_TIMEOUT", 600)),
-        max_retries=int(getattr(settings, "ANTHROPIC_AWS_MAX_RETRIES", 8)),
+        timeout=TIMEOUT_SECONDS,
+        max_retries=MAX_RETRIES,
     )
 
 
@@ -136,21 +140,11 @@ class ClaudePlatformProvider(LLMProvider):
     """Adapts the neutral agent types to the Anthropic Messages API on AWS."""
 
     def __init__(self, *, client: Any = None, model_id: str | None = None):
-        self.model_id = model_id or default_model_id()
+        self.model_id = model_id or MODEL_ID
         self._client = client if client is not None else _build_client()
-        # Prompt caching is the dominant cost lever for this uncached,
-        # ever-growing tool loop: the tools+system prefix is byte-identical
-        # every turn and the conversation only grows by appending, so cache
-        # breakpoints turn full-price re-reads into ~0.1x cache reads.
-        self.prompt_caching = getattr(
-            settings, "RESEARCH_AI_CLAUDE_PLATFORM_PROMPT_CACHING", True
-        )
-        self.effort = getattr(
-            settings, "RESEARCH_AI_CLAUDE_PLATFORM_EFFORT", _DEFAULT_EFFORT
-        )
-        self.thinking = getattr(
-            settings, "RESEARCH_AI_CLAUDE_PLATFORM_THINKING", _DEFAULT_THINKING
-        )
+        self.prompt_caching = PROMPT_CACHING
+        self.effort = EFFORT
+        self.thinking = THINKING
 
     # -- public surface ---------------------------------------------------
 

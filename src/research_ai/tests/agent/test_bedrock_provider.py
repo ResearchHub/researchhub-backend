@@ -11,6 +11,7 @@ from research_ai.services.agent.types import (
     Message,
     StopReason,
     TextBlock,
+    ThinkingBlock,
     ToolResultBlock,
     ToolUseBlock,
     TurnUsage,
@@ -107,8 +108,79 @@ class RenderMessagesTests(SimpleTestCase):
         )
         self.assertEqual(rendered[2]["content"][1]["toolResult"]["status"], "error")
 
+    def test_reasoning_blocks_render_back_verbatim(self):
+        # Arrange: signed reasoning must replay unedited on the next turn.
+        provider = _build_provider()
+        payload = {"reasoningText": {"text": "step one", "signature": "sig"}}
+        messages = [
+            Message(role="assistant", content=[ThinkingBlock(data=payload)]),
+        ]
+
+        # Act
+        rendered = provider._render_messages(messages)
+
+        # Assert
+        self.assertEqual(rendered[0]["content"][0], {"reasoningContent": payload})
+
 
 class CompleteAndParseTests(SimpleTestCase):
+    def test_default_model_is_opus_5_on_the_inference_profile(self):
+        # Arrange / Act: Bedrock needs the ``us.`` cross-region profile prefix.
+        provider = BedrockProvider(client=FakeConverseClient([]))
+
+        # Assert
+        self.assertEqual(provider.model_id, "us.anthropic.claude-opus-5")
+
+    def test_parses_reasoning_content_into_thinking_blocks(self):
+        # Arrange: Opus 5 thinks by default, so a turn can carry reasoning.
+        reasoning = {"reasoningText": {"text": "step one", "signature": "sig"}}
+        response = {
+            "output": {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {"reasoningContent": reasoning},
+                        {"text": "done"},
+                    ],
+                }
+            },
+            "stopReason": "end_turn",
+        }
+        provider = _build_provider([response])
+
+        # Act
+        turn = provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=100,
+            temperature=0.0,
+        )
+
+        # Assert: captured whole, alongside the visible text.
+        self.assertEqual([b.data for b in turn.thinking_blocks], [reasoning])
+        self.assertEqual(turn.text, "done")
+
+    def test_omits_temperature_for_opus_5(self):
+        # Arrange: the new default model rejects sampling params with a 400.
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+        }
+        provider = BedrockProvider(client=FakeConverseClient([response]))
+
+        # Act
+        provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=100,
+            temperature=0.0,
+        )
+
+        # Assert
+        self.assertNotIn("temperature", provider._client.calls[0]["inferenceConfig"])
+
     def test_complete_parses_text_and_tool_use_and_stop_reason(self):
         # Arrange
         response = {

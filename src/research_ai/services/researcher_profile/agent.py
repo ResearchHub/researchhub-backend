@@ -15,7 +15,6 @@ the terminal ``submit_profile`` payload from the toolset, and grounds it.
 import json
 import logging
 
-from django.conf import settings
 from django.utils import timezone
 
 from research_ai.services.agent import AgentService, LLMProvider, resolve_provider
@@ -29,7 +28,7 @@ _MAX_WORKS = 5  # works kept on the profile after grounding
 _MAX_CAPABILITIES = 12  # capabilities kept on the profile after grounding
 _MAX_EVIDENCE_PER_CAPABILITY = 3  # evidence source_urls kept per capability
 _VALID_CAPABILITY_KINDS = ("technique", "instrument", "model_system", "dataset")
-_DEFAULT_MAX_ITERATIONS = 16  # tool turns before the agent loop gives up
+_MAX_ITERATIONS = 16  # tool turns before the agent loop gives up
 
 _SYSTEM_PROMPT = """\
 You identify a researcher in OpenAlex and summarize their best work.
@@ -213,12 +212,9 @@ def run_profile_agent(
     errors: list[str] = []
     toolset = OpenAlexToolset(client=oa_client)
     provider = provider or resolve_provider()
-    max_iterations = getattr(
-        settings, "RESEARCH_AI_AGENT_MAX_ITERATIONS", _DEFAULT_MAX_ITERATIONS
-    )
-    agent = AgentService(provider=provider, max_iterations=max_iterations).create_agent(
-        toolset.as_toolset(), system_prompt=_SYSTEM_PROMPT
-    )
+    agent = AgentService(
+        provider=provider, max_iterations=_MAX_ITERATIONS
+    ).create_agent(toolset.as_toolset(), system_prompt=_SYSTEM_PROMPT)
 
     try:
         agent.run(_user_prompt(expert))

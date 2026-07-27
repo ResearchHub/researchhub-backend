@@ -240,16 +240,14 @@ class CompleteAndParseTests(SimpleTestCase):
         self.assertEqual(call["output_config"], {"effort": "high"})
         self.assertNotIn("temperature", call)
 
-    @override_settings(
-        RESEARCH_AI_CLAUDE_PLATFORM_THINKING="",
-        RESEARCH_AI_CLAUDE_PLATFORM_EFFORT="",
-    )
     def test_thinking_off_forwards_temperature_for_a_sampling_model(self):
         # Arrange: with thinking omitted, a sampling-friendly model keeps it.
         provider = ClaudePlatformProvider(
             client=FakeAnthropicClient([_build_response([])]),
             model_id="claude-haiku-4-5",
         )
+        provider.thinking = ""
+        provider.effort = ""
 
         # Act
         _complete(provider, temperature=0.7)
@@ -375,10 +373,11 @@ class ModelConfigTests(SimpleTestCase):
         # Assert: the bare first-party id -- Claude Platform takes no prefix.
         self.assertEqual(provider.model_id, "claude-opus-5")
 
-    @override_settings(RESEARCH_AI_CLAUDE_PLATFORM_MODEL_ID="claude-sonnet-5")
-    def test_model_id_setting_overrides_the_default(self):
+    def test_explicit_model_id_overrides_the_default(self):
         # Arrange / Act
-        provider = ClaudePlatformProvider(client=FakeAnthropicClient([]))
+        provider = ClaudePlatformProvider(
+            client=FakeAnthropicClient([]), model_id="claude-sonnet-5"
+        )
 
         # Assert
         self.assertEqual(provider.model_id, "claude-sonnet-5")

@@ -553,9 +553,8 @@ ANTHROPIC_AWS_WORKSPACE_ID = os.environ.get(
 )
 
 # Which provider the research_ai agent core generates with: "claude_platform"
-# (default, Claude Platform on AWS -- model picked by
-# RESEARCH_AI_CLAUDE_PLATFORM_MODEL_ID) or "bedrock" (model picked by
-# RESEARCH_AI_GENERATOR_MODEL_ID). Both default in their adapters.
+# (default, Claude Platform on AWS) or "bedrock". Each adapter names its own
+# model and inference knobs as module constants.
 RESEARCH_AI_GENERATOR_PROVIDER = os.environ.get(
     "RESEARCH_AI_GENERATOR_PROVIDER", "claude_platform"
 )

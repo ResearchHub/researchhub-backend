@@ -1,14 +1,15 @@
 """Model-ref -> provider resolution for the agent core.
 
-Two levers pick a provider, both settings-driven:
+Two levers pick a provider:
 
-- ``RESEARCH_AI_GENERATOR_PROVIDER`` (``"claude_platform"``, the default, or
-  ``"bedrock"``) selects the generator provider used when no explicit model ref
-  is given.
+- The ``RESEARCH_AI_GENERATOR_PROVIDER`` setting (``"claude_platform"``, the
+  default, or ``"bedrock"``) selects the generator provider used when no
+  explicit model ref is given. It is a real per-environment switch; each
+  adapter's model and inference knobs are module constants in the adapter.
 - An individual model ref may carry a provider prefix -- ``bedrock:<id>`` routes
   that one model through Bedrock Converse, ``claude_platform:<id>`` through
-  Claude Platform on AWS. This is how ``RESEARCH_AI_JUDGE_MODEL_IDS`` mixes
-  model families across providers in one roster.
+  Claude Platform on AWS. This is how the judge roster mixes model families
+  across providers in one panel.
 
 An unprefixed ref belongs to the configured generator provider, so a Bedrock
 deployment's existing ``us.anthropic.*`` ids keep resolving to Bedrock without
@@ -39,10 +40,7 @@ _PREFIXES = (f"{BEDROCK}:", f"{CLAUDE_PLATFORM}:")
 
 def generator_provider_name() -> str:
     """The configured generator provider name, validated."""
-    name = (
-        getattr(settings, "RESEARCH_AI_GENERATOR_PROVIDER", DEFAULT_PROVIDER)
-        or DEFAULT_PROVIDER
-    ).lower()
+    name = (settings.RESEARCH_AI_GENERATOR_PROVIDER or DEFAULT_PROVIDER).lower()
     if name not in (BEDROCK, CLAUDE_PLATFORM):
         raise ValueError(
             f"Unknown RESEARCH_AI_GENERATOR_PROVIDER: {name!r} "
@@ -55,8 +53,8 @@ def generator_model_ref() -> str:
     """The configured generator as a model ref (prefixed with its provider)."""
     name = generator_provider_name()
     if name == BEDROCK:
-        return f"{BEDROCK}:{bedrock.default_model_id()}"
-    return f"{CLAUDE_PLATFORM}:{claude_platform.default_model_id()}"
+        return f"{BEDROCK}:{bedrock.MODEL_ID}"
+    return f"{CLAUDE_PLATFORM}:{claude_platform.MODEL_ID}"
 
 
 def resolve_provider(model_ref: str | None = None) -> LLMProvider:

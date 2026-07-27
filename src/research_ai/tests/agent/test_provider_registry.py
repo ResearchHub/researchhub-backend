@@ -1,10 +1,10 @@
-"""Unit tests for the settings-driven provider registry (no clients built)."""
+"""Unit tests for the provider registry (no clients built)."""
 
 from unittest.mock import patch
 
 from django.test import SimpleTestCase, override_settings
 
-from research_ai.services.agent.providers import registry
+from research_ai.services.agent.providers import claude_platform, registry
 from research_ai.services.agent.providers.claude_platform import ClaudePlatformProvider
 from research_ai.services.agent.providers.registry import (
     generator_model_ref,
@@ -20,24 +20,21 @@ class GeneratorModelRefTests(SimpleTestCase):
         # Assert
         self.assertEqual(ref, "claude_platform:claude-opus-5")
 
-    @override_settings(RESEARCH_AI_CLAUDE_PLATFORM_MODEL_ID="claude-sonnet-5")
-    def test_claude_platform_ref_reads_its_model_setting(self):
+    @patch.object(claude_platform, "MODEL_ID", "claude-sonnet-5")
+    def test_claude_platform_ref_reads_its_module_default(self):
         # Arrange / Act
         ref = generator_model_ref()
 
         # Assert
         self.assertEqual(ref, "claude_platform:claude-sonnet-5")
 
-    @override_settings(
-        RESEARCH_AI_GENERATOR_PROVIDER="bedrock",
-        RESEARCH_AI_GENERATOR_MODEL_ID="us.custom.model",
-    )
+    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
     def test_bedrock_ref_carries_the_provider_prefix(self):
         # Arrange / Act
         ref = generator_model_ref()
 
         # Assert
-        self.assertEqual(ref, "bedrock:us.custom.model")
+        self.assertEqual(ref, "bedrock:us.anthropic.claude-opus-5")
 
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="acme")
     def test_unknown_provider_name_raises(self):
@@ -98,4 +95,4 @@ class ResolveProviderTests(SimpleTestCase):
 
         # Assert
         self.assertIs(provider, bedrock_cls.return_value)
-        bedrock_cls.assert_called_once_with(model_id="us.anthropic.claude-opus-4-8")
+        bedrock_cls.assert_called_once_with(model_id="us.anthropic.claude-opus-5")

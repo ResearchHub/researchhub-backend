@@ -3,11 +3,11 @@
 The critique step scores a draft with a roster of one or more judges, reduced by
 median (absolute scoring) and majority (pairwise). The default roster is a single
 judge on the **generator model itself** -- in practice it critiques its own
-drafts harshly enough to surface real issues. The roster is configurable via
-``RESEARCH_AI_JUDGE_MODEL_IDS`` for anyone who wants a multi-model, cross-family
-panel; each roster entry is a model ref resolved through the provider registry,
-so an unprefixed id stays on the generator's provider while a
-``bedrock:<id>`` / ``claude_platform:<id>`` ref routes that one judge elsewhere.
+drafts harshly enough to surface real issues. Name refs in ``JUDGE_MODEL_IDS``
+below for a multi-model, cross-family panel; each roster entry is a model ref
+resolved through the provider registry, so an unprefixed id stays on the
+generator's provider while a ``bedrock:<id>`` / ``claude_platform:<id>`` ref
+routes that one judge elsewhere.
 
 The panel runs two modes off the roster:
 
@@ -27,8 +27,6 @@ import json
 import logging
 import statistics
 
-from django.conf import settings
-
 from research_ai.prompts._loader import load_template
 from research_ai.services.agent import (
     LLMProvider,
@@ -45,6 +43,12 @@ _RUBRIC_CRITERIA = ("c1", "c2", "c3", "c4", "c5", "c6", "c7")
 _MIN_SCORE = 1
 _MAX_SCORE = 5
 
+# The judge roster, as model refs. Empty means a single judge on the generator
+# model. Name refs here for a multi-model, cross-family panel; an entry may
+# carry a provider prefix (``bedrock:`` / ``claude_platform:``) to route that
+# judge somewhere other than the generator's provider.
+JUDGE_MODEL_IDS: list[str] = []
+
 
 def _default_generator_id() -> str:
     # The registry's ref carries the provider prefix, so the default
@@ -54,9 +58,8 @@ def _default_generator_id() -> str:
 
 
 def _default_roster_ids(generator_id: str) -> list[str]:
-    """Roster model ids from settings; defaults to a single judge on the generator."""
-    ids = list(getattr(settings, "RESEARCH_AI_JUDGE_MODEL_IDS", []) or [])
-    return ids or [generator_id]
+    """The configured roster; defaults to a single judge on the generator."""
+    return list(JUDGE_MODEL_IDS) or [generator_id]
 
 
 def _coerce_score(raw: object) -> int:
@@ -125,7 +128,8 @@ class ProposalJudgePanel:
 
     Args:
         providers: Explicit judge providers (one per judge). When omitted, a
-            default roster is built lazily from settings. Injected in tests.
+            default roster is built lazily from the module roster. Injected in
+            tests.
         generator_model_id: The generator's model id; the default roster is a
             single judge on this model.
         max_tokens / temperature: Inference config for each judge call. The
