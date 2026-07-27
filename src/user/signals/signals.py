@@ -10,7 +10,6 @@ from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
 from discussion.models import Vote
-from mailing_list.lib import base_email_context, send_email
 from paper.models import Paper, PaperSubmission
 from reputation.models import Bounty
 from researchhub_access_group.constants import ADMIN
