@@ -5,15 +5,6 @@ from django.utils import timezone
 from mailing_list.lib import NotificationFrequencies
 
 
-class EmailTaskLog(models.Model):
-    emails = models.TextField()
-    notification_frequency = models.IntegerField(
-        default=NotificationFrequencies.IMMEDIATE,
-    )
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
-
-
 class SubscriptionField(models.OneToOneField):
     def __init__(self, *args, **kwargs):
         kwargs["on_delete"] = models.CASCADE
