@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from purchase.models import Fundraise, UsdFundraiseContribution
+from purchase.models import Fundraise
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import MORALIS
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
