@@ -2,9 +2,6 @@ import json
 from decimal import Decimal
 from unittest.mock import patch
 
-# TODO: Re-enable these imports after paper DOI migration.
-# from unittest.mock import MagicMock
-
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -12,8 +9,6 @@ from rest_framework.test import APITestCase
 from hub.tests.helpers import create_hub
 from note.models import Note, NoteContent
 from note.tests.helpers import create_note
-# TODO: Re-enable this import after paper DOI migration.
-# from paper.related_models.paper_version import PaperVersion
 from purchase.models import Fundraise, Grant
 from reputation.models import Escrow
 from researchhub_access_group.models import Permission
@@ -36,6 +31,10 @@ from user.tests.helpers import (
     create_organization,
     create_random_default_user,
 )
+
+# TODO: Re-enable these imports after paper DOI migration.
+# from unittest.mock import MagicMock
+# from paper.related_models.paper_version import PaperVersion
 
 
 class CreateRegisteredReportTests(APITestCase):
