@@ -2,10 +2,14 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
-from mailing_list.lib import NotificationFrequencies
-
 
 class SubscriptionField(models.OneToOneField):
+    """Retained only for historical migrations that reference it.
+
+    No model uses this field type anymore; the per-category subscription
+    models it was created for have all been removed.
+    """
+
     def __init__(self, *args, **kwargs):
         kwargs["on_delete"] = models.CASCADE
         kwargs["null"] = True
@@ -13,9 +17,7 @@ class SubscriptionField(models.OneToOneField):
 
 
 class EmailRecipient(models.Model):
-    """Subscriptions define what category of content a user is notified about
-    and how often they are notified, but not what they are subscribed to.
-    """
+    """Tracks an email address and whether it should receive mail."""
 
     email = models.EmailField(unique=True)
     do_not_email = models.BooleanField(default=False)
@@ -23,9 +25,6 @@ class EmailRecipient(models.Model):
     next_cursor = models.IntegerField(default=0)
     user = models.OneToOneField(
         "user.User", on_delete=models.CASCADE, default=None, null=True
-    )
-    comment_subscription = SubscriptionField(
-        "mailing_list.CommentSubscription", related_name="email_recipient"
     )
     bounced_date = models.DateTimeField(default=None, null=True)
     created_date = models.DateTimeField(auto_now_add=True)
@@ -48,11 +47,6 @@ class EmailRecipient(models.Model):
     def __str__(self):
         return f"{self.email}"
 
-    def save(self, *args, **kwargs):
-        if self.comment_subscription is None:
-            self.comment_subscription = CommentSubscription.objects.create()
-        return super().save(*args, **kwargs)
-
     def bounced(self):
         self.bounced_date = timezone.now()
         self.do_not_email = True
@@ -65,34 +59,3 @@ class EmailRecipient(models.Model):
     @property
     def receives_notifications(self):
         return not self.do_not_email and not self.is_opted_out
-
-
-class BaseSubscription(models.Model):
-    NOTIFICATION_FREQUENCY_CHOICES = (
-        ("IMMEDIATE", NotificationFrequencies.IMMEDIATE),
-        ("THREE_HOUR", NotificationFrequencies.THREE_HOUR),
-        ("DAILY", NotificationFrequencies.DAILY),
-        ("WEEKLY", NotificationFrequencies.WEEKLY),
-    )
-    notification_frequency = models.IntegerField(
-        default=NotificationFrequencies.IMMEDIATE,
-        choices=NOTIFICATION_FREQUENCY_CHOICES,
-    )
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        abstract = True
-
-    def __str__(self):
-        # TODO: Strip hidden functions
-        return str(self.__dict__.items())
-
-    def unsubscribe(self):
-        self.none = True
-        self.save()
-
-
-class CommentSubscription(BaseSubscription):
-    none = models.BooleanField(default=False)
-    replies = models.BooleanField(default=True)
