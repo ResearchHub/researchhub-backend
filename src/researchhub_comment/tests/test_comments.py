@@ -1,4 +1,3 @@
-# flake8: noqa
 import threading
 import time
 from unittest.mock import patch
@@ -596,7 +595,10 @@ class CommentViewTests(APITestCase):
 
     def _get_metadata(self):
         """Helper to fetch the document-metadata payload for ``self.paper``."""
-        url = f"/api/researchhub_unified_document/{self.paper.unified_document.id}/get_document_metadata/"
+        url = (
+            f"/api/researchhub_unified_document/{self.paper.unified_document.id}"
+            "/get_document_metadata/"
+        )
         return self.client.get(url)
 
     def test_get_document_metadata_review_metrics_update(self):
