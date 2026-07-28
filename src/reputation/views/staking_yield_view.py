@@ -10,7 +10,6 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.related_models.staking_global_snapshot import StakingGlobalSnapshot
 from reputation.related_models.staking_user_snapshot import StakingUserSnapshot
 from reputation.related_models.staking_yield_record import StakingYieldRecord
@@ -173,16 +172,10 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
         ]
         apy_30d_avg = sum(apy_values) / len(apy_values) if apy_values else 0.0
 
-        try:
-            usd_rate = RscExchangeRate.get_latest()
-        except AttributeError:
-            usd_rate = None
-        if usd_rate:
-            usd_rate_decimal = Decimal(str(usd_rate))
-            tvl_usd = usd_rate_decimal * latest.total_staked
-        else:
-            usd_rate_decimal = None
-            tvl_usd = None
+        # Value the snapshot at the rate of its own accrual date, matching
+        # /history, so the latest history point and these stats agree.
+        usd_rate = StakingYieldService.resolve_usd_rate_for_date(latest.accrual_date)
+        tvl_usd = usd_rate * latest.total_staked if usd_rate is not None else None
 
         if latest.circulating_supply > 0:
             pct_of_supply = (
@@ -194,11 +187,7 @@ class StakingYieldViewSet(viewsets.GenericViewSet):
         issued_today_rsc = StakingYieldService.compute_total_daily_emission(
             latest.accrual_date
         )
-        issued_today_usd = (
-            usd_rate_decimal * issued_today_rsc
-            if usd_rate_decimal is not None
-            else None
-        )
+        issued_today_usd = usd_rate * issued_today_rsc if usd_rate is not None else None
 
         return {
             "accrual_date": latest.accrual_date,
