@@ -429,8 +429,8 @@ class CreateRegisteredReportTests(APITestCase):
         # Assert
         self.assertIn(response.status_code, (401, 403))
 
-    def test_retrieve_report_work_returns_tracker_post_references(self) -> None:
-        """Verify registered report work data includes tracker post references."""
+    def test_retrieves_work_with_tracker_and_reviewer_profile(self) -> None:
+        """Verify registered report work data includes tracker references and profiles."""
         # Arrange
         proposal = self._create_completed_proposal(self.user)
         grant_post = self._create_grant_post()
@@ -438,6 +438,9 @@ class CreateRegisteredReportTests(APITestCase):
         proposal.journey.save(update_fields=["grant_post"])
         proposal.doi = "10.55277/registered-report-proposal"
         proposal.save(update_fields=["doi"])
+        reviewer_profile_image = "https://example.com/reviewer-profile.jpg"
+        self.moderator.author_profile.profile_image = reviewer_profile_image
+        self.moderator.author_profile.save(update_fields=["profile_image"])
         active_review = Review.objects.create(
             created_by=self.moderator,
             unified_document=proposal.unified_document,
@@ -515,6 +518,12 @@ class CreateRegisteredReportTests(APITestCase):
         self.assertEqual(
             proposal_data["peer_reviews"][0]["created_by"]["id"],
             self.moderator.id,
+        )
+        self.assertEqual(
+            proposal_data["peer_reviews"][0]["created_by"]["author_profile"][
+                "profile_image"
+            ],
+            reviewer_profile_image,
         )
         self.assertEqual(response.data["work"]["full_json"], full_json)
         self.assertNotIn("formatted_html", response.data["work"])
