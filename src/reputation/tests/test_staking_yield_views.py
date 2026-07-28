@@ -386,7 +386,7 @@ class StakingStatsEndpointTest(StakingPublicStatsTestBase):
         resp = self.client.get("/api/staking_yield/stats/")
         self.assertAlmostEqual(float(resp.data["apy_30d_avg"]), expected_avg, places=4)
 
-    def test_tvl_uses_latest_usd_rate(self):
+    def test_tvl_uses_rate_as_of_accrual_date(self):
         snap = self._create_global_snapshot(
             date(2026, 4, 20), total_staked=Decimal(1000)
         )
@@ -397,6 +397,55 @@ class StakingStatsEndpointTest(StakingPublicStatsTestBase):
         # 1000 RSC * $0.50 = $500.00
         self.assertEqual(
             Decimal(resp.data["total_value_locked_usd"]), Decimal("500.00")
+        )
+
+    def test_tvl_ignores_rate_recorded_after_accrual_date(self):
+        # Arrange: a newer rate exists, but it postdates the latest snapshot.
+        accrual_date = date(2026, 4, 20)
+        snap = self._create_global_snapshot(accrual_date, total_staked=Decimal(1000))
+        self._add_user_snapshot(snap, Decimal(1000), label="solo")
+        self._create_usd_rate(Decimal("0.50"), on_date=accrual_date)
+        self._create_usd_rate(Decimal("0.90"), on_date=date(2026, 4, 25))
+
+        # Act
+        resp = self.client.get("/api/staking_yield/stats/")
+
+        # Assert: priced at the accrual date's rate, not the newest one.
+        self.assertEqual(
+            Decimal(resp.data["total_value_locked_usd"]), Decimal("500.00")
+        )
+        expected_issued_usd = (
+            Decimal("0.50")
+            * StakingYieldService.compute_total_daily_emission(accrual_date)
+        ).quantize(Decimal("0.01"))
+        self.assertEqual(Decimal(resp.data["issued_today_usd"]), expected_issued_usd)
+
+    def test_tvl_matches_latest_history_entry(self):
+        # Arrange: two snapshots, each with its own day's rate, plus a newer
+        # rate that postdates both.
+        d1 = date(2026, 4, 19)
+        d2 = date(2026, 4, 20)
+        snap1 = self._create_global_snapshot(d1, total_staked=Decimal(1000))
+        self._add_user_snapshot(snap1, Decimal(1000), label="a")
+        snap2 = self._create_global_snapshot(d2, total_staked=Decimal(2000))
+        self._add_user_snapshot(snap2, Decimal(2000), label="b")
+        self._create_usd_rate(Decimal("0.40"), on_date=d1)
+        self._create_usd_rate(Decimal("0.50"), on_date=d2)
+        self._create_usd_rate(Decimal("0.90"), on_date=date(2026, 4, 25))
+
+        # Act
+        stats = self.client.get("/api/staking_yield/stats/")
+        history = self.client.get("/api/staking_yield/history/?range=all")
+
+        # Assert
+        latest_row = history.data["results"][-1]
+        self.assertEqual(latest_row["accrual_date"], stats.data["accrual_date"])
+        self.assertEqual(
+            Decimal(latest_row["total_value_locked_usd"]),
+            Decimal(stats.data["total_value_locked_usd"]),
+        )
+        self.assertEqual(
+            Decimal(stats.data["total_value_locked_usd"]), Decimal("1000.00")
         )
 
     def test_tvl_ignores_legacy_moralis_rate(self):
