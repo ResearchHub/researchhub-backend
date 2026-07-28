@@ -20,14 +20,8 @@ class EmailRecipientViewSet(viewsets.ModelViewSet):
     def create(self, *args, **kwargs):
         user = self.request.user
 
-        if user.is_anonymous:
-            user = None
-            email = self.request.data.get("email")
-        else:
-            email = user.email
-
         email_recipient, created = EmailRecipient.objects.get_or_create(
-            user=user, email=email
+            user=user, email=user.email
         )
         if not created:
             return Response("Already exists", status=400)
