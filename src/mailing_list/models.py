@@ -9,7 +9,6 @@ class EmailRecipient(models.Model):
     email = models.EmailField(unique=True)
     do_not_email = models.BooleanField(default=False)
     is_opted_out = models.BooleanField(default=False)
-    next_cursor = models.IntegerField(default=0)
     user = models.OneToOneField(
         "user.User", on_delete=models.CASCADE, default=None, null=True
     )
