@@ -4,6 +4,7 @@ from datetime import UTC, datetime, time, timedelta
 PERIOD_DELTAS = {
     "24h": timedelta(hours=24),
     "7d": timedelta(days=7),
+    "14d": timedelta(days=14),
     "30d": timedelta(days=30),
 }
 
@@ -20,6 +21,15 @@ class ReportPeriod:
             "start": self.start,
             "end": self.end,
         }
+
+    def previous(self) -> "ReportPeriod":
+        """Return the immediately prior window of the same length."""
+        duration = self.end - self.start
+        return ReportPeriod(
+            start=self.start - duration,
+            end=self.start,
+            label="previous",
+        )
 
 
 def resolve_period(

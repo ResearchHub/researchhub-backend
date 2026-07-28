@@ -3,19 +3,39 @@ from django.core.files.storage import default_storage
 from django.db.models import Count, F, Prefetch
 
 from analytics.models import UserInteractions
+from paper.models import Figure
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import PAPER
 
 
-def _preview_image_url(document) -> str | None:
+def _post_preview_image_url(post) -> str | None:
+    if post.preview_img:
+        return post.preview_img
+    if post.image:
+        return default_storage.url(post.image)
+    return None
+
+
+def _paper_preview_image_url(paper) -> str | None:
+    figure = (
+        paper.figures.filter(is_primary=True).first()
+        or paper.figures.filter(figure_type=Figure.PREVIEW).first()
+    )
+    if figure is None:
+        return None
+    if figure.thumbnail:
+        return figure.thumbnail.url
+    if figure.file:
+        return figure.file.url
+    return None
+
+
+def _preview_image_url(*, document_type: str, document) -> str | None:
     if document is None:
         return None
-    preview_img = getattr(document, "preview_img", None)
-    if preview_img:
-        return preview_img
-    image = getattr(document, "image", None)
-    if image:
-        return default_storage.url(image)
-    return None
+    if document_type == PAPER:
+        return _paper_preview_image_url(document)
+    return _post_preview_image_url(document)
 
 
 def get_page_metrics(period):
@@ -42,22 +62,39 @@ def get_page_metrics(period):
         .select_related("paper")
         .prefetch_related(
             Prefetch("posts", queryset=ResearchhubPost.objects.order_by("id")),
+            "paper__figures",
         )
     }
 
     for row in top_documents:
         unified_doc = unified_docs.get(row["document_id"])
         if unified_doc is None:
-            row["slug"] = ""
-            row["preview_img"] = None
+            row.update(
+                {
+                    "paper_id": None,
+                    "post_id": None,
+                    "slug": "",
+                    "url": None,
+                    "preview_img": None,
+                }
+            )
             continue
 
         try:
             document = unified_doc.get_document()
-        except (ObjectDoesNotExist, ValueError):
+            url = unified_doc.frontend_view_link()
+        except (ObjectDoesNotExist, ValueError, AttributeError):
             document = None
+            url = None
 
+        is_paper = unified_doc.document_type == PAPER
+        row["paper_id"] = document.id if document is not None and is_paper else None
+        row["post_id"] = document.id if document is not None and not is_paper else None
         row["slug"] = getattr(document, "slug", "") or ""
-        row["preview_img"] = _preview_image_url(document)
+        row["url"] = url
+        row["preview_img"] = _preview_image_url(
+            document_type=unified_doc.document_type,
+            document=document,
+        )
 
     return {"top_documents": top_documents}

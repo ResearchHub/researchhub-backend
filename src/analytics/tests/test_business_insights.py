@@ -16,6 +16,10 @@ from django.test import TestCase
 from django.utils import timezone
 
 from analytics.models import UserInteractions
+from analytics.services.business_insights_service import (
+    BusinessInsightsService,
+    merge_previous_values,
+)
 from analytics.services.insights.endowment import get_endowment_metrics
 from analytics.services.insights.expert_finder import get_expert_finder_metrics
 from analytics.services.insights.funding import get_funding_metrics
@@ -68,6 +72,64 @@ class ReportPeriodTests(UnitTestCase):
         self.assertEqual(period.start, now - timedelta(days=7))
         self.assertEqual(period.end, now)
         self.assertEqual(period.label, "7d")
+
+    def test_resolve_14d_preset_period(self):
+        # Arrange
+        now = datetime(2026, 7, 20, 12, tzinfo=UTC)
+
+        # Act
+        period = resolve_period(period="14d", now=now)
+
+        # Assert
+        self.assertEqual(period.start, now - timedelta(days=14))
+        self.assertEqual(period.end, now)
+        self.assertEqual(period.label, "14d")
+
+    def test_previous_period_matches_same_length(self):
+        # Arrange
+        period = ReportPeriod(
+            start=datetime(2026, 7, 14, tzinfo=UTC),
+            end=datetime(2026, 7, 28, tzinfo=UTC),
+            label="14d",
+        )
+
+        # Act
+        previous = period.previous()
+
+        # Assert
+        self.assertEqual(previous.start, datetime(2026, 6, 30, tzinfo=UTC))
+        self.assertEqual(previous.end, datetime(2026, 7, 14, tzinfo=UTC))
+        self.assertEqual(previous.end - previous.start, period.end - period.start)
+
+    def test_merge_previous_values_adds_numeric_siblings(self):
+        # Arrange
+        current = {
+            "auto_drafted_proposals": 12,
+            "funded": {"usd": Decimal(1200), "items": [{"id": 1}]},
+            "label": "keep",
+        }
+        previous = {
+            "auto_drafted_proposals": 8,
+            "funded": {"usd": Decimal(900)},
+        }
+
+        # Act
+        merged = merge_previous_values(current, previous)
+
+        # Assert
+        self.assertEqual(
+            merged,
+            {
+                "auto_drafted_proposals": 12,
+                "auto_drafted_proposals_previous": 8,
+                "funded": {
+                    "usd": Decimal(1200),
+                    "usd_previous": Decimal(900),
+                    "items": [{"id": 1}],
+                },
+                "label": "keep",
+            },
+        )
 
     def test_resolve_custom_period_uses_inclusive_end_date(self):
         # Arrange / Act
@@ -294,16 +356,15 @@ class BusinessInsightMetricTests(TestCase):
 
         # Assert
         self.assertEqual(len(metrics["top_documents"]), 1)
-        self.assertEqual(
-            metrics["top_documents"][0],
-            {
-                "document_id": post.unified_document_id,
-                "document_type": post.unified_document.document_type,
-                "views": 1,
-                "slug": "top-page-slug",
-                "preview_img": "https://example.com/preview.png",
-            },
-        )
+        top = metrics["top_documents"][0]
+        self.assertEqual(top["document_id"], post.unified_document_id)
+        self.assertEqual(top["document_type"], post.unified_document.document_type)
+        self.assertEqual(top["views"], 1)
+        self.assertEqual(top["paper_id"], None)
+        self.assertEqual(top["post_id"], post.id)
+        self.assertEqual(top["slug"], "top-page-slug")
+        self.assertEqual(top["preview_img"], "https://example.com/preview.png")
+        self.assertEqual(top["url"], post.unified_document.frontend_view_link())
 
     def test_expert_finder_counts_registered_invited_experts(self):
         # Arrange
@@ -558,6 +619,31 @@ class BusinessInsightMetricTests(TestCase):
                 "via_google": 1,
             },
         )
+
+    def test_business_insights_includes_previous_period_values(self):
+        # Arrange: one opportunity created in the current window, none before.
+        post = create_post(created_by=self.user, document_type=GRANT)
+        Grant.objects.create(
+            created_by=self.user,
+            unified_document=post.unified_document,
+            amount=Decimal(1000),
+            description="Current-period opportunity",
+        )
+        service = BusinessInsightsService(self.period)
+
+        # Act
+        report = service.build()
+
+        # Assert
+        self.assertEqual(report["period"]["previous_end"], self.period.start)
+        self.assertEqual(
+            report["period"]["previous_start"],
+            self.period.start - (self.period.end - self.period.start),
+        )
+        self.assertEqual(report["funding"]["opportunities_created"], 1)
+        self.assertEqual(report["funding"]["opportunities_created_previous"], 0)
+        self.assertNotIn("top_documents_previous", report["pages"])
+        self.assertIn("top_documents", report["pages"])
 
 
 class ReportBusinessInsightsCommandTests(TestCase):
