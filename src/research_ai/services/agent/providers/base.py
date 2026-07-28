@@ -24,6 +24,18 @@ from research_ai.services.agent.types import AssistantTurn, Message
 class LLMProvider(ABC):
     """Renders neutral agent types to/from a single provider's wire format."""
 
+    @property
+    def native_tool_names(self) -> frozenset[str]:
+        """Names this provider serves itself, server-side.
+
+        A name listed here needs no local ``Tool``: the provider declares the
+        tool on its own and runs it inside the turn, so the toolset must leave
+        that name free rather than register a client-side implementation of it
+        (two tools sharing a name is a request-validation error). Empty for
+        providers whose tools are all client-side.
+        """
+        return frozenset()
+
     @abstractmethod
     def render_tools(self, tools: list[Tool]) -> Any:
         """Render ``tools`` to this provider's tool-config wire format."""

@@ -5,7 +5,10 @@ from copy import deepcopy
 from anthropic.types import Message as AnthropicMessage
 from anthropic.types import (
     RedactedThinkingBlock,
+    ServerToolUseBlock,
     Usage,
+    WebSearchResultBlock,
+    WebSearchToolResultBlock,
 )
 from anthropic.types import (
     TextBlock as AnthropicTextBlock,
@@ -19,10 +22,12 @@ from anthropic.types import (
 from django.test import SimpleTestCase, override_settings
 
 from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.providers import claude_platform
 from research_ai.services.agent.providers.claude_platform import ClaudePlatformProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
     Message,
+    ServerToolBlock,
     StopReason,
     TextBlock,
     ThinkingBlock,
@@ -61,6 +66,30 @@ def _build_response(content, *, stop_reason="end_turn", usage=None):
     )
 
 
+def _build_server_search_blocks(query="llipta ash"):
+    """One server-side search: the model's request and the injected result."""
+    return [
+        ServerToolUseBlock(
+            id="srvtoolu_1",
+            name="web_search",
+            input={"query": query},
+            type="server_tool_use",
+        ),
+        WebSearchToolResultBlock(
+            tool_use_id="srvtoolu_1",
+            type="web_search_tool_result",
+            content=[
+                WebSearchResultBlock(
+                    type="web_search_result",
+                    title="Andean plant ash",
+                    url="https://example.org/llipta",
+                    encrypted_content="enc",
+                )
+            ],
+        ),
+    ]
+
+
 def _build_provider(responses=None, **kwargs):
     """Build a provider with a fake client so no AWS client is constructed."""
     return ClaudePlatformProvider(
@@ -93,7 +122,8 @@ class RenderToolsTests(SimpleTestCase):
         # Act
         rendered = provider.render_tools([tool])
 
-        # Assert
+        # Assert: the caller's tools, then the server-side ones the provider
+        # declares itself.
         self.assertEqual(
             rendered,
             [
@@ -101,9 +131,32 @@ class RenderToolsTests(SimpleTestCase):
                     "name": "search",
                     "description": "search things",
                     "input_schema": {"type": "object", "properties": {}},
-                }
+                },
+                {
+                    "type": claude_platform.WEB_SEARCH_TOOL_TYPE,
+                    "name": "web_search",
+                    "max_uses": claude_platform.WEB_SEARCH_MAX_USES,
+                },
             ],
         )
+
+    def test_web_search_off_renders_only_the_callers_tools(self):
+        # Arrange: a deployment (or a model) without server-side search.
+        provider = _build_provider()
+        provider.web_search = False
+        tool = Tool(
+            name="search",
+            description="search things",
+            input_schema={"type": "object", "properties": {}},
+            handler=lambda input: {},
+        )
+
+        # Act
+        rendered = provider.render_tools([tool])
+
+        # Assert: nothing appended, and the name is left for a local tool.
+        self.assertEqual([t["name"] for t in rendered], ["search"])
+        self.assertEqual(provider.native_tool_names, frozenset())
 
 
 class RenderMessagesTests(SimpleTestCase):
@@ -326,8 +379,12 @@ class CompleteAndParseTests(SimpleTestCase):
         self.assertEqual(turn.stop_reason, StopReason.CONTENT_FILTERED)
 
     def test_unknown_stop_reason_maps_to_other(self):
-        # Arrange
-        provider = _build_provider([_build_response([], stop_reason="pause_turn")])
+        # Arrange: every stop reason the SDK knows today is mapped, so this
+        # fallback is only reachable from one a newer API adds. Assigned past
+        # the SDK's literal validation to stand in for that.
+        response = _build_response([])
+        response.stop_reason = "something_new_from_the_api"
+        provider = _build_provider([response])
 
         # Act
         turn = _complete(provider)
@@ -381,3 +438,104 @@ class ModelConfigTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(provider.model_id, "claude-sonnet-5")
+
+
+class ServerSideToolTests(SimpleTestCase):
+    """Web search runs inside the turn: the loop never dispatches it."""
+
+    def test_server_search_blocks_are_parsed_and_kept_in_order(self):
+        # Arrange: a turn that thinks, searches server-side, then answers.
+        response = _build_response(
+            [
+                AnthropicThinkingBlock(type="thinking", thinking="", signature="sig"),
+                *_build_server_search_blocks(),
+                AnthropicTextBlock(type="text", text="found it"),
+            ]
+        )
+        provider = _build_provider([response])
+
+        # Act
+        turn = _complete(provider)
+
+        # Assert: both halves of the search are carried as opaque server-tool
+        # blocks, in the provider's original order -- a result must stay
+        # immediately after its request -- and none of it is a call to dispatch.
+        self.assertEqual(
+            [type(block).__name__ for block in turn.replay_content],
+            ["ThinkingBlock", "ServerToolBlock", "ServerToolBlock", "TextBlock"],
+        )
+        self.assertEqual(turn.replay_content[1].data["name"], "web_search")
+        self.assertEqual(turn.text, "found it")
+        self.assertEqual(turn.tool_calls, [])
+
+    def test_server_tool_blocks_replay_verbatim_and_still_paired(self):
+        # Arrange: parse a searching turn, then send it back as history.
+        provider = _build_provider([_build_response(_build_server_search_blocks())])
+        turn = _complete(provider)
+
+        # Act
+        rendered = provider._render_messages(
+            [Message(role="assistant", content=turn.replay_content)]
+        )
+
+        # Assert: unedited wire shapes, request then result, ids still matching.
+        request, result = rendered[0]["content"]
+        self.assertEqual(request["type"], "server_tool_use")
+        self.assertEqual(result["type"], "web_search_tool_result")
+        self.assertEqual(result["tool_use_id"], request["id"])
+
+    def test_pause_turn_is_a_resumable_stop_not_an_unknown_one(self):
+        # Arrange: the API spent its per-turn budget of server-side calls.
+        provider = _build_provider(
+            [_build_response(_build_server_search_blocks(), stop_reason="pause_turn")]
+        )
+
+        # Act
+        turn = _complete(provider)
+
+        # Assert: distinct from OTHER, which the loop treats as a dead turn.
+        self.assertEqual(turn.stop_reason, StopReason.PAUSE_TURN)
+
+    def test_cache_breakpoint_skips_a_block_that_must_not_be_edited(self):
+        # Arrange: a paused turn is resumed with the assistant turn last, so the
+        # trailing block is one the provider validates exactly as it sent it.
+        provider = _build_provider()
+        messages = [
+            Message(role="user", content=[TextBlock(text="hi")]),
+            Message(
+                role="assistant",
+                content=[
+                    ServerToolBlock(
+                        data={
+                            "type": "web_search_tool_result",
+                            "tool_use_id": "s1",
+                            "content": [],
+                        }
+                    )
+                ],
+            ),
+        ]
+
+        # Act
+        rendered = provider._render_messages(messages, cache_last=True)
+
+        # Assert: left unmarked (the tools+system breakpoint still stands).
+        self.assertNotIn("cache_control", rendered[-1]["content"][-1])
+
+    def test_cache_breakpoint_still_lands_on_an_ordinary_turn(self):
+        # Arrange: the usual case -- the loop completes from a user turn.
+        provider = _build_provider()
+        messages = [
+            Message(
+                role="user",
+                content=[ToolResultBlock(tool_use_id="t1", content={"ok": True})],
+            )
+        ]
+
+        # Act
+        rendered = provider._render_messages(messages, cache_last=True)
+
+        # Assert
+        self.assertEqual(
+            rendered[-1]["content"][-1]["cache_control"], {"type": "ephemeral"}
+        )

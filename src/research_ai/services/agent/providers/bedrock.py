@@ -14,6 +14,7 @@ from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
     AssistantTurn,
+    Block,
     Message,
     StopReason,
     TextBlock,
@@ -194,28 +195,37 @@ class BedrockProvider(LLMProvider):
         text_blocks: list[TextBlock] = []
         thinking_blocks: list[ThinkingBlock] = []
         tool_calls: list[ToolUseBlock] = []
+        # The turn in Converse's own order -- what the loop replays. The grouped
+        # lists are views onto these same blocks.
+        content_blocks: list[Block] = []
         for block in message.get("content", []):
+            parsed: Block
             if "text" in block:
-                text_blocks.append(TextBlock(text=block["text"]))
+                parsed = TextBlock(text=block["text"])
+                text_blocks.append(parsed)
             elif "reasoningContent" in block:
                 # Kept whole (``reasoningText`` with its signature, or the
                 # ``redactedContent`` blob) so the next turn can replay it.
-                thinking_blocks.append(ThinkingBlock(data=block["reasoningContent"]))
+                parsed = ThinkingBlock(data=block["reasoningContent"])
+                thinking_blocks.append(parsed)
             elif "toolUse" in block:
                 tool_use = block["toolUse"]
-                tool_calls.append(
-                    ToolUseBlock(
-                        id=tool_use["toolUseId"],
-                        name=tool_use["name"],
-                        input=tool_use.get("input") or {},
-                    )
+                parsed = ToolUseBlock(
+                    id=tool_use["toolUseId"],
+                    name=tool_use["name"],
+                    input=tool_use.get("input") or {},
                 )
+                tool_calls.append(parsed)
+            else:
+                continue
+            content_blocks.append(parsed)
 
         stop_reason = _STOP_REASONS.get(response.get("stopReason"), StopReason.OTHER)
         return AssistantTurn(
             text_blocks=text_blocks,
             thinking_blocks=thinking_blocks,
             tool_calls=tool_calls,
+            content_blocks=content_blocks,
             stop_reason=stop_reason,
             raw=response,
             usage=self._parse_usage(response),

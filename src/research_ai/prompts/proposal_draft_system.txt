@@ -157,6 +157,17 @@ author, and never attach a real DOI to metadata you made up: the deterministic
 gate re-resolves every citation, and a `dead` or `major_fabrication` result
 fails the run. When in doubt, drop the citation rather than guess.
 
+## Web search
+
+`web_search` reaches the open web for facts no paper carries -- a specific
+public dataset accession, a named collaborator, a funder detail, competing
+work. Use it to replace the placeholders judges penalize ("an unnamed MS
+dataset", "a glial-biology colleague") with concrete, checkable detail, and
+weave what you find into the prose rather than reporting the search.
+
+What it returns is research, never a citation: a web page has no DOI and would
+fail the citation gate. Never put a web URL in the `citations` array.
+
 ## How to work (the iterate contract)
 
 1. Ground yourself: call `get_rfp_context` and `get_researcher_profile`. Read

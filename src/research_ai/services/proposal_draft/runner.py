@@ -217,7 +217,7 @@ class _ProposalDraftRunner:
 
     def _build_agent(self, system_prompt: str):
         provider = self.provider or resolve_provider()
-        toolset = self._compose_toolset()
+        toolset = self._compose_toolset(provider)
         return AgentService(
             provider=provider, max_iterations=self.config.max_iterations
         ).create_agent(
@@ -227,7 +227,13 @@ class _ProposalDraftRunner:
             temperature=self.config.temperature,
         )
 
-    def _compose_toolset(self) -> Toolset:
+    def _compose_toolset(self, provider) -> Toolset:
+        """Compose the toolset for ``provider``, whose native tools it defers to.
+
+        The provider is what decides where web search runs: Claude Platform
+        serves it itself, so the Brave-backed tool is dropped there and kept on
+        Bedrock, which has no server-side search.
+        """
         self._submit_tool = build_submit_tool(self._handle_submit)
         return compose_proposal_toolset(
             openalex_toolset=self.openalex_toolset,
@@ -236,6 +242,7 @@ class _ProposalDraftRunner:
             web_search_toolset=self.web_search_toolset,
             verification_toolset=self.verification_toolset,
             submit_tool=self._submit_tool,
+            native_tool_names=provider.native_tool_names,
         )
 
     def _normalize_submission(self, submitted: dict) -> dict:

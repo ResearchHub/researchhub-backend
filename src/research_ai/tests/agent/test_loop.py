@@ -13,6 +13,7 @@ from research_ai.services.agent.tools import Tool, Toolset
 from research_ai.services.agent.types import (
     AssistantTurn,
     Message,
+    ServerToolBlock,
     StopReason,
     TextBlock,
     ThinkingBlock,
@@ -378,3 +379,95 @@ class AgentLoopTests(SimpleTestCase):
         self.assertEqual(provider.calls[0][:2], history)
         self.assertEqual(provider.calls[0][2].content[0].text, "follow up")
         self.assertEqual(result.final_text, "second answer")
+
+
+def _build_server_search_turn(*, stop_reason=StopReason.PAUSE_TURN):
+    """A turn whose whole content is a provider-run search and its result."""
+    return AssistantTurn(
+        text_blocks=[],
+        tool_calls=[],
+        stop_reason=stop_reason,
+        content_blocks=[
+            ServerToolBlock(
+                data={
+                    "type": "server_tool_use",
+                    "id": "s1",
+                    "name": "web_search",
+                    "input": {"query": "llipta ash"},
+                }
+            ),
+            ServerToolBlock(
+                data={
+                    "type": "web_search_tool_result",
+                    "tool_use_id": "s1",
+                    "content": [{"url": "https://example.org/llipta"}],
+                }
+            ),
+        ],
+    )
+
+
+class ServerSideToolTests(SimpleTestCase):
+    """Turns the provider ran tools inside, which the loop only carries."""
+
+    def test_paused_turn_resumes_with_no_user_turn_appended(self):
+        # Arrange: the provider pauses after its per-turn search budget, then
+        # finishes on the next call.
+        provider = FakeProvider(
+            [_build_server_search_turn(), _build_text_turn("all done")]
+        )
+        agent = _build_agent(provider, _build_toolset())
+
+        # Act
+        result = agent.run("go")
+
+        # Assert: the run continued rather than dying on an incomplete turn,
+        # and the resuming request ends with the paused assistant turn -- a
+        # user turn there would be answering a question nobody asked.
+        self.assertEqual(result.final_text, "all done")
+        self.assertEqual(result.stop_reason, "end_turn")
+        self.assertEqual(result.iterations, 2)
+        resumed = provider.calls[1]
+        self.assertEqual(resumed[-1].role, "assistant")
+        self.assertTrue(
+            all(isinstance(b, ServerToolBlock) for b in resumed[-1].content)
+        )
+
+    def test_paused_turn_still_counts_against_the_iteration_cap(self):
+        # Arrange: a provider that never stops pausing.
+        provider = FakeProvider([_build_server_search_turn() for _ in range(4)])
+        agent = _build_agent(provider, _build_toolset(), max_iterations=3)
+
+        # Act / Assert: bounded by the cap rather than looping forever.
+        with self.assertRaises(IterationLimitError):
+            agent.run("go")
+        self.assertEqual(len(provider.calls), 3)
+
+    def test_turn_is_replayed_in_the_providers_own_order(self):
+        # Arrange: text sits *between* the search and a tool call, which the
+        # old grouped ordering would have hoisted to the front.
+        turn = _build_server_search_turn(stop_reason=StopReason.TOOL_USE)
+        ordered = [
+            *turn.content_blocks,
+            TextBlock(text="now I will search the index"),
+            ToolUseBlock(id="t1", name="search", input={"q": 1}),
+        ]
+        provider = FakeProvider(
+            [
+                AssistantTurn(
+                    text_blocks=[TextBlock(text="now I will search the index")],
+                    tool_calls=[ToolUseBlock(id="t1", name="search", input={"q": 1})],
+                    stop_reason=StopReason.TOOL_USE,
+                    content_blocks=ordered,
+                ),
+                _build_text_turn("done"),
+            ]
+        )
+        agent = _build_agent(provider, _build_toolset())
+
+        # Act
+        result = agent.run("go")
+
+        # Assert: the assistant turn went back exactly as the provider sent it.
+        assistant = result.messages[1]
+        self.assertEqual(assistant.content, ordered)

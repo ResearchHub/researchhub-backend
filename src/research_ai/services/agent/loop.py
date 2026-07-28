@@ -24,6 +24,7 @@ from research_ai.services.agent.recorder import AgentRecorder
 from research_ai.services.agent.tools import Toolset
 from research_ai.services.agent.types import (
     Message,
+    ServerToolBlock,
     StopReason,
     TextBlock,
     ToolResultBlock,
@@ -74,6 +75,25 @@ def _summarize_result(result) -> str:
     if isinstance(result, (list, tuple)):
         return f"[{len(result)} items]"
     return _truncate(repr(result))
+
+
+def _server_tool_name(data: dict) -> str:
+    """Tool name recovered from a server-side result block's type."""
+    return str(data.get("type") or "server_tool").removesuffix("_tool_result")
+
+
+def _summarize_server_result(content) -> str:
+    """One-line summary of a server-side tool result.
+
+    Success carries a list of records and failure a single error object, so the
+    shape is the signal: a search the provider could not run comes back as an
+    ordinary successful turn, and only this distinguishes it from an empty one.
+    """
+    if isinstance(content, dict):
+        return f"error: {_truncate(str(content.get('error_code') or content), 120)}"
+    if isinstance(content, (list, tuple)):
+        return f"[{len(content)} results]"
+    return _truncate(repr(content))
 
 
 @dataclass
@@ -175,6 +195,33 @@ class Agent:
                 iterations=iteration - 1,
             ) from exc
 
+    def _log_server_tools(self, turn, iteration: int) -> None:
+        """Trace the tools the provider ran inside the turn.
+
+        Server-side calls never reach ``dispatch``, so without this the trace
+        would fall silent exactly where it used to show every search -- and a
+        provider-run search that returned nothing would be indistinguishable
+        from one the model never made.
+        """
+        for block in turn.content_blocks:
+            if not isinstance(block, ServerToolBlock):
+                continue
+            data = block.data or {}
+            if data.get("type") == "server_tool_use":
+                logger.info(
+                    "iter %d -> %s(%s) [server]",
+                    iteration,
+                    data.get("name"),
+                    _compact_args(data.get("input")),
+                )
+            else:
+                logger.info(
+                    "iter %d <- %s: %s [server]",
+                    iteration,
+                    _server_tool_name(data),
+                    _summarize_server_result(data.get("content")),
+                )
+
     def _dispatch_tool_calls(
         self, tool_calls, iteration: int
     ) -> tuple[list[ToolResultBlock], bool]:
@@ -223,12 +270,13 @@ class Agent:
 
         for iteration in range(1, self.max_iterations + 1):
             turn = self._complete_turn(messages, rendered_tools, iteration)
-            # Reasoning blocks lead the turn: a provider that thinks alongside
-            # tool use requires the assistant turn to be replayed with them
-            # intact and first, so the run cannot re-order or drop them here.
+            # The turn is replayed exactly as the provider sent it: reasoning
+            # blocks are signed and must lead, and a server-side tool's result
+            # must stay immediately after its request, so the run can neither
+            # re-order nor drop blocks here.
             assistant_message = Message(
                 role="assistant",
-                content=[*turn.thinking_blocks, *turn.text_blocks, *turn.tool_calls],
+                content=turn.replay_content,
             )
             messages.append(assistant_message)
             self._record("record_message", assistant_message, turn=turn)
@@ -237,6 +285,7 @@ class Agent:
             # the calls -- log it so the trace shows *why* a tool was picked.
             if turn.text.strip():
                 logger.info("iter %d reasoning: %s", iteration, _truncate(turn.text))
+            self._log_server_tools(turn, iteration)
 
             if not turn.tool_calls and turn.stop_reason == StopReason.END_TURN:
                 # Model answered in plain text without calling a tool: done.
@@ -247,6 +296,16 @@ class Agent:
                     stop_reason=turn.stop_reason.value,
                     iterations=iteration,
                 )
+            if not turn.tool_calls and turn.stop_reason == StopReason.PAUSE_TURN:
+                # The provider spent its per-turn budget of server-side tool
+                # calls and handed the turn back mid-flight. Nothing is owed in
+                # reply: sending the conversation back with this turn appended
+                # and no user turn after it resumes where it left off. It counts
+                # as an iteration, which is what bounds a pathological pause
+                # loop. (A paused turn that *also* called a client tool falls
+                # through to the dispatch below -- those results resume it too.)
+                logger.info("iter %d pause_turn: resuming server-side work", iteration)
+                continue
             if not turn.tool_calls:
                 raise IncompleteTurnError(
                     "Provider stopped without completing the agent run: "

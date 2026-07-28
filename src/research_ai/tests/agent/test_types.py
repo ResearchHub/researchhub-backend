@@ -5,6 +5,7 @@ from django.test import SimpleTestCase
 from research_ai.services.agent.types import (
     AssistantTurn,
     Message,
+    ServerToolBlock,
     StopReason,
     TextBlock,
     ThinkingBlock,
@@ -17,7 +18,7 @@ from research_ai.services.agent.types import (
 
 class TypesTests(SimpleTestCase):
     def test_serialize_deserialize_round_trips_every_block_type(self):
-        # Arrange: a conversation containing all four block types.
+        # Arrange: a conversation containing every block type.
         messages = [
             Message(role="user", content=[TextBlock(text="find jane")]),
             Message(
@@ -27,6 +28,21 @@ class TypesTests(SimpleTestCase):
                         data={"type": "thinking", "thinking": "hm", "signature": "sig"}
                     ),
                     TextBlock(text="searching"),
+                    ServerToolBlock(
+                        data={
+                            "type": "server_tool_use",
+                            "id": "s1",
+                            "name": "web_search",
+                            "input": {"query": "jane"},
+                        }
+                    ),
+                    ServerToolBlock(
+                        data={
+                            "type": "web_search_tool_result",
+                            "tool_use_id": "s1",
+                            "content": [{"url": "https://example.org"}],
+                        }
+                    ),
                     ToolUseBlock(id="t1", name="search", input={"q": "jane"}),
                 ],
             ),

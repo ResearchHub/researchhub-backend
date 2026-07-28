@@ -3,9 +3,9 @@
 Public surface:
 
 - Neutral types: ``Message``, ``TextBlock``, ``ThinkingBlock``,
-  ``ToolUseBlock``, ``ToolResultBlock``, ``AssistantTurn``, ``TurnUsage``,
-  ``StopReason``, and the ``serialize_messages`` / ``deserialize_messages``
-  helpers.
+  ``ServerToolBlock``, ``ToolUseBlock``, ``ToolResultBlock``, ``AssistantTurn``,
+  ``TurnUsage``, ``StopReason``, and the ``serialize_messages`` /
+  ``deserialize_messages`` helpers.
 - Tools: ``Tool``, ``Toolset``.
 - Providers: ``LLMProvider`` (ABC), ``BedrockProvider``,
   ``ClaudePlatformProvider``, and the settings-driven resolvers
@@ -40,6 +40,7 @@ from research_ai.services.agent.tools import Tool, Toolset
 from research_ai.services.agent.types import (
     AssistantTurn,
     Message,
+    ServerToolBlock,
     StopReason,
     TextBlock,
     ThinkingBlock,
@@ -64,6 +65,7 @@ __all__ = [
     "LLMProvider",
     "ProviderError",
     "Message",
+    "ServerToolBlock",
     "StopReason",
     "TextBlock",
     "ThinkingBlock",

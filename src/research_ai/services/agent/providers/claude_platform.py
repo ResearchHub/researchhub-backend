@@ -32,7 +32,9 @@ from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
     AssistantTurn,
+    Block,
     Message,
+    ServerToolBlock,
     StopReason,
     TextBlock,
     ThinkingBlock,
@@ -74,6 +76,17 @@ PROMPT_CACHING = True
 TIMEOUT_SECONDS = 600.0
 MAX_RETRIES = 8
 
+# Anthropic's own web search, run server-side inside the turn: the model issues
+# a query, the API executes it and injects the results, and generation continues
+# -- no client-side round trip and no separate search vendor. This is the reason
+# the agent's `web_search` tool is not implemented locally on this provider;
+# Bedrock, which does not offer it, keeps its client-side Brave implementation.
+# ``max_uses`` is the per-turn ceiling the API enforces on the model's behalf.
+WEB_SEARCH = True
+WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
+WEB_SEARCH_TOOL_NAME = "web_search"
+WEB_SEARCH_MAX_USES = 6
+
 # Models that reject sampling params (temperature/top_p/top_k) with a 400.
 # Everything from Opus 4.7 on dropped them; the loop's temperature is simply
 # not forwarded for those.
@@ -97,9 +110,27 @@ _STOP_REASONS = {
     "model_context_window_exceeded": StopReason.MAX_TOKENS,
     "stop_sequence": StopReason.STOP_SEQUENCE,
     "refusal": StopReason.CONTENT_FILTERED,
+    # Not a failure: the API ran its per-turn cap of server-side tool calls and
+    # handed the turn back mid-flight to be continued.
+    "pause_turn": StopReason.PAUSE_TURN,
 }
 
 _THINKING_BLOCK_TYPES = ("thinking", "redacted_thinking")
+
+# The two halves of a server-side tool call. Both are the provider's own blocks:
+# the loop never dispatches them, it only replays them where they sat.
+_SERVER_TOOL_BLOCK_TYPES = (
+    "server_tool_use",
+    "web_search_tool_result",
+)
+
+# Block types a prompt-cache breakpoint may be attached to. The breakpoint adds
+# a key to the block, and signed reasoning and server-tool blocks are validated
+# as sent when the turn is replayed -- so a turn ending in one (a paused turn,
+# resumed with no user turn after it) is left unmarked rather than edited. The
+# tools+system breakpoint is unaffected, and the prefix cached on the previous
+# turn is still read.
+_CACHEABLE_BLOCK_TYPES = ("text", "tool_result")
 
 
 def _accepts_sampling_params(model_id: str) -> bool:
@@ -145,12 +176,24 @@ class ClaudePlatformProvider(LLMProvider):
         self.prompt_caching = PROMPT_CACHING
         self.effort = EFFORT
         self.thinking = THINKING
+        self.web_search = WEB_SEARCH
+        self.web_search_max_uses = WEB_SEARCH_MAX_USES
 
     # -- public surface ---------------------------------------------------
 
+    @property
+    def native_tool_names(self) -> frozenset[str]:
+        """``web_search`` when server-side search is on; nothing otherwise."""
+        return frozenset({WEB_SEARCH_TOOL_NAME} if self.web_search else ())
+
     def render_tools(self, tools: list[Tool]) -> list[dict]:
-        """Render tools to the Messages API ``tools`` list."""
-        return [
+        """Render tools to the Messages API ``tools`` list.
+
+        Server-side tools are appended after the caller's, in a fixed order:
+        tools render at the head of the prompt, so the list has to be
+        byte-identical every turn for the cached prefix to hold.
+        """
+        rendered = [
             {
                 "name": tool.name,
                 "description": tool.description,
@@ -158,6 +201,15 @@ class ClaudePlatformProvider(LLMProvider):
             }
             for tool in tools
         ]
+        if self.web_search:
+            rendered.append(
+                {
+                    "type": WEB_SEARCH_TOOL_TYPE,
+                    "name": WEB_SEARCH_TOOL_NAME,
+                    "max_uses": self.web_search_max_uses,
+                }
+            )
+        return rendered
 
     def complete(
         self,
@@ -222,9 +274,12 @@ class ClaudePlatformProvider(LLMProvider):
         if cache_last and rendered and rendered[-1]["content"]:
             # Cache the conversation prefix through the latest turn; the next
             # turn re-sends these same messages as a prefix and reads the cache.
-            # The loop only ever completes from a user turn, so the block this
-            # lands on is text or a tool result, never a signed reasoning block.
-            rendered[-1]["content"][-1]["cache_control"] = {"type": "ephemeral"}
+            # Usually the loop completes from a user turn and this lands on text
+            # or a tool result -- but a paused turn is resumed with the assistant
+            # turn last, and its final block may be one that must not be edited.
+            last = rendered[-1]["content"][-1]
+            if last.get("type") in _CACHEABLE_BLOCK_TYPES:
+                last["cache_control"] = {"type": "ephemeral"}
         return rendered
 
     def _render_block(self, block: Any) -> dict:
@@ -233,6 +288,10 @@ class ClaudePlatformProvider(LLMProvider):
         if isinstance(block, ThinkingBlock):
             # Replayed byte-for-byte: these blocks are signed, and an edited or
             # missing one fails validation on the next turn.
+            return dict(block.data)
+        if isinstance(block, ServerToolBlock):
+            # Same contract, for the tools the API ran itself: replay the
+            # request and its injected result unedited and still paired.
             return dict(block.data)
         if isinstance(block, ToolUseBlock):
             return {
@@ -281,20 +340,37 @@ class ClaudePlatformProvider(LLMProvider):
         text_blocks: list[TextBlock] = []
         thinking_blocks: list[ThinkingBlock] = []
         tool_calls: list[ToolUseBlock] = []
+        # The turn as sent, in order -- what gets replayed. The grouped lists
+        # above are views onto these same blocks for the loop's own use.
+        content_blocks: list[Block] = []
         for block in content:
             block_type = getattr(block, "type", None)
+            parsed: Block
             if block_type == "text":
-                text_blocks.append(TextBlock(text=block.text))
+                parsed = TextBlock(text=block.text)
+                text_blocks.append(parsed)
             elif block_type in _THINKING_BLOCK_TYPES:
-                thinking_blocks.append(ThinkingBlock(data=_block_payload(block)))
+                parsed = ThinkingBlock(data=_block_payload(block))
+                thinking_blocks.append(parsed)
+            elif block_type in _SERVER_TOOL_BLOCK_TYPES:
+                parsed = ServerToolBlock(data=_block_payload(block))
             elif block_type == "tool_use":
-                tool_calls.append(
-                    ToolUseBlock(
-                        id=block.id,
-                        name=block.name,
-                        input=dict(getattr(block, "input", None) or {}),
-                    )
+                parsed = ToolUseBlock(
+                    id=block.id,
+                    name=block.name,
+                    input=dict(getattr(block, "input", None) or {}),
                 )
+                tool_calls.append(parsed)
+            else:
+                # A block type this adapter does not know is dropped rather than
+                # guessed at, but never silently: dropping one can break the
+                # next turn (server-side blocks are validated in pairs), so the
+                # log line is what points at an adapter that needs updating.
+                logger.warning(
+                    "claude platform: dropping unknown content block %r", block_type
+                )
+                continue
+            content_blocks.append(parsed)
 
         raw_stop_reason = getattr(response, "stop_reason", None)
         stop_reason = _STOP_REASONS.get(raw_stop_reason, StopReason.OTHER)
@@ -310,6 +386,7 @@ class ClaudePlatformProvider(LLMProvider):
             text_blocks=text_blocks,
             thinking_blocks=thinking_blocks,
             tool_calls=tool_calls,
+            content_blocks=content_blocks,
             stop_reason=stop_reason,
             raw=_block_payload(response),
             usage=self._parse_usage(response),
