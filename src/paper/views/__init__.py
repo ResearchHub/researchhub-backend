@@ -1,2 +1,5 @@
-# flake8: noqa
-from paper.views.paper_views import *
+from paper.views.paper_views import PaperViewSet
+
+__all__ = [
+    "PaperViewSet",
+]

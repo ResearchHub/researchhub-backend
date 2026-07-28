@@ -233,6 +233,29 @@ class StakingYieldService:
         return snapshot.user_snapshots.filter(stake_amount__gt=0).count()
 
     @staticmethod
+    def resolve_usd_rate_for_date(target_date: date) -> Decimal | None:
+        """Return the USD rate in effect on `target_date`, or None if there is none.
+
+        Uses the same source and precedence as `build_history` so that a
+        snapshot is always valued at the rate of its own accrual date,
+        regardless of which endpoint reports it.
+        """
+        record = (
+            RscExchangeRate.objects.filter(
+                price_source=COIN_GECKO,
+                target_currency=USD,
+                created_date__date__lte=target_date,
+            )
+            .order_by("created_date")
+            .values("rate")
+            .last()
+        )
+        if record is None:
+            return None
+
+        return Decimal(str(record["rate"]))
+
+    @staticmethod
     def build_history(start_date: date | None, end_date: date | None) -> list:
         """Return per-snapshot history rows in ascending date order.
 

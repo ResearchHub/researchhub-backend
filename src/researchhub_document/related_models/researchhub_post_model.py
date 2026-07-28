@@ -3,12 +3,11 @@ import logging
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import Exists, IntegerField, OuterRef, Q, Sum
-from django.db.models.functions import Cast
+from django.db.models import Exists, OuterRef, Q
 from django.utils.functional import cached_property
 
 from discussion.models import AbstractGenericReactionModel, Vote
-from purchase.models import Grant, Purchase
+from purchase.models import Grant
 from researchhub_access_group.constants import NO_ACCESS
 from researchhub_access_group.models import Permission
 from researchhub_comment.models import RhCommentThreadModel
@@ -241,19 +240,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
     @property
     def is_removed(self):
         return self.unified_document.is_removed
-
-    def get_boost_amount(self):
-        purchases = self.purchases.filter(
-            paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
-        )
-        if purchases.exists():
-            boost_amount = (
-                purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
-                .aggregate(sum=Sum("amount_as_int"))
-                .get("sum", 0)
-            )
-            return boost_amount
-        return 0
 
     def get_full_markdown(self):
         try:

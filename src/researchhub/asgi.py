@@ -1,9 +1,11 @@
-# flake8: noqa
-
 """
 ASGI entrypoint. Configures Django and then runs the application
 defined in the ASGI_APPLICATION setting.
 """
+
+# Django must be initialized before app modules are imported, so imports below
+# intentionally do not all sit at the top of the file.
+# ruff: noqa: E402
 
 import os
 
@@ -16,13 +18,12 @@ from django.core.asgi import get_asgi_application
 
 django_asgi_app = get_asgi_application()
 
-
 from django.conf import settings
 
 import note.routing
 import notification.routing
-from researchhub.token_auth import TokenAuthMiddlewareStack
 from researchhub.settings import CELERY_WORKER
+from researchhub.token_auth import TokenAuthMiddlewareStack
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "researchhub.settings")
 

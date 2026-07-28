@@ -9,13 +9,15 @@ class EmailRecipient(models.Model):
     email = models.EmailField(unique=True)
     do_not_email = models.BooleanField(default=False)
     is_opted_out = models.BooleanField(default=False)
-    next_cursor = models.IntegerField(default=0)
     user = models.OneToOneField(
         "user.User", on_delete=models.CASCADE, default=None, null=True
     )
     bounced_date = models.DateTimeField(default=None, null=True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.email}"
 
     @classmethod
     def get_suppressed_emails(cls, emails: list[str]) -> set[str]:
@@ -30,9 +32,6 @@ class EmailRecipient(models.Model):
                 email__in=emails,
             ).values_list("email", flat=True)
         )
-
-    def __str__(self):
-        return f"{self.email}"
 
     def bounced(self):
         self.bounced_date = timezone.now()

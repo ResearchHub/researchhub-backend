@@ -625,37 +625,47 @@ class FundraiseViewTests(APITestCase):
         self.assertIsNotNone(referred_balance)
         self.assertEqual(float(referred_balance.amount), expected_bonus)
 
-    def test_create_contribution_insufficient_credits(self):
+    def test_create_contribution_defaults_to_funding_credits(self):
         """
-        With use_credits=True (the default), a contribution must fail when
-        the user's locked balance alone cannot cover amount + fee, even if
-        unlocked balance could cover the shortfall.
+        Omitting use_credits defaults to funding credits and includes the
+        platform fee in the coverage check.
         """
+        # Arrange
         fundraise = self._create_fundraise(self.post.id)
         fundraise_id = fundraise.data["id"]
 
         user = create_random_authenticated_user("fundraise_views")
 
         Balance.objects.create(
-            amount=30,
+            amount=500,
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=False,
         )
         Balance.objects.create(
-            amount=50,
+            amount=500,
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=True,
+            lock_type=Balance.LockType.PROMOTIONAL,
+        )
+        Balance.objects.create(
+            amount=100,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=True,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
         )
 
-        # Locked = 50, total cost = 109 → must fail without falling back to unlocked.
+        # Act
+        # Funding credits cover the contribution but not its 9 RSC fee.
         response = self._create_contribution(fundraise_id, user, amount=100)
 
+        # Assert
         self.assertEqual(response.status_code, 400)
-        self.assertIn("Insufficient locked balance", response.data["message"])
+        self.assertIn("Insufficient funding credit balance", response.data["message"])
 
-    def test_create_contribution_all_locked_balance(self):
+    def test_create_contribution_use_credits_uses_funding_credit_balance(self):
         """
         Test contribution when all funds come from locked balance only.
         """
@@ -683,7 +693,9 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(float(locked_balance), 200.0)
 
         # Act
-        response = self._create_contribution(fundraise_id, user, amount=100)
+        response = self._create_contribution(
+            fundraise_id, user, amount=100, use_credits=True
+        )
 
         # Assert
         self.assertEqual(response.status_code, 200)
@@ -710,10 +722,10 @@ class FundraiseViewTests(APITestCase):
         self.assertIsNotNone(locked_fee_balance)
         self.assertEqual(float(locked_fee_balance.amount), -9.0)
 
-    def test_create_contribution_use_credits_false_uses_only_unlocked(self):
+    def test_create_contribution_without_promotional_uses_available(self):
         """
-        When use_credits=False, the contribution must only debit the user's
-        unlocked balance, even if they have locked funds available.
+        When use_credits=False and no promotional RSC exists, the contribution
+        debits available RSC while leaving funding credits untouched.
         """
         fundraise = self._create_fundraise(self.post.id)
         fundraise_id = fundraise.data["id"]
@@ -727,7 +739,7 @@ class FundraiseViewTests(APITestCase):
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=False,
         )
-        # Locked funds that would otherwise be consumed first.
+        # Funding credits are excluded when use_credits is false.
         Balance.objects.create(
             amount=500,
             user=user,
@@ -761,13 +773,12 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(float(fee_balance.amount), -9.0)
         self.assertFalse(fee_balance.is_locked)
 
-        # Locked balance is untouched.
-        self.assertEqual(float(user.get_locked_balance()), 500.0)
+        self.assertEqual(float(user.get_funding_credits_balance()), 500.0)
 
     def test_create_contribution_use_credits_false_rejects_when_unlocked_short(self):
         """
-        When use_credits=False, locked balance must not be spent even if the
-        user's total (locked + unlocked) could otherwise cover the contribution.
+        When use_credits=False, funding credits must not cover a shortfall in
+        available and promotional RSC.
         """
         fundraise = self._create_fundraise(self.post.id)
         fundraise_id = fundraise.data["id"]

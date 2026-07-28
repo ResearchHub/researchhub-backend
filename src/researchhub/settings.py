@@ -348,7 +348,6 @@ REST_FRAMEWORK = {
     "TEST_REQUEST_RENDERER_CLASSES": [
         "rest_framework.renderers.MultiPartRenderer",
         "rest_framework.renderers.JSONRenderer",
-        "utils.renderers.PlainTextRenderer",
     ],
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",

@@ -605,7 +605,6 @@ class DynamicPaperSerializer(
     ModeratedDocumentStatusSerializerMixin,
 ):
     authors = serializers.SerializerMethodField()
-    boost_amount = serializers.SerializerMethodField()
     bounties = serializers.SerializerMethodField()
     discussions = serializers.SerializerMethodField()
     discussion_aggregates = serializers.SerializerMethodField()
@@ -692,11 +691,6 @@ class DynamicPaperSerializer(
             **_context_fields,
         )
         return serializer.data
-
-    def get_boost_amount(self, paper):
-        if paper.purchases.exists():
-            return paper.get_boost_amount()
-        return 0
 
     def get_bounties(self, paper):
         from reputation.serializers import DynamicBountySerializer

@@ -120,9 +120,9 @@ class FundraiseService:
                 fundraise
             origin_fund_id: The Endaoment fund (DAF) ID of the doner for USD grants
             use_credits: For RSC contributions, which balance pool pays for
-                ``amount + fee``. When True, pay entirely from funding credits
-                (locked balance); when False, pay entirely from unlocked RSC.
-                Pools are never mixed. Ignored for USD contributions.
+                ``amount + fee``. When True, pay entirely from funding credits.
+                When False, spend promotional RSC first and available RSC
+                second. Ignored for USD contributions.
 
         Returns:
             Tuple of (contribution, error_message). If successful, error_message
@@ -219,18 +219,16 @@ class FundraiseService:
         """
         Creates an RSC contribution to a fundraise.
 
-        The contribution is funded exclusively from a single pool: when
-        ``use_credits`` is True the full ``amount + fee`` must be covered by
-        the user's locked balance (funding credits and promotional funds, with
-        promotional consumed last); when False, by unlocked RSC. Mixing locked
-        and unlocked funds is not allowed.
+        When ``use_credits`` is True, the full ``amount + fee`` must be covered
+        by funding credits. Otherwise, promotional RSC is consumed first and
+        available RSC covers any remainder.
 
         Args:
             user: The user making the contribution
             fundraise: The fundraise to contribute to
             amount: The contribution amount in RSC
-            use_credits: When True, pay entirely from locked funds. When
-                False, pay entirely from unlocked RSC.
+            use_credits: When True, pay entirely from funding credits. When
+                False, pay from promotional RSC and then available RSC.
 
         Returns:
             Tuple of (purchase, error_message). If successful, error_message is None.
@@ -268,40 +266,12 @@ class FundraiseService:
             user = User.objects.select_for_update().get(id=user.id)
             escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
 
-            if use_credits:
-                # All locked funds are spendable on fundraises. The spend is
-                # split per lock_type category (yield-earning promotional
-                # funds last) and each debit carries its category so refunds
-                # restore the exact fund type and promotional yield netting
-                # stays correct.
-                try:
-                    allocations, remaining = user.allocate_locked_spend(total_cost)
-                except ValueError:
-                    logger.exception(
-                        "Invalid locked balance state for user %s", user.id
-                    )
-                    return None, "Invalid locked balance state"
-
-                if remaining > 0:
-                    return None, "Insufficient locked balance"
-                if remaining != 0 or not self._valid_locked_allocations(
-                    allocations, total_cost
-                ):
-                    logger.error(
-                        "Invalid locked allocation for user %s: allocations=%s, "
-                        "remaining=%s, total_cost=%s",
-                        user.id,
-                        allocations,
-                        remaining,
-                        total_cost,
-                    )
-                    return None, "Invalid locked balance state"
-            else:
-                if user.get_available_balance() < total_cost:
-                    return None, "Insufficient balance"
-                allocations = [
-                    {"amount": total_cost, "is_locked": False, "lock_type": None}
-                ]
+            try:
+                allocations = self._allocate_contribution_spend(
+                    user, total_cost, use_credits
+                )
+            except ValueError as error:
+                return None, str(error)
 
             # Create purchase object
             purchase = Purchase.objects.create(
@@ -374,8 +344,72 @@ class FundraiseService:
         return purchase, None
 
     @staticmethod
-    def _valid_locked_allocations(allocations: list[dict], total_cost: Decimal) -> bool:
-        """Return whether allocations are safe, typed, and cover the debit exactly."""
+    def _allocate_contribution_spend(
+        user: User, total_cost: Decimal, use_credits: bool
+    ) -> list[dict]:
+        """Allocate the fee-inclusive cost from the selected balance sources."""
+        try:
+            balances_by_type = user.get_locked_balance_by_lock_type()
+        except ValueError as error:
+            logger.exception("Invalid locked balance state for user %s", user.id)
+            raise ValueError("Invalid locked balance state") from error
+
+        if use_credits:
+            funding_credits = balances_by_type.get(
+                Balance.LockType.FUNDING_CREDIT, Decimal(0)
+            )
+            if funding_credits < total_cost:
+                raise ValueError("Insufficient funding credit balance")
+
+            allocations = [
+                {
+                    "amount": total_cost,
+                    "is_locked": True,
+                    "lock_type": Balance.LockType.FUNDING_CREDIT,
+                }
+            ]
+        else:
+            available = max(user.get_available_balance(), Decimal(0))
+            promotional = balances_by_type.get(Balance.LockType.PROMOTIONAL, Decimal(0))
+            if available + promotional < total_cost:
+                raise ValueError("Insufficient balance")
+
+            allocations = []
+            promotional_spend = min(promotional, total_cost)
+            if promotional_spend > 0:
+                allocations.append(
+                    {
+                        "amount": promotional_spend,
+                        "is_locked": True,
+                        "lock_type": Balance.LockType.PROMOTIONAL,
+                    }
+                )
+
+            available_spend = total_cost - promotional_spend
+            if available_spend > 0:
+                allocations.append(
+                    {
+                        "amount": available_spend,
+                        "is_locked": False,
+                        "lock_type": None,
+                    }
+                )
+
+        if not FundraiseService._valid_allocations(allocations, total_cost):
+            logger.error(
+                "Invalid contribution allocation for user %s: allocations=%s, "
+                "total_cost=%s",
+                user.id,
+                allocations,
+                total_cost,
+            )
+            raise ValueError("Invalid balance state")
+
+        return allocations
+
+    @staticmethod
+    def _valid_allocations(allocations: list[dict], total_cost: Decimal) -> bool:
+        """Return whether allocations are typed and cover the debit exactly."""
         allocated_total = Decimal(0)
 
         for allocation in allocations:
@@ -384,12 +418,14 @@ class FundraiseService:
             except (ArithmeticError, KeyError, TypeError, ValueError):
                 return False
 
-            if (
-                not allocated_amount.is_finite()
-                or allocated_amount <= 0
-                or allocation.get("is_locked") is not True
-                or allocation.get("lock_type") not in Balance.LockType.values
-            ):
+            is_locked = allocation.get("is_locked")
+            lock_type = allocation.get("lock_type")
+            valid_lock_state = (is_locked is False and lock_type is None) or (
+                is_locked is True and lock_type in Balance.LockType.values
+            )
+            if not allocated_amount.is_finite() or allocated_amount <= 0:
+                return False
+            if not valid_lock_state:
                 return False
 
             allocated_total += allocated_amount
