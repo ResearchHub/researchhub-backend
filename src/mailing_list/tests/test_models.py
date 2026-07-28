@@ -112,6 +112,49 @@ class GetSuppressedEmailsTests(TestCase):
         # Assert
         self.assertEqual(result, set())
 
+    def test_matches_a_stored_address_regardless_of_case(self):
+        # Arrange
+        EmailRecipient.objects.create(email="Mixed@Example.com", is_opted_out=True)
+
+        # Act
+        result = EmailRecipient.get_suppressed_emails(["mixed@example.com"])
+
+        # Assert
+        self.assertEqual(result, {"mixed@example.com"})
+
+    def test_returns_the_caller_spelling_not_the_stored_one(self):
+        # Arrange
+        EmailRecipient.objects.create(email="lower@example.com", is_opted_out=True)
+
+        # Act
+        result = EmailRecipient.get_suppressed_emails(["LOWER@example.com"])
+
+        # Assert
+        self.assertEqual(result, {"LOWER@example.com"})
+
+    def test_suppresses_every_casing_present_in_the_queried_list(self):
+        # Arrange
+        EmailRecipient.objects.create(email="dup@example.com", is_opted_out=True)
+
+        # Act
+        result = EmailRecipient.get_suppressed_emails(
+            ["dup@example.com", "Dup@Example.com"]
+        )
+
+        # Assert
+        self.assertEqual(result, {"dup@example.com", "Dup@Example.com"})
+
+    def test_either_row_of_a_case_collision_pair_suppresses_the_address(self):
+        # Arrange
+        EmailRecipient.objects.create(email="pair@example.com")
+        EmailRecipient.objects.create(email="Pair@Example.com", is_opted_out=True)
+
+        # Act
+        result = EmailRecipient.get_suppressed_emails(["pair@example.com"])
+
+        # Assert
+        self.assertEqual(result, {"pair@example.com"})
+
 
 class UserRecipientSyncTests(TestCase):
     """``User.save()`` keeps an ``EmailRecipient`` in sync with the account."""

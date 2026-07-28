@@ -32,12 +32,16 @@ class EmailRecipient(models.Model):
         An address is suppressed when it has ``do_not_email=True``
         (bounced / complained) or ``is_opted_out=True``.
         """
-        return set(
-            cls.objects.filter(
+        suppressed = set(
+            cls.objects.annotate(normalized=Lower("email"))
+            .filter(
                 Q(do_not_email=True) | Q(is_opted_out=True),
-                email__in=emails,
-            ).values_list("email", flat=True)
+                normalized__in={email.lower() for email in emails},
+            )
+            .values_list("normalized", flat=True)
         )
+
+        return {email for email in emails if email.lower() in suppressed}
 
     def bounced(self):
         self.bounced_date = timezone.now()
