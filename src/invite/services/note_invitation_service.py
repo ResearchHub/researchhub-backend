@@ -85,25 +85,15 @@ class NoteInvitationService:
 
     def _claim_recipientless_invite(self, invite: NoteInvitation, user) -> None:
         """
-        Claim a recipientless invite for a user if the user's email matches the invite's
-        email.
+        Claim a recipientless invite for an authenticated user.
 
         Args:
             invite: The note invitation to claim.
             user: The user claiming the invitation.
         Raises:
-            NoteInvitationRecipientMismatchError: If the user's email doesn't match the
-                invite's email.
+            NoteInvitationRecipientMismatchError: If the user isn't authenticated.
         """
-        user_email = (getattr(user, "email", "") or "").strip().lower()
-        invite_email = (invite.recipient_email or "").strip().lower()
-
-        if (
-            not getattr(user, "is_authenticated", False)
-            or not user_email
-            or not invite_email
-            or user_email != invite_email
-        ):
+        if not getattr(user, "is_authenticated", False):
             raise NoteInvitationRecipientMismatchError
 
         invite.recipient = user

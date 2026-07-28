@@ -118,7 +118,7 @@ class NoteInvitationAcceptViewsTest(APITestCase):
 
     def test_accept_invite_claims_recipientless_invite(self):
         # Arrange
-        recipient_email = "new-recipient@researchhub.com"
+        recipient_email = "invited@researchhub.com"
         invite = NoteInvitation.create(
             expiration_time=1440,
             recipient=None,
@@ -128,9 +128,9 @@ class NoteInvitationAcceptViewsTest(APITestCase):
             invite_type=EDITOR,
         )
         new_recipient = get_user_model().objects.create_user(
-            username=recipient_email,
+            username="signup@researchhub.com",
             password=uuid.uuid4().hex,
-            email=recipient_email,
+            email="signup@researchhub.com",
         )
         self.client.force_authenticate(user=new_recipient)
 
