@@ -152,7 +152,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         amount_currency = data.get("amount_currency", RSC)
         origin_fund_id = data.get("origin_fund_id") or None
         try:
-            use_credits = serializers.BooleanField(default=False).run_validation(
+            use_credits = serializers.BooleanField(default=True).run_validation(
                 data.get("use_credits", serializers.empty)
             )
         except serializers.ValidationError:

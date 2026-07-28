@@ -105,7 +105,7 @@ class FundraiseService:
         currency: str = RSC,
         check_self_contribution: bool = True,
         origin_fund_id: str | None = None,
-        use_credits: bool = False,
+        use_credits: bool = True,
     ) -> tuple[Purchase | None, str | None]:
         """
         Validates and creates a contribution to a fundraise.
@@ -214,7 +214,7 @@ class FundraiseService:
         user: User,
         fundraise: Fundraise,
         amount: Decimal,
-        use_credits: bool = False,
+        use_credits: bool = True,
     ) -> tuple[Purchase | None, str | None]:
         """
         Creates an RSC contribution to a fundraise.

@@ -625,10 +625,10 @@ class FundraiseViewTests(APITestCase):
         self.assertIsNotNone(referred_balance)
         self.assertEqual(float(referred_balance.amount), expected_bonus)
 
-    def test_create_contribution_defaults_to_promotional_then_available(self):
+    def test_create_contribution_defaults_to_funding_credits(self):
         """
-        Omitting use_credits defaults to promotional then available RSC and
-        includes the platform fee in the coverage check.
+        Omitting use_credits defaults to funding credits and includes the
+        platform fee in the coverage check.
         """
         # Arrange
         fundraise = self._create_fundraise(self.post.id)
@@ -637,26 +637,33 @@ class FundraiseViewTests(APITestCase):
         user = create_random_authenticated_user("fundraise_views")
 
         Balance.objects.create(
-            amount=50,
+            amount=500,
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=False,
         )
         Balance.objects.create(
-            amount=50,
+            amount=500,
             user=user,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=True,
             lock_type=Balance.LockType.PROMOTIONAL,
         )
+        Balance.objects.create(
+            amount=100,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=True,
+            lock_type=Balance.LockType.FUNDING_CREDIT,
+        )
 
         # Act
-        # Selected balances total 100, but the fee-inclusive cost is 109.
+        # Funding credits cover the contribution but not its 9 RSC fee.
         response = self._create_contribution(fundraise_id, user, amount=100)
 
         # Assert
         self.assertEqual(response.status_code, 400)
-        self.assertIn("Insufficient balance", response.data["message"])
+        self.assertIn("Insufficient funding credit balance", response.data["message"])
 
     def test_create_contribution_use_credits_uses_funding_credit_balance(self):
         """
@@ -927,7 +934,7 @@ class FundraiseViewTests(APITestCase):
             amount=10000,
             currency="USD",
             origin_fund_id="fund_123",
-            use_credits=False,
+            use_credits=True,
         )
 
     def test_create_usd_contribution_requires_origin_fund_id(self):
