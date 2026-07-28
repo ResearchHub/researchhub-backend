@@ -18,6 +18,7 @@ from feed.feed_list_dto import (
 )
 from feed.filters import JournalFeedOrderingFilter
 from feed.views.feed_view_mixin import FeedViewMixin
+from organizations.models import NonprofitFundraiseLink
 from purchase.models import Fundraise
 from purchase.services.fundraise_eligibility_service import (
     filter_fundraises_with_funding,
@@ -102,7 +103,16 @@ class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
                 queryset=funded_completed_fundraises.select_related(
                     "created_by",
                     "escrow",
-                ).order_by("-created_date", "-id"),
+                )
+                .prefetch_related(
+                    Prefetch(
+                        "nonprofit_links",
+                        queryset=NonprofitFundraiseLink.objects.select_related(
+                            "nonprofit"
+                        ),
+                    )
+                )
+                .order_by("-created_date", "-id"),
             ),
             Prefetch(
                 "journey__preregistration_post__unified_document__reviews",
