@@ -1,5 +1,6 @@
 from django.db import models
 from django.db.models import Q
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 
@@ -15,6 +16,11 @@ class EmailRecipient(models.Model):
     bounced_date = models.DateTimeField(default=None, null=True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(Lower("email"), name="emailrecipient_email_lower_idx"),
+        ]
 
     def __str__(self):
         return f"{self.email}"
