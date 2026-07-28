@@ -152,9 +152,7 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
             "updated_date": proposal.updated_date,
         }
 
-    def serialize_peer_reviews(
-        self, proposal: ResearchhubPost
-    ) -> list[dict[str, Any]]:
+    def serialize_peer_reviews(self, proposal: ResearchhubPost) -> list[dict[str, Any]]:
         """Serialize proposal reviews with each reviewer's profile image."""
         return DynamicReviewSerializer(
             proposal.unified_document.reviews.all(),
