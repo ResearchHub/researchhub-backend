@@ -16,6 +16,9 @@ class EmailRecipient(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
+    def __str__(self):
+        return f"{self.email}"
+
     @classmethod
     def get_suppressed_emails(cls, emails: list[str]) -> set[str]:
         """Return the subset of *emails* that should not receive mail.
@@ -29,9 +32,6 @@ class EmailRecipient(models.Model):
                 email__in=emails,
             ).values_list("email", flat=True)
         )
-
-    def __str__(self):
-        return f"{self.email}"
 
     def bounced(self):
         self.bounced_date = timezone.now()
