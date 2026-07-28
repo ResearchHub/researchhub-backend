@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.db.models import Exists, OuterRef
+from django.db.models import Count, Exists, OuterRef
 
 from research_ai.constants import EXPERT_REGISTERED_USER_LINK_WINDOW_DAYS
 from research_ai.models import Expert, GeneratedEmail, ProposalDraft
@@ -34,13 +34,20 @@ def get_expert_finder_metrics(period):
         .distinct()
         .count()
     )
-    # TODO: Add outreach messages by channel once the outreach channel is stored.
-    # A manually marked SENT record cannot currently distinguish email from
-    # LinkedIn, X, or another external channel.
+    outreach_by_channel = {choice: 0 for choice, _ in GeneratedEmail.Channel.choices}
+    for row in (
+        emails.filter(status=GeneratedEmail.Status.SENT)
+        .exclude(channel="")
+        .values("channel")
+        .annotate(count=Count("id"))
+    ):
+        outreach_by_channel[row["channel"]] = row["count"]
+
     return {
         "experts_generated_outreach_for": (
             emails.exclude(expert_email="").values("expert_email").distinct().count()
         ),
         "invited_experts": invited_experts,
         "auto_drafted_proposals": drafts_completed.count(),
+        "outreach_by_channel": outreach_by_channel,
     }

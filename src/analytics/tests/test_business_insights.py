@@ -16,6 +16,10 @@ from django.test import TestCase
 from django.utils import timezone
 
 from analytics.models import UserInteractions
+from analytics.services.business_insights_service import (
+    BusinessInsightsService,
+    merge_previous_values,
+)
 from analytics.services.insights.endowment import get_endowment_metrics
 from analytics.services.insights.expert_finder import get_expert_finder_metrics
 from analytics.services.insights.funding import get_funding_metrics
@@ -68,6 +72,64 @@ class ReportPeriodTests(UnitTestCase):
         self.assertEqual(period.start, now - timedelta(days=7))
         self.assertEqual(period.end, now)
         self.assertEqual(period.label, "7d")
+
+    def test_resolve_14d_preset_period(self):
+        # Arrange
+        now = datetime(2026, 7, 20, 12, tzinfo=UTC)
+
+        # Act
+        period = resolve_period(period="14d", now=now)
+
+        # Assert
+        self.assertEqual(period.start, now - timedelta(days=14))
+        self.assertEqual(period.end, now)
+        self.assertEqual(period.label, "14d")
+
+    def test_previous_period_matches_same_length(self):
+        # Arrange
+        period = ReportPeriod(
+            start=datetime(2026, 7, 14, tzinfo=UTC),
+            end=datetime(2026, 7, 28, tzinfo=UTC),
+            label="14d",
+        )
+
+        # Act
+        previous = period.previous()
+
+        # Assert
+        self.assertEqual(previous.start, datetime(2026, 6, 30, tzinfo=UTC))
+        self.assertEqual(previous.end, datetime(2026, 7, 14, tzinfo=UTC))
+        self.assertEqual(previous.end - previous.start, period.end - period.start)
+
+    def test_merge_previous_values_adds_numeric_siblings(self):
+        # Arrange
+        current = {
+            "auto_drafted_proposals": 12,
+            "funded": {"usd": Decimal(1200), "items": [{"id": 1}]},
+            "label": "keep",
+        }
+        previous = {
+            "auto_drafted_proposals": 8,
+            "funded": {"usd": Decimal(900)},
+        }
+
+        # Act
+        merged = merge_previous_values(current, previous)
+
+        # Assert
+        self.assertEqual(
+            merged,
+            {
+                "auto_drafted_proposals": 12,
+                "auto_drafted_proposals_previous": 8,
+                "funded": {
+                    "usd": Decimal(1200),
+                    "usd_previous": Decimal(900),
+                    "items": [{"id": 1}],
+                },
+                "label": "keep",
+            },
+        )
 
     def test_resolve_custom_period_uses_inclusive_end_date(self):
         # Arrange / Act
@@ -166,8 +228,45 @@ class BusinessInsightMetricTests(TestCase):
         self.assertEqual(proposals["submitted"], 2)
         self.assertEqual(proposals["tied_to_opportunity"], 1)
         self.assertEqual(proposals["independent"], 1)
+        self.assertEqual(
+            proposals["independent"] + proposals["tied_to_opportunity"],
+            proposals["submitted"],
+        )
         self.assertEqual(proposals["public"], 1)
         self.assertEqual(proposals["private"], 1)
+
+    def test_funding_tied_only_counts_proposals_created_in_period(self):
+        # Arrange: application in period for an older proposal should not count.
+        applicant = User.objects.create_user(
+            username="old-proposal-applicant",
+            email="old-proposal-applicant@example.com",
+        )
+        grant_post = create_post(created_by=self.user, document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_post.unified_document,
+            amount=Decimal(1000),
+            description="Test opportunity",
+        )
+        old_proposal = create_post(
+            created_by=applicant,
+            document_type=PREREGISTRATION,
+        )
+        old_proposal.created_date = self.period.start - timedelta(days=30)
+        old_proposal.save(update_fields=["created_date"])
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=old_proposal,
+            applicant=applicant,
+        )
+
+        # Act
+        proposals = get_funding_metrics(self.period)["proposals"]
+
+        # Assert
+        self.assertEqual(proposals["submitted"], 0)
+        self.assertEqual(proposals["tied_to_opportunity"], 0)
+        self.assertEqual(proposals["independent"], 0)
 
     def test_funding_classifies_credit_contribution_without_fees(self):
         # Arrange
@@ -239,6 +338,9 @@ class BusinessInsightMetricTests(TestCase):
     def test_pages_returns_top_documents(self):
         # Arrange
         post = create_post(created_by=self.user)
+        post.slug = "top-page-slug"
+        post.preview_img = "https://example.com/preview.png"
+        post.save(update_fields=["slug", "preview_img"])
         UserInteractions.objects.create(
             user=self.user,
             external_user_id="insights-user",
@@ -254,7 +356,15 @@ class BusinessInsightMetricTests(TestCase):
 
         # Assert
         self.assertEqual(len(metrics["top_documents"]), 1)
-        self.assertEqual(metrics["top_documents"][0]["views"], 1)
+        top = metrics["top_documents"][0]
+        self.assertEqual(top["document_id"], post.unified_document_id)
+        self.assertEqual(top["document_type"], post.unified_document.document_type)
+        self.assertEqual(top["views"], 1)
+        self.assertEqual(top["paper_id"], None)
+        self.assertEqual(top["post_id"], post.id)
+        self.assertEqual(top["slug"], "top-page-slug")
+        self.assertEqual(top["preview_img"], "https://example.com/preview.png")
+        self.assertEqual(top["url"], post.unified_document.frontend_view_link())
 
     def test_expert_finder_counts_registered_invited_experts(self):
         # Arrange
@@ -264,6 +374,14 @@ class BusinessInsightMetricTests(TestCase):
             expert_email="expert@example.com",
             template="collaboration",
             status=GeneratedEmail.Status.SENT,
+            channel=GeneratedEmail.Channel.EMAIL,
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_email="linkedin-expert@example.com",
+            template="collaboration",
+            status=GeneratedEmail.Status.SENT,
+            channel=GeneratedEmail.Channel.LINKEDIN,
         )
         invited_user = User.objects.create_user(
             username="invited-expert",
@@ -279,9 +397,15 @@ class BusinessInsightMetricTests(TestCase):
         self.assertEqual(
             metrics,
             {
-                "experts_generated_outreach_for": 1,
+                "experts_generated_outreach_for": 2,
                 "invited_experts": 1,
                 "auto_drafted_proposals": 0,
+                "outreach_by_channel": {
+                    "email": 1,
+                    "linkedin": 1,
+                    "x": 0,
+                    "other": 0,
+                },
             },
         )
 
@@ -472,12 +596,18 @@ class BusinessInsightMetricTests(TestCase):
             provider="google",
             uid="google-signup",
         )
+        SocialAccount.objects.create(
+            user=self.user,
+            provider="orcid",
+            uid="0000-0001-2345-6789",
+        )
 
         # Act
         metrics = get_user_metrics(self.period)
 
         # Assert
         self.assertEqual(metrics["verified_users"], 1)
+        self.assertEqual(metrics["orcid_connected"], 1)
         self.assertEqual(
             metrics["newly_created"],
             {
@@ -489,6 +619,31 @@ class BusinessInsightMetricTests(TestCase):
                 "via_google": 1,
             },
         )
+
+    def test_business_insights_includes_previous_period_values(self):
+        # Arrange: one opportunity created in the current window, none before.
+        post = create_post(created_by=self.user, document_type=GRANT)
+        Grant.objects.create(
+            created_by=self.user,
+            unified_document=post.unified_document,
+            amount=Decimal(1000),
+            description="Current-period opportunity",
+        )
+        service = BusinessInsightsService(self.period)
+
+        # Act
+        report = service.build()
+
+        # Assert
+        self.assertEqual(report["period"]["previous_end"], self.period.start)
+        self.assertEqual(
+            report["period"]["previous_start"],
+            self.period.start - (self.period.end - self.period.start),
+        )
+        self.assertEqual(report["funding"]["opportunities_created"], 1)
+        self.assertEqual(report["funding"]["opportunities_created_previous"], 0)
+        self.assertNotIn("top_documents_previous", report["pages"])
+        self.assertIn("top_documents", report["pages"])
 
 
 class ReportBusinessInsightsCommandTests(TestCase):
