@@ -402,6 +402,7 @@ class JournalFeedOrderingFilter(FundOrderingFilter):
                 filter=Q(
                     **{
                         f"{report_reviews}__is_removed": False,
+                        f"{report_reviews}__is_assessed": True,
                     }
                 ),
                 output_field=FloatField(),
@@ -418,6 +419,7 @@ class JournalFeedOrderingFilter(FundOrderingFilter):
         source_reviews = Review.objects.filter(
             unified_document_id=OuterRef(
                 "journey__preregistration_post__unified_document_id"
-            )
+            ),
+            is_assessed=True,
         )
         return queryset.annotate(has_peer_reviews=Exists(source_reviews))

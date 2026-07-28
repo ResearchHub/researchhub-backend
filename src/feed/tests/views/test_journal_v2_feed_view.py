@@ -194,6 +194,37 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         )
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_list_ignores_unassessed_peer_reviews_when_sorting(
+        self, mock_usd_to_rsc: Any
+    ) -> None:
+        """Verify unassessed reviews do not affect journal peer review sorting."""
+        # Arrange
+        mock_usd_to_rsc.return_value = 100
+        assessed_proposal = self.create_completed_proposal("Assessed Review")
+        assessed_report = self.create_registered_report(assessed_proposal)
+        unassessed_proposal = self.create_completed_proposal("Unassessed Review")
+        unassessed_report = self.create_registered_report(unassessed_proposal)
+        self.create_proposal_review(assessed_proposal, score=3)
+        self.create_proposal_review(unassessed_proposal, score=10, is_assessed=False)
+        ResearchhubPost.objects.filter(id=assessed_report.id).update(
+            created_date=timezone.now() - timezone.timedelta(days=2)
+        )
+        ResearchhubPost.objects.filter(id=unassessed_report.id).update(
+            created_date=timezone.now()
+        )
+
+        # Act
+        response = self.client.get("/api/journal_v2_feed/?ordering=peer_review_score")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [entry["content_object"]["id"] for entry in response.data["results"]]
+        self.assertLess(
+            post_ids.index(assessed_report.id),
+            post_ids.index(unassessed_report.id),
+        )
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
     def test_list_uses_the_completed_source_fundraise(
         self, mock_usd_to_rsc: Any
     ) -> None:
@@ -287,7 +318,9 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         self.service.attach_stage(proposal.journey, report)
         return report
 
-    def create_proposal_review(self, proposal: ResearchhubPost, score: int) -> Review:
+    def create_proposal_review(
+        self, proposal: ResearchhubPost, score: int, is_assessed: bool = True
+    ) -> Review:
         """Create a peer review on a proposal."""
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
@@ -310,5 +343,5 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
             object_id=comment.id,
             unified_document=proposal.unified_document,
             score=score,
-            is_assessed=False,
+            is_assessed=is_assessed,
         )
