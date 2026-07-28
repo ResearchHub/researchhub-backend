@@ -711,7 +711,6 @@ class PaperViewSet(
             _include_fields=[
                 "abstract",
                 "authors",
-                "boost_amount",
                 "created_date",
                 "discussion_count",
                 "doi",
