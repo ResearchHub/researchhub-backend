@@ -430,7 +430,7 @@ class CreateRegisteredReportTests(APITestCase):
         self.assertIn(response.status_code, (401, 403))
 
     def test_retrieves_work_with_tracker_and_reviewer_profile(self) -> None:
-        """Verify registered report work data includes tracker references and profiles."""
+        """Verify registered report work data includes tracker and reviewer data."""
         # Arrange
         proposal = self._create_completed_proposal(self.user)
         grant_post = self._create_grant_post()
