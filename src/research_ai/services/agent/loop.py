@@ -85,12 +85,24 @@ def _server_tool_name(data: dict) -> str:
 def _summarize_server_result(content) -> str:
     """One-line summary of a server-side tool result.
 
-    Success carries a list of records and failure a single error object, so the
-    shape is the signal: a search the provider could not run comes back as an
-    ordinary successful turn, and only this distinguishes it from an empty one.
+    Search success carries a list of records, while other server tools return
+    typed dictionaries. Only an explicit ``error_code`` is an error. Successful
+    dictionaries are summarized from safe structural metadata so opaque replay
+    fields such as encrypted stdout never reach logs.
     """
     if isinstance(content, dict):
-        return f"error: {_truncate(str(content.get('error_code') or content), 120)}"
+        error_code = content.get("error_code")
+        if error_code:
+            return f"error: {_truncate(error_code, 120)}"
+
+        result_type = str(content.get("type") or "result")
+        details = []
+        if "return_code" in content:
+            details.append(f"return_code={content['return_code']}")
+        outputs = content.get("content")
+        if isinstance(outputs, (list, tuple)):
+            details.append(f"outputs={len(outputs)}")
+        return f"{result_type} ({', '.join(details)})" if details else result_type
     if isinstance(content, (list, tuple)):
         return f"[{len(content)} results]"
     return _truncate(repr(content))
