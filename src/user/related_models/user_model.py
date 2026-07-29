@@ -11,7 +11,6 @@ from django.db.models.functions import Cast, Coalesce, Lower
 from django.utils import timezone
 
 from hub.models import Hub
-from mailing_list.models import EmailRecipient
 from purchase.related_models.balance_model import Balance
 from reputation.models import Distribution, PaidStatusModelMixin, Withdrawal
 from researchhub.settings import BASE_FRONTEND_URL
@@ -174,16 +173,6 @@ class User(AbstractUser):
             self.username = self.email
 
         user_to_save = super().save(*args, **kwargs)
-
-        # Keep Email Recipient up to date with email
-        if (self.email is not None) and (self.email != ""):
-            if hasattr(self, "emailrecipient") and (self.emailrecipient is not None):
-                if self.emailrecipient.email != self.email:
-                    er = self.emailrecipient
-                    er.email = self.email
-                    er.save()
-            else:
-                EmailRecipient.objects.create(user=self, email=self.email)
 
         return user_to_save
 
