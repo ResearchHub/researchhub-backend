@@ -33,6 +33,7 @@ from user.serializers import (
     UserSerializer,
 )
 from user.services.earning_overview_service import EarningOverviewService
+from user.services.profile_deletion_service import ProfileDeletionService
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.views.follow_view_mixins import FollowViewActionMixin
 
@@ -65,6 +66,9 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
     def get_serializer_context(self):
         return {"get_balance": True, "user": self.request.user}
 
+    def perform_destroy(self, instance):
+        ProfileDeletionService().delete_user(instance)
+
     def get_queryset(self):
         # TODO: Remove this override
         user = self.request.user
@@ -88,7 +92,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=["POST"], permission_classes=[AllowAny])
     def check_account(self, request):
-        user = User.objects.filter(email=request.data["email"]).first()
+        user = User.all_objects.filter(email=request.data["email"]).first()
         if user:
             # Filtering by provider == google because we only have google login
             # If we ever add a second login, we need to update the provider to include

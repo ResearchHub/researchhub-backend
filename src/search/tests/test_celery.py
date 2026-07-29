@@ -102,6 +102,7 @@ class TestCelerySignalProcessor(TestCase):
     def test_registry_update_task_success(self, get_model_mock, registry_update_mock):
         # Arrange
         model_mock = Mock()
+        model_mock.all_objects = None
         model_mock.objects.get.return_value = self.instance
         get_model_mock.return_value = model_mock
 
@@ -111,6 +112,24 @@ class TestCelerySignalProcessor(TestCase):
         # Assert
         get_model_mock.assert_called_once_with("test_app", "TestModel")
         model_mock.objects.get.assert_called_once_with(pk=1)
+        registry_update_mock.assert_called_once_with(self.instance)
+
+    @patch("search.celery.registry.update")
+    @patch("search.celery.apps.get_model")
+    def test_registry_update_task_updates_soft_deleted_instance(
+        self, get_model_mock, registry_update_mock
+    ):
+        # Arrange
+        model_mock = Mock()
+        model_mock.all_objects.get.return_value = self.instance
+        get_model_mock.return_value = model_mock
+
+        # Act
+        CelerySignalProcessor.registry_update_task(1, "test_app", "TestModel")
+
+        # Assert
+        model_mock.all_objects.get.assert_called_once_with(pk=1)
+        model_mock.objects.get.assert_not_called()
         registry_update_mock.assert_called_once_with(self.instance)
 
     @patch("search.celery.logger.error")
@@ -127,6 +146,7 @@ class TestCelerySignalProcessor(TestCase):
     def test_registry_update_task_does_not_exist(self, get_model_mock):
         # Arrange
         model_mock = Mock()
+        model_mock.all_objects = None
         model_mock.objects.get.side_effect = model_mock.DoesNotExist
         get_model_mock.return_value = model_mock
 
@@ -144,6 +164,7 @@ class TestCelerySignalProcessor(TestCase):
     ):
         # Arrange
         model_mock = Mock()
+        model_mock.all_objects = None
         model_mock.objects.get.return_value = self.instance
         get_model_mock.return_value = model_mock
 
@@ -173,6 +194,7 @@ class TestCelerySignalProcessor(TestCase):
     def test_registry_update_related_task_does_not_exist(self, get_model_mock):
         # Arrange
         model_mock = Mock()
+        model_mock.all_objects = None
         model_mock.objects.get.side_effect = model_mock.DoesNotExist
         get_model_mock.return_value = model_mock
 

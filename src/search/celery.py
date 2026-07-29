@@ -14,6 +14,11 @@ DEBOUNCE_PERIOD = 10
 logger = logging.getLogger(__name__)
 
 
+def _get_instance_for_indexing(model, pk):
+    manager = getattr(model, "all_objects", None) or model.objects
+    return manager.get(pk=pk)
+
+
 class CelerySignalProcessor(RealTimeSignalProcessor):
     def handle_save(self, sender, instance, **kwargs):
         pk = instance.pk
@@ -48,7 +53,7 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
     def registry_update_task(pk, app_label, model_name):
         try:
             model = apps.get_model(app_label, model_name)
-            instance = model.objects.get(pk=pk)
+            instance = _get_instance_for_indexing(model, pk)
             registry.update(instance)
         except LookupError as e:
             logger.error("Failed to get model for update task: %s", e)
@@ -66,7 +71,7 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
     def registry_update_related_task(pk, app_label, model_name):
         try:
             model = apps.get_model(app_label, model_name)
-            instance = model.objects.get(pk=pk)
+            instance = _get_instance_for_indexing(model, pk)
             registry.update_related(instance)
         except LookupError as e:
             logger.error("Failed to get model for update related task: %s", e)

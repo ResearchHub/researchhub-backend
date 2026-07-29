@@ -2,16 +2,16 @@
 
 from django.db import migrations, models
 
+
 def initialize_to_has_seen_orcid_connect_modal(apps, schema_editor):
     User = apps.get_model("user", "User")
     db_alias = schema_editor.connection.alias
-    User.objects.using(db_alias).all().update(
+    User._base_manager.using(db_alias).update(
         has_completed_onboarding=models.F("has_seen_orcid_connect_modal")
     )
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("user", "0098_verdict_is_paper_pdf_removed"),
     ]
@@ -22,5 +22,8 @@ class Migration(migrations.Migration):
             name="has_completed_onboarding",
             field=models.BooleanField(default=False),
         ),
-        migrations.RunPython(initialize_to_has_seen_orcid_connect_modal, reverse_code=migrations.RunPython.noop),
+        migrations.RunPython(
+            initialize_to_has_seen_orcid_connect_modal,
+            reverse_code=migrations.RunPython.noop,
+        ),
     ]

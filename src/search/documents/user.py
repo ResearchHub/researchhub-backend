@@ -181,5 +181,5 @@ class UserDocument(BaseDocument):
 
     @override
     def should_index_object(self, obj) -> bool:
-        """Exclude suspended users from the index"""
-        return not obj.is_suspended
+        """Exclude suspended and soft-deleted users from the index."""
+        return not obj.is_suspended and not obj.is_removed

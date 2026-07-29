@@ -14,11 +14,11 @@ def migrate_author_rsc_to_escrow(apps, schema_editor):
     Paper = apps.get_model('paper', 'paper')
     ContentType = apps.get_model('contenttypes', 'ContentType')
 
-    bank_user = User.objects.filter(email="bank@researchhub.com")
+    bank_user = User._base_manager.filter(email="bank@researchhub.com")
     if bank_user.exists():
         user = bank_user.first()
     else:
-        user = User.objects.first()
+        user = User._base_manager.first()
 
     for author_rsc in AuthorRSC.objects.all().iterator():
         Escrow.objects.create(

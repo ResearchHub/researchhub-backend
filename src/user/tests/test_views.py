@@ -12,7 +12,7 @@ from paper.related_models.paper_model import Paper
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
-from user.models import UserVerification
+from user.models import Author, User, UserVerification
 from user.tests.helpers import (
     create_hub_editor,
     create_random_authenticated_user,
@@ -255,6 +255,42 @@ class UserApiTests(APITestCase):
 
 
 class UserViewsTests(APITestCase):
+    def test_delete_soft_deletes_user_and_author_profile(self):
+        # Arrange
+        user = create_random_authenticated_user("soft_delete_user")
+        author_id = user.author_profile.id
+        url = f"/api/user/{user.id}/"
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.delete(url)
+
+        # Assert
+        self.assertEqual(response.status_code, 204)
+        deleted_user = User.all_objects.get(pk=user.pk)
+        deleted_author = Author.all_objects.get(pk=author_id)
+        self.assertFalse(deleted_user.is_active)
+        self.assertTrue(deleted_user.is_removed)
+        self.assertFalse(deleted_user.is_public)
+        self.assertIsNotNone(deleted_user.is_removed_date)
+        self.assertTrue(deleted_author.is_removed)
+        self.assertFalse(deleted_author.is_public)
+        self.assertIsNotNone(deleted_author.is_removed_date)
+        self.assertEqual(deleted_author.user_id, deleted_user.id)
+
+    def test_soft_deleted_user_profile_is_not_retrievable(self):
+        # Arrange
+        user = create_random_authenticated_user("hidden_soft_delete_user")
+        url = f"/api/user/{user.id}/"
+        self.client.force_authenticate(user)
+        self.client.delete(url)
+
+        # Act
+        response = self.client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, 404)
+
     def test_set_staking_opted_in_preserves_existing_opt_in_date(self):
         user = create_random_authenticated_user("staking_opt_in")
         original_opt_in_date = timezone.now() - timedelta(days=2)
