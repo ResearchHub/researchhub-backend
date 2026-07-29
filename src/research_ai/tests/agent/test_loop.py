@@ -479,6 +479,31 @@ class ServerSideToolTests(SimpleTestCase):
             all(isinstance(b, ServerToolBlock) for b in resumed[-1].content)
         )
 
+    def test_paused_turn_carries_provider_state_into_resuming_request(self):
+        # Arrange: request-level continuation state accompanies a server-side
+        # turn but is not itself a content block.
+        paused = _build_server_search_turn()
+        paused = AssistantTurn(
+            text_blocks=paused.text_blocks,
+            tool_calls=paused.tool_calls,
+            stop_reason=paused.stop_reason,
+            content_blocks=paused.content_blocks,
+            provider_state={
+                "anthropic": {"container": {"id": "container_123"}},
+            },
+        )
+        provider = FakeProvider([paused, _build_text_turn("all done")])
+        agent = _build_agent(provider, _build_toolset())
+
+        # Act
+        agent.run("go")
+
+        # Assert
+        self.assertEqual(
+            provider.calls[1][-1].provider_state,
+            {"anthropic": {"container": {"id": "container_123"}}},
+        )
+
     def test_paused_turn_still_counts_against_the_iteration_cap(self):
         # Arrange: a provider that never stops pausing.
         provider = FakeProvider([_build_server_search_turn() for _ in range(4)])

@@ -1,10 +1,12 @@
 """Unit tests for the Claude Platform on AWS provider adapter (no network)."""
 
 from copy import deepcopy
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from anthropic.types import (
     CodeExecutionToolResultBlock,
+    Container,
     EncryptedCodeExecutionResultBlock,
     RedactedThinkingBlock,
     ServerToolUseBlock,
@@ -57,9 +59,10 @@ class FakeAnthropicClient:
         self.messages = FakeMessages(responses)
 
 
-def _build_response(content, *, stop_reason="end_turn", usage=None):
+def _build_response(content, *, stop_reason="end_turn", usage=None, container=None):
     return AnthropicMessage(
         id="msg_1",
+        container=container,
         content=content,
         model="claude-opus-5",
         role="assistant",
@@ -472,6 +475,73 @@ class ServerSideToolTests(SimpleTestCase):
         self.assertEqual(
             replayed_result["content"]["encrypted_stdout"],
             "enc-stdout",
+        )
+
+    def test_code_execution_container_and_tool_caller_replay_on_followup(self):
+        # Arrange: code execution paused while a client tool runs. Anthropic
+        # requires both its top-level container id and the tool call's caller
+        # metadata when the result is sent back.
+        code_execution = ServerToolUseBlock(
+            id="srvtoolu_code",
+            name="code_execution",
+            input={"code": "await search({'q': 'llipta'})"},
+            type="server_tool_use",
+        )
+        client_call = AnthropicToolUseBlock(
+            id="toolu_search",
+            name="search",
+            input={"q": "llipta"},
+            caller={
+                "type": "code_execution_20260120",
+                "tool_id": "srvtoolu_code",
+            },
+            type="tool_use",
+        )
+        container = Container(
+            id="container_123",
+            expires_at=datetime(2026, 7, 29, 12, tzinfo=UTC),
+        )
+        provider = _build_provider(
+            [
+                _build_response(
+                    [code_execution, client_call],
+                    stop_reason="tool_use",
+                    container=container,
+                ),
+                _build_response([AnthropicTextBlock(type="text", text="done")]),
+            ]
+        )
+        initial = Message(role="user", content=[TextBlock(text="research")])
+        turn = _complete(provider, messages=[initial])
+        assistant = Message(
+            role="assistant",
+            content=turn.replay_content,
+            provider_state=turn.provider_state,
+        )
+        tool_result = Message(
+            role="user",
+            content=[
+                ToolResultBlock(
+                    tool_use_id="toolu_search",
+                    content={"results": []},
+                )
+            ],
+        )
+
+        # Act
+        _complete(provider, messages=[initial, assistant, tool_result])
+
+        # Assert: the next request resumes the exact pending execution rather
+        # than asking Anthropic to start a new container.
+        followup = provider._client.messages.calls[1]
+        self.assertEqual(followup["container"], "container_123")
+        replayed_call = followup["messages"][1]["content"][1]
+        self.assertEqual(
+            replayed_call["caller"],
+            {
+                "type": "code_execution_20260120",
+                "tool_id": "srvtoolu_code",
+            },
         )
 
     def test_cited_text_replays_with_encrypted_metadata(self):
