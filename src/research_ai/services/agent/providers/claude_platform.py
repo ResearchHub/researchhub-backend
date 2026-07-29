@@ -186,25 +186,57 @@ def _block_type(block: Any) -> str | None:
     return block_type if isinstance(block_type, str) else None
 
 
-def _container_id(messages: list[Message]) -> str | None:
-    """Return the latest assistant turn's Claude container identifier.
+def _has_code_execution_tool_call(message: Message) -> bool:
+    """Return whether Claude generated a client tool call from code execution."""
+    return any(
+        isinstance(block, ToolUseBlock)
+        and isinstance(block.data, dict)
+        and isinstance(block.data.get("caller"), dict)
+        and str(block.data["caller"].get("type", "")).startswith("code_execution_")
+        for block in message.content
+    )
 
-    A user tool-result message follows the assistant response that created the
-    container, so scan past user messages but stop at the first assistant one.
-    Falling back to an older assistant container after a newer response omitted
-    it could attach unrelated or expired execution state.
+
+def _message_container_id(message: Message) -> str | None:
+    """Read a Claude container identifier from one assistant message."""
+    anthropic_state = message.provider_state.get(_PROVIDER_STATE_KEY)
+    if not isinstance(anthropic_state, dict):
+        return None
+    container = anthropic_state.get("container")
+    if not isinstance(container, dict):
+        return None
+    container_id = container.get("id")
+    return container_id if isinstance(container_id, str) else None
+
+
+def _container_id(messages: list[Message]) -> str | None:
+    """Return the Claude container required by the latest assistant turn.
+
+    Programmatic code can pause for client tools more than once. If the latest
+    assistant response carries another code-generated tool call but no new
+    container metadata, reuse the most recent preceding id. Do not cross an
+    ordinary assistant turn: that would attach stale execution state to an
+    unrelated later exchange.
     """
-    for message in reversed(messages):
-        if message.role != "assistant":
-            continue
-        anthropic_state = message.provider_state.get(_PROVIDER_STATE_KEY)
-        if not isinstance(anthropic_state, dict):
+    assistant_messages = (
+        message for message in reversed(messages) if message.role == "assistant"
+    )
+    latest = next(assistant_messages, None)
+    if latest is None:
+        return None
+
+    container_id = _message_container_id(latest)
+    if container_id is not None:
+        return container_id
+    if not _has_code_execution_tool_call(latest):
+        return None
+
+    for message in assistant_messages:
+        if not _has_code_execution_tool_call(message):
             return None
-        container = anthropic_state.get("container")
-        if not isinstance(container, dict):
-            return None
-        container_id = container.get("id")
-        return container_id if isinstance(container_id, str) else None
+        container_id = _message_container_id(message)
+        if container_id is not None:
+            return container_id
     return None
 
 
@@ -294,6 +326,7 @@ class ClaudePlatformProvider(LLMProvider):
             # for ordinary container reuse. The identifier is response-level
             # state, separate from the content blocks replayed above.
             kwargs["container"] = container_id
+            logger.info("claude platform: reusing code execution container")
         if self.thinking:
             kwargs["thinking"] = {"type": self.thinking}
         if self.effort:
@@ -403,11 +436,13 @@ class ClaudePlatformProvider(LLMProvider):
         if usage is None:
             return
         logger.info(
-            "claude platform usage: input=%s cache_read=%s cache_write=%s output=%s",
+            "claude platform usage: input=%s cache_read=%s cache_write=%s "
+            "output=%s container_returned=%s",
             getattr(usage, "input_tokens", None),
             getattr(usage, "cache_read_input_tokens", None),
             getattr(usage, "cache_creation_input_tokens", None),
             getattr(usage, "output_tokens", None),
+            getattr(response, "container", None) is not None,
         )
 
     def _parse_turn(self, response: Any, *, latency_ms: int | None = None):
