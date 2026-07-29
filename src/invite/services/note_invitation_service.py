@@ -102,10 +102,5 @@ class NoteInvitationService:
         Args:
             invite: The note invitation to claim.
             user: The user claiming the invitation.
-        Raises:
-            NoteInvitationRecipientMismatchError: If the user isn't authenticated.
         """
-        if not getattr(user, "is_authenticated", False):
-            raise NoteInvitationRecipientMismatchError
-
         invite.recipient = user
