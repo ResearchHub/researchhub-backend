@@ -186,6 +186,29 @@ def _block_type(block: Any) -> str | None:
     return block_type if isinstance(block_type, str) else None
 
 
+def _has_code_execution_tool_call(message: Message) -> bool:
+    """Return whether Claude generated a client tool call from code execution."""
+    return any(
+        isinstance(block, ToolUseBlock)
+        and isinstance(block.data, dict)
+        and isinstance(block.data.get("caller"), dict)
+        and str(block.data["caller"].get("type", "")).startswith("code_execution_")
+        for block in message.content
+    )
+
+
+def _message_container_id(message: Message) -> str | None:
+    """Read a Claude container identifier from one assistant message."""
+    anthropic_state = message.provider_state.get(_PROVIDER_STATE_KEY)
+    if not isinstance(anthropic_state, dict):
+        return None
+    container = anthropic_state.get("container")
+    if not isinstance(container, dict):
+        return None
+    container_id = container.get("id")
+    return container_id if isinstance(container_id, str) else None
+
+
 def _container_id(messages: list[Message]) -> str | None:
     """Return the Claude container required by the latest assistant turn.
 
@@ -195,37 +218,25 @@ def _container_id(messages: list[Message]) -> str | None:
     ordinary assistant turn: that would attach stale execution state to an
     unrelated later exchange.
     """
-    latest_assistant_seen = False
-    may_reuse_preceding = False
-    for message in reversed(messages):
-        if message.role != "assistant":
-            continue
-        if not latest_assistant_seen:
-            latest_assistant_seen = True
-            may_reuse_preceding = any(
-                isinstance(block, ToolUseBlock)
-                and isinstance(block.data, dict)
-                and isinstance(block.data.get("caller"), dict)
-                and str(block.data["caller"].get("type", "")).startswith(
-                    "code_execution_"
-                )
-                for block in message.content
-            )
-        anthropic_state = message.provider_state.get(_PROVIDER_STATE_KEY)
-        if not isinstance(anthropic_state, dict):
-            if not may_reuse_preceding:
-                return None
-            continue
-        container = anthropic_state.get("container")
-        if not isinstance(container, dict):
-            if not may_reuse_preceding:
-                return None
-            continue
-        container_id = container.get("id")
-        if isinstance(container_id, str):
-            return container_id
-        if not may_reuse_preceding:
+    assistant_messages = (
+        message for message in reversed(messages) if message.role == "assistant"
+    )
+    latest = next(assistant_messages, None)
+    if latest is None:
+        return None
+
+    container_id = _message_container_id(latest)
+    if container_id is not None:
+        return container_id
+    if not _has_code_execution_tool_call(latest):
+        return None
+
+    for message in assistant_messages:
+        if not _has_code_execution_tool_call(message):
             return None
+        container_id = _message_container_id(message)
+        if container_id is not None:
+            return container_id
     return None
 
 

@@ -632,16 +632,29 @@ class ServerSideToolTests(SimpleTestCase):
         )
 
     def test_code_execution_container_does_not_cross_an_ordinary_turn(self):
-        # Arrange: an earlier turn used code execution, but the latest
-        # assistant turn is an ordinary completed response.
+        # Arrange: a new code-generated tool call appears after an unrelated
+        # ordinary assistant turn and has no container of its own.
         provider = _build_provider(
             [_build_response([AnthropicTextBlock(type="text", text="new answer")])]
         )
+        code_caller = {
+            "caller": {
+                "type": "code_execution_20260120",
+                "tool_id": "srvtoolu_code",
+            }
+        }
         history = [
             Message(role="user", content=[TextBlock(text="first question")]),
             Message(
                 role="assistant",
-                content=[TextBlock(text="first answer")],
+                content=[
+                    ToolUseBlock(
+                        id="toolu_old",
+                        name="search",
+                        input={"q": "old"},
+                        data=code_caller,
+                    )
+                ],
                 provider_state={
                     "anthropic": {
                         "container": {
@@ -651,16 +664,38 @@ class ServerSideToolTests(SimpleTestCase):
                     }
                 },
             ),
+            Message(
+                role="user",
+                content=[
+                    ToolResultBlock(tool_use_id="toolu_old", content={"results": []})
+                ],
+            ),
+            Message(role="assistant", content=[TextBlock(text="first answer")]),
             Message(role="user", content=[TextBlock(text="second question")]),
-            Message(role="assistant", content=[TextBlock(text="second answer")]),
-            Message(role="user", content=[TextBlock(text="third question")]),
+            Message(
+                role="assistant",
+                content=[
+                    ToolUseBlock(
+                        id="toolu_new",
+                        name="search",
+                        input={"q": "new"},
+                        data=code_caller,
+                    )
+                ],
+            ),
+            Message(
+                role="user",
+                content=[
+                    ToolResultBlock(tool_use_id="toolu_new", content={"results": []})
+                ],
+            ),
         ]
 
         # Act
         _complete(provider, messages=history)
 
-        # Assert: retaining a pending execution does not turn into indefinite
-        # container reuse across unrelated conversation turns.
+        # Assert: the ordinary turn breaks the continuation chain, so the old
+        # container is not attached to the unrelated code-generated call.
         self.assertNotIn("container", provider._client.messages.calls[0])
 
     def test_cited_text_replays_with_encrypted_metadata(self):
