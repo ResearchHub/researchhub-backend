@@ -3,14 +3,16 @@
 from copy import deepcopy
 from types import SimpleNamespace
 
-from anthropic.types import Message as AnthropicMessage
 from anthropic.types import (
+    CodeExecutionToolResultBlock,
+    EncryptedCodeExecutionResultBlock,
     RedactedThinkingBlock,
     ServerToolUseBlock,
     Usage,
     WebSearchResultBlock,
     WebSearchToolResultBlock,
 )
+from anthropic.types import Message as AnthropicMessage
 from anthropic.types import (
     TextBlock as AnthropicTextBlock,
 )
@@ -434,6 +436,44 @@ class ServerSideToolTests(SimpleTestCase):
         self.assertEqual(result["type"], "web_search_tool_result")
         self.assertEqual(result["tool_use_id"], request["id"])
 
+    def test_code_execution_result_replays_with_encrypted_output(self):
+        # Arrange: web search may invoke provider-managed code execution and
+        # return its encrypted output as another assistant response block.
+        request = ServerToolUseBlock(
+            id="srvtoolu_2",
+            name="code_execution",
+            input={"code": "print('done')"},
+            type="server_tool_use",
+        )
+        result = CodeExecutionToolResultBlock(
+            type="code_execution_tool_result",
+            tool_use_id="srvtoolu_2",
+            content=EncryptedCodeExecutionResultBlock(
+                type="encrypted_code_execution_result",
+                content=[],
+                encrypted_stdout="enc-stdout",
+                return_code=0,
+                stderr="",
+            ),
+        )
+        provider = _build_provider([_build_response([request, result])])
+        turn = _complete(provider)
+
+        # Act
+        rendered = provider._render_messages(
+            [Message(role="assistant", content=turn.replay_content)]
+        )
+
+        # Assert: both blocks remain paired and the encrypted replay state is
+        # preserved exactly instead of being rejected or reconstructed.
+        replayed_request, replayed_result = rendered[0]["content"]
+        self.assertEqual(replayed_result, result.model_dump(mode="json"))
+        self.assertEqual(replayed_result["tool_use_id"], replayed_request["id"])
+        self.assertEqual(
+            replayed_result["content"]["encrypted_stdout"],
+            "enc-stdout",
+        )
+
     def test_cited_text_replays_with_encrypted_metadata(self):
         # Arrange: a server search can produce cited text and a client tool call
         # in the same assistant turn. The follow-up must replay every citation
@@ -483,16 +523,47 @@ class ServerSideToolTests(SimpleTestCase):
             "enc-index",
         )
 
-    def test_unknown_content_block_fails_before_replay_state_is_corrupted(self):
-        # Arrange: stand in for a new SDK block type the adapter does not know.
-        response = _build_response([])
-        response.content = [SimpleNamespace(type="something_new")]
+    def test_unknown_content_block_is_preserved_for_forward_compatibility(self):
+        # Arrange: stand in for a complete block returned by a newer API/SDK.
+        payload = {
+            "type": "something_new",
+            "encrypted_state": "opaque",
+        }
+        response = SimpleNamespace(
+            content=[payload],
+            stop_reason="end_turn",
+            usage=Usage(input_tokens=10, output_tokens=3),
+        )
+        provider = _build_provider([response])
+
+        # Act
+        with self.assertLogs(
+            "research_ai.services.agent.providers.claude_platform",
+            level="WARNING",
+        ) as logs:
+            turn = _complete(provider)
+        rendered = provider._render_messages(
+            [Message(role="assistant", content=turn.replay_content)]
+        )
+
+        # Assert: the run survives and the provider gets back exactly what it
+        # returned, while operators can see that the adapter needs updating.
+        self.assertEqual(rendered[0]["content"], [payload])
+        self.assertIn("something_new", "\n".join(logs.output))
+
+    def test_unknown_content_block_without_payload_fails_safely(self):
+        # Arrange: a type name alone cannot be replayed without data loss.
+        response = SimpleNamespace(
+            content=[SimpleNamespace(type="something_new")],
+            stop_reason="end_turn",
+            usage=Usage(input_tokens=10, output_tokens=3),
+        )
         provider = _build_provider([response])
 
         # Act / Assert
         with self.assertRaisesRegex(
             ProviderError,
-            "Unsupported Claude Platform content block: 'something_new'",
+            "content block cannot be replayed safely: 'something_new'",
         ):
             _complete(provider)
 

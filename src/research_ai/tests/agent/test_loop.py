@@ -7,7 +7,7 @@ from research_ai.services.agent.errors import (
     IterationLimitError,
     ProviderError,
 )
-from research_ai.services.agent.loop import Agent
+from research_ai.services.agent.loop import Agent, _summarize_server_result
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool, Toolset
 from research_ai.services.agent.types import (
@@ -117,6 +117,52 @@ class RaisingRecorder:
 
     def on_run_failed(self, error):
         raise OSError("db gone")
+
+
+class ServerResultSummaryTests(SimpleTestCase):
+    def test_encrypted_execution_success_logs_only_structural_metadata(self):
+        # Arrange
+        content = {
+            "type": "encrypted_code_execution_result",
+            "encrypted_stdout": "opaque-secret",
+            "return_code": 0,
+            "stderr": "",
+            "content": [],
+        }
+
+        # Act
+        summary = _summarize_server_result(content)
+
+        # Assert
+        self.assertEqual(
+            summary,
+            "encrypted_code_execution_result (return_code=0, outputs=0)",
+        )
+        self.assertNotIn("opaque-secret", summary)
+
+    def test_server_tool_error_logs_its_error_code(self):
+        # Arrange
+        content = {
+            "type": "code_execution_tool_result_error",
+            "error_code": "execution_time_exceeded",
+        }
+
+        # Act
+        summary = _summarize_server_result(content)
+
+        # Assert
+        self.assertEqual(summary, "error: execution_time_exceeded")
+
+    def test_search_result_list_logs_only_its_size(self):
+        # Arrange
+        content = [{"url": "https://example.org/private-result"}]
+
+        # Act
+        summary = _summarize_server_result(content)
+
+        # Assert
+        self.assertEqual(summary, "[1 results]")
+        self.assertNotIn("private-result", summary)
 
 
 class AgentLoopTests(SimpleTestCase):
