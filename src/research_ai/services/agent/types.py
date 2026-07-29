@@ -87,11 +87,18 @@ class ServerToolBlock:
 
 @dataclass(frozen=True)
 class ToolUseBlock:
-    """The model's request to call a tool. ``id`` correlates with the result."""
+    """The model's request to call a tool. ``id`` correlates with the result.
+
+    ``data`` optionally carries the provider response block verbatim. Most tool
+    calls are provider-neutral and leave it unset. Providers that attach
+    replay-critical metadata to a call keep the whole block here; for example,
+    Claude identifies calls made from code execution with a ``caller`` field.
+    """
 
     id: str
     name: str
     input: dict
+    data: dict | None = None
     type: str = "tool_use"
 
 
@@ -111,10 +118,17 @@ Block = TextBlock | ThinkingBlock | ServerToolBlock | ToolUseBlock | ToolResultB
 
 @dataclass(frozen=True)
 class Message:
-    """One conversation turn: a role plus an ordered list of content blocks."""
+    """One conversation turn plus opaque provider continuation state.
+
+    ``provider_state`` is request-level state that cannot live in a content
+    block. The agent core carries it without interpreting it so a provider can
+    resume a turn across calls. Claude's code-execution container identifier is
+    one example.
+    """
 
     role: str
     content: list[Block]
+    provider_state: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -159,6 +173,7 @@ class AssistantTurn:
     latency_ms: int | None = None
     thinking_blocks: list[ThinkingBlock] = field(default_factory=list)
     content_blocks: list[Block] = field(default_factory=list)
+    provider_state: dict = field(default_factory=dict)
 
     @property
     def replay_content(self) -> list[Block]:
@@ -184,12 +199,15 @@ def _serialize_block(block: Block) -> dict:
     if isinstance(block, ServerToolBlock):
         return {"type": "server_tool", "data": block.data}
     if isinstance(block, ToolUseBlock):
-        return {
+        serialized = {
             "type": "tool_use",
             "id": block.id,
             "name": block.name,
             "input": block.input,
         }
+        if block.data is not None:
+            serialized["data"] = block.data
+        return serialized
     if isinstance(block, ToolResultBlock):
         return {
             "type": "tool_result",
@@ -209,7 +227,12 @@ def _deserialize_block(data: dict) -> Block:
     if block_type == "server_tool":
         return ServerToolBlock(data=data["data"])
     if block_type == "tool_use":
-        return ToolUseBlock(id=data["id"], name=data["name"], input=data["input"])
+        return ToolUseBlock(
+            id=data["id"],
+            name=data["name"],
+            input=data["input"],
+            data=data.get("data"),
+        )
     if block_type == "tool_result":
         return ToolResultBlock(
             tool_use_id=data["tool_use_id"],
@@ -221,10 +244,16 @@ def _deserialize_block(data: dict) -> Block:
 
 def serialize_messages(messages: list[Message]) -> list[dict]:
     """Render a conversation to the JSON shape an ``AgentMessage`` would store."""
-    return [
-        {"role": m.role, "content": [_serialize_block(b) for b in m.content]}
-        for m in messages
-    ]
+    serialized = []
+    for message in messages:
+        item = {
+            "role": message.role,
+            "content": [_serialize_block(block) for block in message.content],
+        }
+        if message.provider_state:
+            item["provider_state"] = message.provider_state
+        serialized.append(item)
+    return serialized
 
 
 def deserialize_messages(data: list[dict]) -> list[Message]:
@@ -233,6 +262,7 @@ def deserialize_messages(data: list[dict]) -> list[Message]:
         Message(
             role=m["role"],
             content=[_deserialize_block(b) for b in m["content"]],
+            provider_state=m.get("provider_state") or {},
         )
         for m in data
     ]

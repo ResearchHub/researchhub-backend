@@ -50,8 +50,25 @@ class TypesTests(SimpleTestCase):
                             "content": [{"url": "https://example.org"}],
                         }
                     ),
-                    ToolUseBlock(id="t1", name="search", input={"q": "jane"}),
+                    ToolUseBlock(
+                        id="t1",
+                        name="search",
+                        input={"q": "jane"},
+                        data={
+                            "type": "tool_use",
+                            "id": "t1",
+                            "name": "search",
+                            "input": {"q": "jane"},
+                            "caller": {
+                                "type": "code_execution_20260120",
+                                "tool_id": "s2",
+                            },
+                        },
+                    ),
                 ],
+                provider_state={
+                    "anthropic": {"container": {"id": "container_123"}},
+                },
             ),
             Message(
                 role="user",

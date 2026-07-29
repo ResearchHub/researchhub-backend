@@ -289,6 +289,7 @@ class Agent:
             assistant_message = Message(
                 role="assistant",
                 content=turn.replay_content,
+                provider_state=turn.provider_state,
             )
             messages.append(assistant_message)
             self._record("record_message", assistant_message, turn=turn)

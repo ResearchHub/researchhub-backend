@@ -228,6 +228,7 @@ class AgentContextMessage(DefaultModel):
     sequence = models.PositiveIntegerField()
     role = models.CharField(max_length=32)
     content = models.JSONField(default=list)
+    provider_state = models.JSONField(default=dict)
     is_compacted = models.BooleanField(default=False)
     original_size_bytes = models.PositiveBigIntegerField(null=True, blank=True)
 

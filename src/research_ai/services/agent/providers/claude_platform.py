@@ -140,6 +140,8 @@ _SERVER_TOOL_BLOCK_TYPES = (
 # read.
 _CACHEABLE_BLOCK_TYPES = ("text", "tool_result")
 
+_PROVIDER_STATE_KEY = "anthropic"
+
 
 def _accepts_sampling_params(model_id: str) -> bool:
     mid = model_id.lower()
@@ -182,6 +184,28 @@ def _block_type(block: Any) -> str | None:
     if block_type is None and isinstance(block, dict):
         block_type = block.get("type")
     return block_type if isinstance(block_type, str) else None
+
+
+def _container_id(messages: list[Message]) -> str | None:
+    """Return the latest assistant turn's Claude container identifier.
+
+    A user tool-result message follows the assistant response that created the
+    container, so scan past user messages but stop at the first assistant one.
+    Falling back to an older assistant container after a newer response omitted
+    it could attach unrelated or expired execution state.
+    """
+    for message in reversed(messages):
+        if message.role != "assistant":
+            continue
+        anthropic_state = message.provider_state.get(_PROVIDER_STATE_KEY)
+        if not isinstance(anthropic_state, dict):
+            return None
+        container = anthropic_state.get("container")
+        if not isinstance(container, dict):
+            return None
+        container_id = container.get("id")
+        return container_id if isinstance(container_id, str) else None
+    return None
 
 
 class ClaudePlatformProvider(LLMProvider):
@@ -264,6 +288,12 @@ class ClaudePlatformProvider(LLMProvider):
         }
         if rendered_tools:
             kwargs["tools"] = rendered_tools
+        container_id = _container_id(messages)
+        if container_id:
+            # Required when code execution paused on a tool call, and useful
+            # for ordinary container reuse. The identifier is response-level
+            # state, separate from the content blocks replayed above.
+            kwargs["container"] = container_id
         if self.thinking:
             kwargs["thinking"] = {"type": self.thinking}
         if self.effort:
@@ -327,6 +357,11 @@ class ClaudePlatformProvider(LLMProvider):
             # request and its injected result unedited and still paired.
             return dict(block.data)
         if isinstance(block, ToolUseBlock):
+            if block.data is not None:
+                # Programmatic tool calls include a ``caller`` that ties the
+                # call to pending code in the container. Replay the complete
+                # block rather than reconstructing only the common fields.
+                return dict(block.data)
             return {
                 "type": "tool_use",
                 "id": block.id,
@@ -402,6 +437,7 @@ class ClaudePlatformProvider(LLMProvider):
                     id=block.id,
                     name=block.name,
                     input=dict(getattr(block, "input", None) or {}),
+                    data=_block_payload(block),
                 )
                 tool_calls.append(parsed)
             else:
@@ -433,6 +469,13 @@ class ClaudePlatformProvider(LLMProvider):
                 raw_stop_reason,
                 getattr(response, "stop_details", None),
             )
+        container = getattr(response, "container", None)
+        container_payload = _block_payload(container)
+        provider_state = (
+            {_PROVIDER_STATE_KEY: {"container": container_payload}}
+            if isinstance(container_payload.get("id"), str)
+            else {}
+        )
         return AssistantTurn(
             text_blocks=text_blocks,
             thinking_blocks=thinking_blocks,
@@ -442,6 +485,7 @@ class ClaudePlatformProvider(LLMProvider):
             raw=_block_payload(response),
             usage=self._parse_usage(response),
             latency_ms=latency_ms,
+            provider_state=provider_state,
         )
 
     def _parse_usage(self, response: Any) -> TurnUsage | None:
