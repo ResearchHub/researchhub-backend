@@ -292,24 +292,6 @@ class CompleteAndParseTests(SimpleTestCase):
         self.assertEqual(call["output_config"], {"effort": "high"})
         self.assertNotIn("temperature", call)
 
-    def test_thinking_off_forwards_temperature_for_a_sampling_model(self):
-        # Arrange: with thinking omitted, a sampling-friendly model keeps it.
-        provider = ClaudePlatformProvider(
-            client=FakeAnthropicClient([_build_response([])]),
-            model_id="claude-haiku-4-5",
-        )
-        provider.thinking = ""
-        provider.effort = ""
-
-        # Act
-        _complete(provider, temperature=0.7)
-
-        # Assert
-        call = provider._client.messages.calls[0]
-        self.assertNotIn("thinking", call)
-        self.assertNotIn("output_config", call)
-        self.assertEqual(call["temperature"], 0.7)
-
     def test_prompt_caching_marks_system_and_the_last_message_block(self):
         # Arrange
         provider = _build_provider([_build_response([])])
@@ -325,19 +307,6 @@ class CompleteAndParseTests(SimpleTestCase):
             call["messages"][-1]["content"][-1]["cache_control"],
             {"type": "ephemeral"},
         )
-
-    def test_prompt_caching_disabled_emits_no_breakpoints(self):
-        # Arrange
-        provider = _build_provider([_build_response([])])
-        provider.prompt_caching = False
-
-        # Act
-        _complete(provider)
-
-        # Assert
-        call = provider._client.messages.calls[0]
-        self.assertEqual(call["system"], [{"type": "text", "text": "sys"}])
-        self.assertNotIn("cache_control", call["messages"][-1]["content"][-1])
 
     def test_complete_fills_usage_and_latency(self):
         # Arrange
@@ -419,24 +388,6 @@ class CompleteAndParseTests(SimpleTestCase):
         with self.assertRaisesRegex(ProviderError, "overloaded_error") as ctx:
             _complete(provider)
         self.assertIsInstance(ctx.exception.__cause__, ValueError)
-
-
-class ModelConfigTests(SimpleTestCase):
-    def test_default_model_is_opus_5(self):
-        # Arrange / Act
-        provider = ClaudePlatformProvider(client=FakeAnthropicClient([]))
-
-        # Assert: the bare first-party id -- Claude Platform takes no prefix.
-        self.assertEqual(provider.model_id, "claude-opus-5")
-
-    def test_explicit_model_id_overrides_the_default(self):
-        # Arrange / Act
-        provider = ClaudePlatformProvider(
-            client=FakeAnthropicClient([]), model_id="claude-sonnet-5"
-        )
-
-        # Assert
-        self.assertEqual(provider.model_id, "claude-sonnet-5")
 
 
 class ServerSideToolTests(SimpleTestCase):

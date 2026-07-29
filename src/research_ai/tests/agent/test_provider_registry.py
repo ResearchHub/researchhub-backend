@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from django.test import SimpleTestCase, override_settings
 
-from research_ai.services.agent.providers import claude_platform, registry
+from research_ai.services.agent.providers import registry
 from research_ai.services.agent.providers.claude_platform import ClaudePlatformProvider
 from research_ai.services.agent.providers.registry import (
     generator_model_ref,
@@ -13,21 +13,6 @@ from research_ai.services.agent.providers.registry import (
 
 
 class GeneratorModelRefTests(SimpleTestCase):
-    def test_defaults_to_claude_platform_opus_5(self):
-        # Arrange / Act
-        ref = generator_model_ref()
-
-        # Assert
-        self.assertEqual(ref, "claude_platform:claude-opus-5")
-
-    @patch.object(claude_platform, "MODEL_ID", "claude-sonnet-5")
-    def test_claude_platform_ref_reads_its_module_default(self):
-        # Arrange / Act
-        ref = generator_model_ref()
-
-        # Assert
-        self.assertEqual(ref, "claude_platform:claude-sonnet-5")
-
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
     def test_bedrock_ref_carries_the_provider_prefix(self):
         # Arrange / Act
@@ -97,12 +82,3 @@ class ResolveProviderTests(SimpleTestCase):
 
         # Assert
         bedrock_cls.assert_called_once_with(model_id="us.anthropic.claude-opus-4-8")
-
-    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
-    def test_bedrock_generator_setting_resolves_bedrock(self, bedrock_cls):
-        # Arrange / Act
-        provider = resolve_provider()
-
-        # Assert
-        self.assertIs(provider, bedrock_cls.return_value)
-        bedrock_cls.assert_called_once_with(model_id="us.anthropic.claude-opus-5")

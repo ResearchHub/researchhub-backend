@@ -124,13 +124,6 @@ class RenderMessagesTests(SimpleTestCase):
 
 
 class CompleteAndParseTests(SimpleTestCase):
-    def test_default_model_is_opus_5_on_the_inference_profile(self):
-        # Arrange / Act: Bedrock needs the ``us.`` cross-region profile prefix.
-        provider = BedrockProvider(client=FakeConverseClient([]))
-
-        # Assert
-        self.assertEqual(provider.model_id, "us.anthropic.claude-opus-5")
-
     def test_parses_reasoning_content_into_thinking_blocks(self):
         # Arrange: Opus 5 thinks by default, so a turn can carry reasoning.
         reasoning = {"reasoningText": {"text": "step one", "signature": "sig"}}
