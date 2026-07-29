@@ -160,7 +160,7 @@ class User(AbstractUser):
             ),
         ]
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs) -> None:
         # A unique constraint is enforced on the username on the database
         # level. This line is used to ensure usernames are not empty without
         # requiring the client to enter a value in this field. It also forces
@@ -172,9 +172,7 @@ class User(AbstractUser):
         if (self.email is not None) and (self.email != ""):
             self.username = self.email
 
-        user_to_save = super().save(*args, **kwargs)
-
-        return user_to_save
+        super().save(*args, **kwargs)
 
     def ensure_staking_opted_in(self):
         """Auto-opt the user into staking if not already opted in."""
