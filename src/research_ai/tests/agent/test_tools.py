@@ -57,6 +57,43 @@ class ToolsetDispatchTests(SimpleTestCase):
         self.assertEqual(result, {"error": "ValueError"})
         self.assertFalse(stop)
 
+    def test_non_dict_result_is_rejected_at_the_tool_boundary(self):
+        # Arrange: handlers promise a plain dict.
+        tool = Tool(
+            "broken",
+            "broken",
+            {"type": "object"},
+            lambda _input: ["not", "a", "dict"],
+        )
+        toolset = Toolset([tool])
+
+        # Act
+        result, stop = toolset.dispatch("broken", {})
+
+        # Assert
+        self.assertEqual(
+            result,
+            {"error": "tool 'broken' returned list; expected dict"},
+        )
+        self.assertFalse(stop)
+
+    def test_non_json_dict_is_rejected_at_the_tool_boundary(self):
+        # Arrange
+        tool = Tool(
+            "broken",
+            "broken",
+            {"type": "object"},
+            lambda _input: {"payload": object()},
+        )
+        toolset = Toolset([tool])
+
+        # Act
+        result, stop = toolset.dispatch("broken", {})
+
+        # Assert
+        self.assertEqual(result, {"error": "tool 'broken' returned invalid JSON"})
+        self.assertFalse(stop)
+
     def test_terminal_tool_signals_stop(self):
         # Arrange
         toolset = Toolset([_build_ok_tool("submit", is_terminal=True)])

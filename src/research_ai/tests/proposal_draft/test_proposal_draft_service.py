@@ -18,6 +18,7 @@ from django.utils import timezone
 from note.models import Note
 from purchase.models import Grant
 from research_ai.models import Expert, ExpertSearch, ProposalDraft, SearchExpert
+from research_ai.services.agent import LLMProvider
 from research_ai.services.agent.types import (
     AssistantTurn,
     StopReason,
@@ -92,7 +93,7 @@ class _SequencePanel:
         return "A"
 
 
-class _ScriptedProvider:
+class _ScriptedProvider(LLMProvider):
     """Returns queued ``AssistantTurn``s, then ends the turn in plain text."""
 
     def __init__(self, turns):
@@ -113,7 +114,7 @@ class _ScriptedProvider:
         )
 
 
-class _AlwaysSubmitProvider:
+class _AlwaysSubmitProvider(LLMProvider):
     """Submits the same payload on every turn (drives the round-budget bound)."""
 
     def __init__(self, payload):
@@ -138,7 +139,7 @@ class _AlwaysSubmitProvider:
         )
 
 
-class _SequenceSubmitProvider:
+class _SequenceSubmitProvider(LLMProvider):
     """Submits a distinct payload per round (the last payload repeats)."""
 
     def __init__(self, payloads):
@@ -614,13 +615,40 @@ class ProposalDraftServiceTests(TestCase):
         )
 
         # Act
-        toolset = runner._compose_toolset()
+        toolset = runner._compose_toolset(_ScriptedProvider([]))
 
         # Assert: the tool is exposed to the agent, and the injected client is
         # used, with its own provenance kept separate from citation grounding.
         self.assertIn("web_search", toolset.names)
         self.assertIs(runner.web_search_toolset._client, sentinel)
         self.assertIsNot(runner.web_search_toolset.provenance, runner.provenance)
+
+    def test_provider_with_native_search_drops_the_local_web_search_tool(self):
+        # Arrange: a provider that runs web search itself (Claude Platform).
+        class _NativeSearchProvider(_ScriptedProvider):
+            @property
+            def native_tool_names(self):
+                return frozenset({"web_search"})
+
+        draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            status=ProposalDraft.Status.PENDING,
+            step=ProposalDraft.Step.QUEUED,
+        )
+        runner = _ProposalDraftRunner(
+            self.search_expert, draft, oa_client=_FakeOpenAlex()
+        )
+
+        # Act
+        toolset = runner._compose_toolset(_NativeSearchProvider([]))
+
+        # Assert: the name is left free for the provider's own declaration --
+        # two tools sharing one name is a request error -- and nothing else
+        # about the toolset changes.
+        self.assertNotIn("web_search", toolset.names)
+        self.assertIn("search_works", toolset.names)
+        self.assertIn("verify_citations", toolset.names)
+        self.assertIn("submit_proposal", toolset.names)
 
     # -- a flat panel score below the bar stops the loop early ------------
 
@@ -825,7 +853,7 @@ class ProposalDraftServiceTests(TestCase):
 
     def test_provider_error_fails_with_cause_in_message(self):
         # Arrange: the provider dies on its first call (throttle, network, ...).
-        class _ExplodingProvider:
+        class _ExplodingProvider(LLMProvider):
             def render_tools(self, _tools):
                 return {"tools": []}
 
@@ -1133,7 +1161,7 @@ class ProposalDraftServiceTests(TestCase):
         )
 
         # Act
-        toolset = runner._compose_toolset()
+        toolset = runner._compose_toolset(_ScriptedProvider([]))
 
         # Assert: no agent-facing judge; the panel scores every submit at the
         # gate. verify_citations (deterministic, cheap) is still available.
@@ -1160,7 +1188,7 @@ class ProposalDraftServiceTests(TestCase):
         )
 
         # Act
-        toolset = runner._compose_toolset()
+        toolset = runner._compose_toolset(_ScriptedProvider([]))
 
         # Assert: the composed tool is the proposal one (profile-scoped,
         # fetch-capped), not the profile builder's OpenAlex reader.

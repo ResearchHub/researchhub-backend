@@ -541,6 +541,23 @@ OPENAI_API_KEY = os.environ.get(
     getattr(keys, "OPENAI_API_KEY", ""),
 )
 
+# Claude Platform on AWS (research_ai agent core). Anthropic's own Claude
+# Developer Platform fronted by AWS SigV4 auth and Marketplace billing --
+# distinct from Amazon Bedrock. Requests are signed with the ambient AWS
+# credentials, so this workspace id is the only extra config; it is required
+# whenever the generator or a judge roster entry runs on Claude Platform.
+ANTHROPIC_AWS_WORKSPACE_ID = os.environ.get(
+    "ANTHROPIC_AWS_WORKSPACE_ID",
+    getattr(keys, "ANTHROPIC_AWS_WORKSPACE_ID", ""),
+)
+
+# Which provider the research_ai agent core generates with: "claude_platform"
+# (default, Claude Platform on AWS) or "bedrock". Each adapter names its own
+# model and inference knobs as module constants.
+RESEARCH_AI_GENERATOR_PROVIDER = os.environ.get(
+    "RESEARCH_AI_GENERATOR_PROVIDER", "claude_platform"
+)
+
 AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
     "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
     getattr(keys, "AI_PEER_REVIEW_BEDROCK_MODEL_ID", ""),

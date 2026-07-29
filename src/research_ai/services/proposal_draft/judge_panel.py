@@ -2,11 +2,12 @@
 
 The critique step scores a draft with a roster of one or more judges, reduced by
 median (absolute scoring) and majority (pairwise). The default roster is a single
-judge on the **generator model itself** (Opus 4.8) -- in practice it critiques
-its own drafts harshly enough to surface real issues. The roster is configurable
-via ``RESEARCH_AI_JUDGE_MODEL_IDS`` for anyone who wants a multi-model,
-cross-family panel; every judge is the same ``BedrockProvider`` pointed at a
-different Converse ``modelId``, so no second provider adapter is needed.
+judge on the **generator model itself** -- in practice it critiques its own
+drafts harshly enough to surface real issues. Name refs in ``JUDGE_MODEL_IDS``
+below for a multi-model, cross-family panel; each roster entry is a model ref
+resolved through the provider registry, so an unprefixed id stays on the
+generator's provider while a ``bedrock:<id>`` / ``claude_platform:<id>`` ref
+routes that one judge elsewhere.
 
 The panel runs two modes off the roster:
 
@@ -26,33 +27,39 @@ import json
 import logging
 import statistics
 
-from django.conf import settings
-
 from research_ai.prompts._loader import load_template
-from research_ai.services.agent import BedrockProvider, LLMProvider, Message, TextBlock
+from research_ai.services.agent import (
+    LLMProvider,
+    Message,
+    TextBlock,
+    generator_model_ref,
+    resolve_provider,
+)
 from research_ai.services.expert_finder.json_parsing import ExpertFinderJson
 
 logger = logging.getLogger(__name__)
-
-# Default generator id, mirrored from the agent core's BedrockProvider default;
-# the default judge roster is this same model.
-_DEFAULT_GENERATOR_MODEL_ID = "us.anthropic.claude-opus-4-8"
 
 _RUBRIC_CRITERIA = ("c1", "c2", "c3", "c4", "c5", "c6", "c7")
 _MIN_SCORE = 1
 _MAX_SCORE = 5
 
+# The judge roster, as model refs. Empty means a single judge on the generator
+# model. Name refs here for a multi-model, cross-family panel; an entry may
+# carry a provider prefix (``bedrock:`` / ``claude_platform:``) to route that
+# judge somewhere other than the generator's provider.
+JUDGE_MODEL_IDS: list[str] = []
+
 
 def _default_generator_id() -> str:
-    return getattr(
-        settings, "RESEARCH_AI_GENERATOR_MODEL_ID", _DEFAULT_GENERATOR_MODEL_ID
-    )
+    # The registry's ref carries the provider prefix, so the default
+    # single-judge roster lands on the same provider and model the generator
+    # uses.
+    return generator_model_ref()
 
 
 def _default_roster_ids(generator_id: str) -> list[str]:
-    """Roster model ids from settings; defaults to a single judge on the generator."""
-    ids = list(getattr(settings, "RESEARCH_AI_JUDGE_MODEL_IDS", []) or [])
-    return ids or [generator_id]
+    """The configured roster; defaults to a single judge on the generator."""
+    return list(JUDGE_MODEL_IDS) or [generator_id]
 
 
 def _coerce_score(raw: object) -> int:
@@ -117,14 +124,19 @@ def _pairwise_user_prompt(a: str, b: str, context: dict | None) -> str:
 
 
 class ProposalJudgePanel:
-    """A roster of Bedrock judges scored by median / majority.
+    """A roster of judges (one provider per model ref) scored by median / majority.
 
     Args:
         providers: Explicit judge providers (one per judge). When omitted, a
-            default roster is built lazily from settings. Injected in tests.
+            default roster is built lazily from the module roster. Injected in
+            tests.
         generator_model_id: The generator's model id; the default roster is a
             single judge on this model.
-        max_tokens / temperature: Inference config for each judge call.
+        max_tokens / temperature: Inference config for each judge call. The
+            budget covers reasoning as well as the verdict on models that think
+            (thinking is on by default from Opus 5), and a judge truncated
+            mid-JSON is a judge that does not report, so it is sized with room
+            to spare rather than to the size of the verdict.
     """
 
     def __init__(
@@ -132,7 +144,7 @@ class ProposalJudgePanel:
         *,
         providers: list[LLMProvider] | None = None,
         generator_model_id: str | None = None,
-        max_tokens: int = 4096,
+        max_tokens: int = 8192,
         temperature: float = 0.0,
     ):
         self._generator_model_id = generator_model_id or _default_generator_id()
@@ -153,7 +165,7 @@ class ProposalJudgePanel:
     def _get_providers(self) -> list[LLMProvider]:
         if self._providers is None:
             self._providers = [
-                BedrockProvider(model_id=model_id) for model_id in self._model_ids
+                resolve_provider(model_id) for model_id in self._model_ids
             ]
         return self._providers
 

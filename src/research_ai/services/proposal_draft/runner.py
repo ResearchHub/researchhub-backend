@@ -42,8 +42,6 @@ Judge-facing context compaction lives with the other tool code in
 
 import logging
 
-from django.conf import settings
-
 from research_ai.models import ProposalDraft, SearchExpert
 from research_ai.prompts.proposal_draft_prompts import (
     build_proposal_system_prompt,
@@ -52,9 +50,10 @@ from research_ai.prompts.proposal_draft_prompts import (
 from research_ai.services.agent import (
     AgentRunError,
     AgentService,
-    BedrockProvider,
     Tool,
     Toolset,
+    generator_model_ref,
+    resolve_provider,
 )
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_draft.draft_recorder import DraftRecorder
@@ -148,7 +147,7 @@ class _ProposalDraftRunner:
         self.recorder.mark_processing(
             {
                 "generator_model_id": getattr(self.provider, "model_id", None)
-                or getattr(settings, "RESEARCH_AI_GENERATOR_MODEL_ID", None),
+                or generator_model_ref(),
                 "judge_roster": list(self.panel.model_ids),
                 "max_rounds": self.config.max_rounds,
                 "panel_threshold": self.config.panel_threshold,
@@ -217,8 +216,10 @@ class _ProposalDraftRunner:
             logger.exception("proposal draft: profile build failed")
 
     def _build_agent(self, system_prompt: str):
-        provider = self.provider or BedrockProvider()
-        toolset = self._compose_toolset()
+        provider = self.provider or resolve_provider(
+            native_tools=frozenset({"web_search"})
+        )
+        toolset = self._compose_toolset(provider)
         return AgentService(
             provider=provider, max_iterations=self.config.max_iterations
         ).create_agent(
@@ -228,7 +229,13 @@ class _ProposalDraftRunner:
             temperature=self.config.temperature,
         )
 
-    def _compose_toolset(self) -> Toolset:
+    def _compose_toolset(self, provider) -> Toolset:
+        """Compose the toolset for ``provider``, whose native tools it defers to.
+
+        The provider is what decides where web search runs: Claude Platform
+        serves it itself, so the Brave-backed tool is dropped there and kept on
+        Bedrock, which has no server-side search.
+        """
         self._submit_tool = build_submit_tool(self._handle_submit)
         return compose_proposal_toolset(
             openalex_toolset=self.openalex_toolset,
@@ -237,6 +244,7 @@ class _ProposalDraftRunner:
             web_search_toolset=self.web_search_toolset,
             verification_toolset=self.verification_toolset,
             submit_tool=self._submit_tool,
+            native_tool_names=provider.native_tool_names,
         )
 
     def _normalize_submission(self, submitted: dict) -> dict:
@@ -458,8 +466,10 @@ def run_proposal_draft(
     the note id.
 
     ``provider`` / ``panel`` / ``oa_client`` / ``web_search_client`` are
-    injectable for tests; in production they default to the real Bedrock
-    provider, judge panel, OpenAlex client, and Brave web-search client.
+    injectable for tests; in production they default to the settings-configured
+    generator provider (Claude Platform on AWS unless
+    ``RESEARCH_AI_GENERATOR_PROVIDER`` says ``"bedrock"``), judge panel,
+    OpenAlex client, and Brave web-search client.
     """
     search_expert = SearchExpert.objects.select_related(
         "expert", "expert_search", "expert_search__unified_document"
