@@ -18,9 +18,6 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         self.author = create_random_default_user("author")
         self.follower1 = create_random_default_user("follower1")
         self.follower2 = create_random_default_user("follower2")
-        self.follower_no_email_recipient = create_random_default_user(
-            "no_email_recipient"
-        )
 
         # Create preregistration
         self.unified_doc = ResearchhubUnifiedDocument.objects.create(
@@ -46,16 +43,13 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
             comment_type=AUTHOR_UPDATE,
         )
 
-        # Opt out follower2 from email notifications
-        self.follower2.emailrecipient.set_opted_out(True)
-
-        # Remove EmailRecipient for follower_no_email_recipient to test that case
-        self.follower_no_email_recipient.emailrecipient.delete()
-
     @patch("researchhub_comment.tasks.send_email")
-    def test_sends_emails_to_users_with_notification_preferences(self, mock_send_email):
+    def test_sends_email_to_each_follower(self, mock_send_email):
         """
-        Test that emails are sent only to users who want to receive notifications.
+        Test that an email is sent to every follower.
+
+        Suppressed and opted-out addresses are filtered by ``send_email``
+        itself, so this task does not gate on notification preferences.
         """
         # Arrange
         follower_ids = [self.follower1.id, self.follower2.id]
@@ -65,11 +59,13 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         send_author_update_email_notifications(self.comment.id, follower_ids)
 
         # Assert
-        # Should only send to follower1 who has receives_notifications=True
-        mock_send_email.assert_called_once()
+        self.assertEqual(mock_send_email.call_count, 2)
 
-        call_args = mock_send_email.call_args[0]
-        self.assertEqual(call_args[0], [self.follower1.email])
+        recipients = [call[0][0] for call in mock_send_email.call_args_list]
+        self.assertIn([self.follower1.email], recipients)
+        self.assertIn([self.follower2.email], recipients)
+
+        call_args = mock_send_email.call_args_list[0][0]
         self.assertEqual(call_args[1], "general_email_message.txt")
         self.assertEqual(call_args[2], "Update on Preregistration You're Following")
 
@@ -79,21 +75,6 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         self.assertIn("author_name", email_context)
         self.assertEqual(email_context["document_title"], self.preregistration.title)
         self.assertEqual(email_context["author_name"], self.author.full_name())
-
-    @patch("researchhub_comment.tasks.send_email")
-    def test_skips_users_without_email_recipient_object(self, mock_send_email):
-        """
-        Test that users without EmailRecipient objects are skipped.
-        """
-        # Arrange
-        follower_ids = [self.follower_no_email_recipient.id]
-        mock_send_email.return_value = {"success": [], "failure": [], "exclude": []}
-
-        # Act
-        send_author_update_email_notifications(self.comment.id, follower_ids)
-
-        # Assert
-        mock_send_email.assert_not_called()
 
     @patch("researchhub_comment.tasks.logger")
     @patch("researchhub_comment.tasks.send_email")
@@ -157,9 +138,7 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         Test that the task processes multiple users correctly.
         """
         # Arrange
-        # Create additional user with email preferences enabled
         follower3 = create_random_default_user("follower3")
-        # follower3 will have EmailRecipient automatically created and enabled
 
         follower_ids = [self.follower1.id, self.follower2.id, follower3.id]
         mock_send_email.return_value = {"success": [], "failure": [], "exclude": []}
@@ -168,8 +147,7 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         send_author_update_email_notifications(self.comment.id, follower_ids)
 
         # Assert
-        # Should be called twice (for follower1 and follower3, but not follower2)
-        self.assertEqual(mock_send_email.call_count, 2)
+        self.assertEqual(mock_send_email.call_count, 3)
 
         # Get all call arguments
         call_args_list = mock_send_email.call_args_list
@@ -178,5 +156,5 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         ]  # Extract email addresses
 
         self.assertIn(self.follower1.email, sent_emails)
+        self.assertIn(self.follower2.email, sent_emails)
         self.assertIn(follower3.email, sent_emails)
-        self.assertNotIn(self.follower2.email, sent_emails)  # Should be excluded

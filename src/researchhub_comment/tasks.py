@@ -98,16 +98,13 @@ def send_author_update_email_notifications(comment_id, follower_user_ids):
         for user_id in follower_user_ids:
             try:
                 user = User.objects.get(id=user_id)
-                # Check if user wants to receive emails (following existing patterns)
-                email_recipient = getattr(user, "emailrecipient", None)
-                if email_recipient and email_recipient.receives_notifications:
-                    send_email(
-                        [user.email],
-                        "general_email_message.txt",
-                        subject,
-                        context,
-                        html_template="general_email_message.html",
-                    )
+                send_email(
+                    [user.email],
+                    "general_email_message.txt",
+                    subject,
+                    context,
+                    html_template="general_email_message.html",
+                )
             except Exception as e:
                 # Log individual user failures but continue with others
                 logger.error(
