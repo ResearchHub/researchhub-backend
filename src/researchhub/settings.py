@@ -603,13 +603,18 @@ ASSETS_BASE_URL = os.environ.get(
     "ASSETS_BASE_URL", "https://assets.staging.researchhub.com"
 )
 
-# Email
+#  Email
 
+# See: https://github.com/django-ses/django-ses#full-list-of-settings
 AWS_SES_REGION_NAME = AWS_REGION_NAME
 AWS_SES_REGION_ENDPOINT = os.environ.get(
     "AWS_SES_REGION_ENDPOINT", keys.AWS_SES_REGION_ENDPOINT
 )
 AWS_SES_CONFIGURATION_SET = os.environ.get("AWS_SES_CONFIGURATION_SET", None) or None
+# Blacklist settings
+AWS_SES_USE_BLACKLIST = True
+AWS_SES_ADD_BOUNCE_TO_BLACKLIST = True
+AWS_SES_ADD_COMPLAINT_TO_BLACKLIST = True
 
 EMAIL_BACKEND = "django_ses.SESBackend"
 if TESTING:
@@ -619,7 +624,6 @@ EMAIL_WHITELIST = [
     email.strip()
     for email in os.environ.get("EMAIL_WHITELIST", keys.EMAIL_WHITELIST).split(",")
 ]
-
 
 # Persona
 PERSONA_WEBHOOK_SECRET = os.environ.get(
