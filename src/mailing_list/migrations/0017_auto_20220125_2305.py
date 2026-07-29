@@ -11,7 +11,7 @@ def add_editor_subscriptions(apps, schema_editor):
         Hub = apps.get_model('hub', 'Hub')
         ContentType = apps.get_model('contenttypes', 'ContentType')
 
-        editors = User.objects.filter(
+        editors = User._base_manager.filter(
                 permissions__isnull=False,
                 permissions__access_type='EDITOR',
                 permissions__content_type=ContentType.objects.get_for_model(Hub)

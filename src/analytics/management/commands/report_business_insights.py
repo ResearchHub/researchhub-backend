@@ -7,6 +7,7 @@ Run from the repository root:
     python manage.py report_business_insights --period 7d \
         --output business_insights.json --pretty
     python manage.py report_business_insights --period 24h
+    python manage.py report_business_insights --period 14d
     python manage.py report_business_insights --period 30d
     python manage.py report_business_insights \
         --start-date 2026-07-01 --end-date 2026-07-07 --pretty
@@ -44,7 +45,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--period",
-            choices=["24h", "7d", "30d"],
+            choices=["24h", "7d", "14d", "30d"],
             default="7d",
             help="Reporting window ending now (default: 7d)",
         )

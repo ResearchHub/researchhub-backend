@@ -76,7 +76,6 @@ class ResearchhubPostSerializer(
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
             "authors",
-            "boost_amount",
             "id",
             "created_by",
             "created_date",
@@ -125,13 +124,11 @@ class ResearchhubPostSerializer(
             "post_src",
             "unified_document_id",
             "version_number",
-            "boost_amount",
             "is_removed",
             "updated_date",
         ]
 
     # GenericReactionSerializerMixin
-    boost_amount = SerializerMethodField()
     user_flag = SerializerMethodField()
 
     # local
@@ -404,15 +401,11 @@ class ResearchhubPostSerializer(
         )
         return serializer.data
 
-    def get_boost_amount(self, instance):
-        return instance.get_boost_amount()
-
 
 class DynamicPostSerializer(
     DynamicModelFieldSerializer, ModeratedDocumentStatusSerializerMixin
 ):
     authors = SerializerMethodField()
-    boost_amount = SerializerMethodField()
     bounties = SerializerMethodField()
     created_by = SerializerMethodField()
     discussions = SerializerMethodField()
@@ -583,11 +576,6 @@ class DynamicPostSerializer(
             **_context_fields,
         )
         return serializer.data
-
-    def get_boost_amount(self, post):
-        if post.purchases.exists():
-            return post.get_boost_amount()
-        return 0
 
     def get_score(self, post):
         return post.unified_document.score

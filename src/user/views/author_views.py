@@ -29,6 +29,7 @@ from user.serializers import (
     AuthorSerializer,
     DynamicAuthorProfileSerializer,
 )
+from user.services.profile_deletion_service import ProfileDeletionService
 from user.tasks import invalidate_author_profile_caches
 from user.utils import AuthorClaimError, claim_openalex_author_profile
 from user.views.follow_view_mixins import FollowViewActionMixin
@@ -49,6 +50,9 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         | DeleteAuthorPermission
     ]
     throttle_classes = THROTTLE_CLASSES
+
+    def perform_destroy(self, instance):
+        ProfileDeletionService().delete_author(instance)
 
     def create(self, request, *args, **kwargs):
         """Override to use an editable serializer."""

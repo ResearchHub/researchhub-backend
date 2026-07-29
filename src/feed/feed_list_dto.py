@@ -14,6 +14,7 @@ from feed.serializers import (
     SlimAuthorSerializer,
     _grant_amount,
 )
+from purchase.models import Fundraise
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.related_models.constants.document_type import (
@@ -140,6 +141,18 @@ def _serialize_slim_bounties(post):
     return [_serialize_slim_bounty(bounty) for bounty in parent_bounties]
 
 
+def _serialize_slim_nonprofit(
+    fundraise: Fundraise,
+) -> dict[str, int | str] | None:
+    """Serialize the nonprofit associated with a fundraise, when present."""
+    links = fundraise.nonprofit_links.all()
+    if not links:
+        return None
+
+    nonprofit = links[0].nonprofit
+    return {"id": nonprofit.id, "name": nonprofit.name}
+
+
 def _serialize_slim_application_fundraise(application):
     post = application.preregistration_post
     if not post or not hasattr(post, "unified_document") or not post.unified_document:
@@ -160,12 +173,6 @@ def _serialize_slim_application_fundraise(application):
     except AttributeError:
         rsc_goal = None
 
-    nonprofit_data = None
-    links = fundraise.nonprofit_links.all()
-    if links:
-        np = links[0].nonprofit
-        nonprofit_data = {"id": np.id, "name": np.name}
-
     reviews = [
         SlimReviewSerializer(r).data for r in _assessed_reviews(ud.reviews.all())
     ]
@@ -174,7 +181,7 @@ def _serialize_slim_application_fundraise(application):
         "id": fundraise.id,
         "title": post.title,
         "goal_amount": {"usd": usd_goal, "rsc": rsc_goal},
-        "nonprofit": nonprofit_data,
+        "nonprofit": _serialize_slim_nonprofit(fundraise),
         "reviews": reviews,
     }
 
@@ -426,7 +433,10 @@ class JournalFeedPostSerializer(serializers.Serializer):
         fundraises = list(proposal.unified_document.fundraises.all())
         if not fundraises:
             return None
-        return _serialize_slim_fundraise(fundraises[0], self.context)
+        fundraise = fundraises[0]
+        data = _serialize_slim_fundraise(fundraise, self.context)
+        data["nonprofit"] = _serialize_slim_nonprofit(fundraise)
+        return data
 
     def serialize_proposal_reviews(self, proposal: ResearchhubPost) -> list[dict]:
         """Serialize assessed reviews from the source proposal."""

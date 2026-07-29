@@ -19,14 +19,28 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Purchase
-        fields = "__all__"
+        fields = [
+            "id",
+            "source",
+            "paid_date",
+            "paid_status",
+            "object_id",
+            "purchase_method",
+            "purchase_type",
+            "transaction_hash",
+            "purchase_hash",
+            "amount",
+            "rsc_usd_rate",
+            "created_date",
+            "updated_date",
+            "user",
+            "content_type",
+        ]
         read_only_fields = [
             "id",
             "purchase_hash",
             "created_date",
             "transaction_hash",
-            "boost_time",
-            "group",
             "updated_date",
             "rsc_usd_rate",
         ]
@@ -59,7 +73,23 @@ class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
 
     class Meta:
         model = Purchase
-        fields = "__all__"
+        fields = [
+            "id",
+            "content_type",
+            "source",
+            "user",
+            "paid_date",
+            "paid_status",
+            "object_id",
+            "purchase_method",
+            "purchase_type",
+            "transaction_hash",
+            "purchase_hash",
+            "amount",
+            "rsc_usd_rate",
+            "created_date",
+            "updated_date",
+        ]
 
     def get_source(self, purchase):
         context = self.context

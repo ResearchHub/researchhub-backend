@@ -1,7 +1,7 @@
 from allauth.account.models import EmailAddress
 from allauth.socialaccount.models import SocialAccount
 
-from user.models import Author, User, UserVerification
+from user.models import User, UserVerification
 
 
 def get_user_metrics(period):
@@ -24,18 +24,16 @@ def get_user_metrics(period):
     )
     email_user_ids = new_user_ids - google_user_ids
 
-    author_orcid_user_ids = (
-        Author.objects.filter(
-            user_id__isnull=False,
-            orcid_id__isnull=False,
+    orcid_connected = (
+        SocialAccount.objects.filter(
+            provider="orcid",
+            date_joined__gte=period.start,
+            date_joined__lt=period.end,
         )
-        .exclude(orcid_id="")
-        .values_list("user_id", flat=True)
+        .values("user_id")
+        .distinct()
+        .count()
     )
-    social_orcid_user_ids = SocialAccount.objects.filter(provider="orcid").values_list(
-        "user_id", flat=True
-    )
-    orcid_connected = len(set(author_orcid_user_ids) | set(social_orcid_user_ids))
 
     return {
         "verified_users": UserVerification.objects.filter(

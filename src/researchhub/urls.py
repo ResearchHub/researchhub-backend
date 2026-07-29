@@ -19,7 +19,6 @@ from rest_framework import routers
 
 import hub.views
 import invite.views as invite_views
-import mailing_list.views
 import new_feature_release.views
 import note.views as note_views
 import notification.views
@@ -96,12 +95,6 @@ router.register(r"leaderboard", user.views.LeaderboardViewSet, basename="leaderb
 
 router.register(
     r"payment/coinbase", purchase.views.CoinbaseViewSet, basename="coinbase"
-)
-
-router.register(
-    r"email_recipient",
-    mailing_list.views.EmailRecipientViewSet,
-    basename="email_recipient",
 )
 
 router.register(

@@ -7,7 +7,6 @@ from django.db.models.functions import Cast, Coalesce
 from purchase.models import (
     Balance,
     Grant,
-    GrantApplication,
     Payment,
     Purchase,
     RscExchangeRate,
@@ -74,10 +73,6 @@ def get_funding_metrics(period):
         created_date__gte=period.start,
         created_date__lt=period.end,
     )
-    applications = GrantApplication.objects.filter(
-        created_date__gte=period.start,
-        created_date__lt=period.end,
-    )
     proposals = ResearchhubPost.objects.filter(
         document_type=PREREGISTRATION,
         unified_document__is_removed=False,
@@ -89,6 +84,11 @@ def get_funding_metrics(period):
         independent=Count(
             "id",
             filter=Q(grant_applications__isnull=True),
+            distinct=True,
+        ),
+        tied_to_opportunity=Count(
+            "id",
+            filter=Q(grant_applications__isnull=False),
             distinct=True,
         ),
         public=Count(
@@ -160,15 +160,12 @@ def get_funding_metrics(period):
     unique_funders = set(rsc_contributions.values_list("user_id", flat=True))
     unique_funders.update(usd_contributions.values_list("user_id", flat=True))
 
-    tied_to_opportunity = (
-        applications.values("preregistration_post_id").distinct().count()
-    )
     return {
         "opportunities_created": grants.count(),
         "proposals": {
             "submitted": proposal_counts["total"],
             "independent": proposal_counts["independent"],
-            "tied_to_opportunity": tied_to_opportunity,
+            "tied_to_opportunity": proposal_counts["tied_to_opportunity"],
             "public": proposal_counts["public"],
             "private": proposal_counts["private"],
         },

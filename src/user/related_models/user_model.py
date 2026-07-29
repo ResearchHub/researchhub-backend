@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from django.contrib.auth.models import AbstractUser, UserManager
+from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import UserManager as DjangoUserManager
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Count, DecimalField, Q, Sum, Value
@@ -11,7 +12,6 @@ from django.db.models.functions import Cast, Coalesce, Lower
 from django.utils import timezone
 
 from hub.models import Hub
-from mailing_list.models import EmailRecipient
 from purchase.related_models.balance_model import Balance
 from reputation.models import Distribution, PaidStatusModelMixin, Withdrawal
 from researchhub.settings import BASE_FRONTEND_URL
@@ -20,6 +20,8 @@ from researchhub_access_group.constants import (
     ASSOCIATE_EDITOR,
     SENIOR_EDITOR,
 )
+from utils.managers import SoftDeletableManagerMixin
+from utils.models import SoftDeletableModel
 from utils.throttles import UserSustainedRateThrottle
 
 FOUNDATION_EMAIL = "main@researchhub.foundation"
@@ -33,7 +35,7 @@ class UnlockedBalanceLot:
     created_date: date
 
 
-class UserManager(UserManager):
+class UserManager(SoftDeletableManagerMixin, DjangoUserManager):
     def editors(self):
         editors = self.filter(
             (
@@ -86,7 +88,7 @@ User objects have the following fields by default:
 """
 
 
-class User(AbstractUser):
+class User(SoftDeletableModel, AbstractUser):
     agreed_to_terms = models.BooleanField(default=False)
     clicked_on_balance_date = models.DateTimeField(auto_now_add=True)
     country_code = models.CharField(max_length=4, null=True, blank=True)
@@ -161,7 +163,7 @@ class User(AbstractUser):
             ),
         ]
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs) -> None:
         # A unique constraint is enforced on the username on the database
         # level. This line is used to ensure usernames are not empty without
         # requiring the client to enter a value in this field. It also forces
@@ -173,19 +175,7 @@ class User(AbstractUser):
         if (self.email is not None) and (self.email != ""):
             self.username = self.email
 
-        user_to_save = super().save(*args, **kwargs)
-
-        # Keep Email Recipient up to date with email
-        if (self.email is not None) and (self.email != ""):
-            if hasattr(self, "emailrecipient") and (self.emailrecipient is not None):
-                if self.emailrecipient.email != self.email:
-                    er = self.emailrecipient
-                    er.email = self.email
-                    er.save()
-            else:
-                EmailRecipient.objects.create(user=self, email=self.email)
-
-        return user_to_save
+        super().save(*args, **kwargs)
 
     def ensure_staking_opted_in(self):
         """Auto-opt the user into staking if not already opted in."""

@@ -5,8 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import HashIndex
 from django.core.validators import FileExtensionValidator
 from django.db import models
-from django.db.models import Func, Index, IntegerField, JSONField, Q, Sum
-from django.db.models.functions import Cast
+from django.db.models import Func, Index, JSONField, Q
 from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
 
@@ -15,7 +14,6 @@ from hub.models import Hub
 from paper.related_models.citation_model import Citation
 from paper.storage.figure_storage import FigureStorage
 from paper.utils import get_csl_item
-from purchase.models import Purchase
 from reputation.models import Score, ScoreChange
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
@@ -299,19 +297,6 @@ class Paper(AbstractGenericReactionModel):
             )
         else:
             celery_extract_pdf_preview(self.id)
-
-    def get_boost_amount(self):
-        purchases = self.purchases.filter(
-            paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
-        )
-        if purchases.exists():
-            boost_amount = (
-                purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
-                .aggregate(sum=Sum("amount_as_int"))
-                .get("sum", 0)
-            )
-            return boost_amount
-        return 0
 
     def get_license(self, save=True):
         pdf_license = self.pdf_license

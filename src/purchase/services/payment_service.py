@@ -546,6 +546,7 @@ class PaymentService:
             amount=rsc_amount,
             currency=RSC,
             check_self_contribution=False,
+            use_credits=True,
         )
 
         return contribution if not error else None
