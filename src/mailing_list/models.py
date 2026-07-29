@@ -1,10 +1,15 @@
+from warnings import deprecated
+
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
 
+@deprecated("EmailRecipient is deprecated. Use EmailOptOut or SES blacklist.")
 class EmailRecipient(models.Model):
-    """Tracks an email address and whether it should receive mail."""
+    """
+    This model is deprecated and it currently only kept for data migration purposes.
+    """
 
     email = models.EmailField(unique=True)
     do_not_email = models.BooleanField(default=False)
