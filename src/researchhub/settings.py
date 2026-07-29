@@ -603,7 +603,7 @@ ASSETS_BASE_URL = os.environ.get(
     "ASSETS_BASE_URL", "https://assets.staging.researchhub.com"
 )
 
-#  Email
+# Email
 
 # See: https://github.com/django-ses/django-ses#full-list-of-settings
 AWS_SES_REGION_NAME = AWS_REGION_NAME
