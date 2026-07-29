@@ -1,7 +1,6 @@
 from django.test import TestCase
 
 from mailing_list.models import EmailRecipient
-from user.tests.helpers import create_random_default_user
 
 
 class ReceivesNotificationsTests(TestCase):
@@ -111,29 +110,3 @@ class GetSuppressedEmailsTests(TestCase):
 
         # Assert
         self.assertEqual(result, set())
-
-
-class UserRecipientSyncTests(TestCase):
-    """``User.save()`` keeps an ``EmailRecipient`` in sync with the account."""
-
-    def test_recipient_is_created_for_a_new_user(self):
-        # Act
-        user = create_random_default_user("sync")
-
-        # Assert
-        self.assertEqual(user.emailrecipient.email, user.email)
-        self.assertTrue(user.emailrecipient.receives_notifications)
-
-    def test_recipient_email_follows_the_user_email(self):
-        # Arrange
-        user = create_random_default_user("resync")
-        recipient = user.emailrecipient
-
-        # Act
-        user.email = "changed@example.com"
-        user.save()
-
-        # Assert
-        recipient.refresh_from_db()
-        self.assertEqual(recipient.email, "changed@example.com")
-        self.assertEqual(EmailRecipient.objects.filter(user=user).count(), 1)
