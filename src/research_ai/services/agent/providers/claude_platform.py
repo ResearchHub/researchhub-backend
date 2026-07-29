@@ -187,24 +187,45 @@ def _block_type(block: Any) -> str | None:
 
 
 def _container_id(messages: list[Message]) -> str | None:
-    """Return the latest assistant turn's Claude container identifier.
+    """Return the Claude container required by the latest assistant turn.
 
-    A user tool-result message follows the assistant response that created the
-    container, so scan past user messages but stop at the first assistant one.
-    Falling back to an older assistant container after a newer response omitted
-    it could attach unrelated or expired execution state.
+    Programmatic code can pause for client tools more than once. If the latest
+    assistant response carries another code-generated tool call but no new
+    container metadata, reuse the most recent preceding id. Do not cross an
+    ordinary assistant turn: that would attach stale execution state to an
+    unrelated later exchange.
     """
+    latest_assistant_seen = False
+    may_reuse_preceding = False
     for message in reversed(messages):
         if message.role != "assistant":
             continue
+        if not latest_assistant_seen:
+            latest_assistant_seen = True
+            may_reuse_preceding = any(
+                isinstance(block, ToolUseBlock)
+                and isinstance(block.data, dict)
+                and isinstance(block.data.get("caller"), dict)
+                and str(block.data["caller"].get("type", "")).startswith(
+                    "code_execution_"
+                )
+                for block in message.content
+            )
         anthropic_state = message.provider_state.get(_PROVIDER_STATE_KEY)
         if not isinstance(anthropic_state, dict):
-            return None
+            if not may_reuse_preceding:
+                return None
+            continue
         container = anthropic_state.get("container")
         if not isinstance(container, dict):
-            return None
+            if not may_reuse_preceding:
+                return None
+            continue
         container_id = container.get("id")
-        return container_id if isinstance(container_id, str) else None
+        if isinstance(container_id, str):
+            return container_id
+        if not may_reuse_preceding:
+            return None
     return None
 
 
@@ -294,6 +315,7 @@ class ClaudePlatformProvider(LLMProvider):
             # for ordinary container reuse. The identifier is response-level
             # state, separate from the content blocks replayed above.
             kwargs["container"] = container_id
+            logger.info("claude platform: reusing code execution container")
         if self.thinking:
             kwargs["thinking"] = {"type": self.thinking}
         if self.effort:
@@ -403,11 +425,13 @@ class ClaudePlatformProvider(LLMProvider):
         if usage is None:
             return
         logger.info(
-            "claude platform usage: input=%s cache_read=%s cache_write=%s output=%s",
+            "claude platform usage: input=%s cache_read=%s cache_write=%s "
+            "output=%s container_returned=%s",
             getattr(usage, "input_tokens", None),
             getattr(usage, "cache_read_input_tokens", None),
             getattr(usage, "cache_creation_input_tokens", None),
             getattr(usage, "output_tokens", None),
+            getattr(response, "container", None) is not None,
         )
 
     def _parse_turn(self, response: Any, *, latency_ms: int | None = None):

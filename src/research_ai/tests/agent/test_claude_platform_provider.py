@@ -544,6 +544,125 @@ class ServerSideToolTests(SimpleTestCase):
             },
         )
 
+    def test_code_execution_container_survives_multihop_tool_calls(self):
+        # Arrange: the first programmatic call establishes a container. The
+        # next response pauses for another call without repeating the already
+        # active container, matching a multi-hop code-execution run.
+        container = Container(
+            id="container_123",
+            expires_at=datetime(2026, 7, 29, 12, tzinfo=UTC),
+        )
+        first_call = AnthropicToolUseBlock(
+            id="toolu_search_1",
+            name="search",
+            input={"q": "llipta"},
+            caller={
+                "type": "code_execution_20260120",
+                "tool_id": "srvtoolu_code",
+            },
+            type="tool_use",
+        )
+        second_call = AnthropicToolUseBlock(
+            id="toolu_search_2",
+            name="search",
+            input={"q": "quarry"},
+            caller={
+                "type": "code_execution_20260120",
+                "tool_id": "srvtoolu_code",
+            },
+            type="tool_use",
+        )
+        provider = _build_provider(
+            [
+                _build_response(
+                    [first_call],
+                    stop_reason="tool_use",
+                    container=container,
+                ),
+                _build_response([second_call], stop_reason="tool_use"),
+                _build_response([AnthropicTextBlock(type="text", text="done")]),
+            ]
+        )
+        initial = Message(role="user", content=[TextBlock(text="research")])
+        first_turn = _complete(provider, messages=[initial])
+        first_assistant = Message(
+            role="assistant",
+            content=first_turn.replay_content,
+            provider_state=first_turn.provider_state,
+        )
+        first_result = Message(
+            role="user",
+            content=[
+                ToolResultBlock(
+                    tool_use_id="toolu_search_1",
+                    content={"results": []},
+                )
+            ],
+        )
+        first_history = [initial, first_assistant, first_result]
+        second_turn = _complete(provider, messages=first_history)
+        second_assistant = Message(
+            role="assistant",
+            content=second_turn.replay_content,
+            provider_state=second_turn.provider_state,
+        )
+        second_result = Message(
+            role="user",
+            content=[
+                ToolResultBlock(
+                    tool_use_id="toolu_search_2",
+                    content={"results": []},
+                )
+            ],
+        )
+
+        # Act
+        _complete(
+            provider,
+            messages=[*first_history, second_assistant, second_result],
+        )
+
+        # Assert: omission on the intermediate response does not clear the
+        # active container required by the second programmatic tool result.
+        self.assertEqual(
+            provider._client.messages.calls[1]["container"], "container_123"
+        )
+        self.assertEqual(
+            provider._client.messages.calls[2]["container"], "container_123"
+        )
+
+    def test_code_execution_container_does_not_cross_an_ordinary_turn(self):
+        # Arrange: an earlier turn used code execution, but the latest
+        # assistant turn is an ordinary completed response.
+        provider = _build_provider(
+            [_build_response([AnthropicTextBlock(type="text", text="new answer")])]
+        )
+        history = [
+            Message(role="user", content=[TextBlock(text="first question")]),
+            Message(
+                role="assistant",
+                content=[TextBlock(text="first answer")],
+                provider_state={
+                    "anthropic": {
+                        "container": {
+                            "id": "container_old",
+                            "expires_at": "2026-07-29T12:00:00Z",
+                        }
+                    }
+                },
+            ),
+            Message(role="user", content=[TextBlock(text="second question")]),
+            Message(role="assistant", content=[TextBlock(text="second answer")]),
+            Message(role="user", content=[TextBlock(text="third question")]),
+        ]
+
+        # Act
+        _complete(provider, messages=history)
+
+        # Assert: retaining a pending execution does not turn into indefinite
+        # container reuse across unrelated conversation turns.
+        self.assertNotIn("container", provider._client.messages.calls[0])
+
     def test_cited_text_replays_with_encrypted_metadata(self):
         # Arrange: a server search can produce cited text and a client tool call
         # in the same assistant turn. The follow-up must replay every citation
