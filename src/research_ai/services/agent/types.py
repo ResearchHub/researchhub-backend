@@ -39,9 +39,17 @@ class StopReason(StrEnum):
 
 @dataclass(frozen=True)
 class TextBlock:
-    """A run of assistant or user text."""
+    """A run of assistant or user text.
+
+    ``data`` carries an optional provider response block verbatim. Most text
+    blocks are provider-neutral and leave it unset. Providers that attach
+    replay-critical metadata to assistant text (for example, Claude web-search
+    citations and their encrypted indices) keep the whole block here so a
+    later turn can send it back unchanged.
+    """
 
     text: str
+    data: dict | None = None
     type: str = "text"
 
 
@@ -167,7 +175,10 @@ class AssistantTurn:
 
 def _serialize_block(block: Block) -> dict:
     if isinstance(block, TextBlock):
-        return {"type": "text", "text": block.text}
+        serialized = {"type": "text", "text": block.text}
+        if block.data is not None:
+            serialized["data"] = block.data
+        return serialized
     if isinstance(block, ThinkingBlock):
         return {"type": "thinking", "data": block.data}
     if isinstance(block, ServerToolBlock):
@@ -192,7 +203,7 @@ def _serialize_block(block: Block) -> dict:
 def _deserialize_block(data: dict) -> Block:
     block_type = data.get("type")
     if block_type == "text":
-        return TextBlock(text=data["text"])
+        return TextBlock(text=data["text"], data=data.get("data"))
     if block_type == "thinking":
         return ThinkingBlock(data=data["data"])
     if block_type == "server_tool":

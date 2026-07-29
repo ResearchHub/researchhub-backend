@@ -1,6 +1,7 @@
 """Unit tests for the Claude Platform on AWS provider adapter (no network)."""
 
 from copy import deepcopy
+from types import SimpleNamespace
 
 from anthropic.types import Message as AnthropicMessage
 from anthropic.types import (
@@ -95,6 +96,7 @@ def _build_provider(responses=None, **kwargs):
     return ClaudePlatformProvider(
         client=FakeAnthropicClient(responses or []),
         model_id=kwargs.pop("model_id", "claude-opus-5"),
+        web_search=kwargs.pop("web_search", False),
     )
 
 
@@ -111,7 +113,7 @@ def _complete(provider, *, messages=None, rendered_tools=None, temperature=0.0):
 class RenderToolsTests(SimpleTestCase):
     def test_render_tools_produces_messages_api_shape(self):
         # Arrange
-        provider = _build_provider()
+        provider = _build_provider(web_search=True)
         tool = Tool(
             name="search",
             description="search things",
@@ -141,9 +143,8 @@ class RenderToolsTests(SimpleTestCase):
         )
 
     def test_web_search_off_renders_only_the_callers_tools(self):
-        # Arrange: a deployment (or a model) without server-side search.
+        # Arrange: native search is opt-in, so unrelated agents do not receive it.
         provider = _build_provider()
-        provider.web_search = False
         tool = Tool(
             name="search",
             description="search things",
@@ -210,8 +211,8 @@ class RenderMessagesTests(SimpleTestCase):
         )
         self.assertTrue(rendered[2]["content"][1]["is_error"])
 
-    def test_tool_result_payload_survives_a_non_json_value(self):
-        # Arrange: a stray non-JSON value must not take down the whole turn.
+    def test_non_json_tool_result_raises_provider_error(self):
+        # Arrange: directly constructed invalid messages fail at this boundary.
         provider = _build_provider()
         messages = [
             Message(
@@ -220,11 +221,9 @@ class RenderMessagesTests(SimpleTestCase):
             )
         ]
 
-        # Act
-        rendered = provider._render_messages(messages)
-
-        # Assert
-        self.assertIn("when", rendered[0]["content"][0]["content"])
+        # Act / Assert
+        with self.assertRaisesRegex(ProviderError, "not valid JSON"):
+            provider._render_messages(messages)
 
 
 class CompleteAndParseTests(SimpleTestCase):
@@ -483,6 +482,68 @@ class ServerSideToolTests(SimpleTestCase):
         self.assertEqual(request["type"], "server_tool_use")
         self.assertEqual(result["type"], "web_search_tool_result")
         self.assertEqual(result["tool_use_id"], request["id"])
+
+    def test_cited_text_replays_with_encrypted_metadata(self):
+        # Arrange: a server search can produce cited text and a client tool call
+        # in the same assistant turn. The follow-up must replay every citation
+        # field, including its encrypted index.
+        cited_text = AnthropicTextBlock(
+            type="text",
+            text="The result supports the claim.",
+            citations=[
+                {
+                    "type": "web_search_result_location",
+                    "cited_text": "supporting passage",
+                    "encrypted_index": "enc-index",
+                    "title": "Source",
+                    "url": "https://example.org/source",
+                }
+            ],
+        )
+        response = _build_response(
+            [
+                *_build_server_search_blocks(),
+                cited_text,
+                AnthropicToolUseBlock(
+                    type="tool_use",
+                    id="t1",
+                    name="submit_proposal",
+                    input={"sections": {}},
+                ),
+            ],
+            stop_reason="tool_use",
+        )
+        provider = _build_provider([response], web_search=True)
+        turn = _complete(provider)
+
+        # Act
+        rendered = provider._render_messages(
+            [Message(role="assistant", content=turn.replay_content)]
+        )
+
+        # Assert
+        replayed_text = rendered[0]["content"][-2]
+        self.assertEqual(
+            replayed_text,
+            cited_text.model_dump(mode="json", exclude_none=True),
+        )
+        self.assertEqual(
+            replayed_text["citations"][0]["encrypted_index"],
+            "enc-index",
+        )
+
+    def test_unknown_content_block_fails_before_replay_state_is_corrupted(self):
+        # Arrange: stand in for a new SDK block type the adapter does not know.
+        response = _build_response([])
+        response.content = [SimpleNamespace(type="something_new")]
+        provider = _build_provider([response])
+
+        # Act / Assert
+        with self.assertRaisesRegex(
+            ProviderError,
+            "Unsupported Claude Platform content block: 'something_new'",
+        ):
+            _complete(provider)
 
     def test_pause_turn_is_a_resumable_stop_not_an_unknown_one(self):
         # Arrange: the API spent its per-turn budget of server-side calls.

@@ -216,7 +216,9 @@ class _ProposalDraftRunner:
             logger.exception("proposal draft: profile build failed")
 
     def _build_agent(self, system_prompt: str):
-        provider = self.provider or resolve_provider()
+        provider = self.provider or resolve_provider(
+            native_tools=frozenset({"web_search"})
+        )
         toolset = self._compose_toolset(provider)
         return AgentService(
             provider=provider, max_iterations=self.config.max_iterations

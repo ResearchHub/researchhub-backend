@@ -78,9 +78,10 @@ MAX_RETRIES = 8
 
 # Anthropic's own web search, run server-side inside the turn: the model issues
 # a query, the API executes it and injects the results, and generation continues
-# -- no client-side round trip and no separate search vendor. This is the reason
-# the agent's `web_search` tool is not implemented locally on this provider;
-# Bedrock, which does not offer it, keeps its client-side Brave implementation.
+# -- no client-side round trip and no separate search vendor. Agents opt into
+# this capability explicitly; proposal drafting does so instead of registering
+# its client-side Brave implementation, while unrelated agents get no search
+# tool. Bedrock, which does not offer it, keeps the local implementation.
 # ``max_uses`` is the per-turn ceiling the API enforces on the model's behalf.
 WEB_SEARCH = True
 WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
@@ -124,12 +125,11 @@ _SERVER_TOOL_BLOCK_TYPES = (
     "web_search_tool_result",
 )
 
-# Block types a prompt-cache breakpoint may be attached to. The breakpoint adds
-# a key to the block, and signed reasoning and server-tool blocks are validated
-# as sent when the turn is replayed -- so a turn ending in one (a paused turn,
-# resumed with no user turn after it) is left unmarked rather than edited. The
-# tools+system breakpoint is unaffected, and the prefix cached on the previous
-# turn is still read.
+# Block types a prompt-cache breakpoint may be attached to. Only user-authored
+# blocks are eligible: assistant response blocks can carry signed or encrypted
+# replay state and must be sent back exactly as received. The tools+system
+# breakpoint is unaffected, and the prefix cached on the previous turn is still
+# read.
 _CACHEABLE_BLOCK_TYPES = ("text", "tool_result")
 
 
@@ -170,13 +170,19 @@ def _block_payload(block: Any) -> dict:
 class ClaudePlatformProvider(LLMProvider):
     """Adapts the neutral agent types to the Anthropic Messages API on AWS."""
 
-    def __init__(self, *, client: Any = None, model_id: str | None = None):
+    def __init__(
+        self,
+        *,
+        client: Any = None,
+        model_id: str | None = None,
+        web_search: bool = False,
+    ):
         self.model_id = model_id or MODEL_ID
         self._client = client if client is not None else _build_client()
         self.prompt_caching = PROMPT_CACHING
         self.effort = EFFORT
         self.thinking = THINKING
-        self.web_search = WEB_SEARCH
+        self.web_search = web_search and WEB_SEARCH
         self.web_search_max_uses = WEB_SEARCH_MAX_USES
 
     # -- public surface ---------------------------------------------------
@@ -271,7 +277,12 @@ class ClaudePlatformProvider(LLMProvider):
             {"role": m.role, "content": [self._render_block(b) for b in m.content]}
             for m in messages
         ]
-        if cache_last and rendered and rendered[-1]["content"]:
+        if (
+            cache_last
+            and rendered
+            and rendered[-1]["role"] == "user"
+            and rendered[-1]["content"]
+        ):
             # Cache the conversation prefix through the latest turn; the next
             # turn re-sends these same messages as a prefix and reads the cache.
             # Usually the loop completes from a user turn and this lands on text
@@ -284,6 +295,11 @@ class ClaudePlatformProvider(LLMProvider):
 
     def _render_block(self, block: Any) -> dict:
         if isinstance(block, TextBlock):
+            if block.data is not None:
+                # Citation-bearing assistant text contains encrypted replay
+                # state. Keep the provider block whole rather than rebuilding
+                # it from the visible text alone.
+                return dict(block.data)
             return {"type": "text", "text": block.text}
         if isinstance(block, ThinkingBlock):
             # Replayed byte-for-byte: these blocks are signed, and an edited or
@@ -301,13 +317,23 @@ class ClaudePlatformProvider(LLMProvider):
                 "input": block.input,
             }
         if isinstance(block, ToolResultBlock):
-            # Unlike Converse, this wire format carries tool results as text --
-            # ``default=str`` keeps one stray non-JSON value in a tool payload
-            # from taking down the whole turn.
+            # Unlike Converse, this wire format carries tool results as text.
+            # Toolset.dispatch validates the normal path; keep this adapter
+            # strict as well for directly constructed messages.
+            try:
+                content = json.dumps(
+                    block.content,
+                    allow_nan=False,
+                    ensure_ascii=False,
+                )
+            except (TypeError, ValueError, RecursionError) as exc:
+                raise ProviderError(
+                    f"Tool result {block.tool_use_id!r} is not valid JSON"
+                ) from exc
             tool_result: dict = {
                 "type": "tool_result",
                 "tool_use_id": block.tool_use_id,
-                "content": json.dumps(block.content, ensure_ascii=False, default=str),
+                "content": content,
             }
             if block.is_error:
                 tool_result["is_error"] = True
@@ -347,7 +373,7 @@ class ClaudePlatformProvider(LLMProvider):
             block_type = getattr(block, "type", None)
             parsed: Block
             if block_type == "text":
-                parsed = TextBlock(text=block.text)
+                parsed = TextBlock(text=block.text, data=_block_payload(block))
                 text_blocks.append(parsed)
             elif block_type in _THINKING_BLOCK_TYPES:
                 parsed = ThinkingBlock(data=_block_payload(block))
@@ -362,14 +388,12 @@ class ClaudePlatformProvider(LLMProvider):
                 )
                 tool_calls.append(parsed)
             else:
-                # A block type this adapter does not know is dropped rather than
-                # guessed at, but never silently: dropping one can break the
-                # next turn (server-side blocks are validated in pairs), so the
-                # log line is what points at an adapter that needs updating.
-                logger.warning(
-                    "claude platform: dropping unknown content block %r", block_type
+                # Dropping a block can corrupt the next turn's signed/encrypted
+                # replay state. Fail at the response boundary with the exact
+                # type instead of letting a later request fail mysteriously.
+                raise ProviderError(
+                    f"Unsupported Claude Platform content block: {block_type!r}"
                 )
-                continue
             content_blocks.append(parsed)
 
         raw_stop_reason = getattr(response, "stop_reason", None)

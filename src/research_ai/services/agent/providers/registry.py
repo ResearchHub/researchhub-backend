@@ -57,14 +57,26 @@ def generator_model_ref() -> str:
     return f"{CLAUDE_PLATFORM}:{claude_platform.MODEL_ID}"
 
 
-def resolve_provider(model_ref: str | None = None) -> LLMProvider:
-    """Build the provider for ``model_ref``; default is the configured generator."""
+def resolve_provider(
+    model_ref: str | None = None,
+    *,
+    native_tools: frozenset[str] = frozenset(),
+) -> LLMProvider:
+    """Build the provider for ``model_ref``.
+
+    ``native_tools`` is an explicit per-agent capability request. Unsupported
+    names are ignored, so callers can request native search while a Bedrock
+    deployment continues to register its local implementation.
+    """
     if model_ref is None:
         model_ref = generator_model_ref()
     provider_name, model_id = _split(model_ref)
     if provider_name == BEDROCK:
         return BedrockProvider(model_id=model_id)
-    return ClaudePlatformProvider(model_id=model_id)
+    return ClaudePlatformProvider(
+        model_id=model_id,
+        web_search=claude_platform.WEB_SEARCH_TOOL_NAME in native_tools,
+    )
 
 
 def _split(model_ref: str) -> tuple[str, str | None]:

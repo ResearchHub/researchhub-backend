@@ -52,6 +52,16 @@ class ResolveProviderTests(SimpleTestCase):
         # Assert
         self.assertIsInstance(provider, ClaudePlatformProvider)
         self.assertEqual(provider.model_id, "claude-opus-5")
+        self.assertEqual(provider.native_tool_names, frozenset())
+        bedrock_cls.assert_not_called()
+
+    def test_native_web_search_must_be_enabled_explicitly(self, bedrock_cls):
+        # Arrange / Act
+        provider = resolve_provider(native_tools=frozenset({"web_search"}))
+
+        # Assert
+        self.assertIsInstance(provider, ClaudePlatformProvider)
+        self.assertEqual(provider.native_tool_names, frozenset({"web_search"}))
         bedrock_cls.assert_not_called()
 
     def test_bedrock_prefix_routes_to_bedrock(self, bedrock_cls):

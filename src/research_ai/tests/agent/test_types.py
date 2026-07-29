@@ -27,7 +27,14 @@ class TypesTests(SimpleTestCase):
                     ThinkingBlock(
                         data={"type": "thinking", "thinking": "hm", "signature": "sig"}
                     ),
-                    TextBlock(text="searching"),
+                    TextBlock(
+                        text="searching",
+                        data={
+                            "type": "text",
+                            "text": "searching",
+                            "citations": [{"encrypted_index": "enc"}],
+                        },
+                    ),
                     ServerToolBlock(
                         data={
                             "type": "server_tool_use",
@@ -100,6 +107,29 @@ class TypesTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(block, {"type": "thinking", "data": payload})
+
+    def test_text_block_serializes_optional_provider_payload_whole(self):
+        # Arrange: citation metadata is replay state, not display-only data.
+        payload = {
+            "type": "text",
+            "text": "grounded answer",
+            "citations": [{"encrypted_index": "enc"}],
+        }
+        messages = [
+            Message(
+                role="assistant",
+                content=[TextBlock(text="grounded answer", data=payload)],
+            ),
+        ]
+
+        # Act
+        block = serialize_messages(messages)[0]["content"][0]
+
+        # Assert
+        self.assertEqual(
+            block,
+            {"type": "text", "text": "grounded answer", "data": payload},
+        )
 
     def test_assistant_turn_text_joins_text_blocks(self):
         # Arrange

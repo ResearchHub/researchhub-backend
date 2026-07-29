@@ -15,6 +15,7 @@ transient miss is handed back to the model rather than aborting the run. The
 same ``{"error": ...}`` shape.
 """
 
+import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -97,6 +98,20 @@ class Toolset:
             # error string (some exceptions str() to "").
             logger.warning("tool %r failed", name, exc_info=True)
             return {"error": str(exc) or type(exc).__name__}, False
+        if not isinstance(result, dict):
+            logger.warning(
+                "tool %r returned %s instead of dict", name, type(result).__name__
+            )
+            return {
+                "error": (
+                    f"tool {name!r} returned {type(result).__name__}; expected dict"
+                )
+            }, False
+        try:
+            json.dumps(result, allow_nan=False)
+        except (TypeError, ValueError, RecursionError):
+            logger.warning("tool %r returned invalid JSON", name, exc_info=True)
+            return {"error": f"tool {name!r} returned invalid JSON"}, False
         is_error = isinstance(result, dict) and "error" in result
         return result, tool.is_terminal and not is_error
 
