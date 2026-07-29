@@ -118,11 +118,19 @@ _STOP_REASONS = {
 
 _THINKING_BLOCK_TYPES = ("thinking", "redacted_thinking")
 
-# The two halves of a server-side tool call. Both are the provider's own blocks:
-# the loop never dispatches them, it only replays them where they sat.
+# Provider-managed blocks from the SDK's response union. The loop never
+# dispatches these; it replays them verbatim where they sat. Code execution
+# results may accompany web search and contain encrypted output, so they are
+# replay state even when the caller declared only the web-search tool.
 _SERVER_TOOL_BLOCK_TYPES = (
     "server_tool_use",
     "web_search_tool_result",
+    "web_fetch_tool_result",
+    "code_execution_tool_result",
+    "bash_code_execution_tool_result",
+    "text_editor_code_execution_tool_result",
+    "tool_search_tool_result",
+    "container_upload",
 )
 
 # Block types a prompt-cache breakpoint may be attached to. Only user-authored
@@ -163,8 +171,17 @@ def _block_payload(block: Any) -> dict:
     """Best-effort plain-dict copy of an SDK content block."""
     dump = getattr(block, "model_dump", None)
     if callable(dump):
-        return dump(mode="json", exclude_none=True)
+        payload = dump(mode="json", exclude_none=True)
+        return payload if isinstance(payload, dict) else {}
     return dict(block) if isinstance(block, dict) else {}
+
+
+def _block_type(block: Any) -> str | None:
+    """Read a content-block discriminator from an SDK model or raw dict."""
+    block_type = getattr(block, "type", None)
+    if block_type is None and isinstance(block, dict):
+        block_type = block.get("type")
+    return block_type if isinstance(block_type, str) else None
 
 
 class ClaudePlatformProvider(LLMProvider):
@@ -370,7 +387,7 @@ class ClaudePlatformProvider(LLMProvider):
         # above are views onto these same blocks for the loop's own use.
         content_blocks: list[Block] = []
         for block in content:
-            block_type = getattr(block, "type", None)
+            block_type = _block_type(block)
             parsed: Block
             if block_type == "text":
                 parsed = TextBlock(text=block.text, data=_block_payload(block))
@@ -388,12 +405,22 @@ class ClaudePlatformProvider(LLMProvider):
                 )
                 tool_calls.append(parsed)
             else:
-                # Dropping a block can corrupt the next turn's signed/encrypted
-                # replay state. Fail at the response boundary with the exact
-                # type instead of letting a later request fail mysteriously.
-                raise ProviderError(
-                    f"Unsupported Claude Platform content block: {block_type!r}"
+                # Claude can add response block types independently of this
+                # adapter. Preserve a new block opaquely when its complete
+                # typed payload is available: dropping or reconstructing it
+                # could corrupt signed/encrypted replay state, while rejecting
+                # it would turn a provider migration into an outage.
+                payload = _block_payload(block)
+                if not block_type or payload.get("type") != block_type:
+                    raise ProviderError(
+                        "Claude Platform content block cannot be replayed safely: "
+                        f"{block_type!r}"
+                    )
+                logger.warning(
+                    "claude platform: preserving unrecognized content block %r",
+                    block_type,
                 )
+                parsed = ServerToolBlock(data=payload)
             content_blocks.append(parsed)
 
         raw_stop_reason = getattr(response, "stop_reason", None)
