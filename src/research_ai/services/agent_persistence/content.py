@@ -83,15 +83,30 @@ def serialize_trace_message(message: Message) -> tuple[list[dict], bool, int]:
 
 def serialize_context_message(
     message: Message,
-) -> tuple[list[dict], bool, int]:
-    """Keep complete resumable context or replace it with valid text."""
-    blocks = serialize_messages([message])[0]["content"]
-    safe_blocks, was_replaced, original_size = _bounded_json(
-        blocks,
+) -> tuple[list[dict], dict, bool, int]:
+    """Keep complete resumable context or replace it with valid text.
+
+    Provider continuation state is bounded together with the content because
+    both are required to resume a provider turn correctly. If the combined
+    payload is too large or invalid, compact both rather than retaining state
+    that no longer corresponds to the stored content.
+    """
+    serialized = serialize_messages([message])[0]
+    payload = {
+        "content": serialized["content"],
+        "provider_state": serialized.get("provider_state") or {},
+    }
+    safe_payload, was_replaced, original_size = _bounded_json(
+        payload,
         limit=MAX_CONTEXT_MESSAGE_BYTES,
     )
     if not was_replaced:
-        return safe_blocks, False, original_size
+        return (
+            safe_payload["content"],
+            safe_payload["provider_state"],
+            False,
+            original_size,
+        )
     return (
         [
             {
@@ -102,6 +117,7 @@ def serialize_context_message(
                 ),
             }
         ],
+        {},
         True,
         original_size,
     )
