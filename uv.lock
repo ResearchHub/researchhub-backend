@@ -994,6 +994,12 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/84/f2/15d4bd54bd01e68e8a116e0b66243c91cb62a3fa0d780a39d2af6654e8ae/django_ses-4.7.2-py3-none-any.whl", hash = "sha256:f3db567fb6f43c01d7d890f5c991e1ebbfa48220de0be24d497ba6332004abcb", size = 37796, upload-time = "2026-02-20T19:22:32.819Z" },
 ]
 
+[package.optional-dependencies]
+events = [
+    { name = "cryptography" },
+    { name = "requests" },
+]
+
 [[package]]
 name = "django-silk"
 version = "5.0.2"
@@ -2533,7 +2539,7 @@ dependencies = [
     { name = "django-filter" },
     { name = "django-health-check" },
     { name = "django-opensearch-dsl" },
-    { name = "django-ses" },
+    { name = "django-ses", extra = ["events"] },
     { name = "django-silk" },
     { name = "django-simple-history" },
     { name = "django-storages" },
@@ -2599,7 +2605,7 @@ requires-dist = [
     { name = "django-filter", specifier = ">=24.3,<25.0" },
     { name = "django-health-check", specifier = ">=3.18.3,<4.0.0" },
     { name = "django-opensearch-dsl", specifier = "==0.8.0" },
-    { name = "django-ses", specifier = ">=4.7.2,<5" },
+    { name = "django-ses", extras = ["events"], specifier = ">=4.7.2,<5" },
     { name = "django-silk", specifier = "==5.0.2" },
     { name = "django-simple-history", specifier = "==3.7.0" },
     { name = "django-storages", specifier = "==1.10.1" },
