@@ -115,8 +115,9 @@ class NoteInvitationServiceTest(TestCase):
         permission = self.note.unified_document.permissions.get(user=other_user)
         self.assertEqual(permission.access_type, EDITOR)
 
-        gatekeeper = Gatekeeper.objects.get(user=other_user, type=ELN)
-        self.assertEqual(gatekeeper.email, invite.recipient_email)
+        gatekeeper = Gatekeeper.objects.get(email=other_user.email, type=ELN)
+        self.assertIsNone(gatekeeper.user)
+        self.assertEqual(invite.recipient_email, "invited@researchhub.com")
 
     def test_accept_invite_raises_for_expired_invite(self):
         # Arrange

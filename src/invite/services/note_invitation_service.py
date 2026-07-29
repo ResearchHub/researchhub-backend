@@ -3,8 +3,6 @@ from django.db import transaction
 
 from invite.models import NoteInvitation
 from researchhub_access_group.models import Permission
-from user.constants.gatekeeper_constants import ELN
-from user.models import Gatekeeper
 
 
 class NoteInvitationError(Exception):
@@ -93,12 +91,7 @@ class NoteInvitationService:
                 user=user,
             )
 
-        Gatekeeper.objects.get_or_create(
-            user=user,
-            type=ELN,
-            defaults={"email": invite.recipient_email},
-        )
-        invite.accept()
+        invite.accept(gatekeeper_email=user.email)
 
         return invite
 
