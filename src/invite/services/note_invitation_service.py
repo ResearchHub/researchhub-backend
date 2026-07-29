@@ -1,7 +1,10 @@
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 
 from invite.models import NoteInvitation
 from researchhub_access_group.models import Permission
+from user.constants.gatekeeper_constants import ELN
+from user.models import Gatekeeper
 
 
 class NoteInvitationError(Exception):
@@ -27,21 +30,32 @@ class NoteInvitationService:
     Service for handling note invitations.
     """
 
-    def get_active_invite(self, key: str) -> NoteInvitation:
+    def get_active_invite(
+        self, key: str, *, for_update: bool = False
+    ) -> NoteInvitation:
         """
         Get an active note invitation.
 
+        Args:
+            key: The unique key of the invitation.
+            for_update: Whether to lock the invitation until the current transaction
+                completes.
         Raises:
             NoteInvitationExpiredError: If the invitation has expired
                 or has already been accepted.
         """
-        invite = NoteInvitation.objects.get(key=key)
+        invitations = NoteInvitation.objects
+        if for_update:
+            invitations = invitations.select_for_update()
+
+        invite = invitations.get(key=key)
 
         if invite.is_expired() or invite.accepted:
             raise NoteInvitationExpiredError
 
         return invite
 
+    @transaction.atomic
     def accept_invite(self, key: str, user) -> NoteInvitation:
         """
         Accept a note invitation.
@@ -57,7 +71,7 @@ class NoteInvitationService:
             NoteInvitationRecipientMismatchError: If the invitation recipient doesn't
                 match the user.
         """
-        invite = self.get_active_invite(key)
+        invite = self.get_active_invite(key, for_update=True)
 
         if invite.recipient and user != invite.recipient:
             raise NoteInvitationRecipientMismatchError
@@ -79,6 +93,11 @@ class NoteInvitationService:
                 user=user,
             )
 
+        Gatekeeper.objects.get_or_create(
+            user=user,
+            type=ELN,
+            defaults={"email": invite.recipient_email},
+        )
         invite.accept()
 
         return invite

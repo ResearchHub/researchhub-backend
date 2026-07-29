@@ -7,6 +7,7 @@ from invite.related_models.note_invitation import NoteInvitation
 from invite.related_models.organization_invitation import OrganizationInvitation
 from note.tests.helpers import create_note
 from researchhub_access_group.constants import EDITOR
+from user.constants.gatekeeper_constants import ELN
 
 
 class OrganizationInvitationViewsTest(APITestCase):
@@ -148,6 +149,13 @@ class NoteInvitationAcceptViewsTest(APITestCase):
 
         permission = self.note.unified_document.permissions.get(user=new_recipient)
         self.assertEqual(permission.access_type, EDITOR)
+
+        response = self.client.get(
+            "/api/gatekeeper/check_current_user/",
+            {"type": ELN},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIs(response.data, True)
 
     def test_accept_invite_requires_authentication(self):
         # Arrange
