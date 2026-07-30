@@ -10,6 +10,8 @@ from research_ai.services.proposal_draft.judge_panel import (
     ProposalJudgePanel,
 )
 
+_PANEL_LOGGER = "research_ai.services.proposal_draft.judge_panel"
+
 
 def _as_text(payload) -> str:
     return payload if isinstance(payload, str) else json.dumps(payload)
@@ -228,6 +230,35 @@ class ProposalJudgePanelTests(SimpleTestCase):
         # Assert
         self.assertEqual(provider.calls[0]["max_tokens"], JUDGE_MAX_TOKENS)
         self.assertGreaterEqual(JUDGE_MAX_TOKENS, 32768)
+
+    def test_score_logs_the_answer_that_would_not_parse(self):
+        # Arrange: the reason alone cannot tell an empty or cut-off answer apart
+        # from a malformed one, so the answer itself has to reach the log.
+        answer = "I would rather explain my scores in prose."
+        panel = ProposalJudgePanel(providers=[_FakeProvider("j1", answer)])
+
+        # Act
+        with self.assertLogs(_PANEL_LOGGER, level="WARNING") as logs:
+            panel.score("draft")
+
+        # Assert
+        self.assertIn(answer, logs.output[0])
+        self.assertIn(f"({len(answer)} chars)", logs.output[0])
+
+    def test_score_elides_the_middle_of_a_long_unusable_answer(self):
+        # Arrange: a verdict's bulk is its middle; both ends are the diagnostic
+        # part, and the whole thing must not land in the log.
+        answer = f"{'head' * 200}{'tail' * 200}"
+        panel = ProposalJudgePanel(providers=[_FakeProvider("j1", answer)])
+
+        # Act
+        with self.assertLogs(_PANEL_LOGGER, level="WARNING") as logs:
+            panel.score("draft")
+
+        # Assert: reported in full, logged in part.
+        self.assertIn(f"({len(answer)} chars)", logs.output[0])
+        self.assertIn("chars...]", logs.output[0])
+        self.assertNotIn(answer, logs.output[0])
 
     def test_score_includes_evaluation_context(self):
         # Arrange

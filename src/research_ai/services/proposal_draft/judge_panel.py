@@ -62,6 +62,12 @@ JUDGE_ATTEMPTS = 2
 # safety classifier cut the turn short.
 _UNUSABLE_STOP_REASONS = (StopReason.MAX_TOKENS, StopReason.CONTENT_FILTERED)
 
+# How much of an unusable answer to log, from each end. The head shows whether
+# the judge opened with prose or with the object it was asked for; the tail is
+# where truncation and stray commentary show up. Bounded because the middle of a
+# rubric verdict is bulk, and this lands in the log on every failed attempt.
+_EXCERPT_CHARS = 300
+
 # The judge roster, as model refs. Empty means a single judge on the generator
 # model. Name refs here for a multi-model, cross-family panel; an entry may
 # carry a provider prefix (``bedrock:`` / ``claude_platform:``) to route that
@@ -120,6 +126,15 @@ def _render_context(context: dict | None) -> str:
         ensure_ascii=False,
         default=str,
     )
+
+
+def _excerpt(text: str) -> str:
+    """Both ends of an unusable answer, elided in the middle, for a log line."""
+    text = text.strip()
+    if len(text) <= 2 * _EXCERPT_CHARS:
+        return text
+    elided = len(text) - 2 * _EXCERPT_CHARS
+    return f"{text[:_EXCERPT_CHARS]} [...{elided} chars...] {text[-_EXCERPT_CHARS:]}"
 
 
 def _score_user_prompt(proposal: str, context: dict | None) -> str:
@@ -282,10 +297,10 @@ class ProposalJudgePanel:
         model_id = getattr(provider, "model_id", "?")
         reason = "no attempt ran"
         for attempt in range(1, JUDGE_ATTEMPTS + 1):
+            answer = ""
             try:
-                parsed = ExpertFinderJson.parse_text(
-                    self._complete(provider, system_prompt, user_prompt)
-                )
+                answer = self._complete(provider, system_prompt, user_prompt)
+                parsed = ExpertFinderJson.parse_text(answer)
             except Exception as exc:  # noqa: BLE001 - one bad judge must not abort
                 reason = str(exc) or type(exc).__name__
             else:
@@ -295,12 +310,18 @@ class ProposalJudgePanel:
                 # skip like any other, but silence here reads as "the judge
                 # was never called".
                 reason = f"returned JSON {type(parsed).__name__}, not an object"
+            # What the judge actually wrote goes with the reason. A verdict that
+            # will not parse is only diagnosable from the text, it is recorded
+            # nowhere else, and the parse error alone cannot tell an empty or
+            # cut-off answer apart from a malformed one.
             logger.warning(
-                "judge %r attempt %d/%d failed: %s",
+                "judge %r attempt %d/%d failed: %s | answer (%d chars): %r",
                 model_id,
                 attempt,
                 JUDGE_ATTEMPTS,
                 reason,
+                len(answer),
+                _excerpt(answer),
             )
         return None, reason
 
