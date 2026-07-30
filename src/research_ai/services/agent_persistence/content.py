@@ -11,8 +11,8 @@ MAX_CONTEXT_MESSAGE_BYTES = 512 * 1024
 _PREVIEW_CHARS = 2048
 _FINAL_OUTPUT_SUFFIX = "\n[Response truncated for durable storage.]"
 _COMPACTED_BLOCK_TEXT = "[Text omitted because it exceeded the durable row limit.]"
-# Blocks whose payload a provider validates on replay, so it survives whole or
-# not at all.
+# Blocks that always carry a provider payload replayed as-is, so it survives
+# whole or not at all.
 _OPAQUE_BLOCK_TYPES = frozenset({"thinking", "server_tool"})
 _COMPACTED_MESSAGE_TEXT = (
     "[Earlier model-context message compacted because it exceeded the durable row "
@@ -89,6 +89,21 @@ def serialize_trace_message(message: Message) -> tuple[list[dict], bool, int]:
     )
 
 
+def _is_opaque(block: dict) -> bool:
+    """Report whether a provider validates this block's payload on replay.
+
+    Signed reasoning and server-tool blocks always carry one. A tool call does
+    only when the provider attached its own block: Claude's programmatic calls
+    keep the ``caller`` tying them to code still pending in the container, and
+    the adapter replays that block instead of rebuilding one from ``id``,
+    ``name``, and ``input``. An ordinary call carries no such payload and stays
+    editable.
+    """
+    if block["type"] in _OPAQUE_BLOCK_TYPES:
+        return True
+    return block["type"] == "tool_use" and block.get("data") is not None
+
+
 def _compacted_block(block: dict, original_size: int) -> dict:
     """Drop one block's payload while keeping the fields replay depends on.
 
@@ -121,16 +136,17 @@ def _compacted_block(block: dict, original_size: int) -> dict:
 def _compact_context_content(blocks: list[dict], block_limit: int) -> list[dict]:
     """Bound editable blocks against ``block_limit``, preserving message shape.
 
-    Opaque blocks are never rewritten. Both adapters replay signed reasoning
-    and server-tool payloads byte for byte and fail validation on an edited
-    one, so a marker in their place would reject the next turn rather than
+    Opaque blocks are never rewritten. Adapters replay their payloads byte for
+    byte, so a marker in their place would reject the next turn rather than
     shorten it. One too large to store whole therefore keeps the message over
-    the limit, dropping it to the caller's text fallback -- lossy, but a
-    conversation the provider still accepts.
+    the limit and drops it to the caller's text fallback: lossy, and for an
+    oversized programmatic call it also costs the correlation an ordinary call
+    would have kept, but neither is worse than replaying a payload the provider
+    refuses.
     """
     compacted = []
     for block in blocks:
-        if block["type"] in _OPAQUE_BLOCK_TYPES:
+        if _is_opaque(block):
             compacted.append(block)
             continue
         safe_block, was_replaced, block_size = _bounded_json(block, limit=block_limit)

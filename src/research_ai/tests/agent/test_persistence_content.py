@@ -296,6 +296,51 @@ class AgentPersistenceContentTests(TestCase):
         self.assertEqual(restored.content[0], thinking)
         self.assertTrue(content[1]["input"]["_truncated"])
 
+    def test_context_compaction_leaves_provider_tool_calls_byte_for_byte(self):
+        # Arrange: no single block is oversized, so compaction reaches the pass
+        # that rewrites every block -- but Claude replays a programmatic call's
+        # own block, including the caller tying it to pending container code.
+        programmatic = ToolUseBlock(
+            id="call-code",
+            name="run",
+            input={"code": "print(1)"},
+            data={
+                "type": "tool_use",
+                "id": "call-code",
+                "name": "run",
+                "input": {"code": "print(1)"},
+                "caller": {
+                    "type": "code_execution_20250825",
+                    "tool_id": "srvtoolu_1",
+                },
+            },
+        )
+        body_bytes = MAX_BLOCK_PAYLOAD_BYTES // 2
+        block_count = (MAX_CONTEXT_MESSAGE_BYTES // body_bytes) + 2
+        message = Message(
+            role="assistant",
+            content=[programmatic]
+            + [
+                ToolUseBlock(
+                    id=f"call-{index}",
+                    name="lookup",
+                    input={"body": "x" * body_bytes},
+                )
+                for index in range(block_count)
+            ],
+        )
+
+        # Act
+        content, _provider_state, is_compacted, _size = serialize_context_message(
+            message
+        )
+
+        # Assert
+        self.assertTrue(is_compacted)
+        restored = deserialize_messages([{"role": message.role, "content": content}])[0]
+        self.assertEqual(restored.content[0], programmatic)
+        self.assertTrue(content[1]["input"]["_truncated"])
+
     def test_context_falls_back_to_text_when_a_signed_block_cannot_fit(self):
         # Arrange: a marker in place of the signed payload would be rejected on
         # replay, so the message degrades to text the provider still accepts.
