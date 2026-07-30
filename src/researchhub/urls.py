@@ -40,6 +40,7 @@ from feed.views import (
     JournalV2FeedViewSet,
     ModeratorFeedViewSet,
 )
+from mailing_list.views import EmailUnsubscribeView
 from orcid.views import OrcidCallbackView, OrcidConnectView, OrcidFetchView
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
 from paper.views import paper_upload_views
@@ -199,6 +200,11 @@ urlpatterns = [
         "api/researchhubpost/create_registered_report_draft/",
         researchhub_document_views.RegisteredReportDraftView.as_view(),
         name="registered-report-draft",
+    ),
+    path(
+        "api/email/unsubscribe/",
+        EmailUnsubscribeView.as_view(),
+        name="email_unsubscribe",
     ),
     re_path(r"^api/", include(router.urls)),
     # Nested routes for list items
