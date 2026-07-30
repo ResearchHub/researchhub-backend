@@ -236,6 +236,30 @@ def _message_container(message: Message) -> dict | None:
     return container if isinstance(container, dict) else None
 
 
+def _resuming_code_execution(messages: list[Message]) -> bool:
+    """Whether this request owes results to code paused in the container.
+
+    True when the assistant turn being replied to issued a tool call from inside
+    code execution: that code is suspended waiting on the result, and Anthropic
+    rejects the continuation outright unless it carries the container.
+
+    This gates *staleness*, never reuse. An ordinary turn says nothing about
+    whether the container is alive -- see ``_container_id`` -- so treating a
+    missing ``caller`` as "no container needed" is what broke before.
+    """
+    for message in reversed(messages):
+        if message.role != "assistant":
+            continue
+        return any(
+            isinstance(block, ToolUseBlock)
+            and isinstance(block.data, dict)
+            and isinstance(block.data.get("caller"), dict)
+            and str(block.data["caller"].get("type", "")).startswith("code_execution_")
+            for block in message.content
+        )
+    return False
+
+
 def _container_expired(container: dict, *, now: datetime) -> bool:
     """Whether the container's own expiry has passed.
 
@@ -270,8 +294,17 @@ def _container_id(messages: list[Message]) -> str | None:
     and the model mixes ordinary tool calls with ones its filtering code issues.
     An ordinary turn therefore does not mean the container died, and a later
     code-generated call still needs the container an earlier turn established.
+
+    ``expires_at`` is only trusted when nothing is paused in the container.
+    Anthropic reclaims containers after a few minutes *idle* and extends that
+    deadline as the container is used, but it never sends a refreshed timestamp
+    -- so on a run longer than the initial window a live container looks long
+    expired. Dropping the id is safe only when no code is waiting on a result;
+    when some is, the request fails without it either way, so a possibly-dead id
+    is never the worse choice.
     """
     now = datetime.now(UTC)
+    trust_expiry = not _resuming_code_execution(messages)
     for message in reversed(messages):
         if message.role != "assistant":
             continue
@@ -281,11 +314,11 @@ def _container_id(messages: list[Message]) -> str | None:
         container_id = container.get("id")
         if not isinstance(container_id, str):
             continue
-        if _container_expired(container, now=now):
-            # Anthropic has reclaimed it. Sending a dead identifier fails the
-            # turn outright, where omitting it lets the API provision a fresh
-            # container -- so stop at the newest one rather than reaching for an
-            # older, even more expired id.
+        if trust_expiry and _container_expired(container, now=now):
+            # Nothing is paused, so the id would only have restored state.
+            # Omitting an expiry-passed one lets the API provision a fresh
+            # container instead of failing on a reclaimed id -- and stop at the
+            # newest rather than reach for an older, even more expired one.
             logger.warning(
                 "claude platform: code execution container %s expired", container_id
             )

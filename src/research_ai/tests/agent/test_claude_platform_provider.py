@@ -794,10 +794,13 @@ class ServerSideToolTests(SimpleTestCase):
             provider._client.messages.calls[2]["container"], "container_123"
         )
 
-    def test_expired_code_execution_container_is_not_reused(self):
-        # Arrange: the latest assistant turn paused on a code-generated call and
-        # carries a container of its own -- but Anthropic's stated expiry for it
-        # has already passed.
+    def test_paused_code_execution_keeps_a_container_past_its_expiry(self):
+        # Arrange: the latest assistant turn paused on a code-generated call, and
+        # the only expiry Anthropic ever sent for its container has passed.
+        # Containers are reclaimed on idle and the deadline moves as they are
+        # used, but no refreshed timestamp is ever returned -- so a container
+        # kept alive by a long run looks expired here while still being the one
+        # the paused code is waiting in.
         provider = _build_provider(
             [_build_response([AnthropicTextBlock(type="text", text="answer")])]
         )
@@ -838,8 +841,51 @@ class ServerSideToolTests(SimpleTestCase):
         # Act
         _complete(provider, messages=history)
 
-        # Assert: Anthropic has reclaimed the container, so sending the dead id
-        # would fail the turn -- omitting it lets the API provision a fresh one.
+        # Assert: a stale timestamp must not be the reason a paused turn loses
+        # the container it requires -- without the id the API rejects the turn
+        # outright, so sending it is never the worse choice.
+        self.assertEqual(
+            provider._client.messages.calls[0]["container"], "container_old"
+        )
+
+    def test_expired_container_is_dropped_when_no_code_is_paused(self):
+        # Arrange: an ordinary turn owes the container nothing, so a passed
+        # expiry is worth acting on -- this is a conversation resumed long after
+        # Anthropic reclaimed the container it recorded.
+        provider = _build_provider(
+            [_build_response([AnthropicTextBlock(type="text", text="answer")])]
+        )
+        history = [
+            Message(role="user", content=[TextBlock(text="research")]),
+            Message(
+                role="assistant",
+                content=[
+                    ToolUseBlock(
+                        id="toolu_search", name="search", input={"q": "llipta"}
+                    )
+                ],
+                provider_state={
+                    "anthropic": {
+                        "container": {
+                            "id": "container_old",
+                            "expires_at": "2020-01-01T00:00:00Z",
+                        }
+                    }
+                },
+            ),
+            Message(
+                role="user",
+                content=[
+                    ToolResultBlock(tool_use_id="toolu_search", content={"results": []})
+                ],
+            ),
+        ]
+
+        # Act
+        _complete(provider, messages=history)
+
+        # Assert: nothing is waiting on the dead id, so omitting it lets the API
+        # provision a fresh container rather than fail on a reclaimed one.
         self.assertNotIn("container", provider._client.messages.calls[0])
 
     def test_cited_text_replays_with_encrypted_metadata(self):
