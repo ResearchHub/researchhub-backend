@@ -122,6 +122,16 @@ class NormalizeTests(TestCase):
         self.assertEqual(result, "foo@example.com")
 
 
+class SaveTests(TestCase):
+    def test_normalizes_the_address(self):
+        # Act
+        opt_out = EmailOptOut.objects.create(email="  Foo@Example.COM ")
+
+        # Assert
+        opt_out.refresh_from_db()
+        self.assertEqual(opt_out.email, "foo@example.com")
+
+
 class AddTests(TestCase):
     def test_creates_a_normalized_row(self):
         # Act
@@ -220,3 +230,13 @@ class FilterOptedOutTests(TestCase):
 
         # Assert
         self.assertEqual(result, set())
+
+    def test_matches_rows_created_outside_add(self):
+        # Arrange: the admin, a shell, or a data migration bypasses `add`
+        EmailOptOut.objects.create(email="OptOut@Example.com")
+
+        # Act
+        result = EmailOptOut.filter_opted_out(["optout@example.com"])
+
+        # Assert
+        self.assertEqual(result, {"optout@example.com"})

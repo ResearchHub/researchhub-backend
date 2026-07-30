@@ -1,3 +1,4 @@
+from typing import override
 from warnings import deprecated
 
 from django.db import models
@@ -82,6 +83,12 @@ class EmailOptOut(models.Model):
 
     def __str__(self):
         return f"{self.email}"
+
+    @override
+    def save(self, *args, **kwargs):
+        # Normalize email so that stored rows match how they are looked up.
+        self.email = self._normalize(self.email)
+        super().save(*args, **kwargs)
 
     @classmethod
     def add(cls, email: str) -> bool:
