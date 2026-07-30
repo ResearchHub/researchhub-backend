@@ -230,6 +230,7 @@ class ModelTests(TestCase):
         # Assert
         self.assertEqual(markdown, "Discussion body")
 
+
 class ResearchhubPostStatusTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("post_status_user")
