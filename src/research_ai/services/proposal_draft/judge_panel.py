@@ -29,6 +29,7 @@ import statistics
 
 from research_ai.prompts._loader import load_template
 from research_ai.services.agent import (
+    AssistantTurn,
     IncompleteTurnError,
     LLMProvider,
     Message,
@@ -126,6 +127,27 @@ def _render_context(context: dict | None) -> str:
         ensure_ascii=False,
         default=str,
     )
+
+
+def _check_usable(turn: AssistantTurn, text: str, max_tokens: int) -> None:
+    """Raise unless ``turn`` can hold a complete verdict.
+
+    A turn that ended at its token ceiling or under a content filter has no
+    complete JSON in it whatever text it emitted, and an empty turn has nothing
+    at all. Both are named by stop reason so the failure reads as what it is
+    rather than as a downstream JSON parse error.
+    """
+    if turn.stop_reason in _UNUSABLE_STOP_REASONS:
+        raise IncompleteTurnError(
+            f"turn ended {turn.stop_reason} with {len(text)} chars of verdict "
+            f"(max_tokens={max_tokens})",
+            stop_reason=str(turn.stop_reason),
+        )
+    if not text:
+        raise IncompleteTurnError(
+            f"turn ended {turn.stop_reason} with no text",
+            stop_reason=str(turn.stop_reason),
+        )
 
 
 def _excerpt(text: str) -> str:
@@ -299,7 +321,12 @@ class ProposalJudgePanel:
         for attempt in range(1, JUDGE_ATTEMPTS + 1):
             answer = ""
             try:
-                answer = self._complete(provider, system_prompt, user_prompt)
+                turn = self._complete(provider, system_prompt, user_prompt)
+                # Captured before the turn is judged usable, so a verdict
+                # rejected for *how it ended* still reaches the log below --
+                # that partial text is the whole point of logging it.
+                answer = turn.text.strip()
+                _check_usable(turn, answer, self._max_tokens)
                 parsed = ExpertFinderJson.parse_text(answer)
             except Exception as exc:  # noqa: BLE001 - one bad judge must not abort
                 reason = str(exc) or type(exc).__name__
@@ -327,31 +354,17 @@ class ProposalJudgePanel:
 
     def _complete(
         self, provider: LLMProvider, system_prompt: str, user_prompt: str
-    ) -> str:
-        """One judge call's verdict text; raises when the turn cannot hold one.
+    ) -> AssistantTurn:
+        """One judge call's raw turn.
 
-        A turn that ended at its token ceiling or under a content filter has no
-        complete JSON in it whatever text it emitted, and an empty turn has
-        nothing at all. Both are named by stop reason here so the failure reads
-        as what it is rather than as a downstream JSON parse error.
+        Deliberately returns the turn rather than its text: whether the turn can
+        carry a verdict is decided by the caller, which holds the text either
+        way and can report it when the answer is rejected.
         """
-        turn = provider.complete(
+        return provider.complete(
             system_prompt=system_prompt,
             messages=[Message(role="user", content=[TextBlock(text=user_prompt)])],
             rendered_tools={},
             max_tokens=self._max_tokens,
             temperature=self._temperature,
         )
-        text = turn.text.strip()
-        if turn.stop_reason in _UNUSABLE_STOP_REASONS:
-            raise IncompleteTurnError(
-                f"turn ended {turn.stop_reason} with {len(text)} chars of "
-                f"verdict (max_tokens={self._max_tokens})",
-                stop_reason=str(turn.stop_reason),
-            )
-        if not text:
-            raise IncompleteTurnError(
-                f"turn ended {turn.stop_reason} with no text",
-                stop_reason=str(turn.stop_reason),
-            )
-        return text

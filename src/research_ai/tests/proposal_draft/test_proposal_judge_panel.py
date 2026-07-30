@@ -245,6 +245,23 @@ class ProposalJudgePanelTests(SimpleTestCase):
         self.assertIn(answer, logs.output[0])
         self.assertIn(f"({len(answer)} chars)", logs.output[0])
 
+    def test_score_logs_the_partial_text_of_a_truncated_answer(self):
+        # Arrange: a verdict cut off at the token ceiling. Rejecting it for how
+        # it ended must not cost the text it did emit -- that partial text is
+        # what says whether the judge was writing JSON or still deliberating.
+        answer = '{"scores": {"c1": 4, "c2"'
+        panel = ProposalJudgePanel(
+            providers=[_FakeProvider("j1", answer, stop_reason=StopReason.MAX_TOKENS)]
+        )
+
+        # Act
+        with self.assertLogs(_PANEL_LOGGER, level="WARNING") as logs:
+            panel.score("draft")
+
+        # Assert
+        self.assertIn(answer, logs.output[0])
+        self.assertIn(f"({len(answer)} chars)", logs.output[0])
+
     def test_score_elides_the_middle_of_a_long_unusable_answer(self):
         # Arrange: a verdict's bulk is its middle; both ends are the diagnostic
         # part, and the whole thing must not land in the log.
