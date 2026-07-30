@@ -22,7 +22,6 @@ plus its Claude workspace id (``ANTHROPIC_AWS_WORKSPACE_ID``).
 import json
 import logging
 import time
-from datetime import UTC, datetime
 from typing import Any
 
 from anthropic import AnthropicAWS
@@ -236,75 +235,35 @@ def _message_container(message: Message) -> dict | None:
     return container if isinstance(container, dict) else None
 
 
-def _resuming_code_execution(messages: list[Message]) -> bool:
-    """Whether this request owes results to code paused in the container.
-
-    True when the assistant turn being replied to issued a tool call from inside
-    code execution: that code is suspended waiting on the result, and Anthropic
-    rejects the continuation outright unless it carries the container.
-
-    This gates *staleness*, never reuse. An ordinary turn says nothing about
-    whether the container is alive -- see ``_container_id`` -- so treating a
-    missing ``caller`` as "no container needed" is what broke before.
-    """
-    for message in reversed(messages):
-        if message.role != "assistant":
-            continue
-        return any(
-            isinstance(block, ToolUseBlock)
-            and isinstance(block.data, dict)
-            and isinstance(block.data.get("caller"), dict)
-            and str(block.data["caller"].get("type", "")).startswith("code_execution_")
-            for block in message.content
-        )
-    return False
-
-
-def _container_expired(container: dict, *, now: datetime) -> bool:
-    """Whether the container's own expiry has passed.
-
-    An absent or unparseable ``expires_at`` counts as live: the identifier is
-    the only way to resume pending execution, so a missing timestamp must not
-    be the reason a turn loses it.
-    """
-    expires_at = container.get("expires_at")
-    if not isinstance(expires_at, str):
-        return False
-    try:
-        expiry = datetime.fromisoformat(expires_at)
-    except ValueError:
-        return False
-    if expiry.tzinfo is None:
-        expiry = expiry.replace(tzinfo=UTC)
-    return expiry <= now
-
-
 def _container_id(messages: list[Message]) -> str | None:
-    """Return this conversation's live code-execution container, if any.
+    """Return this conversation's code-execution container, if one was created.
 
     The container is conversation state, not per-turn state: Anthropic returns
     the container object once, on the turn that creates it, and does not echo it
     back on later turns even when the request carried it. So the most recent
-    identifier anywhere in the history is the live one, and ``expires_at`` --
-    which Anthropic supplies alongside it -- is what says when it stopped being
-    live.
+    identifier anywhere in the history is the one this conversation is using.
 
-    Liveness cannot be inferred from the shape of a turn's tool calls. With
-    web-search dynamic filtering the API runs code execution inside the turn,
-    and the model mixes ordinary tool calls with ones its filtering code issues.
-    An ordinary turn therefore does not mean the container died, and a later
-    code-generated call still needs the container an earlier turn established.
+    Liveness is deliberately not guessed at. Two signals look like they report
+    it, and neither does:
 
-    ``expires_at`` is only trusted when nothing is paused in the container.
-    Anthropic reclaims containers after a few minutes *idle* and extends that
-    deadline as the container is used, but it never sends a refreshed timestamp
-    -- so on a run longer than the initial window a live container looks long
-    expired. Dropping the id is safe only when no code is waiting on a result;
-    when some is, the request fails without it either way, so a possibly-dead id
-    is never the worse choice.
+    - The shape of a turn's tool calls. With web-search dynamic filtering the
+      API runs code execution inside the turn, and the model mixes ordinary tool
+      calls with ones its filtering code issues. An ordinary turn does not mean
+      the container died, and a later code-generated call still needs the
+      container an earlier turn established. A ``pause_turn`` continuation may
+      carry no client tool calls at all and still resume work in it.
+    - The recorded ``expires_at``. Anthropic reclaims containers after a few
+      minutes *idle* and pushes that deadline out as one is used, but never
+      sends a refreshed timestamp -- so on any run longer than the initial
+      window, a container kept alive by that very run reads as long expired.
+
+    Acting on either drops an identifier the next request needs, and a request
+    that owes results to paused code is rejected outright without it. A
+    reclaimed identifier costs at most the same failed turn, so it is kept for
+    the conversation and Anthropic decides whether it is still good -- as the
+    SDK's own tool runner does (``anthropic/lib/tools/_beta_runner.py``), which
+    likewise never retires one.
     """
-    now = datetime.now(UTC)
-    trust_expiry = not _resuming_code_execution(messages)
     for message in reversed(messages):
         if message.role != "assistant":
             continue
@@ -312,18 +271,8 @@ def _container_id(messages: list[Message]) -> str | None:
         if container is None:
             continue
         container_id = container.get("id")
-        if not isinstance(container_id, str):
-            continue
-        if trust_expiry and _container_expired(container, now=now):
-            # Nothing is paused, so the id would only have restored state.
-            # Omitting an expiry-passed one lets the API provision a fresh
-            # container instead of failing on a reclaimed id -- and stop at the
-            # newest rather than reach for an older, even more expired one.
-            logger.warning(
-                "claude platform: code execution container %s expired", container_id
-            )
-            return None
-        return container_id
+        if isinstance(container_id, str):
+            return container_id
     return None
 
 
