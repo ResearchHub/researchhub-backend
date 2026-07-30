@@ -236,6 +236,41 @@ class AgentRecorderPersistenceTests(AgentPersistenceTestCase):
             deserialize_messages([{"role": row.role, "content": row.content}])
         self.assertEqual(len(context_rows), 3)
 
+    def test_provider_state_round_trips_through_context_messages(self):
+        # Arrange: Claude's container id is request-level state the next turn
+        # must replay, so it has to survive the recorder, not just the serializer.
+        container = {
+            "anthropic": {
+                "container": {
+                    "id": "container_123",
+                    "expires_at": "2026-07-29T21:30:00Z",
+                }
+            }
+        }
+        recorder = self.recorder()
+        provider = FakeProvider([text_turn("Done", provider_state=container)])
+
+        # Act
+        agent(provider, recorder).run("go")
+
+        # Assert
+        assistant_row = recorder.execution.context_messages.get(role="assistant")
+        self.assertEqual(assistant_row.provider_state, container)
+        restored = deserialize_messages(
+            [
+                {
+                    "role": assistant_row.role,
+                    "content": assistant_row.content,
+                    "provider_state": assistant_row.provider_state,
+                }
+            ]
+        )[0]
+        self.assertEqual(restored.provider_state, container)
+
+        # A turn without provider state stays empty rather than inheriting.
+        user_row = recorder.execution.context_messages.get(role="user")
+        self.assertEqual(user_row.provider_state, {})
+
     def test_headless_workflow_has_no_artificial_chat_messages(self):
         # Arrange
         workflow = AgentConversation.objects.create(workflow="headless")

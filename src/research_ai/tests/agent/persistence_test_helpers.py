@@ -51,13 +51,14 @@ def tool_turn(
     )
 
 
-def text_turn(text, *, usage=None, latency_ms=None):
+def text_turn(text, *, usage=None, latency_ms=None, provider_state=None):
     return AssistantTurn(
         text_blocks=[TextBlock(text=text)],
         tool_calls=[],
         stop_reason=StopReason.END_TURN,
         usage=usage,
         latency_ms=latency_ms,
+        provider_state=provider_state or {},
     )
 
 

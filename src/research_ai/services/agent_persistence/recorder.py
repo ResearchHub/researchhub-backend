@@ -147,7 +147,7 @@ class DatabaseAgentRecorder:
     def record_message(
         self, message: Message, *, turn: AssistantTurn | None = None
     ) -> None:
-        context_content, is_compacted, context_original_size = (
+        context_content, context_provider_state, is_compacted, context_original_size = (
             serialize_context_message(message)
         )
         now = timezone.now()
@@ -165,6 +165,7 @@ class DatabaseAgentRecorder:
                 sequence=execution.next_context_sequence,
                 role=message.role,
                 content=context_content,
+                provider_state=context_provider_state,
                 is_compacted=is_compacted,
                 original_size_bytes=(context_original_size if is_compacted else None),
             )
