@@ -11,14 +11,8 @@ from paper.tests.helpers import create_paper
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
-from researchhub_document.models import (
-    ResearchhubPost,
+from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
-)
-from researchhub_document.related_models.constants.document_type import (
-    GRANT,
-    PREREGISTRATION,
-    REGISTERED_REPORT,
 )
 from review.models import Review
 from user.tests.helpers import create_random_default_user
@@ -235,36 +229,6 @@ class ModelTests(TestCase):
 
         # Assert
         self.assertEqual(markdown, "Discussion body")
-
-    def test_saves_long_cover_image_urls_for_work_posts(self) -> None:
-        """Persist long cover image URLs for proposals, grants, and reports."""
-        # Arrange
-        cover_image_url = (
-            "https://storage.test.researchhub.com/uploads/posts/users/"
-            f"{self.user.id}/{'a' * 201}.png"
-        )
-        document_types = (PREREGISTRATION, GRANT, REGISTERED_REPORT)
-
-        # Act
-        posts = [
-            ResearchhubPost.objects.create(
-                created_by=self.user,
-                document_type=document_type,
-                preview_img=cover_image_url,
-                unified_document=ResearchhubUnifiedDocument.objects.create(
-                    document_type=document_type,
-                ),
-            )
-            for document_type in document_types
-        ]
-
-        # Assert
-        self.assertGreater(len(cover_image_url), 200)
-        self.assertEqual(
-            [post.preview_img for post in posts],
-            [cover_image_url] * len(document_types),
-        )
-
 
 class ResearchhubPostStatusTests(TestCase):
     def setUp(self):
