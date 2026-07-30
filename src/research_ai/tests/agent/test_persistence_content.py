@@ -5,6 +5,7 @@ from unittest import TestCase
 from research_ai.services.agent.types import (
     Message,
     TextBlock,
+    ToolResultBlock,
     ToolUseBlock,
     deserialize_messages,
     serialize_messages,
@@ -184,12 +185,107 @@ class AgentPersistenceContentTests(TestCase):
 
         # Assert
         self.assertTrue(is_compacted)
-        self.assertEqual(content[0]["type"], "text")
+        self.assertEqual(content[0]["type"], "tool_use")
+        self.assertEqual(content[0]["id"], "call-1")
+        self.assertEqual(content[0]["name"], "lookup")
+        self.assertTrue(content[0]["input"]["_truncated"])
         self.assertEqual(provider_state, {})
         self.assertEqual(
             original_size,
             json_size_bytes({"content": blocks, "provider_state": {}}),
         )
+        self.assertLessEqual(json_size_bytes(content), MAX_CONTEXT_MESSAGE_BYTES)
+        deserialize_messages([{"role": message.role, "content": content}])
+
+    def test_context_compaction_keeps_tool_results_answering_their_calls(self):
+        # Arrange: a tool that returns more than the row limit is the common
+        # case, and its result must keep answering the call in the turn before
+        # it -- an unpaired tool_use fails every later provider turn.
+        call = Message(
+            role="assistant",
+            content=[
+                TextBlock(text="looking that up"),
+                ToolUseBlock(id="call-1", name="fetch", input={"doi": "10.1/abc"}),
+            ],
+        )
+        result = Message(
+            role="user",
+            content=[
+                ToolResultBlock(
+                    tool_use_id="call-1",
+                    content={"body": "x" * MAX_CONTEXT_MESSAGE_BYTES},
+                )
+            ],
+        )
+
+        # Act
+        call_content, _state, call_compacted, _size = serialize_context_message(call)
+        result_content, _state, result_compacted, _size = serialize_context_message(
+            result
+        )
+
+        # Assert
+        self.assertFalse(call_compacted)
+        self.assertTrue(result_compacted)
+        restored = deserialize_messages(
+            [
+                {"role": call.role, "content": call_content},
+                {"role": result.role, "content": result_content},
+            ]
+        )
+        self.assertEqual(restored[0], call)
+        self.assertEqual(restored[1].content[0].tool_use_id, "call-1")
+        self.assertLessEqual(json_size_bytes(result_content), MAX_CONTEXT_MESSAGE_BYTES)
+
+    def test_context_compacts_every_block_when_no_single_block_is_oversized(self):
+        # Arrange: each block fits the per-block budget, so only compacting the
+        # individually oversized ones would leave the message over the limit.
+        body_bytes = MAX_BLOCK_PAYLOAD_BYTES // 2
+        block_count = (MAX_CONTEXT_MESSAGE_BYTES // body_bytes) + 2
+        message = Message(
+            role="assistant",
+            content=[
+                ToolUseBlock(
+                    id=f"call-{index}",
+                    name="lookup",
+                    input={"body": "x" * body_bytes},
+                )
+                for index in range(block_count)
+            ],
+        )
+
+        # Act
+        content, _provider_state, is_compacted, _size = serialize_context_message(
+            message
+        )
+
+        # Assert
+        self.assertTrue(is_compacted)
+        self.assertEqual(
+            [block["id"] for block in content],
+            [f"call-{index}" for index in range(block_count)],
+        )
+        self.assertLessEqual(json_size_bytes(content), MAX_CONTEXT_MESSAGE_BYTES)
+        deserialize_messages([{"role": message.role, "content": content}])
+
+    def test_context_falls_back_to_text_when_state_alone_is_oversized(self):
+        # Arrange: nothing about the message can be compacted into the row, so
+        # structure and the state describing it are dropped together.
+        message = Message(
+            role="assistant",
+            content=[TextBlock(text="done")],
+            provider_state={"blob": "x" * (MAX_CONTEXT_MESSAGE_BYTES * 2)},
+        )
+
+        # Act
+        content, provider_state, is_compacted, _size = serialize_context_message(
+            message
+        )
+
+        # Assert
+        self.assertTrue(is_compacted)
+        self.assertEqual(content[0]["type"], "text")
+        self.assertEqual(provider_state, {})
         self.assertLessEqual(json_size_bytes(content), MAX_CONTEXT_MESSAGE_BYTES)
         deserialize_messages([{"role": message.role, "content": content}])
 

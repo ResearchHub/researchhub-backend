@@ -10,6 +10,11 @@ MAX_BLOCK_PAYLOAD_BYTES = 48 * 1024
 MAX_CONTEXT_MESSAGE_BYTES = 512 * 1024
 _PREVIEW_CHARS = 2048
 _FINAL_OUTPUT_SUFFIX = "\n[Response truncated for durable storage.]"
+_COMPACTED_BLOCK_TEXT = "[Text omitted because it exceeded the durable row limit.]"
+_COMPACTED_MESSAGE_TEXT = (
+    "[Earlier model-context message compacted because it exceeded the durable row "
+    "limit.]"
+)
 
 
 def _encode_json(value: Any) -> str:
@@ -81,23 +86,66 @@ def serialize_trace_message(message: Message) -> tuple[list[dict], bool, int]:
     )
 
 
+def _compacted_block(block: dict, original_size: int) -> dict:
+    """Drop one block's payload while keeping the fields replay depends on.
+
+    Tool identifiers have to survive compaction. A provider rejects the next
+    turn outright when a ``tool_result`` no longer answers a ``tool_use`` in
+    the turn before it, so discarding the block would make the conversation
+    unresumable rather than merely lossy. Signed reasoning and server-tool
+    blocks keep their position for the same reason, but their payload is
+    opaque and cannot be shortened without invalidating it.
+    """
+    marker = {"_truncated": True, "original_size_bytes": original_size}
+    block_type = block["type"]
+    if block_type == "tool_use":
+        return {
+            "type": "tool_use",
+            "id": block["id"],
+            "name": block["name"],
+            "input": marker,
+        }
+    if block_type == "tool_result":
+        return {
+            "type": "tool_result",
+            "tool_use_id": block["tool_use_id"],
+            "content": marker,
+            "is_error": block.get("is_error", False),
+        }
+    if block_type == "text":
+        return {"type": "text", "text": _COMPACTED_BLOCK_TEXT}
+    return {"type": block_type, "data": marker}
+
+
+def _compact_context_content(blocks: list[dict], block_limit: int) -> list[dict]:
+    """Bound every block against ``block_limit``, preserving message shape."""
+    compacted = []
+    for block in blocks:
+        safe_block, was_replaced, block_size = _bounded_json(block, limit=block_limit)
+        compacted.append(
+            _compacted_block(block, block_size) if was_replaced else safe_block
+        )
+    return compacted
+
+
 def serialize_context_message(
     message: Message,
 ) -> tuple[list[dict], dict, bool, int]:
-    """Keep complete resumable context or replace it with valid text.
+    """Keep complete resumable context, or compact it without breaking replay.
 
     Provider continuation state is bounded together with the content because
-    both are required to resume a provider turn correctly. If the combined
-    payload is too large or invalid, compact both rather than retaining state
-    that no longer corresponds to the stored content.
+    both are required to resume a provider turn correctly. An oversized message
+    is compacted block by block -- first only the blocks that are individually
+    too large, then all of them -- so tool-call correlation and block structure
+    survive the row limit. Only a message still too large after that degrades
+    to a single text block, which also drops the provider state because it no
+    longer corresponds to the stored content.
     """
     serialized = serialize_messages([message])[0]
-    payload = {
-        "content": serialized["content"],
-        "provider_state": serialized.get("provider_state") or {},
-    }
+    content = serialized["content"]
+    provider_state = serialized.get("provider_state") or {}
     safe_payload, was_replaced, original_size = _bounded_json(
-        payload,
+        {"content": content, "provider_state": provider_state},
         limit=MAX_CONTEXT_MESSAGE_BYTES,
     )
     if not was_replaced:
@@ -107,16 +155,25 @@ def serialize_context_message(
             False,
             original_size,
         )
-    return (
-        [
+
+    for block_limit in (MAX_BLOCK_PAYLOAD_BYTES, 0):
+        candidate, still_oversized, _size = _bounded_json(
             {
-                "type": "text",
-                "text": (
-                    "[Earlier model-context message compacted because it "
-                    "exceeded the durable row limit.]"
-                ),
-            }
-        ],
+                "content": _compact_context_content(content, block_limit),
+                "provider_state": provider_state,
+            },
+            limit=MAX_CONTEXT_MESSAGE_BYTES,
+        )
+        if not still_oversized:
+            return (
+                candidate["content"],
+                candidate["provider_state"],
+                True,
+                original_size,
+            )
+
+    return (
+        [{"type": "text", "text": _COMPACTED_MESSAGE_TEXT}],
         {},
         True,
         original_size,

@@ -236,6 +236,15 @@ class AgentRecorderPersistenceTests(AgentPersistenceTestCase):
             deserialize_messages([{"role": row.role, "content": row.content}])
         self.assertEqual(len(context_rows), 3)
 
+        # Compaction keeps the call answerable: a tool_result orphaned from its
+        # tool_use would make every later provider turn fail, not just this one.
+        restored = deserialize_messages(
+            [{"role": row.role, "content": row.content} for row in context_rows]
+        )
+        self.assertEqual(restored[1].content[1].id, "large")
+        self.assertEqual(restored[1].content[1].name, "large_tool")
+        self.assertEqual(restored[2].content[0].tool_use_id, "large")
+
     def test_provider_state_round_trips_through_context_messages(self):
         # Arrange: Claude's container id is request-level state the next turn
         # must replay, so it has to survive the recorder, not just the serializer.

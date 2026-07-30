@@ -106,7 +106,14 @@ def _apply_turn_metrics(
 
 
 class DatabaseAgentRecorder:
-    """Persist required context and isolate optional observational trace writes."""
+    """Persist required context and isolate optional observational trace writes.
+
+    Callers must drive the agent outside their own ``transaction.atomic()``
+    block. Django nests ``atomic()`` as a savepoint, so an outer rollback would
+    discard the context rows and the terminal status transition together, and an
+    execution created before that transaction would stay ``RUNNING`` and block
+    every later execution on the conversation.
+    """
 
     requires_durable_messages = True
 
@@ -153,9 +160,11 @@ class DatabaseAgentRecorder:
         now = timezone.now()
         provenance = self._provenance(message)
 
-        # Resumable context is durable state, not disposable debugging data.
-        # Commit it independently so a trace-specific failure cannot erase the
-        # context needed by a later turn.
+        # Resumable context is durable state, not disposable debugging data, so
+        # it gets its own atomic block: the trace write that follows rolls back
+        # to its own savepoint instead of erasing the context a later turn
+        # needs. That isolates it from the trace write, not from a caller's
+        # transaction -- see the class docstring.
         with transaction.atomic():
             execution = AgentExecution.objects.select_for_update().get(
                 id=self.execution.id
