@@ -226,56 +226,55 @@ def _latest_assistant_content(rendered_messages: list[dict]) -> list[dict]:
     return []
 
 
-def _has_code_execution_tool_call(message: Message) -> bool:
-    """Return whether Claude generated a client tool call from code execution."""
-    return any(
-        isinstance(block, ToolUseBlock)
-        and isinstance(block.data, dict)
-        and isinstance(block.data.get("caller"), dict)
-        and str(block.data["caller"].get("type", "")).startswith("code_execution_")
-        for block in message.content
-    )
-
-
-def _message_container_id(message: Message) -> str | None:
-    """Read a Claude container identifier from one assistant message."""
+def _message_container(message: Message) -> dict | None:
+    """Read the Claude container metadata recorded on one assistant message."""
     anthropic_state = message.provider_state.get(_PROVIDER_STATE_KEY)
     if not isinstance(anthropic_state, dict):
         return None
     container = anthropic_state.get("container")
-    if not isinstance(container, dict):
-        return None
-    container_id = container.get("id")
-    return container_id if isinstance(container_id, str) else None
+    return container if isinstance(container, dict) else None
 
 
 def _container_id(messages: list[Message]) -> str | None:
-    """Return the Claude container required by the latest assistant turn.
+    """Return this conversation's code-execution container, if one was created.
 
-    Programmatic code can pause for client tools more than once. If the latest
-    assistant response carries another code-generated tool call but no new
-    container metadata, reuse the most recent preceding id. Do not cross an
-    ordinary assistant turn: that would attach stale execution state to an
-    unrelated later exchange.
+    The container is conversation state, not per-turn state: Anthropic returns
+    the container object once, on the turn that creates it, and does not echo it
+    back on later turns even when the request carried it. So the most recent
+    identifier anywhere in the history is the one this conversation is using.
+
+    Liveness is deliberately not guessed at. Two signals look like they report
+    it, and neither does:
+
+    - The shape of a turn's tool calls. With web-search dynamic filtering the
+      API runs code execution inside the turn, and the model mixes ordinary tool
+      calls with ones its filtering code issues. An ordinary turn does not mean
+      the container died, and a later code-generated call still needs the
+      container an earlier turn established. A ``pause_turn`` continuation may
+      carry no client tool calls at all and still resume work in it.
+    - The recorded ``expires_at``. Anthropic documents it as a short rolling
+      value that deliberately does not report the real limit: a container lives
+      30 days from creation, and a few minutes' inactivity only checkpoints it --
+      sending the identifier inside that window restores it. A timestamp in the
+      past therefore routinely names a container that is still usable.
+
+    Acting on either drops an identifier the next request needs, and a request
+    that owes results to paused code is rejected outright without it. Anthropic
+    is the only party that knows whether a container is still good, so the
+    identifier is kept for the conversation and the API decides -- as the SDK's
+    own tool runner does (``anthropic/lib/tools/_beta_runner.py``), which
+    likewise never retires one. The documented recovery from a genuinely expired
+    container is to resend without the ``container`` parameter, which is a
+    response to the API's error rather than something to predict here.
     """
-    assistant_messages = (
-        message for message in reversed(messages) if message.role == "assistant"
-    )
-    latest = next(assistant_messages, None)
-    if latest is None:
-        return None
-
-    container_id = _message_container_id(latest)
-    if container_id is not None:
-        return container_id
-    if not _has_code_execution_tool_call(latest):
-        return None
-
-    for message in assistant_messages:
-        if not _has_code_execution_tool_call(message):
-            return None
-        container_id = _message_container_id(message)
-        if container_id is not None:
+    for message in reversed(messages):
+        if message.role != "assistant":
+            continue
+        container = _message_container(message)
+        if container is None:
+            continue
+        container_id = container.get("id")
+        if isinstance(container_id, str):
             return container_id
     return None
 
