@@ -287,10 +287,12 @@ class DatabaseAgentRecorder:
         self.terminal_observed = terminal
         if not transitioned:
             return
-        public_text = final_output["text"]
-        if self.publish_assistant_message and public_text:
+        # Publish what the model actually answered, not the snapshot trimmed to
+        # fit the execution row: chat content is unbounded text, so truncating
+        # it here would drop the tail of a successful response for good.
+        if self.publish_assistant_message and result.final_text:
             try:
-                self.publish_assistant_output(public_text)
+                self.publish_assistant_output(result.final_text)
             except Exception:  # noqa: BLE001 - trace terminal state already landed
                 logger.warning(
                     "failed to publish agent response to chat", exc_info=True

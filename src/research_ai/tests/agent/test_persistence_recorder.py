@@ -8,6 +8,7 @@ from django.db import IntegrityError, transaction
 from research_ai.models import (
     AgentContextMessage,
     AgentConversation,
+    AgentConversationMessage,
     AgentExecution,
     AgentExecutionMessage,
 )
@@ -244,6 +245,25 @@ class AgentRecorderPersistenceTests(AgentPersistenceTestCase):
         self.assertEqual(restored[1].content[1].id, "large")
         self.assertEqual(restored[1].content[1].name, "large_tool")
         self.assertEqual(restored[2].content[0].tool_use_id, "large")
+
+    def test_chat_publication_keeps_the_untruncated_response(self):
+        # Arrange: chat content is unbounded, so the answer the user reads must
+        # not inherit the truncation that bounds the execution row.
+        long_answer = "x" * (MAX_TRACE_MESSAGE_BYTES * 2)
+        recorder = self.recorder(publish_assistant_message=True)
+        provider = FakeProvider([text_turn(long_answer)])
+
+        # Act
+        agent(provider, recorder).run("go")
+
+        # Assert
+        execution = AgentExecution.objects.get(id=recorder.execution.id)
+        self.assertTrue(execution.final_output["_truncated"])
+        self.assertLess(len(execution.final_output["text"]), len(long_answer))
+        published = AgentConversationMessage.objects.get(
+            generated_by_execution_id=execution.id
+        )
+        self.assertEqual(published.content, long_answer)
 
     def test_provider_state_round_trips_through_context_messages(self):
         # Arrange: Claude's container id is request-level state the next turn
