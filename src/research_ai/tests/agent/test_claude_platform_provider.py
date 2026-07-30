@@ -798,9 +798,10 @@ class ServerSideToolTests(SimpleTestCase):
         # Arrange: a ``pause_turn`` continuation -- the loop resubmits the paused
         # assistant turn with no user turn after it, so this request carries no
         # client tool calls of any kind, and the only expiry Anthropic ever sent
-        # for the container has passed. Containers are reclaimed on idle and that
-        # deadline moves as one is used, but no refreshed timestamp is ever
-        # returned, so a container kept alive by a long run reads as expired.
+        # for the container has passed. ``expires_at`` is a short rolling value
+        # that does not report the real limit: the container lives 30 days from
+        # creation and idling only checkpoints it, so a passed timestamp says
+        # nothing about whether the id still works.
         provider = _build_provider(
             [_build_response([AnthropicTextBlock(type="text", text="answer")])]
         )

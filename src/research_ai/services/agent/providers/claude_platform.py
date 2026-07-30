@@ -252,17 +252,20 @@ def _container_id(messages: list[Message]) -> str | None:
       the container died, and a later code-generated call still needs the
       container an earlier turn established. A ``pause_turn`` continuation may
       carry no client tool calls at all and still resume work in it.
-    - The recorded ``expires_at``. Anthropic reclaims containers after a few
-      minutes *idle* and pushes that deadline out as one is used, but never
-      sends a refreshed timestamp -- so on any run longer than the initial
-      window, a container kept alive by that very run reads as long expired.
+    - The recorded ``expires_at``. Anthropic documents it as a short rolling
+      value that deliberately does not report the real limit: a container lives
+      30 days from creation, and a few minutes' inactivity only checkpoints it --
+      sending the identifier inside that window restores it. A timestamp in the
+      past therefore routinely names a container that is still usable.
 
     Acting on either drops an identifier the next request needs, and a request
-    that owes results to paused code is rejected outright without it. A
-    reclaimed identifier costs at most the same failed turn, so it is kept for
-    the conversation and Anthropic decides whether it is still good -- as the
-    SDK's own tool runner does (``anthropic/lib/tools/_beta_runner.py``), which
-    likewise never retires one.
+    that owes results to paused code is rejected outright without it. Anthropic
+    is the only party that knows whether a container is still good, so the
+    identifier is kept for the conversation and the API decides -- as the SDK's
+    own tool runner does (``anthropic/lib/tools/_beta_runner.py``), which
+    likewise never retires one. The documented recovery from a genuinely expired
+    container is to resend without the ``container`` parameter, which is a
+    response to the API's error rather than something to predict here.
     """
     for message in reversed(messages):
         if message.role != "assistant":
