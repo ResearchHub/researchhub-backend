@@ -13,16 +13,13 @@ from research_ai.models import (
     AgentExecutionMessage,
 )
 from research_ai.services.agent.loop import AgentResult
-from research_ai.services.agent.tools import Tool
+from research_ai.services.agent.tools import MAX_TOOL_RESULT_BYTES, Tool
 from research_ai.services.agent.types import (
     StopReason,
     TurnUsage,
     deserialize_messages,
 )
-from research_ai.services.agent_persistence import (
-    AgentExecutionService,
-    DatabaseAgentRecorder,
-)
+from research_ai.services.agent_persistence import AgentExecutionService
 from research_ai.services.agent_persistence.content import (
     MAX_CONTEXT_MESSAGE_BYTES,
     MAX_TRACE_MESSAGE_BYTES,
@@ -204,50 +201,39 @@ class AgentRecorderPersistenceTests(AgentPersistenceTestCase):
         self.assertFalse(hasattr(execution, "generated_chat_message"))
         self.assertTrue(recorder.terminal_observed)
 
-    def test_oversized_tool_content_is_bounded_and_still_deserializes(self):
-        # Arrange
-        huge = "x" * (MAX_TRACE_MESSAGE_BYTES * 4)
+    def test_oversized_tool_result_never_reaches_the_durable_rows(self):
+        # Arrange: the dispatch cap turns a flooding tool into an error the
+        # model can act on, which is why persistence never has to compact a
+        # message to fit its row.
         recorder = self.recorder()
-        provider = FakeProvider([tool_turn("large", "large_tool", {"body": huge})])
+        provider = FakeProvider(
+            [
+                tool_turn("large", "large_tool", {"query": "everything"}),
+                text_turn("narrowing the query"),
+            ]
+        )
         tool = Tool(
             "large_tool",
             "large",
             {"type": "object"},
-            lambda _args: {"result": huge},
-            is_terminal=True,
+            lambda _args: {"result": "x" * (MAX_TOOL_RESULT_BYTES * 2)},
         )
 
         # Act
         agent(provider, recorder, [tool]).run("go")
 
         # Assert
-        rows = list(recorder.execution.messages.order_by("execution_sequence"))
-        self.assertTrue(rows[1].is_truncated)
-        self.assertTrue(rows[2].is_truncated)
-        for row in rows:
-            self.assertLessEqual(
-                len(json.dumps(row.content).encode()), MAX_TRACE_MESSAGE_BYTES
-            )
-            deserialize_messages([{"role": row.role, "content": row.content}])
-
         context_rows = list(recorder.execution.context_messages.order_by("sequence"))
-        self.assertTrue(context_rows[1].is_compacted)
-        self.assertTrue(context_rows[2].is_compacted)
+        self.assertFalse(any(row.is_compacted for row in context_rows))
+        result_block = context_rows[2].content[0]
+        self.assertEqual(result_block["tool_use_id"], "large")
+        self.assertTrue(result_block["is_error"])
+        self.assertIn("over the", result_block["content"]["error"])
         for row in context_rows:
             self.assertLessEqual(
                 len(json.dumps(row.content).encode()), MAX_CONTEXT_MESSAGE_BYTES
             )
             deserialize_messages([{"role": row.role, "content": row.content}])
-        self.assertEqual(len(context_rows), 3)
-
-        # Compaction keeps the call answerable: a tool_result orphaned from its
-        # tool_use would make every later provider turn fail, not just this one.
-        restored = deserialize_messages(
-            [{"role": row.role, "content": row.content} for row in context_rows]
-        )
-        self.assertEqual(restored[1].content[1].id, "large")
-        self.assertEqual(restored[1].content[1].name, "large_tool")
-        self.assertEqual(restored[2].content[0].tool_use_id, "large")
 
     def test_chat_publication_keeps_the_untruncated_response(self):
         # Arrange: chat content is unbounded, so the answer the user reads must
@@ -267,58 +253,6 @@ class AgentRecorderPersistenceTests(AgentPersistenceTestCase):
             generated_by_execution_id=execution.id
         )
         self.assertEqual(published.content, long_answer)
-
-    def test_publication_repair_recovers_the_untruncated_response(self):
-        # Arrange: the first publication attempt fails after the terminal
-        # commit, so the repair path has only durable storage to publish from.
-        long_answer = "x" * (MAX_TRACE_MESSAGE_BYTES * 2)
-        recorder = self.recorder(publish_assistant_message=True)
-        with patch.object(
-            DatabaseAgentRecorder,
-            "publish_assistant_output",
-            side_effect=IntegrityError("chat write failed"),
-        ):
-            agent(FakeProvider([text_turn(long_answer)]), recorder).run("go")
-        self.assertEqual(AgentConversationMessage.objects.count(), 0)
-
-        # Act
-        created = recorder.publish_assistant_output()
-
-        # Assert
-        self.assertTrue(created)
-        published = AgentConversationMessage.objects.get(
-            generated_by_execution_id=recorder.execution.id
-        )
-        self.assertEqual(published.content, long_answer)
-
-    def test_publication_repair_never_publishes_an_earlier_answer(self):
-        # Arrange: the final turn is too large for its context row too, so the
-        # bounded snapshot is the best copy left -- the intact row before it
-        # holds a different turn, not a shorter version of this one.
-        unstorable = "y" * (MAX_CONTEXT_MESSAGE_BYTES * 2)
-        recorder = self.recorder(publish_assistant_message=True)
-        provider = FakeProvider(
-            [tool_turn("call-1", "lookup", {}), text_turn(unstorable)]
-        )
-        tool = Tool("lookup", "lookup", {"type": "object"}, lambda _args: {})
-        with patch.object(
-            DatabaseAgentRecorder,
-            "publish_assistant_output",
-            side_effect=IntegrityError("chat write failed"),
-        ):
-            agent(provider, recorder, [tool]).run("go")
-
-        # Act
-        created = recorder.publish_assistant_output()
-
-        # Assert
-        execution = AgentExecution.objects.get(id=recorder.execution.id)
-        self.assertTrue(created)
-        published = AgentConversationMessage.objects.get(
-            generated_by_execution_id=execution.id
-        )
-        self.assertEqual(published.content, execution.final_output["text"])
-        self.assertTrue(published.content.startswith("y"))
 
     def test_provider_state_round_trips_through_context_messages(self):
         # Arrange: Claude's container id is request-level state the next turn

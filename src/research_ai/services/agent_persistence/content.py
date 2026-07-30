@@ -1,19 +1,18 @@
 """Agent-specific serialization policies for persisted message content."""
 
 import json
+import logging
 from typing import Any
 
 from research_ai.services.agent.types import Message, serialize_messages
+
+logger = logging.getLogger(__name__)
 
 MAX_TRACE_MESSAGE_BYTES = 128 * 1024
 MAX_BLOCK_PAYLOAD_BYTES = 48 * 1024
 MAX_CONTEXT_MESSAGE_BYTES = 512 * 1024
 _PREVIEW_CHARS = 2048
 _FINAL_OUTPUT_SUFFIX = "\n[Response truncated for durable storage.]"
-_COMPACTED_BLOCK_TEXT = "[Text omitted because it exceeded the durable row limit.]"
-# Blocks that always carry a provider payload replayed as-is, so it survives
-# whole or not at all.
-_OPAQUE_BLOCK_TYPES = frozenset({"thinking", "server_tool"})
 _COMPACTED_MESSAGE_TEXT = (
     "[Earlier model-context message compacted because it exceeded the durable row "
     "limit.]"
@@ -89,92 +88,26 @@ def serialize_trace_message(message: Message) -> tuple[list[dict], bool, int]:
     )
 
 
-def _is_opaque(block: dict) -> bool:
-    """Report whether a provider validates this block's payload on replay.
-
-    Signed reasoning and server-tool blocks always carry one. A tool call does
-    only when the provider attached its own block: Claude's programmatic calls
-    keep the ``caller`` tying them to code still pending in the container, and
-    the adapter replays that block instead of rebuilding one from ``id``,
-    ``name``, and ``input``. An ordinary call carries no such payload and stays
-    editable.
-    """
-    if block["type"] in _OPAQUE_BLOCK_TYPES:
-        return True
-    return block["type"] == "tool_use" and block.get("data") is not None
-
-
-def _compacted_block(block: dict, original_size: int) -> dict:
-    """Drop one block's payload while keeping the fields replay depends on.
-
-    Tool identifiers have to survive compaction. A provider rejects the next
-    turn outright when a ``tool_result`` no longer answers a ``tool_use`` in
-    the turn before it, so discarding the block would make the conversation
-    unresumable rather than merely lossy. Text keeps only its marker: losing
-    the citation payload a provider replays whole costs fidelity, not
-    acceptance.
-    """
-    marker = {"_truncated": True, "original_size_bytes": original_size}
-    block_type = block["type"]
-    if block_type == "tool_use":
-        return {
-            "type": "tool_use",
-            "id": block["id"],
-            "name": block["name"],
-            "input": marker,
-        }
-    if block_type == "tool_result":
-        return {
-            "type": "tool_result",
-            "tool_use_id": block["tool_use_id"],
-            "content": marker,
-            "is_error": block.get("is_error", False),
-        }
-    return {"type": "text", "text": _COMPACTED_BLOCK_TEXT}
-
-
-def _compact_context_content(blocks: list[dict], block_limit: int) -> list[dict]:
-    """Bound editable blocks against ``block_limit``, preserving message shape.
-
-    Opaque blocks are never rewritten. Adapters replay their payloads byte for
-    byte, so a marker in their place would reject the next turn rather than
-    shorten it. One too large to store whole therefore keeps the message over
-    the limit and drops it to the caller's text fallback: lossy, and for an
-    oversized programmatic call it also costs the correlation an ordinary call
-    would have kept, but neither is worse than replaying a payload the provider
-    refuses.
-    """
-    compacted = []
-    for block in blocks:
-        if _is_opaque(block):
-            compacted.append(block)
-            continue
-        safe_block, was_replaced, block_size = _bounded_json(block, limit=block_limit)
-        compacted.append(
-            _compacted_block(block, block_size) if was_replaced else safe_block
-        )
-    return compacted
-
-
 def serialize_context_message(
     message: Message,
 ) -> tuple[list[dict], dict, bool, int]:
-    """Keep complete resumable context, or compact it without breaking replay.
+    """Keep complete resumable context or replace it with valid text.
 
     Provider continuation state is bounded together with the content because
-    both are required to resume a provider turn correctly. An oversized message
-    is compacted block by block -- first only the editable blocks that are
-    individually too large, then all of them -- so tool-call correlation and
-    block structure survive the row limit. A message still too large after
-    that, which is what an unstorable signed block leaves behind, degrades to a
-    single text block and drops the provider state along with the structure it
-    described.
+    both are required to resume a provider turn correctly. Neither should ever
+    reach the limit: model output is capped by ``max_tokens`` and tool results
+    by ``MAX_TOOL_RESULT_BYTES``, so a message this large means one of those
+    bounds is missing rather than that a conversation grew. The row still has
+    to hold something, so it holds text the provider accepts -- a compacted
+    marker, and no state describing content that is no longer there.
     """
     serialized = serialize_messages([message])[0]
-    content = serialized["content"]
-    provider_state = serialized.get("provider_state") or {}
+    payload = {
+        "content": serialized["content"],
+        "provider_state": serialized.get("provider_state") or {},
+    }
     safe_payload, was_replaced, original_size = _bounded_json(
-        {"content": content, "provider_state": provider_state},
+        payload,
         limit=MAX_CONTEXT_MESSAGE_BYTES,
     )
     if not was_replaced:
@@ -184,23 +117,11 @@ def serialize_context_message(
             False,
             original_size,
         )
-
-    for block_limit in (MAX_BLOCK_PAYLOAD_BYTES, 0):
-        candidate, still_oversized, _size = _bounded_json(
-            {
-                "content": _compact_context_content(content, block_limit),
-                "provider_state": provider_state,
-            },
-            limit=MAX_CONTEXT_MESSAGE_BYTES,
-        )
-        if not still_oversized:
-            return (
-                candidate["content"],
-                candidate["provider_state"],
-                True,
-                original_size,
-            )
-
+    logger.error(
+        "agent context message of %d bytes exceeded the durable row limit; "
+        "the conversation is no longer resumable from this turn",
+        original_size,
+    )
     return (
         [{"type": "text", "text": _COMPACTED_MESSAGE_TEXT}],
         {},
