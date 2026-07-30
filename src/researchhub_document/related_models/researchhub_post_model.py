@@ -159,6 +159,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
     preview_img = models.URLField(
         blank=True,
         default=None,
+        max_length=2048,
         null=True,
     )
     renderable_text = models.TextField(
