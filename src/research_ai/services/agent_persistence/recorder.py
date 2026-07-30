@@ -51,6 +51,33 @@ def _safe_exception_message(error: object) -> str:
         return f"<{type(error).__name__} message unavailable>"
 
 
+def _durable_output_text(execution: AgentExecution) -> str | None:
+    """Recover the answer to publish from the most complete durable copy.
+
+    ``final_output`` is bounded for the execution row, so a long response
+    survives there only as a prefix. The assistant's own context message keeps
+    that text under a limit four times larger, which is what a repair should
+    publish while it is intact. A compacted row is skipped rather than searched
+    past: an earlier turn holds a different answer, and publishing that would
+    be worse than publishing a short one.
+    """
+    row = (
+        execution.context_messages.filter(role="assistant")
+        .order_by("-sequence")
+        .first()
+    )
+    if row is not None and not row.is_compacted:
+        text = "".join(
+            block.get("text", "")
+            for block in row.content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+        if text:
+            return text
+    final_output = execution.final_output
+    return final_output.get("text") if isinstance(final_output, dict) else None
+
+
 def _is_terminal(status: str) -> bool:
     return status not in {
         AgentExecution.Status.PENDING,
@@ -370,10 +397,7 @@ class DatabaseAgentRecorder:
             ):
                 return False
             if text is None:
-                final_output = execution.final_output
-                text = (
-                    final_output.get("text") if isinstance(final_output, dict) else None
-                )
+                text = _durable_output_text(execution)
             if not isinstance(text, str) or not text:
                 return False
             if execution.replaces_output_of_id:

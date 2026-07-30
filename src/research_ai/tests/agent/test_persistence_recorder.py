@@ -19,7 +19,10 @@ from research_ai.services.agent.types import (
     TurnUsage,
     deserialize_messages,
 )
-from research_ai.services.agent_persistence import AgentExecutionService
+from research_ai.services.agent_persistence import (
+    AgentExecutionService,
+    DatabaseAgentRecorder,
+)
 from research_ai.services.agent_persistence.content import (
     MAX_CONTEXT_MESSAGE_BYTES,
     MAX_TRACE_MESSAGE_BYTES,
@@ -264,6 +267,58 @@ class AgentRecorderPersistenceTests(AgentPersistenceTestCase):
             generated_by_execution_id=execution.id
         )
         self.assertEqual(published.content, long_answer)
+
+    def test_publication_repair_recovers_the_untruncated_response(self):
+        # Arrange: the first publication attempt fails after the terminal
+        # commit, so the repair path has only durable storage to publish from.
+        long_answer = "x" * (MAX_TRACE_MESSAGE_BYTES * 2)
+        recorder = self.recorder(publish_assistant_message=True)
+        with patch.object(
+            DatabaseAgentRecorder,
+            "publish_assistant_output",
+            side_effect=IntegrityError("chat write failed"),
+        ):
+            agent(FakeProvider([text_turn(long_answer)]), recorder).run("go")
+        self.assertEqual(AgentConversationMessage.objects.count(), 0)
+
+        # Act
+        created = recorder.publish_assistant_output()
+
+        # Assert
+        self.assertTrue(created)
+        published = AgentConversationMessage.objects.get(
+            generated_by_execution_id=recorder.execution.id
+        )
+        self.assertEqual(published.content, long_answer)
+
+    def test_publication_repair_never_publishes_an_earlier_answer(self):
+        # Arrange: the final turn is too large for its context row too, so the
+        # bounded snapshot is the best copy left -- the intact row before it
+        # holds a different turn, not a shorter version of this one.
+        unstorable = "y" * (MAX_CONTEXT_MESSAGE_BYTES * 2)
+        recorder = self.recorder(publish_assistant_message=True)
+        provider = FakeProvider(
+            [tool_turn("call-1", "lookup", {}), text_turn(unstorable)]
+        )
+        tool = Tool("lookup", "lookup", {"type": "object"}, lambda _args: {})
+        with patch.object(
+            DatabaseAgentRecorder,
+            "publish_assistant_output",
+            side_effect=IntegrityError("chat write failed"),
+        ):
+            agent(provider, recorder, [tool]).run("go")
+
+        # Act
+        created = recorder.publish_assistant_output()
+
+        # Assert
+        execution = AgentExecution.objects.get(id=recorder.execution.id)
+        self.assertTrue(created)
+        published = AgentConversationMessage.objects.get(
+            generated_by_execution_id=execution.id
+        )
+        self.assertEqual(published.content, execution.final_output["text"])
+        self.assertTrue(published.content.startswith("y"))
 
     def test_provider_state_round_trips_through_context_messages(self):
         # Arrange: Claude's container id is request-level state the next turn
