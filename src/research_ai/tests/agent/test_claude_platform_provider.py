@@ -398,6 +398,85 @@ class CompleteAndParseTests(SimpleTestCase):
 class ServerSideToolTests(SimpleTestCase):
     """Web search runs inside the turn: the loop never dispatches it."""
 
+    def test_logs_request_and_response_continuation_state(self):
+        # Arrange: the outgoing history and incoming response both have a
+        # code-generated client call and an unresolved server-tool span.
+        code_caller = {
+            "type": "code_execution_20260120",
+            "tool_id": "srvtoolu_code",
+        }
+        initial = Message(role="user", content=[TextBlock(text="research")])
+        assistant = Message(
+            role="assistant",
+            content=[
+                ServerToolBlock(
+                    data={
+                        "type": "server_tool_use",
+                        "id": "srvtoolu_request",
+                        "name": "code_execution",
+                        "input": {"code": "await search({})"},
+                    }
+                ),
+                ToolUseBlock(
+                    id="toolu_request",
+                    name="search",
+                    input={},
+                    data={
+                        "type": "tool_use",
+                        "id": "toolu_request",
+                        "name": "search",
+                        "input": {},
+                        "caller": code_caller,
+                    },
+                ),
+            ],
+            provider_state={
+                "anthropic": {"container": {"id": "container_123"}},
+            },
+        )
+        result = Message(
+            role="user",
+            content=[ToolResultBlock(tool_use_id="toolu_request", content={})],
+        )
+        response = _build_response(
+            [
+                ServerToolUseBlock(
+                    id="srvtoolu_response",
+                    name="code_execution",
+                    input={"code": "await verify({})"},
+                    type="server_tool_use",
+                ),
+                AnthropicToolUseBlock(
+                    id="toolu_response",
+                    name="verify",
+                    input={},
+                    caller=code_caller,
+                    type="tool_use",
+                ),
+            ],
+            stop_reason="tool_use",
+            container=Container(
+                id="container_456",
+                expires_at=datetime(2026, 7, 29, 12, tzinfo=UTC),
+            ),
+        )
+        provider = _build_provider([response])
+
+        # Act
+        with self.assertLogs(
+            "research_ai.services.agent.providers.claude_platform",
+            level="INFO",
+        ) as logs:
+            _complete(provider, messages=[initial, assistant, result])
+
+        # Assert
+        output = "\n".join(logs.output)
+        self.assertIn("request_container_present=True", output)
+        self.assertIn("response_container_present=True", output)
+        self.assertEqual(output.count("pending_programmatic_tool_calls=1"), 2)
+        self.assertEqual(output.count("pending_server_tool_spans=1"), 2)
+        self.assertIn("stop_reason=tool_use", output)
+
     def test_server_search_blocks_are_parsed_and_kept_in_order(self):
         # Arrange: a turn that thinks, searches server-side, then answers.
         response = _build_response(

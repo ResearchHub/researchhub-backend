@@ -186,6 +186,46 @@ def _block_type(block: Any) -> str | None:
     return block_type if isinstance(block_type, str) else None
 
 
+def _continuation_diagnostics(blocks: list[Any]) -> tuple[int, int]:
+    """Count programmatic calls and unresolved server-tool spans.
+
+    Operates on rendered request dictionaries and SDK response blocks so the
+    request and response log lines measure the exact wire shapes on each side.
+    """
+    programmatic_calls = 0
+    server_tool_uses: set[str] = set()
+    server_tool_results: set[str] = set()
+
+    for block in blocks:
+        payload = _block_payload(block)
+        block_type = payload.get("type")
+        if block_type == "tool_use":
+            caller = payload.get("caller")
+            if isinstance(caller, dict) and str(caller.get("type", "")).startswith(
+                "code_execution_"
+            ):
+                programmatic_calls += 1
+        elif block_type == "server_tool_use":
+            tool_use_id = payload.get("id")
+            if isinstance(tool_use_id, str):
+                server_tool_uses.add(tool_use_id)
+        elif block_type in _SERVER_TOOL_BLOCK_TYPES:
+            tool_use_id = payload.get("tool_use_id")
+            if isinstance(tool_use_id, str):
+                server_tool_results.add(tool_use_id)
+
+    return programmatic_calls, len(server_tool_uses - server_tool_results)
+
+
+def _latest_assistant_content(rendered_messages: list[dict]) -> list[dict]:
+    """Return the assistant content immediately preceding this request."""
+    for message in reversed(rendered_messages):
+        if message.get("role") == "assistant":
+            content = message.get("content")
+            return content if isinstance(content, list) else []
+    return []
+
+
 def _has_code_execution_tool_call(message: Message) -> bool:
     """Return whether Claude generated a client tool call from code execution."""
     return any(
@@ -337,6 +377,21 @@ class ClaudePlatformProvider(LLMProvider):
         if not self.thinking and _accepts_sampling_params(self.model_id):
             kwargs["temperature"] = temperature
 
+        request_programmatic_calls, request_pending_server_spans = (
+            _continuation_diagnostics(
+                _latest_assistant_content(kwargs["messages"]),
+            )
+        )
+        logger.info(
+            "claude platform request continuation: "
+            "request_container_present=%s "
+            "pending_programmatic_tool_calls=%s "
+            "pending_server_tool_spans=%s",
+            "container" in kwargs,
+            request_programmatic_calls,
+            request_pending_server_spans,
+        )
+
         started = time.perf_counter()
         try:
             response = self._client.messages.create(**kwargs)
@@ -346,6 +401,7 @@ class ClaudePlatformProvider(LLMProvider):
         latency_ms = int((time.perf_counter() - started) * 1000)
 
         self._log_usage(response)
+        self._log_continuation_state(response)
         return self._parse_turn(response, latency_ms=latency_ms)
 
     # -- private helpers --------------------------------------------------
@@ -443,6 +499,23 @@ class ClaudePlatformProvider(LLMProvider):
             getattr(usage, "cache_creation_input_tokens", None),
             getattr(usage, "output_tokens", None),
             getattr(response, "container", None) is not None,
+        )
+
+    def _log_continuation_state(self, response: Any) -> None:
+        """Log response-level state needed to diagnose container continuation."""
+        content = getattr(response, "content", None)
+        blocks = content if isinstance(content, list) else []
+        programmatic_calls, pending_server_spans = _continuation_diagnostics(blocks)
+        logger.info(
+            "claude platform response continuation: "
+            "response_container_present=%s "
+            "pending_programmatic_tool_calls=%s "
+            "pending_server_tool_spans=%s "
+            "stop_reason=%s",
+            getattr(response, "container", None) is not None,
+            programmatic_calls,
+            pending_server_spans,
+            getattr(response, "stop_reason", None),
         )
 
     def _parse_turn(self, response: Any, *, latency_ms: int | None = None):
