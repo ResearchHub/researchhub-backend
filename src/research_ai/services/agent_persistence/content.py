@@ -11,6 +11,9 @@ MAX_CONTEXT_MESSAGE_BYTES = 512 * 1024
 _PREVIEW_CHARS = 2048
 _FINAL_OUTPUT_SUFFIX = "\n[Response truncated for durable storage.]"
 _COMPACTED_BLOCK_TEXT = "[Text omitted because it exceeded the durable row limit.]"
+# Blocks whose payload a provider validates on replay, so it survives whole or
+# not at all.
+_OPAQUE_BLOCK_TYPES = frozenset({"thinking", "server_tool"})
 _COMPACTED_MESSAGE_TEXT = (
     "[Earlier model-context message compacted because it exceeded the durable row "
     "limit.]"
@@ -92,9 +95,9 @@ def _compacted_block(block: dict, original_size: int) -> dict:
     Tool identifiers have to survive compaction. A provider rejects the next
     turn outright when a ``tool_result`` no longer answers a ``tool_use`` in
     the turn before it, so discarding the block would make the conversation
-    unresumable rather than merely lossy. Signed reasoning and server-tool
-    blocks keep their position for the same reason, but their payload is
-    opaque and cannot be shortened without invalidating it.
+    unresumable rather than merely lossy. Text keeps only its marker: losing
+    the citation payload a provider replays whole costs fidelity, not
+    acceptance.
     """
     marker = {"_truncated": True, "original_size_bytes": original_size}
     block_type = block["type"]
@@ -112,15 +115,24 @@ def _compacted_block(block: dict, original_size: int) -> dict:
             "content": marker,
             "is_error": block.get("is_error", False),
         }
-    if block_type == "text":
-        return {"type": "text", "text": _COMPACTED_BLOCK_TEXT}
-    return {"type": block_type, "data": marker}
+    return {"type": "text", "text": _COMPACTED_BLOCK_TEXT}
 
 
 def _compact_context_content(blocks: list[dict], block_limit: int) -> list[dict]:
-    """Bound every block against ``block_limit``, preserving message shape."""
+    """Bound editable blocks against ``block_limit``, preserving message shape.
+
+    Opaque blocks are never rewritten. Both adapters replay signed reasoning
+    and server-tool payloads byte for byte and fail validation on an edited
+    one, so a marker in their place would reject the next turn rather than
+    shorten it. One too large to store whole therefore keeps the message over
+    the limit, dropping it to the caller's text fallback -- lossy, but a
+    conversation the provider still accepts.
+    """
     compacted = []
     for block in blocks:
+        if block["type"] in _OPAQUE_BLOCK_TYPES:
+            compacted.append(block)
+            continue
         safe_block, was_replaced, block_size = _bounded_json(block, limit=block_limit)
         compacted.append(
             _compacted_block(block, block_size) if was_replaced else safe_block
@@ -135,11 +147,12 @@ def serialize_context_message(
 
     Provider continuation state is bounded together with the content because
     both are required to resume a provider turn correctly. An oversized message
-    is compacted block by block -- first only the blocks that are individually
-    too large, then all of them -- so tool-call correlation and block structure
-    survive the row limit. Only a message still too large after that degrades
-    to a single text block, which also drops the provider state because it no
-    longer corresponds to the stored content.
+    is compacted block by block -- first only the editable blocks that are
+    individually too large, then all of them -- so tool-call correlation and
+    block structure survive the row limit. A message still too large after
+    that, which is what an unstorable signed block leaves behind, degrades to a
+    single text block and drops the provider state along with the structure it
+    described.
     """
     serialized = serialize_messages([message])[0]
     content = serialized["content"]

@@ -5,6 +5,7 @@ from unittest import TestCase
 from research_ai.services.agent.types import (
     Message,
     TextBlock,
+    ThinkingBlock,
     ToolResultBlock,
     ToolUseBlock,
     deserialize_messages,
@@ -265,6 +266,60 @@ class AgentPersistenceContentTests(TestCase):
             [block["id"] for block in content],
             [f"call-{index}" for index in range(block_count)],
         )
+        self.assertLessEqual(json_size_bytes(content), MAX_CONTEXT_MESSAGE_BYTES)
+        deserialize_messages([{"role": message.role, "content": content}])
+
+    def test_context_compaction_leaves_signed_blocks_byte_for_byte(self):
+        # Arrange: adapters replay reasoning payloads unedited, so compacting a
+        # neighbouring block must not rewrite one that already fits.
+        thinking = ThinkingBlock(data={"signature": "sig-1", "thinking": "weighing"})
+        message = Message(
+            role="assistant",
+            content=[
+                thinking,
+                ToolUseBlock(
+                    id="call-1",
+                    name="lookup",
+                    input={"body": "x" * MAX_CONTEXT_MESSAGE_BYTES},
+                ),
+            ],
+        )
+
+        # Act
+        content, _provider_state, is_compacted, _size = serialize_context_message(
+            message
+        )
+
+        # Assert
+        self.assertTrue(is_compacted)
+        restored = deserialize_messages([{"role": message.role, "content": content}])[0]
+        self.assertEqual(restored.content[0], thinking)
+        self.assertTrue(content[1]["input"]["_truncated"])
+
+    def test_context_falls_back_to_text_when_a_signed_block_cannot_fit(self):
+        # Arrange: a marker in place of the signed payload would be rejected on
+        # replay, so the message degrades to text the provider still accepts.
+        message = Message(
+            role="assistant",
+            content=[
+                ThinkingBlock(
+                    data={
+                        "signature": "sig-1",
+                        "thinking": "x" * MAX_CONTEXT_MESSAGE_BYTES,
+                    }
+                )
+            ],
+        )
+
+        # Act
+        content, _provider_state, is_compacted, _size = serialize_context_message(
+            message
+        )
+
+        # Assert
+        self.assertTrue(is_compacted)
+        self.assertEqual(len(content), 1)
+        self.assertEqual(content[0]["type"], "text")
         self.assertLessEqual(json_size_bytes(content), MAX_CONTEXT_MESSAGE_BYTES)
         deserialize_messages([{"role": message.role, "content": content}])
 
