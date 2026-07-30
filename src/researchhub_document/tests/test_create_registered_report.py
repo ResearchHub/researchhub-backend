@@ -520,6 +520,10 @@ class CreateRegisteredReportTests(APITestCase):
             self.moderator.id,
         )
         self.assertEqual(
+            proposal_data["peer_reviews"][0]["created_by"]["is_verified"],
+            self.moderator.is_verified,
+        )
+        self.assertEqual(
             proposal_data["peer_reviews"][0]["created_by"]["author_profile"][
                 "profile_image"
             ],

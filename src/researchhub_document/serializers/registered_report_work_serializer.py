@@ -172,6 +172,7 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
                         "id",
                         "author_profile",
                         "first_name",
+                        "is_verified",
                         "last_name",
                     ]
                 },
