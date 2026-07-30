@@ -4,7 +4,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APITestCase
 
 from hub.tests.helpers import create_hub
-from user.models import Author
+from paper.models import Paper, PaperVersion
+from user.models import Author, User
 from user.tests.helpers import create_random_authenticated_user, create_university
 
 from .helpers import create_paper
@@ -37,6 +38,61 @@ class PaperPermissionsIntegrationTests(APITestCase):
         response = self.get_patch_response(user, self.paper)
         self.assertEqual(response.status_code, 403)
 
+    def test_prevents_updating_legacy_journal_papers(self):
+        """Legacy journal papers cannot be updated through the paper API."""
+        # Arrange
+        paper = self.create_legacy_journal_paper()
+        user = self.create_user_with_reputation(1)
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.patch(
+            f"{self.base_url}{paper.id}/",
+            {"title": "Updated legacy paper"},
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+        paper.refresh_from_db()
+        self.assertNotEqual(paper.title, "Updated legacy paper")
+
+    def test_prevents_deleting_legacy_journal_papers(self):
+        """Legacy journal papers cannot be deleted through the paper API."""
+        # Arrange
+        paper = self.create_legacy_journal_paper()
+        user = self.create_user_with_reputation(1)
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.delete(f"{self.base_url}{paper.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Paper.objects.filter(id=paper.id).exists())
+
+    def test_prevents_moderating_legacy_journal_papers(self):
+        """Legacy journal papers cannot be moderated or censored."""
+        # Arrange
+        moderator = self.create_user_with_reputation(1)
+        moderator.moderator = True
+        moderator.save(update_fields=["moderator"])
+        paper = self.create_legacy_journal_paper(uploaded_by=moderator)
+        self.client.force_authenticate(moderator)
+
+        # Act
+        responses = [
+            self.client.post(f"{self.base_url}{paper.id}/approve/"),
+            self.client.post(f"{self.base_url}{paper.id}/decline/"),
+            self.client.delete(f"{self.base_url}{paper.id}/censor/"),
+        ]
+
+        # Assert
+        for response in responses:
+            self.assertEqual(response.status_code, 403)
+        paper.refresh_from_db()
+        self.assertFalse(paper.is_removed)
+
     def test_can_upvote_paper_with_minimum_reputation(self):
         user = self.create_user_with_reputation(1)
         response = self.get_upvote_response(user)
@@ -53,6 +109,18 @@ class PaperPermissionsIntegrationTests(APITestCase):
         user.reputation = reputation
         user.save()
         return user
+
+    def create_legacy_journal_paper(self, uploaded_by: User | None = None) -> Paper:
+        """Create a paper that represents an existing legacy journal entry."""
+        paper = create_paper(uploaded_by=uploaded_by)
+        PaperVersion.objects.create(
+            paper=paper,
+            version=1,
+            original_paper=paper,
+            journal=PaperVersion.RESEARCHHUB,
+            publication_status=PaperVersion.PUBLISHED,
+        )
+        return paper
 
     def get_paper_submission_response(self, user):
         url = self.base_url
