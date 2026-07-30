@@ -1014,6 +1014,7 @@ class ProposalDraftServiceTests(TestCase):
                     "overall": 1.0,
                     "gaps": [],
                     "judges_reporting": 0,
+                    "judge_errors": ["fake-judge: turn ended max_tokens"],
                 }
 
         provider = _AlwaysSubmitProvider(_clean_payload())
@@ -1027,9 +1028,11 @@ class ProposalDraftServiceTests(TestCase):
         )
 
         # Assert: failed as "panel unavailable" after one round -- not scored
-        # as 1.0 quality, not ground down to a plateau or round budget.
+        # as 1.0 quality, not ground down to a plateau or round budget -- and
+        # the recorded message names what the judges did.
         self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
         self.assertIn("judge panel unavailable", result["error_message"])
+        self.assertIn("turn ended max_tokens", result["error_message"])
         self.assertNotIn("plateau", result["error_message"])
         self.assertEqual(provider.call_count, 1)
 

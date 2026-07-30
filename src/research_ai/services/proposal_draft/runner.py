@@ -289,16 +289,19 @@ class _ProposalDraftRunner:
             self._submit_tool.is_terminal = True
             return {"accepted": False, "stopped": "gate_error"}
         state.record_gate_result(accepted, report)
-        if (report.get("panel") or {}).get("unavailable"):
+        panel = report.get("panel") or {}
+        if panel.get("unavailable"):
             # An empty panel is an infrastructure failure, not a verdict --
             # same containment as a crashed gate.
             state.panel_unavailable = True
+            state.panel_error = _panel_error(panel)
             self.recorder.persist_round()
             self._submit_tool.is_terminal = True
-            logger.info(
-                "submit round %d/%d: stopped, judge panel unavailable",
+            logger.warning(
+                "submit round %d/%d: stopped, judge panel unavailable: %s",
                 state.rounds_used,
                 self.config.max_rounds,
+                state.panel_error or "no reason reported",
             )
             return {
                 "accepted": False,
@@ -321,7 +324,6 @@ class _ProposalDraftRunner:
 
         # Round-level trace: how the gate ruled and why the loop will (or won't)
         # keep going -- the counterpart to the per-tool trace in the agent loop.
-        panel = report.get("panel") or {}
         decision = (
             "exhausted"
             if exhausted
@@ -428,6 +430,12 @@ class _ProposalDraftRunner:
 
     def _fail(self, message: str | None = None) -> dict:
         return self.recorder.fail(message or self.state.failure_message())
+
+
+def _panel_error(panel: dict) -> str | None:
+    """Why the panel reported nothing, joined from its per-judge failures."""
+    errors = (panel.get("rollup") or {}).get("judge_errors") or []
+    return "; ".join(str(error) for error in errors) or None
 
 
 def _needs_profile(profile) -> bool:
