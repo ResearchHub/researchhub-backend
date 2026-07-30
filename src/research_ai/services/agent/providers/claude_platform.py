@@ -22,6 +22,7 @@ plus its Claude workspace id (``ANTHROPIC_AWS_WORKSPACE_ID``).
 import json
 import logging
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 from anthropic import AnthropicAWS
@@ -226,57 +227,70 @@ def _latest_assistant_content(rendered_messages: list[dict]) -> list[dict]:
     return []
 
 
-def _has_code_execution_tool_call(message: Message) -> bool:
-    """Return whether Claude generated a client tool call from code execution."""
-    return any(
-        isinstance(block, ToolUseBlock)
-        and isinstance(block.data, dict)
-        and isinstance(block.data.get("caller"), dict)
-        and str(block.data["caller"].get("type", "")).startswith("code_execution_")
-        for block in message.content
-    )
-
-
-def _message_container_id(message: Message) -> str | None:
-    """Read a Claude container identifier from one assistant message."""
+def _message_container(message: Message) -> dict | None:
+    """Read the Claude container metadata recorded on one assistant message."""
     anthropic_state = message.provider_state.get(_PROVIDER_STATE_KEY)
     if not isinstance(anthropic_state, dict):
         return None
     container = anthropic_state.get("container")
-    if not isinstance(container, dict):
-        return None
-    container_id = container.get("id")
-    return container_id if isinstance(container_id, str) else None
+    return container if isinstance(container, dict) else None
+
+
+def _container_expired(container: dict, *, now: datetime) -> bool:
+    """Whether the container's own expiry has passed.
+
+    An absent or unparseable ``expires_at`` counts as live: the identifier is
+    the only way to resume pending execution, so a missing timestamp must not
+    be the reason a turn loses it.
+    """
+    expires_at = container.get("expires_at")
+    if not isinstance(expires_at, str):
+        return False
+    try:
+        expiry = datetime.fromisoformat(expires_at)
+    except ValueError:
+        return False
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=UTC)
+    return expiry <= now
 
 
 def _container_id(messages: list[Message]) -> str | None:
-    """Return the Claude container required by the latest assistant turn.
+    """Return this conversation's live code-execution container, if any.
 
-    Programmatic code can pause for client tools more than once. If the latest
-    assistant response carries another code-generated tool call but no new
-    container metadata, reuse the most recent preceding id. Do not cross an
-    ordinary assistant turn: that would attach stale execution state to an
-    unrelated later exchange.
+    The container is conversation state, not per-turn state: Anthropic returns
+    the container object once, on the turn that creates it, and does not echo it
+    back on later turns even when the request carried it. So the most recent
+    identifier anywhere in the history is the live one, and ``expires_at`` --
+    which Anthropic supplies alongside it -- is what says when it stopped being
+    live.
+
+    Liveness cannot be inferred from the shape of a turn's tool calls. With
+    web-search dynamic filtering the API runs code execution inside the turn,
+    and the model mixes ordinary tool calls with ones its filtering code issues.
+    An ordinary turn therefore does not mean the container died, and a later
+    code-generated call still needs the container an earlier turn established.
     """
-    assistant_messages = (
-        message for message in reversed(messages) if message.role == "assistant"
-    )
-    latest = next(assistant_messages, None)
-    if latest is None:
-        return None
-
-    container_id = _message_container_id(latest)
-    if container_id is not None:
-        return container_id
-    if not _has_code_execution_tool_call(latest):
-        return None
-
-    for message in assistant_messages:
-        if not _has_code_execution_tool_call(message):
+    now = datetime.now(UTC)
+    for message in reversed(messages):
+        if message.role != "assistant":
+            continue
+        container = _message_container(message)
+        if container is None:
+            continue
+        container_id = container.get("id")
+        if not isinstance(container_id, str):
+            continue
+        if _container_expired(container, now=now):
+            # Anthropic has reclaimed it. Sending a dead identifier fails the
+            # turn outright, where omitting it lets the API provision a fresh
+            # container -- so stop at the newest one rather than reaching for an
+            # older, even more expired id.
+            logger.warning(
+                "claude platform: code execution container %s expired", container_id
+            )
             return None
-        container_id = _message_container_id(message)
-        if container_id is not None:
-            return container_id
+        return container_id
     return None
 
 
