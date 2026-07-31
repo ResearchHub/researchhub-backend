@@ -24,7 +24,9 @@ class AgentContextService:
         serialized_messages = []
         for item in lineage:
             serialized_messages.extend(
-                item.context_messages.order_by("sequence").values("role", "content")
+                item.context_messages.order_by("sequence").values(
+                    "role", "content", "provider_state"
+                )
             )
         return deserialize_messages(serialized_messages)
 

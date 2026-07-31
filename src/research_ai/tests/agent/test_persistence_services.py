@@ -127,12 +127,14 @@ class AgentPersistenceServiceTests(AgentPersistenceTestCase):
 
     def test_context_reconstruction_orders_messages_across_executions(self):
         # Arrange
+        provider_state = {"anthropic": {"container": {"id": "container_123"}}}
         first_recorder = self.recorder(
             initial_prompt_provenance=AgentExecutionMessage.Provenance.HUMAN
         )
-        agent(FakeProvider([text_turn("first answer")]), first_recorder).run(
-            "first question"
-        )
+        agent(
+            FakeProvider([text_turn("first answer", provider_state=provider_state)]),
+            first_recorder,
+        ).run("first question")
         first = AgentExecution.objects.get(id=first_recorder.execution.id)
         prior_context = AgentContextService().reconstruct(first)
         second_recorder = self.recorder(
@@ -152,6 +154,7 @@ class AgentPersistenceServiceTests(AgentPersistenceTestCase):
             [message.content[0].text for message in rebuilt],
             ["first question", "first answer", "follow up", "second answer"],
         )
+        self.assertEqual(rebuilt[1].provider_state, provider_state)
         self.assertEqual(
             list(
                 self.conversation.trace_messages.order_by("sequence").values_list(
