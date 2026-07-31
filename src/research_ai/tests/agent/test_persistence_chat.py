@@ -3,7 +3,7 @@
 import json
 from unittest.mock import patch
 
-from django.db import IntegrityError
+from django.db import IntegrityError, connection
 
 from research_ai.models import AgentExecution, AgentExecutionMessage
 from research_ai.services.agent.tools import Tool
@@ -520,4 +520,93 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         self.assertEqual(
             [message["content"] for message in representation["messages"]],
             ["Question"],
+        )
+
+    def test_next_turn_publishes_a_pending_answer_before_its_question(self):
+        # Arrange: the first answer succeeds but never reaches the chat
+        chat = AgentChatService()
+        first = chat.prepare_turn(self.conversation, "Question A")
+        with patch.object(
+            DatabaseAgentRecorder,
+            "publish_assistant_output",
+            side_effect=IntegrityError("chat insert failed"),
+        ):
+            agent(FakeProvider([text_turn("Answer A")]), first.recorder).run(
+                "Question A"
+            )
+
+        # Act
+        chat.prepare_turn(self.conversation, "Question B")
+        representation = chat.representation(self.conversation)
+
+        # Assert: the recovered answer belongs to the question it answered
+        self.assertEqual(
+            [message["content"] for message in representation["messages"]],
+            ["Question A", "Answer A", "Question B"],
+        )
+
+    def test_publication_refuses_an_answer_a_replacement_already_published(self):
+        # Arrange: a regeneration publishes while the original is still pending,
+        # so a repair scan taken beforehand still holds a stale verdict on it
+        chat = AgentChatService()
+        original = chat.prepare_turn(self.conversation, "Question")
+        with patch.object(
+            DatabaseAgentRecorder,
+            "publish_assistant_output",
+            side_effect=IntegrityError("chat insert failed"),
+        ):
+            agent(FakeProvider([text_turn("Stale answer")]), original.recorder).run(
+                "Question"
+            )
+        regeneration = chat.prepare_retry(original.execution, regenerate=True)
+        agent(FakeProvider([text_turn("Better answer")]), regeneration.recorder).run(
+            "Question"
+        )
+        original.execution.refresh_from_db()
+
+        # Act
+        published = DatabaseAgentRecorder(original.execution).publish_assistant_output()
+
+        # Assert: the lock, not the caller's snapshot, settles supersession
+        self.assertFalse(published)
+        self.assertEqual(
+            [
+                message["content"]
+                for message in chat.representation(self.conversation)["messages"]
+            ],
+            ["Question", "Better answer"],
+        )
+
+    def test_repair_failure_leaves_a_new_turn_writable(self):
+        # Arrange: the answer stays pending, then its repair fails at the
+        # database level inside the transaction prepare_turn holds
+        chat = AgentChatService()
+        first = chat.prepare_turn(self.conversation, "Question A")
+        with patch.object(
+            DatabaseAgentRecorder,
+            "publish_assistant_output",
+            side_effect=IntegrityError("chat insert failed"),
+        ):
+            agent(FakeProvider([text_turn("Answer A")]), first.recorder).run(
+                "Question A"
+            )
+
+        def failing_publish(self, text=None):
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1 FROM table_that_does_not_exist")
+
+        # Act
+        with patch.object(
+            DatabaseAgentRecorder, "publish_assistant_output", failing_publish
+        ):
+            prepared = chat.prepare_turn(self.conversation, "Question B")
+
+        # Assert: the swallowed database error did not break the enclosing write
+        self.assertIsNotNone(prepared.human_message)
+        self.assertEqual(
+            [
+                message["content"]
+                for message in chat.representation(self.conversation)["messages"]
+            ],
+            ["Question A", "Question B", "Answer A"],
         )

@@ -25,7 +25,10 @@ from research_ai.services.agent_persistence.content import (
     serialize_final_output,
     serialize_trace_message,
 )
-from research_ai.services.agent_persistence.replacement import replaced_execution_ids
+from research_ai.services.agent_persistence.replacement import (
+    replaced_execution_ids,
+    superseded_execution_ids,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -376,6 +379,12 @@ class DatabaseAgentRecorder:
                     final_output.get("text") if isinstance(final_output, dict) else None
                 )
             if not isinstance(text, str) or not text:
+                return False
+            # Re-read supersession here rather than trusting the caller's scan.
+            # A regeneration that publishes between that scan and this lock
+            # finds no ancestor message to deactivate, so nothing but this
+            # check stops the answer it replaced from landing behind it.
+            if execution.id in superseded_execution_ids(conversation):
                 return False
             if execution.replaces_output_of_id:
                 AgentConversationMessage.objects.filter(

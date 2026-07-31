@@ -93,6 +93,12 @@ class AgentChatService:
             locked = AgentConversation.objects.select_for_update().get(
                 id=conversation.id
             )
+            # Land any answer still waiting to publish before this question
+            # takes the next sequence. Publication numbers a message when it
+            # succeeds, not when its run finished, so repairing afterwards
+            # would file the previous answer behind the question that follows
+            # it -- an order the model's own context contradicts.
+            self.repair_pending_outputs(locked)
             # A new turn continues from the latest stopped attempt as well as
             # the latest successful one: a run that failed after recording its
             # prompt still holds user-visible context, and skipping back to an
@@ -242,12 +248,11 @@ class AgentChatService:
     def repair_pending_outputs(self, conversation: AgentConversation) -> int:
         """Retry any successful chat publication that previously failed.
 
-        Two kinds of success are deliberately left unrepaired. An answer a
-        regeneration already published would append *after* the one replacing
-        it, with both active, because its replacement deactivated nothing when
-        it ran -- there was no message to deactivate. An answer with no final
-        text has nothing to publish at all, so retrying it would take write
-        locks on every read for a publication that can never succeed.
+        Two kinds of success are skipped before publication is even attempted:
+        an answer a regeneration already published, and an answer with no final
+        text. Neither can ever publish, so calling through would take two row
+        locks on every read to be refused. Publication re-checks supersession
+        under its own lock, so this pass is an optimisation, not the guarantee.
         """
         candidates = [
             execution
@@ -266,9 +271,14 @@ class AgentChatService:
             if execution.id in superseded:
                 continue
             try:
-                repaired += int(
-                    self.recorder_factory(execution).publish_assistant_output()
-                )
+                # A savepoint keeps a failed repair from poisoning a caller's
+                # transaction: prepare_turn repairs inside the lock it holds to
+                # add the next question, and swallowing a database error
+                # without one would break every write that follows.
+                with transaction.atomic():
+                    repaired += int(
+                        self.recorder_factory(execution).publish_assistant_output()
+                    )
             except Exception:  # noqa: BLE001 - reads still expose pending state
                 logger.warning(
                     "failed to repair agent response publication",
