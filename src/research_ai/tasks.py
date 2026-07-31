@@ -342,7 +342,7 @@ def _resolved_expert_dict_for_bulk(rec: GeneratedEmail) -> dict:
         "affiliation": rec.expert_affiliation or "",
         "expertise": rec.expertise or "",
         "email": (rec.expert_email or "").strip(),
-        "notes": rec.notes or "",
+        "notes": "",
     }
 
 

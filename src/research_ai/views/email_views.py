@@ -249,7 +249,6 @@ class BulkGenerateEmailView(APIView):
                         email_body="",
                         template=stored_template,
                         status=GeneratedEmail.Status.PROCESSING,
-                        notes=expert.notes or "",
                     )
                     placeholders.append(email_record)
         except ValueError as e:

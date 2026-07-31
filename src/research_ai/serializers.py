@@ -863,7 +863,6 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "template",
             "status",
             "channels",
-            "notes",
             "opened_at",
             "open_count",
             "bounced_at",
@@ -937,7 +936,6 @@ class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
             "template",
             "status",
             "channels",
-            "notes",
         ]
         extra_kwargs = {
             "expert_search": {"required": False},
@@ -950,7 +948,6 @@ class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
             "email_body": {"required": False},
             "template": {"required": False},
             "status": {"required": False},
-            "notes": {"required": False},
         }
 
     def validate_channels(self, value):
@@ -971,7 +968,7 @@ class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
                 {
                     "channels": (
                         "Required when marking outreach as sent. "
-                        "Use one or more of: email, linkedin, x, other."
+                        "Use one or more of: email, linkedin, x."
                     )
                 }
             )

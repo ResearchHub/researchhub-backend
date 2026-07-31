@@ -454,9 +454,18 @@ class GeneratedEmailSerializerTests(TestCase):
         self.assertIn("channels", ser.errors)
 
         ser = GeneratedEmailCreateUpdateSerializer(
-            data={"status": "sent", "channels": ["other"]},
+            data={"status": "sent", "channels": ["x"]},
         )
         self.assertTrue(ser.is_valid(), ser.errors)
+
+    def test_create_update_rejects_other_channel(self):
+        from research_ai.serializers import GeneratedEmailCreateUpdateSerializer
+
+        ser = GeneratedEmailCreateUpdateSerializer(
+            data={"status": "sent", "channels": ["other"]},
+        )
+        self.assertFalse(ser.is_valid())
+        self.assertIn("channels", ser.errors)
 
     def test_serialize_includes_sources_from_search_expert(self):
         sources = [{"text": "Keep", "url": "https://keep.example"}]

@@ -26,7 +26,6 @@ class GeneratedEmail(DefaultModel):
         EMAIL = "email", "Email"
         LINKEDIN = "linkedin", "LinkedIn"
         X = "x", "X"
-        OTHER = "other", "Other"
 
     created_by = models.ForeignKey(
         "user.User",
@@ -84,10 +83,9 @@ class GeneratedEmail(DefaultModel):
         blank=True,
         db_comment=(
             "Outreach channels when marked sent "
-            "(email / linkedin / x / other). Empty until sent."
+            "(email / linkedin / x). Empty until sent."
         ),
     )
-    notes = models.TextField(blank=True)
     ses_message_id = models.CharField(
         max_length=255,
         blank=True,

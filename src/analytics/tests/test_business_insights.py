@@ -404,7 +404,6 @@ class BusinessInsightMetricTests(TestCase):
                     "email": 1,
                     "linkedin": 1,
                     "x": 0,
-                    "other": 0,
                 },
             },
         )
