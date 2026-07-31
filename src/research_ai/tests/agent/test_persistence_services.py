@@ -170,6 +170,78 @@ class AgentPersistenceServiceTests(AgentPersistenceTestCase):
             [1, 2, 3, 4],
         )
 
+    def _terminated_run(self, status, prompt, answer, *, context_parent=None):
+        """Run an execution to completion, then force it into ``status``."""
+        recorder = self.recorder(
+            context_parent=context_parent,
+            initial_prompt_provenance=AgentExecutionMessage.Provenance.HUMAN,
+        )
+        agent(FakeProvider([text_turn(answer)]), recorder).run(prompt)
+        AgentExecution.objects.filter(id=recorder.execution.id).update(status=status)
+        return AgentExecution.objects.get(id=recorder.execution.id)
+
+    def test_continuation_ignores_unfinished_runs_by_default(self):
+        # Arrange
+        succeeded = self._terminated_run(
+            AgentExecution.Status.SUCCEEDED, "first question", "first answer"
+        )
+        self._terminated_run(
+            AgentExecution.Status.FAILED,
+            "second question",
+            "second answer",
+            context_parent=succeeded,
+        )
+
+        # Act
+        rebuilt = AgentContextService().for_continuation(self.conversation)
+
+        # Assert
+        self.assertEqual(
+            [message.content[0].text for message in rebuilt],
+            ["first question", "first answer"],
+        )
+
+    def test_continuation_resumes_cancelled_runs_when_partial(self):
+        # Arrange: a cancelled run is the latest attempt, so skipping it would
+        # silently fall back to the succeeded one and lose the human prompt.
+        succeeded = self._terminated_run(
+            AgentExecution.Status.SUCCEEDED, "first question", "first answer"
+        )
+        self._terminated_run(
+            AgentExecution.Status.CANCELLED,
+            "cancelled question",
+            "partial answer",
+            context_parent=succeeded,
+        )
+
+        # Act
+        rebuilt = AgentContextService().for_continuation(
+            self.conversation, include_partial=True
+        )
+
+        # Assert
+        self.assertEqual(
+            [message.content[0].text for message in rebuilt],
+            [
+                "first question",
+                "first answer",
+                "cancelled question",
+                "partial answer",
+            ],
+        )
+
+    def test_continuation_without_terminal_runs_is_empty(self):
+        # Arrange
+        self.recorder()
+
+        # Act
+        rebuilt = AgentContextService().for_continuation(
+            self.conversation, include_partial=True
+        )
+
+        # Assert
+        self.assertEqual(rebuilt, [])
+
     def test_run_details_exposes_metrics_and_trace(self):
         # Arrange
         recorder = self.recorder()

@@ -35,8 +35,18 @@ class AgentContextService:
     ) -> list[Message]:
         statuses = [AgentExecution.Status.SUCCEEDED]
         if include_partial:
+            # A stopped run holds durable context rows, including the human
+            # prompt that triggered it. CANCELLED and INTERRUPTED are the same
+            # user intent recorded from different sides: INTERRUPTED when the
+            # worker observed the stop in-process, CANCELLED when another
+            # process flipped the row. Excluding either would silently resume an
+            # older attempt and drop a user-visible prompt.
             statuses.extend(
-                [AgentExecution.Status.FAILED, AgentExecution.Status.INTERRUPTED]
+                [
+                    AgentExecution.Status.FAILED,
+                    AgentExecution.Status.INTERRUPTED,
+                    AgentExecution.Status.CANCELLED,
+                ]
             )
         execution = (
             conversation.executions.filter(status__in=statuses)
