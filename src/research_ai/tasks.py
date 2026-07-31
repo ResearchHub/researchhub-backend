@@ -505,7 +505,7 @@ def send_queued_emails_task(
             )
             GeneratedEmail.objects.filter(id=rec.id).update(
                 status=GeneratedEmail.Status.SENT,
-                channel=GeneratedEmail.Channel.EMAIL,
+                channels=[GeneratedEmail.Channel.EMAIL],
                 ses_message_id=ses_message_id or "",
                 updated_date=timezone.now(),
             )
