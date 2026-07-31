@@ -25,6 +25,10 @@ from research_ai.services.agent_persistence.content import (
     serialize_final_output,
     serialize_trace_message,
 )
+from research_ai.services.agent_persistence.replacement import (
+    replaced_execution_ids,
+    superseded_execution_ids,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +173,12 @@ class DatabaseAgentRecorder:
             execution = AgentExecution.objects.select_for_update().get(
                 id=self.execution.id
             )
+            # A cancellation from another process ends this run's claim on its
+            # own context. Continuing to append would land after the seal a
+            # later turn wrote to close this run's open tool calls, leaving two
+            # results for one call in a lineage providers reject on replay.
+            if _is_terminal(execution.status):
+                raise InterruptedError("agent execution is no longer running")
             AgentContextMessage.objects.create(
                 execution=execution,
                 sequence=execution.next_context_sequence,
@@ -376,9 +386,15 @@ class DatabaseAgentRecorder:
                 )
             if not isinstance(text, str) or not text:
                 return False
+            # Re-read supersession here rather than trusting the caller's scan.
+            # A regeneration that publishes between that scan and this lock
+            # finds no ancestor message to deactivate, so nothing but this
+            # check stops the answer it replaced from landing behind it.
+            if execution.id in superseded_execution_ids(conversation):
+                return False
             if execution.replaces_output_of_id:
                 AgentConversationMessage.objects.filter(
-                    generated_by_execution_id=execution.replaces_output_of_id
+                    generated_by_execution_id__in=replaced_execution_ids(execution)
                 ).update(is_active=False)
             _message, created = AgentConversationMessage.objects.get_or_create(
                 generated_by_execution_id=execution.id,
