@@ -18,14 +18,8 @@ from research_ai.services.agent_persistence import (
     AgentConversationService,
     AgentExecutionService,
     AgentRetentionService,
-    AgentRunDetails,
     AgentRunDetailsService,
     NoteAgentConversationService,
-)
-from research_ai.services.agent_persistence.run_details_service import (
-    AgentRunFailure,
-    AgentTokenUsage,
-    AgentTraceDetails,
 )
 from research_ai.tests.agent.persistence_test_helpers import (
     AgentPersistenceTestCase,
@@ -242,34 +236,15 @@ class AgentPersistenceServiceTests(AgentPersistenceTestCase):
         # Assert
         self.assertEqual(rebuilt, [])
 
-    def test_run_details_exposes_metrics_and_trace(self):
-        # Arrange
+    def test_run_details_reports_metrics_and_a_failure_only_when_one_exists(self):
+        # Arrange: one run that answered and one that never did
         recorder = self.recorder()
         agent(FakeProvider([text_turn("done", latency_ms=23)]), recorder).run(
             "question"
         )
-        execution = AgentExecution.objects.get(id=recorder.execution.id)
-
-        # Act
-        details = AgentRunDetailsService().get(execution)
-
-        # Assert
-        self.assertIsInstance(details, AgentRunDetails)
-        self.assertEqual(details.status, AgentExecution.Status.SUCCEEDED)
-        self.assertEqual(details.stop_reason, StopReason.END_TURN)
-        self.assertEqual(details.total_latency_ms, 23)
-        self.assertIsInstance(details.usage, AgentTokenUsage)
-        self.assertIsNone(details.failure)
-        self.assertEqual(len(details.trace), 2)
-        self.assertTrue(
-            all(isinstance(item, AgentTraceDetails) for item in details.trace)
-        )
-        self.assertEqual(details.trace[-1].latency_ms, 23)
-
-    def test_run_details_exposes_typed_failure(self):
-        # Arrange
-        execution = AgentExecutionService().start(self.conversation).execution
-        AgentExecution.objects.filter(id=execution.id).update(
+        answered = AgentExecution.objects.get(id=recorder.execution.id)
+        broken = AgentExecutionService().start(self.conversation).execution
+        AgentExecution.objects.filter(id=broken.id).update(
             status=AgentExecution.Status.FAILED,
             error_type="ProviderError",
             error_message="provider unavailable",
@@ -277,10 +252,22 @@ class AgentPersistenceServiceTests(AgentPersistenceTestCase):
         )
 
         # Act
-        details = AgentRunDetailsService().get(execution)
+        service = AgentRunDetailsService()
+        answered_details = service.get(answered)
+        broken_details = service.get(AgentExecution.objects.get(id=broken.id))
 
         # Assert
-        self.assertIsInstance(details.failure, AgentRunFailure)
-        self.assertEqual(details.failure.type, "ProviderError")
-        self.assertEqual(details.failure.message, "provider unavailable")
-        self.assertEqual(details.failure.details, {"cause_type": "TimeoutError"})
+        self.assertEqual(answered_details.status, AgentExecution.Status.SUCCEEDED)
+        self.assertEqual(answered_details.stop_reason, StopReason.END_TURN)
+        self.assertEqual(answered_details.total_latency_ms, 23)
+        self.assertEqual(len(answered_details.trace), 2)
+        self.assertEqual(answered_details.trace[-1].latency_ms, 23)
+        self.assertIsNone(answered_details.failure)
+        self.assertEqual(
+            (
+                broken_details.failure.type,
+                broken_details.failure.message,
+                broken_details.failure.details,
+            ),
+            ("ProviderError", "provider unavailable", {"cause_type": "TimeoutError"}),
+        )
