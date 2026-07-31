@@ -471,9 +471,7 @@ class PaymentService:
         rsc_fee, rh_fee, dao_fee, fee_obj = calculate_rsc_purchase_fees(rsc_amount)
 
         # Calculate platform fees (bounty fees) for future fundraise contributions
-        bounty_fee, bounty_rh_fee, bounty_dao_fee, bounty_fee_obj = (
-            calculate_bounty_fees(rsc_amount)
-        )
+        bounty_fee, bounty_rh_fee, bounty_dao_fee, _ = calculate_bounty_fees(rsc_amount)
 
         if any(
             not value.is_finite() or value < 0

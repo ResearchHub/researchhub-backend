@@ -883,9 +883,7 @@ class PaymentServiceTest(TestCase):
         mock_stripe_retrieve.return_value = mock_payment_intent
 
         # Act
-        payment, _ = self.service.process_payment_intent_confirmation(
-            "pi_full_amount_test"
-        )
+        self.service.process_payment_intent_confirmation("pi_full_amount_test")
 
         # Assert - User should have 100 RSC + 7 RSC bounty fee for fundraise
         self.user.refresh_from_db()

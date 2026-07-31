@@ -397,7 +397,7 @@ def create_automated_bounty(item):
             if not isinstance(response, tuple):
                 return response
             else:
-                amount, fee_amount, rh_fee, dao_fee, current_bounty_fee = response
+                amount, fee_amount, rh_fee, _, current_bounty_fee = response
 
             bounty = _create_bounty(
                 user,

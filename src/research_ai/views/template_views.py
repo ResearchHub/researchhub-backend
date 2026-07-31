@@ -123,7 +123,7 @@ class TemplateDetailView(APIView):
         return Response(out.data)
 
     def delete(self, request, template_id):
-        template, err = self._get_template(request, template_id)
+        _, err = self._get_template(request, template_id)
         if err:
             return err
         delete_template(template_id)
