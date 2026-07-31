@@ -5,7 +5,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from django.db import transaction
-from django.db.models import Exists, OuterRef
 
 from research_ai.models import (
     AgentConversation,
@@ -22,20 +21,25 @@ from research_ai.services.agent_persistence.execution_service import (
     AgentExecutionService,
 )
 from research_ai.services.agent_persistence.recorder import DatabaseAgentRecorder
+from research_ai.services.agent_persistence.replacement import (
+    superseded_execution_ids,
+)
 
 logger = logging.getLogger(__name__)
 
 RecorderFactory = Callable[..., DatabaseAgentRecorder]
 
 
-def _output_superseded() -> Exists:
-    """Match executions whose answer a regeneration has already published."""
-    return Exists(
-        AgentExecution.objects.filter(
-            replaces_output_of_id=OuterRef("pk"),
-            generated_chat_message__isnull=False,
-        )
-    )
+def _has_publishable_output(execution: AgentExecution) -> bool:
+    """Report whether a successful attempt left text the chat can show.
+
+    A run that ends on a terminal tool answers through that tool and records no
+    final text. Its result is domain output rather than conversation, so there
+    is nothing to publish and nothing to keep waiting for.
+    """
+    output = execution.final_output
+    text = output.get("text") if isinstance(output, dict) else None
+    return isinstance(text, str) and bool(text)
 
 
 @dataclass(frozen=True)
@@ -194,6 +198,7 @@ class AgentChatService:
     def representation(self, conversation: AgentConversation) -> dict:
         """Repair pending publication and return user-safe chat lifecycle data."""
         self.repair_pending_outputs(conversation)
+        superseded = superseded_execution_ids(conversation)
         messages = [
             {
                 "id": message.id,
@@ -219,15 +224,14 @@ class AgentChatService:
                     execution.status == AgentExecution.Status.SUCCEEDED
                     and execution.publish_output_to_chat
                     and not hasattr(execution, "generated_chat_message")
-                    and not execution.output_superseded
+                    and _has_publishable_output(execution)
+                    and execution.id not in superseded
                 ),
                 "error": self._public_error(execution),
             }
             for execution in conversation.executions.select_related(
                 "generated_chat_message"
-            )
-            .annotate(output_superseded=_output_superseded())
-            .order_by("attempt")
+            ).order_by("attempt")
         ]
         return {
             "conversation_id": conversation.id,
@@ -238,23 +242,29 @@ class AgentChatService:
     def repair_pending_outputs(self, conversation: AgentConversation) -> int:
         """Retry any successful chat publication that previously failed.
 
-        An answer a regeneration already published is deliberately left
-        unrepaired. Its replacement deactivated nothing when it ran -- there was
-        no message to deactivate -- so publishing it now would append the
-        superseded answer *after* the one that replaced it, with both active.
+        Two kinds of success are deliberately left unrepaired. An answer a
+        regeneration already published would append *after* the one replacing
+        it, with both active, because its replacement deactivated nothing when
+        it ran -- there was no message to deactivate. An answer with no final
+        text has nothing to publish at all, so retrying it would take write
+        locks on every read for a publication that can never succeed.
         """
-        repaired = 0
-        pending = (
-            conversation.executions.filter(
+        candidates = [
+            execution
+            for execution in conversation.executions.filter(
                 status=AgentExecution.Status.SUCCEEDED,
                 publish_output_to_chat=True,
                 generated_chat_message__isnull=True,
-            )
-            .annotate(output_superseded=_output_superseded())
-            .filter(output_superseded=False)
-            .order_by("attempt")
-        )
-        for execution in pending:
+            ).order_by("attempt")
+            if _has_publishable_output(execution)
+        ]
+        if not candidates:
+            return 0
+        superseded = superseded_execution_ids(conversation)
+        repaired = 0
+        for execution in candidates:
+            if execution.id in superseded:
+                continue
             try:
                 repaired += int(
                     self.recorder_factory(execution).publish_assistant_output()

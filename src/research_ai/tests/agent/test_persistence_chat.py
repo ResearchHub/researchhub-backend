@@ -8,7 +8,9 @@ from django.db import IntegrityError
 from research_ai.models import AgentExecution, AgentExecutionMessage
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
+    AssistantTurn,
     Message,
+    StopReason,
     TextBlock,
     ToolResultBlock,
     ToolUseBlock,
@@ -174,9 +176,16 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         agent(FakeProvider([text_turn("Second answer")]), second.recorder).run("Second")
 
         # Act / Assert
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(4):
             representation = chat.representation(self.conversation)
         self.assertEqual(len(representation["executions"]), 2)
+
+        # A further turn must not cost another query
+        third = chat.prepare_turn(self.conversation, "Third")
+        agent(FakeProvider([text_turn("Third answer")]), third.recorder).run("Third")
+        with self.assertNumQueries(4):
+            representation = chat.representation(self.conversation)
+        self.assertEqual(len(representation["executions"]), 3)
 
     def test_regeneration_repair_replaces_prior_output_without_new_user_message(self):
         # Arrange
@@ -404,4 +413,111 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         self.assertEqual(
             retry.execution.messages.order_by("execution_sequence").first().provenance,
             AgentExecutionMessage.Provenance.HUMAN,
+        )
+
+    def test_regenerating_a_regeneration_hides_the_original_answer(self):
+        # Arrange: the first answer publishes, its regeneration does not
+        chat = AgentChatService()
+        original = chat.prepare_turn(self.conversation, "Question")
+        agent(FakeProvider([text_turn("Stale answer")]), original.recorder).run(
+            "Question"
+        )
+        first_regeneration = chat.prepare_retry(original.execution, regenerate=True)
+        with patch.object(
+            DatabaseAgentRecorder,
+            "publish_assistant_output",
+            side_effect=IntegrityError("chat insert failed"),
+        ):
+            agent(
+                FakeProvider([text_turn("Lost answer")]), first_regeneration.recorder
+            ).run("Question")
+
+        # Act: the user regenerates again, and that attempt publishes
+        second_regeneration = chat.prepare_retry(
+            first_regeneration.execution, regenerate=True
+        )
+        agent(
+            FakeProvider([text_turn("Better answer")]), second_regeneration.recorder
+        ).run("Question")
+        representation = chat.representation(self.conversation)
+
+        # Assert
+        self.assertEqual(
+            [message["content"] for message in representation["messages"]],
+            ["Question", "Better answer"],
+        )
+
+    def test_repair_skips_an_answer_a_regeneration_chain_replaced(self):
+        # Arrange: neither the original nor its regeneration manages to publish
+        chat = AgentChatService()
+        original = chat.prepare_turn(self.conversation, "Question")
+        with patch.object(
+            DatabaseAgentRecorder,
+            "publish_assistant_output",
+            side_effect=IntegrityError("chat insert failed"),
+        ):
+            agent(FakeProvider([text_turn("Stale answer")]), original.recorder).run(
+                "Question"
+            )
+            first_regeneration = chat.prepare_retry(original.execution, regenerate=True)
+            agent(
+                FakeProvider([text_turn("Lost answer")]), first_regeneration.recorder
+            ).run("Question")
+
+        # Act
+        second_regeneration = chat.prepare_retry(
+            first_regeneration.execution, regenerate=True
+        )
+        agent(
+            FakeProvider([text_turn("Better answer")]), second_regeneration.recorder
+        ).run("Question")
+        representation = chat.representation(self.conversation)
+
+        # Assert: repair must not append the original behind its replacement
+        self.assertEqual(
+            [message["content"] for message in representation["messages"]],
+            ["Question", "Better answer"],
+        )
+        self.assertEqual(
+            [
+                item["assistant_message_pending"]
+                for item in representation["executions"]
+                if item["id"] != second_regeneration.execution.id
+            ],
+            [False, False],
+        )
+
+    def test_success_through_a_terminal_tool_is_never_pending(self):
+        # Arrange: a terminal tool answers, so the run records no final text
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(self.conversation, "Question")
+        submit = Tool(
+            "submit",
+            "submit",
+            {"type": "object"},
+            lambda _args: {"saved": True},
+            is_terminal=True,
+        )
+        provider = FakeProvider(
+            [
+                AssistantTurn(
+                    text_blocks=[],
+                    tool_calls=[ToolUseBlock(id="c1", name="submit", input={})],
+                    stop_reason=StopReason.TOOL_USE,
+                )
+            ]
+        )
+
+        # Act
+        result = agent(provider, prepared.recorder, [submit]).run("Question")
+        with patch.object(DatabaseAgentRecorder, "publish_assistant_output") as publish:
+            representation = chat.representation(self.conversation)
+
+        # Assert
+        self.assertEqual(result.final_text, "")
+        publish.assert_not_called()
+        self.assertFalse(representation["executions"][0]["assistant_message_pending"])
+        self.assertEqual(
+            [message["content"] for message in representation["messages"]],
+            ["Question"],
         )

@@ -25,6 +25,7 @@ from research_ai.services.agent_persistence.content import (
     serialize_final_output,
     serialize_trace_message,
 )
+from research_ai.services.agent_persistence.replacement import replaced_execution_ids
 
 logger = logging.getLogger(__name__)
 
@@ -378,7 +379,7 @@ class DatabaseAgentRecorder:
                 return False
             if execution.replaces_output_of_id:
                 AgentConversationMessage.objects.filter(
-                    generated_by_execution_id=execution.replaces_output_of_id
+                    generated_by_execution_id__in=replaced_execution_ids(execution)
                 ).update(is_active=False)
             _message, created = AgentConversationMessage.objects.get_or_create(
                 generated_by_execution_id=execution.id,
