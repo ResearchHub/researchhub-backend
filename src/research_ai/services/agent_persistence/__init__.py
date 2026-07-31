@@ -8,7 +8,10 @@ from .conversation_service import (
 from .execution_service import AgentConversationBusyError, AgentExecutionService
 from .recorder import DatabaseAgentRecorder
 from .retention_service import AgentRetentionService
-from .run_details_service import AgentRunDetailsService
+from .run_details_service import (
+    AgentRunDetails,
+    AgentRunDetailsService,
+)
 
 __all__ = [
     "AgentContextService",
@@ -16,6 +19,7 @@ __all__ = [
     "AgentConversationService",
     "AgentExecutionService",
     "AgentRetentionService",
+    "AgentRunDetails",
     "AgentRunDetailsService",
     "DatabaseAgentRecorder",
     "NoteAgentConversationService",

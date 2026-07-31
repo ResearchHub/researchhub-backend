@@ -18,8 +18,14 @@ from research_ai.services.agent_persistence import (
     AgentConversationService,
     AgentExecutionService,
     AgentRetentionService,
+    AgentRunDetails,
     AgentRunDetailsService,
     NoteAgentConversationService,
+)
+from research_ai.services.agent_persistence.run_details_service import (
+    AgentRunFailure,
+    AgentTokenUsage,
+    AgentTraceDetails,
 )
 from research_ai.tests.agent.persistence_test_helpers import (
     AgentPersistenceTestCase,
@@ -176,7 +182,33 @@ class AgentPersistenceServiceTests(AgentPersistenceTestCase):
         details = AgentRunDetailsService().get(execution)
 
         # Assert
-        self.assertEqual(details["status"], AgentExecution.Status.SUCCEEDED)
-        self.assertEqual(details["stop_reason"], StopReason.END_TURN)
-        self.assertEqual(details["total_latency_ms"], 23)
-        self.assertEqual(len(details["trace"]), 2)
+        self.assertIsInstance(details, AgentRunDetails)
+        self.assertEqual(details.status, AgentExecution.Status.SUCCEEDED)
+        self.assertEqual(details.stop_reason, StopReason.END_TURN)
+        self.assertEqual(details.total_latency_ms, 23)
+        self.assertIsInstance(details.usage, AgentTokenUsage)
+        self.assertIsNone(details.failure)
+        self.assertEqual(len(details.trace), 2)
+        self.assertTrue(
+            all(isinstance(item, AgentTraceDetails) for item in details.trace)
+        )
+        self.assertEqual(details.trace[-1].latency_ms, 23)
+
+    def test_run_details_exposes_typed_failure(self):
+        # Arrange
+        execution = AgentExecutionService().start(self.conversation).execution
+        AgentExecution.objects.filter(id=execution.id).update(
+            status=AgentExecution.Status.FAILED,
+            error_type="ProviderError",
+            error_message="provider unavailable",
+            error_details={"cause_type": "TimeoutError"},
+        )
+
+        # Act
+        details = AgentRunDetailsService().get(execution)
+
+        # Assert
+        self.assertIsInstance(details.failure, AgentRunFailure)
+        self.assertEqual(details.failure.type, "ProviderError")
+        self.assertEqual(details.failure.message, "provider unavailable")
+        self.assertEqual(details.failure.details, {"cause_type": "TimeoutError"})
