@@ -109,6 +109,9 @@ class _ProposalDraftRunner:
         oa_client: OpenAlex | None = None,
         web_search_client=None,
         config: ProposalDraftConfig | None = None,
+        conversation_service: AgentConversationService | None = None,
+        execution_service: AgentExecutionService | None = None,
+        note_conversation_service: NoteAgentConversationService | None = None,
     ):
         self.search_expert = search_expert
         self.expert = search_expert.expert
@@ -117,6 +120,19 @@ class _ProposalDraftRunner:
         self.web_search_client = web_search_client
         self.panel = panel or ProposalJudgePanel()
         self.config = config or ProposalDraftConfig.from_settings()
+        self.conversations = (
+            AgentConversationService()
+            if conversation_service is None
+            else conversation_service
+        )
+        self.executions = (
+            AgentExecutionService() if execution_service is None else execution_service
+        )
+        self.note_conversations = (
+            NoteAgentConversationService()
+            if note_conversation_service is None
+            else note_conversation_service
+        )
 
         self.state = ProposalRunState(self.config)
         self.recorder = DraftRecorder(
@@ -230,7 +246,7 @@ class _ProposalDraftRunner:
         try:
             conversation = self.recorder.draft.agent_conversation
             if conversation is None:
-                conversation = AgentConversationService().create(
+                conversation = self.conversations.create(
                     user=self.recorder.draft.created_by,
                     workflow="proposal_draft",
                 )
@@ -249,7 +265,7 @@ class _ProposalDraftRunner:
                 if self.provider is not None
                 else model_ref.partition(":")[0]
             )
-            self.agent_recorder = AgentExecutionService().start(
+            self.agent_recorder = self.executions.start(
                 conversation,
                 provider=provider_name,
                 model=model_ref,
@@ -509,7 +525,7 @@ class _ProposalDraftRunner:
         if conversation is None:
             return
         try:
-            NoteAgentConversationService().attach(conversation, note)
+            self.note_conversations.attach(conversation, note)
         except Exception:  # noqa: BLE001 - observability cannot break drafting
             logger.warning(
                 "could not attach proposal agent conversation to note",
@@ -551,6 +567,9 @@ def run_proposal_draft(
     panel: ProposalJudgePanel | None = None,
     oa_client: OpenAlex | None = None,
     web_search_client=None,
+    conversation_service: AgentConversationService | None = None,
+    execution_service: AgentExecutionService | None = None,
+    note_conversation_service: NoteAgentConversationService | None = None,
 ) -> dict:
     """Run a headless proposal-drafting job for one ``SearchExpert``.
 
@@ -561,11 +580,10 @@ def run_proposal_draft(
     Returns a result dict carrying the final status, the gate report, and (on success)
     the note id.
 
-    ``provider`` / ``panel`` / ``oa_client`` / ``web_search_client`` are
-    injectable for tests; in production they default to the settings-configured
-    generator provider (Claude Platform on AWS unless
+    Runtime collaborators are injectable for tests; in production they default
+    to the settings-configured generator provider (Claude Platform on AWS unless
     ``RESEARCH_AI_GENERATOR_PROVIDER`` says ``"bedrock"``), judge panel,
-    OpenAlex client, and Brave web-search client.
+    OpenAlex client, Brave web-search client, and database persistence services.
     """
     search_expert = SearchExpert.objects.select_related(
         "expert", "expert_search", "expert_search__unified_document"
@@ -586,5 +604,8 @@ def run_proposal_draft(
         panel=panel,
         oa_client=oa_client,
         web_search_client=web_search_client,
+        conversation_service=conversation_service,
+        execution_service=execution_service,
+        note_conversation_service=note_conversation_service,
     )
     return runner.run()

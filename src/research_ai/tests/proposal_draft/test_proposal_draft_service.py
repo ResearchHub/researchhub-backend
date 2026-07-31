@@ -10,7 +10,7 @@ client boundary; no network.
 import json
 from datetime import timedelta
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -33,6 +33,8 @@ from research_ai.services.agent.types import (
     ToolUseBlock,
 )
 from research_ai.services.agent_persistence import (
+    AgentConversationService,
+    AgentExecutionService,
     AgentRetentionService,
     NoteAgentConversationService,
 )
@@ -276,6 +278,9 @@ class ProposalDraftServiceTests(TestCase):
         # Arrange: one clean submit; panel clears the threshold; no citations.
         provider = _ScriptedProvider([_submit_turn(_clean_payload())])
         panel = _FakePanel(overall=5)
+        conversation_service = Mock(wraps=AgentConversationService())
+        execution_service = Mock(wraps=AgentExecutionService())
+        note_conversation_service = Mock(wraps=NoteAgentConversationService())
 
         # Act
         result = run_proposal_draft(
@@ -283,6 +288,9 @@ class ProposalDraftServiceTests(TestCase):
             provider=provider,
             panel=panel,
             oa_client=_FakeOpenAlex(),
+            conversation_service=conversation_service,
+            execution_service=execution_service,
+            note_conversation_service=note_conversation_service,
         )
 
         # Assert: status, the Note + content, and the draft linkage.
@@ -323,6 +331,15 @@ class ProposalDraftServiceTests(TestCase):
             list(NoteAgentConversationService().for_note(note)),
             [draft.agent_conversation],
         )
+        conversation_service.create.assert_called_once_with(
+            user=None,
+            workflow="proposal_draft",
+        )
+        execution_service.start.assert_called_once()
+        note_conversation_service.attach.assert_called_once_with(
+            draft.agent_conversation,
+            note,
+        )
         self.assertTrue(panel.contexts)  # panel was scored at least once
         self.assertEqual(
             panel.contexts[0]["rfp"]["organization"],
@@ -349,19 +366,19 @@ class ProposalDraftServiceTests(TestCase):
     def test_note_attachment_failure_does_not_break_proposal(self):
         # Arrange
         provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+        note_conversation_service = Mock(spec=NoteAgentConversationService)
+        note_conversation_service.attach.side_effect = RuntimeError(
+            "association database unavailable"
+        )
 
         # Act
-        with patch.object(
-            NoteAgentConversationService,
-            "attach",
-            side_effect=RuntimeError("association database unavailable"),
-        ):
-            result = run_proposal_draft(
-                self.search_expert.id,
-                provider=provider,
-                panel=_FakePanel(overall=5),
-                oa_client=_FakeOpenAlex(),
-            )
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+            note_conversation_service=note_conversation_service,
+        )
 
         # Assert
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
@@ -378,18 +395,17 @@ class ProposalDraftServiceTests(TestCase):
     def test_trace_initialization_failure_does_not_break_proposal(self):
         # Arrange
         provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+        execution_service = Mock(spec=AgentExecutionService)
+        execution_service.start.side_effect = RuntimeError("trace database unavailable")
 
         # Act
-        with patch(
-            "research_ai.services.proposal_draft.runner.AgentExecutionService.start",
-            side_effect=RuntimeError("trace database unavailable"),
-        ):
-            result = run_proposal_draft(
-                self.search_expert.id,
-                provider=provider,
-                panel=_FakePanel(overall=5),
-                oa_client=_FakeOpenAlex(),
-            )
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+            execution_service=execution_service,
+        )
 
         # Assert
         self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
