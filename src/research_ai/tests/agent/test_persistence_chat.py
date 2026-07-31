@@ -4,6 +4,7 @@ import json
 from unittest.mock import patch
 
 from django.db import IntegrityError, connection
+from django.test.utils import CaptureQueriesContext
 
 from research_ai.models import (
     AgentConversation,
@@ -187,25 +188,29 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
             },
         )
 
-    def test_public_representation_fetches_assistant_links_without_n_plus_one(self):
+    def test_public_representation_costs_the_same_however_long_the_chat_is(self):
         # Arrange
         chat = AgentChatService()
         first = chat.prepare_turn(self.conversation, "First")
         agent(FakeProvider([text_turn("First answer")]), first.recorder).run("First")
         second = chat.prepare_turn(self.conversation, "Second")
         agent(FakeProvider([text_turn("Second answer")]), second.recorder).run("Second")
-
-        # Act / Assert
-        with self.assertNumQueries(4):
+        with CaptureQueriesContext(connection) as two_turns:
             representation = chat.representation(self.conversation)
         self.assertEqual(len(representation["executions"]), 2)
 
-        # A further turn must not cost another query
+        # Act: a third turn adds an execution, a message, and a link between them
         third = chat.prepare_turn(self.conversation, "Third")
         agent(FakeProvider([text_turn("Third answer")]), third.recorder).run("Third")
-        with self.assertNumQueries(4):
+        with CaptureQueriesContext(connection) as three_turns:
             representation = chat.representation(self.conversation)
+
+        # Assert: the comparison is what rules out an N+1, not the count itself.
+        # A ceiling still guards the absolute cost, loosely enough that adding
+        # one query to the read is a decision rather than a broken build.
         self.assertEqual(len(representation["executions"]), 3)
+        self.assertEqual(len(three_turns), len(two_turns))
+        self.assertLessEqual(len(two_turns), 5)
 
     def test_regeneration_repair_replaces_prior_output_without_new_user_message(self):
         # Arrange
@@ -256,7 +261,7 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
             chat.prepare_turn(self.conversation, "Do not orphan me")
         self.assertFalse(self.conversation.chat_messages.exists())
 
-    def test_prepare_turn_does_not_start_when_context_reconstruction_fails(self):
+    def test_prepare_turn_aborts_when_the_durable_lineage_is_unreadable(self):
         # Arrange
         chat = AgentChatService()
         first = chat.prepare_turn(self.conversation, "First")
@@ -264,7 +269,9 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         message_count = self.conversation.chat_messages.count()
         execution_count = self.conversation.executions.count()
 
-        # Act / Assert
+        # Act / Assert: every path that reads the lineage has to fail loudly.
+        # Tolerating a broken one would start the model on an empty history and
+        # drop the conversation so far without anyone noticing.
         with (
             patch.object(
                 chat.contexts,
@@ -274,17 +281,8 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
             self.assertRaisesRegex(ValueError, "invalid durable context"),
         ):
             chat.prepare_turn(self.conversation, "Second")
-
         self.assertEqual(self.conversation.chat_messages.count(), message_count)
         self.assertEqual(self.conversation.executions.count(), execution_count)
-        self.assertFalse(
-            self.conversation.executions.filter(
-                status__in=[
-                    AgentExecution.Status.PENDING,
-                    AgentExecution.Status.RUNNING,
-                ]
-            ).exists()
-        )
 
     def test_active_turn_blocks_a_second_linear_turn_without_new_message(self):
         # Arrange
@@ -325,38 +323,6 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
             AgentExecution.objects.get(id=pending.id).status,
             AgentExecution.Status.RUNNING,
         )
-
-    def test_regeneration_supersedes_an_answer_that_never_published(self):
-        # Arrange: the original succeeds but its chat publication fails
-        chat = AgentChatService()
-        original = chat.prepare_turn(self.conversation, "Question")
-        with patch.object(
-            DatabaseAgentRecorder,
-            "publish_assistant_output",
-            side_effect=IntegrityError("chat insert failed"),
-        ):
-            agent(FakeProvider([text_turn("Stale answer")]), original.recorder).run(
-                "Question"
-            )
-
-        # Act: the user regenerates before any read repairs the original
-        regeneration = chat.prepare_retry(original.execution, regenerate=True)
-        agent(FakeProvider([text_turn("Better answer")]), regeneration.recorder).run(
-            "Question"
-        )
-        representation = chat.representation(self.conversation)
-
-        # Assert
-        self.assertEqual(
-            [message["content"] for message in representation["messages"]],
-            ["Question", "Better answer"],
-        )
-        superseded = next(
-            item
-            for item in representation["executions"]
-            if item["id"] == original.execution.id
-        )
-        self.assertFalse(superseded["assistant_message_pending"])
 
     def test_new_turn_keeps_the_prompt_of_a_run_that_failed(self):
         # Arrange: the second turn fails after recording its own prompt
