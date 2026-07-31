@@ -6,8 +6,8 @@ judge on the **generator model itself** -- in practice it critiques its own
 drafts harshly enough to surface real issues. Name refs in ``JUDGE_MODEL_IDS``
 below for a multi-model, cross-family panel; each roster entry is a model ref
 resolved through the provider registry, so an unprefixed id stays on the
-generator's provider while a ``bedrock:<id>`` / ``claude_platform:<id>`` ref
-routes that one judge elsewhere.
+generator's provider while a ``bedrock:<id>``, ``claude_platform:<id>``, or
+``openrouter:<vendor>/<model>`` ref routes that one judge elsewhere.
 
 The panel runs two modes off the roster:
 
@@ -71,8 +71,8 @@ _EXCERPT_CHARS = 300
 
 # The judge roster, as model refs. Empty means a single judge on the generator
 # model. Name refs here for a multi-model, cross-family panel; an entry may
-# carry a provider prefix (``bedrock:`` / ``claude_platform:``) to route that
-# judge somewhere other than the generator's provider.
+# carry a provider prefix (``bedrock:``, ``claude_platform:``, or
+# ``openrouter:``) to route that judge somewhere else.
 JUDGE_MODEL_IDS: list[str] = []
 
 
