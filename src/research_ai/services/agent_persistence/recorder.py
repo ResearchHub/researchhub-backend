@@ -173,6 +173,12 @@ class DatabaseAgentRecorder:
             execution = AgentExecution.objects.select_for_update().get(
                 id=self.execution.id
             )
+            # A cancellation from another process ends this run's claim on its
+            # own context. Continuing to append would land after the seal a
+            # later turn wrote to close this run's open tool calls, leaving two
+            # results for one call in a lineage providers reject on replay.
+            if _is_terminal(execution.status):
+                raise InterruptedError("agent execution is no longer running")
             AgentContextMessage.objects.create(
                 execution=execution,
                 sequence=execution.next_context_sequence,

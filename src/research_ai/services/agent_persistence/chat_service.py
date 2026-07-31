@@ -204,7 +204,20 @@ class AgentChatService:
     def representation(self, conversation: AgentConversation) -> dict:
         """Repair pending publication and return user-safe chat lifecycle data."""
         self.repair_pending_outputs(conversation)
+        # Skew here is safe in the one direction it can go: an answer published
+        # after this read is reported still pending, which costs a poll. Reading
+        # it later could not report a live answer as already superseded.
         superseded = superseded_execution_ids(conversation)
+        # One read answers both what the chat shows and what is still pending.
+        # Asking the execution rows instead would let a publication landing
+        # between the two queries report an answer as delivered while the
+        # message list that should carry it was read a moment too early.
+        chat_messages = list(conversation.chat_messages.order_by("sequence"))
+        published = {
+            message.generated_by_execution_id
+            for message in chat_messages
+            if message.generated_by_execution_id is not None
+        }
         messages = [
             {
                 "id": message.id,
@@ -213,9 +226,8 @@ class AgentChatService:
                 "content": message.content,
                 "execution_id": message.generated_by_execution_id,
             }
-            for message in conversation.chat_messages.filter(is_active=True).order_by(
-                "sequence"
-            )
+            for message in chat_messages
+            if message.is_active
         ]
         executions = [
             {
@@ -229,15 +241,13 @@ class AgentChatService:
                 "assistant_message_pending": (
                     execution.status == AgentExecution.Status.SUCCEEDED
                     and execution.publish_output_to_chat
-                    and not hasattr(execution, "generated_chat_message")
+                    and execution.id not in published
                     and _has_publishable_output(execution)
                     and execution.id not in superseded
                 ),
                 "error": self._public_error(execution),
             }
-            for execution in conversation.executions.select_related(
-                "generated_chat_message"
-            ).order_by("attempt")
+            for execution in conversation.executions.order_by("attempt")
         ]
         return {
             "conversation_id": conversation.id,

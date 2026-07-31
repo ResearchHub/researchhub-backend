@@ -5,7 +5,11 @@ from unittest.mock import patch
 
 from django.db import IntegrityError, connection
 
-from research_ai.models import AgentExecution, AgentExecutionMessage
+from research_ai.models import (
+    AgentConversation,
+    AgentExecution,
+    AgentExecutionMessage,
+)
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
     AssistantTurn,
@@ -20,6 +24,7 @@ from research_ai.services.agent_persistence import (
     AgentConversationBusyError,
     AgentConversationService,
     AgentExecutionService,
+    AgentStaleRetryError,
     DatabaseAgentRecorder,
 )
 from research_ai.services.agent_persistence.content import (
@@ -33,6 +38,21 @@ from research_ai.tests.agent.persistence_test_helpers import (
     text_turn,
     tool_turn,
 )
+
+
+class ChatMessageSnapshot:
+    """Serve chat rows as they stood before a concurrent publication."""
+
+    def __init__(self, rows):
+        self.rows = rows
+
+    def filter(self, **kwargs):
+        return ChatMessageSnapshot(
+            [row for row in self.rows if row.is_active == kwargs["is_active"]]
+        )
+
+    def order_by(self, *_fields):
+        return self.rows
 
 
 class AgentChatPersistenceTests(AgentPersistenceTestCase):
@@ -610,3 +630,107 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
             ],
             ["Question A", "Question B", "Answer A"],
         )
+
+    def test_retry_of_a_turn_the_conversation_moved_past_is_refused(self):
+        # Arrange: a second turn answers after the first one already did
+        chat = AgentChatService()
+        first = chat.prepare_turn(self.conversation, "First question")
+        agent(FakeProvider([text_turn("First answer")]), first.recorder).run(
+            "First question"
+        )
+        second = chat.prepare_turn(self.conversation, "Second question")
+        agent(FakeProvider([text_turn("Second answer")]), second.recorder).run(
+            "Second question"
+        )
+
+        # Act / Assert: either retry would make the stale branch canonical
+        with self.assertRaises(AgentStaleRetryError):
+            chat.prepare_retry(first.execution)
+        with self.assertRaises(AgentStaleRetryError):
+            chat.prepare_retry(first.execution, regenerate=True)
+
+        # The refusal costs nothing: the next turn still sees both exchanges
+        self.assertEqual(self.conversation.executions.count(), 2)
+        third = chat.prepare_turn(self.conversation, "Third question")
+        self.assertEqual(
+            [
+                block.text
+                for message in third.context
+                for block in message.content
+                if isinstance(block, TextBlock)
+            ],
+            ["First question", "First answer", "Second question", "Second answer"],
+        )
+
+    def test_a_cancelled_run_cannot_append_context_after_its_calls_are_sealed(self):
+        # Arrange: a run records a tool call, then another process cancels it
+        # while its worker is still dispatching that call
+        chat = AgentChatService()
+        stopped = chat.prepare_turn(self.conversation, "Interrupted question")
+        stopped.recorder.record_message(
+            Message(role="user", content=[TextBlock(text="Interrupted question")])
+        )
+        stopped.recorder.record_message(
+            Message(
+                role="assistant",
+                content=[ToolUseBlock(id="call-1", name="lookup", input={})],
+            )
+        )
+        AgentExecution.objects.filter(id=stopped.execution.id).update(
+            status=AgentExecution.Status.CANCELLED
+        )
+        resumed = chat.prepare_turn(self.conversation, "Next question")
+
+        # Act: the worker returns with the result the seal already stood in for
+        with self.assertRaises(InterruptedError):
+            stopped.recorder.record_message(
+                Message(
+                    role="user",
+                    content=[
+                        ToolResultBlock(
+                            tool_use_id="call-1",
+                            content={"type": "text", "text": "late result"},
+                            is_error=False,
+                        )
+                    ],
+                )
+            )
+
+        # Assert: one call still has exactly one result
+        answered = [
+            block.tool_use_id
+            for message in chat.contexts.reconstruct(resumed.execution)
+            for block in message.content
+            if isinstance(block, ToolResultBlock)
+        ]
+        self.assertEqual(answered, ["call-1"])
+
+    def test_representation_keeps_polling_for_an_answer_it_could_not_carry(self):
+        # Arrange: the answer stays pending, then a worker publishes it after
+        # the chat rows are read -- the skew a second connection opens between
+        # two queries of one response
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(self.conversation, "Question")
+        with patch.object(
+            DatabaseAgentRecorder,
+            "publish_assistant_output",
+            side_effect=IntegrityError("chat insert failed"),
+        ):
+            agent(FakeProvider([text_turn("Answer")]), prepared.recorder).run(
+                "Question"
+            )
+        stale_rows = list(self.conversation.chat_messages.order_by("sequence"))
+        prepared.execution.refresh_from_db()
+        DatabaseAgentRecorder(prepared.execution).publish_assistant_output()
+
+        # Act
+        with patch.object(
+            AgentConversation, "chat_messages", ChatMessageSnapshot(stale_rows)
+        ):
+            representation = chat.representation(self.conversation)
+
+        # Assert: an answer this response omits is never reported as delivered
+        self.assertEqual(
+            [message["content"] for message in representation["messages"]], ["Question"]
+        )
+        self.assertTrue(representation["executions"][0]["assistant_message_pending"])

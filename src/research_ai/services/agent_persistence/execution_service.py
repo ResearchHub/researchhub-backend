@@ -21,6 +21,10 @@ class AgentConversationBusyError(RuntimeError):
     """Raised when a linear conversation already has an active execution."""
 
 
+class AgentStaleRetryError(RuntimeError):
+    """Raised when a retry targets an attempt a later turn has moved past."""
+
+
 class AgentExecutionService:
     def __init__(self, *, recorder_factory: RecorderFactory | None = None):
         self.recorder_factory = (
@@ -60,6 +64,26 @@ class AgentExecutionService:
                 "agent conversation already has an active execution"
             )
 
+    @staticmethod
+    def _ensure_retry_target_is_latest(
+        *,
+        retry_of: AgentExecution | None,
+        replaces_output_of: AgentExecution | None,
+        max_attempt: int,
+    ) -> None:
+        """Refuse to retry an attempt a later turn has already continued past.
+
+        A retry inherits its target's ``context_parent`` but takes the highest
+        attempt, and continuation reads the highest attempt. Allowing an older
+        target would make a branch that never saw the turns since canonical,
+        dropping them from the model's view while the chat still shows them.
+        """
+        for target in (retry_of, replaces_output_of):
+            if target is not None and target.attempt < max_attempt:
+                raise AgentStaleRetryError(
+                    "agent execution has been superseded by a later attempt"
+                )
+
     def _create_execution(
         self,
         conversation: AgentConversation,
@@ -93,6 +117,13 @@ class AgentExecutionService:
                     value=Max("attempt")
                 )["value"]
                 or 0
+            )
+            # Checked here, not in the caller: the lock this block holds is what
+            # keeps a turn from landing between the check and the insert.
+            self._ensure_retry_target_is_latest(
+                retry_of=retry_of,
+                replaces_output_of=replaces_output_of,
+                max_attempt=max_attempt,
             )
             timestamps = (
                 {"started_at": now, "last_activity_at": now}
