@@ -7,6 +7,12 @@ from django.db import IntegrityError
 
 from research_ai.models import AgentExecution, AgentExecutionMessage
 from research_ai.services.agent.tools import Tool
+from research_ai.services.agent.types import (
+    Message,
+    TextBlock,
+    ToolResultBlock,
+    ToolUseBlock,
+)
 from research_ai.services.agent_persistence import (
     AgentChatService,
     AgentConversationBusyError,
@@ -289,4 +295,113 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         self.assertEqual(
             AgentExecution.objects.get(id=pending.id).status,
             AgentExecution.Status.RUNNING,
+        )
+
+    def test_regeneration_supersedes_an_answer_that_never_published(self):
+        # Arrange: the original succeeds but its chat publication fails
+        chat = AgentChatService()
+        original = chat.prepare_turn(self.conversation, "Question")
+        with patch.object(
+            DatabaseAgentRecorder,
+            "publish_assistant_output",
+            side_effect=IntegrityError("chat insert failed"),
+        ):
+            agent(FakeProvider([text_turn("Stale answer")]), original.recorder).run(
+                "Question"
+            )
+
+        # Act: the user regenerates before any read repairs the original
+        regeneration = chat.prepare_retry(original.execution, regenerate=True)
+        agent(FakeProvider([text_turn("Better answer")]), regeneration.recorder).run(
+            "Question"
+        )
+        representation = chat.representation(self.conversation)
+
+        # Assert
+        self.assertEqual(
+            [message["content"] for message in representation["messages"]],
+            ["Question", "Better answer"],
+        )
+        superseded = next(
+            item
+            for item in representation["executions"]
+            if item["id"] == original.execution.id
+        )
+        self.assertFalse(superseded["assistant_message_pending"])
+
+    def test_new_turn_keeps_the_prompt_of_a_run_that_failed(self):
+        # Arrange: the second turn fails after recording its own prompt
+        chat = AgentChatService()
+        first = chat.prepare_turn(self.conversation, "First question")
+        agent(FakeProvider([text_turn("First answer")]), first.recorder).run(
+            "First question"
+        )
+        second = chat.prepare_turn(self.conversation, "Second question")
+        with self.assertRaises(RuntimeError):
+            agent(FakeProvider([RuntimeError("provider down")]), second.recorder).run(
+                "Second question"
+            )
+
+        # Act
+        third = chat.prepare_turn(self.conversation, "Third question")
+
+        # Assert
+        self.assertEqual(third.execution.context_parent_id, second.execution.id)
+        self.assertEqual(
+            [
+                block.text
+                for message in third.context
+                for block in message.content
+                if isinstance(block, TextBlock)
+            ],
+            ["First question", "First answer", "Second question"],
+        )
+
+    def test_continuing_a_stopped_run_answers_its_open_tool_calls(self):
+        # Arrange: a run stops after recording tool calls but before their results
+        chat = AgentChatService()
+        stopped = chat.prepare_turn(self.conversation, "Interrupted question")
+        stopped.recorder.record_message(
+            Message(role="user", content=[TextBlock(text="Interrupted question")])
+        )
+        stopped.recorder.record_message(
+            Message(
+                role="assistant",
+                content=[ToolUseBlock(id="call-1", name="lookup", input={})],
+            )
+        )
+        stopped.recorder.on_run_failed(InterruptedError("worker stopped"))
+
+        # Act
+        resumed = chat.prepare_turn(self.conversation, "Next question")
+
+        # Assert
+        answered = [
+            block.tool_use_id
+            for message in resumed.context
+            for block in message.content
+            if isinstance(block, ToolResultBlock)
+        ]
+        self.assertEqual(answered, ["call-1"])
+        self.assertEqual(resumed.context[-1].role, "user")
+
+    def test_retry_ignores_later_trace_rows_when_the_prompt_row_is_lost(self):
+        # Arrange: trace rows are best-effort, so drop only the prompt row
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(self.conversation, "Question")
+        agent(FakeProvider([text_turn("Answer")]), prepared.recorder).run("Question")
+        prepared.execution.messages.filter(execution_sequence=1).delete()
+        self.assertEqual(
+            prepared.execution.messages.first().provenance,
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+
+        # Act
+        retry = chat.prepare_retry(prepared.execution)
+        agent(FakeProvider([text_turn("Recovered")]), retry.recorder).run("Question")
+
+        # Assert
+        self.assertEqual(
+            retry.execution.messages.order_by("execution_sequence").first().provenance,
+            AgentExecutionMessage.Provenance.HUMAN,
         )

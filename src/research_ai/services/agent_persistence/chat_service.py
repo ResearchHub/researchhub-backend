@@ -5,6 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from django.db import transaction
+from django.db.models import Exists, OuterRef
 
 from research_ai.models import (
     AgentConversation,
@@ -25,6 +26,16 @@ from research_ai.services.agent_persistence.recorder import DatabaseAgentRecorde
 logger = logging.getLogger(__name__)
 
 RecorderFactory = Callable[..., DatabaseAgentRecorder]
+
+
+def _output_superseded() -> Exists:
+    """Match executions whose answer a regeneration has already published."""
+    return Exists(
+        AgentExecution.objects.filter(
+            replaces_output_of_id=OuterRef("pk"),
+            generated_chat_message__isnull=False,
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -78,11 +89,14 @@ class AgentChatService:
             locked = AgentConversation.objects.select_for_update().get(
                 id=conversation.id
             )
-            parent = (
-                locked.executions.filter(status=AgentExecution.Status.SUCCEEDED)
-                .order_by("-attempt")
-                .first()
-            )
+            # A new turn continues from the latest stopped attempt as well as
+            # the latest successful one: a run that failed after recording its
+            # prompt still holds user-visible context, and skipping back to an
+            # older attempt would drop it from the model's view while the chat
+            # still shows it.
+            parent = self.contexts.latest_for_continuation(locked, include_partial=True)
+            if parent is not None:
+                self.contexts.seal_interrupted_tool_calls(parent)
             context = self.contexts.reconstruct(parent) if parent else []
             human_message = self.conversations.add_human_message(locked, human_content)
             recorder = self.executions.start(
@@ -106,8 +120,15 @@ class AgentChatService:
 
     @staticmethod
     def _retry_provenance(execution: AgentExecution) -> str:
+        """Reuse the provenance the original attempt recorded for its prompt.
+
+        Only the first trace row can answer this. Trace writes are best-effort,
+        so a later row surviving on its own says nothing about who wrote the
+        prompt -- reading whichever row came first would label a human prompt
+        ``MODEL`` or ``TOOL``.
+        """
         provenance = (
-            execution.messages.order_by("execution_sequence")
+            execution.messages.filter(execution_sequence=1)
             .values_list("provenance", flat=True)
             .first()
         )
@@ -198,12 +219,15 @@ class AgentChatService:
                     execution.status == AgentExecution.Status.SUCCEEDED
                     and execution.publish_output_to_chat
                     and not hasattr(execution, "generated_chat_message")
+                    and not execution.output_superseded
                 ),
                 "error": self._public_error(execution),
             }
             for execution in conversation.executions.select_related(
                 "generated_chat_message"
-            ).order_by("attempt")
+            )
+            .annotate(output_superseded=_output_superseded())
+            .order_by("attempt")
         ]
         return {
             "conversation_id": conversation.id,
@@ -212,13 +236,24 @@ class AgentChatService:
         }
 
     def repair_pending_outputs(self, conversation: AgentConversation) -> int:
-        """Retry any successful chat publication that previously failed."""
+        """Retry any successful chat publication that previously failed.
+
+        An answer a regeneration already published is deliberately left
+        unrepaired. Its replacement deactivated nothing when it ran -- there was
+        no message to deactivate -- so publishing it now would append the
+        superseded answer *after* the one that replaced it, with both active.
+        """
         repaired = 0
-        pending = conversation.executions.filter(
-            status=AgentExecution.Status.SUCCEEDED,
-            publish_output_to_chat=True,
-            generated_chat_message__isnull=True,
-        ).order_by("attempt")
+        pending = (
+            conversation.executions.filter(
+                status=AgentExecution.Status.SUCCEEDED,
+                publish_output_to_chat=True,
+                generated_chat_message__isnull=True,
+            )
+            .annotate(output_superseded=_output_superseded())
+            .filter(output_superseded=False)
+            .order_by("attempt")
+        )
         for execution in pending:
             try:
                 repaired += int(
