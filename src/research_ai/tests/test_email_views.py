@@ -855,6 +855,60 @@ class GeneratedEmailDetailViewTests(APITestCase):
         expert.refresh_from_db()
         self.assertIsNotNone(expert.last_email_sent_at)
 
+    def test_patch_can_mark_outreach_sent_via_multiple_channels(self):
+        # Arrange
+        email = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_email="multichannel@uni.edu",
+            expert_name="Dr. Multi",
+            email_subject="Subj",
+            email_body="Body",
+        )
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.patch(
+            f"/api/research_ai/expert-finder/emails/{email.id}/",
+            {
+                "status": "sent",
+                "channels": ["email", "linkedin"],
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        email.refresh_from_db()
+        self.assertEqual(email.status, "sent")
+        self.assertEqual(email.channels, ["email", "linkedin"])
+        self.assertEqual(response.json()["channels"], ["email", "linkedin"])
+
+    def test_patch_replaces_outreach_channels_with_full_list(self):
+        # Arrange: already sent via email; later also mark LinkedIn
+        email = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_email="channels@uni.edu",
+            expert_name="Dr. Channels",
+            email_subject="Subj",
+            email_body="Body",
+            status=GeneratedEmail.Status.SENT,
+            channels=["email"],
+        )
+        self.client.force_authenticate(self.moderator)
+
+        # Act: client sends the full desired list (replace, not append)
+        response = self.client.patch(
+            f"/api/research_ai/expert-finder/emails/{email.id}/",
+            {"channels": ["email", "linkedin"]},
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        email.refresh_from_db()
+        self.assertEqual(email.channels, ["email", "linkedin"])
+        self.assertEqual(response.json()["channels"], ["email", "linkedin"])
+
     def test_patch_can_set_status_closed(self):
         email = self._create_email()
         self.client.force_authenticate(self.moderator)
