@@ -1,11 +1,10 @@
 """Factory for building configured ``Agent`` instances.
 
 Wires an injected provider to a caller-supplied toolset and prompt. The
-constructor takes no defaults: callers pass each value explicitly (resolving
-``max_iterations`` from settings such as ``RESEARCH_AI_AGENT_MAX_ITERATIONS`` at
-the call site, and constructing the provider they want -- e.g.
-``BedrockProvider()``). A name->provider resolver belongs here only once a
-second provider exists and there is a real choice to make.
+constructor takes no defaults: callers pass each value explicitly (their own
+``max_iterations`` ceiling, and the provider they want -- e.g.
+``resolve_provider()`` for the configured generator, or a specific adapter).
+Name->provider resolution lives in ``providers.registry``, not here.
 """
 
 from research_ai.services.agent.loop import Agent

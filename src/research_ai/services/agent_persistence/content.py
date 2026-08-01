@@ -1,15 +1,22 @@
 """Agent-specific serialization policies for persisted message content."""
 
 import json
+import logging
 from typing import Any
 
 from research_ai.services.agent.types import Message, serialize_messages
+
+logger = logging.getLogger(__name__)
 
 MAX_TRACE_MESSAGE_BYTES = 128 * 1024
 MAX_BLOCK_PAYLOAD_BYTES = 48 * 1024
 MAX_CONTEXT_MESSAGE_BYTES = 512 * 1024
 _PREVIEW_CHARS = 2048
 _FINAL_OUTPUT_SUFFIX = "\n[Response truncated for durable storage.]"
+_COMPACTED_MESSAGE_TEXT = (
+    "[Earlier model-context message compacted because it exceeded the durable row "
+    "limit.]"
+)
 
 
 def _encode_json(value: Any) -> str:
@@ -83,25 +90,41 @@ def serialize_trace_message(message: Message) -> tuple[list[dict], bool, int]:
 
 def serialize_context_message(
     message: Message,
-) -> tuple[list[dict], bool, int]:
-    """Keep complete resumable context or replace it with valid text."""
-    blocks = serialize_messages([message])[0]["content"]
-    safe_blocks, was_replaced, original_size = _bounded_json(
-        blocks,
+) -> tuple[list[dict], dict, bool, int]:
+    """Keep complete resumable context or replace it with valid text.
+
+    Provider continuation state is bounded together with the content because
+    both are required to resume a provider turn correctly. Neither should ever
+    reach the limit: model output is capped by ``max_tokens`` and tool results
+    by ``MAX_TOOL_RESULT_BYTES``, so a message this large means one of those
+    bounds is missing rather than that a conversation grew. The row still has
+    to hold something, so it holds text the provider accepts -- a compacted
+    marker, and no state describing content that is no longer there.
+    """
+    serialized = serialize_messages([message])[0]
+    payload = {
+        "content": serialized["content"],
+        "provider_state": serialized.get("provider_state") or {},
+    }
+    safe_payload, was_replaced, original_size = _bounded_json(
+        payload,
         limit=MAX_CONTEXT_MESSAGE_BYTES,
     )
     if not was_replaced:
-        return safe_blocks, False, original_size
+        return (
+            safe_payload["content"],
+            safe_payload["provider_state"],
+            False,
+            original_size,
+        )
+    logger.error(
+        "agent context message of %d bytes exceeded the durable row limit; "
+        "the conversation is no longer resumable from this turn",
+        original_size,
+    )
     return (
-        [
-            {
-                "type": "text",
-                "text": (
-                    "[Earlier model-context message compacted because it "
-                    "exceeded the durable row limit.]"
-                ),
-            }
-        ],
+        [{"type": "text", "text": _COMPACTED_MESSAGE_TEXT}],
+        {},
         True,
         original_size,
     )

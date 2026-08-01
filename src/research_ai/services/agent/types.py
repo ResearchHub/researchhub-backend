@@ -29,24 +29,76 @@ class StopReason(StrEnum):
     MAX_TOKENS = "max_tokens"
     STOP_SEQUENCE = "stop_sequence"
     CONTENT_FILTERED = "content_filtered"
+    # The provider paused a turn mid-flight after running its own server-side
+    # tools (it caps how many it will run per turn). Nothing failed and nothing
+    # is owed by the caller: the turn resumes by sending the conversation back
+    # with the paused assistant turn appended and no new user turn.
+    PAUSE_TURN = "pause_turn"
     OTHER = "other"
 
 
 @dataclass(frozen=True)
 class TextBlock:
-    """A run of assistant or user text."""
+    """A run of assistant or user text.
+
+    ``data`` carries an optional provider response block verbatim. Most text
+    blocks are provider-neutral and leave it unset. Providers that attach
+    replay-critical metadata to assistant text (for example, Claude web-search
+    citations and their encrypted indices) keep the whole block here so a
+    later turn can send it back unchanged.
+    """
 
     text: str
+    data: dict | None = None
     type: str = "text"
 
 
 @dataclass(frozen=True)
+class ThinkingBlock:
+    """A provider's reasoning block, carried through the run verbatim.
+
+    ``data`` is the provider's own block, unmodified. Reasoning blocks are
+    signed: a provider that thinks alongside tool use rejects the next turn if
+    the assistant turn it replays has them dropped or edited. The agent core
+    never looks inside ``data`` -- it only round-trips it, which is also why it
+    is serialized whole rather than field by field.
+    """
+
+    data: dict
+    type: str = "thinking"
+
+
+@dataclass(frozen=True)
+class ServerToolBlock:
+    """A tool the *provider* ran itself, carried through the run verbatim.
+
+    Covers both halves of a server-side tool call -- the model's request and the
+    result the provider injected -- as one opaque payload each. Unlike a
+    ``ToolUseBlock``, none of this is ever dispatched: the provider ran the tool
+    inside the same turn and handed the result back already, so the agent core
+    only replays these blocks, unedited and in their original position. The
+    provider validates the request/result pairing when the turn is replayed, so
+    a dropped or reordered block fails the next turn.
+    """
+
+    data: dict
+    type: str = "server_tool"
+
+
+@dataclass(frozen=True)
 class ToolUseBlock:
-    """The model's request to call a tool. ``id`` correlates with the result."""
+    """The model's request to call a tool. ``id`` correlates with the result.
+
+    ``data`` optionally carries the provider response block verbatim. Most tool
+    calls are provider-neutral and leave it unset. Providers that attach
+    replay-critical metadata to a call keep the whole block here; for example,
+    Claude identifies calls made from code execution with a ``caller`` field.
+    """
 
     id: str
     name: str
     input: dict
+    data: dict | None = None
     type: str = "tool_use"
 
 
@@ -60,16 +112,23 @@ class ToolResultBlock:
     type: str = "tool_result"
 
 
-# A content block is one of the three block types above.
-Block = TextBlock | ToolUseBlock | ToolResultBlock
+# A content block is one of the five block types above.
+Block = TextBlock | ThinkingBlock | ServerToolBlock | ToolUseBlock | ToolResultBlock
 
 
 @dataclass(frozen=True)
 class Message:
-    """One conversation turn: a role plus an ordered list of content blocks."""
+    """One conversation turn plus opaque provider continuation state.
+
+    ``provider_state`` is request-level state that cannot live in a content
+    block. The agent core carries it without interpreting it so a provider can
+    resume a turn across calls. Claude's code-execution container identifier is
+    one example.
+    """
 
     role: str
     content: list[Block]
+    provider_state: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -94,7 +153,16 @@ class AssistantTurn:
     ``raw`` keeps the untouched provider response for logging/debugging; it is
     intentionally excluded from JSON serialization of conversations. ``usage``
     and ``latency_ms`` are per-turn metadata for recorders; ``None`` when the
-    provider does not report them.
+    provider does not report them. ``thinking_blocks`` holds the turn's
+    reasoning blocks (empty for providers that do not return any).
+
+    ``content_blocks`` is the turn's *whole* content in the provider's original
+    order, and is what the loop replays as the assistant message. The grouped
+    lists above are views onto the same blocks, for the loop's own logic
+    (dispatching calls, tracing reasoning) -- they cannot be concatenated back
+    into a faithful turn, because order carries meaning: reasoning blocks lead,
+    and a server-side tool's result must stay immediately after its request. An
+    adapter that leaves it empty falls back to the grouped order.
     """
 
     text_blocks: list[TextBlock]
@@ -103,6 +171,16 @@ class AssistantTurn:
     raw: dict = field(default_factory=dict)
     usage: TurnUsage | None = None
     latency_ms: int | None = None
+    thinking_blocks: list[ThinkingBlock] = field(default_factory=list)
+    content_blocks: list[Block] = field(default_factory=list)
+    provider_state: dict = field(default_factory=dict)
+
+    @property
+    def replay_content(self) -> list[Block]:
+        """The assistant turn to append to the conversation, order preserved."""
+        if self.content_blocks:
+            return list(self.content_blocks)
+        return [*self.thinking_blocks, *self.text_blocks, *self.tool_calls]
 
     @property
     def text(self) -> str:
@@ -112,14 +190,24 @@ class AssistantTurn:
 
 def _serialize_block(block: Block) -> dict:
     if isinstance(block, TextBlock):
-        return {"type": "text", "text": block.text}
+        serialized = {"type": "text", "text": block.text}
+        if block.data is not None:
+            serialized["data"] = block.data
+        return serialized
+    if isinstance(block, ThinkingBlock):
+        return {"type": "thinking", "data": block.data}
+    if isinstance(block, ServerToolBlock):
+        return {"type": "server_tool", "data": block.data}
     if isinstance(block, ToolUseBlock):
-        return {
+        serialized = {
             "type": "tool_use",
             "id": block.id,
             "name": block.name,
             "input": block.input,
         }
+        if block.data is not None:
+            serialized["data"] = block.data
+        return serialized
     if isinstance(block, ToolResultBlock):
         return {
             "type": "tool_result",
@@ -133,9 +221,18 @@ def _serialize_block(block: Block) -> dict:
 def _deserialize_block(data: dict) -> Block:
     block_type = data.get("type")
     if block_type == "text":
-        return TextBlock(text=data["text"])
+        return TextBlock(text=data["text"], data=data.get("data"))
+    if block_type == "thinking":
+        return ThinkingBlock(data=data["data"])
+    if block_type == "server_tool":
+        return ServerToolBlock(data=data["data"])
     if block_type == "tool_use":
-        return ToolUseBlock(id=data["id"], name=data["name"], input=data["input"])
+        return ToolUseBlock(
+            id=data["id"],
+            name=data["name"],
+            input=data["input"],
+            data=data.get("data"),
+        )
     if block_type == "tool_result":
         return ToolResultBlock(
             tool_use_id=data["tool_use_id"],
@@ -147,10 +244,16 @@ def _deserialize_block(data: dict) -> Block:
 
 def serialize_messages(messages: list[Message]) -> list[dict]:
     """Render a conversation to the JSON shape an ``AgentMessage`` would store."""
-    return [
-        {"role": m.role, "content": [_serialize_block(b) for b in m.content]}
-        for m in messages
-    ]
+    serialized = []
+    for message in messages:
+        item = {
+            "role": message.role,
+            "content": [_serialize_block(block) for block in message.content],
+        }
+        if message.provider_state:
+            item["provider_state"] = message.provider_state
+        serialized.append(item)
+    return serialized
 
 
 def deserialize_messages(data: list[dict]) -> list[Message]:
@@ -159,6 +262,7 @@ def deserialize_messages(data: list[dict]) -> list[Message]:
         Message(
             role=m["role"],
             content=[_deserialize_block(b) for b in m["content"]],
+            provider_state=m.get("provider_state") or {},
         )
         for m in data
     ]

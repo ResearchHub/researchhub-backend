@@ -56,6 +56,7 @@ dependencies = [
     "stripe>=11.2.0,<12.0.0",
     "web3>=7.16.0",
     "xdk>=0.4.5",
+    "anthropic[aws]>=0.120.0",
 ]
 
 [dependency-groups]

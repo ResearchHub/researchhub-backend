@@ -118,15 +118,55 @@ class AgentPersistenceContentTests(TestCase):
         blocks = serialize_messages([message])[0]["content"]
 
         # Act
-        content, is_compacted, original_size = serialize_context_message(message)
+        content, provider_state, is_compacted, original_size = (
+            serialize_context_message(message)
+        )
 
         # Assert
         self.assertFalse(is_compacted)
         self.assertEqual(content, blocks)
-        self.assertEqual(original_size, json_size_bytes(blocks))
+        self.assertEqual(provider_state, {})
+        self.assertEqual(
+            original_size,
+            json_size_bytes({"content": blocks, "provider_state": {}}),
+        )
+
+    def test_context_keeps_provider_state_for_resume(self):
+        # Arrange: Claude's request-level container state must survive beside
+        # the assistant content that created it.
+        message = Message(
+            role="assistant",
+            content=[TextBlock(text="working")],
+            provider_state={
+                "anthropic": {
+                    "container": {
+                        "id": "container_123",
+                        "expires_at": "2026-07-29T21:30:00Z",
+                    }
+                }
+            },
+        )
+
+        # Act
+        content, provider_state, is_compacted, _ = serialize_context_message(message)
+        restored = deserialize_messages(
+            [
+                {
+                    "role": message.role,
+                    "content": content,
+                    "provider_state": provider_state,
+                }
+            ]
+        )[0]
+
+        # Assert
+        self.assertFalse(is_compacted)
+        self.assertEqual(restored, message)
 
     def test_context_compacts_complete_message_over_limit(self):
-        # Arrange
+        # Arrange: only a missing upstream bound can produce a message this
+        # large, so the row keeps a marker the provider still accepts rather
+        # than a structure preserving content that is no longer there.
         message = Message(
             role="assistant",
             content=[
@@ -140,12 +180,41 @@ class AgentPersistenceContentTests(TestCase):
         blocks = serialize_messages([message])[0]["content"]
 
         # Act
-        content, is_compacted, original_size = serialize_context_message(message)
+        content, provider_state, is_compacted, original_size = (
+            serialize_context_message(message)
+        )
+
+        # Assert
+        self.assertTrue(is_compacted)
+        self.assertEqual(len(content), 1)
+        self.assertEqual(content[0]["type"], "text")
+        self.assertEqual(provider_state, {})
+        self.assertEqual(
+            original_size,
+            json_size_bytes({"content": blocks, "provider_state": {}}),
+        )
+        self.assertLessEqual(json_size_bytes(content), MAX_CONTEXT_MESSAGE_BYTES)
+        deserialize_messages([{"role": message.role, "content": content}])
+
+    def test_context_falls_back_to_text_when_state_alone_is_oversized(self):
+        # Arrange: the content fits but the state beside it does not, and the
+        # two are bounded together -- a turn resumed with one and not the other
+        # is not the turn that was recorded.
+        message = Message(
+            role="assistant",
+            content=[TextBlock(text="done")],
+            provider_state={"blob": "x" * (MAX_CONTEXT_MESSAGE_BYTES * 2)},
+        )
+
+        # Act
+        content, provider_state, is_compacted, _size = serialize_context_message(
+            message
+        )
 
         # Assert
         self.assertTrue(is_compacted)
         self.assertEqual(content[0]["type"], "text")
-        self.assertEqual(original_size, json_size_bytes(blocks))
+        self.assertEqual(provider_state, {})
         self.assertLessEqual(json_size_bytes(content), MAX_CONTEXT_MESSAGE_BYTES)
         deserialize_messages([{"role": message.role, "content": content}])
 

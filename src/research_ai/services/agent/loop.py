@@ -23,7 +23,9 @@ from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.recorder import AgentRecorder
 from research_ai.services.agent.tools import Toolset
 from research_ai.services.agent.types import (
+    AssistantTurn,
     Message,
+    ServerToolBlock,
     StopReason,
     TextBlock,
     ToolResultBlock,
@@ -76,6 +78,37 @@ def _summarize_result(result) -> str:
     return _truncate(repr(result))
 
 
+def _server_tool_name(data: dict) -> str:
+    """Tool name recovered from a server-side result block's type."""
+    return str(data.get("type") or "server_tool").removesuffix("_tool_result")
+
+
+def _summarize_server_result(content) -> str:
+    """One-line summary of a server-side tool result.
+
+    Search success carries a list of records, while other server tools return
+    typed dictionaries. Only an explicit ``error_code`` is an error. Successful
+    dictionaries are summarized from safe structural metadata so opaque replay
+    fields such as encrypted stdout never reach logs.
+    """
+    if isinstance(content, dict):
+        error_code = content.get("error_code")
+        if error_code:
+            return f"error: {_truncate(error_code, 120)}"
+
+        result_type = str(content.get("type") or "result")
+        details = []
+        if "return_code" in content:
+            details.append(f"return_code={content['return_code']}")
+        outputs = content.get("content")
+        if isinstance(outputs, (list, tuple)):
+            details.append(f"outputs={len(outputs)}")
+        return f"{result_type} ({', '.join(details)})" if details else result_type
+    if isinstance(content, (list, tuple)):
+        return f"[{len(content)} results]"
+    return _truncate(repr(content))
+
+
 @dataclass
 class AgentResult:
     """The outcome of an agent run.
@@ -120,8 +153,7 @@ class Agent:
     def run(self, user_prompt: str) -> AgentResult:
         """Drive a fresh conversation from ``user_prompt`` to completion."""
         seed = Message(role="user", content=[TextBlock(text=user_prompt)])
-        self._record("record_message", seed)
-        return self._drive([seed])
+        return self._drive([seed], new_message=seed)
 
     def continue_conversation(
         self,
@@ -135,20 +167,33 @@ class Agent:
         recorded by the runs that produced it.
         """
         appended = Message(role="user", content=[TextBlock(text=user_message)])
-        self._record("record_message", appended)
-        return self._drive(list(messages) + [appended])
+        return self._drive(list(messages) + [appended], new_message=appended)
 
-    def _record(self, hook: str, *args, **kwargs) -> None:
-        """Invoke a recorder hook; a raising recorder never breaks the run.
+    def _record_message(
+        self, message: Message, *, turn: AssistantTurn | None = None
+    ) -> None:
+        """Persist an appended message before the run advances.
 
-        The transcript is observability -- persistence failing must not kill
-        the run it observes (same contract as ``progress_callback``).
+        Ordinary observers remain best-effort. A recorder may opt into required
+        message persistence with ``requires_durable_messages``; the database
+        recorder uses that contract while isolating its optional trace writes.
         """
         if self.recorder is None:
             return
         try:
-            getattr(self.recorder, hook)(*args, **kwargs)
-        except Exception:  # noqa: BLE001 - recording must not break the run
+            self.recorder.record_message(message, turn=turn)
+        except Exception:  # noqa: BLE001 - observer failures are best-effort
+            if getattr(self.recorder, "requires_durable_messages", False):
+                raise
+            logger.warning("agent recorder record_message failed", exc_info=True)
+
+    def _record_terminal(self, hook: str, *args) -> None:
+        """Best-effort terminal observation must not mask the run outcome."""
+        if self.recorder is None:
+            return
+        try:
+            getattr(self.recorder, hook)(*args)
+        except Exception:  # noqa: BLE001 - preserve the original run outcome
             logger.warning("agent recorder %s failed", hook, exc_info=True)
 
     def _complete_turn(self, messages, rendered_tools, iteration):
@@ -166,6 +211,10 @@ class Agent:
             exc.messages = messages
             exc.iterations = iteration - 1
             raise
+        except InterruptedError:
+            # Preserve an explicit interruption so persistence can distinguish
+            # it from an ordinary provider failure.
+            raise
         except Exception as exc:
             # A provider that leaks a foreign exception still surfaces as
             # the typed contract, transcript attached.
@@ -174,6 +223,33 @@ class Agent:
                 messages=messages,
                 iterations=iteration - 1,
             ) from exc
+
+    def _log_server_tools(self, turn, iteration: int) -> None:
+        """Trace the tools the provider ran inside the turn.
+
+        Server-side calls never reach ``dispatch``, so without this the trace
+        would fall silent exactly where it used to show every search -- and a
+        provider-run search that returned nothing would be indistinguishable
+        from one the model never made.
+        """
+        for block in turn.content_blocks:
+            if not isinstance(block, ServerToolBlock):
+                continue
+            data = block.data or {}
+            if data.get("type") == "server_tool_use":
+                logger.info(
+                    "iter %d -> %s(%s) [server]",
+                    iteration,
+                    data.get("name"),
+                    _compact_args(data.get("input")),
+                )
+            else:
+                logger.info(
+                    "iter %d <- %s: %s [server]",
+                    iteration,
+                    _server_tool_name(data),
+                    _summarize_server_result(data.get("content")),
+                )
 
     def _dispatch_tool_calls(
         self, tool_calls, iteration: int
@@ -202,15 +278,16 @@ class Agent:
             )
         return result_blocks, stop
 
-    def _drive(self, messages: list[Message]) -> AgentResult:
+    def _drive(self, messages: list[Message], *, new_message: Message) -> AgentResult:
         try:
+            self._record_message(new_message)
             result = self._loop(messages)
-        except AgentRunError as error:
+        except Exception as error:
             # Every message up to the failure was already recorded as it was
             # appended; this only marks the terminal outcome.
-            self._record("on_run_failed", error)
+            self._record_terminal("on_run_failed", error)
             raise
-        self._record("on_run_finished", result)
+        self._record_terminal("on_run_finished", result)
         return result
 
     def _loop(self, messages: list[Message]) -> AgentResult:
@@ -223,17 +300,23 @@ class Agent:
 
         for iteration in range(1, self.max_iterations + 1):
             turn = self._complete_turn(messages, rendered_tools, iteration)
+            # The turn is replayed exactly as the provider sent it: reasoning
+            # blocks are signed and must lead, and a server-side tool's result
+            # must stay immediately after its request, so the run can neither
+            # re-order nor drop blocks here.
             assistant_message = Message(
                 role="assistant",
-                content=[*turn.text_blocks, *turn.tool_calls],
+                content=turn.replay_content,
+                provider_state=turn.provider_state,
             )
             messages.append(assistant_message)
-            self._record("record_message", assistant_message, turn=turn)
+            self._record_message(assistant_message, turn=turn)
 
             # The assistant's text on a tool-calling turn is its stated reason for
             # the calls -- log it so the trace shows *why* a tool was picked.
             if turn.text.strip():
                 logger.info("iter %d reasoning: %s", iteration, _truncate(turn.text))
+            self._log_server_tools(turn, iteration)
 
             if not turn.tool_calls and turn.stop_reason == StopReason.END_TURN:
                 # Model answered in plain text without calling a tool: done.
@@ -244,6 +327,16 @@ class Agent:
                     stop_reason=turn.stop_reason.value,
                     iterations=iteration,
                 )
+            if not turn.tool_calls and turn.stop_reason == StopReason.PAUSE_TURN:
+                # The provider spent its per-turn budget of server-side tool
+                # calls and handed the turn back mid-flight. Nothing is owed in
+                # reply: sending the conversation back with this turn appended
+                # and no user turn after it resumes where it left off. It counts
+                # as an iteration, which is what bounds a pathological pause
+                # loop. (A paused turn that *also* called a client tool falls
+                # through to the dispatch below -- those results resume it too.)
+                logger.info("iter %d pause_turn: resuming server-side work", iteration)
+                continue
             if not turn.tool_calls:
                 raise IncompleteTurnError(
                     "Provider stopped without completing the agent run: "
@@ -256,7 +349,7 @@ class Agent:
             result_blocks, stop = self._dispatch_tool_calls(turn.tool_calls, iteration)
             tool_result_message = Message(role="user", content=result_blocks)
             messages.append(tool_result_message)
-            self._record("record_message", tool_result_message)
+            self._record_message(tool_result_message)
 
             if stop:
                 logger.info("iter %d stop_tool: terminal tool ended the run", iteration)

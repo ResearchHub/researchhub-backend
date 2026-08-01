@@ -9,16 +9,16 @@ split into the provider-agnostic ``LLMProvider`` shape.
 import logging
 from typing import Any
 
-from django.conf import settings
-
 from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
     AssistantTurn,
+    Block,
     Message,
     StopReason,
     TextBlock,
+    ThinkingBlock,
     ToolResultBlock,
     ToolUseBlock,
     TurnUsage,
@@ -28,14 +28,28 @@ from utils.aws import bedrock_runtime_client
 logger = logging.getLogger(__name__)
 
 # Default generator model. Bedrock requires the cross-region inference profile
-# (the ``us.`` prefix); the bare ``anthropic.claude-opus-4-8`` is provisioned-
-# throughput only. Override per environment via RESEARCH_AI_GENERATOR_MODEL_ID.
-_DEFAULT_MODEL_ID = "us.anthropic.claude-opus-4-8"
+# (the ``us.`` prefix); the bare ``anthropic.claude-opus-5`` is provisioned-
+# throughput only. Callers that want a different model pass ``model_id``.
+MODEL_ID = "us.anthropic.claude-opus-5"
 
-# Opus 4.7+ and Fable reject sampling params (temperature/top_p/top_k) with a
-# 400 ("`temperature` is deprecated for this model"). Match by substring so the
-# provider omits them for those models.
-_NO_SAMPLING_PARAMS = ("opus-4-7", "opus-4-8", "fable")
+# Prompt caching is the dominant cost lever for this uncached, ever-growing tool
+# loop: the tools+system prefix is byte-identical every turn and the conversation
+# only grows by appending, so cache points turn full-price re-reads into ~0.1x
+# cache reads. On for Claude-on-Bedrock; a caller running a model without cache
+# support turns it off on the instance.
+PROMPT_CACHING = True
+
+# Opus 4.7+, Sonnet 5, and Fable reject sampling params (temperature/top_p/
+# top_k) with a 400 ("`temperature` is deprecated for this model"). Match by
+# substring so the provider omits them for those models.
+_NO_SAMPLING_PARAMS = (
+    "opus-4-7",
+    "opus-4-8",
+    "opus-5",
+    "sonnet-5",
+    "fable",
+    "mythos",
+)
 
 
 def _accepts_sampling_params(model_id: str) -> bool:
@@ -43,11 +57,14 @@ def _accepts_sampling_params(model_id: str) -> bool:
     return not any(tag in mid for tag in _NO_SAMPLING_PARAMS)
 
 
-# Bedrock Converse ``stopReason`` -> neutral ``StopReason``.
+# Bedrock Converse ``stopReason`` -> neutral ``StopReason``. Anything absent
+# here (``malformed_model_output``, ``malformed_tool_use``) falls through to
+# OTHER, which the loop reports as an incomplete turn.
 _STOP_REASONS = {
     "end_turn": StopReason.END_TURN,
     "tool_use": StopReason.TOOL_USE,
     "max_tokens": StopReason.MAX_TOKENS,
+    "model_context_window_exceeded": StopReason.MAX_TOKENS,
     "stop_sequence": StopReason.STOP_SEQUENCE,
     "content_filtered": StopReason.CONTENT_FILTERED,
     "guardrail_intervened": StopReason.CONTENT_FILTERED,
@@ -59,17 +76,8 @@ class BedrockProvider(LLMProvider):
 
     def __init__(self, *, client: Any = None, model_id: str | None = None):
         self._client = client or bedrock_runtime_client()
-        self.model_id = model_id or getattr(
-            settings, "RESEARCH_AI_GENERATOR_MODEL_ID", _DEFAULT_MODEL_ID
-        )
-        # Prompt caching is the dominant cost lever for this uncached, ever-growing
-        # tool loop: the tools+system prefix is byte-identical every turn and the
-        # conversation only grows by appending, so cache points turn full-price
-        # re-reads into ~0.1x cache reads. On by default for Claude-on-Bedrock;
-        # disable per-environment if a configured model does not support it.
-        self.prompt_caching = getattr(
-            settings, "RESEARCH_AI_BEDROCK_PROMPT_CACHING", True
-        )
+        self.model_id = model_id or MODEL_ID
+        self.prompt_caching = PROMPT_CACHING
 
     # -- public surface ---------------------------------------------------
 
@@ -157,6 +165,10 @@ class BedrockProvider(LLMProvider):
     def _render_block(self, block: Any) -> dict:
         if isinstance(block, TextBlock):
             return {"text": block.text}
+        if isinstance(block, ThinkingBlock):
+            # Replayed byte-for-byte: reasoning text is signed, and a turn
+            # replayed with it edited or missing fails validation.
+            return {"reasoningContent": dict(block.data)}
         if isinstance(block, ToolUseBlock):
             return {
                 "toolUse": {
@@ -181,24 +193,39 @@ class BedrockProvider(LLMProvider):
             raise ProviderError("Invalid Bedrock response: missing output message")
 
         text_blocks: list[TextBlock] = []
+        thinking_blocks: list[ThinkingBlock] = []
         tool_calls: list[ToolUseBlock] = []
+        # The turn in Converse's own order -- what the loop replays. The grouped
+        # lists are views onto these same blocks.
+        content_blocks: list[Block] = []
         for block in message.get("content", []):
+            parsed: Block
             if "text" in block:
-                text_blocks.append(TextBlock(text=block["text"]))
+                parsed = TextBlock(text=block["text"])
+                text_blocks.append(parsed)
+            elif "reasoningContent" in block:
+                # Kept whole (``reasoningText`` with its signature, or the
+                # ``redactedContent`` blob) so the next turn can replay it.
+                parsed = ThinkingBlock(data=block["reasoningContent"])
+                thinking_blocks.append(parsed)
             elif "toolUse" in block:
                 tool_use = block["toolUse"]
-                tool_calls.append(
-                    ToolUseBlock(
-                        id=tool_use["toolUseId"],
-                        name=tool_use["name"],
-                        input=tool_use.get("input") or {},
-                    )
+                parsed = ToolUseBlock(
+                    id=tool_use["toolUseId"],
+                    name=tool_use["name"],
+                    input=tool_use.get("input") or {},
                 )
+                tool_calls.append(parsed)
+            else:
+                continue
+            content_blocks.append(parsed)
 
         stop_reason = _STOP_REASONS.get(response.get("stopReason"), StopReason.OTHER)
         return AssistantTurn(
             text_blocks=text_blocks,
+            thinking_blocks=thinking_blocks,
             tool_calls=tool_calls,
+            content_blocks=content_blocks,
             stop_reason=stop_reason,
             raw=response,
             usage=self._parse_usage(response),
