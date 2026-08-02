@@ -50,6 +50,12 @@ class PreparedAgentExecution:
     context: list[Message]
 
 
+@dataclass(frozen=True)
+class QueuedAgentTurn:
+    execution: AgentExecution
+    human_message: AgentConversationMessage
+
+
 class AgentChatService:
     def __init__(
         self,
@@ -126,6 +132,61 @@ class AgentChatService:
             )
         return PreparedAgentExecution(
             recorder.execution, recorder, human_message, context
+        )
+
+    def prepare_queued_turn(
+        self,
+        conversation: AgentConversation,
+        human_content: str,
+        *,
+        provider: str = "",
+        model: str = "",
+        configuration: dict | None = None,
+        system_prompt: str = "",
+    ) -> QueuedAgentTurn:
+        """Persist a human turn and its unclaimed execution atomically."""
+        with transaction.atomic():
+            locked = AgentConversation.objects.select_for_update().get(
+                id=conversation.id
+            )
+            self.repair_pending_outputs(locked)
+            parent = self.contexts.latest_for_continuation(locked, include_partial=True)
+            if parent is not None:
+                self.contexts.seal_interrupted_tool_calls(parent)
+            human_message = self.conversations.add_human_message(locked, human_content)
+            execution = self.executions.create_pending(
+                locked,
+                provider=provider,
+                model=model,
+                configuration=configuration,
+                system_prompt=system_prompt,
+                trigger_message=human_message,
+                context_parent=parent,
+                publish_assistant_message=True,
+            )
+        return QueuedAgentTurn(execution, human_message)
+
+    def claim_turn(
+        self,
+        execution: AgentExecution,
+        *,
+        initial_prompt_provenance: str = AgentExecutionMessage.Provenance.BACKEND,
+    ) -> PreparedAgentExecution | None:
+        """Claim a queued turn and reconstruct the context its worker needs."""
+        recorder = self.executions.claim_pending(
+            execution,
+            initial_prompt_provenance=initial_prompt_provenance,
+            publish_assistant_message=None,
+        )
+        if recorder is None:
+            return None
+        context = (
+            self.contexts.reconstruct(execution.context_parent)
+            if execution.context_parent
+            else []
+        )
+        return PreparedAgentExecution(
+            execution, recorder, execution.trigger_message, context
         )
 
     @staticmethod

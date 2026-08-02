@@ -12,8 +12,15 @@ from research_ai.models import (
     AgentExecutionMessage,
     NoteAgentConversation,
 )
-from research_ai.services.agent.types import StopReason
+from research_ai.services.agent.types import (
+    Message,
+    StopReason,
+    TextBlock,
+    ToolResultBlock,
+    ToolUseBlock,
+)
 from research_ai.services.agent_persistence import (
+    AgentChatService,
     AgentContextService,
     AgentConversationService,
     AgentExecutionService,
@@ -222,6 +229,98 @@ class AgentPersistenceServiceTests(AgentPersistenceTestCase):
                 "cancelled question",
                 "partial answer",
             ],
+        )
+
+    def test_cancel_pending_prevents_claim_without_exposing_an_error(self):
+        # Arrange
+        chat = AgentChatService()
+        queued = chat.prepare_queued_turn(self.conversation, "Queued question")
+        service = AgentExecutionService()
+
+        # Act
+        cancelled = service.cancel(queued.execution)
+        claim = chat.claim_turn(queued.execution)
+        representation = chat.representation(self.conversation)
+
+        # Assert
+        self.assertTrue(cancelled)
+        self.assertIsNone(claim)
+        queued.execution.refresh_from_db()
+        self.assertEqual(queued.execution.status, AgentExecution.Status.CANCELLED)
+        self.assertEqual(queued.execution.stop_reason, "cancelled")
+        self.assertIsNotNone(queued.execution.finished_at)
+        self.assertIsNotNone(queued.execution.last_activity_at)
+        self.assertIsNone(representation["executions"][0]["error"])
+
+    def test_cancel_running_interrupts_the_next_context_write(self):
+        # Arrange
+        recorder = self.recorder()
+        recorder.record_message(
+            Message(role="user", content=[TextBlock(text="Question")])
+        )
+        service = AgentExecutionService()
+
+        # Act
+        cancelled = service.cancel(recorder.execution)
+        with self.assertRaises(InterruptedError):
+            recorder.record_message(
+                Message(role="assistant", content=[TextBlock(text="Late answer")])
+            )
+        recorder.on_run_failed(InterruptedError("cancel observed"))
+
+        # Assert
+        self.assertTrue(cancelled)
+        execution = AgentExecution.objects.get(id=recorder.execution.id)
+        self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+        self.assertEqual(execution.stop_reason, "cancelled")
+        self.assertEqual(execution.context_messages.count(), 1)
+
+    def test_cancel_terminal_execution_returns_false(self):
+        # Arrange
+        recorder = self.recorder()
+        agent(FakeProvider([text_turn("Answer")]), recorder).run("Question")
+
+        # Act
+        cancelled = AgentExecutionService().cancel(recorder.execution)
+
+        # Assert
+        self.assertFalse(cancelled)
+        execution = AgentExecution.objects.get(id=recorder.execution.id)
+        self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
+        self.assertNotEqual(execution.stop_reason, "cancelled")
+
+    def test_follow_up_queued_turn_resumes_cancelled_context_with_a_seal(self):
+        # Arrange
+        chat = AgentChatService()
+        queued = chat.prepare_queued_turn(self.conversation, "First question")
+        claimed = chat.claim_turn(queued.execution)
+        self.assertIsNotNone(claimed)
+        claimed.recorder.record_message(
+            Message(role="user", content=[TextBlock(text="First question")])
+        )
+        claimed.recorder.record_message(
+            Message(
+                role="assistant",
+                content=[ToolUseBlock(id="call-1", name="lookup", input={})],
+            )
+        )
+        AgentExecutionService().cancel(claimed.execution)
+
+        # Act
+        follow_up = chat.prepare_queued_turn(self.conversation, "Second question")
+        prepared = chat.claim_turn(follow_up.execution)
+
+        # Assert
+        self.assertIsNotNone(prepared)
+        self.assertEqual(follow_up.execution.context_parent_id, claimed.execution.id)
+        self.assertEqual(
+            [
+                block.tool_use_id
+                for message in prepared.context
+                for block in message.content
+                if isinstance(block, ToolResultBlock)
+            ],
+            ["call-1"],
         )
 
     def test_continuation_without_terminal_runs_is_empty(self):

@@ -235,3 +235,20 @@ class AgentExecutionService:
             initial_prompt_provenance=initial_prompt_provenance,
             publish_assistant_message=publish_assistant_message,
         )
+
+    def cancel(self, execution: AgentExecution) -> bool:
+        """Cancel an active execution without overwriting a terminal state."""
+        now = timezone.now()
+        updated = AgentExecution.objects.filter(
+            id=execution.id,
+            status__in=[
+                AgentExecution.Status.PENDING,
+                AgentExecution.Status.RUNNING,
+            ],
+        ).update(
+            status=AgentExecution.Status.CANCELLED,
+            stop_reason="cancelled",
+            finished_at=now,
+            last_activity_at=now,
+        )
+        return bool(updated)

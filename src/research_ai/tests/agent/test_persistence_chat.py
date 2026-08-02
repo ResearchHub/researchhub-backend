@@ -324,6 +324,138 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
             AgentExecution.Status.RUNNING,
         )
 
+    def test_prepare_queued_turn_persists_the_question_and_pending_execution(self):
+        # Arrange
+        chat = AgentChatService()
+
+        # Act
+        queued = chat.prepare_queued_turn(
+            self.conversation,
+            "Queued question",
+            provider="fake",
+            model="queued-model",
+            configuration={"temperature": 0.2},
+            system_prompt="queued system prompt",
+        )
+        representation = chat.representation(self.conversation)
+
+        # Assert
+        queued.execution.refresh_from_db()
+        self.assertEqual(queued.human_message.sequence, 1)
+        self.assertEqual(queued.human_message.content, "Queued question")
+        self.assertEqual(queued.execution.status, AgentExecution.Status.PENDING)
+        self.assertEqual(queued.execution.trigger_message_id, queued.human_message.id)
+        self.assertEqual(queued.execution.provider, "fake")
+        self.assertEqual(queued.execution.model, "queued-model")
+        self.assertEqual(queued.execution.configuration, {"temperature": 0.2})
+        self.assertEqual(queued.execution.system_prompt, "queued system prompt")
+        self.assertTrue(queued.execution.publish_output_to_chat)
+        self.assertEqual(
+            [message["content"] for message in representation["messages"]],
+            ["Queued question"],
+        )
+        self.assertEqual(
+            representation["executions"][0]["status"],
+            AgentExecution.Status.PENDING,
+        )
+
+    def test_active_queued_turn_blocks_a_second_question(self):
+        # Arrange
+        chat = AgentChatService()
+        chat.prepare_queued_turn(self.conversation, "First")
+
+        # Act / Assert
+        with self.assertRaises(AgentConversationBusyError):
+            chat.prepare_queued_turn(self.conversation, "Second")
+        self.assertEqual(self.conversation.chat_messages.count(), 1)
+        self.assertEqual(self.conversation.executions.count(), 1)
+
+    def test_claimed_queued_turn_runs_and_publishes_its_answer(self):
+        # Arrange
+        chat = AgentChatService()
+        queued = chat.prepare_queued_turn(self.conversation, "Queued question")
+
+        # Act
+        prepared = chat.claim_turn(queued.execution)
+        self.assertIsNotNone(prepared)
+        agent(FakeProvider([text_turn("Queued answer")]), prepared.recorder).run(
+            "Queued question"
+        )
+        repeated_claim = chat.claim_turn(queued.execution)
+        representation = chat.representation(self.conversation)
+
+        # Assert
+        self.assertIsNone(repeated_claim)
+        self.assertEqual(prepared.human_message, queued.human_message)
+        self.assertEqual(prepared.context, [])
+        self.assertEqual(
+            [message["content"] for message in representation["messages"]],
+            ["Queued question", "Queued answer"],
+        )
+        queued.execution.refresh_from_db()
+        self.assertTrue(queued.execution.publish_output_to_chat)
+        self.assertEqual(queued.execution.status, AgentExecution.Status.SUCCEEDED)
+        self.assertEqual(
+            queued.execution.messages.get(execution_sequence=1).provenance,
+            AgentExecutionMessage.Provenance.BACKEND,
+        )
+
+    def test_queued_claim_reconstructs_failed_parent_with_sealed_tool_call(self):
+        # Arrange
+        chat = AgentChatService()
+        failed = chat.prepare_turn(self.conversation, "First question")
+        failed.recorder.record_message(
+            Message(role="user", content=[TextBlock(text="First question")])
+        )
+        failed.recorder.record_message(
+            Message(
+                role="assistant",
+                content=[ToolUseBlock(id="call-1", name="lookup", input={})],
+            )
+        )
+        failed.recorder.on_run_failed(RuntimeError("provider stopped"))
+
+        # Act
+        queued = chat.prepare_queued_turn(self.conversation, "Second question")
+        claimed = chat.claim_turn(queued.execution)
+
+        # Assert
+        self.assertIsNotNone(claimed)
+        self.assertEqual(queued.execution.context_parent_id, failed.execution.id)
+        self.assertEqual(
+            [
+                block.tool_use_id
+                for message in claimed.context
+                for block in message.content
+                if isinstance(block, ToolResultBlock)
+            ],
+            ["call-1"],
+        )
+
+    def test_queued_turn_repairs_an_answer_before_sequencing_its_question(self):
+        # Arrange
+        chat = AgentChatService()
+        first = chat.prepare_turn(self.conversation, "Question A")
+        with patch.object(
+            DatabaseAgentRecorder,
+            "publish_assistant_output",
+            side_effect=IntegrityError("chat insert failed"),
+        ):
+            agent(FakeProvider([text_turn("Answer A")]), first.recorder).run(
+                "Question A"
+            )
+
+        # Act
+        queued = chat.prepare_queued_turn(self.conversation, "Question B")
+        representation = chat.representation(self.conversation)
+
+        # Assert
+        self.assertEqual(queued.human_message.sequence, 3)
+        self.assertEqual(
+            [message["content"] for message in representation["messages"]],
+            ["Question A", "Answer A", "Question B"],
+        )
+
     def test_new_turn_keeps_the_prompt_of_a_run_that_failed(self):
         # Arrange: the second turn fails after recording its own prompt
         chat = AgentChatService()
