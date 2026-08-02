@@ -7,6 +7,7 @@ from django.db.models import JSONField
 
 from discussion.models import Vote
 from paper.related_models.citation_model import Citation
+from reputation.related_models.contribution_weight import ContributionWeight
 from utils.models import DefaultModel
 
 ALGORITHM_VERSION = 2
@@ -182,6 +183,18 @@ class ScoreChange(DefaultModel):
         "reputation.Score", on_delete=models.CASCADE, db_index=True
     )
     created_date = models.DateTimeField(auto_now_add=True, db_index=True)
+    contribution_type = models.CharField(
+        max_length=50,
+        default='UPVOTE',
+        db_index=True,
+        help_text='Type of contribution that triggered this score change',
+    )
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['score', 'contribution_type'], name='idx_score_contribution_type'),
+            models.Index(fields=['contribution_type', 'created_date'], name='idx_contribution_type_date'),
+        ]
 
     @classmethod
     def get_latest_score_change(cls, score, algorithm_variables=None):
@@ -287,6 +300,7 @@ class ScoreChange(DefaultModel):
             changed_object_field="citations",
             variable_counts=current_variable_counts,
             score=score,
+            contribution_type=ContributionWeight.CITATION,
         )
         score_change.save()
 
@@ -327,6 +341,11 @@ class ScoreChange(DefaultModel):
 
         current_rep = previous_score + score_value_change
 
+        contribution_type = (
+            ContributionWeight.UPVOTE if raw_value_change > 0 
+            else ContributionWeight.DOWNVOTE
+        )
+
         score_change = cls(
             algorithm_version=ALGORITHM_VERSION,
             algorithm_variables=algorithm_variables,
@@ -338,6 +357,7 @@ class ScoreChange(DefaultModel):
             changed_object_field="vote_type",
             variable_counts=current_variable_counts,
             score=score,
+            contribution_type=contribution_type,
         )
         score_change.save()
 
