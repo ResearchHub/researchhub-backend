@@ -1,35 +1,62 @@
-from django.contrib.auth.models import AnonymousUser
-from django.test import RequestFactory, TestCase
+from datetime import timedelta
+from decimal import Decimal
 
-from research_ai.permissions import ResearchAIPermission
-from user.tests.helpers import create_random_authenticated_user
+from django.test import TestCase
+from django.utils import timezone
+
+from purchase.models import Grant
+from research_ai.permissions import (
+    can_manage_grant,
+    can_view_invited_experts_list,
+)
+from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import GRANT
+from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 
-class ResearchAIPermissionTests(TestCase):
+class InvitedExpertsAccessTests(TestCase):
     def setUp(self):
-        self.factory = RequestFactory()
-        self.permission = ResearchAIPermission()
+        self.creator = create_random_authenticated_user("perm_creator")
+        self.contact = create_random_authenticated_user("perm_contact")
+        self.other = create_random_authenticated_user("perm_other")
+        self.moderator = create_random_authenticated_user("perm_mod", moderator=True)
+        post = create_post(created_by=self.creator, document_type=GRANT)
+        self.grant = Grant.objects.create(
+            created_by=self.creator,
+            unified_document=post.unified_document,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Org",
+            description="Desc",
+            status=Grant.OPEN,
+            end_date=timezone.now() + timedelta(days=30),
+        )
+        self.grant.contacts.add(self.contact)
+        self.ud_id = post.unified_document_id
 
-    def test_anonymous_user_denied(self):
-        request = self.factory.get("/")
-        request.user = AnonymousUser()
-        self.assertFalse(request.user.is_authenticated)
-        self.assertFalse(self.permission.has_permission(request, None))
+    def test_can_manage_grant_for_creator_contact_and_moderator(self):
+        self.assertTrue(can_manage_grant(self.moderator, self.grant))
+        self.assertTrue(can_manage_grant(self.creator, self.grant))
+        self.assertTrue(can_manage_grant(self.contact, self.grant))
+        self.assertFalse(can_manage_grant(self.other, self.grant))
 
-    def test_authenticated_user_allowed(self):
-        user = create_random_authenticated_user("auth")
-        request = self.factory.get("/")
-        request.user = user
-        self.assertTrue(request.user.is_authenticated)
-        self.assertTrue(self.permission.has_permission(request, None))
+    def test_can_view_invited_experts_list_for_grant_stakeholders(self):
+        self.assertTrue(
+            can_view_invited_experts_list(self.creator, unified_document_id=self.ud_id)
+        )
+        self.assertTrue(
+            can_view_invited_experts_list(self.contact, unified_document_id=self.ud_id)
+        )
+        self.assertFalse(
+            can_view_invited_experts_list(self.other, unified_document_id=self.ud_id)
+        )
 
-    def test_is_authorized_anonymous_false(self):
-        request = self.factory.get("/")
-        request.user = AnonymousUser()
-        self.assertFalse(self.permission.is_authorized(request, None, None))
-
-    def test_is_authorized_authenticated_true(self):
-        user = create_random_authenticated_user("auth")
-        request = self.factory.get("/")
-        request.user = user
-        self.assertTrue(self.permission.is_authorized(request, None, None))
+    def test_can_view_invited_experts_list_without_document_requires_editor(self):
+        editor, _ = create_hub_editor("perm_editor", "perm_hub")
+        self.assertTrue(
+            can_view_invited_experts_list(self.moderator, unified_document_id=None)
+        )
+        self.assertTrue(can_view_invited_experts_list(editor, unified_document_id=None))
+        self.assertFalse(
+            can_view_invited_experts_list(self.creator, unified_document_id=None)
+        )
