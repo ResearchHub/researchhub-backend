@@ -7,7 +7,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from note.models import NoteContent
-from note.services.editable_note import UnsupportedEditableNoteError
 from note.services.note_content_service import (
     NoteContentService,
     NoteEditBlocked,
@@ -70,7 +69,6 @@ class NoteContentServiceTests(TestCase):
         version = self.service.save_version(
             self.note,
             self.doc,
-            plain_text="Updated note\n\nUpdated",
             user=self.user,
             expected_version_id=self.initial_version.id,
         )
@@ -90,7 +88,6 @@ class NoteContentServiceTests(TestCase):
         current = self.service.save_version(
             self.note,
             self.doc,
-            plain_text="Updated note\n\nUpdated",
             user=self.user,
             expected_version_id=self.initial_version.id,
         )
@@ -100,7 +97,6 @@ class NoteContentServiceTests(TestCase):
             self.service.save_version(
                 self.note,
                 self.doc,
-                plain_text="Updated note\n\nUpdated",
                 user=self.user,
                 expected_version_id=self.initial_version.id,
             )
@@ -118,7 +114,6 @@ class NoteContentServiceTests(TestCase):
             self.service.save_version(
                 self.note,
                 self.doc,
-                plain_text="Updated note\n\nUpdated",
                 user=other_user,
                 expected_version_id=self.initial_version.id,
             )
@@ -140,7 +135,6 @@ class NoteContentServiceTests(TestCase):
         version = self.service.save_version(
             self.note,
             self.doc,
-            plain_text="Updated note\n\nUpdated",
             user=editor,
             expected_version_id=self.initial_version.id,
         )
@@ -172,7 +166,6 @@ class NoteContentServiceTests(TestCase):
         version = self.service.save_version(
             self.note,
             self.doc,
-            plain_text="Updated note\n\nUpdated",
             user=member,
             expected_version_id=self.initial_version.id,
         )
@@ -195,34 +188,36 @@ class NoteContentServiceTests(TestCase):
             self.service.save_version(
                 self.note,
                 self.doc,
-                plain_text="Updated note\n\nUpdated",
                 user=self.user,
                 expected_version_id=self.initial_version.id,
             )
 
-    def test_save_version_rejects_non_editable_note_without_writing(self):
+    def test_save_version_derives_plain_text_from_unsupported_blocks(self):
         # Arrange
-        legacy_doc = {
+        doc = {
             "type": "doc",
             "content": [
-                {"type": "paragraph"},
-                {"type": "paragraph"},
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Visible"}],
+                },
+                {
+                    "type": "table",
+                    "content": [{"type": "text", "text": "Preserved"}],
+                },
             ],
         }
-        initial_count = NoteContent.objects.filter(note=self.note).count()
 
-        # Act / Assert
-        with self.assertRaises(UnsupportedEditableNoteError):
-            self.service.save_version(
-                self.note,
-                legacy_doc,
-                plain_text="Legacy",
-                user=self.user,
-                expected_version_id=self.initial_version.id,
-            )
-        self.assertEqual(
-            NoteContent.objects.filter(note=self.note).count(), initial_count
+        # Act
+        version = self.service.save_version(
+            self.note,
+            doc,
+            user=self.user,
+            expected_version_id=self.initial_version.id,
         )
+
+        # Assert
+        self.assertEqual(version.plain_text, "Visible\n\nPreserved")
 
     @patch("note.related_models.note_model.Note.notify_note_updated_title")
     def test_set_title_updates_and_notifies(self, notify):
