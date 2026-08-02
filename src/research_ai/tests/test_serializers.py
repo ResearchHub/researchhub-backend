@@ -442,21 +442,50 @@ class GeneratedEmailSerializerTests(TestCase):
         self.assertEqual(ser.data["expert_email"], "foo@bar.com")
         self.assertEqual(ser.data["email_body"], "Body")
         self.assertEqual(ser.data["sources"], [])
-        self.assertEqual(ser.data["channel"], "")
+        self.assertEqual(ser.data["channels"], [])
 
-    def test_create_update_requires_channel_when_status_sent(self):
+    def test_marking_outreach_sent_requires_at_least_one_channel(self):
         from research_ai.serializers import GeneratedEmailCreateUpdateSerializer
 
-        ser = GeneratedEmailCreateUpdateSerializer(
+        # Arrange / Act
+        without_channels = GeneratedEmailCreateUpdateSerializer(
             data={"status": "sent"},
         )
-        self.assertFalse(ser.is_valid())
-        self.assertIn("channel", ser.errors)
-
-        ser = GeneratedEmailCreateUpdateSerializer(
-            data={"status": "sent", "channel": "other"},
+        with_channel = GeneratedEmailCreateUpdateSerializer(
+            data={"status": "sent", "channels": ["x"]},
         )
+
+        # Assert
+        self.assertFalse(without_channels.is_valid())
+        self.assertIn("channels", without_channels.errors)
+        self.assertTrue(with_channel.is_valid(), with_channel.errors)
+
+    def test_outreach_can_be_marked_sent_via_multiple_channels(self):
+        from research_ai.serializers import GeneratedEmailCreateUpdateSerializer
+
+        # Arrange / Act
+        ser = GeneratedEmailCreateUpdateSerializer(
+            data={
+                "status": "sent",
+                "channels": ["email", "linkedin", "email"],
+            },
+        )
+
+        # Assert: accepts multiple channels and dedupes while preserving order
         self.assertTrue(ser.is_valid(), ser.errors)
+        self.assertEqual(ser.validated_data["channels"], ["email", "linkedin"])
+
+    def test_rejects_unsupported_outreach_channel(self):
+        from research_ai.serializers import GeneratedEmailCreateUpdateSerializer
+
+        # Arrange / Act
+        ser = GeneratedEmailCreateUpdateSerializer(
+            data={"status": "sent", "channels": ["other"]},
+        )
+
+        # Assert: only email, linkedin, and x are allowed
+        self.assertFalse(ser.is_valid())
+        self.assertIn("channels", ser.errors)
 
     def test_serialize_includes_sources_from_search_expert(self):
         sources = [{"text": "Keep", "url": "https://keep.example"}]

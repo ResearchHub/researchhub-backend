@@ -342,7 +342,7 @@ def _resolved_expert_dict_for_bulk(rec: GeneratedEmail) -> dict:
         "affiliation": rec.expert_affiliation or "",
         "expertise": rec.expertise or "",
         "email": (rec.expert_email or "").strip(),
-        "notes": rec.notes or "",
+        "notes": "",
     }
 
 
@@ -505,7 +505,7 @@ def send_queued_emails_task(
             )
             GeneratedEmail.objects.filter(id=rec.id).update(
                 status=GeneratedEmail.Status.SENT,
-                channel=GeneratedEmail.Channel.EMAIL,
+                channels=[GeneratedEmail.Channel.EMAIL],
                 ses_message_id=ses_message_id or "",
                 updated_date=timezone.now(),
             )

@@ -862,8 +862,7 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "email_body",
             "template",
             "status",
-            "channel",
-            "notes",
+            "channels",
             "opened_at",
             "open_count",
             "bounced_at",
@@ -917,6 +916,12 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
 class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
     """Create or update GeneratedEmail (e.g. mark sent, edit body)."""
 
+    channels = serializers.ListField(
+        child=serializers.ChoiceField(choices=GeneratedEmail.Channel.choices),
+        required=False,
+        allow_empty=True,
+    )
+
     class Meta:
         model = GeneratedEmail
         fields = [
@@ -930,8 +935,7 @@ class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
             "email_body",
             "template",
             "status",
-            "channel",
-            "notes",
+            "channels",
         ]
         extra_kwargs = {
             "expert_search": {"required": False},
@@ -944,9 +948,10 @@ class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
             "email_body": {"required": False},
             "template": {"required": False},
             "status": {"required": False},
-            "channel": {"required": False, "allow_blank": True},
-            "notes": {"required": False},
         }
+
+    def validate_channels(self, value):
+        return list(dict.fromkeys(value))
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -954,16 +959,16 @@ class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
             "status",
             getattr(self.instance, "status", GeneratedEmail.Status.DRAFT),
         )
-        channel = attrs.get(
-            "channel",
-            getattr(self.instance, "channel", "") if self.instance else "",
+        channels = attrs.get(
+            "channels",
+            getattr(self.instance, "channels", []) if self.instance else [],
         )
-        if new_status == GeneratedEmail.Status.SENT and not channel:
+        if new_status == GeneratedEmail.Status.SENT and not channels:
             raise serializers.ValidationError(
                 {
-                    "channel": (
+                    "channels": (
                         "Required when marking outreach as sent. "
-                        "Use one of: email, linkedin, x, other."
+                        "Use one or more of: email, linkedin, x."
                     )
                 }
             )
