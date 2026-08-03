@@ -49,8 +49,8 @@ class UserSignupService:
             self.mailchimp_client.lists.add_list_member(
                 settings.MAILCHIMP_LIST_ID, member_info
             )
-        except Exception as e:
-            logger.error(f"Failed to add user {user.id} to MailChimp: {e}")
+        except Exception:
+            logger.exception("Failed to add user %s to MailChimp", user.id)
 
     def track_signup(self, request, user, **kwargs):
         """
@@ -70,8 +70,8 @@ class UserSignupService:
             res = TempResponse(user)
             view = TempView()
             self.amplitude_client.build_hit(res, view, request, **kwargs)
-        except Exception as e:
-            logger.error(f"Failed to track signup for user {user.id} in Amplitude: {e}")
+        except Exception:
+            logger.exception("Failed to track signup for user %s in Amplitude", user.id)
 
     def set_google_profile_image(self, user):
         """
@@ -82,7 +82,7 @@ class UserSignupService:
         except SocialAccount.DoesNotExist:
             return
         except SocialAccount.MultipleObjectsReturned:
-            logger.error(f"User {user.id} has multiple Google social accounts")
+            logger.exception("User %s has multiple Google social accounts", user.id)
             return
 
         picture_url = google_account.extra_data.get("picture")
