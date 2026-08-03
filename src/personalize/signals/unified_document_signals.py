@@ -33,7 +33,7 @@ def sync_unified_document_to_personalize(sender, instance, action, pk_set, **kwa
 
     try:
         sync_unified_document_to_personalize_task.delay(instance.id)
-    except Exception as e:
-        logger.error(
-            f"Failed to queue personalize sync for unified_document {instance.id}: {e}"
+    except Exception:
+        logger.exception(
+            "Failed to queue personalize sync for unified_document %s", instance.id
         )

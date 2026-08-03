@@ -68,7 +68,7 @@ class SyncClient:
                 batch_num = i // self.BATCH_SIZE + 1
                 error_msg = f"Failed to send event batch {batch_num}: {str(e)}"
                 errors.append(error_msg)
-                logger.error(f"[AWS Personalize] {error_msg}")
+                logger.exception("[AWS Personalize] %s", error_msg)
 
         return {
             "success": failed == 0,
