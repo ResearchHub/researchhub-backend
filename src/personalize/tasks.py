@@ -131,7 +131,7 @@ def sync_interaction_event_to_personalize_task(interaction_id):
         not interaction.user_id and not interaction.external_user_id
     ):
         logger.warning(
-            "UserInteraction %s missing required fields, skipping Personalize event sync",
+            "Skipping event: UserInteraction %s missing required fields",
             interaction_id,
         )
         return

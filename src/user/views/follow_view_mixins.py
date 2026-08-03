@@ -212,11 +212,13 @@ class FollowViewActionMixin:
                 results["unfollowed"].append(self._serialize_item_for_bulk(item))
             except Follow.DoesNotExist:
                 results["not_following"].append(self._serialize_item_for_bulk(item))
-            except Exception as e:
+            except Exception:
                 # Log the error but don't include in response
                 logger.exception(
-                    f"Error unfollowing {model.__name__} {item.id} "
-                    f"for user {user.id}: {str(e)}"
+                    "Error unfollowing %s %s for user %s",
+                    model.__name__,
+                    item.id,
+                    user.id,
                 )
 
         return Response(results, status=status.HTTP_200_OK)
