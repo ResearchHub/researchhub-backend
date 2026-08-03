@@ -425,17 +425,6 @@ SOCIALACCOUNT_PROVIDERS = {
     },
 }
 
-
-GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/google/login/callback/"
-if PRODUCTION:
-    GOOGLE_REDIRECT_URL = (
-        "https://backend.prod.researchhub.com/auth/google/login/callback/"
-    )
-if STAGING:
-    GOOGLE_REDIRECT_URL = (
-        "https://backend.staging.researchhub.com/auth/google/login/callback/"
-    )
-
 ORCID_CLIENT_ID = os.environ.get(
     "ORCID_CLIENT_ID", getattr(keys, "ORCID_CLIENT_ID", "")
 )
