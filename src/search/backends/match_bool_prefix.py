@@ -51,6 +51,6 @@ class MatchBoolPrefixBackend:
             return search.execute()
         except Exception:
             logger.exception(
-                f"Error executing match_bool_prefix query on {index_name}"
+                "Error executing match_bool_prefix query on %s", index_name
             )
             raise
