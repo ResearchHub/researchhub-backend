@@ -124,5 +124,7 @@ def _get_generated_email(ses_message_id: str) -> GeneratedEmail | None:
     except GeneratedEmail.DoesNotExist:
         return None
     except GeneratedEmail.MultipleObjectsReturned:
-        logger.error("Multiple GeneratedEmail for SES message ID=%s", ses_message_id)
+        logger.exception(
+            "Multiple GeneratedEmail for SES message ID=%s", ses_message_id
+        )
         return None

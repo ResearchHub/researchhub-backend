@@ -105,13 +105,15 @@ def send_author_update_email_notifications(comment_id, follower_user_ids):
                     context,
                     html_template="general_email_message.html",
                 )
-            except Exception as e:
+            except Exception:
                 # Log individual user failures but continue with others
-                logger.error(
-                    f"Failed to send author update email to user {user_id}: {e}"
+                logger.exception(
+                    "Failed to send author update email to user %s",
+                    user_id,
                 )
 
-    except Exception as e:
-        logger.error(
-            f"Failed to send author update emails for comment {comment_id}: {e}"
+    except Exception:
+        logger.exception(
+            "Failed to send author update emails for comment %s",
+            comment_id,
         )

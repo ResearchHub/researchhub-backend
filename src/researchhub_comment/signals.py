@@ -66,8 +66,8 @@ def create_author_update_notification(sender, instance, created, **kwargs):
 
     try:
         _create_author_update_notification(instance)
-    except Exception as e:
-        logger.error(f"Failed to create author update notification: {e}")
+    except Exception:
+        logger.exception("Failed to create author update notification")
 
 
 def _create_author_update_notification(comment: RhCommentModel):
@@ -118,8 +118,8 @@ def reward_preregistration_update(sender, instance, created, **kwargs):
 
     try:
         _reward_preregistration_update(instance)
-    except Exception as e:
-        logger.error(f"Failed to reward preregistration update: {e}")
+    except Exception:
+        logger.exception("Failed to reward preregistration update")
 
 
 def _reward_preregistration_update(comment: RhCommentModel):
@@ -201,5 +201,5 @@ def _reward_preregistration_update(comment: RhCommentModel):
                 timestamp=time.time(),
             )
             distributor.distribute()
-    except Exception as e:
-        logger.error(f"Failed to distribute preregistration update reward: {e}")
+    except Exception:
+        logger.exception("Failed to distribute preregistration update reward")

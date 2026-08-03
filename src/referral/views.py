@@ -268,8 +268,8 @@ class ReferralAssignmentViewSet(viewsets.ViewSet):
                 status=status.HTTP_201_CREATED,
             )
 
-        except Exception as e:
-            logger.error(f"Error adding referral code: {e}")
+        except Exception:
+            logger.exception("Error adding referral code")
             return Response(
                 {
                     "detail": (
