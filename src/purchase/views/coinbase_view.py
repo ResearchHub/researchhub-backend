@@ -70,10 +70,10 @@ class CoinbaseViewSet(viewsets.ViewSet):
                 },
                 status=status.HTTP_200_OK,
             )
-        except ValueError:
+        except ValueError as e:
             logger.exception("Validation error generating onramp URL")
             return Response(
-                {"error": "Validation error generating onramp URL"},
+                {"error": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception:
