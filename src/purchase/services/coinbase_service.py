@@ -238,8 +238,8 @@ class CoinbaseService:
 
             return response.json()
 
-        except requests.RequestException as e:
-            logger.error(f"Failed to create session token: {e}")
+        except requests.RequestException:
+            logger.exception("Failed to create session token")
             raise
 
     def generate_onramp_url(

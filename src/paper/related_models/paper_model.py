@@ -317,8 +317,8 @@ class Paper(AbstractGenericReactionModel):
 
                 if csl_item:
                     break
-            except Exception as e:
-                logger.error(f"Error getting csl_item for paper {self.id}: {e}")
+            except Exception:
+                logger.exception("Error getting csl_item for paper %s", self.id)
 
         if not csl_item:
             return None
@@ -327,8 +327,8 @@ class Paper(AbstractGenericReactionModel):
         try:
             unpaywall = Unpaywall.from_csl_item(csl_item)
             best_openly_licensed_pdf = unpaywall.best_openly_licensed_pdf
-        except Exception as e:
-            logger.error(f"Error getting openly licensed pdf for paper {self.id}: {e}")
+        except Exception:
+            logger.exception("Error getting openly licensed pdf for paper %s", self.id)
 
         if not best_openly_licensed_pdf:
             return None

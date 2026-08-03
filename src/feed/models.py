@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.serializers.json import DjangoJSONEncoder
@@ -11,6 +13,8 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from user.models import User
 from user.related_models.author_model import Author
 from utils.models import DefaultModel
+
+logger = logging.getLogger(__name__)
 
 
 class HotScoreV2Breakdown(models.Model):
@@ -219,12 +223,8 @@ class FeedEntry(DefaultModel):
             # Return the score
             return calc_data["final_score"]
 
-        except Exception as e:
-            import logging
-
-            logging.getLogger(__name__).error(
-                f"Error calculating hot score v2 for entry {self.id}: {e}"
-            )
+        except Exception:
+            logger.exception("Error calculating hot score v2 for entry %s", self.id)
             try:
                 if self.hot_score_breakdown_v2:
                     self.hot_score_breakdown_v2.delete()

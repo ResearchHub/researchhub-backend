@@ -69,7 +69,7 @@ def enrich_papers_with_openalex(self, days: int = 30, retry: int = 0):
             # Retry in case of failure
             self.retry(args=[days, retry + 1], exc=e, countdown=60 * (retry + 1))
         except MaxRetriesExceededError:
-            logger.error("Max retries exceeded for OpenAlex enrichment task")
+            logger.exception("Max retries exceeded for OpenAlex enrichment task")
             raise
 
 
@@ -127,7 +127,7 @@ def enrich_paper_with_github_metrics(self, paper_id: int, retry: int = 0):
     try:
         paper = Paper.objects.get(id=paper_id)
     except Paper.DoesNotExist:
-        logger.error(f"Paper {paper_id} not found")
+        logger.exception(f"Paper {paper_id} not found")
         return {
             "status": "error",
             "paper_id": paper_id,
@@ -251,7 +251,7 @@ def enrich_paper_with_bluesky_metrics(self, paper_id: int, retry: int = 0):
     try:
         paper = Paper.objects.get(id=paper_id)
     except Paper.DoesNotExist:
-        logger.error(f"Paper {paper_id} not found")
+        logger.exception(f"Paper {paper_id} not found")
         return {
             "status": "error",
             "paper_id": paper_id,
@@ -311,7 +311,7 @@ def enrich_paper_with_bluesky_metrics(self, paper_id: int, retry: int = 0):
             # Retry with exponential backoff
             self.retry(args=[paper_id, retry + 1], exc=e, countdown=60 * (retry + 1))
         except MaxRetriesExceededError:
-            logger.error(
+            logger.exception(
                 f"Max retries exceeded for Bluesky enrichment of paper {paper_id}"
             )
             return {
@@ -397,7 +397,7 @@ def enrich_paper_with_x_metrics(self, paper_id: int):
     try:
         paper = Paper.objects.get(id=paper_id)
     except Paper.DoesNotExist:
-        logger.error(f"Paper {paper_id} not found")
+        logger.exception(f"Paper {paper_id} not found")
         return {
             "status": "error",
             "paper_id": paper_id,

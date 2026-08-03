@@ -200,8 +200,8 @@ class FeedFilteringBackend(BaseFilterBackend):
             view._feed_source = "aws-personalize"
             return self._fetch_and_order_entries(recommended_ids, queryset, view)
 
-        except Exception as e:
-            logger.error(f"Personalized feed error for user {user_id}: {e}")
+        except Exception:
+            logger.exception("Personalized feed error for user %s", user_id)
             # Fallback to following on error
             view._feed_source = "rh-following"
             return self._filter_following(request, queryset, view)

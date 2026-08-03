@@ -20,7 +20,7 @@ def create_upvote_interaction_task(vote_id):
     try:
         vote = Vote.objects.get(id=vote_id)
     except Vote.DoesNotExist:
-        logger.error(f"Vote {vote_id} not found")
+        logger.exception(f"Vote {vote_id} not found")
         return
 
     if vote.vote_type != Vote.UPVOTE:
@@ -53,8 +53,8 @@ def create_upvote_interaction_task(vote_id):
             object_id=interaction.object_id,
             defaults={"event_timestamp": interaction.event_timestamp},
         )
-    except Exception as e:
-        logger.error(f"Failed creating interaction for vote {vote_id}: {e}")
+    except Exception:
+        logger.exception("Failed creating interaction for vote %s", vote_id)
         raise
 
 
@@ -63,7 +63,7 @@ def create_comment_interaction_task(comment_id):
     try:
         comment = RhCommentModel.objects.get(id=comment_id)
     except RhCommentModel.DoesNotExist:
-        logger.error(f"Comment {comment_id} not found")
+        logger.exception("Comment %s not found", comment_id)
         return
 
     if not comment.created_by_id:
@@ -99,7 +99,7 @@ def create_list_item_interaction_task(list_item_id):
     try:
         list_item = ListItem.objects.get(id=list_item_id)
     except ListItem.DoesNotExist:
-        logger.error(f"ListItem {list_item_id} not found")
+        logger.exception("ListItem %s not found", list_item_id)
         return
 
     try:
@@ -113,7 +113,7 @@ def create_list_item_interaction_task(list_item_id):
             defaults={"event_timestamp": interaction.event_timestamp},
         )
     except Exception:
-        logger.exception("Failed creating interaction for list item %s:", list_item_id)
+        logger.exception("Failed creating interaction for list item %s", list_item_id)
         raise
 
 
@@ -122,8 +122,8 @@ def sync_interaction_event_to_personalize_task(interaction_id):
     try:
         interaction = UserInteractions.objects.get(id=interaction_id)
     except UserInteractions.DoesNotExist:
-        logger.error(
-            f"UserInteraction {interaction_id} not found for Personalize event sync"
+        logger.exception(
+            "UserInteraction %s not found for Personalize event sync", interaction_id
         )
         return
 
@@ -131,8 +131,8 @@ def sync_interaction_event_to_personalize_task(interaction_id):
         not interaction.user_id and not interaction.external_user_id
     ):
         logger.warning(
-            f"UserInteraction {interaction_id} missing required fields, "
-            f"skipping Personalize event sync"
+            "Skipping event: UserInteraction %s missing required fields",
+            interaction_id,
         )
         return
 
@@ -146,10 +146,9 @@ def sync_interaction_event_to_personalize_task(interaction_id):
         else:
             raise Exception(f"Event sync failed: {result}")
 
-    except Exception as e:
-        logger.error(
-            f"Exception syncing event to Personalize: "
-            f"interaction_id={interaction_id}, error={str(e)}",
+    except Exception:
+        logger.exception(
+            "Exception syncing event to Personalize: interaction_id=%s", interaction_id
         )
         raise
 

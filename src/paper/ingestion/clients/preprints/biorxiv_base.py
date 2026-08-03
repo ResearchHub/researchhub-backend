@@ -171,8 +171,8 @@ class BioRxivBaseClient(BaseClient):
                 # Move cursor forward
                 current_cursor += self.config.page_size
 
-            except Exception as e:
-                logger.error(f"Failed to fetch page at cursor {current_cursor}: {e}")
+            except Exception:
+                logger.exception("Failed to fetch page at cursor %s", current_cursor)
                 # Continue with what we have
                 break
 

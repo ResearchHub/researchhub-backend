@@ -199,7 +199,7 @@ def create_papers(open_alex, works) -> dict[int, dict[str, Any]]:
                 "paper": paper,
             }
         except IntegrityError:
-            logger.error("Failed to save paper, DOI already exists: %s", paper.doi)
+            logger.exception("Failed to save paper, DOI already exists: %s", paper.doi)
             continue
         except Exception:
             logger.exception("Failed to save paper, unexpected error: %s", paper.doi)

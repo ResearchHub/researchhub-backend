@@ -26,8 +26,8 @@ class SocialLoginSerializer(BaseSocialLoginSerializer):
             raise
         except serializers.ValidationError:
             raise
-        except Exception as e:
-            logger.error("Social login failed", exc_info=e)
+        except Exception:
+            logger.exception("Social login failed")
             raise serializers.ValidationError(_("Incorrect value"))
 
     def post_signup(self, login, attrs):
@@ -42,7 +42,5 @@ class SocialLoginSerializer(BaseSocialLoginSerializer):
                 if not user.invited_by and referral_user.id != user.id:
                     user.invited_by = referral_user
                     user.save()
-        except Exception as e:
-            logger.error(
-                f"Failed to handle referral code for user {user.id}", exc_info=e
-            )
+        except Exception:
+            logger.exception("Failed to handle referral code for user %s", user.id)

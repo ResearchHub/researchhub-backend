@@ -44,8 +44,8 @@ class CheckoutView(APIView):
             )
 
             return Response(session_data, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.error("Error creating checkout session: %s", e)
+        except Exception:
+            logger.exception("Error creating checkout session")
             return Response(
                 {"message": "Failed to create checkout session"}, status=500
             )

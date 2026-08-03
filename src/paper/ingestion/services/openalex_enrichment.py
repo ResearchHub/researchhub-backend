@@ -459,13 +459,10 @@ class PaperOpenAlexEnrichmentService:
 
             except Paper.DoesNotExist:
                 error_count += 1
-                logger.error(f"Paper {paper_id} not found during enrichment")
-            except Exception as e:
+                logger.exception("Paper %s not found during enrichment", paper_id)
+            except Exception:
                 error_count += 1
-                logger.error(
-                    f"Unexpected error processing paper {paper_id}: {str(e)}",
-                    exc_info=True,
-                )
+                logger.exception("Unexpected error processing paper %s", paper_id)
 
         return BatchEnrichmentResult(
             total=total,

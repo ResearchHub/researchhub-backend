@@ -70,8 +70,8 @@ class PaymentIntentView(APIView):
             )
 
             return Response(payment_intent_data, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.error("Error creating payment intent: %s", e)
+        except Exception:
+            logger.exception("Error creating payment intent")
             return Response({"message": "Failed to create payment intent"}, status=500)
 
     def get(self, request, payment_intent_id, *args, **kwargs):

@@ -241,9 +241,9 @@ class AmplitudeEventParser:
                 impression=impression,
             )
 
-        except Exception as e:
+        except Exception:
             event_type = event.get("event_type", "unknown")
-            logger.error(f"Unexpected error parsing event '{event_type}': {e}")
+            logger.exception("Unexpected error parsing event '%s'", event_type)
             return None
 
     def parse_bulk_impression_event(

@@ -162,7 +162,7 @@ class WalletService:
                 error_msg = (
                     f"Failed to get transaction receipt for {tx_hash}: {receipt_error}"
                 )
-                logger.error(error_msg)
+                logger.exception(error_msg)
                 raise Exception(error_msg)
 
         except Exception:

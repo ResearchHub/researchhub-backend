@@ -383,9 +383,9 @@ def refresh_feed_hot_scores_batch(
                 feed_entry.hot_score_v2 = feed_entry.calculate_hot_score_v2()
                 entries_to_update.append(feed_entry)
 
-            except Exception as e:
+            except Exception:
                 errors += 1
-                logger.error(f"Error calculating score for entry {feed_entry.id}: {e}")
+                logger.exception("Error calculating score for entry %s", feed_entry.id)
                 continue
 
         # Bulk update entries using Django ORM
@@ -406,9 +406,9 @@ def refresh_feed_hot_scores_batch(
                         )
                         processed_papers.add(feed_entry.item.id)
 
-            except Exception as e:
+            except Exception:
                 errors += len(entries_to_update)
-                logger.error(f"Error bulk updating batch: {e}")
+                logger.exception("Error bulk updating batch")
 
         processed += len(batch)
 

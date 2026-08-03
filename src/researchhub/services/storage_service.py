@@ -128,9 +128,9 @@ class S3StorageService(StorageService):
                 Key=dest_key,
             )
             s3_client.delete_object(Bucket=bucket, Key=source_key)
-        except (BotoCoreError, ClientError) as e:
-            logger.error(
-                "Failed to move S3 object from %s to %s: %s", source_key, dest_key, e
+        except (BotoCoreError, ClientError):
+            logger.exception(
+                "Failed to move S3 object from %s to %s", source_key, dest_key
             )
             return None
         return dest_key

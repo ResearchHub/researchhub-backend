@@ -153,9 +153,9 @@ class EventProcessor:
                 if created:
                     created_count += 1
 
-            except Exception as e:
-                logger.error(
-                    f"Failed to save impression for user {user_identifier}: {e}"
+            except Exception:
+                logger.exception(
+                    "Failed to save impression for user %s", user_identifier
                 )
                 failed_count += 1
                 continue

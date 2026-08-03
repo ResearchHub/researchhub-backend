@@ -460,8 +460,8 @@ def calculate_hot_score(feed_entry, content_type_name, return_components=False):
 
         return final_score
 
-    except Exception as e:
-        logger.error(f"Error calculating hot score for feed_entry {feed_entry.id}: {e}")
+    except Exception:
+        logger.exception("Error calculating hot score for feed_entry %s", feed_entry.id)
         if return_components:
             return None
         return 0

@@ -55,8 +55,8 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
             model = apps.get_model(app_label, model_name)
             instance = _get_instance_for_indexing(model, pk)
             registry.update(instance)
-        except LookupError as e:
-            logger.error("Failed to get model for update task: %s", e)
+        except LookupError:
+            logger.exception("Failed to get model for update task")
         except model.DoesNotExist:
             # Instance was deleted before it could be updated.
             logger.warning(
@@ -73,8 +73,8 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
             model = apps.get_model(app_label, model_name)
             instance = _get_instance_for_indexing(model, pk)
             registry.update_related(instance)
-        except LookupError as e:
-            logger.error("Failed to get model for update related task: %s", e)
+        except LookupError:
+            logger.exception("Failed to get model for update related task")
         except model.DoesNotExist:
             # Instance was deleted before it could be updated.
             logger.warning(

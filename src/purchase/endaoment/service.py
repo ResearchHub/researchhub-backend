@@ -97,7 +97,7 @@ class EndaomentService:
             return CallbackResult(success=True, return_url=state_data.get("return_url"))
 
         except User.DoesNotExist:
-            logger.error("User %s not found during Endaoment callback", user_id)
+            logger.exception("User %s not found during Endaoment callback", user_id)
             return CallbackResult(success=False, error="error")
         except Exception:
             logger.exception("Failed to process Endaoment callback")
