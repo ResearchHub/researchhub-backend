@@ -68,9 +68,9 @@ class Command(BaseCommand):
 
                     entry.pdf_copyright_allows_display = allows
                     entries_to_update.append(entry)
-                except Exception as e:
+                except Exception:
                     errors += 1
-                    logger.error(f"Error processing entry {entry.id}: {e}")
+                    logger.exception("Error processing entry %s", entry.id)
 
             if entries_to_update:
                 FeedEntry.objects.bulk_update(

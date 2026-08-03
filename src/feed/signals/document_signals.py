@@ -32,10 +32,10 @@ def handle_document_hubs_changed(sender, instance, action, pk_set, **kwargs):
             _create_document_feed_entries(instance, pk_set)
         elif action == "post_remove":
             _delete_document_feed_entries(instance, pk_set)
-    except Exception as e:
+    except Exception:
         action = "create" if action == "post_add" else "delete"
-        logger.error(
-            f"Failed to {action} feed entries for unified doc hubs changed: {e}"
+        logger.exception(
+            "Failed to %s feed entries for unified doc hubs changed", action
         )
 
 
@@ -132,8 +132,8 @@ def handle_unified_document_removed(sender, instance, **kwargs):
             transaction.on_commit(
                 lambda: delete_feed_entries_for_unified_document(instance)
             )
-    except Exception as e:
-        logger.error(f"Failed to handle unified document removal: {e}")
+    except Exception:
+        logger.exception("Failed to handle unified document removal")
 
 
 def delete_feed_entries_for_unified_document(unified_document):
@@ -157,5 +157,5 @@ def delete_feed_entries_for_unified_document(unified_document):
                 ),
                 priority=1,
             )
-        except Exception as e:
-            logger.error(f"Failed to delete feed entry {entry.id}: {e}")
+        except Exception:
+            logger.exception("Failed to delete feed entry %s", entry.id)

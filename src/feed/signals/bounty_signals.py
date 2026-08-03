@@ -26,8 +26,8 @@ def handle_bounty_update_feed_entries(sender, instance, created, **kwargs):
     """
     try:
         _update_associated_document_feed_entries(instance)
-    except Exception as e:
-        logger.error(f"Failed to update feed entries for bounty {instance.id}: {e}")
+    except Exception:
+        logger.exception("Failed to update feed entries for bounty %s", instance.id)
 
 
 @receiver(post_delete, sender=Bounty, dispatch_uid="bounty_delete_update_feed_entries")
@@ -38,9 +38,9 @@ def handle_bounty_delete_update_feed_entries(sender, instance, **kwargs):
     """
     try:
         _update_associated_document_feed_entries(instance)
-    except Exception as e:
-        logger.error(
-            f"Failed to update feed entries for deleted bounty {instance.id}: {e}"
+    except Exception:
+        logger.exception(
+            "Failed to update feed entries for deleted bounty %s", instance.id
         )
 
 

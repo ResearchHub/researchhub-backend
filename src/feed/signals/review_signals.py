@@ -24,8 +24,8 @@ def handle_review_created_or_updated(sender, instance, created, **kwargs):
         _update_feed_entries(review)
     except Exception as e:
         action = "created" if created else "updated"
-        logger.error(
-            f"Failed to update feed entries for review {review.id} {action}: {e}"
+        logger.exception(
+            "Failed to update feed entries for review %s %s", review.id, action
         )
 
 
