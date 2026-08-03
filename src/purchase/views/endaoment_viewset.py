@@ -39,6 +39,6 @@ class EndaomentViewSet(GenericViewSet):
                 {"detail": "No Endaoment connection found."},
                 status=404,
             )
-        except Exception as e:
-            logger.exception(f"Failed to fetch Endaoment funds: {e}")
+        except Exception:
+            logger.exception("Failed to fetch Endaoment funds")
             raise APIException("Failed to fetch Endaoment funds")
