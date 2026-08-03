@@ -108,8 +108,8 @@ class SuggestView(APIView):
         """Safely apply a transform function with error handling"""
         try:
             return transform_func(self, result)
-        except Exception as e:
-            logger.error(f"Error transforming result: {str(e)}")
+        except Exception:
+            logger.exception("Error transforming result")
 
             # Return a minimal valid result with default values
             return {
@@ -236,10 +236,10 @@ class SuggestView(APIView):
                 query, indexes, limit, enable_openalex=enable_openalex
             )
             return Response(results, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.error(f"Error in search: {str(e)}")
+        except Exception:
+            logger.exception("Error in search")
             return Response(
-                {"error": str(e)},
+                {"error": "Internal server error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -383,10 +383,10 @@ class SuggestView(APIView):
 
             return Response(results, status=status.HTTP_200_OK)
 
-        except Exception as e:
-            logger.error(f"Error in DOI search: {str(e)}")
+        except Exception:
+            logger.exception("Error in DOI search")
             return Response(
-                {"error": str(e)},
+                {"error": "Internal server error"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -562,9 +562,9 @@ class SuggestView(APIView):
                                     transform_func, option, index
                                 )
                                 es_results.append(transformed)
-                            except Exception as e:
-                                logger.error(
-                                    f"Error transforming option in mock list: {str(e)}"
+                            except Exception:
+                                logger.exception(
+                                    "Error transforming option in mock list"
                                 )
                         results.extend(es_results)
                     # Normal ES response with suggestion attribute
@@ -580,8 +580,8 @@ class SuggestView(APIView):
                                 ]
                             )
                         results.extend(es_results)
-                except Exception as e:
-                    logger.error(f"Error retrieving suggestions for {index}: {str(e)}")
+                except Exception:
+                    logger.exception(f"Error retrieving suggestions for {index}")
 
                 # Hybrid search: Add partial match fallback for longer phrases
                 # when completion suggester fails
