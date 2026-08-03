@@ -485,8 +485,8 @@ class FundraiseService:
                 endaoment_transfer_id = transfer_result.get("id")
             except EndaomentAccount.DoesNotExist:
                 return None, "Endaoment account not connected"
-            except Exception as e:
-                logger.error(f"Failed to create Endaoment grant: {e}", exc_info=e)
+            except Exception:
+                logger.exception("Failed to create Endaoment grant")
                 return None, "Failed to submit Endaoment grant"
 
             # Create the contribution record
@@ -528,7 +528,7 @@ class FundraiseService:
         try:
             debit_amount = Decimal(debit.amount)
         except (ArithmeticError, TypeError, ValueError):
-            logger.error("Invalid contribution balance amount for row %s", debit.id)
+            logger.exception("Invalid contribution balance amount for row %s", debit.id)
             return False
 
         if not debit_amount.is_finite() or debit_amount > 0:
@@ -639,8 +639,8 @@ class FundraiseService:
         # Process referral bonuses (outside transaction to not block payout on failure)
         try:
             self.referral_bonus_service.process_fundraise_completion(fundraise)
-        except Exception as e:
-            logger.error(f"Failed to process referral bonuses: {e}", exc_info=e)
+        except Exception:
+            logger.exception("Failed to process referral bonuses")
 
     def close_fundraise(self, fundraise: Fundraise) -> bool:
         """

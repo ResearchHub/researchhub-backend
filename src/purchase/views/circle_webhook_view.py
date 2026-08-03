@@ -203,7 +203,7 @@ class CircleWebhookView(APIView):
         try:
             parsed_amount = Decimal(deposit_amount)
         except InvalidOperation:
-            logger.error(
+            logger.exception(
                 "Invalid deposit amount %r in notification %s",
                 deposit_amount,
                 notification_id,

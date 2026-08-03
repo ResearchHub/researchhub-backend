@@ -94,13 +94,13 @@ class StripeWebhookView(APIView):
                         )
                 case _:
                     logger.info("Unhandled event type: %s", event_type)
-        except ValueError as e:
-            logger.error(f"Invalid event data: {e}")
+        except ValueError:
+            logger.exception("Invalid event data")
             return Response(
                 {"message": "Invalid event data"}, status=status.HTTP_400_BAD_REQUEST
             )
-        except Exception as e:
-            logger.error(f"Error processing event: {e}")
+        except Exception:
+            logger.exception("Error processing event")
             return Response(
                 {"message": "Error processing event"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

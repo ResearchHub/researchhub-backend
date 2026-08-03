@@ -128,8 +128,8 @@ class PaymentService:
                 "id": session.get("id"),
                 "url": session.get("url"),
             }
-        except Exception as e:
-            logger.error("Error creating checkout session: %s", e)
+        except Exception:
+            logger.exception("Error creating checkout session")
             raise
 
     @transaction.atomic
@@ -346,8 +346,8 @@ class PaymentService:
                 "locked_rsc_amount": rsc_amount,
                 "stripe_amount_cents": stripe_amount,
             }
-        except Exception as e:
-            logger.error("Error creating payment intent: %s", e)
+        except Exception:
+            logger.exception("Error creating payment intent")
             raise
 
     def process_payment_intent_confirmation(
@@ -411,8 +411,8 @@ class PaymentService:
 
             return payment, fundraise_contribution
 
-        except Exception as e:
-            logger.error("Error processing payment intent confirmation: %s", e)
+        except Exception:
+            logger.exception("Error processing payment intent confirmation")
             raise
 
     @transaction.atomic
