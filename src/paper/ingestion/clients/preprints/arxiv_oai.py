@@ -178,8 +178,8 @@ def parse_xml_metadata(raw_xml: str) -> dict[str, Any]:
 
         return entry_data
 
-    except ET.ParseError as e:
-        logger.error(f"Failed to parse OAI metadata XML: {e}")
+    except ET.ParseError:
+        logger.exception("Failed to parse OAI metadata XML")
         return {}
 
 
@@ -316,8 +316,8 @@ class ArXivOAIClient(BaseClient):
                         parsed["source"] = "arxiv_oai"
                         papers.append(parsed)
 
-        except ET.ParseError as e:
-            logger.error(f"Failed to parse OAI XML response: {e}")
+        except ET.ParseError:
+            logger.exception("Failed to parse OAI XML response")
             return []
 
         return papers
@@ -339,8 +339,8 @@ class ArXivOAIClient(BaseClient):
                 token_elem = list_records.find(f"{self.OAI_NS}resumptionToken")
                 if token_elem is not None and token_elem.text:
                     return token_elem.text.strip()
-        except ET.ParseError as e:
-            logger.error(f"Failed to parse XML for resumption token: {e}")
+        except ET.ParseError:
+            logger.exception("Failed to parse XML for resumption token")
 
         return None
 
@@ -421,9 +421,9 @@ class ArXivOAIClient(BaseClient):
                     # No more pages
                     break
 
-            except Exception as e:
-                logger.error(
-                    f"Failed to fetch batch with token {resumption_token}: {e}"
+            except Exception:
+                logger.exception(
+                    "Failed to fetch batch with token %s", resumption_token
                 )
                 # Continue with what we have
                 break

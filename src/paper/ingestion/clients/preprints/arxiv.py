@@ -87,8 +87,8 @@ def parse_xml_entry(raw_xml: str) -> dict[str, Any]:
 
         return entry_data
 
-    except ET.ParseError as e:
-        logger.error(f"Failed to parse XML entry: {e}")
+    except ET.ParseError:
+        logger.exception("Failed to parse XML entry")
         return {}
 
 
@@ -223,8 +223,8 @@ class ArXivClient(BaseClient):
                     parsed["source"] = "arxiv"
                     papers.append(parsed)
 
-        except ET.ParseError as e:
-            logger.error(f"Failed to parse XML response: {e}")
+        except ET.ParseError:
+            logger.exception("Failed to parse XML response")
             return []
 
         return papers
@@ -333,8 +333,8 @@ class ArXivClient(BaseClient):
                 # Move to next page
                 start += len(papers)
 
-            except Exception as e:
-                logger.error(f"Failed to fetch page at start={start}: {e}")
+            except Exception:
+                logger.exception("Failed to fetch page at start=%s", start)
                 # Continue with what we have
                 break
 

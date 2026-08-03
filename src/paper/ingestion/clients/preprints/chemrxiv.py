@@ -197,8 +197,8 @@ class ChemRxivClient(BaseClient):
                 # Move to next page
                 skip += len(papers)
 
-            except Exception as e:
-                logger.error(f"Failed to fetch page at skip={skip}: {e}")
+            except Exception:
+                logger.exception("Failed to fetch page at skip=%s", skip)
                 # Continue with what we have
                 break
 

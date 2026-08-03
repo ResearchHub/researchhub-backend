@@ -99,8 +99,8 @@ class PaperIngestionService:
                         f"with ROR ID: {inst_model.ror_id}"
                     )
 
-            except Exception as e:
-                logger.error(f"Failed to save institution: {e}")
+            except Exception:
+                logger.exception("Failed to save institution")
 
         # Save or find existing authors
         saved_authors = {}  # Map orcid_id to saved Author
@@ -128,8 +128,8 @@ class PaperIngestionService:
                         author_model.orcid_id,
                     )
 
-            except Exception as e:
-                logger.error(f"Failed to save author: {e}")
+            except Exception:
+                logger.exception("Failed to save author")
 
         # Get authorship models from mapper and save them
         authorship_models = mapper.map_to_authorships(paper, record)
@@ -166,8 +166,8 @@ class PaperIngestionService:
                         paper.title[:50],
                     )
 
-            except Exception as e:
-                logger.error(f"Failed to create authorship: {e}")
+            except Exception:
+                logger.exception("Failed to create authorship")
 
         return created_authors, created_institutions, created_authorships
 
@@ -200,7 +200,7 @@ class PaperIngestionService:
         try:
             mapper = self.get_mapper(source)
         except ValueError as e:
-            logger.error(f"Failed to get mapper: {e}")
+            logger.exception("Failed to get mapper")
             return [], [{"error": str(e), "records": raw_response}]
 
         # Process papers

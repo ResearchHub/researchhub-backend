@@ -136,7 +136,7 @@ class PaperMetricsEnrichmentService:
                     logger.warning(error_message)
                     return EnrichmentResult(status="retryable_error", reason=str(e))
 
-            logger.error(error_message)
+            logger.exception(error_message)
             return EnrichmentResult(status="error", reason=str(e))
 
     def enrich_paper_with_bluesky(self, paper: Paper) -> EnrichmentResult:
@@ -178,7 +178,7 @@ class PaperMetricsEnrichmentService:
             )
 
         except Exception as e:
-            logger.error(f"Error fetching Bluesky metrics for paper {paper.id}: {e}")
+            logger.exception("Error fetching Bluesky metrics for paper %s", paper.id)
             return EnrichmentResult(status="error", reason=str(e))
 
     def enrich_paper_with_x(self, paper: Paper) -> EnrichmentResult:
@@ -237,7 +237,7 @@ class PaperMetricsEnrichmentService:
                     logger.warning(error_message)
                     return EnrichmentResult(status="retryable_error", reason=str(e))
 
-            logger.error(error_message)
+            logger.exception(error_message)
             return EnrichmentResult(status="error", reason=str(e))
 
     def _update_paper_metrics(self, paper: Paper, metrics: dict[str, Any]) -> None:

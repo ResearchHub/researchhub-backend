@@ -113,6 +113,6 @@ class BaseMapper(ABC):
                     continue
                 mapped = self.map_to_paper(record)
                 mapped_records.append(mapped)
-            except Exception as e:
-                logger.error(f"Error mapping record: {e}")
+            except Exception:
+                logger.exception("Error mapping record")
         return mapped_records

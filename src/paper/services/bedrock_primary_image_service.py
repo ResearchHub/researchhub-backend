@@ -148,8 +148,8 @@ class BedrockPrimaryImageService:
 
             return base64_image, "image/jpeg"
 
-        except Exception as e:
-            logger.error(f"Error encoding figure {figure.id} to base64: {e}")
+        except Exception:
+            logger.exception("Error encoding figure %s to base64", figure.id)
             return None
 
     def _resize_and_compress_for_bedrock(

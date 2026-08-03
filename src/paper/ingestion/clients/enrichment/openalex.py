@@ -205,8 +205,8 @@ class OpenAlexClient(BaseClient):
 
                 cursor = next_cursor
 
-            except Exception as e:
-                logger.error(f"Failed to fetch page with cursor={cursor}: {e}")
+            except Exception:
+                logger.exception("Failed to fetch page with cursor=%s", cursor)
                 break  # continue with the next page
 
         logger.info(
@@ -281,6 +281,6 @@ class OpenAlexClient(BaseClient):
         try:
             response = self.fetch_with_retry("/works", params)
             return self.process_page(response)
-        except Exception as e:
-            logger.error(f"Failed to fetch papers by IDs: {e}")
+        except Exception:
+            logger.exception("Failed to fetch papers by IDs")
             return []

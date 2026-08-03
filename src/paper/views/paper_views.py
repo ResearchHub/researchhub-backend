@@ -187,7 +187,10 @@ class PaperViewSet(
                         previous_paper = Paper.objects.get(id=previous_paper_id)
                         work_type = previous_paper.work_type
                     except Paper.DoesNotExist:
-                        logger.error("Previous paper not found: %s", previous_paper_id)
+                        logger.exception(
+                            "Previous paper not found: %s",
+                            previous_paper_id,
+                        )
                         return Response(
                             {
                                 "error": (
@@ -382,7 +385,7 @@ class PaperViewSet(
                                 previous_paper_version.publication_status
                             )
                         except PaperVersion.DoesNotExist:
-                            logger.error(
+                            logger.exception(
                                 "Previous paper version not found for paper %s",
                                 previous_paper.id,
                             )

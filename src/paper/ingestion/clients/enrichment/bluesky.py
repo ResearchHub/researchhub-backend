@@ -90,8 +90,8 @@ class BlueskyClient:
             self.authenticated = True
             logger.info("Successfully authenticated with Bluesky")
 
-        except Exception as e:
-            logger.error(f"Bluesky authentication failed: {e}")
+        except Exception:
+            logger.exception("Bluesky authentication failed")
             raise
 
     def search_posts(self, query: str, limit: int = MAX_SEARCH_RESULTS) -> dict | None:
