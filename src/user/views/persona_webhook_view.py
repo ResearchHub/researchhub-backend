@@ -42,8 +42,8 @@ class PersonaWebhookView(APIView):
                 )
 
             self._process_payload(request)
-        except Exception as e:
-            logger.error(f"Failed to process webhook payload: {e}")
+        except Exception:
+            logger.exception("Failed to process webhook payload")
             return Response(
                 {"message": "Failed to process webhook"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

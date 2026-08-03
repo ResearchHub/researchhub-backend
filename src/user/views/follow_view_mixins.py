@@ -152,11 +152,12 @@ class FollowViewActionMixin:
             except IntegrityError:
                 # Already following
                 results["already_following"].append(self._serialize_item_for_bulk(item))
-            except Exception as e:
-                # Log the error but don't include in response
-                logger.error(
-                    f"Error following {model.__name__} {item.id} "
-                    f"for user {user.id}: {str(e)}"
+            except Exception:
+                logger.exception(
+                    "Error following %s %s for user %s",
+                    model.__name__,
+                    item.id,
+                    user.id,
                 )
 
         return Response(results, status=status.HTTP_200_OK)
@@ -213,7 +214,7 @@ class FollowViewActionMixin:
                 results["not_following"].append(self._serialize_item_for_bulk(item))
             except Exception as e:
                 # Log the error but don't include in response
-                logger.error(
+                logger.exception(
                     f"Error unfollowing {model.__name__} {item.id} "
                     f"for user {user.id}: {str(e)}"
                 )
