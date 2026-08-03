@@ -73,7 +73,7 @@ class EventProcessor:
                 lookup_kwargs["user_id"] = interaction.user_id
                 lookup_kwargs["external_user_id__isnull"] = True
 
-            interaction, created = UserInteractions.objects.get_or_create(
+            interaction, _ = UserInteractions.objects.get_or_create(
                 **lookup_kwargs,
                 defaults={
                     "user_id": interaction.user_id,

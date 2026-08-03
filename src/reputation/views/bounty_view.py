@@ -454,7 +454,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 decimal_amount = solution_data["amount"]
 
                 # Get or create the solution record first
-                bounty_solution, created = BountySolution.objects.get_or_create(
+                bounty_solution, _ = BountySolution.objects.get_or_create(
                     bounty=bounty,
                     created_by=solution_created_by,
                     content_type=content_type_model,

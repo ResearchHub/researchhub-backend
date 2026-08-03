@@ -387,7 +387,7 @@ class CloseFundraiseTests(TestCase):
         self.assertIsNone(error)
         self.assertEqual(purchase.rsc_usd_rate, 0.5)
 
-        fee, rh_fee, dao_fee, fee_object = calculate_bounty_fees(contribution_amount)
+        fee, _, _, _ = calculate_bounty_fees(contribution_amount)
         initial_balance_count = Balance.objects.filter(user=contributor).count()
 
         result = self.fundraise_service.close_fundraise(self.fundraise)
