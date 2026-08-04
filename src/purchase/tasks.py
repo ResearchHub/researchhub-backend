@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
-from mailing_list.lib import base_email_context, send_email
+from mailing_list.lib import base_email_context, send_transactional_email
 from notification.models import Notification
 from paper.models import Paper
 from purchase.circle.service import CircleWalletService
@@ -244,7 +244,7 @@ def send_support_email(
 
     if email_type == "sender":
         subject = "Receipt From ResearchHub"
-        send_email(
+        send_transactional_email(
             email,
             "support_receipt.txt",
             subject,
@@ -253,7 +253,7 @@ def send_support_email(
         )
     elif email_type == "recipient":
         subject = "Someone Sent You RSC on ResearchHub!"
-        send_email(
+        send_transactional_email(
             email,
             "support_receipt.txt",
             subject,
