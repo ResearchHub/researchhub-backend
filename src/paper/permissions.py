@@ -8,10 +8,13 @@ from user.models import Author
 from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
 
 
-def is_legacy_journal_paper(paper: Paper) -> bool:
-    """Return whether a paper belongs to the retired ResearchHub Journal."""
+def is_legacy_journal_paper(paper_id: int | str | None) -> bool:
+    """Return whether a paper ID belongs to the retired ResearchHub Journal."""
+    if paper_id is None or not str(paper_id).isdecimal():
+        return False
+
     return PaperVersion.objects.filter(
-        paper_id=paper.id,
+        paper_id=paper_id,
         journal=PaperVersion.RESEARCHHUB,
     ).exists()
 
@@ -36,7 +39,7 @@ class CanModifyLegacyJournalPaper(BasePermission):
         obj: Paper,
     ) -> bool:
         """Reject unsafe requests that target a retired journal paper."""
-        return request.method in SAFE_METHODS or not is_legacy_journal_paper(obj)
+        return request.method in SAFE_METHODS or not is_legacy_journal_paper(obj.id)
 
 
 class IsAuthor(AuthorizationBasedPermission):

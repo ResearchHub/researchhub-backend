@@ -162,6 +162,7 @@ class PaperApiTests(TestCase):
         self.assertEqual(len(unclaimed_works), 3)
         self.assertEqual(unclaimed_works, openalex_works)
 
+
 class PaperDOITests(TestCase):
     def setUp(self):
         self.client = APIClient()

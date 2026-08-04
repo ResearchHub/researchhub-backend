@@ -41,7 +41,7 @@ class PaperPermissionsIntegrationTests(APITestCase):
             self.base_url,
             f"{self.base_url}create_researchhub_paper/",
             f"{self.base_url}publish_to_researchhub_journal/",
-            f"{self.base_url}upload/",
+            "/paper/upload/",
         ]
         self.client.force_authenticate(user)
 
@@ -63,7 +63,7 @@ class PaperPermissionsIntegrationTests(APITestCase):
     def test_prevents_updating_legacy_journal_papers(self) -> None:
         """Legacy journal papers cannot be updated through the paper API."""
         # Arrange
-        paper = self.create_legacy_journal_paper()
+        paper = self._create_legacy_journal_paper()
         user = self.create_user_with_reputation(1)
         self.client.force_authenticate(user)
 
@@ -98,7 +98,7 @@ class PaperPermissionsIntegrationTests(APITestCase):
         moderator = self.create_user_with_reputation(1)
         moderator.moderator = True
         moderator.save(update_fields=["moderator"])
-        paper = self.create_legacy_journal_paper(uploaded_by=moderator)
+        paper = self._create_legacy_journal_paper(uploaded_by=moderator)
         self.client.force_authenticate(moderator)
 
         # Act
@@ -131,7 +131,9 @@ class PaperPermissionsIntegrationTests(APITestCase):
         user.save()
         return user
 
-    def create_legacy_journal_paper(self, uploaded_by: User | None = None) -> Paper:
+    def _create_legacy_journal_paper(
+        self, uploaded_by: User | None = None
+    ) -> Paper:
         """Create a paper that represents an existing legacy journal entry."""
         paper = create_paper(uploaded_by=uploaded_by)
         PaperVersion.objects.create(

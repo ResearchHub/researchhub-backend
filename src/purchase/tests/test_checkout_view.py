@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from paper.related_models.paper_model import Paper
 from purchase.related_models.payment_model import PaymentPurpose
 from user.tests.helpers import create_user
 
@@ -14,7 +13,10 @@ class CheckoutSessionViewTest(APITestCase):
         self.user = create_user()
 
     @patch("purchase.views.checkout_view.PaymentService")
-    def test_create_checkout_session_success(self, mock_payment_service_class):
+    def test_creates_rsc_checkout_session(
+        self, mock_payment_service_class: MagicMock
+    ) -> None:
+        """A valid RSC purchase creates a checkout session."""
         # Arrange
         mock_payment_service = MagicMock()
         mock_payment_service_class.return_value = mock_payment_service
@@ -22,16 +24,12 @@ class CheckoutSessionViewTest(APITestCase):
             "id": "sessionId1",
             "url": "https://checkout.stripe.com/session/sessionId1",
         }
-
-        paper = Paper.objects.create(title="title1")
-
         data = {
-            "paper": paper.id,
-            "purpose": PaymentPurpose.APC,
+            "amount": 100,
+            "purpose": PaymentPurpose.RSC_PURCHASE,
             "success_url": "https://researchhub.com/success",
             "failure_url": "https://researchhub.com/failure",
         }
-
         self.client.force_authenticate(user=self.user)
 
         # Act
@@ -46,31 +44,27 @@ class CheckoutSessionViewTest(APITestCase):
                 "url": "https://checkout.stripe.com/session/sessionId1",
             },
         )
-
-        # Verify the payment service was called correctly
         mock_payment_service.create_checkout_session.assert_called_once_with(
             user_id=self.user.id,
-            purpose=PaymentPurpose.APC.value,
-            amount=None,
-            paper_id=paper.id,
+            purpose=PaymentPurpose.RSC_PURCHASE.value,
+            amount=100,
             success_url="https://researchhub.com/success",
             cancel_url="https://researchhub.com/failure",
         )
 
     @patch("purchase.views.checkout_view.PaymentService")
-    def test_create_checkout_session_missing_mandatory_parameter(
-        self, mock_payment_service_class
-    ):
+    def test_rejects_checkout_without_purpose(
+        self, mock_payment_service_class: MagicMock
+    ) -> None:
+        """A checkout request without a purpose is rejected."""
         # Arrange
         mock_payment_service = MagicMock()
         mock_payment_service_class.return_value = mock_payment_service
-
         data = {
-            # purpose is missing!
+            "amount": 100,
             "success_url": "https://researchhub.com/success",
             "failure_url": "https://researchhub.com/failure",
         }
-
         self.client.force_authenticate(user=self.user)
 
         # Act
@@ -87,20 +81,19 @@ class CheckoutSessionViewTest(APITestCase):
         mock_payment_service.create_checkout_session.assert_not_called()
 
     @patch("purchase.views.checkout_view.PaymentService")
-    def test_create_checkout_session_apc_without_paper(
-        self, mock_payment_service_class
-    ):
+    def test_rejects_apc_checkout_session(
+        self, mock_payment_service_class: MagicMock
+    ) -> None:
+        """New article processing charge checkout sessions are rejected."""
         # Arrange
         mock_payment_service = MagicMock()
         mock_payment_service_class.return_value = mock_payment_service
-
         data = {
+            "amount": 100,
             "purpose": PaymentPurpose.APC.value,
             "success_url": "https://researchhub.com/success",
             "failure_url": "https://researchhub.com/failure",
-            # paper is missing for APC purpose!
         }
-
         self.client.force_authenticate(user=self.user)
 
         # Act
@@ -111,29 +104,28 @@ class CheckoutSessionViewTest(APITestCase):
         self.assertEqual(
             response.data,
             {
-                "paper": ["Paper is required when purpose is APC."],
+                "purpose": ['"APC" is not a valid choice.'],
             },
         )
         mock_payment_service.create_checkout_session.assert_not_called()
 
     @patch("purchase.views.checkout_view.PaymentService")
-    def test_create_checkout_session_error(self, mock_payment_service_class):
+    def test_returns_server_error_when_checkout_creation_fails(
+        self, mock_payment_service_class: MagicMock
+    ) -> None:
+        """Payment service failures return a server error response."""
         # Arrange
         mock_payment_service = MagicMock()
         mock_payment_service_class.return_value = mock_payment_service
         mock_payment_service.create_checkout_session.side_effect = Exception(
             "Payment service error"
         )
-
-        paper = Paper.objects.create(title="title1")
-
         data = {
-            "paper": paper.id,
-            "purpose": PaymentPurpose.APC,
+            "amount": 100,
+            "purpose": PaymentPurpose.RSC_PURCHASE,
             "success_url": "https://researchhub.com/success",
             "failure_url": "https://researchhub.com/failure",
         }
-
         self.client.force_authenticate(user=self.user)
 
         # Act

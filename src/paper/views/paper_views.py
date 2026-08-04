@@ -58,21 +58,21 @@ class PaperViewSet(
         CanModifyLegacyJournalPaper,
     ]
 
-    def _prevent_legacy_journal_mutation(self) -> None:
+    def _prevent_legacy_journal_mutation(self, paper_id: str | None) -> None:
         """Reject mutations that target an existing legacy journal paper."""
-        if is_legacy_journal_paper(self.get_object()):
+        if is_legacy_journal_paper(paper_id):
             raise PermissionDenied(CanModifyLegacyJournalPaper.message)
 
     @action(detail=True, methods=["post"], permission_classes=[IsModerator])
     def approve(self, request: Request, pk: str | None = None) -> Response:
         """Approve a paper that is not part of the retired journal."""
-        self._prevent_legacy_journal_mutation()
+        self._prevent_legacy_journal_mutation(pk)
         return super().approve(request, pk)
 
     @action(detail=True, methods=["post"], permission_classes=[IsModerator])
     def decline(self, request: Request, pk: str | None = None) -> Response:
         """Decline a paper that is not part of the retired journal."""
-        self._prevent_legacy_journal_mutation()
+        self._prevent_legacy_journal_mutation(pk)
         return super().decline(request, pk)
 
     @action(
@@ -91,7 +91,7 @@ class PaperViewSet(
         **kwargs: object,
     ) -> Response:
         """Censor a paper that is not part of the retired journal."""
-        self._prevent_legacy_journal_mutation()
+        self._prevent_legacy_journal_mutation(pk)
         return super().censor(request, *args, pk=pk, **kwargs)
 
     def prefetch_lookups(self):
