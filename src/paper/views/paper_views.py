@@ -18,7 +18,6 @@ from rest_framework.response import Response
 from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
 from paper.exceptions import DOINotFoundError
-from paper.filters import PaperFilter
 from paper.models import Paper, PaperVersion
 from paper.permissions import CreatePaper, UpdatePaper
 from paper.related_models.authorship_model import Authorship
@@ -53,7 +52,6 @@ class PaperViewSet(
     dynamic_serializer_class = DynamicPaperSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ("title", "doi", "paper_title")
-    filterset_class = PaperFilter
     throttle_classes = THROTTLE_CLASSES
     ordering = "-created_date"
     moderation_model = Paper
