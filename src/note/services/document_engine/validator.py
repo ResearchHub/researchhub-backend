@@ -109,6 +109,16 @@ class _GrammarState:
         raise self.error_type(message, path=path)
 
     def validate_node(self, node: object, *, path: str, depth: int):
+        self._record_node(path=path, depth=depth)
+        node = self._validate_node_object(node, path=path)
+        node_type = self._validate_node_type(node, path=path)
+        self._validate_node_attrs(node, path=path, depth=depth)
+        content = self._validate_node_content(node, path=path)
+        self._validate_node_marks(node, path=path)
+        self._validate_text_field(node, node_type=node_type, content=content, path=path)
+        self._validate_node_children(content, path=path, depth=depth)
+
+    def _record_node(self, *, path: str, depth: int):
         if depth > MAX_DOCUMENT_DEPTH:
             self.fail(f"Document exceeds maximum depth of {MAX_DOCUMENT_DEPTH}", path)
         self.node_count += 1
@@ -116,6 +126,8 @@ class _GrammarState:
             self.fail(
                 f"Document exceeds maximum node count of {MAX_DOCUMENT_NODES}", path
             )
+
+    def _validate_node_object(self, node: object, *, path: str) -> dict:
         if not isinstance(node, dict):
             self.fail("Every node must be an object", path)
         if any(not isinstance(key, str) for key in node):
@@ -123,46 +135,65 @@ class _GrammarState:
         extra_keys = set(node) - _NODE_KEYS
         if extra_keys:
             self.fail(f"Node contains unsupported keys: {sorted(extra_keys)}", path)
+        return node
 
+    def _validate_node_type(self, node: dict, *, path: str) -> str:
         node_type = node.get("type")
         if not isinstance(node_type, str) or not node_type:
             self.fail("Every node must have a non-empty string type", f"{path}.type")
         if len(node_type) > MAX_STRING_LENGTH:
             self.fail("Node type exceeds the maximum string length", f"{path}.type")
+        return node_type
 
+    def _validate_node_attrs(self, node: dict, *, path: str, depth: int):
         attrs = node.get("attrs")
         if "attrs" in node and not isinstance(attrs, dict):
             self.fail("Node attrs must be an object", f"{path}.attrs")
         if isinstance(attrs, dict):
             self.validate_json_value(attrs, path=f"{path}.attrs", depth=depth + 1)
 
+    def _validate_node_content(self, node: dict, *, path: str) -> list | None:
         content = node.get("content")
         if "content" in node and not isinstance(content, list):
             self.fail("Node content must be an array", f"{path}.content")
+        return content
 
+    def _validate_node_marks(self, node: dict, *, path: str):
+        if "marks" not in node:
+            return
         marks = node.get("marks")
-        if "marks" in node:
-            if not isinstance(marks, list):
-                self.fail("Node marks must be an array", f"{path}.marks")
-            for index, mark in enumerate(marks):
-                self.validate_mark(mark, path=f"{path}.marks[{index}]")
+        if not isinstance(marks, list):
+            self.fail("Node marks must be an array", f"{path}.marks")
+        for index, mark in enumerate(marks):
+            self.validate_mark(mark, path=f"{path}.marks[{index}]")
 
+    def _validate_text_field(
+        self,
+        node: dict,
+        *,
+        node_type: str,
+        content: list | None,
+        path: str,
+    ):
         if node_type == "text":
-            text = node.get("text")
-            if not isinstance(text, str) or not text:
-                self.fail("Text leaves must contain a non-empty string", f"{path}.text")
-            if len(text) > MAX_STRING_LENGTH:
-                self.fail("Text leaf exceeds the maximum string length", f"{path}.text")
-            if content is not None:
-                self.fail("Text leaves cannot contain child nodes", f"{path}.content")
+            self._validate_text_leaf(node, content=content, path=path)
         elif "text" in node:
             self.fail("Only text nodes may have a text field", f"{path}.text")
 
+    def _validate_text_leaf(self, node: dict, *, content: list | None, path: str):
+        text = node.get("text")
+        if not isinstance(text, str) or not text:
+            self.fail("Text leaves must contain a non-empty string", f"{path}.text")
+        if len(text) > MAX_STRING_LENGTH:
+            self.fail("Text leaf exceeds the maximum string length", f"{path}.text")
         if content is not None:
-            for index, child in enumerate(content):
-                self.validate_node(
-                    child, path=f"{path}.content[{index}]", depth=depth + 1
-                )
+            self.fail("Text leaves cannot contain child nodes", f"{path}.content")
+
+    def _validate_node_children(self, content: list | None, *, path: str, depth: int):
+        if content is None:
+            return
+        for index, child in enumerate(content):
+            self.validate_node(child, path=f"{path}.content[{index}]", depth=depth + 1)
 
     def validate_mark(self, mark: object, *, path: str):
         if not isinstance(mark, dict):
