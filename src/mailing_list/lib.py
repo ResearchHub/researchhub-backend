@@ -32,7 +32,8 @@ def send_email(
     reply_to: str | None = None,
     cc: list[str] | None = None,
 ) -> dict[str, list[str]]:
-    """Send notification email, skipping addresses that have opted out.
+    """
+    Send notification email, skipping addresses that have opted out.
 
     This is the standard entry point, and the right default for anything the
     recipient could reasonably not want. Recipients get a signed unsubscribe
@@ -76,4 +77,32 @@ def send_email(
         cc=cc,
         suppressed_emails=suppressed,
         unsubscribe_urls=unsubscribe_urls,
+    )
+
+
+def send_transactional_email(
+    recipients: str | list[str],
+    template: str | None,
+    subject: str,
+    email_context: dict[str, Any],
+    html_template: str | None = None,
+    sender: str = DEFAULT_SENDER,
+    reply_to: str | None = None,
+    cc: list[str] | None = None,
+) -> dict[str, list[str]]:
+    """
+    Send transactional email that ignores notification opt-outs.
+
+    Transactional emails can include email confirmation, password reset, and others.
+    Opting out of other notifications must not lock someone out of their own account.
+    """
+    return deliver_email(
+        recipients=recipients,
+        template=template,
+        subject=subject,
+        email_context=email_context,
+        html_template=html_template,
+        sender=sender,
+        reply_to=reply_to,
+        cc=cc,
     )

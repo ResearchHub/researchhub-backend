@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core import mail
 from django.test import TestCase, override_settings
 
-from mailing_list.lib import send_email
+from mailing_list.lib import send_email, send_transactional_email
 from mailing_list.models import EmailOptOut
 from mailing_list.services import EmailSubscriptionService
 
@@ -130,3 +130,50 @@ class SendEmailTests(TestCase):
             f"{settings.BASE_FRONTEND_URL}/email/unsubscribe/?code=", html_body
         )
         self.assertNotIn(f"{settings.BASE_FRONTEND_URL}/email/opt-out/", html_body)
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    PRODUCTION=False,
+)
+class SendTransactionalEmailTests(TestCase):
+    """`send_transactional_email` ignores opt-outs and adds no unsubscribe."""
+
+    def _send(self, recipients, **overrides):
+        kwargs = {
+            "recipients": recipients,
+            "template": TEMPLATE_TXT,
+            "subject": "Test",
+            "email_context": {**BASE_CONTEXT},
+            "html_template": TEMPLATE_HTML,
+        }
+        kwargs.update(overrides)
+        return send_transactional_email(**kwargs)
+
+    def test_sends_to_an_opted_out_recipient(self):
+        # Arrange: opting out must not block account or payment mail
+        EmailOptOut.add("optout@example.com")
+
+        # Act
+        result = self._send(["optout@example.com"])
+
+        # Assert
+        self.assertEqual(result["success"], ["optout@example.com"])
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_does_not_set_unsubscribe_headers(self):
+        # Act
+        self._send(["good@example.com"])
+
+        # Assert: a provider actioning one-click here would break account access
+        headers = mail.outbox[0].extra_headers
+        self.assertNotIn("List-Unsubscribe", headers)
+        self.assertNotIn("List-Unsubscribe-Post", headers)
+
+    def test_does_not_render_unsubscribe_link(self):
+        # Act
+        self._send(["good@example.com"])
+
+        # Assert
+        html_body = mail.outbox[0].alternatives[0][0]
+        self.assertNotIn("Unsubscribe or change", html_body)
