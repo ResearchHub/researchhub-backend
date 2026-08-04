@@ -1,7 +1,6 @@
 import logging
 
 from django.conf import settings
-from django.contrib.admin.options import get_content_type_for_model
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -17,8 +16,6 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
-from discussion.models import Vote
-from discussion.serializers import VoteSerializer
 from discussion.views import ReactionViewActionMixin
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
@@ -758,26 +755,6 @@ class PaperViewSet(
         # Temporarily disabling endpoint
         return Response(status=200)
 
-    @action(detail=True, methods=["get"])
-    def user_vote(self, request, pk=None):
-        paper = self.get_object()
-        user = request.user
-        vote = retrieve_vote(user, paper)
-        serializer = VoteSerializer(vote)
-        return Response(serializer.data, status=200)
-
-    @user_vote.mapping.delete
-    def delete_user_vote(self, request, pk=None):
-        try:
-            paper = self.get_object()
-            user = request.user
-            vote = retrieve_vote(user, paper)
-            vote_id = vote.id
-            vote.delete()
-            return Response(vote_id, status=200)
-        except Exception as e:
-            return Response(f"Failed to delete vote: {e}", status=400)
-
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def fetch_publications_by_doi(self, request):
         doi_string = request.query_params.get("doi", "")
@@ -955,14 +932,3 @@ class PaperViewSet(
                 {"error": "An error occurred while creating the paper."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-
-def retrieve_vote(user, paper):
-    try:
-        return Vote.objects.get(
-            content_type=get_content_type_for_model(paper),
-            created_by=user,
-            object_id=paper.id,
-        )
-    except Vote.DoesNotExist:
-        return None
