@@ -48,12 +48,11 @@ def send_email(
         recipients = [recipients]
 
     suppressed = EmailOptOut.filter_opted_out(recipients)
+    recipients = [recipient for recipient in recipients if recipient not in suppressed]
 
     service = EmailSubscriptionService()
     unsubscribe_urls: dict[str, UnsubscribeUrls] = {}
     for recipient in recipients:
-        if recipient in suppressed:
-            continue
         try:
             unsubscribe_urls[recipient] = UnsubscribeUrls(
                 human=service.generate_unsubscribe_url(recipient),
@@ -66,7 +65,7 @@ def send_email(
                 extra={"recipient": recipient},
             )
 
-    return deliver_email(
+    result = deliver_email(
         recipients=recipients,
         template=template,
         subject=subject,
@@ -75,9 +74,10 @@ def send_email(
         sender=sender,
         reply_to=reply_to,
         cc=cc,
-        suppressed_emails=suppressed,
         unsubscribe_urls=unsubscribe_urls,
     )
+    result["exclude"].extend(suppressed)
+    return result
 
 
 def send_transactional_email(

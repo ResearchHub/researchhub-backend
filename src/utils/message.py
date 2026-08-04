@@ -27,26 +27,10 @@ def _is_allowed_recipient(email: str) -> bool:
     return email in settings.EMAIL_WHITELIST
 
 
-def _filter_recipients(
-    recipients: list[str],
-    suppressed_emails: set[str] | None = None,
-) -> tuple[list[str], list[str]]:
-    """Partition recipients into sendable and excluded lists.
-
-    Args:
-        recipients: List of email addresses to filter.
-        suppressed_emails: Optional pre-computed set of emails to exclude.
-
-    Returns:
-        (sendable, excluded) – two lists of email addresses.
-    """
+def _filter_recipients(recipients: list[str]) -> tuple[list[str], list[str]]:
+    """Partition recipients by whether they are allowed in this environment."""
     sendable = [r for r in recipients if _is_allowed_recipient(r)]
     excluded = list(set(recipients) - set(sendable))
-
-    if sendable and suppressed_emails:
-        excluded.extend(suppressed_emails & set(sendable))
-        sendable = [r for r in sendable if r not in suppressed_emails]
-
     return sendable, excluded
 
 
@@ -84,13 +68,13 @@ def deliver_email(
     sender: str = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>",
     reply_to: str | None = None,
     cc: list[str] | None = None,
-    suppressed_emails: set[str] | None = None,
     unsubscribe_urls: dict[str, UnsubscribeUrls] | None = None,
 ) -> dict[str, list[str]]:
-    """Low-level email delivery: render templates, set headers, and send.
+    """Render and deliver email to recipients allowed in this environment.
 
-    Callers should prefer ``mailing_list.lib.send_email`` which automatically
-    looks up suppressed addresses before delegating here.
+    This function does not apply mailing-list opt-outs. Application callers
+    should use ``mailing_list.lib.send_email`` for notification email or
+    ``mailing_list.lib.send_transactional_email`` for transactional email.
 
     Args:
         recipients: Email address string or list of addresses.
@@ -104,12 +88,12 @@ def deliver_email(
         sender: From address.
         reply_to: Optional reply-to address.
         cc: Optional list of CC addresses.
-        suppressed_emails: Optional set of email addresses to exclude.
         unsubscribe_urls: Optional recipient-to-URL-pair mapping for signed
             human-facing links and one-click unsubscribe headers.
 
     Returns:
-        ``{"success": [...], "failure": [...], "exclude": [...]}``.
+        ``{"success": [...], "failure": [...], "exclude": [...]}``, where
+        ``exclude`` contains recipients blocked by the environment allowlist.
     """
     subject = subject.replace("\n", "").replace("\r", "")
 
@@ -119,7 +103,7 @@ def deliver_email(
     if not settings.PRODUCTION:
         subject = "[Staging] " + subject
 
-    sendable, excluded = _filter_recipients(recipients, suppressed_emails)
+    sendable, excluded = _filter_recipients(recipients)
     result = {"success": [], "failure": [], "exclude": excluded}
 
     if not sendable:
