@@ -1,13 +1,9 @@
 import logging
 
-from django.contrib.admin.options import get_content_type_for_model
-from django.db import IntegrityError
 from django.db.models import Q
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import status, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated,
@@ -16,18 +12,13 @@ from rest_framework.permissions import (
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from analytics.amplitude import track_event
-from discussion.models import Vote
 from discussion.permissions import CensorDiscussion as CensorDiscussionPermission
 from discussion.permissions import EditorCensorDiscussion
-from discussion.serializers import VoteSerializer
 from discussion.views import ReactionViewActionMixin
-from paper.exceptions import DOINotFoundError, PaperSerializerError
-from paper.filters import PaperFilter
+from paper.exceptions import DOINotFoundError
 from paper.models import Paper
 from paper.permissions import (
     CanModifyLegacyJournalPaper,
-    CreatePaper,
     UpdatePaper,
     is_legacy_journal_paper,
 )
@@ -52,20 +43,18 @@ class PaperViewSet(
     ContentModerationActionsMixin,
     ReactionViewActionMixin,
     FollowViewActionMixin,
-    viewsets.ModelViewSet,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
 ):
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
     dynamic_serializer_class = DynamicPaperSerializer
-    filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
-    search_fields = ("title", "doi", "paper_title")
-    filterset_class = PaperFilter
     throttle_classes = THROTTLE_CLASSES
-    ordering = "-created_date"
     moderation_model = Paper
 
     permission_classes = [
-        IsAuthenticatedOrReadOnly & CreatePaper & UpdatePaper & CreateOrUpdateIfAllowed,
+        IsAuthenticatedOrReadOnly & UpdatePaper & CreateOrUpdateIfAllowed,
         CanModifyLegacyJournalPaper,
     ]
 
@@ -153,44 +142,6 @@ class PaperViewSet(
             return queryset.prefetch_related(*self.prefetch_lookups())
         else:
             return queryset
-
-    @track_event
-    def create(self, request, *args, **kwargs):
-        try:
-            doi = request.data.get("doi", "")
-            duplicate_papers = Paper.objects.filter(doi=doi)
-            if duplicate_papers:
-                serializer = DynamicPaperSerializer(
-                    duplicate_papers[:1],
-                    _include_fields=["doi", "id", "title", "url"],
-                    many=True,
-                )
-                duplicate_data = {"data": serializer.data}
-                return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
-            response = super().create(request, *args, **kwargs)
-            return response
-        except IntegrityError as e:
-            return self._get_integrity_error_response(e)
-        except PaperSerializerError:
-            logger.exception("Failed to serialize paper")
-            return Response(
-                "Failed to serialize paper", status=status.HTTP_400_BAD_REQUEST
-            )
-
-    def _get_integrity_error_response(self, error):
-        error_message = str(error)
-        parts = error_message.split("DETAIL:")
-        try:
-            error_message = parts[1].strip()
-            if "url" in error_message:
-                error_message = "A paper with this url already exists."
-            if "doi" in error_message:
-                error_message = "A paper with this DOI already exists."
-            if "DOI" in error_message:
-                error_message = "Invalid DOI"
-        except IndexError:
-            error_message = "A paper with this url or DOI already exists."
-        return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
 
     def _get_paper_context(self, request=None):
         context = {
@@ -330,30 +281,6 @@ class PaperViewSet(
         paper = super().get_object()
         serializer_data = self._serialize_paper(paper, request)
         return Response(serializer_data)
-
-    def list(self, request, *args, **kwargs):
-        # Temporarily disabling endpoint
-        return Response(status=200)
-
-    @action(detail=True, methods=["get"])
-    def user_vote(self, request, pk=None):
-        paper = self.get_object()
-        user = request.user
-        vote = retrieve_vote(user, paper)
-        serializer = VoteSerializer(vote)
-        return Response(serializer.data, status=200)
-
-    @user_vote.mapping.delete
-    def delete_user_vote(self, request, pk=None):
-        try:
-            paper = self.get_object()
-            user = request.user
-            vote = retrieve_vote(user, paper)
-            vote_id = vote.id
-            vote.delete()
-            return Response(vote_id, status=200)
-        except Exception as e:
-            return Response(f"Failed to delete vote: {e}", status=400)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def fetch_publications_by_doi(self, request):
@@ -532,14 +459,3 @@ class PaperViewSet(
                 {"error": "An error occurred while creating the paper."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-
-def retrieve_vote(user, paper):
-    try:
-        return Vote.objects.get(
-            content_type=get_content_type_for_model(paper),
-            created_by=user,
-            object_id=paper.id,
-        )
-    except Vote.DoesNotExist:
-        return None

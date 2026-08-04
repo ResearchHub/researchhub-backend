@@ -16,17 +16,11 @@ def is_legacy_journal_paper(paper: Paper) -> bool:
     ).exists()
 
 
-class CreatePaper(RuleBasedPermission):
-    message = "Not enough reputation to upload paper."
-
-    def satisfies_rule(self, request):
-        return request.user.reputation >= 1 and not request.user.is_suspended
-
-
 class UpdatePaper(RuleBasedPermission):
-    message = "Not enough reputation to upload paper."
+    message = "Not enough reputation to update paper."
 
-    def satisfies_rule(self, request):
+    def satisfies_rule(self, request: Request) -> bool:
+        """Return whether the requester may update a paper."""
         return request.user.reputation >= 1 and not request.user.is_suspended
 
 

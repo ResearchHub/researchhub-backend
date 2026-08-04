@@ -1,3 +1,4 @@
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
 from research_ai.constants import EmailTemplateType
@@ -25,7 +26,6 @@ class GeneratedEmail(DefaultModel):
         EMAIL = "email", "Email"
         LINKEDIN = "linkedin", "LinkedIn"
         X = "x", "X"
-        OTHER = "other", "Other"
 
     created_by = models.ForeignKey(
         "user.User",
@@ -77,17 +77,15 @@ class GeneratedEmail(DefaultModel):
         choices=Status.choices,
         default=Status.DRAFT,
     )
-    channel = models.CharField(
-        max_length=16,
-        choices=Channel.choices,
+    channels = ArrayField(
+        models.CharField(max_length=16, choices=Channel.choices),
+        default=list,
         blank=True,
-        default="",
         db_comment=(
-            "Outreach channel when marked sent "
-            "(email / linkedin / x / other). Empty until sent."
+            "Outreach channels when marked sent "
+            "(email / linkedin / x). Empty until sent."
         ),
     )
-    notes = models.TextField(blank=True)
     ses_message_id = models.CharField(
         max_length=255,
         blank=True,

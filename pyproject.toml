@@ -99,10 +99,12 @@ extend-select = [
     "PERF",  # flake8-perf
     "PIE",   # flake8-pie
     "RSE",   # flake8-raise
+    "RUF059",# unused-unpacked-variable
     "S113",  # flake8-bandit: request-without-timeout
     "SIM",   # flake8-simplify
     "T20",   # flake8-print: forbid print statements
     "TID",   # flake8-tidy-imports 
+    "TRY401",# verbose-log-message,
     "UP",    # pyupgrade
     "W",     # pycodestyle warnings
 ]

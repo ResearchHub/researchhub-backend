@@ -8,8 +8,8 @@ Public surface:
   ``deserialize_messages`` helpers.
 - Tools: ``Tool``, ``Toolset``.
 - Providers: ``LLMProvider`` (ABC), ``BedrockProvider``,
-  ``ClaudePlatformProvider``, and the settings-driven resolvers
-  ``resolve_provider`` / ``generator_model_ref``.
+  ``ClaudePlatformProvider``, ``OpenRouterProvider``, and the settings-driven
+  resolvers ``resolve_provider`` / ``generator_model_ref``.
 - Loop: ``Agent``, ``AgentResult``.
 - Recording: ``AgentRecorder`` (protocol; implementations live outside the
   package and are injected).
@@ -31,6 +31,7 @@ from research_ai.services.agent.loop import Agent, AgentResult
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.providers.bedrock import BedrockProvider
 from research_ai.services.agent.providers.claude_platform import ClaudePlatformProvider
+from research_ai.services.agent.providers.openrouter import OpenRouterProvider
 from research_ai.services.agent.providers.registry import (
     generator_model_ref,
     resolve_provider,
@@ -63,6 +64,7 @@ __all__ = [
     "IncompleteTurnError",
     "IterationLimitError",
     "LLMProvider",
+    "OpenRouterProvider",
     "ProviderError",
     "Message",
     "ServerToolBlock",

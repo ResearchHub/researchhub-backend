@@ -249,7 +249,6 @@ class BulkGenerateEmailView(APIView):
                         email_body="",
                         template=stored_template,
                         status=GeneratedEmail.Status.PROCESSING,
-                        notes=expert.notes or "",
                     )
                     placeholders.append(email_record)
         except ValueError as e:
@@ -321,7 +320,7 @@ class PreviewEmailView(APIView):
                 )
                 sent += 1
             except Exception as e:
-                logger.exception("Preview send failed for email id=%s: %s", rec.id, e)
+                logger.exception("Preview send failed for email id=%s", rec.id)
                 return Response(
                     {"detail": str(e)},
                     status=status.HTTP_503_SERVICE_UNAVAILABLE,

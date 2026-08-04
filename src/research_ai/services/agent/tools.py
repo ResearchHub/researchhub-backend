@@ -26,6 +26,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Backstop on one tool result (~32k tokens). Tools are expected to bound their
+# own output to something the context window can afford -- a page of results, a
+# capped slice of a document -- and every one of ours does. This catches the one
+# that forgets: without it an unbounded result floods the context, costs a turn's
+# budget, and outgrows the row it has to be stored in to resume the run.
+MAX_TOOL_RESULT_BYTES = 128 * 1024
+
 # Handler signature: receives the model's parsed tool input, returns a dict.
 ToolHandler = Callable[[dict], dict]
 
@@ -108,10 +115,22 @@ class Toolset:
                 )
             }, False
         try:
-            json.dumps(result, allow_nan=False)
+            encoded = json.dumps(result, allow_nan=False)
         except (TypeError, ValueError, RecursionError):
             logger.warning("tool %r returned invalid JSON", name, exc_info=True)
             return {"error": f"tool {name!r} returned invalid JSON"}, False
+        size = len(encoded.encode("utf-8"))
+        if size > MAX_TOOL_RESULT_BYTES:
+            # Reported to the model, not truncated for it: it can narrow the
+            # query or page through the result, which a silent slice of someone
+            # else's JSON would deny it.
+            logger.warning("tool %r returned %d bytes, over the limit", name, size)
+            return {
+                "error": (
+                    f"tool {name!r} returned {size} bytes, over the "
+                    f"{MAX_TOOL_RESULT_BYTES} byte limit; request less at a time"
+                )
+            }, False
         is_error = isinstance(result, dict) and "error" in result
         return result, tool.is_terminal and not is_error
 

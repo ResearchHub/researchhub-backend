@@ -119,7 +119,7 @@ class GetWorkFulltextTests(SimpleTestCase):
 
     def test_reads_pdf_text_for_returned_work(self):
         # Arrange: a stub fetcher stands in for the PDF download/extract.
-        provider, toolset, url = self._toolset_with_work(
+        _, toolset, url = self._toolset_with_work(
             pdf_text_fetcher=lambda pdf_url: "METHODS: single-cell RNA-seq on ..."
         )
         # Act
@@ -131,9 +131,7 @@ class GetWorkFulltextTests(SimpleTestCase):
 
     def test_falls_back_to_abstract_when_no_pdf_text(self):
         # Arrange: the fetcher yields nothing, so the abstract is used.
-        provider, toolset, url = self._toolset_with_work(
-            pdf_text_fetcher=lambda pdf_url: ""
-        )
+        _, toolset, url = self._toolset_with_work(pdf_text_fetcher=lambda pdf_url: "")
         # Act
         result, _ = toolset.dispatch("get_work_fulltext", {"source_url": url})
         # Assert

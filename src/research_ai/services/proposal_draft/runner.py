@@ -42,7 +42,11 @@ Judge-facing context compaction lives with the other tool code in
 
 import logging
 
-from research_ai.models import ProposalDraft, SearchExpert
+from research_ai.models import (
+    AgentExecution,
+    ProposalDraft,
+    SearchExpert,
+)
 from research_ai.prompts.proposal_draft_prompts import (
     build_proposal_system_prompt,
     build_proposal_user_prompt,
@@ -54,6 +58,11 @@ from research_ai.services.agent import (
     Toolset,
     generator_model_ref,
     resolve_provider,
+)
+from research_ai.services.agent_persistence import (
+    AgentConversationService,
+    AgentExecutionService,
+    NoteAgentConversationService,
 )
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_draft.draft_recorder import DraftRecorder
@@ -100,6 +109,9 @@ class _ProposalDraftRunner:
         oa_client: OpenAlex | None = None,
         web_search_client=None,
         config: ProposalDraftConfig | None = None,
+        conversation_service: AgentConversationService | None = None,
+        execution_service: AgentExecutionService | None = None,
+        note_conversation_service: NoteAgentConversationService | None = None,
     ):
         self.search_expert = search_expert
         self.expert = search_expert.expert
@@ -108,11 +120,25 @@ class _ProposalDraftRunner:
         self.web_search_client = web_search_client
         self.panel = panel or ProposalJudgePanel()
         self.config = config or ProposalDraftConfig.from_settings()
+        self.conversations = (
+            AgentConversationService()
+            if conversation_service is None
+            else conversation_service
+        )
+        self.executions = (
+            AgentExecutionService() if execution_service is None else execution_service
+        )
+        self.note_conversations = (
+            NoteAgentConversationService()
+            if note_conversation_service is None
+            else note_conversation_service
+        )
 
         self.state = ProposalRunState(self.config)
         self.recorder = DraftRecorder(
             draft, self.state, progress_callback=progress_callback
         )
+        self.agent_recorder = None
 
         # Shared across the run: provenance the citation gate grounds against.
         self.provenance: set[str] = set()
@@ -144,17 +170,9 @@ class _ProposalDraftRunner:
     # -- public entry -----------------------------------------------------
 
     def run(self) -> dict:
-        self.recorder.mark_processing(
-            {
-                "generator_model_id": getattr(self.provider, "model_id", None)
-                or generator_model_ref(),
-                "judge_roster": list(self.panel.model_ids),
-                "max_rounds": self.config.max_rounds,
-                "panel_threshold": self.config.panel_threshold,
-                "style_threshold": self.config.style_threshold,
-                "max_iterations": self.config.max_iterations,
-            }
-        )
+        run_config = self._run_config()
+        self.recorder.mark_processing(run_config)
+        self._start_agent_recording(run_config)
         try:
             return self._run()
         except Exception as exc:  # noqa: BLE001 - no run may end still PROCESSING
@@ -163,6 +181,7 @@ class _ProposalDraftRunner:
             # the record in FAILED with a real message, never a stuck
             # PROCESSING with no explanation.
             logger.exception("proposal draft run crashed")
+            self._record_setup_failure(exc)
             return self._fail(f"unexpected error: {exc}")
 
     def _run(self) -> dict:
@@ -170,7 +189,9 @@ class _ProposalDraftRunner:
         # draft against -- the run could never succeed.
         self.rfp_context = self.context_toolset.get_rfp_context()
         if "error" in self.rfp_context:
-            return self._fail(f"cannot draft: {self.rfp_context['error']}")
+            message = f"cannot draft: {self.rfp_context['error']}"
+            self._record_setup_failure(AgentRunError(message, iterations=0))
+            return self._fail(message)
 
         self._ensure_profile()
 
@@ -203,6 +224,67 @@ class _ProposalDraftRunner:
 
     # -- setup ------------------------------------------------------------
 
+    def _run_config(self) -> dict:
+        generator_model_id = getattr(self.provider, "model_id", None)
+        if not generator_model_id and self.provider is not None:
+            generator_model_id = type(self.provider).__name__
+        if not generator_model_id:
+            generator_model_id = generator_model_ref()
+        return {
+            "generator_model_id": generator_model_id,
+            "judge_roster": list(self.panel.model_ids),
+            "max_rounds": self.config.max_rounds,
+            "panel_threshold": self.config.panel_threshold,
+            "style_threshold": self.config.style_threshold,
+            "max_iterations": self.config.max_iterations,
+            "max_tokens": self.config.max_tokens,
+            "temperature": self.config.temperature,
+        }
+
+    def _start_agent_recording(self, run_config: dict) -> None:
+        """Best-effort trace creation; proposal correctness never depends on it."""
+        try:
+            conversation = self.recorder.draft.agent_conversation
+            if conversation is None:
+                conversation = self.conversations.create(
+                    user=self.recorder.draft.created_by,
+                    workflow="proposal_draft",
+                )
+                self.recorder.draft.agent_conversation = conversation
+                self.recorder.draft.save(
+                    update_fields=["agent_conversation", "updated_date"]
+                )
+            retry_of = (
+                conversation.executions.exclude(status=AgentExecution.Status.RUNNING)
+                .order_by("-attempt")
+                .first()
+            )
+            model_ref = str(run_config.get("generator_model_id") or "")
+            provider_name = (
+                type(self.provider).__name__
+                if self.provider is not None
+                else model_ref.partition(":")[0]
+            )
+            self.agent_recorder = self.executions.start(
+                conversation,
+                provider=provider_name,
+                model=model_ref,
+                configuration=run_config,
+                retry_of=retry_of,
+                publish_assistant_message=False,
+            )
+        except Exception:  # noqa: BLE001 - observability cannot break drafting
+            logger.warning("could not initialize proposal agent trace", exc_info=True)
+            self.agent_recorder = None
+
+    def _record_setup_failure(self, error: Exception) -> None:
+        if self.agent_recorder is None or self.agent_recorder.terminal_observed:
+            return
+        try:
+            self.agent_recorder.on_run_failed(error)
+        except Exception:  # noqa: BLE001 - observability cannot mask the run outcome
+            logger.warning("could not finalize proposal agent trace", exc_info=True)
+
     def _ensure_profile(self) -> None:
         """Build + persist the researcher profile when it is missing/stale."""
         if not _needs_profile(self.expert.profile):
@@ -220,6 +302,13 @@ class _ProposalDraftRunner:
             native_tools=frozenset({"web_search"})
         )
         toolset = self._compose_toolset(provider)
+        if self.agent_recorder is not None:
+            try:
+                self.agent_recorder.set_system_prompt(system_prompt)
+            except Exception:  # noqa: BLE001 - observability cannot break drafting
+                logger.warning(
+                    "could not snapshot proposal system prompt", exc_info=True
+                )
         return AgentService(
             provider=provider, max_iterations=self.config.max_iterations
         ).create_agent(
@@ -227,6 +316,7 @@ class _ProposalDraftRunner:
             system_prompt=system_prompt,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
+            recorder=self.agent_recorder,
         )
 
     def _compose_toolset(self, provider) -> Toolset:
@@ -426,7 +516,21 @@ class _ProposalDraftRunner:
         note = write_proposal_note(
             submission, created_by=self.recorder.draft.created_by
         )
-        return self.recorder.complete(note)
+        result = self.recorder.complete(note)
+        self._attach_conversation_to_note(note)
+        return result
+
+    def _attach_conversation_to_note(self, note) -> None:
+        conversation = self.recorder.draft.agent_conversation
+        if conversation is None:
+            return
+        try:
+            self.note_conversations.attach(conversation, note)
+        except Exception:  # noqa: BLE001 - observability cannot break drafting
+            logger.warning(
+                "could not attach proposal agent conversation to note",
+                exc_info=True,
+            )
 
     def _fail(self, message: str | None = None) -> dict:
         return self.recorder.fail(message or self.state.failure_message())
@@ -463,6 +567,9 @@ def run_proposal_draft(
     panel: ProposalJudgePanel | None = None,
     oa_client: OpenAlex | None = None,
     web_search_client=None,
+    conversation_service: AgentConversationService | None = None,
+    execution_service: AgentExecutionService | None = None,
+    note_conversation_service: NoteAgentConversationService | None = None,
 ) -> dict:
     """Run a headless proposal-drafting job for one ``SearchExpert``.
 
@@ -473,11 +580,10 @@ def run_proposal_draft(
     Returns a result dict carrying the final status, the gate report, and (on success)
     the note id.
 
-    ``provider`` / ``panel`` / ``oa_client`` / ``web_search_client`` are
-    injectable for tests; in production they default to the settings-configured
-    generator provider (Claude Platform on AWS unless
-    ``RESEARCH_AI_GENERATOR_PROVIDER`` says ``"bedrock"``), judge panel,
-    OpenAlex client, and Brave web-search client.
+    Runtime collaborators are injectable for tests; in production they default
+    to the settings-configured generator provider (Claude Platform on AWS unless
+    ``RESEARCH_AI_GENERATOR_PROVIDER`` selects Bedrock or OpenRouter), judge panel,
+    OpenAlex client, Brave web-search client, and database persistence services.
     """
     search_expert = SearchExpert.objects.select_related(
         "expert", "expert_search", "expert_search__unified_document"
@@ -498,5 +604,8 @@ def run_proposal_draft(
         panel=panel,
         oa_client=oa_client,
         web_search_client=web_search_client,
+        conversation_service=conversation_service,
+        execution_service=execution_service,
+        note_conversation_service=note_conversation_service,
     )
     return runner.run()

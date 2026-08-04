@@ -164,7 +164,9 @@ class AgentPersistenceContentTests(TestCase):
         self.assertEqual(restored, message)
 
     def test_context_compacts_complete_message_over_limit(self):
-        # Arrange
+        # Arrange: only a missing upstream bound can produce a message this
+        # large, so the row keeps a marker the provider still accepts rather
+        # than a structure preserving content that is no longer there.
         message = Message(
             role="assistant",
             content=[
@@ -184,12 +186,35 @@ class AgentPersistenceContentTests(TestCase):
 
         # Assert
         self.assertTrue(is_compacted)
+        self.assertEqual(len(content), 1)
         self.assertEqual(content[0]["type"], "text")
         self.assertEqual(provider_state, {})
         self.assertEqual(
             original_size,
             json_size_bytes({"content": blocks, "provider_state": {}}),
         )
+        self.assertLessEqual(json_size_bytes(content), MAX_CONTEXT_MESSAGE_BYTES)
+        deserialize_messages([{"role": message.role, "content": content}])
+
+    def test_context_falls_back_to_text_when_state_alone_is_oversized(self):
+        # Arrange: the content fits but the state beside it does not, and the
+        # two are bounded together -- a turn resumed with one and not the other
+        # is not the turn that was recorded.
+        message = Message(
+            role="assistant",
+            content=[TextBlock(text="done")],
+            provider_state={"blob": "x" * (MAX_CONTEXT_MESSAGE_BYTES * 2)},
+        )
+
+        # Act
+        content, provider_state, is_compacted, _size = serialize_context_message(
+            message
+        )
+
+        # Assert
+        self.assertTrue(is_compacted)
+        self.assertEqual(content[0]["type"], "text")
+        self.assertEqual(provider_state, {})
         self.assertLessEqual(json_size_bytes(content), MAX_CONTEXT_MESSAGE_BYTES)
         deserialize_messages([{"role": message.role, "content": content}])
 

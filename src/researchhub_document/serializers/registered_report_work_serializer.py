@@ -17,24 +17,7 @@ from researchhub_document.related_models.constants.journey_stage import (
 from researchhub_document.services.registered_report_work_service import (
     RegisteredReportWorkPayload,
 )
-from review.models import Review
-
-
-class RegisteredReportProposalReviewSerializer(serializers.ModelSerializer):
-    """Serialize the peer-review data shown beside a registered report."""
-
-    created_by = SimpleUserSerializer(read_only=True)
-
-    class Meta:
-        model = Review
-        fields = [
-            "id",
-            "score",
-            "is_assessed",
-            "created_by",
-            "created_date",
-            "updated_date",
-        ]
+from review.serializers.review_serializer import DynamicReviewSerializer
 
 
 class RegisteredReportWorkSerializer(serializers.Serializer):
@@ -163,14 +146,46 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
                 many=True,
             ).data,
             "image_url": self.get_image_url(proposal),
-            "peer_reviews": RegisteredReportProposalReviewSerializer(
-                proposal.unified_document.reviews.all(),
-                many=True,
-            ).data,
+            "peer_reviews": self.serialize_peer_reviews(proposal),
             "status": proposal.unified_document.status,
             "unified_document_id": proposal.unified_document_id,
             "updated_date": proposal.updated_date,
         }
+
+    def serialize_peer_reviews(self, proposal: ResearchhubPost) -> list[dict[str, Any]]:
+        """Serialize proposal reviews with each reviewer's profile image."""
+        return DynamicReviewSerializer(
+            proposal.unified_document.reviews.all(),
+            many=True,
+            _include_fields=[
+                "id",
+                "score",
+                "is_assessed",
+                "created_by",
+                "created_date",
+                "updated_date",
+            ],
+            context={
+                **self.context,
+                "rev_drs_get_created_by": {
+                    "_include_fields": [
+                        "id",
+                        "author_profile",
+                        "first_name",
+                        "is_verified",
+                        "last_name",
+                    ]
+                },
+                "usr_dus_get_author_profile": {
+                    "_include_fields": [
+                        "id",
+                        "first_name",
+                        "last_name",
+                        "profile_image",
+                    ]
+                },
+            },
+        ).data
 
     def serialize_authors(self, post: ResearchhubPost) -> list[dict[str, Any]]:
         """Serialize registered report authors."""

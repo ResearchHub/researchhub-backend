@@ -1,12 +1,11 @@
 import random
 
-from django.core.files.uploadedfile import SimpleUploadedFile
+from rest_framework import status
 from rest_framework.test import APITestCase
 
-from hub.tests.helpers import create_hub
 from paper.models import Paper, PaperVersion
-from user.models import Author, User
-from user.tests.helpers import create_random_authenticated_user, create_university
+from user.models import User
+from user.tests.helpers import create_random_authenticated_user
 
 from .helpers import create_paper
 
@@ -17,11 +16,6 @@ class PaperPermissionsIntegrationTests(APITestCase):
         self.base_url = "/api/paper/"
         self.paper = create_paper()
         self.flag_reason = "Inappropriate"
-
-    def test_can_not_post_paper_below_minimum_reputation(self):
-        user = self.create_user_with_reputation(-1)
-        response = self.get_paper_submission_response(user)
-        self.assertEqual(response.status_code, 403)
 
     def test_can_flag_paper_with_minimum_reputation(self):
         user = self.create_user_with_reputation(50)
@@ -38,7 +32,35 @@ class PaperPermissionsIntegrationTests(APITestCase):
         response = self.get_patch_response(user, self.paper)
         self.assertEqual(response.status_code, 403)
 
-    def test_prevents_updating_legacy_journal_papers(self):
+    def test_prevents_creating_papers(self) -> None:
+        """The paper API does not expose direct paper creation routes."""
+        # Arrange
+        user = self.create_user_with_reputation(1)
+        paper_count = Paper.objects.count()
+        retired_creation_urls = [
+            self.base_url,
+            f"{self.base_url}create_researchhub_paper/",
+            f"{self.base_url}publish_to_researchhub_journal/",
+            f"{self.base_url}upload/",
+        ]
+        self.client.force_authenticate(user)
+
+        # Act
+        responses = {
+            url: self.client.post(url, {"title": "Disallowed paper"}, format="json")
+            for url in retired_creation_urls
+        }
+
+        # Assert
+        for url, response in responses.items():
+            with self.subTest(url=url):
+                self.assertIn(
+                    response.status_code,
+                    (status.HTTP_404_NOT_FOUND, status.HTTP_405_METHOD_NOT_ALLOWED),
+                )
+        self.assertEqual(Paper.objects.count(), paper_count)
+
+    def test_prevents_updating_legacy_journal_papers(self) -> None:
         """Legacy journal papers cannot be updated through the paper API."""
         # Arrange
         paper = self.create_legacy_journal_paper()
@@ -53,25 +75,24 @@ class PaperPermissionsIntegrationTests(APITestCase):
         )
 
         # Assert
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         paper.refresh_from_db()
         self.assertNotEqual(paper.title, "Updated legacy paper")
 
-    def test_prevents_deleting_legacy_journal_papers(self):
-        """Legacy journal papers cannot be deleted through the paper API."""
+    def test_prevents_deleting_papers(self) -> None:
+        """The paper API does not expose direct paper deletion."""
         # Arrange
-        paper = self.create_legacy_journal_paper()
         user = self.create_user_with_reputation(1)
         self.client.force_authenticate(user)
 
         # Act
-        response = self.client.delete(f"{self.base_url}{paper.id}/")
+        response = self.client.delete(f"{self.base_url}{self.paper.id}/")
 
         # Assert
-        self.assertEqual(response.status_code, 403)
-        self.assertTrue(Paper.objects.filter(id=paper.id).exists())
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertTrue(Paper.objects.filter(id=self.paper.id).exists())
 
-    def test_prevents_moderating_legacy_journal_papers(self):
+    def test_prevents_moderating_legacy_journal_papers(self) -> None:
         """Legacy journal papers cannot be moderated or censored."""
         # Arrange
         moderator = self.create_user_with_reputation(1)
@@ -89,7 +110,7 @@ class PaperPermissionsIntegrationTests(APITestCase):
 
         # Assert
         for response in responses:
-            self.assertEqual(response.status_code, 403)
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         paper.refresh_from_db()
         self.assertFalse(paper.is_removed)
 
@@ -122,12 +143,6 @@ class PaperPermissionsIntegrationTests(APITestCase):
         )
         return paper
 
-    def get_paper_submission_response(self, user):
-        url = self.base_url
-        form_data = self.build_paper_form()
-        self.client.force_authenticate(user)
-        return self.client.post(url, form_data, format="multipart")
-
     def get_patch_response(self, user, paper):
         if paper is None:
             paper = self.paper
@@ -135,22 +150,6 @@ class PaperPermissionsIntegrationTests(APITestCase):
         data = {"title": "Patched Paper Title"}
         self.client.force_authenticate(user)
         return self.client.patch(url, data, format="multipart")
-
-    def build_paper_form(self):
-        file = SimpleUploadedFile("../config/paper.pdf", b"file_content")
-        hub = create_hub("Cryptography")
-        university = create_university(name="Univeristy of Atlanta")
-        author = Author.objects.create(
-            university=university, first_name="Tom", last_name="Riddle"
-        )
-        form = {
-            "title": "The Best Paper",
-            "paper_publish_date": "1990-10-01",
-            "file": file,
-            "hubs": [hub.id],
-            "authors": [1, author.id],
-        }
-        return form
 
     def get_flag_response(self, user):
         url = self.base_url + f"{self.paper.id}/flag/"

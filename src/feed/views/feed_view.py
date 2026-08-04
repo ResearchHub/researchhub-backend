@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.core.cache import cache
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from feed.feed_config import FEED_CONFIG, FEED_DEFAULTS
 from feed.filtering import FeedFilteringBackend
@@ -17,7 +17,7 @@ class FeedPagination(BaseFeedPagination):
     page_size = 30
 
 
-class FeedViewSet(FeedViewMixin, ModelViewSet):
+class FeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     queryset = FeedEntry.objects.all()
     serializer_class = FeedEntrySerializer
     permission_classes = []

@@ -425,17 +425,6 @@ SOCIALACCOUNT_PROVIDERS = {
     },
 }
 
-
-GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/google/login/callback/"
-if PRODUCTION:
-    GOOGLE_REDIRECT_URL = (
-        "https://backend.prod.researchhub.com/auth/google/login/callback/"
-    )
-if STAGING:
-    GOOGLE_REDIRECT_URL = (
-        "https://backend.staging.researchhub.com/auth/google/login/callback/"
-    )
-
 ORCID_CLIENT_ID = os.environ.get(
     "ORCID_CLIENT_ID", getattr(keys, "ORCID_CLIENT_ID", "")
 )
@@ -551,9 +540,16 @@ ANTHROPIC_AWS_WORKSPACE_ID = os.environ.get(
     getattr(keys, "ANTHROPIC_AWS_WORKSPACE_ID", ""),
 )
 
+# OpenRouter (research_ai agent core). Required only when the generator or a
+# judge roster entry is routed through OpenRouter.
+OPENROUTER_API_KEY = os.environ.get(
+    "OPENROUTER_API_KEY",
+    getattr(keys, "OPENROUTER_API_KEY", ""),
+)
+
 # Which provider the research_ai agent core generates with: "claude_platform"
-# (default, Claude Platform on AWS) or "bedrock". Each adapter names its own
-# model and inference knobs as module constants.
+# (default, Claude Platform on AWS), "bedrock", or "openrouter". Each adapter
+# names its own model and inference knobs as module constants.
 RESEARCH_AI_GENERATOR_PROVIDER = os.environ.get(
     "RESEARCH_AI_GENERATOR_PROVIDER", "claude_platform"
 )

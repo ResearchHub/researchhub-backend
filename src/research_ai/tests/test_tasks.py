@@ -312,7 +312,7 @@ class SendQueuedEmailsTaskTests(TestCase):
             }
         ).get()
         rec.refresh_from_db()
-        self.assertEqual(rec.channel, GeneratedEmail.Channel.EMAIL)
+        self.assertEqual(rec.channels, [GeneratedEmail.Channel.EMAIL])
         ex = Expert.objects.get(email__iexact="sentmark@edu")
         self.assertIsNotNone(ex.last_email_sent_at)
         if before:

@@ -1,7 +1,7 @@
 from django.core import mail
 from django.test import TestCase, override_settings
 
-from utils.message import deliver_email, is_valid_email
+from utils.message import UnsubscribeUrls, deliver_email, is_valid_email
 
 TEMPLATE_TXT = "general_email_message.txt"
 TEMPLATE_HTML = "general_email_message.html"
@@ -65,27 +65,50 @@ class DeliverEmailTests(TestCase):
         msg = mail.outbox[0]
         self.assertEqual(msg.extra_headers["Precedence"], "bulk")
 
-    def test_list_unsubscribe_header_with_opt_out(self):
+    def test_list_unsubscribe_headers(self):
         # Act
         self._send(
-            email_context={**BASE_CONTEXT, "opt_out": "https://example.com/unsub"}
+            unsubscribe_urls={
+                "user@example.com": UnsubscribeUrls(
+                    human="https://example.com/email/preferences",
+                    one_click="https://example.com/unsubscribe",
+                )
+            },
         )
 
         # Assert
         headers = mail.outbox[0].extra_headers
-        self.assertIn("List-Unsubscribe", headers)
-        self.assertIn("List-Unsubscribe-Post", headers)
+        self.assertEqual(
+            headers["List-Unsubscribe"],
+            "<https://example.com/unsubscribe>",
+        )
+        self.assertEqual(
+            headers["List-Unsubscribe-Post"],
+            "List-Unsubscribe=One-Click",
+        )
 
     def test_does_not_mutate_email_context(self):
         # Arrange
-        context = {**BASE_CONTEXT, "opt_out": "https://example.com/unsub"}
-        original_opt_out = context["opt_out"]
+        context = {**BASE_CONTEXT}
 
         # Act
-        self._send(recipients=["a@example.com", "b@example.com"], email_context=context)
+        self._send(
+            recipients=["a@example.com", "b@example.com"],
+            email_context=context,
+            unsubscribe_urls={
+                "a@example.com": UnsubscribeUrls(
+                    human="https://example.com/preferences/a",
+                    one_click="https://example.com/unsubscribe/a",
+                ),
+                "b@example.com": UnsubscribeUrls(
+                    human="https://example.com/preferences/b",
+                    one_click="https://example.com/unsubscribe/b",
+                ),
+            },
+        )
 
         # Assert
-        self.assertEqual(context["opt_out"], original_opt_out)
+        self.assertEqual(context, BASE_CONTEXT)
 
     def test_reply_to_is_set(self):
         # Act

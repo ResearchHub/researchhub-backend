@@ -68,7 +68,7 @@ class UserCaptchaThrottle(UserRateThrottle):
                 key = self.fmt_cache_key(ident)
 
         self.cache.set(key + "_locked", True, None)
-        throt, created = Throttle.objects.get_or_create(throttle_key=key)
+        throt, _ = Throttle.objects.get_or_create(throttle_key=key)
         throt.locked = True
         throt.ident = ident
         if user.is_authenticated:
@@ -94,7 +94,7 @@ class UserCaptchaThrottle(UserRateThrottle):
             self.cache.delete(key + "_locked")
             self.cache.delete(key)
 
-            throt, created = Throttle.objects.get_or_create(throttle_key=key)
+            throt, _ = Throttle.objects.get_or_create(throttle_key=key)
             # TODO Log when we see a new user with same ip?
             throt.locked = False
             throt.ident = self.get_ident(request)
