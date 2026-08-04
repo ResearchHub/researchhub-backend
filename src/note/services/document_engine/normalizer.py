@@ -5,7 +5,7 @@ import json
 import uuid
 from collections.abc import Iterable
 
-from note.services.document_engine.registry import ID_CAPABLE_NODES
+from note.services.document_engine.registry import ID_CAPABLE_NODES, INVENTORY_NODES
 
 _ID_NAMESPACE = uuid.UUID("b1ab26a0-b48b-5cba-9618-d9675d455b95")
 
@@ -64,5 +64,7 @@ class DocumentNormalizer:
 
     def _walk_nodes(self, node: dict, path: str = "doc") -> Iterable[tuple[dict, str]]:
         yield node, path
+        if node["type"] not in INVENTORY_NODES:
+            return
         for index, child in enumerate(node.get("content", [])):
             yield from self._walk_nodes(child, f"{path}.content[{index}]")
