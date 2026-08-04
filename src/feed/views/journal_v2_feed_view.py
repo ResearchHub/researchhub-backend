@@ -9,7 +9,7 @@ from django.db.models.query import QuerySet
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from feed.feed_list_dto import (
     FundFeedListEntrySerializer,
@@ -37,7 +37,7 @@ from user.models import Author
 from .common import FeedPagination
 
 
-class JournalV2FeedViewSet(FeedViewMixin, ModelViewSet):
+class JournalV2FeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     """Feed viewset for the new ResearchHub Journal journey feed."""
 
     serializer_class = FundFeedListEntrySerializer
