@@ -1,12 +1,21 @@
+import json
+
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from note.models import NoteContent
 from note.tests.helpers import create_note
 from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE, NoteToolset
 from researchhub_access_group.constants import ADMIN, VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.registered_report_note_metadata import (
+    add_registered_report_prefill_metadata,
+)
+from researchhub_document.related_models.constants.document_type import (
+    REGISTERED_REPORT,
+)
 
 TIPTAP_DOC = {
     "type": "doc",
@@ -149,6 +158,38 @@ class NoteToolsetTests(TestCase):
         self.assertIn("no edit permission", result["error"])
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, self.content.id)
+
+    def test_edit_note_preserves_registered_report_prefill(self):
+        # Arrange: a registered-report draft whose latest version carries
+        # publish metadata that the agent's replacement document omits.
+        prefill = {"proposal_id": 42}
+        self.note.document_type = REGISTERED_REPORT
+        self.note.save()
+        seeded = NoteContent.objects.create(
+            note=self.note,
+            json=json.dumps(
+                add_registered_report_prefill_metadata(TIPTAP_DOC, prefill)
+            ),
+            plain_text="seeded",
+        )
+
+        # Act
+        result, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": seeded.id,
+                "content": TIPTAP_DOC,
+            },
+        )
+
+        # Assert
+        self.assertTrue(result.get("saved"))
+        self.note.refresh_from_db()
+        self.assertEqual(
+            self.note.latest_version.json["attrs"]["registered_report_prefill"],
+            prefill,
+        )
 
     def test_edit_note_rejects_invalid_content(self):
         # Act

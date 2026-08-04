@@ -1,10 +1,15 @@
+import json
 import unittest
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
+from note.related_models.note_model import NoteContent
 from note.services.note_content_service import NoteContentService, extract_plain_text
 from note.tests.helpers import create_note
+from researchhub_document.registered_report_note_metadata import (
+    add_registered_report_prefill_metadata,
+)
 from researchhub_document.related_models.constants.document_type import (
     REGISTERED_REPORT,
 )
@@ -88,3 +93,63 @@ class NoteContentServiceTests(TestCase):
         # Act & Assert
         with self.assertRaises(ValueError):
             self.service.create_version(self.note, TIPTAP_DOC)
+
+
+PREFILL = {
+    "author_ids": [7],
+    "image": None,
+    "preview_img": None,
+    "proposal_id": 42,
+}
+
+
+class RegisteredReportPrefillTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="prefill@researchhub_test.com",
+            password="password",
+            email="prefill@researchhub_test.com",
+        )
+        self.note, _ = create_note(self.user, organization=None)
+        self.note.document_type = REGISTERED_REPORT
+        self.note.save()
+        self.service = NoteContentService()
+        # Seed the draft the way draft creation does: the prefill attr on the
+        # document root, persisted as a JSON-encoded string.
+        seeded = add_registered_report_prefill_metadata(TIPTAP_DOC, PREFILL)
+        NoteContent.objects.create(
+            note=self.note, json=json.dumps(seeded), plain_text="seeded"
+        )
+        self.note.refresh_from_db()
+
+    def test_create_version_restores_dropped_prefill(self):
+        # Act: the replacement document omits the prefill attr entirely.
+        version = self.service.create_version(self.note, TIPTAP_DOC)
+
+        # Assert
+        self.assertEqual(version.json["attrs"]["registered_report_prefill"], PREFILL)
+        self.assertEqual(version.json["content"], TIPTAP_DOC["content"])
+
+    def test_create_version_overrides_tampered_prefill(self):
+        # Arrange
+        tampered = add_registered_report_prefill_metadata(
+            TIPTAP_DOC, {"proposal_id": 999}
+        )
+
+        # Act
+        version = self.service.create_version(self.note, tampered)
+
+        # Assert
+        self.assertEqual(version.json["attrs"]["registered_report_prefill"], PREFILL)
+
+    def test_create_version_without_prior_prefill_saves_content_as_is(self):
+        # Arrange: a registered-report note whose history has no prefill.
+        note, _ = create_note(self.user, organization=None)
+        note.document_type = REGISTERED_REPORT
+        note.save()
+
+        # Act
+        version = self.service.create_version(note, TIPTAP_DOC)
+
+        # Assert
+        self.assertEqual(version.json, TIPTAP_DOC)
