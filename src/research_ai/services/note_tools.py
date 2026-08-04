@@ -13,6 +13,8 @@ be a viewer, editor, or admin to read, and an editor or admin to write.
 
 import logging
 
+from django.db import transaction
+
 from note.related_models.note_model import Note
 from note.services.note_content_service import NoteContentService
 from research_ai.services.agent import Tool, Toolset
@@ -135,18 +137,22 @@ class NoteToolset:
             return {"error": f"no edit permission on note {note.id}"}
 
         expected = input.get("expected_version_id")
-        if note.latest_version_id != expected:
-            return {
-                "error": (
-                    f"stale version: note {note.id} is at version "
-                    f"{note.latest_version_id}, expected {expected}; call "
-                    "read_note again and re-apply your edit"
-                )
-            }
-
         try:
-            version = self._service.create_version(note, input.get("content"))
-        except ValueError as exc:
+            with transaction.atomic():
+                # Lock the note row so the version check and the append are
+                # one atomic step; a concurrent edit blocks here and then
+                # sees the new latest_version_id (-> stale error) on entry.
+                locked = Note.objects.select_for_update().get(id=note.id)
+                if locked.latest_version_id != expected:
+                    return {
+                        "error": (
+                            f"stale version: note {locked.id} is at version "
+                            f"{locked.latest_version_id}, expected {expected}; "
+                            "call read_note again and re-apply your edit"
+                        )
+                    }
+                version = self._service.create_version(locked, input.get("content"))
+        except (ValueError, Note.DoesNotExist) as exc:
             return {"error": str(exc)}
         return {"note_id": note.id, "version_id": version.id, "saved": True}
 
