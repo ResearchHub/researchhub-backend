@@ -131,9 +131,7 @@ class PaperPermissionsIntegrationTests(APITestCase):
         user.save()
         return user
 
-    def _create_legacy_journal_paper(
-        self, uploaded_by: User | None = None
-    ) -> Paper:
+    def _create_legacy_journal_paper(self, uploaded_by: User | None = None) -> Paper:
         """Create a paper that represents an existing legacy journal entry."""
         paper = create_paper(uploaded_by=uploaded_by)
         PaperVersion.objects.create(
