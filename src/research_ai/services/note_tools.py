@@ -151,7 +151,9 @@ class NoteToolset:
         if self._user is None or getattr(self._user, "is_anonymous", False):
             return None
         try:
-            note = Note.objects.get(id=note_id)
+            # Same visibility rule as NoteViewSet: soft-deleted notes (removed
+            # unified document) do not exist as far as the tools are concerned.
+            note = Note.objects.get(id=note_id, unified_document__is_removed=False)
         except (Note.DoesNotExist, ValueError, TypeError):
             return None
         permissions = note.permissions
