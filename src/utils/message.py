@@ -17,7 +17,11 @@ class UnsubscribeUrls:
     one_click: str
 
 
-def is_valid_email(email: str) -> bool:
+def _is_allowed_recipient(email: str) -> bool:
+    """
+    Returns whether the given email address is allowed for sending in the
+    current environment.
+    """
     if settings.TESTING or settings.PRODUCTION:
         return True
     return email in settings.EMAIL_WHITELIST
@@ -36,7 +40,7 @@ def _filter_recipients(
     Returns:
         (sendable, excluded) – two lists of email addresses.
     """
-    sendable = [r for r in recipients if is_valid_email(r)]
+    sendable = [r for r in recipients if _is_allowed_recipient(r)]
     excluded = list(set(recipients) - set(sendable))
 
     if sendable and suppressed_emails:
