@@ -55,7 +55,11 @@ class ValidatorTests(unittest.TestCase):
 
     def test_unknown_types_warn_and_remain_verbatim(self):
         # Arrange
-        unknown = {"type": "futureWidget", "attrs": {"anything": [1, 2, 3]}}
+        unknown = {
+            "type": "futureWidget",
+            "attrs": {"anything": [1, 2, 3]},
+            "content": [{"type": "paragraph"}],
+        }
         doc = {"type": "doc", "content": [unknown]}
 
         # Act
