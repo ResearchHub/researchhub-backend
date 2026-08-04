@@ -5,7 +5,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import status, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import (
@@ -44,7 +44,9 @@ class PaperViewSet(
     ContentModerationActionsMixin,
     ReactionViewActionMixin,
     FollowViewActionMixin,
-    viewsets.ModelViewSet,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
 ):
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
