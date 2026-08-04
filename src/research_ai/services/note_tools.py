@@ -6,9 +6,10 @@ plus a version id; edits are full-document replaces guarded by that version id
 (optimistic concurrency), and each edit appends a new ``NoteContent`` version
 rather than mutating in place, so any agent edit is recoverable from history.
 
-Permission checks mirror the HTTP layer (``HasEditingPermission`` /
-``HasAccessPermission`` on the note's unified document): the acting user must
-be a viewer, editor, or admin to read, and an editor or admin to write.
+Permission checks mirror the HTTP layer on the note's unified document:
+reads use the ``HasAccessPermission`` predicate (any non-NO_ACCESS
+permission), writes the stricter ``HasEditingPermission`` one (editor or
+admin).
 """
 
 import logging
@@ -166,11 +167,8 @@ class NoteToolset:
             note = Note.objects.get(id=note_id, unified_document__is_removed=False)
         except (Note.DoesNotExist, ValueError, TypeError):
             return None
-        permissions = note.permissions
-        if not (
-            permissions.has_admin_user(self._user)
-            or permissions.has_editor_user(self._user)
-            or permissions.has_viewer_user(self._user)
-        ):
+        # Same predicate as HasAccessPermission: any non-NO_ACCESS permission
+        # (user- or org-level) makes the note readable.
+        if not note.permissions.has_user(self._user):
             return None
         return note
