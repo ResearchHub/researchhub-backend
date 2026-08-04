@@ -569,21 +569,6 @@ class PaperViewSet(
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    def _get_integrity_error_response(self, error):
-        error_message = str(error)
-        parts = error_message.split("DETAIL:")
-        try:
-            error_message = parts[1].strip()
-            if "url" in error_message:
-                error_message = "A paper with this url already exists."
-            if "doi" in error_message:
-                error_message = "A paper with this DOI already exists."
-            if "DOI" in error_message:
-                error_message = "Invalid DOI"
-        except IndexError:
-            error_message = "A paper with this url or DOI already exists."
-        return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
-
     def _get_paper_context(self, request=None):
         context = {
             "request": request,
