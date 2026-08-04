@@ -9,7 +9,7 @@ from django.db.models import Prefetch, Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from ai_peer_review.models import ProposalReview
 from feed.cache_segment import get_feed_cache_segment
@@ -26,7 +26,7 @@ from review.models import Review
 from .common import FeedPagination
 
 
-class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
+class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ReadOnlyModelViewSet):
     serializer_class = GrantFeedListEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination

@@ -133,6 +133,18 @@ class JournalFeedViewSetTests(AWSMockTestCase):
         # Clear cache before tests
         cache.clear()
 
+    def test_delete_is_not_allowed_for_anonymous_users(self) -> None:
+        """Verify the public journal feed cannot delete its backing papers."""
+        # Arrange
+        self.client.force_authenticate(user=None)
+
+        # Act
+        response = self.client.delete(f"/api/journal_feed/{self.published_paper.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertTrue(Paper.objects.filter(id=self.published_paper.id).exists())
+
     def test_list_journal_feed(self):
         """Test that only journal papers appear in the default feed"""
         url = reverse("journal_feed-list")

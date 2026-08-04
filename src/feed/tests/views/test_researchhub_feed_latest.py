@@ -82,6 +82,18 @@ class LatestFeedTests(APITestCase):
     def tearDown(self):
         cache.clear()
 
+    def test_delete_is_not_allowed_for_anonymous_users(self):
+        """Verify the public feed cannot delete its feed entries."""
+        # Arrange
+        self.client.force_authenticate(user=None)
+
+        # Act
+        response = self.client.delete(f"/api/feed/{self.newest_entry.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertTrue(FeedEntry.objects.filter(id=self.newest_entry.id).exists())
+
     def test_latest_feed_returns_results_ordered_by_action_date(self):
         """Test that latest feed returns results sorted by action_date descending."""
         url = reverse("feed-list")
