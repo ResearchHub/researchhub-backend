@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from time import sleep
 from typing import Any
 
@@ -8,6 +9,12 @@ from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class UnsubscribeUrls:
+    human: str
+    one_click: str
 
 
 def is_valid_email(email: str) -> bool:
@@ -55,14 +62,11 @@ def _render_body(
     return plain_body, html_body
 
 
-def _build_headers(opt_out_url: str | None = None) -> dict[str, str]:
+def _build_headers(list_unsubscribe_url: str | None = None) -> dict[str, str]:
     """Build email headers, adding unsubscribe when applicable."""
     headers: dict[str, str] = {"Precedence": "bulk"}
-    if opt_out_url:
-        headers["List-Unsubscribe"] = (
-            f"<mailto:{settings.DEFAULT_FROM_EMAIL}?subject=unsubscribe>, "
-            f"<{opt_out_url}>"
-        )
+    if list_unsubscribe_url:
+        headers["List-Unsubscribe"] = f"<{list_unsubscribe_url}>"
         headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
     return headers
 
@@ -77,6 +81,7 @@ def deliver_email(
     reply_to: str | None = None,
     cc: list[str] | None = None,
     suppressed_emails: set[str] | None = None,
+    unsubscribe_urls: dict[str, UnsubscribeUrls] | None = None,
 ) -> dict[str, list[str]]:
     """Low-level email delivery: render templates, set headers, and send.
 
@@ -96,6 +101,8 @@ def deliver_email(
         reply_to: Optional reply-to address.
         cc: Optional list of CC addresses.
         suppressed_emails: Optional set of email addresses to exclude.
+        unsubscribe_urls: Optional recipient-to-URL-pair mapping for signed
+            human-facing links and one-click unsubscribe headers.
 
     Returns:
         ``{"success": [...], "failure": [...], "exclude": [...]}``.
@@ -116,13 +123,12 @@ def deliver_email(
 
     for recipient in sendable:
         context = email_context.copy()
-        opt_out_url = context.get("opt_out")
-        if opt_out_url:
-            opt_out_url += f"?email={recipient}"
-            context["opt_out"] = opt_out_url
+        urls = unsubscribe_urls.get(recipient) if unsubscribe_urls is not None else None
+        if urls:
+            context["opt_out"] = urls.human
 
         plain_message, html_message = _render_body(template, html_template, context)
-        headers = _build_headers(opt_out_url)
+        headers = _build_headers(urls.one_click if urls else None)
 
         try:
             msg = EmailMultiAlternatives(

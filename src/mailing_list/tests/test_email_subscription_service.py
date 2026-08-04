@@ -72,6 +72,23 @@ class GenerateUrlTests(TestCase):
         # Assert
         self.assertEqual(parse_qs(urlsplit(url).query)["source"], ["email"])
 
+    def test_list_unsubscribe_url_points_to_the_frontend_proxy(self):
+        # Arrange
+        service = EmailSubscriptionService(
+            list_unsubscribe_url="https://www.example.com/api/email/unsubscribe"
+        )
+
+        # Act
+        url = service.generate_list_unsubscribe_url(EMAIL)
+
+        # Assert
+        parsed_url = urlsplit(url)
+        self.assertEqual(
+            f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}",
+            "https://www.example.com/api/email/unsubscribe",
+        )
+        self.assertTrue(parse_qs(parsed_url.query)["code"][0])
+
 
 class ReadCodeTests(TestCase):
     def setUp(self):
