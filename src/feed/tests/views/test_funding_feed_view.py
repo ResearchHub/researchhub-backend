@@ -166,6 +166,18 @@ class FundingFeedViewSetTests(AWSMockTestCase):
 
         cache.clear()
 
+    def test_delete_is_not_allowed_for_anonymous_users(self) -> None:
+        """Verify the public funding feed cannot delete its backing posts."""
+        # Arrange
+        self.client.force_authenticate(user=None)
+
+        # Act
+        response = self.client.delete(f"/api/funding_feed/{self.post.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertTrue(ResearchhubPost.objects.filter(id=self.post.id).exists())
+
     def test_list_funding_feed(self):
         """Test that funding feed only returns preregistration posts"""
         url = reverse("funding_feed-list")

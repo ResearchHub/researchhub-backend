@@ -12,7 +12,7 @@ from django.core.cache import cache
 from django.db.models import Count, Prefetch, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from feed.cache_segment import get_feed_cache_segment
 from feed.feed_list_dto import (
@@ -39,7 +39,7 @@ from review.models import Review
 from .common import FeedPagination
 
 
-class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
+class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet):
     serializer_class = FundingFeedListEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination

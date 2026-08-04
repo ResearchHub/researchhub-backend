@@ -84,6 +84,18 @@ class GrantFeedViewTests(APITestCase):
         ResearchhubPost.objects.filter(document_type=GRANT).delete()
         cache.clear()  # Clear cache to avoid test interference
 
+    def test_delete_is_not_allowed_for_anonymous_users(self):
+        """Verify the public grant feed cannot delete its backing posts."""
+        # Arrange
+        self.client.force_authenticate(user=None)
+
+        # Act
+        response = self.client.delete(f"/api/grant_feed/{self.open_post.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, 405)
+        self.assertTrue(ResearchhubPost.objects.filter(id=self.open_post.id).exists())
+
     def test_grant_feed_list_authenticated(self):
         """Test that authenticated users can access the grant feed"""
         self.client.force_authenticate(self.user)
