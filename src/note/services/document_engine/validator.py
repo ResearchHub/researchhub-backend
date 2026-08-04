@@ -5,7 +5,7 @@ import json
 import re
 import uuid
 from collections.abc import Iterable
-from urllib.parse import urlparse
+from urllib.parse import ParseResult, urlparse
 
 from note.services.document_engine.errors import (
     DocumentEngineError,
@@ -541,7 +541,7 @@ def _canonicalize_created_node(node: dict, *, top_level: bool, path: str) -> dic
         _require_leaf(node, path)
         attrs = _require_attr_keys(node, required={"src"}, optional={"alt"}, path=path)
         src = attrs["src"]
-        parsed = urlparse(src) if isinstance(src, str) else None
+        parsed = _parse_url(src)
         if (
             parsed is None
             or parsed.scheme != "https"
@@ -589,7 +589,7 @@ def _canonicalize_marks(marks: list[dict], *, path: str) -> list[dict]:
                 mark, required={"href"}, optional=set(), path=mark_path
             )
             href = attrs["href"]
-            parsed = urlparse(href) if isinstance(href, str) else None
+            parsed = _parse_url(href)
             if parsed is None or parsed.scheme not in LINK_ALLOWED_SCHEMES:
                 raise InvalidDocumentOperation(
                     "Link href must use http, https, mailto, or tel",
@@ -626,6 +626,15 @@ def _canonicalize_marks(marks: list[dict], *, path: str) -> list[dict]:
             "Text cannot be both subscript and superscript", path=f"{path}.marks"
         )
     return canonical
+
+
+def _parse_url(value: object) -> ParseResult | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return urlparse(value)
+    except ValueError:
+        return None
 
 
 def _require_leaf(node: dict, path: str):

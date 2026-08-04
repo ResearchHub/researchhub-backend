@@ -166,3 +166,38 @@ class ValidatorTests(unittest.TestCase):
             # Arrange / Act / Assert
             with self.subTest(node=node), self.assertRaises(InvalidDocumentOperation):
                 validate_created_node(node)
+
+    def test_malformed_created_urls_raise_typed_validation_errors(self):
+        # Arrange
+        invalid_nodes = [
+            (
+                {"type": "imageBlock", "attrs": {"src": "https://[bad"}},
+                "node.attrs.src",
+            ),
+            (
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "linked",
+                            "marks": [
+                                {
+                                    "type": "link",
+                                    "attrs": {"href": "https://[bad"},
+                                }
+                            ],
+                        }
+                    ],
+                },
+                "node.content[0].marks[0].attrs.href",
+            ),
+        ]
+        for node, expected_path in invalid_nodes:
+            with self.subTest(node=node):
+                # Act
+                with self.assertRaises(InvalidDocumentOperation) as context:
+                    validate_created_node(node)
+
+                # Assert
+                self.assertEqual(context.exception.path, expected_path)
