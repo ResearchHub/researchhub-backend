@@ -197,6 +197,47 @@ class EditorTests(unittest.TestCase):
                 with self.assertRaises(InvalidDocumentOperation):
                     self.engine.apply({"doc": self.document, "operations": [operation]})
 
+    def test_malformed_created_urls_raise_typed_validation_errors(self):
+        # Arrange
+        invalid_nodes = [
+            (
+                {"type": "imageBlock", "attrs": {"src": "https://[bad"}},
+                "operations[0].node.attrs.src",
+            ),
+            (
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "linked",
+                            "marks": [
+                                {
+                                    "type": "link",
+                                    "attrs": {"href": "https://[bad"},
+                                }
+                            ],
+                        }
+                    ],
+                },
+                "operations[0].node.content[0].marks[0].attrs.href",
+            ),
+        ]
+        for node, expected_path in invalid_nodes:
+            with self.subTest(node=node):
+                operation = {
+                    "op": "insert_after",
+                    "locator": "doc:start",
+                    "node": node,
+                }
+
+                # Act
+                with self.assertRaises(InvalidDocumentOperation) as context:
+                    self.engine.apply({"doc": self.document, "operations": [operation]})
+
+                # Assert
+                self.assertEqual(context.exception.path, expected_path)
+
     def test_replace_note_preserves_verbatim_opaque_blocks(self):
         # Arrange
         submitted = {
