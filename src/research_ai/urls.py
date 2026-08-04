@@ -20,6 +20,10 @@ from research_ai.views.expert_finder_views import (
     InvitedExpertEditorsOverviewView,
     InvitedExpertOverviewView,
 )
+from research_ai.views.notebook_chat_views import (
+    NotebookChatMessageView,
+    NotebookChatView,
+)
 from research_ai.views.proposal_draft_views import (
     ProposalDraftCreateView,
     ProposalDraftDetailView,
@@ -97,5 +101,13 @@ urlpatterns = [
     path(
         "expert-finder/proposal-drafts/<int:draft_id>/",
         ProposalDraftDetailView.as_view(),
+    ),
+    path(
+        "notebook/notes/<int:note_id>/chat/",
+        NotebookChatView.as_view(),
+    ),
+    path(
+        "notebook/notes/<int:note_id>/chat/messages/",
+        NotebookChatMessageView.as_view(),
     ),
 ]

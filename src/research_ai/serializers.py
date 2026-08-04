@@ -1013,6 +1013,17 @@ class EmailTemplateUpdateSerializer(serializers.Serializer):
     email_body = serializers.CharField(required=False, allow_blank=True)
 
 
+class NotebookChatMessageCreateSerializer(serializers.Serializer):
+    """
+    Request body for sending a message to the notebook chat assistant.
+
+    The service enforces the configurable ceiling; the max_length here is a
+    request-size backstop matching the config default.
+    """
+
+    message = serializers.CharField(max_length=20000)
+
+
 class ProposalDraftCreateSerializer(serializers.Serializer):
     """
     Request body for enqueueing a proposal-drafting job.
