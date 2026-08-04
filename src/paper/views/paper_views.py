@@ -1,7 +1,7 @@
 import logging
 
 from django.conf import settings
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -17,7 +17,7 @@ from rest_framework.response import Response
 
 from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
-from paper.exceptions import DOINotFoundError, PaperSerializerError
+from paper.exceptions import DOINotFoundError
 from paper.filters import PaperFilter
 from paper.models import Paper, PaperVersion
 from paper.permissions import CreatePaper, UpdatePaper
@@ -108,29 +108,6 @@ class PaperViewSet(
             return queryset.prefetch_related(*self.prefetch_lookups())
         else:
             return queryset
-
-    @track_event
-    def create(self, request, *args, **kwargs):
-        try:
-            doi = request.data.get("doi", "")
-            duplicate_papers = Paper.objects.filter(doi=doi)
-            if duplicate_papers:
-                serializer = DynamicPaperSerializer(
-                    duplicate_papers[:1],
-                    _include_fields=["doi", "id", "title", "url"],
-                    many=True,
-                )
-                duplicate_data = {"data": serializer.data}
-                return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
-            response = super().create(request, *args, **kwargs)
-            return response
-        except IntegrityError as e:
-            return self._get_integrity_error_response(e)
-        except PaperSerializerError:
-            logger.exception("Failed to serialize paper")
-            return Response(
-                "Failed to serialize paper", status=status.HTTP_400_BAD_REQUEST
-            )
 
     @track_event
     @action(
