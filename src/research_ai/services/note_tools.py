@@ -16,6 +16,7 @@ import logging
 from note.related_models.note_model import Note
 from note.services.note_content_service import NoteContentService
 from research_ai.services.agent import Tool, Toolset
+from researchhub_document.registered_report_note_metadata import parse_note_json
 
 logger = logging.getLogger(__name__)
 
@@ -108,13 +109,16 @@ class NoteToolset:
         if note is None:
             return {"error": f"note {input.get('note_id')} not found or not accessible"}
         latest = note.latest_version
+        # Stored JSON may be a JSON-encoded string rather than a dict;
+        # normalize so `content` always matches the shape edit_note accepts.
+        content = parse_note_json(latest.json) if latest else None
         result = {
             "note_id": note.id,
             "title": note.title,
             "version_id": latest.id if latest else None,
-            "content": latest.json if latest else None,
+            "content": content,
         }
-        if latest and latest.json is None:
+        if latest and content is None:
             result["plain_text"] = latest.plain_text
         return result
 
