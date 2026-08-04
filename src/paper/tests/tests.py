@@ -9,12 +9,6 @@ from user.tests.helpers import create_random_authenticated_user
 from .helpers import create_paper as create_test_paper
 
 
-class PaperIntegrationTests(APITestCase):
-    def test_get_base_route(self):
-        response = self.client.get("/api/paper/")
-        self.assertEqual(response.status_code, 200)
-
-
 class PaperPatchTest(APITestCase):
     base_url = "/api/paper/"
 

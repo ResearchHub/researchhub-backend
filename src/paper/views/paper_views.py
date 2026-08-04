@@ -1,13 +1,11 @@
 import logging
 
 from django.conf import settings
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import status, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated,
@@ -17,8 +15,7 @@ from rest_framework.response import Response
 
 from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
-from paper.exceptions import DOINotFoundError, PaperSerializerError
-from paper.filters import PaperFilter
+from paper.exceptions import DOINotFoundError
 from paper.models import Paper, PaperVersion
 from paper.permissions import CreatePaper, UpdatePaper
 from paper.related_models.authorship_model import Authorship
@@ -44,16 +41,14 @@ class PaperViewSet(
     ContentModerationActionsMixin,
     ReactionViewActionMixin,
     FollowViewActionMixin,
-    viewsets.ModelViewSet,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
 ):
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
     dynamic_serializer_class = DynamicPaperSerializer
-    filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
-    search_fields = ("title", "doi", "paper_title")
-    filterset_class = PaperFilter
     throttle_classes = THROTTLE_CLASSES
-    ordering = "-created_date"
     moderation_model = Paper
 
     permission_classes = [
@@ -108,29 +103,6 @@ class PaperViewSet(
             return queryset.prefetch_related(*self.prefetch_lookups())
         else:
             return queryset
-
-    @track_event
-    def create(self, request, *args, **kwargs):
-        try:
-            doi = request.data.get("doi", "")
-            duplicate_papers = Paper.objects.filter(doi=doi)
-            if duplicate_papers:
-                serializer = DynamicPaperSerializer(
-                    duplicate_papers[:1],
-                    _include_fields=["doi", "id", "title", "url"],
-                    many=True,
-                )
-                duplicate_data = {"data": serializer.data}
-                return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
-            response = super().create(request, *args, **kwargs)
-            return response
-        except IntegrityError as e:
-            return self._get_integrity_error_response(e)
-        except PaperSerializerError:
-            logger.exception("Failed to serialize paper")
-            return Response(
-                "Failed to serialize paper", status=status.HTTP_400_BAD_REQUEST
-            )
 
     @track_event
     @action(
@@ -597,21 +569,6 @@ class PaperViewSet(
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    def _get_integrity_error_response(self, error):
-        error_message = str(error)
-        parts = error_message.split("DETAIL:")
-        try:
-            error_message = parts[1].strip()
-            if "url" in error_message:
-                error_message = "A paper with this url already exists."
-            if "doi" in error_message:
-                error_message = "A paper with this DOI already exists."
-            if "DOI" in error_message:
-                error_message = "Invalid DOI"
-        except IndexError:
-            error_message = "A paper with this url or DOI already exists."
-        return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
-
     def _get_paper_context(self, request=None):
         context = {
             "request": request,
@@ -750,10 +707,6 @@ class PaperViewSet(
         paper = super().get_object()
         serializer_data = self._serialize_paper(paper, request)
         return Response(serializer_data)
-
-    def list(self, request, *args, **kwargs):
-        # Temporarily disabling endpoint
-        return Response(status=200)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def fetch_publications_by_doi(self, request):
