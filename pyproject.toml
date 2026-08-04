@@ -104,6 +104,7 @@ extend-select = [
     "SIM",   # flake8-simplify
     "T20",   # flake8-print: forbid print statements
     "TID",   # flake8-tidy-imports 
+    "TRY401",# verbose-log-message,
     "UP",    # pyupgrade
     "W",     # pycodestyle warnings
 ]
