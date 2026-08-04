@@ -1,0 +1,98 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "heading",
+      "attrs": {"level": 2, "id": "heading-1", "textAlign": "left"},
+      "content": [
+        {"type": "text", "text": "bold-token", "marks": [{"type": "bold"}]},
+        {"type": "text", "text": " italic-token", "marks": [{"type": "italic"}]},
+        {"type": "text", "text": " strike-token", "marks": [{"type": "strike"}]},
+        {"type": "text", "text": " underline-token", "marks": [{"type": "underline"}]},
+        {"type": "text", "text": " sub-token", "marks": [{"type": "subscript"}]},
+        {"type": "text", "text": " super-token", "marks": [{"type": "superscript"}]},
+        {"type": "text", "text": " code-token", "marks": [{"type": "code"}]},
+        {
+          "type": "text",
+          "text": " link-token",
+          "marks": [{"type": "link", "attrs": {"href": "https://example.test/paper", "target": "_blank", "rel": "noopener noreferrer nofollow", "class": null}}]
+        },
+        {"type": "text", "text": " highlight-token", "marks": [{"type": "highlight", "attrs": {"color": "#aabbcc"}}]},
+        {"type": "text", "text": " styled-token", "marks": [{"type": "textStyle", "attrs": {"fontSize": "16px", "fontFamily": "serif", "color": "#112233"}}]}
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {"id": "paragraph-1", "class": "text-node", "textAlign": "center"},
+      "content": [
+        {"type": "text", "text": "math-$x+y$"},
+        {"type": "hardBreak"},
+        {"type": "emoji", "attrs": {"name": "microscope"}},
+        {"type": "text", "text": " typography-token"}
+      ]
+    },
+    {"type": "codeBlock", "attrs": {"language": "python", "id": "code-1"}, "content": [{"type": "text", "text": "  indented = True\n"}]},
+    {"type": "horizontalRule"},
+    {
+      "type": "bulletList",
+      "content": [
+        {
+          "type": "listItem",
+          "content": [
+            {"type": "paragraph", "attrs": {"id": "list-p-1"}, "content": [{"type": "text", "text": "bullet-token"}]},
+            {"type": "orderedList", "attrs": {"start": 3, "type": null}, "content": [{"type": "listItem", "content": [{"type": "paragraph", "attrs": {"id": "nested-p-1"}, "content": [{"type": "text", "text": "ordered-token"}]}]}]}
+          ]
+        }
+      ]
+    },
+    {
+      "type": "taskList",
+      "content": [{"type": "taskItem", "attrs": {"checked": true}, "content": [{"type": "paragraph", "attrs": {"id": "task-p-1"}, "content": [{"type": "text", "text": "task-token"}]}]}]
+    },
+    {"type": "imageBlock", "attrs": {"src": "https://example.test/image.png", "width": "80%", "align": "left", "alt": "image-alt-token"}},
+    {
+      "type": "details",
+      "attrs": {"open": true},
+      "content": [
+        {"type": "detailsSummary", "content": [{"type": "text", "text": "details-summary-token"}]},
+        {"type": "detailsContent", "content": [{"type": "paragraph", "attrs": {"id": "details-p-1"}, "content": [{"type": "text", "text": "details-content-token"}]}]}
+      ]
+    },
+    {"type": "tableOfContentsNode"},
+    {"type": "imageUpload"},
+    {
+      "type": "table",
+      "attrs": {"id": "table-1"},
+      "content": [
+        {
+          "type": "tableRow",
+          "content": [
+            {"type": "tableHeader", "attrs": {"colspan": 1, "rowspan": 1, "colwidth": [180], "style": "background:#eee"}, "content": [{"type": "paragraph", "attrs": {"id": "header-p-1"}, "content": [{"type": "text", "text": "table-header-token"}]}]},
+            {"type": "tableCell", "attrs": {"colspan": 2, "rowspan": 1, "colwidth": [120, 120], "style": "text-align:right"}, "content": [{"type": "paragraph", "attrs": {"id": "cell-p-1"}, "content": [{"type": "text", "text": "table-cell-token"}]}, {"type": "paragraph", "attrs": {"id": "cell-p-2"}, "content": [{"type": "text", "text": "table-second-block-token"}]}]}
+          ]
+        }
+      ]
+    },
+    {
+      "type": "columns",
+      "attrs": {"layout": "two-column"},
+      "content": [
+        {"type": "column", "attrs": {"position": 0}, "content": [{"type": "paragraph", "attrs": {"id": "column-p-1"}, "content": [{"type": "text", "text": "column-left-token"}]}]},
+        {"type": "column", "attrs": {"position": 1}, "content": [{"type": "paragraph", "attrs": {"id": "column-p-2"}, "content": [{"type": "text", "text": "column-right-token"}]}]}
+      ]
+    },
+    {
+      "type": "blockquoteFigure",
+      "content": [
+        {"type": "quote", "content": [{"type": "paragraph", "attrs": {"id": "quote-p-1"}, "content": [{"type": "text", "text": "quote-token"}]}]},
+        {"type": "quoteCaption", "content": [{"type": "text", "text": "quote-caption-token"}]}
+      ]
+    },
+    {"type": "youtube", "attrs": {"src": "https://www.youtube.com/watch?v=example", "start": 12, "width": 640, "height": 360}},
+    {
+      "type": "figure",
+      "attrs": {"originalContent": "<figure><p>neutral-token</p></figure>", "class": "read-only"},
+      "content": [{"type": "figcaption", "content": [{"type": "text", "text": "figure-caption-token", "marks": [{"type": "link", "attrs": {"href": "https://example.test/figure", "target": "_blank", "rel": "noopener noreferrer nofollow", "class": null}}]}]}]
+    }
+  ]
+}
