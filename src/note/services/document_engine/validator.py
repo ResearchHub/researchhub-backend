@@ -43,7 +43,11 @@ _ITEM_BLOCKS = CREATABLE_TOP_LEVEL_NODES
 def validate_schema_version(schema_version: str | None) -> str:
     """Return the effective supported version or raise for future/unknown input."""
 
-    effective = LEGACY_SCHEMA_VERSION if schema_version is None else schema_version
+    effective = (
+        LEGACY_SCHEMA_VERSION
+        if schema_version is None or schema_version == ""
+        else schema_version
+    )
     if not isinstance(effective, str) or effective not in {
         EDITOR_SCHEMA_VERSION,
         LEGACY_SCHEMA_VERSION,

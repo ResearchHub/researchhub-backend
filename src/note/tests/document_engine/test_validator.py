@@ -107,17 +107,23 @@ class ValidatorTests(unittest.TestCase):
 
     def test_legacy_and_current_versions_are_supported(self):
         # Arrange / Act
-        legacy = self.engine.validate({"schema_version": None, "doc": self.document})
+        legacy_null = self.engine.validate(
+            {"schema_version": None, "doc": self.document}
+        )
+        legacy_blank = self.engine.validate(
+            {"schema_version": "", "doc": self.document}
+        )
         current = self.engine.validate(
             {"schema_version": EDITOR_SCHEMA_VERSION, "doc": self.document}
         )
 
         # Assert
-        self.assertEqual(legacy["doc"], current["doc"])
+        self.assertEqual(legacy_null["doc"], current["doc"])
+        self.assertEqual(legacy_blank["doc"], current["doc"])
 
     def test_unknown_schema_version_is_rejected(self):
         # Arrange / Act / Assert
-        for version in ["", 1, {}, "future-v99"]:
+        for version in [1, {}, "future-v99"]:
             with (
                 self.subTest(version=version),
                 self.assertRaises(DocumentSchemaMismatch),

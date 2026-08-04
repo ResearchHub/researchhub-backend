@@ -117,7 +117,7 @@ class NoteContent(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
     note = models.ForeignKey(Note, related_name="notes", on_delete=models.CASCADE)
     plain_text = models.TextField(null=True)
-    schema_version = models.CharField(max_length=64, null=True)
+    schema_version = models.CharField(max_length=64, blank=True, default="")
     src = models.FileField(
         max_length=512,
         upload_to="note/uploads/%Y/%m/%d",
