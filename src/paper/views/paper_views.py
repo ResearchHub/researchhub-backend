@@ -730,10 +730,6 @@ class PaperViewSet(
         serializer_data = self._serialize_paper(paper, request)
         return Response(serializer_data)
 
-    def list(self, request, *args, **kwargs):
-        # Temporarily disabling endpoint
-        return Response(status=200)
-
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def fetch_publications_by_doi(self, request):
         doi_string = request.query_params.get("doi", "")
