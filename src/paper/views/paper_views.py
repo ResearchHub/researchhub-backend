@@ -4,10 +4,8 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated,
@@ -50,10 +48,7 @@ class PaperViewSet(
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
     dynamic_serializer_class = DynamicPaperSerializer
-    filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
-    search_fields = ("title", "doi", "paper_title")
     throttle_classes = THROTTLE_CLASSES
-    ordering = "-created_date"
     moderation_model = Paper
 
     permission_classes = [
