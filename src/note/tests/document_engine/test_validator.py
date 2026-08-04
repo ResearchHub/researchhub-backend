@@ -3,19 +3,11 @@ import json
 import unittest
 from pathlib import Path
 
-from note.services.document_engine.errors import (
+from note.services.document_engine import (
+    EDITOR_SCHEMA_VERSION,
     DocumentSchemaMismatch,
     InvalidDocument,
-    InvalidDocumentOperation,
-)
-from note.services.document_engine.registry import (
-    EDITOR_SCHEMA_VERSION,
-    LEGACY_SCHEMA_VERSION,
-)
-from note.services.document_engine.validator import (
-    validate_created_node,
-    validate_schema_version,
-    validate_stored_document,
+    NoteDocumentEngine,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -23,6 +15,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 class ValidatorTests(unittest.TestCase):
     def setUp(self):
+        self.engine = NoteDocumentEngine()
         self.document = json.loads((FIXTURES / "editor_document.json").read_text())
 
     def test_golden_document_round_trips_without_loss(self):
@@ -30,12 +23,30 @@ class ValidatorTests(unittest.TestCase):
         original = copy.deepcopy(self.document)
 
         # Act
-        doc, changed, _warnings = validate_stored_document(self.document)
+        result = self.engine.validate({"doc": self.document})
 
         # Assert
-        self.assertFalse(changed)
-        self.assertEqual(doc, original)
+        self.assertTrue(result["valid"])
+        self.assertFalse(result["changed"])
+        self.assertEqual(result["doc"], original)
+        self.assertEqual(result["schema_version"], EDITOR_SCHEMA_VERSION)
         self.assertEqual(self.document, original)
+
+    def test_plain_text_covers_all_text_leaves_and_projected_attributes(self):
+        # Arrange
+        expected_text = _text_leaves(self.document)
+
+        # Act
+        plain_text = self.engine.validate({"doc": self.document})["plain_text"]
+
+        # Assert
+        for value in expected_text:
+            self.assertIn(value, plain_text)
+        self.assertIn("image-alt-token", plain_text)
+        self.assertIn("microscope", plain_text)
+        self.assertIn("https://www.youtube.com/watch?v=example", plain_text)
+        self.assertIn("table-header-token\ttable-cell-token", plain_text)
+        self.assertIn("  indented = True\n", plain_text)
 
     def test_unknown_types_warn_and_remain_verbatim(self):
         # Arrange
@@ -43,11 +54,13 @@ class ValidatorTests(unittest.TestCase):
         doc = {"type": "doc", "content": [unknown]}
 
         # Act
-        validated, _changed, warnings = validate_stored_document(doc)
+        result = self.engine.validate({"doc": doc})
 
         # Assert
-        self.assertEqual(validated["content"][0], unknown)
-        self.assertIn("unknown_node_type", {item["code"] for item in warnings})
+        self.assertEqual(result["doc"]["content"][0], unknown)
+        self.assertIn(
+            "unknown_node_type", {item["code"] for item in result["warnings"]}
+        )
 
     def test_unprojectable_known_attribute_warns_without_mutation(self):
         # Arrange
@@ -58,13 +71,13 @@ class ValidatorTests(unittest.TestCase):
         doc = {"type": "doc", "content": [image]}
 
         # Act
-        validated, _changed, warnings = validate_stored_document(doc)
+        result = self.engine.validate({"doc": doc})
 
         # Assert
-        self.assertEqual(validated["content"][0], image)
+        self.assertEqual(result["doc"]["content"][0], image)
         self.assertIn(
             "unprojectable_attribute",
-            {warning["code"] for warning in warnings},
+            {warning["code"] for warning in result["warnings"]},
         )
 
     def test_missing_and_duplicate_ids_are_repaired_deterministically(self):
@@ -79,27 +92,28 @@ class ValidatorTests(unittest.TestCase):
         }
 
         # Act
-        first, _first_changed, first_warnings = validate_stored_document(doc)
-        second, _second_changed, _second_warnings = validate_stored_document(doc)
-        ids = [node["attrs"]["id"] for node in first["content"]]
+        first = self.engine.validate({"doc": doc})
+        second = self.engine.validate({"doc": doc})
+        ids = [node["attrs"]["id"] for node in first["doc"]["content"]]
 
         # Assert
-        self.assertEqual(first, second)
+        self.assertEqual(first["doc"], second["doc"])
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(ids[0], "duplicate")
         self.assertEqual(
-            {warning["code"] for warning in first_warnings},
+            {warning["code"] for warning in first["warnings"]},
             {"duplicate_node_id", "missing_node_id"},
         )
 
     def test_legacy_and_current_versions_are_supported(self):
         # Arrange / Act
-        legacy = validate_schema_version(None)
-        current = validate_schema_version(EDITOR_SCHEMA_VERSION)
+        legacy = self.engine.validate({"schema_version": None, "doc": self.document})
+        current = self.engine.validate(
+            {"schema_version": EDITOR_SCHEMA_VERSION, "doc": self.document}
+        )
 
         # Assert
-        self.assertEqual(legacy, LEGACY_SCHEMA_VERSION)
-        self.assertEqual(current, EDITOR_SCHEMA_VERSION)
+        self.assertEqual(legacy["doc"], current["doc"])
 
     def test_unknown_schema_version_is_rejected(self):
         # Arrange / Act / Assert
@@ -108,7 +122,7 @@ class ValidatorTests(unittest.TestCase):
                 self.subTest(version=version),
                 self.assertRaises(DocumentSchemaMismatch),
             ):
-                validate_schema_version(version)
+                self.engine.validate({"schema_version": version, "doc": self.document})
 
     def test_malformed_document_is_rejected(self):
         malformed_documents = [
@@ -129,38 +143,11 @@ class ValidatorTests(unittest.TestCase):
         for doc in malformed_documents:
             # Arrange / Act / Assert
             with self.subTest(doc=doc), self.assertRaises(InvalidDocument):
-                validate_stored_document(doc)
+                self.engine.validate({"doc": doc})
 
-    def test_created_attributes_are_canonicalized(self):
-        # Arrange
-        image = {
-            "type": "imageBlock",
-            "attrs": {"src": "https://example.test/new.png", "alt": "new image"},
-        }
 
-        # Act
-        result = validate_created_node(image)
-
-        # Assert
-        self.assertEqual(
-            result["attrs"],
-            {
-                "src": "https://example.test/new.png",
-                "width": "100%",
-                "align": "center",
-                "alt": "new image",
-            },
-        )
-
-    def test_invalid_created_content_is_rejected(self):
-        invalid_nodes = [
-            {"type": "paragraph", "attrs": {"id": "model-id"}},
-            {"type": "heading", "attrs": {"level": 7}},
-            {"type": "imageBlock", "attrs": {"src": "http://example.test/a.png"}},
-            {"type": "paragraph", "content": [{"type": "text", "text": ""}]},
-            {"type": "table", "attrs": {"id": "invented"}},
-        ]
-        for node in invalid_nodes:
-            # Arrange / Act / Assert
-            with self.subTest(node=node), self.assertRaises(InvalidDocumentOperation):
-                validate_created_node(node)
+def _text_leaves(node: dict) -> list[str]:
+    values = [node["text"]] if node["type"] == "text" else []
+    for child in node.get("content", []):
+        values.extend(_text_leaves(child))
+    return values

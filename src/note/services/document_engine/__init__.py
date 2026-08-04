@@ -1,5 +1,6 @@
-"""Public schema primitives for the ResearchHub Tiptap document engine."""
+"""Public API for the ResearchHub Tiptap document engine."""
 
+from note.services.document_engine.engine import NoteDocumentEngine
 from note.services.document_engine.errors import (
     DocumentSchemaMismatch,
     InvalidDocument,
@@ -17,5 +18,6 @@ __all__ = [
     "InvalidDocument",
     "InvalidDocumentOperation",
     "LEGACY_SCHEMA_VERSION",
+    "NoteDocumentEngine",
     "SCHEMA_FINGERPRINT",
 ]
