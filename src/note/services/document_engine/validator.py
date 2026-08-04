@@ -73,6 +73,7 @@ def validate_stored_document(doc: object) -> tuple[dict, bool, list[dict]]:
     normalized = copy.deepcopy(doc)
     warnings = _inventory_warnings(normalized)
     id_warnings = _normalize_ids(normalized)
+    _guard_serialized_size(normalized, InvalidDocument)
     warnings.extend(id_warnings)
     return normalized, normalized != doc, warnings
 
@@ -114,7 +115,7 @@ class _GrammarState:
         node_type = self._validate_node_type(node, path=path)
         self._validate_node_attrs(node, path=path, depth=depth)
         content = self._validate_node_content(node, path=path)
-        self._validate_node_marks(node, path=path)
+        self._validate_node_marks(node, path=path, depth=depth)
         self._validate_text_field(node, node_type=node_type, content=content, path=path)
         self._validate_node_children(content, path=path, depth=depth)
 
@@ -158,14 +159,14 @@ class _GrammarState:
             self.fail("Node content must be an array", f"{path}.content")
         return content
 
-    def _validate_node_marks(self, node: dict, *, path: str):
+    def _validate_node_marks(self, node: dict, *, path: str, depth: int):
         if "marks" not in node:
             return
         marks = node.get("marks")
         if not isinstance(marks, list):
             self.fail("Node marks must be an array", f"{path}.marks")
         for index, mark in enumerate(marks):
-            self.validate_mark(mark, path=f"{path}.marks[{index}]")
+            self.validate_mark(mark, path=f"{path}.marks[{index}]", depth=depth)
 
     def _validate_text_field(
         self,
@@ -195,7 +196,7 @@ class _GrammarState:
         for index, child in enumerate(content):
             self.validate_node(child, path=f"{path}.content[{index}]", depth=depth + 1)
 
-    def validate_mark(self, mark: object, *, path: str):
+    def validate_mark(self, mark: object, *, path: str, depth: int):
         if not isinstance(mark, dict):
             self.fail("Every mark must be an object", path)
         if any(not isinstance(key, str) for key in mark):
@@ -212,7 +213,7 @@ class _GrammarState:
         if "attrs" in mark and not isinstance(attrs, dict):
             self.fail("Mark attrs must be an object", f"{path}.attrs")
         if isinstance(attrs, dict):
-            self.validate_json_value(attrs, path=f"{path}.attrs", depth=1)
+            self.validate_json_value(attrs, path=f"{path}.attrs", depth=depth + 1)
 
     def validate_json_value(self, value: object, *, path: str, depth: int):
         if depth > MAX_DOCUMENT_DEPTH:
@@ -244,12 +245,12 @@ def _guard_serialized_size(value: object, error_type: type[DocumentEngineError])
     try:
         encoded = json.dumps(
             value, ensure_ascii=False, separators=(",", ":"), allow_nan=False
-        )
+        ).encode("utf-8")
     except (RecursionError, TypeError, ValueError) as exc:
         raise error_type(
             "Document must contain only JSON-serializable values", path="doc"
         ) from exc
-    if len(encoded.encode("utf-8")) > MAX_DOCUMENT_BYTES:
+    if len(encoded) > MAX_DOCUMENT_BYTES:
         raise error_type(
             f"Document exceeds maximum size of {MAX_DOCUMENT_BYTES} bytes", path="doc"
         )

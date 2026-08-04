@@ -7,7 +7,12 @@ from note.services.document_engine import (
     EDITOR_SCHEMA_VERSION,
     DocumentSchemaMismatch,
     InvalidDocument,
+    InvalidDocumentOperation,
     NoteDocumentEngine,
+)
+from note.services.document_engine.registry import (
+    MAX_DOCUMENT_BYTES,
+    MAX_DOCUMENT_DEPTH,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -150,6 +155,90 @@ class ValidatorTests(unittest.TestCase):
             # Arrange / Act / Assert
             with self.subTest(doc=doc), self.assertRaises(InvalidDocument):
                 self.engine.validate({"doc": doc})
+
+    def test_generated_ids_cannot_push_document_past_size_limit(self):
+        # Arrange
+        padding = ["x" * 990_000 for _ in range(5)]
+        doc = {
+            "type": "doc",
+            "content": [
+                *({"type": "paragraph"} for _ in range(1_000)),
+                {"type": "futureWidget", "attrs": {"padding": padding}},
+            ],
+        }
+        input_size = len(
+            json.dumps(doc, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        )
+        self.assertLess(input_size, MAX_DOCUMENT_BYTES)
+
+        # Act
+        with self.assertRaises(InvalidDocument) as context:
+            self.engine.validate({"doc": doc})
+
+        # Assert
+        self.assertEqual(context.exception.path, "doc")
+        self.assertIn("maximum size", str(context.exception))
+
+    def test_mark_attributes_share_the_document_depth_limit(self):
+        # Arrange
+        node = {
+            "type": "text",
+            "text": "deeply marked",
+            "marks": [{"type": "futureMark", "attrs": {"value": "ok"}}],
+        }
+        for _ in range(MAX_DOCUMENT_DEPTH - 1):
+            node = {"type": "paragraph", "content": [node]}
+        doc = {"type": "doc", "content": [node]}
+
+        # Act
+        with self.assertRaises(InvalidDocument) as context:
+            self.engine.validate({"doc": doc})
+
+        # Assert
+        self.assertIn("maximum depth", str(context.exception))
+        self.assertTrue(context.exception.path.endswith(".marks[0].attrs"))
+
+    def test_encoding_failures_are_typed_validation_errors(self):
+        # Arrange
+        invalid_text = "\ud800"
+        cases = [
+            (
+                "stored",
+                lambda: self.engine.validate(
+                    {
+                        "doc": {
+                            "type": "doc",
+                            "content": [{"type": "text", "text": invalid_text}],
+                        }
+                    }
+                ),
+                InvalidDocument,
+            ),
+            (
+                "created",
+                lambda: self.engine.apply(
+                    {
+                        "doc": self.document,
+                        "operations": [
+                            {
+                                "op": "insert_after",
+                                "locator": "doc:start",
+                                "node": {
+                                    "type": "paragraph",
+                                    "content": [{"type": "text", "text": invalid_text}],
+                                },
+                            }
+                        ],
+                    }
+                ),
+                InvalidDocumentOperation,
+            ),
+        ]
+
+        for name, validate, error_type in cases:
+            # Act / Assert
+            with self.subTest(name=name), self.assertRaises(error_type):
+                validate()
 
 
 def _text_leaves(node: dict) -> list[str]:
