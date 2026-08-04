@@ -28,4 +28,6 @@ Amount Paid
 {% endif %}
 {{amount}}
 
+{% if opt_out %}
 {{opt_out}} Unsubscribe or change how frequently I get updated
+{% endif %}

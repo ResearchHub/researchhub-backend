@@ -73,9 +73,11 @@
         </div>
       </div>
       <div class="footer">
+        {% if opt_out %}
         <a class="footer-link" href="{{ opt_out }}"
           >Unsubscribe from this list</a
         >
+        {% endif %}
         <a class="footer-link" href="{{ update_subscription }}"
           >Update subscription preferences</a
         >
