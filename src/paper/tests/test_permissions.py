@@ -114,6 +114,31 @@ class PaperPermissionsIntegrationTests(APITestCase):
         paper.refresh_from_db()
         self.assertFalse(paper.is_removed)
 
+    def test_allows_interacting_with_legacy_journal_papers(self) -> None:
+        """Legacy journal papers remain available for user interactions."""
+        # Arrange
+        paper = self._create_legacy_journal_paper()
+        user = self.create_user_with_reputation(50)
+        self.client.force_authenticate(user)
+
+        # Act
+        flag_response = self.client.post(
+            f"{self.base_url}{paper.id}/flag/",
+            {"reason": self.flag_reason, "reason_choice": "SPAM"},
+            format="json",
+        )
+        upvote_response = self.client.post(f"{self.base_url}{paper.id}/upvote/")
+        follow_response = self.client.post(f"{self.base_url}{paper.id}/follow/")
+        delete_vote_response = self.client.delete(
+            f"{self.base_url}{paper.id}/user_vote/"
+        )
+
+        # Assert
+        self.assertEqual(flag_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(upvote_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(follow_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(delete_vote_response.status_code, status.HTTP_200_OK)
+
     def test_can_upvote_paper_with_minimum_reputation(self):
         user = self.create_user_with_reputation(1)
         response = self.get_upvote_response(user)

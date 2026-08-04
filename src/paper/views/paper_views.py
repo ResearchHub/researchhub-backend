@@ -18,7 +18,7 @@ from discussion.views import ReactionViewActionMixin
 from paper.exceptions import DOINotFoundError
 from paper.models import Paper
 from paper.permissions import (
-    CanModifyLegacyJournalPaper,
+    CanEditLegacyJournalPaper,
     UpdatePaper,
     is_legacy_journal_paper,
 )
@@ -55,13 +55,13 @@ class PaperViewSet(
 
     permission_classes = [
         IsAuthenticatedOrReadOnly & UpdatePaper & CreateOrUpdateIfAllowed,
-        CanModifyLegacyJournalPaper,
+        CanEditLegacyJournalPaper,
     ]
 
     def _prevent_legacy_journal_mutation(self, paper_id: str | None) -> None:
         """Reject mutations that target an existing legacy journal paper."""
         if is_legacy_journal_paper(paper_id):
-            raise PermissionDenied(CanModifyLegacyJournalPaper.message)
+            raise PermissionDenied(CanEditLegacyJournalPaper.message)
 
     @action(detail=True, methods=["post"], permission_classes=[IsModerator])
     def approve(self, request: Request, pk: str | None = None) -> Response:

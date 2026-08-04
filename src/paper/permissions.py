@@ -27,10 +27,10 @@ class UpdatePaper(RuleBasedPermission):
         return request.user.reputation >= 1 and not request.user.is_suspended
 
 
-class CanModifyLegacyJournalPaper(BasePermission):
-    """Allow legacy journal papers to be read but not modified."""
+class CanEditLegacyJournalPaper(BasePermission):
+    """Allow interactions with legacy papers while preventing content changes."""
 
-    message = "Legacy journal papers are read-only."
+    message = "Legacy journal paper content is read-only."
 
     def has_object_permission(
         self,
@@ -38,8 +38,12 @@ class CanModifyLegacyJournalPaper(BasePermission):
         view: APIView,
         obj: Paper,
     ) -> bool:
-        """Reject unsafe requests that target a retired journal paper."""
-        return request.method in SAFE_METHODS or not is_legacy_journal_paper(obj.id)
+        """Allow reads and vote removal but reject legacy paper changes."""
+        return (
+            request.method in SAFE_METHODS
+            or getattr(view, "action", None) == "delete_user_vote"
+            or not is_legacy_journal_paper(obj.id)
+        )
 
 
 class IsAuthor(AuthorizationBasedPermission):
