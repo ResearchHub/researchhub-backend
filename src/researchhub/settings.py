@@ -193,6 +193,12 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}/",
 ]
 
+if STAGING:
+    # CodePress Live Dev Server preview origins (managed)
+    CORS_ALLOWED_ORIGIN_REGEXES.append(
+        r"^https://[0-9a-f]{32}-87d3f8ab798deaec\.preview\.codepress\.dev$"
+    )
+
 # Health check
 
 HEALTH_CHECK_TOKEN = os.environ.get("HEALTH_CHECK_TOKEN", keys.HEALTH_CHECK_TOKEN)
