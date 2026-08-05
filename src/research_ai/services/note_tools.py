@@ -8,10 +8,14 @@ rather than mutating in place, so any agent edit is recoverable from history.
 
 Permission checks mirror the HTTP layer (``HasEditingPermission`` /
 ``HasAccessPermission`` on the note's unified document): the acting user must
-be a viewer, editor, or admin to read, and an editor or admin to write.
+be a viewer, editor, or admin to read, and an editor or admin to write. A
+toolset built for a single-note surface can additionally be scoped with
+``note_ids``; notes outside the scope get the same not-found error as
+inaccessible ones.
 """
 
 import logging
+from collections.abc import Collection
 
 from note.related_models.note_model import Note
 from note.services.note_content_service import NoteContentService
@@ -26,14 +30,24 @@ EDIT_NOTE = "edit_note"
 class NoteToolset:
     """Note read/edit tools acting with ``user``'s permissions.
 
+    ``note_ids``, when given, restricts every tool to those notes regardless
+    of what else the user could access.
+
     Best-effort contract: handlers never raise; failures come back to the
     model as ``{"error": ...}`` so a bad note id or a stale edit is a turn
     the agent can recover from, not an aborted run.
     """
 
-    def __init__(self, *, user, service: NoteContentService | None = None):
+    def __init__(
+        self,
+        *,
+        user,
+        service: NoteContentService | None = None,
+        note_ids: Collection[int] | None = None,
+    ):
         self._user = user
         self._service = service or NoteContentService()
+        self._note_ids = None if note_ids is None else frozenset(note_ids)
 
     # -- tool construction ------------------------------------------------
 
@@ -153,6 +167,10 @@ class NoteToolset:
         try:
             note = Note.objects.get(id=note_id)
         except (Note.DoesNotExist, ValueError, TypeError):
+            return None
+        # Compare on the fetched id, not the raw input: the id is canonical
+        # after the lookup, while the input may arrive as a string.
+        if self._note_ids is not None and note.id not in self._note_ids:
             return None
         permissions = note.permissions
         if not (

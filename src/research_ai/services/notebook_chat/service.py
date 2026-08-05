@@ -14,9 +14,11 @@ split across two processes:
   drives ``Agent.continue_conversation``. The recorder persists the trace,
   marks the terminal status, and publishes the assistant's reply to the chat.
 
-The agent acts strictly as the conversation's user: ``NoteToolset`` enforces
-note view/edit permissions per call, so a viewer can chat and research but the
-edit tool refuses to write for them.
+The agent acts strictly as the conversation's user and only on the
+conversation's note: ``NoteToolset`` enforces note view/edit permissions per
+call, so a viewer can chat and research but the edit tool refuses to write for
+them, and it is scoped to the routed note, so the model cannot be talked into
+touching another note the same user could access.
 """
 
 import logging
@@ -112,9 +114,18 @@ class NotebookChatService:
         conversation = self.get_conversation(note, user)
         if conversation is not None:
             return conversation
-        conversation = self.conversations.create(user=user, workflow=WORKFLOW)
-        self.note_conversations.attach(conversation, note)
-        return conversation
+        with transaction.atomic():
+            # Serialize concurrent first messages on the note row: without
+            # this, each request creates its own conversation and the busy
+            # check in ``prepare_turn`` -- which locks per conversation --
+            # would happily run both turns against the note at once.
+            Note.objects.select_for_update().get(id=note.id)
+            conversation = self.get_conversation(note, user)
+            if conversation is not None:
+                return conversation
+            conversation = self.conversations.create(user=user, workflow=WORKFLOW)
+            self.note_conversations.attach(conversation, note)
+            return conversation
 
     def submit_message(self, note: Note, user, text: str) -> AgentExecution:
         """Record the user's message and schedule the agent turn.
@@ -210,7 +221,7 @@ class NotebookChatService:
             native_tools=frozenset({"web_search"})
         )
         toolset = compose_notebook_toolset(
-            note_toolset=NoteToolset(user=conversation.user),
+            note_toolset=NoteToolset(user=conversation.user, note_ids={note.id}),
             openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),
             web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
             native_tool_names=provider.native_tool_names,

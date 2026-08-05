@@ -102,6 +102,21 @@ class NotebookChatServiceTests(TestCase):
         with self.assertRaises(ValueError):
             service.submit_message(self.note, self.user, "x" * 11)
 
+    def test_first_message_race_reuses_the_concurrently_created_conversation(self):
+        # Arrange: another request created the conversation after this
+        # request's unlocked pre-check ran empty; the re-check under the note
+        # lock must pick it up instead of creating a duplicate.
+        existing = self.service.get_or_create_conversation(self.note, self.user)
+        with patch.object(
+            NotebookChatService, "get_conversation", side_effect=[None, existing]
+        ):
+            # Act
+            conversation = self.service.get_or_create_conversation(self.note, self.user)
+
+        # Assert
+        self.assertEqual(conversation.id, existing.id)
+        self.assertEqual(AgentConversation.objects.count(), 1)
+
     def test_submit_message_while_turn_is_running_raises_busy(self):
         # Arrange
         self._submit()
@@ -145,6 +160,38 @@ class NotebookChatServiceTests(TestCase):
         # The user prompt the model saw is the chat message, not a wrapper.
         first_call = provider.calls[0]
         self.assertEqual(first_call[0].content[0].text, "Replace the note body.")
+
+    def test_run_turn_refuses_notes_outside_the_conversation(self):
+        # Arrange: a second note the same user administers; the model tries
+        # to read it from this note's chat.
+        other_note, _other_content = create_note(self.user, organization=None)
+        Permission.objects.create(
+            access_type=ADMIN,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=other_note.unified_document.id,
+            user=self.user,
+        )
+        execution, _delay = self._submit("Summarize my other note.")
+        provider = FakeProvider(
+            [
+                tool_turn("t1", "read_note", {"note_id": other_note.id}),
+                text_turn("Done."),
+            ]
+        )
+        service = _make_service(provider=provider)
+
+        # Act
+        service.run_turn(execution.id)
+
+        # Assert: the tool refused, so the other note never reached the model.
+        tool_results = [
+            block
+            for message in provider.calls[1]
+            for block in message.content
+            if getattr(block, "type", "") == "tool_result"
+        ]
+        self.assertEqual(len(tool_results), 1)
+        self.assertIn("not found or not accessible", tool_results[0].content["error"])
 
     def test_run_turn_provider_failure_marks_execution_failed(self):
         # Arrange

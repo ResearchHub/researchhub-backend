@@ -165,3 +165,42 @@ class NoteToolsetTests(TestCase):
         self.assertIn("error", result)
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, self.content.id)
+
+    def test_scoped_toolset_allows_the_scoped_note(self):
+        # Arrange
+        toolset = NoteToolset(user=self.owner, note_ids={self.note.id}).as_toolset()
+
+        # Act
+        result, _ = toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+
+        # Assert
+        self.assertEqual(result["note_id"], self.note.id)
+
+    def test_scoped_toolset_rejects_other_notes_the_user_can_access(self):
+        # Arrange: a second note the owner administers, toolset scoped to the
+        # first -- the scope must win over the user's own permissions.
+        other_note, other_content = create_note(self.owner, organization=None)
+        Permission.objects.create(
+            access_type=ADMIN,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=other_note.unified_document.id,
+            user=self.owner,
+        )
+        toolset = NoteToolset(user=self.owner, note_ids={self.note.id}).as_toolset()
+
+        # Act
+        read_result, _ = toolset.dispatch(READ_NOTE, {"note_id": other_note.id})
+        edit_result, _ = toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": other_note.id,
+                "expected_version_id": other_content.id,
+                "content": TIPTAP_DOC,
+            },
+        )
+
+        # Assert: same not-found error as an inaccessible note, nothing leaked.
+        self.assertIn("not found or not accessible", read_result["error"])
+        self.assertIn("not found or not accessible", edit_result["error"])
+        other_note.refresh_from_db()
+        self.assertEqual(other_note.latest_version_id, other_content.id)
