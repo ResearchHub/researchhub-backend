@@ -24,7 +24,6 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         subject = "Confirm Your Email Address"
         send_transactional_email(
             emailconfirmation.email_address.email,
-            None,
             subject,
             {
                 "body": mark_safe(
@@ -60,7 +59,6 @@ class CustomResetPasswordForm(ResetPasswordForm):
             subject = "Reset Your Password"
             send_transactional_email(
                 email,
-                None,
                 subject,
                 {
                     "body": mark_safe(

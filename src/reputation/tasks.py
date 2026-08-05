@@ -209,7 +209,6 @@ def check_open_bounties():
             }
             send_email(
                 [bounty_creator.email],
-                "general_email_message.txt",
                 outer_subject,
                 context,
                 html_template="general_email_message.html",
@@ -250,7 +249,6 @@ def check_open_bounties():
         }
         send_email(
             [bounty_creator.email],
-            "general_email_message.txt",
             outer_subject,
             context,
             html_template="general_email_message.html",
@@ -342,7 +340,6 @@ def check_open_bounties():
             }
             send_email(
                 [bounty_creator.email],
-                "general_email_message.txt",
                 outer_subject,
                 context,
                 html_template="general_email_message.html",

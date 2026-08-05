@@ -245,18 +245,18 @@ def send_support_email(
         subject = "Receipt From ResearchHub"
         send_transactional_email(
             email,
-            "support_receipt.txt",
             subject,
             context,
+            template="support_receipt.txt",
             html_template="support_receipt.html",
         )
     elif email_type == "recipient":
         subject = "Someone Sent You RSC on ResearchHub!"
         send_transactional_email(
             email,
-            "support_receipt.txt",
             subject,
             context,
+            template="support_receipt.txt",
             html_template="support_receipt.html",
         )
 

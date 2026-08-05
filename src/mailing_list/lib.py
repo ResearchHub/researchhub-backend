@@ -18,9 +18,10 @@ DEFAULT_SENDER = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>"
 
 def send_email(
     recipients: str | list[str],
-    template: str | None,
     subject: str,
     email_context: dict[str, Any],
+    *,
+    template: str | None = None,
     html_template: str | None = None,
     sender: str = DEFAULT_SENDER,
     reply_to: str | None = None,
@@ -53,9 +54,10 @@ def send_email(
 
 def send_transactional_email(
     recipients: str | list[str],
-    template: str | None,
     subject: str,
     email_context: dict[str, Any],
+    *,
+    template: str | None = None,
     html_template: str | None = None,
     sender: str = DEFAULT_SENDER,
     reply_to: str | None = None,
@@ -82,14 +84,14 @@ def send_transactional_email(
 
 def _send(
     recipients: str | list[str],
-    template: str | None,
     subject: str,
     email_context: dict[str, Any],
+    *,
+    template: str | None,
     html_template: str | None,
     sender: str,
     reply_to: str | None,
     cc: list[str] | None,
-    *,
     unsubscribable: bool,
 ) -> None:
     """
@@ -98,6 +100,9 @@ def _send(
     Sends are best-effort: a recipient that fails is logged and skipped so one
     bad address cannot abort the rest of the batch.
     """
+    if not template and not html_template:
+        raise ValueError("Template or HTML template required")
+
     subject = subject.replace("\n", "").replace("\r", "")
 
     if not isinstance(recipients, list):

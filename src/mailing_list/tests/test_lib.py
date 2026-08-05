@@ -8,7 +8,6 @@ from mailing_list.lib import send_email, send_transactional_email
 from mailing_list.models import EmailOptOut
 from mailing_list.services import EmailSubscriptionService
 
-TEMPLATE_TXT = "general_email_message.txt"
 TEMPLATE_HTML = "general_email_message.html"
 BASE_CONTEXT = {"action": {"message": "hello"}, "subject": "Test"}
 
@@ -23,7 +22,6 @@ class SendEmailTests(TestCase):
     def _send(self, recipients, **overrides):
         kwargs = {
             "recipients": recipients,
-            "template": TEMPLATE_TXT,
             "subject": "Test",
             "email_context": {**BASE_CONTEXT},
             "html_template": TEMPLATE_HTML,
@@ -115,6 +113,20 @@ class SendEmailTests(TestCase):
         first, second = (msg.extra_headers["List-Unsubscribe"] for msg in mail.outbox)
         self.assertNotEqual(first, second)
 
+    def test_rejects_a_send_with_neither_template(self):
+        # Act & Assert: a body-less message is a programming error, not a send
+        with self.assertRaises(ValueError):
+            self._send(["good@example.com"], html_template=None)
+
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_derives_the_text_body_from_the_html_when_no_text_template(self):
+        # Act
+        self._send(["good@example.com"])
+
+        # Assert
+        self.assertIn("hello", mail.outbox[0].body)
+
     def test_renders_assets_base_url_without_the_caller_supplying_it(self):
         # Act
         self._send(["good@example.com"])
@@ -182,7 +194,6 @@ class SendTransactionalEmailTests(TestCase):
     def _send(self, recipients, **overrides):
         kwargs = {
             "recipients": recipients,
-            "template": TEMPLATE_TXT,
             "subject": "Test",
             "email_context": {**BASE_CONTEXT},
             "html_template": TEMPLATE_HTML,
