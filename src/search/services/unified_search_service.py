@@ -218,8 +218,8 @@ class UnifiedSearchService:
 
         try:
             response = search.execute()
-        except Exception as e:
-            logger.error(f"DOI search failed: {str(e)}")
+        except Exception:
+            logger.exception("DOI search failed")
             return {"results": [], "count": 0}
 
         results = self._process_document_results(response)

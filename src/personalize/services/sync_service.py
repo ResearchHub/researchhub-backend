@@ -63,7 +63,7 @@ class SyncService:
             except Exception as e:
                 skipped += 1
                 logger.warning(
-                    f"Failed to map document {unified_doc.id} for sync: {str(e)}"
+                    f"Failed to map document {unified_doc.id} for sync: {e!s}"
                 )
 
         if not items:

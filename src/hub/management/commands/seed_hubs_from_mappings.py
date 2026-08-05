@@ -228,7 +228,7 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.SUCCESS(msg))
 
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Error during operation: {str(e)}"))
+            self.stdout.write(self.style.ERROR(f"Error during operation: {e!s}"))
             raise
 
     def _slug_to_display_name(self, slug):

@@ -105,9 +105,7 @@ class Command(BaseCommand):
                 except Exception as error:
                     error_count += 1
                     self.stdout.write(
-                        self.style.ERROR(
-                            f"  ✗ Unexpected error for {email}: {str(error)}"
-                        )
+                        self.style.ERROR(f"  ✗ Unexpected error for {email}: {error!s}")
                     )
             else:
                 action = "permanently delete" if permanent_delete else "archive"

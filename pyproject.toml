@@ -94,11 +94,15 @@ extend-select = [
     "C4",    # flake8-comprehensions
     "E",     # pycodestyle errors
     "FURB",  # refurb
+    "G201",  # logging-exc-info (G201)
     "I",     # isort
     "N",     # pep8-naming
     "PERF",  # flake8-perf
     "PIE",   # flake8-pie
     "RSE",   # flake8-raise
+    "RUF010",# explicit-f-string-type-conversion
+    "RUF013",# implicit-optional
+    "RUF022",# unsorted-dunder-all
     "RUF059",# unused-unpacked-variable
     "S113",  # flake8-bandit: request-without-timeout
     "SIM",   # flake8-simplify

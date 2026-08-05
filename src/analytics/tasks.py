@@ -32,14 +32,14 @@ def track_revenue_event(
         "WITHDRAWAL_FEE",
     ],
     rsc_revenue: str,
-    usd_revenue: str = None,
-    transaction_method: Literal["OFF_CHAIN", "ON_CHAIN"] = None,
+    usd_revenue: str | None = None,
+    transaction_method: Literal["OFF_CHAIN", "ON_CHAIN"] | None = None,
     # It's useful to be able to see e.g. how much did we make on paper tips versus
     # comment tips.
     # So we should use these fields to point to the object that the revenue is
     # associated with and not simply the Purchase/Balance/Fundraise object.
-    content_type: str = None,
-    object_id: str = None,
+    content_type: str | None = None,
+    object_id: str | None = None,
     additional_properties: dict = {},
 ):
     """

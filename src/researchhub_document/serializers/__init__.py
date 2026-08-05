@@ -13,7 +13,7 @@ from researchhub_document.serializers.researchhub_unified_document_serializer im
 __all__ = [
     "DynamicDocumentFilterSerializer",
     "DynamicPostSerializer",
-    "ResearchhubPostSerializer",
     "DynamicUnifiedDocumentSerializer",
+    "ResearchhubPostSerializer",
     "ResearchhubUnifiedDocumentSerializer",
 ]
