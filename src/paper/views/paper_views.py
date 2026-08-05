@@ -3,32 +3,23 @@ import logging
 from django.db.models import Q
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated,
     IsAuthenticatedOrReadOnly,
 )
-from rest_framework.request import Request
 from rest_framework.response import Response
 
-from discussion.permissions import CensorDiscussion as CensorDiscussionPermission
-from discussion.permissions import EditorCensorDiscussion
 from discussion.views import ReactionViewActionMixin
 from paper.exceptions import DOINotFoundError
 from paper.models import Paper
-from paper.permissions import (
-    CanEditLegacyJournalPaper,
-    UpdatePaper,
-    is_legacy_journal_paper,
-)
+from paper.permissions import UpdatePaper
 from paper.related_models.authorship_model import Authorship
 from paper.serializers import (
     DynamicPaperSerializer,
     PaperSerializer,
 )
 from user.content_moderation_mixin import ContentModerationActionsMixin
-from user.permissions import IsModerator
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
@@ -54,45 +45,8 @@ class PaperViewSet(
     moderation_model = Paper
 
     permission_classes = [
-        IsAuthenticatedOrReadOnly & UpdatePaper & CreateOrUpdateIfAllowed,
-        CanEditLegacyJournalPaper,
+        IsAuthenticatedOrReadOnly & UpdatePaper & CreateOrUpdateIfAllowed
     ]
-
-    def _prevent_legacy_journal_mutation(self, paper_id: str | None) -> None:
-        """Reject mutations that target an existing legacy journal paper."""
-        if is_legacy_journal_paper(paper_id):
-            raise PermissionDenied(CanEditLegacyJournalPaper.message)
-
-    @action(detail=True, methods=["post"], permission_classes=[IsModerator])
-    def approve(self, request: Request, pk: str | None = None) -> Response:
-        """Approve a paper that is not part of the retired journal."""
-        self._prevent_legacy_journal_mutation(pk)
-        return super().approve(request, pk)
-
-    @action(detail=True, methods=["post"], permission_classes=[IsModerator])
-    def decline(self, request: Request, pk: str | None = None) -> Response:
-        """Decline a paper that is not part of the retired journal."""
-        self._prevent_legacy_journal_mutation(pk)
-        return super().decline(request, pk)
-
-    @action(
-        detail=True,
-        methods=["put", "patch", "delete"],
-        permission_classes=[
-            IsAuthenticated,
-            (CensorDiscussionPermission | EditorCensorDiscussion),
-        ],
-    )
-    def censor(
-        self,
-        request: Request,
-        *args: object,
-        pk: str | None = None,
-        **kwargs: object,
-    ) -> Response:
-        """Censor a paper that is not part of the retired journal."""
-        self._prevent_legacy_journal_mutation(pk)
-        return super().censor(request, *args, pk=pk, **kwargs)
 
     def prefetch_lookups(self):
         return (
