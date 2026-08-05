@@ -101,6 +101,7 @@ extend-select = [
     "RSE",   # flake8-raise
     "RUF010",# explicit-f-string-type-conversion
     "RUF013",# implicit-optional
+    "RUF022",# unsorted-dunder-all
     "RUF059",# unused-unpacked-variable
     "S113",  # flake8-bandit: request-without-timeout
     "SIM",   # flake8-simplify
