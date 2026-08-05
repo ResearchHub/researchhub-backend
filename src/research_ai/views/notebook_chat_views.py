@@ -52,7 +52,7 @@ class NotebookChatView(APIView):
         conversation = service.get_conversation(note, request.user)
         if conversation is None:
             return Response({"conversation_id": None, "messages": [], "executions": []})
-        return Response(service.chat.representation(conversation))
+        return Response(service.representation(conversation))
 
 
 class NotebookChatMessageView(APIView):
