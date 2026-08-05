@@ -73,7 +73,8 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(conversation.workflow, WORKFLOW)
         self.assertEqual(conversation.user, self.user)
         self.assertTrue(conversation.note_links.filter(note=self.note).exists())
-        self.assertEqual(execution.status, AgentExecution.Status.RUNNING)
+        # Queued for the worker to claim; RUNNING only once a worker owns it.
+        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
         self.assertIn(str(self.note.id), execution.system_prompt)
         self.assertIn(self.note.title, execution.system_prompt)
         self.assertEqual(execution.configuration["note_id"], self.note.id)
@@ -209,7 +210,41 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.FAILED)
         self.assertIn("provider exploded", result["error"])
 
-    def test_run_turn_skips_execution_that_is_not_running(self):
+    def test_failed_enqueue_fails_the_execution_and_frees_the_conversation(self):
+        # Arrange & Act: the broker refuses the task after the turn committed.
+        with (
+            patch(
+                "research_ai.tasks.run_notebook_chat_turn_task.delay",
+                side_effect=RuntimeError("broker down"),
+            ),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            execution = self.service.submit_message(self.note, self.user, "Hi")
+
+        # Assert: failed instead of holding the busy check forever.
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.FAILED)
+        self.assertIn("broker down", execution.error_message)
+
+        # The conversation is free again for the next message.
+        second, _delay = self._submit("again")
+        self.assertEqual(second.conversation_id, execution.conversation_id)
+
+    def test_run_turn_duplicate_delivery_is_skipped(self):
+        # Arrange: another worker already claimed this execution.
+        execution, _delay = self._submit()
+        claimed = self.service.chat.executions.claim_pending(execution)
+        self.assertIsNotNone(claimed)
+
+        # Act: the same task is delivered a second time.
+        result = self.service.run_turn(execution.id)
+
+        # Assert: the duplicate is a no-op and the claim is untouched.
+        self.assertTrue(result["skipped"])
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.RUNNING)
+
+    def test_run_turn_skips_cancelled_execution(self):
         # Arrange
         execution, _delay = self._submit()
         AgentExecution.objects.filter(id=execution.id).update(

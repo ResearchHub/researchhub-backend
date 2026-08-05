@@ -4,15 +4,18 @@ One conversation per (note, user), workflow ``notebook_chat``. A turn is
 split across two processes:
 
 - ``submit_message`` (request path) resolves the conversation, appends the
-  user's message, and creates the ``RUNNING`` execution via
+  user's message, and creates a ``PENDING`` execution via
   ``AgentChatService.prepare_turn`` -- so the chat shows the question
   immediately and the conversation is locked against concurrent turns -- then
-  schedules the Celery task on commit.
-- ``run_turn`` (worker path) rebuilds everything durable from the execution
-  row (recorder, context lineage, system prompt, trigger message), composes
-  the note + research toolset with the conversation owner's permissions, and
-  drives ``Agent.continue_conversation``. The recorder persists the trace,
-  marks the terminal status, and publishes the assistant's reply to the chat.
+  schedules the Celery task on commit. An execution the broker refuses to
+  queue is failed on the spot rather than left holding the busy check.
+- ``run_turn`` (worker path) atomically claims the execution (``PENDING`` ->
+  ``RUNNING``), so a redelivered or duplicated task is a no-op, then rebuilds
+  everything durable from the execution row (recorder, context lineage,
+  system prompt, trigger message), composes the note + research toolset with
+  the conversation owner's permissions, and drives
+  ``Agent.continue_conversation``. The recorder persists the trace, marks the
+  terminal status, and publishes the assistant's reply to the chat.
 
 The agent acts strictly as the conversation's user and only on the
 conversation's note: ``NoteToolset`` enforces note view/edit permissions per
@@ -40,7 +43,6 @@ from research_ai.services.agent_persistence import (
     AgentChatService,
     AgentContextService,
     AgentConversationService,
-    DatabaseAgentRecorder,
     NoteAgentConversationService,
 )
 from research_ai.services.note_tools import NoteToolset
@@ -145,6 +147,7 @@ class NotebookChatService:
         prepared = self.chat.prepare_turn(
             conversation,
             text,
+            pending=True,
             provider=generator_provider_name(),
             model=generator_model_ref(),
             configuration={
@@ -156,13 +159,32 @@ class NotebookChatService:
             system_prompt=build_notebook_chat_system_prompt(note),
         )
         execution = prepared.execution
+        transaction.on_commit(lambda: self._schedule_turn(execution.id))
+        return execution
 
+    def _schedule_turn(self, execution_id: int) -> None:
+        """Queue the worker turn, failing the execution if the broker refuses.
+
+        A ``PENDING`` row with no task behind it would hold the
+        conversation's busy check forever; claiming and failing it instead
+        lets the user simply send their message again.
+        """
         # Imported here, not at module top: ``tasks`` imports this service, so
         # a top-level import would be a cycle.
         from research_ai.tasks import run_notebook_chat_turn_task
 
-        transaction.on_commit(lambda: run_notebook_chat_turn_task.delay(execution.id))
-        return execution
+        try:
+            run_notebook_chat_turn_task.delay(execution_id)
+        except Exception as exc:  # noqa: BLE001 - any enqueue failure
+            logger.exception("could not queue notebook chat turn %s", execution_id)
+            execution = AgentExecution.objects.filter(id=execution_id).first()
+            recorder = (
+                self.chat.executions.claim_pending(execution)
+                if execution is not None
+                else None
+            )
+            if recorder is not None:
+                recorder.on_run_failed(exc)
 
     # -- worker path ------------------------------------------------------
 
@@ -171,23 +193,23 @@ class NotebookChatService:
 
         Everything the turn needs is rebuilt from the execution row, so the
         worker shares no in-memory state with the request that prepared it.
-        Idempotent on redelivery: a row no longer ``RUNNING`` is skipped.
+        Idempotent on redelivery: only the delivery that claims the
+        ``PENDING`` row runs it; every other delivery is skipped.
         """
         execution = AgentExecution.objects.select_related(
             "conversation", "conversation__user", "trigger_message"
         ).get(id=execution_id)
-        if execution.status != AgentExecution.Status.RUNNING:
+        recorder = self.chat.executions.claim_pending(
+            execution,
+            initial_prompt_provenance=AgentExecutionMessage.Provenance.HUMAN,
+        )
+        if recorder is None:
             logger.info(
                 "notebook chat turn %s skipped: status is %s",
                 execution_id,
                 execution.status,
             )
             return {"execution_id": execution.id, "skipped": True}
-
-        recorder = DatabaseAgentRecorder(
-            execution,
-            initial_prompt_provenance=AgentExecutionMessage.Provenance.HUMAN,
-        )
         try:
             return self._run_turn(execution, recorder)
         except Exception as exc:

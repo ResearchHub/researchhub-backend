@@ -28,13 +28,11 @@ logger = logging.getLogger(__name__)
 
 
 def _get_viewable_note_or_404(note_id: int, user) -> Note:
-    note = get_object_or_404(Note, id=note_id)
-    permissions = note.permissions
-    if not (
-        permissions.has_admin_user(user)
-        or permissions.has_editor_user(user)
-        or permissions.has_viewer_user(user)
-    ):
+    # Soft-deleted notes do not exist here either -- the same visibility rule
+    # as NoteViewSet and NoteToolset.
+    note = get_object_or_404(Note, id=note_id, unified_document__is_removed=False)
+    # Same predicate as HasAccessPermission, mirroring NoteToolset reads.
+    if not note.permissions.has_user(user):
         raise Http404
     return note
 

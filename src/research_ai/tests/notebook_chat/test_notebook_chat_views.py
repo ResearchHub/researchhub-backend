@@ -82,7 +82,7 @@ class NotebookChatViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 202)
         execution = AgentExecution.objects.get(id=response.data["execution_id"])
-        self.assertEqual(execution.status, AgentExecution.Status.RUNNING)
+        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
         self.assertEqual(response.data["conversation_id"], execution.conversation_id)
         self.assertEqual(execution.trigger_message.content, "Summarize the note")
 
@@ -106,6 +106,22 @@ class NotebookChatViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 404)
         self.assertFalse(AgentExecution.objects.exists())
+
+    def test_deleted_note_chat_is_hidden(self):
+        # Arrange: a chat exists, then the note is soft-deleted.
+        self.client.force_authenticate(self.owner)
+        self._post_message()
+        self.note.unified_document.is_removed = True
+        self.note.unified_document.save(update_fields=["is_removed"])
+
+        # Act
+        get_response = self.client.get(self.chat_url)
+        post_response, _delay = self._post_message()
+
+        # Assert: same deletion boundary as NoteViewSet -- the note, its chat
+        # history, and new turns are all gone (404, not the busy 409).
+        self.assertEqual(get_response.status_code, 404)
+        self.assertEqual(post_response.status_code, 404)
 
     def test_gate_blocks_regular_users_even_with_note_access(self):
         # Arrange: full note access, but neither hub editor nor moderator.
@@ -182,7 +198,7 @@ class NotebookChatViewTests(APITestCase):
         self.assertEqual(len(response.data["executions"]), 1)
         self.assertEqual(
             response.data["executions"][0]["status"],
-            AgentExecution.Status.RUNNING,
+            AgentExecution.Status.PENDING,
         )
 
     def test_get_chat_is_scoped_per_user(self):
