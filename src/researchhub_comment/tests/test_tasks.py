@@ -53,7 +53,6 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         """
         # Arrange
         follower_ids = [self.follower1.id, self.follower2.id]
-        mock_send_email.return_value = {"success": [], "failure": [], "exclude": []}
 
         # Act
         send_author_update_email_notifications(self.comment.id, follower_ids)
@@ -103,7 +102,6 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         """
         # Arrange
         follower_ids = [self.follower1.id]
-        mock_send_email.return_value = {"success": [], "failure": [], "exclude": []}
 
         # Act
         send_author_update_email_notifications(self.comment.id, follower_ids)
@@ -140,7 +138,6 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         follower3 = create_random_default_user("follower3")
 
         follower_ids = [self.follower1.id, self.follower2.id, follower3.id]
-        mock_send_email.return_value = {"success": [], "failure": [], "exclude": []}
 
         # Act
         send_author_update_email_notifications(self.comment.id, follower_ids)

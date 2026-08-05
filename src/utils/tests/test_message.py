@@ -1,24 +1,24 @@
 from django.core import mail
 from django.test import TestCase, override_settings
 
-from utils.message import UnsubscribeUrls, deliver_email, is_valid_email
+from utils.message import UnsubscribeUrls, _is_allowed_recipient, deliver_email
 
 TEMPLATE_TXT = "general_email_message.txt"
 TEMPLATE_HTML = "general_email_message.html"
 BASE_CONTEXT = {"action": {"message": "hello"}, "subject": "Test"}
 
 
-class IsValidEmailTests(TestCase):
-    def test_allows_any_email_in_test_mode(self):
-        self.assertTrue(is_valid_email("anyone@example.com"))
+class IsAllowedRecipientTests(TestCase):
+    def test_allows_any_valid_email_in_test_mode(self):
+        self.assertTrue(_is_allowed_recipient("anyone@example.com"))
 
     @override_settings(TESTING=False, EMAIL_WHITELIST=["a@example.com"])
     def test_allows_whitelisted_email(self):
-        self.assertTrue(is_valid_email("a@example.com"))
+        self.assertTrue(_is_allowed_recipient("a@example.com"))
 
     @override_settings(TESTING=False, EMAIL_WHITELIST=["other@example.com"])
     def test_rejects_non_whitelisted_email(self):
-        self.assertFalse(is_valid_email("blocked@example.com"))
+        self.assertFalse(_is_allowed_recipient("blocked@example.com"))
 
 
 @override_settings(
@@ -39,22 +39,20 @@ class DeliverEmailTests(TestCase):
 
     def test_sends_to_valid_recipient(self):
         # Act
-        result = self._send()
+        self._send()
 
         # Assert
-        self.assertEqual(result["success"], ["user@example.com"])
         self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["user@example.com"])
 
     def test_excludes_suppressed_emails(self):
         # Act
-        result = self._send(
+        self._send(
             recipients=["bounced@example.com"],
             suppressed_emails={"bounced@example.com"},
         )
 
         # Assert
-        self.assertEqual(result["success"], [])
-        self.assertIn("bounced@example.com", result["exclude"])
         self.assertEqual(len(mail.outbox), 0)
 
     def test_sets_precedence_bulk(self):

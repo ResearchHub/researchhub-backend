@@ -33,30 +33,28 @@ class SendEmailTests(TestCase):
 
     def test_sends_to_recipient_without_a_suppression_record(self):
         # Act
-        result = self._send(["good@example.com"])
+        self._send(["good@example.com"])
 
         # Assert
-        self.assertEqual(result["success"], ["good@example.com"])
         self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["good@example.com"])
 
     def test_accepts_a_single_recipient_string(self):
         # Act
-        result = self._send("good@example.com")
+        self._send("good@example.com")
 
         # Assert
-        self.assertEqual(result["success"], ["good@example.com"])
         self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["good@example.com"])
 
     def test_excludes_opted_out_recipient(self):
         # Arrange
         EmailOptOut.add("optout@example.com")
 
         # Act
-        result = self._send(["optout@example.com"])
+        self._send(["optout@example.com"])
 
         # Assert
-        self.assertEqual(result["success"], [])
-        self.assertIn("optout@example.com", result["exclude"])
         self.assertEqual(len(mail.outbox), 0)
 
     def test_excludes_opted_out_recipient_regardless_of_casing(self):
@@ -64,10 +62,9 @@ class SendEmailTests(TestCase):
         EmailOptOut.add("optout@example.com")
 
         # Act
-        result = self._send(["OptOut@Example.com"])
+        self._send(["OptOut@Example.com"])
 
         # Assert
-        self.assertEqual(result["success"], [])
         self.assertEqual(len(mail.outbox), 0)
 
     def test_sends_only_to_unsuppressed_recipients_in_a_mixed_list(self):
@@ -75,11 +72,9 @@ class SendEmailTests(TestCase):
         EmailOptOut.add("optout@example.com")
 
         # Act
-        result = self._send(["optout@example.com", "good@example.com"])
+        self._send(["optout@example.com", "good@example.com"])
 
         # Assert
-        self.assertEqual(result["success"], ["good@example.com"])
-        self.assertIn("optout@example.com", result["exclude"])
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["good@example.com"])
 
@@ -163,11 +158,11 @@ class SendTransactionalEmailTests(TestCase):
         EmailOptOut.add("optout@example.com")
 
         # Act
-        result = self._send(["optout@example.com"])
+        self._send(["optout@example.com"])
 
         # Assert
-        self.assertEqual(result["success"], ["optout@example.com"])
         self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["optout@example.com"])
 
     def test_does_not_set_unsubscribe_headers(self):
         # Act

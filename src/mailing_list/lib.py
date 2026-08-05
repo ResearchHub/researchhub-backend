@@ -29,7 +29,7 @@ def send_email(
     sender: str = DEFAULT_SENDER,
     reply_to: str | None = None,
     cc: list[str] | None = None,
-) -> dict[str, list[str]]:
+) -> None:
     """
     Send notification email, skipping addresses that have opted out.
 
@@ -64,7 +64,7 @@ def send_email(
                 extra={"recipient": recipient},
             )
 
-    return deliver_email(
+    deliver_email(
         recipients=recipients,
         template=template,
         subject=subject,
@@ -87,14 +87,14 @@ def send_transactional_email(
     sender: str = DEFAULT_SENDER,
     reply_to: str | None = None,
     cc: list[str] | None = None,
-) -> dict[str, list[str]]:
+) -> None:
     """
     Send transactional email that ignores notification opt-outs.
 
     Transactional emails can include email confirmation, password reset, and others.
     Opting out of other notifications must not lock someone out of their own account.
     """
-    return deliver_email(
+    deliver_email(
         recipients=recipients,
         template=template,
         subject=subject,
