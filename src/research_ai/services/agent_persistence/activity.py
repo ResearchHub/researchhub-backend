@@ -24,7 +24,12 @@ _SERVER_RESULT_SUFFIX = "_tool_result"
 
 @dataclass
 class ToolCallEvent:
-    """One tool call reconstructed from an execution's trace rows."""
+    """One tool call reconstructed from an execution's trace rows.
+
+    Timestamps are trace-row persistence times: they order events, but
+    parallel calls issued in one assistant turn share rows, so they must not
+    be read as per-call durations.
+    """
 
     tool: str
     input: dict

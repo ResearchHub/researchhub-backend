@@ -45,10 +45,10 @@ EDITED_DOC = {
 }
 
 
-def _make_service(provider=None, web_search_client=None):
+def _make_service(provider=None, web_search_client=None, oa_client=None):
     return NotebookChatService(
         provider=provider,
-        oa_client=Mock(),
+        oa_client=Mock() if oa_client is None else oa_client,
         web_search_client=(
             Mock(configured=False) if web_search_client is None else web_search_client
         ),
@@ -73,7 +73,13 @@ class NotebookChatActivityTests(TestCase):
             user=self.user,
         )
 
-    def _run_turn(self, provider_turns, text="Please help.", web_search_client=None):
+    def _run_turn(
+        self,
+        provider_turns,
+        text="Please help.",
+        web_search_client=None,
+        oa_client=None,
+    ):
         service = _make_service()
         with (
             patch("research_ai.tasks.run_notebook_chat_turn_task.delay"),
@@ -81,7 +87,9 @@ class NotebookChatActivityTests(TestCase):
         ):
             execution = service.submit_message(self.note, self.user, text)
         runner = _make_service(
-            provider=FakeProvider(provider_turns), web_search_client=web_search_client
+            provider=FakeProvider(provider_turns),
+            web_search_client=web_search_client,
+            oa_client=oa_client,
         )
         runner.run_turn(execution.id)
         return execution
@@ -186,6 +194,63 @@ class NotebookChatActivityTests(TestCase):
             event["sources"],
             [{"title": "Perovskite review", "url": "https://example.org/review"}],
         )
+
+    def test_scholarly_tools_report_names_and_citation_sources(self):
+        # Arrange: a resolved author whose works ground the turn's citations.
+        # The work has no readable PDF, so the full-text read falls back to
+        # the abstract without touching the network.
+        author = {"id": "https://openalex.org/A1", "display_name": "Jennifer Doudna"}
+        work = Mock()
+        work.as_dict.return_value = {
+            "title": "CRISPR paper",
+            "source_url": "https://doi.org/10.1000/crispr",
+            "pdf_url": "",
+            "abstract": "An abstract the user never needs to see raw.",
+        }
+        oa_client = Mock()
+        oa_client.search_authors_via_name.return_value = {"results": [author]}
+        oa_client.get_author.return_value = author
+        oa_client.get_works_typed.return_value = [work]
+        execution = self._run_turn(
+            [
+                tool_turn("t1", "search_authors", {"name": "Jennifer Doudna"}),
+                tool_turn("t2", "get_author", {"openalex_author_id": author["id"]}),
+                tool_turn(
+                    "t3", "get_author_works", {"openalex_author_id": author["id"]}
+                ),
+                tool_turn(
+                    "t4",
+                    "get_work_fulltext",
+                    {"source_url": "https://doi.org/10.1000/crispr"},
+                ),
+                text_turn("Done."),
+            ],
+            oa_client=oa_client,
+        )
+
+        # Act
+        activity = self._activity(execution)
+
+        # Assert: names and citations surface; abstracts and metadata do not.
+        searched, looked_up, works, read_paper = activity
+        self.assertEqual(searched["label"], "Searched scholarly authors")
+        self.assertEqual(searched["detail"], "Jennifer Doudna")
+        self.assertNotIn("sources", searched)
+        self.assertEqual(looked_up["label"], "Looked up an author")
+        self.assertEqual(looked_up["detail"], "Jennifer Doudna")
+        expected_source = {
+            "title": "CRISPR paper",
+            "url": "https://doi.org/10.1000/crispr",
+        }
+        self.assertEqual(works["label"], "Fetched an author's publications")
+        self.assertEqual(works["status"], "succeeded")
+        self.assertEqual(works["sources"], [expected_source])
+        self.assertEqual(read_paper["label"], "Read a paper")
+        self.assertEqual(read_paper["status"], "succeeded")
+        self.assertEqual(read_paper["sources"], [expected_source])
+        for event in activity:
+            self.assertLessEqual(set(event), PUBLIC_EVENT_KEYS)
+        self.assertNotIn("abstract the user", json.dumps(activity, default=str))
 
     def test_failed_tool_call_reports_failed_without_error_text(self):
         # Arrange: web search is unconfigured, so the tool returns an error

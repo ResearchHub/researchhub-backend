@@ -1,33 +1,46 @@
 """User-safe activity feed for notebook chat turns.
 
 A curated projection of :func:`conversation_tool_events` into a fixed public
-shape -- tool, label, status, timestamps -- plus the two enrichments the
-frontend renders: the note version an edit produced, so an open editor knows
-to reload, and the sources a web search returned, so answers can carry
-citations. Raw tool arguments and results never pass through: tool traffic
-includes whole note documents and provider payloads, and tool error strings
-are written for the model, not the user.
+shape -- tool, label, status, timestamps -- plus the enrichments the frontend
+renders: the note version an edit produced, so an open editor knows to reload,
+a human detail line (the search query or author searched for), and title/url
+``sources`` for citations. Sources come from every tool that yields citable
+items -- web search and the scholarly tools alike -- in one shape, so the
+frontend renders one citation list. Raw tool arguments and results never pass
+through: tool traffic includes whole note documents, paper full texts, and
+provider payloads, and tool error strings are written for the model, not the
+user.
 """
 
 from collections.abc import Iterable
 
 from research_ai.services.agent_persistence.activity import ToolCallEvent
 from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE
+from research_ai.services.researcher_profile.openalex_tools import GET_WORK_FULLTEXT
 
 WEB_SEARCH = "web_search"
+SEARCH_INSTITUTIONS = "search_institutions"
+SEARCH_AUTHORS = "search_authors"
+GET_AUTHOR = "get_author"
+GET_AUTHOR_WORKS = "get_author_works"
 
 _LABELS = {
     READ_NOTE: "Read the note",
     EDIT_NOTE: "Edited the note",
     WEB_SEARCH: "Searched the web",
-    "search_institutions": "Searched institutions",
-    "search_authors": "Searched scholarly authors",
-    "get_author": "Looked up an author",
-    "get_author_works": "Fetched an author's publications",
+    SEARCH_INSTITUTIONS: "Searched institutions",
+    SEARCH_AUTHORS: "Searched scholarly authors",
+    GET_AUTHOR: "Looked up an author",
+    GET_AUTHOR_WORKS: "Fetched an author's publications",
+    GET_WORK_FULLTEXT: "Read a paper",
 }
-# Tools whose ``query`` argument is the user's own kind of text -- safe and
-# meaningful to echo as the event detail.
-_QUERY_TOOLS = frozenset({WEB_SEARCH, "search_institutions", "search_authors"})
+# The input field per tool whose value is the user's own kind of text -- safe
+# and meaningful to echo as the event detail.
+_DETAIL_INPUT_FIELDS = {
+    WEB_SEARCH: "query",
+    SEARCH_INSTITUTIONS: "query",
+    SEARCH_AUTHORS: "name",
+}
 _MAX_DETAIL_CHARS = 200
 _MAX_SOURCES = 5
 
@@ -56,7 +69,7 @@ def _public_event(event: ToolCallEvent, execution_active: bool) -> dict:
         version_id = (event.result or {}).get("version_id")
         if isinstance(version_id, int):
             public["note_version_id"] = version_id
-    if succeeded and event.tool == WEB_SEARCH:
+    if succeeded:
         sources = _sources(event)
         if sources:
             public["sources"] = sources
@@ -76,31 +89,48 @@ def _status(event: ToolCallEvent, execution_active: bool) -> str:
 
 
 def _detail(event: ToolCallEvent) -> str | None:
-    if event.tool not in _QUERY_TOOLS:
+    field = _DETAIL_INPUT_FIELDS.get(event.tool)
+    if field is not None:
+        value = event.input.get(field)
+    elif event.tool == GET_AUTHOR and event.completed and not event.is_error:
+        # The input is an opaque OpenAlex id; the resolved author's name is
+        # the human-meaningful part, and it only exists in the result.
+        value = (event.result or {}).get("display_name")
+    else:
         return None
-    query = event.input.get("query")
-    if not isinstance(query, str) or not query.strip():
+    if not isinstance(value, str) or not value.strip():
         return None
-    return query.strip()[:_MAX_DETAIL_CHARS]
+    return value.strip()[:_MAX_DETAIL_CHARS]
 
 
 def _sources(event: ToolCallEvent) -> list[dict]:
-    """Title/url pairs from a web search result, local or server-side.
+    """Title/url pairs from any tool whose result carries citable items.
 
-    The local tool returns ``{"results": [{"title", "url", ...}]}``; the
-    provider-run tool wraps its result blocks in ``{"content": [...]}``. Both
-    reduce to the same citation shape, and anything unrecognized reduces to
-    nothing.
+    Web search returns ``{"results": [...]}`` locally and ``{"content":
+    [...]}`` when the provider ran it; scholarly works live under ``works``
+    with their url in ``source_url``; a full-text read echoes the one paper it
+    read. All reduce to the same citation shape, and anything unrecognized
+    reduces to nothing.
     """
     result = event.result or {}
-    items = result.get("content") if event.server_side else result.get("results")
+    if event.tool == WEB_SEARCH:
+        items = result.get("content") if event.server_side else result.get("results")
+        url_field = "url"
+    elif event.tool == GET_AUTHOR_WORKS:
+        items = result.get("works")
+        url_field = "source_url"
+    elif event.tool == GET_WORK_FULLTEXT:
+        items = [result]
+        url_field = "source_url"
+    else:
+        return []
     if not isinstance(items, list):
         return []
     sources = []
     for item in items:
         if not isinstance(item, dict):
             continue
-        url = str(item.get("url") or "").strip()
+        url = str(item.get(url_field) or "").strip()
         if not url:
             continue
         sources.append({"title": str(item.get("title") or "").strip(), "url": url})
