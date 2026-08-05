@@ -123,7 +123,7 @@ class SendEmailTests(TestCase):
         html_body = mail.outbox[0].alternatives[0][0]
         self.assertIn(f"{settings.ASSETS_BASE_URL}/email_assets/", html_body)
 
-    def test_sets_precedence_bulk(self):
+    def test_marks_mail_as_bulk(self):
         # Act
         self._send(["good@example.com"])
 
@@ -200,6 +200,13 @@ class SendTransactionalEmailTests(TestCase):
         headers = mail.outbox[0].extra_headers
         self.assertNotIn("List-Unsubscribe", headers)
         self.assertNotIn("List-Unsubscribe-Post", headers)
+
+    def test_does_not_mark_mail_as_bulk(self):
+        # Act
+        self._send(["good@example.com"])
+
+        # Assert
+        self.assertNotIn("Precedence", mail.outbox[0].extra_headers)
 
     def test_does_not_render_unsubscribe_link(self):
         # Act

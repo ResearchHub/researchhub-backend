@@ -114,7 +114,7 @@ def _send(
             continue
 
         context = {"assets_base_url": settings.ASSETS_BASE_URL, **email_context}
-        headers = {"Precedence": "bulk"}
+        headers: dict[str, str] = {}
 
         if unsubscribable:
             try:
@@ -128,6 +128,7 @@ def _send(
                 )
             else:
                 context["opt_out"] = opt_out_url
+                headers["Precedence"] = "bulk"
                 headers["List-Unsubscribe"] = f"<{one_click_url}>"
                 headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
 
