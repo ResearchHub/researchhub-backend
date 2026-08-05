@@ -1,4 +1,4 @@
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from orcid.services import OrcidConnectService
 from orcid.tests.helpers import OrcidTestHelper
@@ -26,12 +26,25 @@ class OrcidConnectServiceTests(TestCase):
         self.assertIn("state=", url_without_return)
 
     def test_is_valid_redirect_url(self):
+        # Arrange
+        preview_origin = (
+            "https://0123456789abcdef0123456789abcdef-87d3f8ab798deaec"
+            ".preview.codepress.dev/settings"
+        )
+
         # Act
-        valid = is_valid_redirect_url("https://researchhub.com/page")
-        invalid = is_valid_redirect_url("https://evil.com")
-        empty = is_valid_redirect_url(None)
+        with override_settings(
+            CORS_ALLOWED_ORIGIN_REGEXES=[
+                r"^https://[0-9a-f]{32}-87d3f8ab798deaec\.preview\.codepress\.dev$"
+            ]
+        ):
+            valid = is_valid_redirect_url("https://researchhub.com/page")
+            preview_valid = is_valid_redirect_url(preview_origin)
+            invalid = is_valid_redirect_url("https://evil.com")
+            empty = is_valid_redirect_url(None)
 
         # Assert
         self.assertTrue(valid)
+        self.assertTrue(preview_valid)
         self.assertFalse(invalid)
         self.assertFalse(empty)

@@ -17,6 +17,7 @@ from purchase.endaoment.client import EndaomentClient, TokenResponse
     ENDAOMENT_CLIENT_SECRET="test_client_secret",
     ENDAOMENT_REDIRECT_URL="https://researchhub.com/callback",
     CORS_ORIGIN_WHITELIST=["https://test.com", "https://researchhub.com"],
+    CORS_ALLOWED_ORIGIN_REGEXES=[],
 )
 class TestEndaomentClient(TestCase):
     """
@@ -101,6 +102,26 @@ class TestEndaomentClient(TestCase):
 
         self.assertEqual(state_data["user_id"], 123)
         self.assertNotIn("return_url", state_data)
+
+    def test_is_valid_redirect_url_accepts_codepress_preview_origin(self):
+        # Arrange
+        preview_origin = (
+            "https://0123456789abcdef0123456789abcdef-87d3f8ab798deaec"
+            ".preview.codepress.dev/dashboard"
+        )
+
+        # Act
+        with override_settings(
+            CORS_ALLOWED_ORIGIN_REGEXES=[
+                r"^https://[0-9a-f]{32}-87d3f8ab798deaec\.preview\.codepress\.dev$"
+            ]
+        ):
+            valid = self.client.is_valid_redirect_url(preview_origin)
+            invalid = self.client.is_valid_redirect_url("https://malicious.com")
+
+        # Assert
+        self.assertTrue(valid)
+        self.assertFalse(invalid)
 
     def test_validate_state(self):
         """

@@ -1,13 +1,14 @@
 import logging
 import uuid
 from dataclasses import dataclass
-from urllib.parse import urlparse
 
 import requests
 from authlib.common.security import generate_token
 from authlib.integrations.requests_client import OAuth2Session
 from django.conf import settings
 from django.core import signing
+
+from utils.cors import is_allowed_origin
 
 logger = logging.getLogger(__name__)
 
@@ -264,10 +265,7 @@ class EndaomentClient:
         """
         Validate redirect URL against CORS whitelist.
         """
-        if not url:
-            return False
-        parsed = urlparse(url)
-        return f"{parsed.scheme}://{parsed.netloc}" in settings.CORS_ORIGIN_WHITELIST
+        return is_allowed_origin(url)
 
     @staticmethod
     def cents_to_micros(amount_in_cents: int) -> int:

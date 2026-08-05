@@ -1,8 +1,7 @@
-from urllib.parse import urlparse
-
 from allauth.socialaccount.models import SocialApp
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
-from django.conf import settings
+
+from utils.cors import is_allowed_origin
 
 
 def get_orcid_app() -> SocialApp:
@@ -12,7 +11,4 @@ def get_orcid_app() -> SocialApp:
 
 def is_valid_redirect_url(url: str | None) -> bool:
     """Validate redirect URL against CORS whitelist."""
-    if not url:
-        return False
-    parsed = urlparse(url)
-    return f"{parsed.scheme}://{parsed.netloc}" in settings.CORS_ORIGIN_WHITELIST
+    return is_allowed_origin(url)
