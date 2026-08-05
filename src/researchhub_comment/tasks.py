@@ -65,7 +65,7 @@ def celery_create_mention_notification(comment_id, recipients):
             }
             send_email(
                 [notification.recipient.email],
-                "general_email_message.txt",
+                None,
                 outer_subject,
                 context,
                 html_template="general_email_message.html",
@@ -102,7 +102,7 @@ def send_author_update_email_notifications(comment_id, follower_user_ids):
                 user = User.objects.get(id=user_id)
                 send_email(
                     [user.email],
-                    "general_email_message.txt",
+                    None,
                     subject,
                     context,
                     html_template="general_email_message.html",

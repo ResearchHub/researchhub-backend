@@ -8,7 +8,6 @@ from mailing_list.lib import send_email, send_transactional_email
 from mailing_list.models import EmailOptOut
 from mailing_list.services import EmailSubscriptionService
 
-TEMPLATE_TXT = "general_email_message.txt"
 TEMPLATE_HTML = "general_email_message.html"
 BASE_CONTEXT = {"action": {"message": "hello"}, "subject": "Test"}
 
@@ -23,7 +22,7 @@ class SendEmailTests(TestCase):
     def _send(self, recipients, **overrides):
         kwargs = {
             "recipients": recipients,
-            "template": TEMPLATE_TXT,
+            "template": None,
             "subject": "Test",
             "email_context": {**BASE_CONTEXT},
             "html_template": TEMPLATE_HTML,
@@ -182,7 +181,7 @@ class SendTransactionalEmailTests(TestCase):
     def _send(self, recipients, **overrides):
         kwargs = {
             "recipients": recipients,
-            "template": TEMPLATE_TXT,
+            "template": None,
             "subject": "Test",
             "email_context": {**BASE_CONTEXT},
             "html_template": TEMPLATE_HTML,

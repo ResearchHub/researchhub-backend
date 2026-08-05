@@ -65,7 +65,7 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         self.assertIn([self.follower2.email], recipients)
 
         call_args = mock_send_email.call_args_list[0][0]
-        self.assertEqual(call_args[1], "general_email_message.txt")
+        self.assertIsNone(call_args[1])
         self.assertEqual(call_args[2], "Update on Preregistration You're Following")
 
         email_context = call_args[3]

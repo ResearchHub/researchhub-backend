@@ -522,7 +522,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         subject = "ResearchHub | Notice of Flagged and Removed Content"
         send_transactional_email(
             recipient,
-            "flagged_and_removed_content.txt",
+            None,
             subject,
             email_context,
             "flagged_and_removed_content.html",

@@ -547,7 +547,7 @@ def check_hotwallet():
         }
         send_transactional_email(
             ["pat@researchhub.com", "tyler@researchhub.com", "dev@researchhub.com"],
-            "general_email_message.txt",
+            None,
             "Hotwallet Balance Alert",
             context,
             html_template="general_email_message.html",
