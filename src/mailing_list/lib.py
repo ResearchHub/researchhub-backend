@@ -8,7 +8,6 @@ from mailing_list.models import EmailOptOut
 from mailing_list.services import EmailSubscriptionService
 from researchhub.settings import (
     ASSETS_BASE_URL,
-    BASE_FRONTEND_URL,
 )
 from utils.message import UnsubscribeUrls, deliver_email
 
@@ -16,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 base_email_context = {
     "assets_base_url": ASSETS_BASE_URL,
-    "update_subscription": BASE_FRONTEND_URL + "/user/settings/",
 }
 
 DEFAULT_SENDER = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>"
