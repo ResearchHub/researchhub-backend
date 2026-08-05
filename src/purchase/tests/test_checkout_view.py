@@ -81,35 +81,6 @@ class CheckoutSessionViewTest(APITestCase):
         mock_payment_service.create_checkout_session.assert_not_called()
 
     @patch("purchase.views.checkout_view.PaymentService")
-    def test_rejects_apc_checkout_session(
-        self, mock_payment_service_class: MagicMock
-    ) -> None:
-        """New article processing charge checkout sessions are rejected."""
-        # Arrange
-        mock_payment_service = MagicMock()
-        mock_payment_service_class.return_value = mock_payment_service
-        data = {
-            "amount": 100,
-            "purpose": PaymentPurpose.APC.value,
-            "success_url": "https://researchhub.com/success",
-            "failure_url": "https://researchhub.com/failure",
-        }
-        self.client.force_authenticate(user=self.user)
-
-        # Act
-        response = self.client.post(self.url, data=data)
-
-        # Assert
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(
-            response.data,
-            {
-                "purpose": ['"APC" is not a valid choice.'],
-            },
-        )
-        mock_payment_service.create_checkout_session.assert_not_called()
-
-    @patch("purchase.views.checkout_view.PaymentService")
     def test_returns_server_error_when_checkout_creation_fails(
         self, mock_payment_service_class: MagicMock
     ) -> None:

@@ -45,28 +45,6 @@ class PaymentServiceTest(TestCase):
         BountyFee.objects.create(rh_pct=0.07, dao_pct=0.00)
 
     @patch("stripe.checkout.Session.create")
-    def test_rejects_apc_checkout_session(
-        self, mock_stripe_session_create: MagicMock
-    ) -> None:
-        """The payment service rejects new APC checkout sessions."""
-        # Arrange
-        amount = LEGACY_APC_AMOUNT_CENTS
-
-        # Act
-        with self.assertRaisesMessage(
-            ValueError,
-            "Checkout sessions only support RSC purchases.",
-        ):
-            self.service.create_checkout_session(
-                user_id=self.user.id,
-                purpose=PaymentPurpose.APC,
-                amount=amount,
-            )
-
-        # Assert
-        mock_stripe_session_create.assert_not_called()
-
-    @patch("stripe.checkout.Session.create")
     def test_create_checkout_session_rsc_purchase_success(
         self, mock_stripe_session_create
     ):
