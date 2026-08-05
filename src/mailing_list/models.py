@@ -1,57 +1,9 @@
 from typing import override
-from warnings import deprecated
 
 from django.db import models
 from django.db.models import Q
 from django.db.models.functions import Lower, Trim
 from django.utils import timezone
-
-
-@deprecated("EmailRecipient is deprecated. Use EmailOptOut or SES blacklist.")
-class EmailRecipient(models.Model):
-    """
-    This model is deprecated and it currently only kept for data migration purposes.
-    """
-
-    email = models.EmailField(unique=True)
-    do_not_email = models.BooleanField(default=False)
-    is_opted_out = models.BooleanField(default=False)
-    user = models.OneToOneField(
-        "user.User", on_delete=models.CASCADE, default=None, null=True
-    )
-    bounced_date = models.DateTimeField(default=None, null=True)
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.email}"
-
-    @classmethod
-    def get_suppressed_emails(cls, emails: list[str]) -> set[str]:
-        """Return the subset of *emails* that should not receive mail.
-
-        An address is suppressed when it has ``do_not_email=True``
-        (bounced / complained) or ``is_opted_out=True``.
-        """
-        return set(
-            cls.objects.filter(
-                Q(do_not_email=True) | Q(is_opted_out=True),
-                email__in=emails,
-            ).values_list("email", flat=True)
-        )
-
-    def bounced(self):
-        self.bounced_date = timezone.now()
-        self.do_not_email = True
-        self.save()
-
-    def set_opted_out(self, opt_out):
-        self.is_opted_out = opt_out
-        self.save()
-
-    @property
-    def receives_notifications(self):
-        return not self.do_not_email and not self.is_opted_out
 
 
 class EmailOptOut(models.Model):
