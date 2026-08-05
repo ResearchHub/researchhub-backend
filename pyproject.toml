@@ -94,6 +94,7 @@ extend-select = [
     "C4",    # flake8-comprehensions
     "E",     # pycodestyle errors
     "FURB",  # refurb
+    "G201",  # logging-exc-info (G201)
     "I",     # isort
     "N",     # pep8-naming
     "PERF",  # flake8-perf
