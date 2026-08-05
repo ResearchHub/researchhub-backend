@@ -123,16 +123,44 @@ class SendEmailTests(TestCase):
         html_body = mail.outbox[0].alternatives[0][0]
         self.assertIn(f"{settings.ASSETS_BASE_URL}/email_assets/", html_body)
 
-    def test_html_footer_carries_the_signed_unsubscribe_link(self):
+    def test_sets_precedence_bulk(self):
         # Act
         self._send(["good@example.com"])
 
-        # Assert: the footer link replaces the static, address-agnostic URL
+        # Assert
+        self.assertEqual(mail.outbox[0].extra_headers["Precedence"], "bulk")
+
+    def test_sets_reply_to(self):
+        # Act
+        self._send(["good@example.com"], reply_to="reply@example.com")
+
+        # Assert
+        self.assertEqual(mail.outbox[0].reply_to, ["reply@example.com"])
+
+    @override_settings(TESTING=False, EMAIL_WHITELIST=["allowed@example.com"])
+    def test_outside_production_sends_only_to_whitelisted_addresses(self):
+        # Act
+        self._send(["allowed@example.com", "blocked@example.com"])
+
+        # Assert
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["allowed@example.com"])
+
+    def test_html_footer_link_unsubscribes_the_recipient(self):
+        # Arrange
+        service = EmailSubscriptionService()
+
+        # Act
+        self._send(["good@example.com"])
+
+        # Assert: the footer link round-trips back to the same address
         html_body = mail.outbox[0].alternatives[0][0]
-        self.assertIn(
-            f"{settings.BASE_FRONTEND_URL}/email/unsubscribe/?code=", html_body
+        self.assertIn("code=", html_body, "no unsubscribe link in the footer")
+        code = unquote(html_body.split("code=")[1].split('"')[0])
+        service.unsubscribe(code)
+        self.assertEqual(
+            EmailOptOut.filter_opted_out(["good@example.com"]), {"good@example.com"}
         )
-        self.assertNotIn(f"{settings.BASE_FRONTEND_URL}/email/opt-out/", html_body)
 
 
 @override_settings(
