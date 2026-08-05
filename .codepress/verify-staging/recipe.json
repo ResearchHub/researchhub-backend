@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "deploy_command": "uv sync --frozen --no-dev",
+  "workdir": ".",
+  "dockerfile_path": ".codepress/verify-staging/Dockerfile.toolbox",
+  "docker_capability": "none",
+  "timeout_seconds": 3600,
+  "aws_credentials": "none",
+  "required_agent_vault_secrets": [],
+  "env_var_map": {},
+  "env": {},
+  "health_check": {
+    "enabled": false,
+    "url": "",
+    "expected_status": 200,
+    "timeout_seconds": 0
+  },
+  "verification_contract": [
+    {
+      "name": "locked-dependency-resolution",
+      "method": "BUILD",
+      "url": "repository://uv-sync",
+      "expected_status": 0
+    }
+  ],
+  "outputs": [],
+  "bootstrap_status": "blocked-no-deployment-target",
+  "bootstrap_note": "No staging deployment command, cloud target, or health URL was present in this backend repository. This recipe validates locked dependency resolution only until a deployment target is supplied."
+}
