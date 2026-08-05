@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
-from mailing_list.lib import base_email_context, send_transactional_email
+from mailing_list.lib import send_transactional_email
 from notification.models import Notification
 from paper.models import Paper
 from purchase.circle.service import CircleWalletService
@@ -228,7 +228,6 @@ def send_support_email(
         payment_type = "RSC"
 
     context = {
-        **base_email_context,
         "amount": amount,
         "date": date,
         "method": payment_type,

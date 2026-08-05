@@ -114,7 +114,6 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         call_args = mock_send_email.call_args
         email_context = call_args[0][3]
 
-        # Check that context has base_email_context merged in
         self.assertIn("action", email_context)
 
         # Check action details

@@ -120,6 +120,14 @@ class SendEmailTests(TestCase):
         first, second = (msg.extra_headers["List-Unsubscribe"] for msg in mail.outbox)
         self.assertNotEqual(first, second)
 
+    def test_renders_assets_base_url_without_the_caller_supplying_it(self):
+        # Act
+        self._send(["good@example.com"])
+
+        # Assert
+        html_body = mail.outbox[0].alternatives[0][0]
+        self.assertIn(f"{settings.ASSETS_BASE_URL}/email_assets/", html_body)
+
     def test_html_footer_carries_the_signed_unsubscribe_link(self):
         # Act
         self._send(["good@example.com"])
@@ -177,3 +185,11 @@ class SendTransactionalEmailTests(TestCase):
         # Assert
         html_body = mail.outbox[0].alternatives[0][0]
         self.assertNotIn("Unsubscribe or change", html_body)
+
+    def test_renders_assets_base_url_without_the_caller_supplying_it(self):
+        # Act
+        self._send(["good@example.com"])
+
+        # Assert
+        html_body = mail.outbox[0].alternatives[0][0]
+        self.assertIn(f"{settings.ASSETS_BASE_URL}/email_assets/", html_body)

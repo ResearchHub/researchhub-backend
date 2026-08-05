@@ -6,18 +6,18 @@ from django.core.exceptions import ValidationError
 
 from mailing_list.models import EmailOptOut
 from mailing_list.services import EmailSubscriptionService
-from researchhub.settings import (
-    ASSETS_BASE_URL,
-)
 from utils.message import UnsubscribeUrls, deliver_email
 
 logger = logging.getLogger(__name__)
 
-base_email_context = {
-    "assets_base_url": ASSETS_BASE_URL,
-}
-
 DEFAULT_SENDER = f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>"
+
+
+def _base_context(email_context: dict[str, Any]) -> dict[str, Any]:
+    """
+    Add the context every email template needs.
+    """
+    return {"assets_base_url": settings.ASSETS_BASE_URL, **email_context}
 
 
 def send_email(
@@ -68,7 +68,7 @@ def send_email(
         recipients=recipients,
         template=template,
         subject=subject,
-        email_context=email_context,
+        email_context=_base_context(email_context),
         html_template=html_template,
         sender=sender,
         reply_to=reply_to,
@@ -98,7 +98,7 @@ def send_transactional_email(
         recipients=recipients,
         template=template,
         subject=subject,
-        email_context=email_context,
+        email_context=_base_context(email_context),
         html_template=html_template,
         sender=sender,
         reply_to=reply_to,
