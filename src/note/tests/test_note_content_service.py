@@ -70,7 +70,10 @@ class NoteContentServiceTests(TestCase):
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, version.id)
         self.assertNotEqual(version.id, self.initial_content.id)
-        self.assertEqual(version.json, TIPTAP_DOC)
+        # Stored as a JSON-encoded string: the shape the frontend editor's
+        # JSON.parse(contentJson) load path expects.
+        self.assertIsInstance(version.json, str)
+        self.assertEqual(json.loads(version.json), TIPTAP_DOC)
         self.assertEqual(version.plain_text, "Title\nHello world")
         self.assertEqual(self.note.notes.count(), 2)
 
@@ -127,8 +130,9 @@ class RegisteredReportPrefillTests(TestCase):
         version = self.service.create_version(self.note, TIPTAP_DOC)
 
         # Assert
-        self.assertEqual(version.json["attrs"]["registered_report_prefill"], PREFILL)
-        self.assertEqual(version.json["content"], TIPTAP_DOC["content"])
+        stored = json.loads(version.json)
+        self.assertEqual(stored["attrs"]["registered_report_prefill"], PREFILL)
+        self.assertEqual(stored["content"], TIPTAP_DOC["content"])
 
     def test_create_version_overrides_tampered_prefill(self):
         # Arrange
@@ -140,7 +144,8 @@ class RegisteredReportPrefillTests(TestCase):
         version = self.service.create_version(self.note, tampered)
 
         # Assert
-        self.assertEqual(version.json["attrs"]["registered_report_prefill"], PREFILL)
+        stored = json.loads(version.json)
+        self.assertEqual(stored["attrs"]["registered_report_prefill"], PREFILL)
 
     def test_create_version_without_prior_prefill_saves_content_as_is(self):
         # Arrange: a registered-report note whose history has no prefill.
@@ -152,4 +157,4 @@ class RegisteredReportPrefillTests(TestCase):
         version = self.service.create_version(note, TIPTAP_DOC)
 
         # Assert
-        self.assertEqual(version.json, TIPTAP_DOC)
+        self.assertEqual(json.loads(version.json), TIPTAP_DOC)

@@ -6,6 +6,8 @@ is append-only. Every edit creates a new ``NoteContent`` row and the
 so prior versions remain available as history.
 """
 
+import json
+
 from note.related_models.note_model import Note, NoteContent
 from researchhub_document.registered_report_note_metadata import (
     add_registered_report_prefill_metadata,
@@ -48,6 +50,8 @@ class NoteContentService:
         ...}``). ``plain_text`` is derived from the document when not given.
         On registered-report drafts, the previous version's publish metadata
         is restored onto the document, overriding whatever the caller sent.
+        The document is persisted as a JSON-encoded string, the shape the
+        editor's ``JSON.parse(contentJson)`` load path expects.
         Raises ``ValueError`` on invalid content or when the note backs a
         published registered report (same rule the HTTP layer enforces).
         """
@@ -66,7 +70,12 @@ class NoteContentService:
         if plain_text is None:
             plain_text = extract_plain_text(content_json)
         return NoteContent.objects.create(
-            note=note, json=content_json, plain_text=plain_text
+            # A raw object breaks the editor's JSON.parse load path (see
+            # write_proposal_note), so store the JSON-encoded string shape
+            # the view path persists.
+            note=note,
+            json=json.dumps(content_json),
+            plain_text=plain_text,
         )
 
     def _restore_registered_report_prefill(self, note: Note, content_json: dict):

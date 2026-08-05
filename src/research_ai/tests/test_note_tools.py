@@ -109,10 +109,17 @@ class NoteToolsetTests(TestCase):
         self.assertTrue(result.get("saved"))
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, result["version_id"])
-        self.assertEqual(self.note.latest_version.json, TIPTAP_DOC)
+        # Stored as a JSON-encoded string (the shape the frontend editor
+        # loads), while read_note hands the model back the parsed document.
+        self.assertIsInstance(self.note.latest_version.json, str)
+        self.assertEqual(json.loads(self.note.latest_version.json), TIPTAP_DOC)
         self.assertEqual(self.note.latest_version.plain_text, "Updated by the agent")
         # The prior version is kept as history.
         self.assertEqual(self.note.notes.count(), 2)
+
+        read, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+        self.assertEqual(read["content"], TIPTAP_DOC)
+        self.assertEqual(read["version_id"], result["version_id"])
 
     def test_edit_note_rejects_stale_version(self):
         # Arrange: another writer saved a version after our read.
@@ -186,10 +193,8 @@ class NoteToolsetTests(TestCase):
         # Assert
         self.assertTrue(result.get("saved"))
         self.note.refresh_from_db()
-        self.assertEqual(
-            self.note.latest_version.json["attrs"]["registered_report_prefill"],
-            prefill,
-        )
+        stored = json.loads(self.note.latest_version.json)
+        self.assertEqual(stored["attrs"]["registered_report_prefill"], prefill)
 
     def test_edit_note_rejects_invalid_content(self):
         # Act
