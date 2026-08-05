@@ -177,7 +177,17 @@ def _render_body(
 def _is_allowed_recipient(email: str) -> bool:
     """
     Return whether the email is allowed for sending in the current environment.
+
+    An entry starting with `@` whitelists an entire domain, so `@researchhub.com`
+    allows every recipient at that domain.
     """
     if settings.TESTING or settings.PRODUCTION:
         return True
-    return email in settings.EMAIL_WHITELIST
+
+    email = email.strip().lower()
+    _, _, domain = email.rpartition("@")
+
+    return any(
+        entry == email or (entry.startswith("@") and entry[1:] == domain)
+        for entry in (e.strip().lower() for e in settings.EMAIL_WHITELIST)
+    )
