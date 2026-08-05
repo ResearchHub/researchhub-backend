@@ -23,29 +23,6 @@ def is_valid_email(email: str) -> bool:
     return email in settings.EMAIL_WHITELIST
 
 
-def _filter_recipients(
-    recipients: list[str],
-    suppressed_emails: set[str] | None = None,
-) -> tuple[list[str], list[str]]:
-    """Partition recipients into sendable and excluded lists.
-
-    Args:
-        recipients: List of email addresses to filter.
-        suppressed_emails: Optional pre-computed set of emails to exclude.
-
-    Returns:
-        (sendable, excluded) – two lists of email addresses.
-    """
-    sendable = [r for r in recipients if is_valid_email(r)]
-    excluded = list(set(recipients) - set(sendable))
-
-    if sendable and suppressed_emails:
-        excluded.extend(suppressed_emails & set(sendable))
-        sendable = [r for r in sendable if r not in suppressed_emails]
-
-    return sendable, excluded
-
-
 def _render_body(
     template: str | None, html_template: str | None, context: dict[str, Any]
 ) -> tuple[str, str | None]:
@@ -82,11 +59,14 @@ def deliver_email(
     cc: list[str] | None = None,
     suppressed_emails: set[str] | None = None,
     unsubscribe_urls: dict[str, UnsubscribeUrls] | None = None,
-) -> dict[str, list[str]]:
+) -> None:
     """Low-level email delivery: render templates, set headers, and send.
 
     Callers should prefer ``mailing_list.lib.send_email`` which automatically
     looks up suppressed addresses before delegating here.
+
+    Sends are best-effort: a recipient that fails is logged and skipped so one
+    bad address cannot abort the rest of the batch.
 
     Args:
         recipients: Email address string or list of addresses.
@@ -103,9 +83,6 @@ def deliver_email(
         suppressed_emails: Optional set of email addresses to exclude.
         unsubscribe_urls: Optional recipient-to-URL-pair mapping for signed
             human-facing links and one-click unsubscribe headers.
-
-    Returns:
-        ``{"success": [...], "failure": [...], "exclude": [...]}``.
     """
     subject = subject.replace("\n", "").replace("\r", "")
 
@@ -115,13 +92,12 @@ def deliver_email(
     if not settings.PRODUCTION:
         subject = "[Staging] " + subject
 
-    sendable, excluded = _filter_recipients(recipients, suppressed_emails)
-    result = {"success": [], "failure": [], "exclude": excluded}
+    for recipient in recipients:
+        if not is_valid_email(recipient):
+            continue
+        if suppressed_emails and recipient in suppressed_emails:
+            continue
 
-    if not sendable:
-        return result
-
-    for recipient in sendable:
         context = email_context.copy()
         urls = unsubscribe_urls.get(recipient) if unsubscribe_urls is not None else None
         if urls:
@@ -143,13 +119,9 @@ def deliver_email(
             if html_message:
                 msg.attach_alternative(html_message, "text/html")
             msg.send(fail_silently=False)
-            result["success"].append(recipient)
         except Exception:
             logger.exception("Email send failed to %s", recipient)
-            result["failure"].append(recipient)
 
         # Stagger sends based on AWS SES limit
         # https://docs.aws.amazon.com/ses/latest/DeveloperGuide/manage-sending-limits.html
         sleep(0.2)
-
-    return result

@@ -39,22 +39,20 @@ class DeliverEmailTests(TestCase):
 
     def test_sends_to_valid_recipient(self):
         # Act
-        result = self._send()
+        self._send()
 
         # Assert
-        self.assertEqual(result["success"], ["user@example.com"])
         self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["user@example.com"])
 
     def test_excludes_suppressed_emails(self):
         # Act
-        result = self._send(
+        self._send(
             recipients=["bounced@example.com"],
             suppressed_emails={"bounced@example.com"},
         )
 
         # Assert
-        self.assertEqual(result["success"], [])
-        self.assertIn("bounced@example.com", result["exclude"])
         self.assertEqual(len(mail.outbox), 0)
 
     def test_sets_precedence_bulk(self):
