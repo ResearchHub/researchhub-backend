@@ -252,14 +252,14 @@ def get_authored_paper_updates(author, latest_actions):
 @app.task
 def execute_editor_daily_payout_task():
     result = editor_daily_payout_task()
-    logger.info(f"Completed editor_daily_payout_task with result: {str(result)}")
+    logger.info("Completed editor_daily_payout_task with result: %s", result)
     return result
 
 
 @app.task
 def execute_rsc_exchange_rate_record_tasks():
     result = rsc_exchange_rate_record_tasks()
-    logger.info(f"Completed rsc_exchange_rate_record_tasks with result: {str(result)}")
+    logger.info("Completed rsc_exchange_rate_record_tasks with result: %s", result)
 
 
 @app.task

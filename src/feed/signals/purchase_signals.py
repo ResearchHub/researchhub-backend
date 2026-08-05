@@ -77,10 +77,8 @@ def handle_purchase_feed_entry(sender, instance, created, **kwargs):
                 ]
                 transaction.on_commit(lambda: [task() for task in tasks])
 
-    except Exception as e:
-        logger.error(
-            f"Error refreshing feed entries for purchase {instance.id}: {str(e)}"
-        )
+    except Exception:
+        logger.exception("Error refreshing feed entries for purchase %s", instance.id)
 
 
 @receiver(post_save, sender=UsdFundraiseContribution)
@@ -102,9 +100,9 @@ def handle_usd_contribution_feed_entry(sender, instance, created, **kwargs):
         _create_contribution_feed_entry(instance, unified_document)
         _refresh_document_feed_entries(unified_document)
 
-    except Exception as e:
-        logger.error(
-            f"Error handling feed entry for USD contribution {instance.id}: {str(e)}"
+    except Exception:
+        logger.exception(
+            "Error handling feed entry for USD contribution %s", instance.id
         )
 
 
@@ -220,8 +218,8 @@ def refresh_feed_entries_on_grant_application_delete(sender, instance, **kwargs)
         ]
         transaction.on_commit(lambda: [task() for task in tasks])
 
-    except Exception as e:
-        logger.error(
-            "Error refreshing feed entries for deleted grant application "
-            f"{instance.id}: {str(e)}"
+    except Exception:
+        logger.exception(
+            "Error refreshing feed entries for deleted grant application %s",
+            instance.id,
         )

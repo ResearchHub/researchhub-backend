@@ -108,8 +108,8 @@ class SuggestView(APIView):
         """Safely apply a transform function with error handling"""
         try:
             return transform_func(self, result)
-        except Exception as e:
-            logger.error(f"Error transforming result: {str(e)}")
+        except Exception:
+            logger.exception("Error transforming result")
 
             # Return a minimal valid result with default values
             return {
@@ -237,7 +237,7 @@ class SuggestView(APIView):
             )
             return Response(results, status=status.HTTP_200_OK)
         except Exception as e:
-            logger.error(f"Error in search: {str(e)}")
+            logger.exception("Error in search")
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -309,7 +309,7 @@ class SuggestView(APIView):
                         results.append(result)
             except Exception as e:
                 # Log the error but continue with local results
-                logger.warning(f"OpenAlex request failed in DOI search: {str(e)}")
+                logger.warning("OpenAlex request failed in DOI search: %s", e)
 
             # 3. Search in posts index (if posts could have DOIs)
             post_document = self.INDEX_MAP["post"]["document"]
@@ -384,7 +384,7 @@ class SuggestView(APIView):
             return Response(results, status=status.HTTP_200_OK)
 
         except Exception as e:
-            logger.error(f"Error in DOI search: {str(e)}")
+            logger.exception("Error in DOI search")
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -471,7 +471,7 @@ class SuggestView(APIView):
                 existing_ids.add(hit_id)
 
         except Exception as e:
-            logger.warning(f"Partial match fallback error for {index}: {str(e)}")
+            logger.warning("Partial match fallback error for %s: %s", index, e)
 
     def _normalize_indexes(self, index_param: str) -> list[str]:
         """Parse and deduplicate index params; author is an alias over user."""
@@ -529,7 +529,7 @@ class SuggestView(APIView):
                 except Exception as e:
                     # Log the error but continue with local Elasticsearch results
                     logger.warning(
-                        f"OpenAlex request failed for index '{index}': {str(e)}"
+                        "OpenAlex request failed for index '%s': %s", index, e
                     )
 
             # Get local Elasticsearch results
@@ -564,7 +564,7 @@ class SuggestView(APIView):
                                 es_results.append(transformed)
                             except Exception as e:
                                 logger.error(
-                                    f"Error transforming option in mock list: {str(e)}"
+                                    f"Error transforming option in mock list: {e!s}"
                                 )
                         results.extend(es_results)
                     # Normal ES response with suggestion attribute
@@ -580,8 +580,8 @@ class SuggestView(APIView):
                                 ]
                             )
                         results.extend(es_results)
-                except Exception as e:
-                    logger.error(f"Error retrieving suggestions for {index}: {str(e)}")
+                except Exception:
+                    logger.exception("Error retrieving suggestions for %s", index)
 
                 # Hybrid search: Add partial match fallback for longer phrases
                 # when completion suggester fails

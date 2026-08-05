@@ -264,9 +264,7 @@ class Command(BaseCommand):
 
             except Exception as e:
                 self.stdout.write(
-                    self.style.ERROR(
-                        f"✗ Failed to migrate Comment {comment.id}: {str(e)}"
-                    )
+                    self.style.ERROR(f"✗ Failed to migrate Comment {comment.id}: {e!s}")
                 )
                 continue
 

@@ -53,7 +53,7 @@ class Command(BaseCommand):
                 except IntegrityError:
                     print(f"Skipping duplicate DOI for paper ID {paper.id}")
                 except Exception as e:
-                    print(f"Error updating paper ID {paper.id}: {str(e)}")
+                    print(f"Error updating paper ID {paper.id}: {e!s}")
 
     def process_arxiv_papers(self, papers):
         to_update = []

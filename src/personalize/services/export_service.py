@@ -221,7 +221,7 @@ class ExportService:
                 self.failed_ids.append(unified_doc.id)
                 if self.debug:
                     self.failed_reasons[unified_doc.id] = (
-                        f"{unified_doc.document_type}: {str(e)}"
+                        f"{unified_doc.document_type}: {e!s}"
                     )
                 continue
 

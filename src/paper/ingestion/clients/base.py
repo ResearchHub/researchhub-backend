@@ -108,14 +108,13 @@ class BaseClient(ABC):
             except (FetchError, TimeoutError, ConnectionError) as e:
                 if attempt == self.config.max_retries:
                     raise RetryExhaustedError(
-                        f"Failed after {self.config.max_retries + 1} attempts: "
-                        f"{str(e)}",
+                        f"Failed after {self.config.max_retries + 1} attempts: {e!s}",
                         attempts=self.config.max_retries + 1,
                     )
 
                 logger.warning(
                     f"Attempt {attempt + 1}/{self.config.max_retries + 1} failed: "
-                    f"{str(e)}. "
+                    f"{e!s}. "
                     f"Retrying in {backoff:.1f}s..."
                 )
                 time.sleep(backoff)
