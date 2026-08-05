@@ -146,6 +146,15 @@ class SendEmailTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["allowed@example.com"])
 
+    @override_settings(TESTING=False, EMAIL_WHITELIST=["@example.com"])
+    def test_whitelist_entry_can_be_a_whole_domain(self):
+        # Act
+        self._send(["Anyone@Example.com", "blocked@other.com"])
+
+        # Assert
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["Anyone@Example.com"])
+
     def test_html_footer_link_unsubscribes_the_recipient(self):
         # Arrange
         service = EmailSubscriptionService()
