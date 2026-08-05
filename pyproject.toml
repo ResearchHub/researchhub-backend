@@ -99,6 +99,7 @@ extend-select = [
     "PERF",  # flake8-perf
     "PIE",   # flake8-pie
     "RSE",   # flake8-raise
+    "RUF010",# explicit-f-string-type-conversion
     "RUF013",# implicit-optional
     "RUF059",# unused-unpacked-variable
     "S113",  # flake8-bandit: request-without-timeout
