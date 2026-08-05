@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "bootstrapped_at": "2026-08-05T01:00:00Z",
+  "origin": "bootstrap",
+  "repair_count": 0,
+  "dockerfile_path": "Dockerfile.codepress",
+  "port": 8000,
+  "validation_path": "/health/",
+  "validation_status_codes": [200, 301, 302, 404],
+  "validation_max_polls": 24,
+  "required_vault_keys": [],
+  "static_env_vars": {
+    "APP_ENV": "development",
+    "CONFIG": "ci",
+    "DJANGO_SETTINGS_MODULE": "researchhub.settings",
+    "DB_NAME": "researchhub",
+    "DB_HOST": "db",
+    "DB_PORT": "5432",
+    "DB_USER": "researchhub",
+    "DB_PASS": "researchhub",
+    "REDIS_HOST": "cache",
+    "REDIS_PORT": "6379",
+    "SECRET_KEY": "development",
+    "SALT_KEY": "development-salt-key",
+    "AWS_PROFILE": "",
+    "DJANGO_ALLOWED_HOSTS": "localhost,127.0.0.1"
+  },
+  "services": [
+    {
+      "name": "db",
+      "image": "postgres:16",
+      "port": 5432,
+      "envVars": {
+        "POSTGRES_USER": "researchhub",
+        "POSTGRES_DB": "researchhub",
+        "POSTGRES_PASSWORD": "researchhub"
+      }
+    },
+    {
+      "name": "cache",
+      "image": "redis:7",
+      "port": 6379
+    }
+  ],
+  "input_checksums": {
+    "dockerfile": "1e278eda2394b49ed16ce88ccf33c34f04eaf6ff",
+    "dependency_manifest": "ef83afd032625e1b92fe4c64da7073422904de4e"
+  },
+  "system_packages": ["build-essential", "libpq-dev", "libxml2-dev", "libxslt1-dev", "libjpeg-dev", "zlib1g-dev"],
+  "known_fixes": [
+    "Django health checks require migrated tables, so the container runs python src/manage.py migrate --noinput before starting the server; initial migrations take more than 60 seconds on a fresh PostgreSQL sidecar.",
+    "Development settings required an explicit empty AWS_PROFILE to avoid reading a missing config.keys attribute."
+  ],
+  "discovery_notes": "ResearchHub backend is a Django 5.2 service using uv and uv.lock. It runs on port 8000, exposes /health/, and requires PostgreSQL plus Redis for its standard development configuration. The existing root .dockerignore excluded the entire build context, so it was narrowed to dependency, cache, secret, and development-container exclusions for the root CodePress build."
+}

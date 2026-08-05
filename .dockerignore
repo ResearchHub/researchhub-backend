@@ -1,1 +1,19 @@
-*
+# CodePress app-server build context
+.git
+.github
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.log
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+.devcontainer
+node_modules
+dist
+build
+*.sqlite3
+config_local
