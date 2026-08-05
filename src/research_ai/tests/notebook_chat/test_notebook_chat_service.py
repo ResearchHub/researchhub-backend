@@ -196,6 +196,53 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(len(tool_results), 1)
         self.assertIn("not found or not accessible", tool_results[0].content["error"])
 
+    def test_run_turn_uses_the_recorded_model(self):
+        # Arrange: the settings default changed after this turn was queued;
+        # the row still names the model it was submitted with.
+        execution, _delay = self._submit()
+        AgentExecution.objects.filter(id=execution.id).update(
+            model="bedrock:pinned-model"
+        )
+        provider = FakeProvider([text_turn("Done.")])
+        service = _make_service()
+
+        # Act
+        with patch(
+            "research_ai.services.notebook_chat.service.resolve_provider",
+            return_value=provider,
+        ) as resolver:
+            result = service.run_turn(execution.id)
+
+        # Assert
+        resolver.assert_called_once_with(
+            "bedrock:pinned-model", native_tools=frozenset({"web_search"})
+        )
+        self.assertEqual(result["final_text"], "Done.")
+
+    def test_run_turn_honors_the_recorded_iteration_limit(self):
+        # Arrange: the turn was submitted with a one-iteration budget; the
+        # provider wants two turns.
+        execution, _delay = self._submit()
+        stored = AgentExecution.objects.get(id=execution.id).configuration
+        stored["max_iterations"] = 1
+        AgentExecution.objects.filter(id=execution.id).update(configuration=stored)
+        provider = FakeProvider(
+            [
+                tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                text_turn("Too late."),
+            ]
+        )
+        service = _make_service(provider=provider)
+
+        # Act
+        result = service.run_turn(execution.id)
+
+        # Assert: the stored budget, not the (larger) settings default, ran.
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.FAILED)
+        self.assertEqual(execution.stop_reason, "iteration_limit")
+        self.assertIn("error", result)
+
     def test_run_turn_provider_failure_marks_execution_failed(self):
         # Arrange
         execution, _delay = self._submit()

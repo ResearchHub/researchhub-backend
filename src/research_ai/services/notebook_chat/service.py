@@ -11,8 +11,9 @@ split across two processes:
   queue is failed on the spot rather than left holding the busy check.
 - ``run_turn`` (worker path) atomically claims the execution (``PENDING`` ->
   ``RUNNING``), so a redelivered or duplicated task is a no-op, then rebuilds
-  everything durable from the execution row (recorder, context lineage,
-  system prompt, trigger message), composes the note + research toolset with
+  everything durable from the execution row (recorder, context lineage, the
+  recorded model and generation config, system prompt, trigger message),
+  composes the note + research toolset with
   the conversation owner's permissions, and drives
   ``Agent.continue_conversation``. The recorder persists the trace, marks the
   terminal status, and publishes the assistant's reply to the chat.
@@ -25,6 +26,7 @@ touching another note the same user could access.
 """
 
 import logging
+from dataclasses import replace
 
 from django.db import transaction
 
@@ -240,7 +242,8 @@ class NotebookChatService:
             return {"execution_id": execution.id, "error": str(error)}
 
         provider = self._provider or resolve_provider(
-            native_tools=frozenset({"web_search"})
+            execution.model or None,
+            native_tools=frozenset({"web_search"}),
         )
         toolset = compose_notebook_toolset(
             note_toolset=NoteToolset(user=conversation.user, note_ids={note.id}),
@@ -248,7 +251,7 @@ class NotebookChatService:
             web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
             native_tool_names=provider.native_tool_names,
         )
-        config = self.config
+        config = self._turn_config(execution)
         agent = AgentService(
             provider=provider, max_iterations=config.max_iterations
         ).create_agent(
@@ -277,6 +280,21 @@ class NotebookChatService:
             "iterations": result.iterations,
             "final_text": result.final_text,
         }
+
+    def _turn_config(self, execution: AgentExecution) -> NotebookChatConfig:
+        """The knobs this turn was submitted with, not today's settings.
+
+        A settings change while the turn sat queued must not make the
+        execution's recorded configuration lie about the run; current
+        settings only fill keys the stored snapshot lacks.
+        """
+        stored = execution.configuration or {}
+        overrides = {
+            key: stored[key]
+            for key in ("max_iterations", "max_tokens", "temperature")
+            if stored.get(key) is not None
+        }
+        return replace(self.config, **overrides)
 
     def _note_for(self, conversation: AgentConversation) -> Note | None:
         link = conversation.note_links.select_related("note").order_by("id").first()
