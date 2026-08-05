@@ -320,10 +320,9 @@ def trigger_figure_extraction_for_paper(paper_id, hot_score_v2):
         )
         return True
 
-    except Exception as e:
-        logger.error(
-            f"Error checking/triggering figure extraction for paper {paper_id}: {e}",
-            exc_info=True,
+    except Exception:
+        logger.exception(
+            "Error checking/triggering figure extraction for paper %s", paper_id
         )
         return False
 
