@@ -46,7 +46,9 @@ from research_ai.services.agent_persistence import (
     AgentConversationService,
     NoteAgentConversationService,
 )
+from research_ai.services.agent_persistence.activity import conversation_tool_events
 from research_ai.services.note_tools import NoteToolset
+from research_ai.services.notebook_chat.activity import public_activity
 from research_ai.services.notebook_chat.config import NotebookChatConfig
 from research_ai.services.notebook_chat.toolset import (
     NotebookWebSearchToolset,
@@ -112,6 +114,23 @@ class NotebookChatService:
             .filter(workflow=WORKFLOW, user=user)
             .first()
         )
+
+    def representation(self, conversation: AgentConversation) -> dict:
+        """The chat representation plus each turn's public activity feed.
+
+        Activity is a notebook-chat presentation concern layered onto the
+        workflow-neutral chat payload, so the generic service stays free of
+        tool-specific knowledge.
+        """
+        data = self.chat.representation(conversation)
+        events = conversation_tool_events(conversation)
+        active = {AgentExecution.Status.PENDING, AgentExecution.Status.RUNNING}
+        for execution in data["executions"]:
+            execution["activity"] = public_activity(
+                events.get(execution["id"], []),
+                execution_active=execution["status"] in active,
+            )
+        return data
 
     def get_or_create_conversation(self, note: Note, user) -> AgentConversation:
         conversation = self.get_conversation(note, user)
