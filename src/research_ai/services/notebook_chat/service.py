@@ -26,7 +26,6 @@ touching another note the same user could access.
 """
 
 import logging
-from dataclasses import replace
 
 from django.db import transaction
 
@@ -289,12 +288,20 @@ class NotebookChatService:
         settings only fill keys the stored snapshot lacks.
         """
         stored = execution.configuration or {}
-        overrides = {
-            key: stored[key]
-            for key in ("max_iterations", "max_tokens", "temperature")
-            if stored.get(key) is not None
-        }
-        return replace(self.config, **overrides)
+        defaults = self.config
+        # Built field-by-field rather than via dataclasses.replace so the
+        # value is statically a NotebookChatConfig, not a bare dataclass.
+        return NotebookChatConfig(
+            **{
+                field: (
+                    stored[field]
+                    if stored.get(field) is not None
+                    else getattr(defaults, field)
+                )
+                for field in ("max_iterations", "max_tokens", "temperature")
+            },
+            max_message_chars=defaults.max_message_chars,
+        )
 
     def _note_for(self, conversation: AgentConversation) -> Note | None:
         link = conversation.note_links.select_related("note").order_by("id").first()
