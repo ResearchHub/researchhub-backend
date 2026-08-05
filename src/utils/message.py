@@ -17,7 +17,10 @@ class UnsubscribeUrls:
     one_click: str
 
 
-def is_valid_email(email: str) -> bool:
+def _is_allowed_recipient(email: str) -> bool:
+    """
+    Return whether the email is allowed for sending in the current environment.
+    """
     if settings.TESTING or settings.PRODUCTION:
         return True
     return email in settings.EMAIL_WHITELIST
@@ -93,7 +96,7 @@ def deliver_email(
         subject = "[Staging] " + subject
 
     for recipient in recipients:
-        if not is_valid_email(recipient):
+        if not _is_allowed_recipient(recipient):
             continue
         if suppressed_emails and recipient in suppressed_emails:
             continue
