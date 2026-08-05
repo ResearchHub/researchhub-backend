@@ -68,8 +68,8 @@ class PaperDocument(BaseDocument):
         self,
         filter_: Q | None = None,
         exclude: Q | None = None,
-        count: int = None,
-        alias: str = None,
+        count: int | None = None,
+        alias: str | None = None,
     ) -> QuerySet:
         """
         Override get_queryset to include prefetching of relationsships.
@@ -258,8 +258,8 @@ class PaperDocument(BaseDocument):
         verbose: bool = False,
         filter_: Q | None = None,
         exclude: Q | None = None,
-        alias: str = None,
-        count: int = None,
+        alias: str | None = None,
+        count: int | None = None,
         action: CommandAction = CommandAction.INDEX,
         stdout: TextIO = sys.stdout,
     ) -> Iterable:
