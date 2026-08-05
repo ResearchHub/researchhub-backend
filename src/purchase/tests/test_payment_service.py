@@ -15,11 +15,13 @@ from purchase.related_models.payment_model import (
 )
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.rsc_purchase_fee import RscPurchaseFee
-from purchase.services.payment_service import APC_AMOUNT_CENTS, PaymentService
+from purchase.services.payment_service import PaymentService
 from reputation.related_models.bounty_fee import BountyFee
 from reputation.related_models.distribution import Distribution
 from user.models import User
 from user.tests.helpers import create_user
+
+LEGACY_APC_AMOUNT_CENTS = 100
 
 
 class PaymentServiceTest(TestCase):
@@ -41,54 +43,6 @@ class PaymentServiceTest(TestCase):
         # Create BountyFee with 7% platform fee (used for fundraise contributions)
         BountyFee.objects.all().delete()
         BountyFee.objects.create(rh_pct=0.07, dao_pct=0.00)
-
-    @patch("stripe.checkout.Session.create")
-    def test_create_checkout_session_apc_success(self, mock_stripe_session_create):
-        # Arrange
-        mock_stripe_session_create.return_value = {
-            "id": "sessionId1",
-            "url": "https://checkout.stripe.com/session/sessionId1",
-        }
-
-        # Act
-        result = self.service.create_checkout_session(
-            user_id=self.user.id,
-            purpose=PaymentPurpose.APC,
-            paper_id=self.paper.id,
-            success_url="https://researchhub.com/success",
-            cancel_url="https://researchhub.com/failure",
-        )
-
-        # Assert
-        self.assertEqual(result["id"], "sessionId1")
-        self.assertEqual(
-            result["url"], "https://checkout.stripe.com/session/sessionId1"
-        )
-
-        # Verify Stripe was called with correct parameters
-        mock_stripe_session_create.assert_called_once_with(
-            payment_method_types=["card"],
-            line_items=[
-                {
-                    "price_data": {
-                        "currency": "usd",
-                        "product_data": {
-                            "name": "Article Processing Charge",
-                        },
-                        "unit_amount": APC_AMOUNT_CENTS,
-                    },
-                    "quantity": 1,
-                },
-            ],
-            mode="payment",
-            success_url="https://researchhub.com/success",
-            cancel_url="https://researchhub.com/failure",
-            metadata={
-                "user_id": str(self.user.id),
-                "purpose": PaymentPurpose.APC,
-                "paper_id": str(self.paper.id),
-            },
-        )
 
     @patch("stripe.checkout.Session.create")
     def test_create_checkout_session_rsc_purchase_success(
@@ -140,23 +94,27 @@ class PaymentServiceTest(TestCase):
         )
 
     @patch("stripe.checkout.Session.create")
-    def test_create_checkout_session_stripe_error(self, mock_stripe_session_create):
+    def test_propagates_checkout_session_stripe_error(
+        self, mock_stripe_session_create: MagicMock
+    ) -> None:
+        """Stripe checkout errors are propagated to the caller."""
         # Arrange
-        mock_stripe_session_create.side_effect = Exception("Stripe error")
+        mock_stripe_session_create.side_effect = RuntimeError("Stripe error")
 
-        # Act & Assert
-        with self.assertRaises(Exception) as context:
+        # Act
+        with self.assertRaises(RuntimeError) as context:
             self.service.create_checkout_session(
                 user_id=self.user.id,
-                purpose=PaymentPurpose.APC,
-                paper_id=self.paper.id,
+                purpose=PaymentPurpose.RSC_PURCHASE,
+                amount=100,
             )
 
+        # Assert
         self.assertEqual(str(context.exception), "Stripe error")
 
     def test_insert_payment_from_checkout_session_idempotent(self):
         checkout_session = {
-            "amount_total": APC_AMOUNT_CENTS,
+            "amount_total": LEGACY_APC_AMOUNT_CENTS,
             "currency": "usd",
             "payment_intent": "pi_idempotent_apc",
             "metadata": {
@@ -181,7 +139,7 @@ class PaymentServiceTest(TestCase):
     def test_insert_payment_from_checkout_session_success(self):
         # Arrange
         checkout_session = {
-            "amount_total": APC_AMOUNT_CENTS,
+            "amount_total": LEGACY_APC_AMOUNT_CENTS,
             "currency": "usd",
             "payment_intent": "pi_123456",
             "metadata": {
@@ -195,7 +153,7 @@ class PaymentServiceTest(TestCase):
 
         # Assert
         self.assertIsInstance(payment, Payment)
-        self.assertEqual(payment.amount, APC_AMOUNT_CENTS)
+        self.assertEqual(payment.amount, LEGACY_APC_AMOUNT_CENTS)
         self.assertEqual(payment.currency, "USD")
         self.assertEqual(payment.external_payment_id, "pi_123456")
         self.assertEqual(payment.payment_processor, PaymentProcessor.STRIPE)
@@ -233,7 +191,7 @@ class PaymentServiceTest(TestCase):
     def test_insert_payment_from_checkout_session_missing_paper_id(self):
         # Arrange
         checkout_session = {
-            "amount_total": APC_AMOUNT_CENTS,
+            "amount_total": LEGACY_APC_AMOUNT_CENTS,
             "currency": "usd",
             "payment_intent": "pi_123456",
             "metadata": {
@@ -251,7 +209,7 @@ class PaymentServiceTest(TestCase):
     def test_insert_payment_from_checkout_session_missing_user_id(self):
         # Arrange
         checkout_session = {
-            "amount_total": APC_AMOUNT_CENTS,
+            "amount_total": LEGACY_APC_AMOUNT_CENTS,
             "currency": "usd",
             "payment_intent": "pi_123456",
             "metadata": {
@@ -318,24 +276,6 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(balance.amount, "50.0")
         self.assertEqual(balance.user_id, self.user.id)
         self.assertTrue(balance.is_locked)
-
-    def test_get_name_for_purpose(self):
-        # Test APC
-        self.assertEqual(
-            self.service.get_name_for_purpose(PaymentPurpose.APC),
-            "Article Processing Charge",
-        )
-
-        # Test RSC Purchase
-        self.assertEqual(
-            self.service.get_name_for_purpose(PaymentPurpose.RSC_PURCHASE),
-            "ResearchCoin (RSC) Purchase",
-        )
-
-        # Test unknown purpose
-        self.assertEqual(
-            self.service.get_name_for_purpose("UNKNOWN"), "Unknown Purpose"
-        )
 
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_success(self, mock_stripe_payment_intent_create):

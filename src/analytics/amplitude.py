@@ -127,8 +127,7 @@ class Amplitude:
 
         Args:
             user: User instance
-            activity_type: Type of activity (upvote, comment, peer_review, fund, tip,
-                journal_submission)
+            activity_type: Type of activity (upvote, comment, peer_review, fund, tip)
             additional_properties: Additional properties to include in the event
         """
         user_id, user_properties = self._build_user_properties(user)
@@ -257,15 +256,6 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
                 "object_id": res.data.get("object_id"),
             },
         },
-        # ResearchHub paper creation
-        "paper_create_researchhub_paper": {
-            "activity_type": UserActivityTypes.JOURNAL_SUBMISSION,
-            "properties": lambda: {
-                "submission_id": res.data.get("id"),
-                "paper_status": "researchhub_paper",
-                "title": res.data.get("title"),
-            },
-        },
         # Fundraise contributions
         "fundraise_create_contribution": {
             "activity_type": UserActivityTypes.FUND,
@@ -346,7 +336,6 @@ class UserActivityTypes:
     PEER_REVIEW = "peer_review"
     FUND = "fund"
     TIP = "tip"
-    JOURNAL_SUBMISSION = "journal_submission"
 
 
 def track_user_activity(

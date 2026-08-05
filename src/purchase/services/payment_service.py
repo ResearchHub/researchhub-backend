@@ -30,9 +30,6 @@ from user.models import User
 
 logger = logging.getLogger(__name__)
 
-# The amount for Article Processing Charge (APC) in cents
-APC_AMOUNT_CENTS = 100  # = $1
-
 # Stripe fee structure (as of 2024)
 STRIPE_FEE_PERCENT = Decimal("0.029")  # 2.9%
 STRIPE_FEE_FIXED_CENTS = 30  # $0.30
@@ -72,8 +69,7 @@ class PaymentService:
         self,
         user_id: int,
         purpose: str,
-        amount: int | None = None,
-        paper_id: int | None = None,
+        amount: int,
         success_url: str | None = None,
         cancel_url: str | None = None,
     ) -> dict[str, Any]:
@@ -83,16 +79,18 @@ class PaymentService:
         Args:
             user_id: ID of the user making the payment.
             purpose: Purpose of the payment.
-            amount: Amount to charge (optional for APC).
-            paper_id: ID of the paper (required for APC).
+            amount: Amount to charge.
             success_url: URL to redirect to after successful payment.
             cancel_url: URL to redirect to after cancelled payment.
 
         Returns:
             Dict containing session ID and URL
+
+        Raises:
+            ValueError: If the payment purpose is not an RSC purchase.
         """
-        product_name = self.get_name_for_purpose(purpose)
-        unit_amount = APC_AMOUNT_CENTS if purpose == PaymentPurpose.APC else amount
+        if purpose != PaymentPurpose.RSC_PURCHASE:
+            raise ValueError("Checkout sessions only support RSC purchases.")
 
         try:
             session = stripe.checkout.Session.create(
@@ -102,9 +100,9 @@ class PaymentService:
                         "price_data": {
                             "currency": "usd",
                             "product_data": {
-                                "name": product_name,
+                                "name": "ResearchCoin (RSC) Purchase",
                             },
-                            "unit_amount": unit_amount,
+                            "unit_amount": amount,
                         },
                         "quantity": 1,
                     },
@@ -115,12 +113,6 @@ class PaymentService:
                 metadata={
                     "user_id": str(user_id),
                     "purpose": purpose,
-                    # Include paper_id only if purpose is APC
-                    **(
-                        {"paper_id": str(paper_id)}
-                        if purpose == PaymentPurpose.APC and paper_id
-                        else {}
-                    ),
                 },
             )
 
@@ -249,23 +241,6 @@ class PaymentService:
 
         else:
             raise ValueError(f"Unknown payment purpose: {purpose}")
-
-    def get_name_for_purpose(self, purpose: str) -> str:
-        """
-        Get the display name for a payment purpose.
-
-        Args:
-            purpose: Payment purpose
-
-        Returns:
-            Display name for the purpose
-        """
-        if purpose == PaymentPurpose.APC:
-            return "Article Processing Charge"
-        elif purpose == PaymentPurpose.RSC_PURCHASE:
-            return "ResearchCoin (RSC) Purchase"
-        else:
-            return "Unknown Purpose"
 
     def create_payment_intent(
         self,
