@@ -65,10 +65,9 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         self.assertIn([self.follower2.email], recipients)
 
         call_args = mock_send_email.call_args_list[0][0]
-        self.assertIsNone(call_args[1])
-        self.assertEqual(call_args[2], "Update on Preregistration You're Following")
+        self.assertEqual(call_args[1], "Update on Preregistration You're Following")
 
-        email_context = call_args[3]
+        email_context = call_args[2]
         self.assertIn("action", email_context)
         self.assertIn("document_title", email_context)
         self.assertIn("author_name", email_context)
@@ -110,7 +109,7 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         mock_send_email.assert_called_once()
 
         call_args = mock_send_email.call_args
-        email_context = call_args[0][3]
+        email_context = call_args[0][2]
 
         self.assertIn("action", email_context)
 

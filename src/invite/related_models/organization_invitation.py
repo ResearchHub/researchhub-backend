@@ -38,4 +38,4 @@ class OrganizationInvitation(Invitation):
         else:
             email_context["user_name"] = "User"
 
-        send_email([email], None, subject, email_context, html_template)
+        send_email([email], subject, email_context, html_template=html_template)
