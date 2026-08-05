@@ -9,10 +9,13 @@ rather than mutating in place, so any agent edit is recoverable from history.
 Permission checks mirror the HTTP layer on the note's unified document:
 reads use the ``HasAccessPermission`` predicate (any non-NO_ACCESS
 permission), writes the stricter ``HasEditingPermission`` one (editor or
-admin).
+admin). A toolset built for a single-note surface can additionally be
+scoped with ``note_ids``; notes outside the scope get the same not-found
+error as inaccessible ones.
 """
 
 import logging
+from collections.abc import Collection
 
 from django.db import transaction
 
@@ -30,14 +33,24 @@ EDIT_NOTE = "edit_note"
 class NoteToolset:
     """Note read/edit tools acting with ``user``'s permissions.
 
+    ``note_ids``, when given, restricts every tool to those notes regardless
+    of what else the user could access.
+
     Best-effort contract: handlers never raise; failures come back to the
     model as ``{"error": ...}`` so a bad note id or a stale edit is a turn
     the agent can recover from, not an aborted run.
     """
 
-    def __init__(self, *, user, service: NoteContentService | None = None):
+    def __init__(
+        self,
+        *,
+        user,
+        service: NoteContentService | None = None,
+        note_ids: Collection[int] | None = None,
+    ):
         self._user = user
         self._service = service or NoteContentService()
+        self._note_ids = None if note_ids is None else frozenset(note_ids)
 
     # -- tool construction ------------------------------------------------
 
@@ -166,6 +179,10 @@ class NoteToolset:
             # unified document) do not exist as far as the tools are concerned.
             note = Note.objects.get(id=note_id, unified_document__is_removed=False)
         except (Note.DoesNotExist, ValueError, TypeError):
+            return None
+        # Compare on the fetched id, not the raw input: the id is canonical
+        # after the lookup, while the input may arrive as a string.
+        if self._note_ids is not None and note.id not in self._note_ids:
             return None
         # Same predicate as HasAccessPermission: any non-NO_ACCESS permission
         # (user- or org-level) makes the note readable.
