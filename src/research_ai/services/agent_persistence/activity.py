@@ -112,13 +112,13 @@ def _apply_block(
 ) -> None:
     block_type = block.get("type")
     if block_type == "tool_use":
-        input = block.get("input")
+        tool_input = block.get("input")
         walk.open(
             execution_id,
             block.get("id"),
             ToolCallEvent(
                 tool=str(block.get("name") or ""),
-                input=input if isinstance(input, dict) else {},
+                input=tool_input if isinstance(tool_input, dict) else {},
                 started_at=created,
             ),
         )
@@ -141,13 +141,13 @@ def _apply_server_block(
         return
     data_type = data.get("type")
     if data_type == "server_tool_use":
-        input = data.get("input")
+        tool_input = data.get("input")
         walk.open(
             execution_id,
             data.get("id"),
             ToolCallEvent(
                 tool=str(data.get("name") or ""),
-                input=input if isinstance(input, dict) else {},
+                input=tool_input if isinstance(tool_input, dict) else {},
                 started_at=created,
                 server_side=True,
             ),

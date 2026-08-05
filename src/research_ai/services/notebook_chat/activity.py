@@ -124,16 +124,21 @@ def _sources(event: ToolCallEvent) -> list[dict]:
         url_field = "source_url"
     else:
         return []
+    return _citations(items, url_field)
+
+
+def _citations(items, url_field: str) -> list[dict]:
+    """Reduce result items to at most ``_MAX_SOURCES`` title/url pairs."""
     if not isinstance(items, list):
         return []
-    sources = []
+    citations = []
     for item in items:
         if not isinstance(item, dict):
             continue
         url = str(item.get(url_field) or "").strip()
         if not url:
             continue
-        sources.append({"title": str(item.get("title") or "").strip(), "url": url})
-        if len(sources) >= _MAX_SOURCES:
+        citations.append({"title": str(item.get("title") or "").strip(), "url": url})
+        if len(citations) >= _MAX_SOURCES:
             break
-    return sources
+    return citations
