@@ -57,8 +57,8 @@ class CustomVerifyEmailView(VerifyEmailView):
                     },
                 }
             )
-        except Exception as e:
-            logger.error(f"Could not generate token response: {str(e)}")
+        except Exception:
+            logger.exception("Could not generate token response")
 
         # Return parent response if:
         # - Parent verification failed, OR

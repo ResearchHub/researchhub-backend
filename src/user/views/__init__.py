@@ -22,8 +22,8 @@ __all__ = [
     "ModeratorView",
     "OrganizationViewSet",
     "PersonaWebhookView",
-    "UserViewSet",
     "UniversityViewSet",
+    "UserViewSet",
     "get_editors_by_contributions",
     "get_hub_active_contributors",
 ]

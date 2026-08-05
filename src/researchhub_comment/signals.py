@@ -64,6 +64,10 @@ def create_author_update_notification(sender, instance, created, **kwargs):
         logger.debug("Not an author update thread")
         return
 
+    if not instance.is_root_comment:
+        logger.debug("Not a top-level author update")
+        return
+
     try:
         _create_author_update_notification(instance)
     except Exception as e:
@@ -78,6 +82,10 @@ def _create_author_update_notification(comment: RhCommentModel):
         and document.document_type == PREREGISTRATION
     ):
         logger.debug("Not a preregistration")
+        return
+
+    if comment.created_by_id != document.created_by_id:
+        logger.debug("Author update was not created by the preregistration author")
         return
 
     follower_user_ids = []

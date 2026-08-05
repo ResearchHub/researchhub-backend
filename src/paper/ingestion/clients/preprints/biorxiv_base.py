@@ -81,7 +81,7 @@ class BioRxivBaseClient(BaseClient):
                 f"Request timed out after {self.config.request_timeout}s"
             )
         except requests.RequestException as e:
-            raise FetchError(f"Failed to fetch from {url}: {str(e)}")
+            raise FetchError(f"Failed to fetch from {url}: {e!s}")
 
     def parse(self, raw_data: str | bytes | dict[str, Any]) -> list[dict[str, Any]]:
         """

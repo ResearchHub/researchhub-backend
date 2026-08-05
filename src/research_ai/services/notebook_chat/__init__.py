@@ -8,9 +8,9 @@ from research_ai.services.notebook_chat.toolset import (
 )
 
 __all__ = [
+    "WORKFLOW",
     "NotebookChatConfig",
     "NotebookChatService",
     "NotebookWebSearchToolset",
-    "WORKFLOW",
     "compose_notebook_toolset",
 ]

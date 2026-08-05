@@ -11,7 +11,7 @@ Date Paid
 {{date}}
 
 Payment Method
-{{method}
+{{method}}
 
 Summary
 {%if recipient %}
@@ -29,5 +29,5 @@ Amount Paid
 {{amount}}
 
 {% if opt_out %}
-{{opt_out}} Unsubscribe or change how frequently I get updated
+{{opt_out}} Unsubscribe
 {% endif %}

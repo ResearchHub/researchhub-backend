@@ -1,3 +1,4 @@
+import json
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
@@ -153,7 +154,8 @@ class NotebookChatServiceTests(TestCase):
         self.note.refresh_from_db()
         self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
         self.assertEqual(result["final_text"], "I replaced the note body.")
-        self.assertEqual(self.note.latest_version.json, EDITED_DOC)
+        # Stored as a JSON-encoded string, the shape the frontend editor loads.
+        self.assertEqual(json.loads(self.note.latest_version.json), EDITED_DOC)
         reply = execution.generated_chat_message
         self.assertIsNotNone(reply)
         self.assertEqual(reply.content, "I replaced the note body.")

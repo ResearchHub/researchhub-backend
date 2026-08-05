@@ -349,7 +349,9 @@ class UserActivityTypes:
     JOURNAL_SUBMISSION = "journal_submission"
 
 
-def track_user_activity(user, activity_type: str, additional_properties: dict = None):
+def track_user_activity(
+    user, activity_type: str, additional_properties: dict | None = None
+):
     """
     Track user activity
 

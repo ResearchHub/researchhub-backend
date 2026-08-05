@@ -394,7 +394,7 @@ class Command(BaseCommand):
             except Exception as e:
                 self.stdout.write(
                     self.style.ERROR(
-                        f"\n✗ ERROR removing hub {hub.id} ({hub.slug}): {str(e)}"
+                        f"\n✗ ERROR removing hub {hub.id} ({hub.slug}): {e!s}"
                     )
                 )
                 if not dry_run:
@@ -501,7 +501,7 @@ class Command(BaseCommand):
                 )
             except Exception as e:
                 self.stdout.write(
-                    self.style.ERROR(f"Error reading file {hub_ids_file}: {str(e)}")
+                    self.style.ERROR(f"Error reading file {hub_ids_file}: {e!s}")
                 )
                 return None
 

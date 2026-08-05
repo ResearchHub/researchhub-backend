@@ -6,20 +6,23 @@ plus a version id; edits are full-document replaces guarded by that version id
 (optimistic concurrency), and each edit appends a new ``NoteContent`` version
 rather than mutating in place, so any agent edit is recoverable from history.
 
-Permission checks mirror the HTTP layer (``HasEditingPermission`` /
-``HasAccessPermission`` on the note's unified document): the acting user must
-be a viewer, editor, or admin to read, and an editor or admin to write. A
-toolset built for a single-note surface can additionally be scoped with
-``note_ids``; notes outside the scope get the same not-found error as
-inaccessible ones.
+Permission checks mirror the HTTP layer on the note's unified document:
+reads use the ``HasAccessPermission`` predicate (any non-NO_ACCESS
+permission), writes the stricter ``HasEditingPermission`` one (editor or
+admin). A toolset built for a single-note surface can additionally be
+scoped with ``note_ids``; notes outside the scope get the same not-found
+error as inaccessible ones.
 """
 
 import logging
 from collections.abc import Collection
 
+from django.db import transaction
+
 from note.related_models.note_model import Note
 from note.services.note_content_service import NoteContentService
 from research_ai.services.agent import Tool, Toolset
+from researchhub_document.registered_report_note_metadata import parse_note_json
 
 logger = logging.getLogger(__name__)
 
@@ -122,13 +125,16 @@ class NoteToolset:
         if note is None:
             return {"error": f"note {input.get('note_id')} not found or not accessible"}
         latest = note.latest_version
+        # Stored JSON may be a JSON-encoded string rather than a dict;
+        # normalize so `content` always matches the shape edit_note accepts.
+        content = parse_note_json(latest.json) if latest else None
         result = {
             "note_id": note.id,
             "title": note.title,
             "version_id": latest.id if latest else None,
-            "content": latest.json if latest else None,
+            "content": content,
         }
-        if latest and latest.json is None:
+        if latest and content is None:
             result["plain_text"] = latest.plain_text
         return result
 
@@ -145,18 +151,22 @@ class NoteToolset:
             return {"error": f"no edit permission on note {note.id}"}
 
         expected = input.get("expected_version_id")
-        if note.latest_version_id != expected:
-            return {
-                "error": (
-                    f"stale version: note {note.id} is at version "
-                    f"{note.latest_version_id}, expected {expected}; call "
-                    "read_note again and re-apply your edit"
-                )
-            }
-
         try:
-            version = self._service.create_version(note, input.get("content"))
-        except ValueError as exc:
+            with transaction.atomic():
+                # Lock the note row so the version check and the append are
+                # one atomic step; a concurrent edit blocks here and then
+                # sees the new latest_version_id (-> stale error) on entry.
+                locked = Note.objects.select_for_update().get(id=note.id)
+                if locked.latest_version_id != expected:
+                    return {
+                        "error": (
+                            f"stale version: note {locked.id} is at version "
+                            f"{locked.latest_version_id}, expected {expected}; "
+                            "call read_note again and re-apply your edit"
+                        )
+                    }
+                version = self._service.create_version(locked, input.get("content"))
+        except (ValueError, Note.DoesNotExist) as exc:
             return {"error": str(exc)}
         return {"note_id": note.id, "version_id": version.id, "saved": True}
 
@@ -165,18 +175,17 @@ class NoteToolset:
         if self._user is None or getattr(self._user, "is_anonymous", False):
             return None
         try:
-            note = Note.objects.get(id=note_id)
+            # Same visibility rule as NoteViewSet: soft-deleted notes (removed
+            # unified document) do not exist as far as the tools are concerned.
+            note = Note.objects.get(id=note_id, unified_document__is_removed=False)
         except (Note.DoesNotExist, ValueError, TypeError):
             return None
         # Compare on the fetched id, not the raw input: the id is canonical
         # after the lookup, while the input may arrive as a string.
         if self._note_ids is not None and note.id not in self._note_ids:
             return None
-        permissions = note.permissions
-        if not (
-            permissions.has_admin_user(self._user)
-            or permissions.has_editor_user(self._user)
-            or permissions.has_viewer_user(self._user)
-        ):
+        # Same predicate as HasAccessPermission: any non-NO_ACCESS permission
+        # (user- or org-level) makes the note readable.
+        if not note.permissions.has_user(self._user):
             return None
         return note

@@ -53,7 +53,6 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         """
         # Arrange
         follower_ids = [self.follower1.id, self.follower2.id]
-        mock_send_email.return_value = {"success": [], "failure": [], "exclude": []}
 
         # Act
         send_author_update_email_notifications(self.comment.id, follower_ids)
@@ -66,10 +65,9 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         self.assertIn([self.follower2.email], recipients)
 
         call_args = mock_send_email.call_args_list[0][0]
-        self.assertEqual(call_args[1], "general_email_message.txt")
-        self.assertEqual(call_args[2], "Update on Preregistration You're Following")
+        self.assertEqual(call_args[1], "Update on Preregistration You're Following")
 
-        email_context = call_args[3]
+        email_context = call_args[2]
         self.assertIn("action", email_context)
         self.assertIn("document_title", email_context)
         self.assertIn("author_name", email_context)
@@ -103,7 +101,6 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         """
         # Arrange
         follower_ids = [self.follower1.id]
-        mock_send_email.return_value = {"success": [], "failure": [], "exclude": []}
 
         # Act
         send_author_update_email_notifications(self.comment.id, follower_ids)
@@ -112,9 +109,8 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         mock_send_email.assert_called_once()
 
         call_args = mock_send_email.call_args
-        email_context = call_args[0][3]
+        email_context = call_args[0][2]
 
-        # Check that context has base_email_context merged in
         self.assertIn("action", email_context)
 
         # Check action details
@@ -141,7 +137,6 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         follower3 = create_random_default_user("follower3")
 
         follower_ids = [self.follower1.id, self.follower2.id, follower3.id]
-        mock_send_email.return_value = {"success": [], "failure": [], "exclude": []}
 
         # Act
         send_author_update_email_notifications(self.comment.id, follower_ids)

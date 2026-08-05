@@ -437,7 +437,7 @@ class FundraiseService:
         user: User,
         fundraise: Fundraise,
         amount_cents: int,
-        origin_fund_id: str = None,
+        origin_fund_id: str | None = None,
     ) -> tuple[UsdFundraiseContribution | None, str | None]:
         """
         Creates a USD contribution to a fundraise.

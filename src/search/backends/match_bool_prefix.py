@@ -49,8 +49,8 @@ class MatchBoolPrefixBackend:
             search_query = Q("match_bool_prefix", **{field_name: query_params})
             search = Search(index=index_name).query(search_query)[:limit]
             return search.execute()
-        except Exception as e:
-            logger.error(
-                f"Error executing match_bool_prefix query on {index_name}: {str(e)}"
+        except Exception:
+            logger.exception(
+                "Error executing match_bool_prefix query on %s", index_name
             )
             raise
