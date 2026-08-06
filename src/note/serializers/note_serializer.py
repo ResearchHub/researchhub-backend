@@ -45,11 +45,10 @@ class NoteContentSerializer(ModelSerializer):
             return None
 
         src = note_content.src
-        if src:
-            byte_string = note_content.src.read()
-            data = byte_string.decode("utf-8")
-            return data
-        return None
+        if not src:
+            return None
+        with src.open() as file:
+            return file.read().decode("utf-8")
 
 
 class DynamicNoteContentSerializer(DynamicModelFieldSerializer):
