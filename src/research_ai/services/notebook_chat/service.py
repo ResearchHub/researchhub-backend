@@ -66,6 +66,10 @@ logger = logging.getLogger(__name__)
 
 WORKFLOW = "notebook_chat"
 
+# Activity projection scopes for ``NotebookChatService.representation``.
+ACTIVITY_ALL = "all"
+ACTIVITY_LIVE = "live"
+
 
 class NotebookChatService:
     """Prepare and run notebook chat turns.
@@ -120,29 +124,62 @@ class NotebookChatService:
             .first()
         )
 
-    def representation(self, conversation: AgentConversation) -> dict:
+    def representation(
+        self, conversation: AgentConversation, *, activity_scope: str = ACTIVITY_ALL
+    ) -> dict:
         """The chat representation plus each turn's public activity feed.
 
         Activity is a notebook-chat presentation concern layered onto the
         workflow-neutral chat payload, so the generic service stays free of
         tool-specific knowledge.
 
+        ``activity_scope`` trades completeness for cost. ``"all"`` projects
+        activity for every execution and is what a client wants on first load.
+        ``"live"`` projects it only for executions that can still change -- the
+        active turn, plus the latest attempt so the poll that observes the turn
+        finish still carries its final feed -- and **omits the ``activity`` key
+        entirely** for the rest. An absent key means "unchanged, keep what you
+        have"; it is deliberately not an empty list, which would be
+        indistinguishable from a turn that used no tools. This is what keeps a
+        poll from re-reading the whole conversation's trace payloads, which grow
+        with every turn ever taken on the note.
+
         ``phase`` is present on every execution and is ``None`` for terminal
         ones, so a client reads "what is it doing" from one field either way.
         """
         data = self.chat.representation(conversation)
-        events = conversation_activity_events(conversation)
         active = {AgentExecution.Status.PENDING, AgentExecution.Status.RUNNING}
-        for execution in data["executions"]:
+        executions = data["executions"]
+        scoped_ids = (
+            None
+            if activity_scope == ACTIVITY_ALL
+            else self._live_activity_ids(executions, active)
+        )
+        events = conversation_activity_events(conversation, execution_ids=scoped_ids)
+        for execution in executions:
             execution_active = execution["status"] in active
             execution_events = events.get(execution["id"], [])
-            execution["activity"] = public_activity(
-                execution_events, execution_active=execution_active
-            )
+            if scoped_ids is None or execution["id"] in scoped_ids:
+                execution["activity"] = public_activity(
+                    execution_events, execution_active=execution_active
+                )
             execution["phase"] = execution_phase(
                 execution_events, execution_active=execution_active
             )
         return data
+
+    @staticmethod
+    def _live_activity_ids(executions: list[dict], active: set) -> list[int]:
+        """Executions whose activity a poll still has to recompute."""
+        ids = {
+            execution["id"] for execution in executions if execution["status"] in active
+        }
+        if executions:
+            # Ordered by attempt, so the last entry is the newest turn. Its feed
+            # is what the client is watching, and on the poll that catches it
+            # finishing this is the only chance to hand over the settled version.
+            ids.add(executions[-1]["id"])
+        return sorted(ids)
 
     def get_or_create_conversation(self, note: Note, user) -> AgentConversation:
         conversation = self.get_conversation(note, user)

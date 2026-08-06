@@ -12,7 +12,7 @@ from research_ai.models import (
     AgentExecution,
     AgentExecutionMessage,
 )
-from research_ai.services.notebook_chat import NotebookChatService
+from research_ai.services.notebook_chat import ACTIVITY_LIVE, NotebookChatService
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -292,6 +292,37 @@ class NotebookChatActivityTests(TestCase):
             role="ASSISTANT"
         ).values_list("content", flat=True)
         self.assertEqual(list(published), ["Here is the summary."])
+
+    def test_live_scope_recomputes_only_the_turns_that_can_still_change(self):
+        # Arrange: two finished turns on the same conversation.
+        first = self._run_turn(
+            [
+                tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                text_turn("First."),
+            ]
+        )
+        second = self._run_turn(
+            [
+                tool_turn("t2", "read_note", {"note_id": self.note.id}),
+                text_turn("Second."),
+            ],
+            text="And again.",
+        )
+
+        # Act
+        service = _make_service()
+        full = service.representation(first.conversation)
+        live = service.representation(first.conversation, activity_scope=ACTIVITY_LIVE)
+
+        # Assert: the full projection carries both feeds; the polling projection
+        # omits the settled turn's key entirely -- not an empty list, which
+        # would read as "this turn used no tools".
+        full_by_id = {entry["id"]: entry for entry in full["executions"]}
+        live_by_id = {entry["id"]: entry for entry in live["executions"]}
+        self.assertEqual(len(_tool_calls(full_by_id[first.id]["activity"])), 1)
+        self.assertEqual(len(_tool_calls(full_by_id[second.id]["activity"])), 1)
+        self.assertNotIn("activity", live_by_id[first.id])
+        self.assertEqual(len(_tool_calls(live_by_id[second.id]["activity"])), 1)
 
     def test_failed_tool_call_reports_failed_without_error_text(self):
         # Arrange: web search is unconfigured, so the tool returns an error
@@ -597,3 +628,55 @@ class NotebookChatActivityViewTests(APITestCase):
         self.assertEqual(event["tool"], "read_note")
         self.assertEqual(event["label"], "Read the note")
         self.assertEqual(event["status"], "succeeded")
+
+    def test_activity_live_query_param_selects_the_polling_projection(self):
+        # Arrange: two finished turns, so one of them is no longer the latest.
+        self.client.force_authenticate(self.owner)
+        for text, call_id in (("First", "t1"), ("Second", "t2")):
+            with patch("research_ai.tasks.run_notebook_chat_turn_task.delay"):
+                posted = self.client.post(
+                    f"{self.chat_url}messages/", {"message": text}, format="json"
+                )
+            _make_service(
+                provider=FakeProvider(
+                    [
+                        tool_turn(call_id, "read_note", {"note_id": self.note.id}),
+                        text_turn("Done."),
+                    ]
+                )
+            ).run_turn(posted.data["execution_id"])
+
+        # Act
+        full = self.client.get(self.chat_url)
+        live = self.client.get(self.chat_url, {"activity": "live"})
+
+        # Assert: the settled turn keeps its feed on a full read and loses the
+        # key on a poll; the newest turn carries its feed either way.
+        self.assertTrue(all("activity" in e for e in full.data["executions"]))
+        older, newest = live.data["executions"]
+        self.assertNotIn("activity", older)
+        self.assertEqual(len(_tool_calls(newest["activity"])), 1)
+
+    def test_unknown_activity_scope_falls_back_to_the_full_projection(self):
+        # Arrange: a stale or mistyped client parameter must cost performance,
+        # not correctness.
+        self.client.force_authenticate(self.owner)
+        with patch("research_ai.tasks.run_notebook_chat_turn_task.delay"):
+            posted = self.client.post(
+                f"{self.chat_url}messages/", {"message": "Summarize"}, format="json"
+            )
+        _make_service(
+            provider=FakeProvider(
+                [
+                    tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                    text_turn("Done."),
+                ]
+            )
+        ).run_turn(posted.data["execution_id"])
+
+        # Act
+        response = self.client.get(self.chat_url, {"activity": "nonsense"})
+
+        # Assert
+        (execution,) = response.data["executions"]
+        self.assertEqual(len(_tool_calls(execution["activity"])), 1)
