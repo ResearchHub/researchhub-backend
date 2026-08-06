@@ -1,20 +1,31 @@
 """User-safe activity feed for notebook chat turns.
 
-A curated projection of :func:`conversation_tool_events` into a fixed public
-shape -- tool, label, status, timestamps -- plus the enrichments the frontend
-renders: the note version an edit produced, so an open editor knows to reload,
-a human detail line (the search query or author searched for), and title/url
-``sources`` for citations. Sources come from every tool that yields citable
-items -- web search and the scholarly tools alike -- in one shape, so the
-frontend renders one citation list. Raw tool arguments and results never pass
-through: tool traffic includes whole note documents, paper full texts, and
-provider payloads, and tool error strings are written for the model, not the
-user.
+A curated projection of :func:`conversation_activity_events` into fixed public
+shapes. Tool calls carry tool, label, status and timestamps, plus the
+enrichments the frontend renders: the note version an edit produced, so an open
+editor knows to reload, a human detail line (the search query or author searched
+for), and title/url ``sources`` for citations. Sources come from every tool that
+yields citable items -- web search and the scholarly tools alike -- in one
+shape, so the frontend renders one citation list. Narration events carry the
+prose the model wrote between tool calls, which is what turns a slow turn from a
+spinner into a readable account of what the agent is doing.
+
+Raw tool arguments and results never pass through: tool traffic includes whole
+note documents, paper full texts, and provider payloads, and tool error strings
+are written for the model, not the user.
+
+Alongside the feed, :func:`execution_phase` reduces the same events to a single
+coarse "what is it doing right now" for a live turn, so a client has something
+to show without interpreting the event list itself.
 """
 
 from collections.abc import Iterable
 
-from research_ai.services.agent_persistence.activity import ToolCallEvent
+from research_ai.services.agent_persistence.activity import (
+    ActivityEvent,
+    NarrationEvent,
+    ToolCallEvent,
+)
 from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE
 from research_ai.services.researcher_profile.openalex_tools import GET_WORK_FULLTEXT
 
@@ -34,6 +45,18 @@ _LABELS = {
     GET_AUTHOR_WORKS: "Fetched an author's publications",
     GET_WORK_FULLTEXT: "Read a paper",
 }
+# What each tool is doing while the call is still open, for the live phase.
+# Distinct from _LABELS, which reads as a completed step.
+_ACTIVE_LABELS = {
+    READ_NOTE: "Reading the note",
+    EDIT_NOTE: "Editing the note",
+    WEB_SEARCH: "Searching the web",
+    SEARCH_INSTITUTIONS: "Searching institutions",
+    SEARCH_AUTHORS: "Searching scholarly authors",
+    GET_AUTHOR: "Looking up an author",
+    GET_AUTHOR_WORKS: "Fetching an author's publications",
+    GET_WORK_FULLTEXT: "Reading a paper",
+}
 # The input field per tool whose value is the user's own kind of text -- safe
 # and meaningful to echo as the event detail.
 _DETAIL_INPUT_FIELDS = {
@@ -43,16 +66,76 @@ _DETAIL_INPUT_FIELDS = {
 }
 _MAX_DETAIL_CHARS = 200
 _MAX_SOURCES = 5
+# Narration between tool calls is a sentence or two in practice. The bound is
+# generous enough never to cut real narration, and only exists so one
+# pathological turn cannot make every poll of this conversation huge.
+_MAX_NARRATION_CHARS = 4000
+
+PHASE_USING_TOOL = "using_tool"
+PHASE_RESPONDING = "responding"
+PHASE_THINKING = "thinking"
 
 
 def public_activity(
-    events: Iterable[ToolCallEvent], *, execution_active: bool
+    events: Iterable[ActivityEvent], *, execution_active: bool
 ) -> list[dict]:
-    """Render events to the public shape; nothing raw passes through."""
-    return [_public_event(event, execution_active) for event in events]
+    """Render events to the public shapes; nothing raw passes through."""
+    public = []
+    for event in events:
+        if isinstance(event, NarrationEvent):
+            rendered = _public_narration(event, execution_active)
+        else:
+            rendered = _public_tool_call(event, execution_active)
+        if rendered is not None:
+            public.append(rendered)
+    return public
 
 
-def _public_event(event: ToolCallEvent, execution_active: bool) -> dict:
+def execution_phase(
+    events: Iterable[ActivityEvent], *, execution_active: bool
+) -> dict | None:
+    """What a live turn is doing right now, or ``None`` once it is terminal.
+
+    Derived rather than stored: the trace rows already say it, and a separate
+    persisted phase would be one more thing a dead worker could leave lying
+    about the run's state.
+    """
+    if not execution_active:
+        return None
+    ordered = list(events)
+    open_call = next(
+        (
+            event
+            for event in reversed(ordered)
+            if isinstance(event, ToolCallEvent) and not event.completed
+        ),
+        None,
+    )
+    if open_call is not None:
+        return {
+            "state": PHASE_USING_TOOL,
+            "label": _active_label(open_call.tool),
+            "tool": open_call.tool,
+        }
+    if ordered and isinstance(ordered[-1], NarrationEvent):
+        return {"state": PHASE_RESPONDING, "label": "Writing a response"}
+    return {"state": PHASE_THINKING, "label": "Thinking"}
+
+
+def _public_narration(event: NarrationEvent, execution_active: bool) -> dict | None:
+    # On a finished turn the final assistant text is published as the chat
+    # message, so echoing it here too would show the answer twice. While the
+    # turn is live nothing is published yet and this is the only way to read it.
+    if event.from_final_turn and not execution_active:
+        return None
+    return {
+        "type": "narration",
+        "text": event.text[:_MAX_NARRATION_CHARS],
+        "at": event.at,
+    }
+
+
+def _public_tool_call(event: ToolCallEvent, execution_active: bool) -> dict:
     public = {
         "type": "tool_call",
         "tool": event.tool,
@@ -80,6 +163,12 @@ def _label(tool: str) -> str:
     if tool in _LABELS:
         return _LABELS[tool]
     return f"Used {tool}" if tool else "Ran a tool"
+
+
+def _active_label(tool: str) -> str:
+    if tool in _ACTIVE_LABELS:
+        return _ACTIVE_LABELS[tool]
+    return f"Running {tool}" if tool else "Running a tool"
 
 
 def _status(event: ToolCallEvent, execution_active: bool) -> str:

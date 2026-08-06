@@ -46,9 +46,14 @@ from research_ai.services.agent_persistence import (
     AgentConversationService,
     NoteAgentConversationService,
 )
-from research_ai.services.agent_persistence.activity import conversation_tool_events
+from research_ai.services.agent_persistence.activity import (
+    conversation_activity_events,
+)
 from research_ai.services.note_tools import NoteToolset
-from research_ai.services.notebook_chat.activity import public_activity
+from research_ai.services.notebook_chat.activity import (
+    execution_phase,
+    public_activity,
+)
 from research_ai.services.notebook_chat.config import NotebookChatConfig
 from research_ai.services.notebook_chat.toolset import (
     NotebookWebSearchToolset,
@@ -121,14 +126,21 @@ class NotebookChatService:
         Activity is a notebook-chat presentation concern layered onto the
         workflow-neutral chat payload, so the generic service stays free of
         tool-specific knowledge.
+
+        ``phase`` is present on every execution and is ``None`` for terminal
+        ones, so a client reads "what is it doing" from one field either way.
         """
         data = self.chat.representation(conversation)
-        events = conversation_tool_events(conversation)
+        events = conversation_activity_events(conversation)
         active = {AgentExecution.Status.PENDING, AgentExecution.Status.RUNNING}
         for execution in data["executions"]:
+            execution_active = execution["status"] in active
+            execution_events = events.get(execution["id"], [])
             execution["activity"] = public_activity(
-                events.get(execution["id"], []),
-                execution_active=execution["status"] in active,
+                execution_events, execution_active=execution_active
+            )
+            execution["phase"] = execution_phase(
+                execution_events, execution_active=execution_active
             )
         return data
 
