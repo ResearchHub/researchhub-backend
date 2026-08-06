@@ -129,6 +129,24 @@ def _render_context(context: dict | None) -> str:
     )
 
 
+def _refusal_detail(turn: AssistantTurn) -> str:
+    """The classifier's own account of a refusal, as a message suffix.
+
+    A refused turn is a successful response with empty content, so the stop
+    reason alone says only "something declined this". The category is what
+    distinguishes a proposal the filters read as dual-use from a genuine
+    prompt bug, and it is the difference between a fallback model being worth
+    trying and the request needing to change.
+    """
+    details = turn.stop_details or {}
+    parts = [
+        str(value)
+        for value in (details.get("category"), details.get("explanation"))
+        if value
+    ]
+    return f" ({'; '.join(parts)})" if parts else ""
+
+
 def _check_usable(turn: AssistantTurn, text: str, max_tokens: int) -> None:
     """Raise unless ``turn`` can hold a complete verdict.
 
@@ -139,8 +157,8 @@ def _check_usable(turn: AssistantTurn, text: str, max_tokens: int) -> None:
     """
     if turn.stop_reason in _UNUSABLE_STOP_REASONS:
         raise IncompleteTurnError(
-            f"turn ended {turn.stop_reason} with {len(text)} chars of verdict "
-            f"(max_tokens={max_tokens})",
+            f"turn ended {turn.stop_reason}{_refusal_detail(turn)} with "
+            f"{len(text)} chars of verdict (max_tokens={max_tokens})",
             stop_reason=str(turn.stop_reason),
         )
     if not text:
@@ -314,12 +332,17 @@ class ProposalJudgePanel:
 
         Retried because the default roster is a single judge: one throttled
         call, one truncated turn, or one non-JSON answer would otherwise empty
-        the panel and end the run on a transient failure.
+        the panel and end the run on a transient failure. A refusal is the one
+        failure a retry cannot fix -- a safety classifier's verdict is a
+        property of the model and the request, not a bad draw -- so it ends
+        the judge's attempts instead of re-asking a model that has already
+        decided.
         """
         model_id = getattr(provider, "model_id", "?")
         reason = "no attempt ran"
         for attempt in range(1, JUDGE_ATTEMPTS + 1):
             answer = ""
+            refused = False
             try:
                 turn = self._complete(provider, system_prompt, user_prompt)
                 # Captured before the turn is judged usable, so a verdict
@@ -328,6 +351,9 @@ class ProposalJudgePanel:
                 answer = turn.text.strip()
                 _check_usable(turn, answer, self._max_tokens)
                 parsed = ExpertFinderJson.parse_text(answer)
+            except IncompleteTurnError as exc:
+                reason = str(exc)
+                refused = exc.stop_reason == StopReason.CONTENT_FILTERED
             except Exception as exc:  # noqa: BLE001 - one bad judge must not abort
                 reason = str(exc) or type(exc).__name__
             else:
@@ -350,6 +376,8 @@ class ProposalJudgePanel:
                 len(answer),
                 _excerpt(answer),
             )
+            if refused:
+                break
         return None, reason
 
     def _complete(

@@ -24,6 +24,7 @@ from anthropic.types import (
 from anthropic.types import (
     ToolUseBlock as AnthropicToolUseBlock,
 )
+from anthropic.types.refusal_stop_details import RefusalStopDetails
 from django.test import SimpleTestCase, override_settings
 
 from research_ai.services.agent.errors import ProviderError
@@ -59,7 +60,14 @@ class FakeAnthropicClient:
         self.messages = FakeMessages(responses)
 
 
-def _build_response(content, *, stop_reason="end_turn", usage=None, container=None):
+def _build_response(
+    content,
+    *,
+    stop_reason="end_turn",
+    usage=None,
+    container=None,
+    stop_details=None,
+):
     return AnthropicMessage(
         id="msg_1",
         container=container,
@@ -68,6 +76,7 @@ def _build_response(content, *, stop_reason="end_turn", usage=None, container=No
         role="assistant",
         type="message",
         stop_reason=stop_reason,
+        stop_details=stop_details,
         usage=usage or Usage(input_tokens=10, output_tokens=3),
     )
 
@@ -351,6 +360,42 @@ class CompleteAndParseTests(SimpleTestCase):
         # Assert: the loop reports an incomplete turn rather than an end_turn.
         self.assertEqual(turn.stop_reason, StopReason.CONTENT_FILTERED)
 
+    def test_refusal_carries_the_classifier_category(self):
+        # Arrange: a refused turn has no content, so its stop details are the
+        # only thing that says which classifier declined it.
+        provider = _build_provider(
+            [
+                _build_response(
+                    [],
+                    stop_reason="refusal",
+                    stop_details=RefusalStopDetails(
+                        type="refusal",
+                        category="bio",
+                        explanation="declined by policy",
+                    ),
+                )
+            ]
+        )
+
+        # Act
+        turn = _complete(provider)
+
+        # Assert
+        self.assertEqual(turn.stop_details["category"], "bio")
+        self.assertEqual(turn.stop_details["explanation"], "declined by policy")
+
+    def test_completed_turn_has_no_stop_details(self):
+        # Arrange: stop details are populated for refusals only.
+        provider = _build_provider(
+            [_build_response([AnthropicTextBlock(type="text", text="done")])]
+        )
+
+        # Act
+        turn = _complete(provider)
+
+        # Assert
+        self.assertIsNone(turn.stop_details)
+
     def test_unknown_stop_reason_maps_to_other(self):
         # Arrange: every stop reason the SDK knows today is mapped, so this
         # fallback is only reachable from one a newer API adds. Assigned past
@@ -622,6 +667,137 @@ class ServerSideToolTests(SimpleTestCase):
                 "tool_id": "srvtoolu_code",
             },
         )
+
+    def test_pending_programmatic_calls_without_container_fail_before_the_api(self):
+        # Arrange: the latest assistant turn carries a tool call issued by
+        # server-side code execution, but nothing in the history recorded a
+        # container id -- a conversation persisted before container state was
+        # captured, or one whose state was compacted away. Anthropic rejects
+        # that request unconditionally, so the provider must not spend the
+        # call to hear it.
+        provider = _build_provider(
+            [_build_response([AnthropicTextBlock(type="text", text="unreached")])]
+        )
+        messages = [
+            Message(role="user", content=[TextBlock(text="research")]),
+            Message(
+                role="assistant",
+                content=[
+                    ToolUseBlock(
+                        id="toolu_search",
+                        name="search",
+                        input={"q": "llipta"},
+                        data={
+                            "type": "tool_use",
+                            "id": "toolu_search",
+                            "name": "search",
+                            "input": {"q": "llipta"},
+                            "caller": {
+                                "type": "code_execution_20260120",
+                                "tool_id": "srvtoolu_code",
+                            },
+                        },
+                    )
+                ],
+                # No provider_state: the container id was never recorded.
+            ),
+            Message(
+                role="user",
+                content=[
+                    ToolResultBlock(tool_use_id="toolu_search", content={"results": []})
+                ],
+            ),
+        ]
+
+        # Act / Assert: rejected client-side, naming the unresumable state.
+        with self.assertRaisesMessage(ProviderError, "no container id"):
+            _complete(provider, messages=messages)
+        self.assertEqual(provider._client.messages.calls, [])
+
+    def test_open_code_execution_span_without_container_fails_before_the_api(self):
+        # Arrange: the observed production shape -- a turn whose code
+        # execution span never resolved and whose client tool calls carry no
+        # ``caller`` metadata, from a response that disclosed no container.
+        # The API demands the container to resume that code; without an id
+        # there is nothing valid to send.
+        provider = _build_provider(
+            [_build_response([AnthropicTextBlock(type="text", text="unreached")])]
+        )
+        messages = [
+            Message(role="user", content=[TextBlock(text="research")]),
+            Message(
+                role="assistant",
+                content=[
+                    ServerToolBlock(
+                        data={
+                            "type": "server_tool_use",
+                            "id": "srvtoolu_code",
+                            "name": "code_execution",
+                            "input": {"code": "await search(...)"},
+                        }
+                    ),
+                    ToolUseBlock(
+                        id="toolu_search", name="search", input={"q": "llipta"}
+                    ),
+                ],
+                # No provider_state: the response never disclosed a container.
+            ),
+            Message(
+                role="user",
+                content=[
+                    ToolResultBlock(tool_use_id="toolu_search", content={"results": []})
+                ],
+            ),
+        ]
+
+        # Act / Assert
+        with self.assertRaisesMessage(ProviderError, "no container id"):
+            _complete(provider, messages=messages)
+        self.assertEqual(provider._client.messages.calls, [])
+
+    def test_open_web_search_span_needs_no_container(self):
+        # Arrange: a paused plain web search is resumable without any
+        # container -- only open *code execution* gates on one.
+        provider = _build_provider(
+            [_build_response([AnthropicTextBlock(type="text", text="resumed")])]
+        )
+        messages = [
+            Message(role="user", content=[TextBlock(text="research")]),
+            Message(
+                role="assistant",
+                content=[
+                    ServerToolBlock(
+                        data={
+                            "type": "server_tool_use",
+                            "id": "srvtoolu_search",
+                            "name": "web_search",
+                            "input": {"query": "llipta"},
+                        }
+                    ),
+                ],
+            ),
+        ]
+
+        # Act
+        turn = _complete(provider, messages=messages)
+
+        # Assert
+        self.assertEqual(turn.text, "resumed")
+        self.assertNotIn("container", provider._client.messages.calls[0])
+
+    def test_ordinary_requests_need_no_container(self):
+        # Arrange: no programmatic tool calls anywhere -- the common case must
+        # not be gated on container state.
+        provider = _build_provider(
+            [_build_response([AnthropicTextBlock(type="text", text="hello")])]
+        )
+
+        # Act
+        turn = _complete(provider)
+
+        # Assert
+        self.assertEqual(turn.text, "hello")
+        self.assertNotIn("container", provider._client.messages.calls[0])
 
     def test_code_execution_container_survives_multihop_tool_calls(self):
         # Arrange: the first programmatic call establishes a container. The
