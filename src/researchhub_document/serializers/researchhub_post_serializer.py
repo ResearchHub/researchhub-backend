@@ -31,7 +31,6 @@ from researchhub_document.registered_report_note_metadata import parse_note_json
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
     REGISTERED_REPORT,
-    RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
 from review.serializers.review_serializer import DynamicReviewSerializer
 from user.serializers import (
@@ -165,10 +164,7 @@ class ResearchhubPostSerializer(
 
     def get_post_src(self, instance):
         try:
-            if instance.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                return instance.discussion_src.url
-            else:
-                return instance.eln_src.url
+            return instance.discussion_src.url
         except Exception:
             return None
 
