@@ -44,6 +44,7 @@ from research_ai.services.agent_persistence import (
     AgentChatService,
     AgentContextService,
     AgentConversationService,
+    AgentLivenessService,
     NoteAgentConversationService,
 )
 from research_ai.services.agent_persistence.activity import conversation_tool_events
@@ -80,6 +81,7 @@ class NotebookChatService:
         conversation_service: AgentConversationService | None = None,
         note_conversation_service: NoteAgentConversationService | None = None,
         context_service: AgentContextService | None = None,
+        liveness_service: AgentLivenessService | None = None,
         config: NotebookChatConfig | None = None,
     ):
         self._provider = provider
@@ -98,6 +100,9 @@ class NotebookChatService:
         )
         self.contexts = (
             AgentContextService() if context_service is None else context_service
+        )
+        self.liveness = (
+            AgentLivenessService() if liveness_service is None else liveness_service
         )
         self._config = config
 
@@ -181,6 +186,33 @@ class NotebookChatService:
         execution = prepared.execution
         transaction.on_commit(lambda: self._schedule_turn(execution.id))
         return execution
+
+    def cancel_active_turn(self, note: Note, user) -> AgentExecution | None:
+        """Stop the conversation's in-flight turn; ``None`` if none was running.
+
+        Cancellation is cooperative: the worker is not interrupted here, it
+        notices at its next durable write and unwinds. So this returns as soon
+        as the intent is recorded, and the turn's status is ``CANCELLED`` from
+        that moment even though a model call may still be in flight. Nothing
+        the worker does afterwards can revive the row -- every terminal
+        transition in the recorder is guarded on ``RUNNING``.
+        """
+        conversation = self.get_conversation(note, user)
+        if conversation is None:
+            return None
+        execution = (
+            conversation.executions.filter(
+                status__in=[
+                    AgentExecution.Status.PENDING,
+                    AgentExecution.Status.RUNNING,
+                ]
+            )
+            .order_by("-attempt")
+            .first()
+        )
+        if execution is None:
+            return None
+        return execution if self.liveness.cancel(execution) else None
 
     def _schedule_turn(self, execution_id: int) -> None:
         """Queue the worker turn, failing the execution if the broker refuses.
