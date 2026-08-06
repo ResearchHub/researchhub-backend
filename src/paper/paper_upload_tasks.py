@@ -23,8 +23,12 @@ PREPRINT_SOURCES_TO_HUB_SLUGS = {
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)
-def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
+def create_paper_related_tags(paper, openalex_concepts=None, openalex_topics=None):
     # Process topics
+    if openalex_topics is None:
+        openalex_topics = []
+    if openalex_concepts is None:
+        openalex_concepts = []
     sorted_topics = sorted(openalex_topics, key=lambda x: x["score"], reverse=True)
     topic_ids = []
     topic_relevancy = {}
