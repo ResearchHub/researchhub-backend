@@ -148,6 +148,8 @@ class _Walk:
 
 def conversation_activity_events(
     conversation: AgentConversation,
+    *,
+    execution_ids: list[int] | None = None,
 ) -> dict[int, list[ActivityEvent]]:
     """Ordered activity events per execution id, from one trace query.
 
@@ -158,6 +160,13 @@ def conversation_activity_events(
     an open call means from the execution's own status. An open call a later
     assistant row has overtaken is additionally marked ``stale``: still of
     unknown outcome, but demonstrably not what the run is doing now.
+
+    ``execution_ids`` narrows the scan. Trace ``content`` holds whole note
+    documents, paper full texts and provider payloads, so walking a whole
+    conversation costs more with every turn ever taken on it -- far too much to
+    repeat on each poll of a live turn. Since a terminal execution's events can
+    never change again, a caller that already has them passes only the ids it
+    still needs. An empty list means no rows are read at all.
     """
     rows = AgentExecutionMessage.objects.filter(conversation=conversation).exclude(
         provenance__in=[
@@ -165,6 +174,10 @@ def conversation_activity_events(
             AgentExecutionMessage.Provenance.BACKEND,
         ]
     )
+    if execution_ids is not None:
+        if not execution_ids:
+            return {}
+        rows = rows.filter(execution_id__in=execution_ids)
     walk = _Walk()
     for execution_id, role, content, created in rows.order_by("sequence").values_list(
         "execution_id", "role", "content", "created_date"
