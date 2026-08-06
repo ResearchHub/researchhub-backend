@@ -122,13 +122,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
         max_length=32,
         help_text="Editor used to compose the post",
     )
-    eln_src = models.FileField(
-        blank=True,
-        default=None,
-        max_length=512,
-        null=True,
-        upload_to="uploads/post_eln/%Y/%m/%d/",
-    )
     image = models.TextField(
         blank=True,
         null=True,
