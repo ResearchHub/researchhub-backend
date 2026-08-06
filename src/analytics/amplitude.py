@@ -92,8 +92,10 @@ class Amplitude:
         revenue_type: str,
         rsc_revenue: str,
         usd_revenue: str,
-        additional_properties: dict = {},
+        additional_properties: dict | None = None,
     ):
+        if additional_properties is None:
+            additional_properties = {}
         user_id, user_properties = self._build_user_properties(user)
         data = {
             "user_id": user_id,
@@ -120,7 +122,7 @@ class Amplitude:
         self,
         user,
         activity_type: str,
-        additional_properties: dict = {},
+        additional_properties: dict | None = None,
     ):
         """
         Track user activity events for analytics funnel.
@@ -130,6 +132,8 @@ class Amplitude:
             activity_type: Type of activity (upvote, comment, peer_review, fund, tip)
             additional_properties: Additional properties to include in the event
         """
+        if additional_properties is None:
+            additional_properties = {}
         user_id, user_properties = self._build_user_properties(user)
 
         valid_user_id = _ensure_valid_user_id(user_id)

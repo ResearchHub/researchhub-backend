@@ -40,7 +40,7 @@ def track_revenue_event(
     # associated with and not simply the Purchase/Balance/Fundraise object.
     content_type: str | None = None,
     object_id: str | None = None,
-    additional_properties: dict = {},
+    additional_properties: dict | None = None,
 ):
     """
     Helper function to track revenue events.
@@ -49,6 +49,8 @@ def track_revenue_event(
 
     from user.models import User
 
+    if additional_properties is None:
+        additional_properties = {}
     amp = None
     user = None
     if DEVELOPMENT:
