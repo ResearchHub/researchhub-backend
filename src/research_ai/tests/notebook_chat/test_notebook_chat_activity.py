@@ -12,7 +12,11 @@ from research_ai.models import (
     AgentExecution,
     AgentExecutionMessage,
 )
-from research_ai.services.notebook_chat import NotebookChatService
+from research_ai.services.notebook_chat import (
+    ACTIVITY_LIVE,
+    NotebookChatConfig,
+    NotebookChatService,
+)
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -33,6 +37,17 @@ PUBLIC_EVENT_KEYS = {
     "note_version_id",
     "sources",
 }
+
+PUBLIC_NARRATION_KEYS = {"type", "text", "at"}
+
+
+def _tool_calls(activity):
+    return [event for event in activity if event["type"] == "tool_call"]
+
+
+def _narrations(activity):
+    return [event for event in activity if event["type"] == "narration"]
+
 
 EDITED_DOC = {
     "type": "doc",
@@ -123,9 +138,10 @@ class NotebookChatActivityTests(TestCase):
         # Assert
         self.note.refresh_from_db()
         self.assertEqual(
-            [event["tool"] for event in activity], (["read_note", "edit_note"])
+            [event["tool"] for event in _tool_calls(activity)],
+            (["read_note", "edit_note"]),
         )
-        read, edit = activity
+        read, edit = _tool_calls(activity)
         self.assertEqual(read["label"], "Read the note")
         self.assertEqual(read["status"], "succeeded")
         self.assertIsNotNone(read["started_at"])
@@ -158,8 +174,10 @@ class NotebookChatActivityTests(TestCase):
         activity = self._activity(execution)
 
         # Assert: fixed public shape only, and no document text leaks through.
-        for event in activity:
+        for event in _tool_calls(activity):
             self.assertLessEqual(set(event), PUBLIC_EVENT_KEYS)
+        for event in _narrations(activity):
+            self.assertLessEqual(set(event), PUBLIC_NARRATION_KEYS)
         serialized = json.dumps(activity, default=str)
         self.assertNotIn("Edited by the assistant", serialized)
 
@@ -186,7 +204,7 @@ class NotebookChatActivityTests(TestCase):
         activity = self._activity(execution)
 
         # Assert: the query is echoed and sources reduce to title/url pairs.
-        (event,) = activity
+        (event,) = _tool_calls(activity)
         self.assertEqual(event["label"], "Searched the web")
         self.assertEqual(event["status"], "succeeded")
         self.assertEqual(event["detail"], "perovskite stability")
@@ -232,7 +250,7 @@ class NotebookChatActivityTests(TestCase):
         activity = self._activity(execution)
 
         # Assert: names and citations surface; abstracts and metadata do not.
-        searched, looked_up, works, read_paper = activity
+        searched, looked_up, works, read_paper = _tool_calls(activity)
         self.assertEqual(searched["label"], "Searched scholarly authors")
         self.assertEqual(searched["detail"], "Jennifer Doudna")
         self.assertNotIn("sources", searched)
@@ -248,9 +266,89 @@ class NotebookChatActivityTests(TestCase):
         self.assertEqual(read_paper["label"], "Read a paper")
         self.assertEqual(read_paper["status"], "succeeded")
         self.assertEqual(read_paper["sources"], [expected_source])
-        for event in activity:
+        for event in _tool_calls(activity):
             self.assertLessEqual(set(event), PUBLIC_EVENT_KEYS)
         self.assertNotIn("abstract the user", json.dumps(activity, default=str))
+
+    def test_narration_interleaves_with_tool_calls_but_omits_the_answer(self):
+        # Arrange: the fake turns narrate ("calling read_note") before acting,
+        # then answer in plain text.
+        execution = self._run_turn(
+            [
+                tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                text_turn("Here is the summary."),
+            ]
+        )
+
+        # Act
+        activity = self._activity(execution)
+
+        # Assert: narration precedes the call it explains, and the final answer
+        # is absent from the feed because the chat publishes it as a message.
+        self.assertEqual(
+            [
+                (event["type"], event.get("text") or event.get("tool"))
+                for event in activity
+            ],
+            [("narration", "calling read_note"), ("tool_call", "read_note")],
+        )
+        published = execution.conversation.chat_messages.filter(
+            role="ASSISTANT"
+        ).values_list("content", flat=True)
+        self.assertEqual(list(published), ["Here is the summary."])
+
+    def test_representation_reports_progress_fields(self):
+        # Arrange
+        execution = self._run_turn(
+            [
+                tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                text_turn("Done."),
+            ]
+        )
+
+        # Act
+        data = _make_service().representation(execution.conversation)
+        (entry,) = data["executions"]
+
+        # Assert: enough to render elapsed time and "step N of M".
+        self.assertIsNotNone(entry["started_at"])
+        self.assertIsNotNone(entry["finished_at"])
+        self.assertIsNotNone(entry["last_activity_at"])
+        self.assertEqual(entry["iterations"], 2)
+        self.assertEqual(entry["max_iterations"], NotebookChatConfig().max_iterations)
+        # A finished turn is doing nothing, and says so in one field.
+        self.assertIsNone(entry["phase"])
+
+    def test_live_scope_recomputes_only_the_turns_that_can_still_change(self):
+        # Arrange: two finished turns on the same conversation.
+        first = self._run_turn(
+            [
+                tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                text_turn("First."),
+            ]
+        )
+        second = self._run_turn(
+            [
+                tool_turn("t2", "read_note", {"note_id": self.note.id}),
+                text_turn("Second."),
+            ],
+            text="And again.",
+        )
+
+        # Act
+        service = _make_service()
+        full = service.representation(first.conversation)
+        live = service.representation(first.conversation, activity_scope=ACTIVITY_LIVE)
+
+        # Assert: the full projection carries both feeds; the polling projection
+        # omits the settled turn's key entirely -- not an empty list, which
+        # would read as "this turn used no tools".
+        full_by_id = {entry["id"]: entry for entry in full["executions"]}
+        live_by_id = {entry["id"]: entry for entry in live["executions"]}
+        self.assertEqual(len(_tool_calls(full_by_id[first.id]["activity"])), 1)
+        self.assertEqual(len(_tool_calls(full_by_id[second.id]["activity"])), 1)
+        self.assertNotIn("activity", live_by_id[first.id])
+        self.assertEqual(len(_tool_calls(live_by_id[second.id]["activity"])), 1)
 
     def test_failed_tool_call_reports_failed_without_error_text(self):
         # Arrange: web search is unconfigured, so the tool returns an error
@@ -266,7 +364,7 @@ class NotebookChatActivityTests(TestCase):
         activity = self._activity(execution)
 
         # Assert
-        (event,) = activity
+        (event,) = _tool_calls(activity)
         self.assertEqual(event["status"], "failed")
         self.assertNotIn("sources", event)
         self.assertNotIn("not configured", json.dumps(activity, default=str))
@@ -284,21 +382,30 @@ class NotebookChatActivityProjectionTests(TestCase):
             status=AgentExecution.Status.RUNNING,
         )
 
-    def _add_trace_row(self, sequence, content, provenance):
+    def _add_trace_row(self, sequence, content, provenance, role="assistant"):
         AgentExecutionMessage.objects.create(
             conversation=self.conversation,
             execution=self.execution,
             sequence=sequence,
             execution_sequence=sequence,
-            role="assistant",
+            role=role,
             provenance=provenance,
             content=content,
         )
 
+    def _finish(self, status=AgentExecution.Status.SUCCEEDED):
+        self.execution.status = status
+        self.execution.save(update_fields=["status"])
+
+    def _entry(self):
+        data = self.service.representation(self.conversation)
+        (execution,) = data["executions"]
+        return execution
+
     def _single_event(self):
         data = self.service.representation(self.conversation)
         (execution,) = data["executions"]
-        (event,) = execution["activity"]
+        (event,) = _tool_calls(execution["activity"])
         return event
 
     def test_open_call_is_in_progress_while_running_then_interrupted(self):
@@ -316,6 +423,100 @@ class NotebookChatActivityProjectionTests(TestCase):
         self.execution.status = AgentExecution.Status.FAILED
         self.execution.save(update_fields=["status"])
         self.assertEqual(self._single_event()["status"], "interrupted")
+
+    def test_live_turn_shows_its_newest_text_but_a_finished_turn_does_not(self):
+        # Arrange: the only assistant text so far, which is either narration in
+        # progress or the answer, depending on whether the run is over.
+        self._add_trace_row(
+            1,
+            [{"type": "text", "text": "Let me look into that."}],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+
+        # Act & Assert: while running it is the only way to see what was said...
+        (narration,) = _narrations(self._entry()["activity"])
+        self.assertEqual(narration["text"], "Let me look into that.")
+
+        # ...and once the run ends the same text is the published answer, so
+        # repeating it in the feed would show it twice.
+        self._finish()
+        self.assertEqual(_narrations(self._entry()["activity"]), [])
+
+    def test_phase_names_the_open_tool_then_clears_when_terminal(self):
+        # Arrange: a call whose result row has not landed.
+        self._add_trace_row(
+            1,
+            [{"type": "tool_use", "id": "t1", "name": "read_note", "input": {}}],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+
+        # Act & Assert
+        phase = self._entry()["phase"]
+        self.assertEqual(phase["state"], "using_tool")
+        self.assertEqual(phase["label"], "Reading the note")
+        self.assertEqual(phase["tool"], "read_note")
+
+        self._finish(AgentExecution.Status.FAILED)
+        self.assertIsNone(self._entry()["phase"])
+
+    def test_phase_is_thinking_once_the_tool_result_lands(self):
+        # Arrange: the call completed and the model has not spoken since.
+        self._add_trace_row(
+            1,
+            [{"type": "tool_use", "id": "t1", "name": "read_note", "input": {}}],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self._add_trace_row(
+            2,
+            [{"type": "tool_result", "tool_use_id": "t1", "content": {"ok": True}}],
+            AgentExecutionMessage.Provenance.TOOL,
+            role="user",
+        )
+
+        # Act & Assert
+        self.assertEqual(self._entry()["phase"]["state"], "thinking")
+
+    def test_phase_is_responding_while_the_model_writes(self):
+        # Arrange: a completed call, then prose.
+        self._add_trace_row(
+            1,
+            [{"type": "tool_use", "id": "t1", "name": "read_note", "input": {}}],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self._add_trace_row(
+            2,
+            [{"type": "tool_result", "tool_use_id": "t1", "content": {"ok": True}}],
+            AgentExecutionMessage.Provenance.TOOL,
+            role="user",
+        )
+        self._add_trace_row(
+            3,
+            [{"type": "text", "text": "Here is what the note says."}],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+
+        # Act & Assert
+        self.assertEqual(self._entry()["phase"]["state"], "responding")
+
+    def test_truncated_trace_marker_is_not_shown_as_narration(self):
+        # Arrange: the marker a row too large to persist leaves behind, which is
+        # written for an operator reading the trace.
+        self._add_trace_row(
+            1,
+            [
+                {
+                    "type": "text",
+                    "text": "[Trace message omitted because it exceeded the "
+                    "durable row limit.]",
+                    "_truncated": True,
+                    "omitted_blocks": 3,
+                }
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+
+        # Act & Assert
+        self.assertEqual(self._entry()["activity"], [])
 
     def test_server_side_web_search_blocks_produce_a_sourced_event(self):
         # Arrange: the provider ran web_search itself; request and result are
@@ -449,7 +650,59 @@ class NotebookChatActivityViewTests(APITestCase):
 
         # Assert
         (execution,) = response.data["executions"]
-        (event,) = execution["activity"]
+        (event,) = _tool_calls(execution["activity"])
         self.assertEqual(event["tool"], "read_note")
         self.assertEqual(event["label"], "Read the note")
         self.assertEqual(event["status"], "succeeded")
+
+    def test_activity_live_query_param_selects_the_polling_projection(self):
+        # Arrange: two finished turns, so one of them is no longer the latest.
+        self.client.force_authenticate(self.owner)
+        for text, call_id in (("First", "t1"), ("Second", "t2")):
+            with patch("research_ai.tasks.run_notebook_chat_turn_task.delay"):
+                posted = self.client.post(
+                    f"{self.chat_url}messages/", {"message": text}, format="json"
+                )
+            _make_service(
+                provider=FakeProvider(
+                    [
+                        tool_turn(call_id, "read_note", {"note_id": self.note.id}),
+                        text_turn("Done."),
+                    ]
+                )
+            ).run_turn(posted.data["execution_id"])
+
+        # Act
+        full = self.client.get(self.chat_url)
+        live = self.client.get(self.chat_url, {"activity": "live"})
+
+        # Assert: the settled turn keeps its feed on a full read and loses the
+        # key on a poll; the newest turn carries its feed either way.
+        self.assertTrue(all("activity" in e for e in full.data["executions"]))
+        older, newest = live.data["executions"]
+        self.assertNotIn("activity", older)
+        self.assertEqual(len(_tool_calls(newest["activity"])), 1)
+
+    def test_unknown_activity_scope_falls_back_to_the_full_projection(self):
+        # Arrange: a stale or mistyped client parameter must cost performance,
+        # not correctness.
+        self.client.force_authenticate(self.owner)
+        with patch("research_ai.tasks.run_notebook_chat_turn_task.delay"):
+            posted = self.client.post(
+                f"{self.chat_url}messages/", {"message": "Summarize"}, format="json"
+            )
+        _make_service(
+            provider=FakeProvider(
+                [
+                    tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                    text_turn("Done."),
+                ]
+            )
+        ).run_turn(posted.data["execution_id"])
+
+        # Act
+        response = self.client.get(self.chat_url, {"activity": "nonsense"})
+
+        # Assert
+        (execution,) = response.data["executions"]
+        self.assertEqual(len(_tool_calls(execution["activity"])), 1)

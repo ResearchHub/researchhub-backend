@@ -64,6 +64,7 @@ class NotebookChatViewTests(APITestCase):
         )
         self.chat_url = f"/api/research_ai/notebook/notes/{self.note.id}/chat/"
         self.messages_url = f"{self.chat_url}messages/"
+        self.cancel_url = f"{self.chat_url}cancel/"
 
     def _post_message(self, text="Summarize the note"):
         with patch("research_ai.tasks.run_notebook_chat_turn_task.delay") as delay:
@@ -164,6 +165,62 @@ class NotebookChatViewTests(APITestCase):
 
         # Assert
         self.assertEqual(second.status_code, 409)
+
+    def test_cancel_stops_the_running_turn_and_frees_the_conversation(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        posted, _delay = self._post_message()
+
+        # Act
+        response = self.client.post(self.cancel_url)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["cancelled"])
+        self.assertEqual(response.data["execution_id"], posted.data["execution_id"])
+        execution = AgentExecution.objects.get(id=posted.data["execution_id"])
+        self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+        # The whole point: the user can send the next message immediately.
+        again, _delay = self._post_message("Try this instead")
+        self.assertEqual(again.status_code, 202)
+
+    def test_cancel_with_nothing_running_succeeds_and_reports_nothing(self):
+        # Arrange: the client cannot know which side of the race it is on when
+        # the user clicks stop, so this is a success, not an error.
+        self.client.force_authenticate(self.owner)
+
+        # Act
+        response = self.client.post(self.cancel_url)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["cancelled"])
+        self.assertIsNone(response.data["execution_id"])
+
+    def test_cancel_requires_note_access(self):
+        # Arrange
+        self.client.force_authenticate(self.outsider)
+
+        # Act
+        response = self.client.post(self.cancel_url)
+
+        # Assert
+        self.assertEqual(response.status_code, 404)
+
+    def test_cancel_is_scoped_to_the_requesting_users_conversation(self):
+        # Arrange: the owner has a turn running; the viewer has their own
+        # conversation on the same note.
+        self.client.force_authenticate(self.owner)
+        posted, _delay = self._post_message()
+        self.client.force_authenticate(self.viewer)
+
+        # Act
+        response = self.client.post(self.cancel_url)
+
+        # Assert: the viewer cannot stop someone else's turn.
+        self.assertFalse(response.data["cancelled"])
+        execution = AgentExecution.objects.get(id=posted.data["execution_id"])
+        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
 
     def test_get_chat_without_conversation_returns_empty(self):
         # Arrange

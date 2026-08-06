@@ -178,8 +178,9 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         # Act
         representation = chat.representation(self.conversation)
 
-        # Assert
-        self.assertNotIn("secret token", json.dumps(representation))
+        # Assert: default=str because the representation carries the progress
+        # timestamps as datetimes, which DRF renders on the way out.
+        self.assertNotIn("secret token", json.dumps(representation, default=str))
         self.assertEqual(
             representation["executions"][0]["error"],
             {

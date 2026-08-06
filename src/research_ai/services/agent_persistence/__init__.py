@@ -11,6 +11,10 @@ from .execution_service import (
     AgentExecutionService,
     AgentStaleRetryError,
 )
+from .liveness_service import (
+    AgentLivenessService,
+    ReclaimedExecutions,
+)
 from .recorder import DatabaseAgentRecorder
 from .retention_service import AgentRetentionService
 from .run_details_service import (
@@ -24,6 +28,7 @@ __all__ = [
     "AgentConversationBusyError",
     "AgentConversationService",
     "AgentExecutionService",
+    "AgentLivenessService",
     "AgentRetentionService",
     "AgentRunDetails",
     "AgentRunDetailsService",
@@ -31,4 +36,5 @@ __all__ = [
     "DatabaseAgentRecorder",
     "NoteAgentConversationService",
     "PreparedAgentExecution",
+    "ReclaimedExecutions",
 ]
