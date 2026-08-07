@@ -1,12 +1,20 @@
 """Liveness sweeps and cooperative cancellation."""
 
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.utils import timezone
 
 from research_ai.models import AgentConversation, AgentExecution
-from research_ai.services.agent.types import Message, TextBlock
+from research_ai.services.agent.tools import Tool
+from research_ai.services.agent.types import (
+    AssistantTurn,
+    Message,
+    StopReason,
+    TextBlock,
+    ToolUseBlock,
+)
 from research_ai.services.agent_persistence import (
     AgentChatService,
     AgentConversationBusyError,
@@ -17,6 +25,12 @@ from research_ai.services.agent_persistence import (
 from research_ai.services.agent_persistence.liveness_service import (
     NEVER_STARTED_ERROR_TYPE,
     STALLED_ERROR_TYPE,
+)
+from research_ai.tests.agent.persistence_test_helpers import (
+    FakeProvider,
+    agent,
+    text_turn,
+    tool_turn,
 )
 
 HEARTBEAT = timedelta(minutes=15)
@@ -119,20 +133,19 @@ class AgentLivenessSweepTests(TestCase):
         execution.refresh_from_db()
         self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
 
-    def test_a_long_setup_phase_writing_no_rows_is_not_reclaimed(self):
-        # Arrange: the proposal-draft shape. Its execution is created before the
-        # RFP fetch and the profile build -- itself an agent run of up to 16 tool
-        # turns that writes nothing against this execution -- so a healthy run
-        # can sit a long while on its creation-time heartbeat.
+    def test_one_slow_retrying_provider_call_is_not_reclaimed(self):
+        # Arrange: the worst legitimate silence is a single model turn, and one
+        # is not quick -- the providers allow a 600s call retried up to 8 times,
+        # so ~80 minutes can pass between writes with nothing wrong.
         execution = self._execution(
-            AgentExecution.Status.RUNNING, age=timedelta(minutes=40)
+            AgentExecution.Status.RUNNING, age=timedelta(minutes=90)
         )
 
         # Act
         reclaimed = AgentLivenessService().reclaim_stalled()
 
-        # Assert: the default timeout has to clear that gap, or the sweep fails
-        # a run that was working.
+        # Assert: the default timeout has to clear that, or the sweep fails a
+        # run that was working.
         self.assertEqual(reclaimed.total, 0)
         execution.refresh_from_db()
         self.assertEqual(execution.status, AgentExecution.Status.RUNNING)
@@ -228,6 +241,86 @@ class AgentCancellationTests(TestCase):
             recorder.record_message(
                 Message(role="assistant", content=[TextBlock(text="still going")])
             )
+
+    def test_cancelling_stops_the_run_before_a_tool_takes_effect(self):
+        # Arrange: a turn that asked for two tools. Cancellation lands after the
+        # assistant message is recorded and before dispatch -- the window where
+        # the next durable write is not until *after* the tools have run.
+        recorder = self._running()
+        dispatched = []
+
+        def _tool(_args):
+            dispatched.append("edit")
+            return {"ok": True}
+
+        tools = [
+            Tool("edit_note", "edit", {"type": "object"}, _tool),
+            Tool("read_note", "read", {"type": "object"}, _tool),
+        ]
+        provider = FakeProvider(
+            [
+                AssistantTurn(
+                    text_blocks=[TextBlock(text="editing now")],
+                    tool_calls=[
+                        ToolUseBlock(id="c1", name="edit_note", input={}),
+                        ToolUseBlock(id="c2", name="read_note", input={}),
+                    ],
+                    stop_reason=StopReason.TOOL_USE,
+                ),
+                text_turn("done"),
+            ]
+        )
+        liveness = self.liveness
+
+        original = DatabaseAgentRecorder.record_message
+
+        def _cancel_after_assistant_turn(self_recorder, message, *, turn=None):
+            original(self_recorder, message, turn=turn)
+            if turn is not None:
+                liveness.cancel(self_recorder.execution)
+
+        # Act
+        with (
+            patch.object(
+                DatabaseAgentRecorder, "record_message", _cancel_after_assistant_turn
+            ),
+            self.assertRaises(InterruptedError),
+        ):
+            agent(provider, recorder, tools).run("Edit the note")
+
+        # Assert: the note was never touched. Cancellation frees the
+        # conversation at once, so a tool running past it could write the same
+        # document as the replacement turn.
+        self.assertEqual(dispatched, [])
+        execution = AgentExecution.objects.get(id=recorder.execution.id)
+        self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+
+    def test_a_recorder_that_cannot_answer_does_not_halt_a_healthy_run(self):
+        # Arrange: is_active is advisory -- a failing check must not be able to
+        # stop a run that is fine.
+        recorder = self._running()
+        dispatched = []
+        tools = [
+            Tool(
+                "read_note",
+                "read",
+                {"type": "object"},
+                lambda _a: dispatched.append("read") or {"ok": True},
+            )
+        ]
+        provider = FakeProvider([tool_turn("c1", "read_note", {}), text_turn("done")])
+
+        # Act
+        with patch.object(
+            DatabaseAgentRecorder,
+            "is_active",
+            side_effect=RuntimeError("database hiccup"),
+        ):
+            result = agent(provider, recorder, tools).run("Read the note")
+
+        # Assert
+        self.assertEqual(dispatched, ["read"])
+        self.assertEqual(result.final_text, "done")
 
     def test_cancelling_an_already_terminal_execution_reports_false(self):
         # Arrange

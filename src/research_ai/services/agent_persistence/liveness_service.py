@@ -6,15 +6,21 @@ run that is genuinely working touches it at least once per model turn. Nothing
 read it before this module.
 
 Reading it imposes a contract on everything that creates an execution: **a
-healthy ``RUNNING`` row must be touched more often than the heartbeat timeout,
-including during work that writes no trace rows.** Inside the agent loop this
-holds for free. Around it, it does not: an execution created before a long setup
-phase looks abandoned for the whole of that phase. A caller doing such work
-either keeps it under the timeout or calls
-:meth:`DatabaseAgentRecorder.heartbeat` -- which exists for exactly this -- and
-the timeout below is sized for the longest such gap in the codebase rather than
-for one model turn. Getting this wrong reclaims a working run, whose next write
-then raises ``InterruptedError`` and fails it, so the timeout errs long.
+healthy ``RUNNING`` row must be touched at least once per model turn, including
+during work that writes no trace rows.** Inside the agent loop this holds for
+free. Around it, it does not: an execution created before a long setup phase
+looks abandoned for the whole of that phase, and a nested agent run -- proposal
+drafting builds a researcher profile that way -- can stack many turns into one
+stretch of silence. Such callers use
+:meth:`DatabaseAgentRecorder.heartbeat`, or
+:class:`NestedRunHeartbeatRecorder` to report once per nested turn.
+
+Holding that contract is what lets the timeout below be sized to a single
+provider call rather than guessed at. Getting it wrong reclaims a working run,
+whose next write then raises ``InterruptedError`` and fails it -- so the timeout
+errs long, and a run that is cancelled or reclaimed also stops before its next
+*tool call* (:meth:`DatabaseAgentRecorder.is_active`) rather than only at its
+next write, which would come after the tool had already taken effect.
 
 That matters because a worker can die between claiming an execution and
 recording its terminal status: a deploy, an OOM kill, a lost broker connection.
@@ -46,15 +52,21 @@ from research_ai.models import AgentExecution
 
 logger = logging.getLogger(__name__)
 
-# Sized to the longest gap a *healthy* run can leave, which is not one model
-# turn. Inside the agent loop every turn and tool result lands a row, so the gap
-# is minutes at most. Around the loop it is bounded only by whatever a caller
-# does between creating the execution and driving it: proposal drafting builds a
-# researcher profile there, itself an agent run of up to 16 tool turns writing
-# no rows against this execution. One hour leaves that ample room. Being
-# generous costs only how long a genuinely stuck conversation waits to recover,
-# which beats reclaiming a run that was working.
-DEFAULT_HEARTBEAT_TIMEOUT = timedelta(minutes=60)
+# Sized to one *provider call*, which is the real unit of silence -- not one
+# model turn, and not one agent run.
+#
+# Every caller keeps its heartbeat inside one model turn (the loop writes a row
+# per turn and per tool result; nested agent runs report through
+# ``NestedRunHeartbeatRecorder``). But a single turn is not quick: the Claude
+# adapter allows a 600s call and retries it up to 8 times, and Bedrock is
+# configured the same way, so one legitimate turn can occupy roughly 80 minutes
+# of wall clock without a write. Two hours clears that with margin.
+#
+# The asymmetry is what justifies erring long. Reclaiming a live run fails work
+# a user was waiting on; reclaiming late only delays an automatic cleanup, and
+# a user who does not want to wait has the cancel endpoint. This sweep is a
+# janitor, not the recovery path.
+DEFAULT_HEARTBEAT_TIMEOUT = timedelta(hours=2)
 DEFAULT_QUEUE_TIMEOUT = timedelta(minutes=30)
 
 _HEARTBEAT_TIMEOUT_SETTING = "RESEARCH_AI_AGENT_HEARTBEAT_TIMEOUT_SECONDS"
@@ -141,6 +153,14 @@ class AgentLivenessService:
             stop_reason=NEVER_STARTED_STOP_REASON,
             error_message="The queued execution was never claimed by a worker.",
         )
+        # Known gap, wider because of this sweep but not created by it: an
+        # attempt no worker claimed holds no context rows, yet a terminal status
+        # makes it eligible as the next turn's continuation parent, so the
+        # prompt the chat still displays never reaches the model. The
+        # enqueue-failure path in NotebookChatService already lands the same
+        # shape as FAILED. Fixing it means persisting the trigger prompt when
+        # terminalizing an unclaimed attempt, which belongs with continuation
+        # semantics rather than here.
         reclaimed = ReclaimedExecutions(stalled=stalled, never_started=never_started)
         if reclaimed.total:
             logger.warning(

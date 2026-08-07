@@ -44,3 +44,15 @@ class AgentRecorder(Protocol):
     def on_run_failed(self, error: Exception) -> None:
         """The run failed; every message up to the failure was recorded."""
         ...
+
+    def is_active(self) -> bool:
+        """Whether this run still owns the work it is recording.
+
+        Optional. Recorders that can be terminated from outside the run --
+        cancelled, or reclaimed as abandoned -- implement this so the loop can
+        stop *before* a tool call takes effect rather than discovering it at the
+        next write, which happens only after the side effect. A recorder without
+        it is treated as always active, so nothing is required of observers that
+        cannot be pre-empted.
+        """
+        ...

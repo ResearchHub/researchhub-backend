@@ -62,6 +62,7 @@ from research_ai.services.agent import (
 from research_ai.services.agent_persistence import (
     AgentConversationService,
     AgentExecutionService,
+    NestedRunHeartbeatRecorder,
     NoteAgentConversationService,
 )
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
@@ -311,7 +312,17 @@ class _ProposalDraftRunner:
         self.recorder.set_step(ProposalDraft.Step.BUILDING_PROFILE)
         try:
             build_and_store_expert_profile(
-                self.expert, provider=self.provider, oa_client=self.oa_client
+                self.expert,
+                provider=self.provider,
+                oa_client=self.oa_client,
+                # The profile build is its own agent run and writes nothing to
+                # this execution, so without a heartbeat per nested turn its
+                # whole duration reads as silence to the liveness sweep.
+                recorder=(
+                    NestedRunHeartbeatRecorder(self.agent_recorder)
+                    if self.agent_recorder is not None
+                    else None
+                ),
             )
         except Exception:  # noqa: BLE001 - profile build is best-effort
             logger.exception("proposal draft: profile build failed")

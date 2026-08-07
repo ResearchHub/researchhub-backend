@@ -203,18 +203,26 @@ def run_profile_agent(
     *,
     provider: LLMProvider | None = None,
     oa_client: OpenAlex | None = None,
+    recorder=None,
 ) -> dict:
     """Run the agent and assemble the grounded profile dict.
 
     Best-effort: a failed run yields an unresolved profile with the error
     recorded, never raises.
+
+    ``recorder`` observes this run without owning it. Callers that build a
+    profile *inside* another agent's execution pass one so that execution's
+    liveness heartbeat keeps ticking through the up-to-16 turns spent here; see
+    ``NestedRunHeartbeatRecorder``. The profile agent has no trace of its own.
     """
     errors: list[str] = []
     toolset = OpenAlexToolset(client=oa_client)
     provider = provider or resolve_provider()
     agent = AgentService(
         provider=provider, max_iterations=_MAX_ITERATIONS
-    ).create_agent(toolset.as_toolset(), system_prompt=_SYSTEM_PROMPT)
+    ).create_agent(
+        toolset.as_toolset(), system_prompt=_SYSTEM_PROMPT, recorder=recorder
+    )
 
     try:
         agent.run(_user_prompt(expert))
