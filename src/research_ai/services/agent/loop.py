@@ -187,6 +187,30 @@ class Agent:
                 raise
             logger.warning("agent recorder record_message failed", exc_info=True)
 
+    def _ensure_active(self) -> None:
+        """Stop before a tool call if this run no longer owns its execution.
+
+        Every other stop point is a write, and writes happen *after* the tool
+        has already run. A turn cancelled between recording its tool calls and
+        dispatching them would still edit the note, and cancellation frees the
+        conversation immediately, so that edit could land beside the turn the
+        user sent instead -- both writing the same document.
+
+        The check is optional (see ``AgentRecorder.is_active``) and its failure
+        is not a stop signal: a recorder that cannot answer must not be able to
+        halt a healthy run.
+        """
+        is_active = getattr(self.recorder, "is_active", None)
+        if is_active is None:
+            return
+        try:
+            active = is_active()
+        except Exception:  # noqa: BLE001 - an unanswerable check is not a stop
+            logger.warning("agent recorder is_active failed", exc_info=True)
+            return
+        if not active:
+            raise InterruptedError("agent execution is no longer running")
+
     def _record_terminal(self, hook: str, *args) -> None:
         """Best-effort terminal observation must not mask the run outcome."""
         if self.recorder is None:
@@ -257,6 +281,9 @@ class Agent:
         result_blocks: list[ToolResultBlock] = []
         stop = False
         for call in tool_calls:
+            # Per call, not once per turn: a turn can ask for several tools, and
+            # a cancellation landing partway through must not let the rest run.
+            self._ensure_active()
             logger.info(
                 "iter %d -> %s(%s)", iteration, call.name, _compact_args(call.input)
             )
