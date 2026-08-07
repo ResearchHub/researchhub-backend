@@ -26,6 +26,7 @@ from research_ai.views.notebook_chat_views import (
     NotebookChatView,
 )
 from research_ai.views.proposal_draft_views import (
+    ProposalDraftCancelView,
     ProposalDraftCreateView,
     ProposalDraftDetailView,
 )
@@ -102,6 +103,10 @@ urlpatterns = [
     path(
         "expert-finder/proposal-drafts/<int:draft_id>/",
         ProposalDraftDetailView.as_view(),
+    ),
+    path(
+        "expert-finder/proposal-drafts/<int:draft_id>/cancel/",
+        ProposalDraftCancelView.as_view(),
     ),
     path(
         "notebook/notes/<int:note_id>/chat/",

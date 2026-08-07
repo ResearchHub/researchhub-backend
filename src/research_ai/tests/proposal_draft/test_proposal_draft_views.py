@@ -165,3 +165,103 @@ class ProposalDraftDetailViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class ProposalDraftCancelViewTests(APITestCase):
+    def setUp(self):
+        # Arrange
+        self.moderator = create_random_authenticated_user("mod", moderator=True)
+        self.user = create_random_authenticated_user("user", moderator=False)
+        self.expert = Expert.objects.create(email="jane@example.edu")
+        self.expert_search = ExpertSearch.objects.create(
+            created_by=self.moderator,
+            query="protein folding",
+        )
+        self.search_expert = SearchExpert.objects.create(
+            expert_search=self.expert_search,
+            expert=self.expert,
+        )
+        self.draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.moderator,
+            status=ProposalDraft.Status.PROCESSING,
+            step=ProposalDraft.Step.JUDGING,
+        )
+
+    def _cancel(self, draft_id=None):
+        return self.client.post(f"{BASE_URL}{draft_id or self.draft.id}/cancel/")
+
+    def test_cancel_requires_editor_or_moderator(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._cancel()
+
+        # Assert: drafting is a privileged operation, and so is stopping one.
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.status, ProposalDraft.Status.PROCESSING)
+
+    def test_cancel_requires_authentication(self):
+        # Act
+        response = self._cancel()
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_cancel_stops_an_in_flight_draft(self):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self._cancel()
+
+        # Assert: the draft comes back with the state the caller asked for, so a
+        # client needs no follow-up poll to know where it landed.
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertTrue(data["cancelled"])
+        self.assertEqual(data["id"], self.draft.id)
+        self.assertEqual(data["status"], ProposalDraft.Status.CANCELLED)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.status, ProposalDraft.Status.CANCELLED)
+
+    def test_cancelling_twice_succeeds_and_reports_it_did_nothing(self):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+        self._cancel()
+
+        # Act
+        response = self._cancel()
+
+        # Assert: idempotent, so a client that cannot tell whether its first
+        # request landed can simply send it again.
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.json()["cancelled"])
+        self.assertEqual(response.json()["status"], ProposalDraft.Status.CANCELLED)
+
+    def test_cancelling_a_finished_draft_leaves_it_alone(self):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+        ProposalDraft.objects.filter(id=self.draft.id).update(
+            status=ProposalDraft.Status.COMPLETED
+        )
+
+        # Act
+        response = self._cancel()
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.json()["cancelled"])
+        self.assertEqual(response.json()["status"], ProposalDraft.Status.COMPLETED)
+
+    def test_cancel_not_found_returns_404(self):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self._cancel(draft_id=999999)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

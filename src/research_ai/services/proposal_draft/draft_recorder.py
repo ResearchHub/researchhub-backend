@@ -109,6 +109,14 @@ class DraftRecorder:
         }
 
     def fail(self, message: str) -> dict:
+        # A cancelled run reaches here too: cancellation surfaces inside the run
+        # as an ordinary error (an interrupted write, a refused tool call), and
+        # every one of those paths ends in ``fail``. Checking the record is what
+        # keeps a decision someone made from being written up as a failure --
+        # and it belongs here rather than at each raise site, because there are
+        # several and any future one would have to remember.
+        if self.cancelled():
+            return self.cancelled_result()
         # Persist the rejected draft so a failed run is still inspectable: a
         # FAILED run never writes a Note, so this is the only place its content
         # survives. The state picks the best-scoring round over the last one.
@@ -127,4 +135,38 @@ class DraftRecorder:
             "gate_report": self.draft.gate_report,
             "last_submission": self.draft.last_submission,
             "error_message": message,
+        }
+
+    # -- cancellation ---------------------------------------------------------
+
+    def cancelled(self) -> bool:
+        """Whether someone cancelled this draft, read fresh from the record.
+
+        The cancelling request runs in another process, so the in-memory draft
+        cannot be trusted for this -- an instance loaded before the cancel
+        landed still reports the status it was created with.
+        """
+        return (
+            ProposalDraft.objects.filter(
+                id=self.draft.id, status=ProposalDraft.Status.CANCELLED
+            )
+            .only("id")
+            .exists()
+        )
+
+    def cancelled_result(self) -> dict:
+        """Persist how far a cancelled run got, and report it.
+
+        The status is already written -- the cancelling request owns that -- so
+        this only saves the work in hand. A cancelled run never writes a Note,
+        so as with a failure this is the only place its draft survives.
+        """
+        self.persist_round()
+        self.draft.refresh_from_db()
+        return {
+            "status": ProposalDraft.Status.CANCELLED,
+            "proposal_draft_id": self.draft.id,
+            "rounds_used": self.state.rounds_used,
+            "gate_report": self.draft.gate_report,
+            "last_submission": self.draft.last_submission,
         }

@@ -39,6 +39,9 @@ from research_ai.services.agent_persistence import (
     NoteAgentConversationService,
 )
 from research_ai.services.proposal_draft import run_proposal_draft
+from research_ai.services.proposal_draft.cancel_service import (
+    ProposalDraftCancelService,
+)
 from research_ai.services.proposal_draft.runner import (
     PROFILE_SCHEMA_VERSION,
     _ProposalDraftRunner,
@@ -1302,3 +1305,137 @@ class ProposalDraftServiceTests(TestCase):
         tool = toolset.get("get_work_fulltext")
         self.assertIsNotNone(tool)
         self.assertIs(tool.handler.__self__, runner.fulltext_toolset)
+
+    # -- cancelling a run in flight ----------------------------------------
+
+    def _pending_draft(self):
+        return ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.user,
+            status=ProposalDraft.Status.PENDING,
+            step=ProposalDraft.Step.QUEUED,
+        )
+
+    def test_cancelling_mid_run_ends_cancelled_and_ships_no_note(self):
+        # Arrange: a run whose only round clears every gate, cancelled while the
+        # panel is judging it. The accepted round is exactly what makes this
+        # worth checking -- the run has a shippable proposal in hand.
+        draft = self._pending_draft()
+        cancels = ProposalDraftCancelService()
+
+        class _CancellingPanel(_FakePanel):
+            def score(self, proposal, *, context=None):
+                cancels.cancel(ProposalDraft.objects.get(id=draft.id))
+                return super().score(proposal, context=context)
+
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            draft_id=draft.id,
+            provider=provider,
+            panel=_CancellingPanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: cancelled rather than completed, and no Note -- a run someone
+        # called off must not still publish its proposal.
+        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
+        self.assertEqual(draft.error_message, "")
+        self.assertIsNone(draft.note)
+        self.assertEqual(Note.objects.count(), 0)
+        # The work in hand is still persisted, as it is for a failed run.
+        self.assertTrue(draft.last_submission)
+
+    def test_cancelling_mid_run_is_not_recorded_as_a_failure(self):
+        # Arrange: cancellation reaches the run as an ordinary error, so the
+        # guard that keeps it out of FAILED is worth pinning on its own.
+        draft = self._pending_draft()
+        cancels = ProposalDraftCancelService()
+
+        class _CancellingPanel(_FakePanel):
+            def score(self, proposal, *, context=None):
+                cancels.cancel(ProposalDraft.objects.get(id=draft.id))
+                return super().score(proposal, context=context)
+
+        # Arrange: a panel score below the bar, so the run would otherwise fail.
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            draft_id=draft.id,
+            provider=provider,
+            panel=_CancellingPanel(overall=1, gaps=["raise overall quality"]),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert
+        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
+        self.assertEqual(draft.error_message, "")
+
+    def test_a_cancelled_run_spends_no_further_judge_panels(self):
+        # Arrange: an always-submitting provider would keep going for the whole
+        # round budget. Cancel lands during the first round's judging.
+        draft = self._pending_draft()
+        cancels = ProposalDraftCancelService()
+
+        class _CancellingPanel(_FakePanel):
+            def score(self, proposal, *, context=None):
+                cancels.cancel(ProposalDraft.objects.get(id=draft.id))
+                return super().score(proposal, context=context)
+
+        panel = _CancellingPanel(overall=1, gaps=["raise overall quality"])
+        provider = _AlwaysSubmitProvider(_clean_payload())
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            draft_id=draft.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: the next round is cut before the gates run, so judging -- the
+        # most expensive thing a round does -- happens once and not again.
+        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
+        self.assertEqual(len(panel.contexts), 1)
+
+    def test_a_run_with_no_agent_trace_still_stops_when_cancelled(self):
+        # Arrange: the agent trace is best-effort -- a run whose execution could
+        # not be created keeps drafting without one. Then the loop's own
+        # ownership check has nothing to read, and the draft's status is the only
+        # thing that can stop the run.
+        draft = self._pending_draft()
+        cancels = ProposalDraftCancelService()
+
+        class _CancellingPanel(_FakePanel):
+            def score(self, proposal, *, context=None):
+                cancels.cancel(ProposalDraft.objects.get(id=draft.id))
+                return super().score(proposal, context=context)
+
+        panel = _CancellingPanel(overall=1, gaps=["raise overall quality"])
+        provider = _AlwaysSubmitProvider(_clean_payload())
+        broken_executions = Mock(wraps=AgentExecutionService())
+        broken_executions.start.side_effect = RuntimeError("no trace today")
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            draft_id=draft.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+            execution_service=broken_executions,
+        )
+
+        # Assert
+        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
+        self.assertEqual(len(panel.contexts), 1)
+        self.assertFalse(AgentExecution.objects.exists())

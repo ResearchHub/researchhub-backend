@@ -64,6 +64,9 @@ from research_ai.services.agent_persistence import (
     AgentExecutionService,
     NoteAgentConversationService,
 )
+from research_ai.services.proposal_draft.cancel_service import (
+    ProposalDraftCancelledError,
+)
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_draft.draft_recorder import DraftRecorder
 from research_ai.services.proposal_draft.gates import (
@@ -175,6 +178,14 @@ class _ProposalDraftRunner:
         self._start_agent_recording(run_config)
         try:
             return self._run()
+        except InterruptedError as exc:
+            # Not a crash: either a checkpoint saw the draft cancelled
+            # (``ProposalDraftCancelledError``), or this run stopped owning its
+            # execution -- someone cancelled the execution alone, without the
+            # draft. ``_fail`` sorts out which: a cancelled record is reported as
+            # cancelled, and anything else is still a failure.
+            logger.info("proposal draft stopped mid-run: %s", exc)
+            return self._fail(f"run interrupted: {exc}")
         except Exception as exc:  # noqa: BLE001 - no run may end still PROCESSING
             # The terminal safety net: whatever escapes the run body (a note
             # write after an accepted submit, a DB error, a bug) still lands
@@ -193,6 +204,7 @@ class _ProposalDraftRunner:
             self._record_setup_failure(AgentRunError(message, iterations=0))
             return self._fail(message)
 
+        self._ensure_not_cancelled()
         self._ensure_profile()
 
         system_prompt = build_proposal_system_prompt(
@@ -205,6 +217,7 @@ class _ProposalDraftRunner:
         user_prompt = build_proposal_user_prompt(self.expert, self.rfp_context)
         agent = self._build_agent(system_prompt)
 
+        self._ensure_not_cancelled()
         self.recorder.set_step(ProposalDraft.Step.DRAFTING)
         try:
             result = agent.run(user_prompt)
@@ -214,6 +227,10 @@ class _ProposalDraftRunner:
             # error after a partial run.
             logger.warning("proposal draft agent stopped early: %s", exc)
             self.state.record_agent_error(exc)
+
+        # Cancelled between the loop ending and the Note being written: stop
+        # here, or a run someone called off still ships a proposal.
+        self._ensure_not_cancelled()
 
         # A COMPLETED run needs a round that cleared every gate at some point in
         # the loop -- not merely that the last round did (it may have regressed
@@ -276,6 +293,20 @@ class _ProposalDraftRunner:
         except Exception:  # noqa: BLE001 - observability cannot break drafting
             logger.warning("could not initialize proposal agent trace", exc_info=True)
             self.agent_recorder = None
+
+    def _ensure_not_cancelled(self) -> None:
+        """Stop at a phase boundary if someone cancelled this draft.
+
+        The agent loop has its own, finer check (it stops before each tool
+        call), but that one needs the trace execution, which is best-effort and
+        may not exist. This reads the draft itself, so it works either way --
+        and it covers the phases that are not inside the loop at all, above all
+        the profile build.
+        """
+        if self.recorder.cancelled():
+            raise ProposalDraftCancelledError(
+                f"proposal draft {self.recorder.draft.id} was cancelled"
+            )
 
     def _record_setup_failure(self, error: Exception) -> None:
         if self.agent_recorder is None or self.agent_recorder.terminal_observed:
@@ -360,6 +391,10 @@ class _ProposalDraftRunner:
     # -- the gate-before-stop handler ------------------------------------
 
     def _handle_submit(self, args: dict) -> dict:
+        # Before the gates, not after: judging is the most expensive thing a
+        # round does, and a cancelled run must not spend a judge panel on a
+        # draft nobody will read.
+        self._ensure_not_cancelled()
         state = self.state
         state.begin_round(self._normalize_submission(args or {}))
         try:
