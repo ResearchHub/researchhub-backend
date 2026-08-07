@@ -14,7 +14,7 @@ from feed.models import FeedEntry
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import USD
-from purchase.related_models.constants.rsc_exchange_currency import MORALIS
+from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
@@ -74,6 +74,7 @@ class ActivityFeedBaseTests(AWSMockTestCase):
         super().setUp()
         self.user = create_test_user("activity_user")
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
         self.prereg_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION,
@@ -132,7 +133,7 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
         super().setUp()
 
         RscExchangeRate.objects.create(
-            price_source=MORALIS,
+            price_source=COIN_GECKO,
             rate=3.0,
             real_rate=3.0,
             target_currency=USD,
@@ -428,6 +429,7 @@ class ActivityFeedGrantFilterTests(AWSMockTestCase):
         super().setUp()
         self.user = create_test_user()
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
         # Grant document + post + Grant object
         self.grant_doc = ResearchhubUnifiedDocument.objects.create(
@@ -655,6 +657,7 @@ class ActivityFeedScopeGrantsTests(AWSMockTestCase):
         super().setUp()
         self.user = create_test_user()
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
         # Grant A with an applied preregistration
         self.grant_a_doc = ResearchhubUnifiedDocument.objects.create(
@@ -828,6 +831,7 @@ class ActivityFeedActionDateOrderingTests(AWSMockTestCase):
         super().setUp()
         self.user = create_test_user()
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
     def test_action_date_determines_order_not_created_date(self):
         """An entry created later but with an older action_date
@@ -892,6 +896,7 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
         super().setUp()
         self.user = create_test_user()
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
         self.doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION,
@@ -1034,9 +1039,10 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
         super().setUp()
         self.user = create_test_user()
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
         RscExchangeRate.objects.create(
-            price_source=MORALIS,
+            price_source=COIN_GECKO,
             rate=3.0,
             real_rate=3.0,
             target_currency=USD,
@@ -1267,6 +1273,7 @@ class ActivityFeedFunderFilterTests(APITestCase):
         self.other_user = create_test_user("other", email="other@example.com")
         self.applicant = create_test_user("applicant", email="applicant@example.com")
         self.client = APIClient()
+        self.client.force_authenticate(user=self.funder)
 
         # OPEN grant created by funder, with an applied preregistration
         self.funder_open_grant_doc = ResearchhubUnifiedDocument.objects.create(
