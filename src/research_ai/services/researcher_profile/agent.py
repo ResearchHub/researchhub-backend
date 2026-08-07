@@ -207,7 +207,7 @@ def run_profile_agent(
     """Run the agent and assemble the grounded profile dict.
 
     Best-effort: a failed run yields an unresolved profile with the error
-    recorded, never raises.
+    recorded, never raises. The profile agent has no trace of its own.
     """
     errors: list[str] = []
     toolset = OpenAlexToolset(client=oa_client)
