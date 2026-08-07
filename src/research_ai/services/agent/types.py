@@ -163,12 +163,19 @@ class AssistantTurn:
     into a faithful turn, because order carries meaning: reasoning blocks lead,
     and a server-side tool's result must stay immediately after its request. An
     adapter that leaves it empty falls back to the grouped order.
+
+    ``stop_details`` is the provider's structured account of *why* the turn
+    stopped, carried verbatim. Only a content-filtered turn has one, and it is
+    the only thing that says which classifier fired: a refusal arrives as a
+    successful response with empty content, so without these details the
+    failure is indistinguishable from any other empty turn.
     """
 
     text_blocks: list[TextBlock]
     tool_calls: list[ToolUseBlock]
     stop_reason: StopReason
     raw: dict = field(default_factory=dict)
+    stop_details: dict | None = None
     usage: TurnUsage | None = None
     latency_ms: int | None = None
     thinking_blocks: list[ThinkingBlock] = field(default_factory=list)
