@@ -9,7 +9,7 @@ from feed.serializers import serialize_feed_item
 from feed.tasks import create_feed_entry
 from paper.tests.helpers import create_paper
 from purchase.models import Purchase
-from reputation.models import Bounty, Distribution
+from reputation.models import Bounty, BountySolution, Distribution
 from reputation.related_models.escrow import Escrow, EscrowRecipients
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
@@ -60,13 +60,33 @@ class FundingActivityFeedSignalTests(AWSMockTestCase):
                 content_type=ct_paper,
                 object_id=paper.id,
             )
-            Bounty.objects.create(
+            bounty = Bounty.objects.create(
                 created_by=self.funder,
                 bounty_type=Bounty.Type.REVIEW,
                 unified_document=paper.unified_document,
                 item_content_type=ct_paper,
                 item_object_id=paper.id,
                 escrow=escrow,
+            )
+            thread = RhCommentThreadModel.objects.create(
+                content_object=paper,
+                created_by=self.recipient,
+                updated_by=self.recipient,
+            )
+            comment = RhCommentModel.objects.create(
+                thread=thread,
+                created_by=self.recipient,
+                updated_by=self.recipient,
+                comment_type=PEER_REVIEW,
+                comment_content_json={"ops": [{"insert": "Awarded review"}]},
+            )
+            BountySolution.objects.create(
+                bounty=bounty,
+                status=BountySolution.Status.AWARDED,
+                awarded_amount=Decimal(25),
+                created_by=self.recipient,
+                content_type=ContentType.objects.get_for_model(RhCommentModel),
+                object_id=comment.id,
             )
             rec = EscrowRecipients.objects.create(
                 escrow=escrow,
@@ -102,6 +122,11 @@ class FundingActivityFeedSignalTests(AWSMockTestCase):
         self.assertEqual(
             content["recipients"][0]["recipient_user"]["id"],
             self.recipient.author_profile.id,
+        )
+        self.assertEqual(content["peer_review"]["id"], comment.id)
+        self.assertEqual(
+            content["peer_review"]["comment_content_json"],
+            {"ops": [{"insert": "Awarded review"}]},
         )
 
     @patch("feed.signals.funding_activity_signals.transaction")
@@ -171,6 +196,11 @@ class FundingActivityFeedSignalTests(AWSMockTestCase):
         self.assertEqual(Decimal(str(content["total_amount"])), Decimal(20))
         self.assertEqual(content["funder"]["id"], self.funder.author_profile.id)
         self.assertEqual(len(content["recipients"]), 1)
+        self.assertEqual(content["peer_review"]["id"], comment.id)
+        self.assertEqual(
+            content["peer_review"]["comment_content_json"],
+            {"ops": [{"insert": "Review comment"}]},
+        )
 
     def test_create_feed_entry_task_uses_activity_date(self):
         """create_feed_entry uses activity_date for FundingActivity rows."""

@@ -84,7 +84,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
                     "unified_document__posts",
                     queryset=ResearchhubPost.objects.select_related(
                         "created_by__author_profile"
-                    ),
+                    ).prefetch_related("authors"),
                 ),
                 Prefetch(
                     "unified_document__grants",
@@ -96,7 +96,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
                     "unified_document__fundraises",
                     queryset=Fundraise.objects.select_related(
                         "created_by__author_profile"
-                    ),
+                    ).prefetch_related("nonprofit_links__nonprofit"),
                 ),
                 "unified_document__paper__authors",
             )

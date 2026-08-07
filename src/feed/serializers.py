@@ -24,6 +24,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from review.serializers.review_serializer import ReviewSerializer
 from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.models import Author, User
+from user.services.funding_activity_service import FundingActivityService
 
 from .hot_score_utils import calculate_adjusted_score
 from .models import FeedEntry
@@ -655,6 +656,21 @@ class FundingActivityRecipientSerializer(serializers.Serializer):
         return None
 
 
+class FundingActivityPeerReviewSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    comment_content_json = serializers.JSONField()
+    comment_content_type = serializers.CharField()
+    comment_type = serializers.CharField()
+    created_date = serializers.DateTimeField()
+    author = serializers.SerializerMethodField()
+
+    def get_author(self, obj):
+        author_profile = getattr(obj.created_by, "author_profile", None)
+        if author_profile is None:
+            return None
+        return SimpleAuthorSerializer(author_profile).data
+
+
 class FundingActivityContentSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     source_type = serializers.CharField()
@@ -663,6 +679,7 @@ class FundingActivityContentSerializer(serializers.Serializer):
     activity_date = serializers.DateTimeField()
     funder = serializers.SerializerMethodField()
     recipients = serializers.SerializerMethodField()
+    peer_review = serializers.SerializerMethodField()
 
     def get_funder(self, obj):
         if (
@@ -678,6 +695,12 @@ class FundingActivityContentSerializer(serializers.Serializer):
             "recipient_user__author_profile"
         ).all()
         return FundingActivityRecipientSerializer(recipients, many=True).data
+
+    def get_peer_review(self, obj):
+        comment = FundingActivityService.get_peer_review_comment(obj)
+        if comment is None:
+            return None
+        return FundingActivityPeerReviewSerializer(comment).data
 
 
 class CommentSerializer(serializers.Serializer):
@@ -1059,14 +1082,11 @@ class RelatedWorkSerializer(serializers.Serializer):
         return SlimAuthorSerializer(author_profile).data
 
     def get_authors(self, unified_document):
-        if unified_document.document_type != PAPER:
+        content = self._get_content(unified_document)
+        if not content or not hasattr(content, "authors"):
             return None
 
-        paper = getattr(unified_document, "paper", None)
-        if not paper:
-            return None
-
-        authors = paper.authors.all()
+        authors = content.authors.all()
         if not authors:
             return None
 
@@ -1147,14 +1167,49 @@ class RelatedWorkSerializer(serializers.Serializer):
         return cls(context=context or {}).to_representation(unified_document)
 
 
+def _serialize_feed_entry_nonprofit(feed_entry):
+    """Return the nonprofit linked to the entry's fundraise, when present."""
+    unified_document = feed_entry.unified_document
+    if not unified_document or not hasattr(unified_document, "fundraises"):
+        return None
+
+    fundraise = next(iter(unified_document.fundraises.all()), None)
+    if fundraise is None:
+        return None
+
+    link = next(iter(fundraise.nonprofit_links.all()), None)
+    if link is None:
+        return None
+
+    nonprofit = link.nonprofit
+    return {
+        "id": nonprofit.id,
+        "name": nonprofit.name,
+        "ein": nonprofit.ein,
+        "endaoment_org_id": nonprofit.endaoment_org_id,
+        "base_wallet_address": nonprofit.base_wallet_address,
+    }
+
+
 class ActivityFeedEntrySerializer(FeedEntrySerializer):
+    """Activity feed entry.
+
+    ``nonprofit`` is the canonical receiving-organization field for proposal
+    activity. It is populated from the fundraise linked to the entry's unified
+    document and is otherwise null.
+    """
+
     related_work = serializers.SerializerMethodField()
+    nonprofit = serializers.SerializerMethodField()
 
     class Meta(FeedEntrySerializer.Meta):
-        fields = FeedEntrySerializer.Meta.fields + ["related_work"]
+        fields = FeedEntrySerializer.Meta.fields + ["related_work", "nonprofit"]
 
     def get_related_work(self, obj):
         return RelatedWorkSerializer.serialize(obj.unified_document, self.context)
+
+    def get_nonprofit(self, obj):
+        return _serialize_feed_entry_nonprofit(obj)
 
 
 def serialize_feed_metrics(item, item_content_type):
@@ -1233,22 +1288,7 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
         ]
 
     def get_nonprofit(self, obj):
-        if not (obj.unified_document and hasattr(obj.unified_document, "fundraises")):
-            return None
-        fundraises = obj.unified_document.fundraises.all()
-        if not fundraises:
-            return None
-        links = fundraises[0].nonprofit_links.all()
-        if not links:
-            return None
-        np = links[0].nonprofit
-        return {
-            "id": np.id,
-            "name": np.name,
-            "ein": np.ein,
-            "endaoment_org_id": np.endaoment_org_id,
-            "base_wallet_address": np.base_wallet_address,
-        }
+        return _serialize_feed_entry_nonprofit(obj)
 
     def get_is_nonprofit(self, obj):
         return self.get_nonprofit(obj) is not None

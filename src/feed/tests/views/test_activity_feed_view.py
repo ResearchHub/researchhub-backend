@@ -11,6 +11,7 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from feed.models import FeedEntry
+from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import MORALIS
@@ -218,6 +219,53 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
         self.assertEqual(related_work["title"], "Grant Post")
         self.assertEqual(related_work["id"], self.grant_post.id)
         self.assertIn("grant", related_work)
+
+    def test_preregistration_activity_includes_receiving_nonprofit(self):
+        # Arrange
+        nonprofit = NonprofitOrg.objects.create(
+            name="Research Foundation",
+            ein="12-3456789",
+            endaoment_org_id="endaoment-123",
+            base_wallet_address="0x123",
+        )
+        NonprofitFundraiseLink.objects.create(
+            fundraise=self.fundraise,
+            nonprofit=nonprofit,
+        )
+
+        # Act
+        publish_entry = self._get_entry(self.prereg_entry.id)
+        comment_entry = self._get_entry(self.prereg_comment_entry.id)
+
+        # Assert
+        expected = {
+            "id": nonprofit.id,
+            "name": nonprofit.name,
+            "ein": nonprofit.ein,
+            "endaoment_org_id": nonprofit.endaoment_org_id,
+            "base_wallet_address": nonprofit.base_wallet_address,
+        }
+        self.assertEqual(publish_entry["nonprofit"], expected)
+        self.assertEqual(comment_entry["nonprofit"], expected)
+
+    def test_activity_without_receiving_nonprofit_returns_null(self):
+        # Act
+        entry = self._get_entry(self.grant_entry.id)
+
+        # Assert
+        self.assertIsNone(entry["nonprofit"])
+
+    def test_related_work_includes_post_authors(self):
+        # Arrange
+        self.grant_post.authors.add(self.user.author_profile)
+
+        # Act
+        entry = self._get_entry(self.grant_comment_entry.id)
+
+        # Assert
+        authors = entry["related_work"]["authors"]
+        self.assertEqual(len(authors), 1)
+        self.assertEqual(authors[0]["id"], self.user.author_profile.id)
 
 
 class ActivityFeedRelatedWorkPrefetchTests(ActivityFeedRelatedWorkTests):
