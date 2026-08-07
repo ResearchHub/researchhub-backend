@@ -166,6 +166,47 @@ class AgentLivenessSweepTests(TestCase):
         execution.refresh_from_db()
         self.assertEqual(execution.status, AgentExecution.Status.RUNNING)
 
+    def test_a_provider_call_inside_a_tool_handler_keeps_the_run_alive(self):
+        # Arrange: the shape of proposal drafting's submit gate. The handler
+        # judges the draft with provider calls of its own, so between the loop
+        # dispatching the tool and the handler returning, the loop writes
+        # nothing at all -- several provider calls' worth of silence on a run
+        # that is working the whole time.
+        recorder = AgentExecutionService().start(
+            self.conversation, provider="fake", model="fake-model-v1"
+        )
+        stale = timezone.now() - (HEARTBEAT + timedelta(minutes=1))
+        judge = FakeProvider([text_turn("4/5"), text_turn("5/5")])
+        swept = {}
+
+        def _submit(_args):
+            # Age out everything the loop wrote before this call, so only the
+            # judging below can keep the row out of the sweep's reach.
+            AgentExecution.objects.filter(id=recorder.execution.id).update(
+                last_activity_at=stale
+            )
+            for _ in range(2):
+                judge.complete(
+                    system_prompt="score this",
+                    messages=[],
+                    rendered_tools={},
+                    max_tokens=64,
+                    temperature=0.0,
+                )
+            swept["reclaimed"] = self.liveness.reclaim_stalled().total
+            return {"accepted": True}
+
+        tools = [Tool("submit", "submit", {"type": "object"}, _submit)]
+        provider = FakeProvider([tool_turn("c1", "submit", {}), text_turn("done")])
+
+        # Act
+        result = agent(provider, recorder, tools).run("Draft it")
+
+        # Assert: the janitor left it alone, so the run finished instead of
+        # having its next write rejected as no longer owning the execution.
+        self.assertEqual(swept["reclaimed"], 0)
+        self.assertEqual(result.final_text, "done")
+
     def test_a_heartbeat_on_a_terminal_run_reports_false_and_writes_nothing(self):
         # Arrange: cancelled from another process while a caller still holds a
         # recorder for it.

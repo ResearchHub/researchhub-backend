@@ -8,6 +8,14 @@ parses the response back into an ``AssistantTurn``.
 Adapters expose exactly two public methods -- ``render_tools`` and ``complete``.
 ``render_messages`` / ``parse_turn`` are private helpers per adapter.
 
+Liveness invariant (every adapter must preserve it): ``complete`` calls
+``heartbeat.touch()`` before it calls out. A provider call is the only slow step
+in this stack, and its retries happen inside the vendor SDK, so it is both the
+unit of legitimate silence and the finest granularity a run's liveness can be
+reported at. An adapter that skips the touch makes any run whose only remaining
+work is provider calls -- notably one waiting on a tool handler that judges,
+scores, or summarizes -- look abandoned for the whole of that call.
+
 Id-correlation invariant (every adapter must preserve it): the ``id`` of a
 ``ToolUseBlock`` the model emits is echoed back as the ``tool_use_id`` of the
 ``ToolResultBlock`` carrying that call's result. Provider formats key tool

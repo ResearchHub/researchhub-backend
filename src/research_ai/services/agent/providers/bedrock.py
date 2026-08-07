@@ -9,6 +9,7 @@ split into the provider-agnostic ``LLMProvider`` shape.
 import logging
 from typing import Any
 
+from research_ai.services.agent import heartbeat
 from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
@@ -105,6 +106,8 @@ class BedrockProvider(LLMProvider):
         max_tokens: int,
         temperature: float,
     ) -> AssistantTurn:
+        # This call is the run's unit of silence -- report before making it.
+        heartbeat.touch()
         inference_config: dict = {"maxTokens": max_tokens}
         if _accepts_sampling_params(self.model_id):
             inference_config["temperature"] = temperature

@@ -6,21 +6,30 @@ run that is genuinely working touches it at least once per model turn. Nothing
 read it before this module.
 
 Reading it imposes a contract on everything that creates an execution: **a
-healthy ``RUNNING`` row must be touched at least once per model turn, including
-during work that writes no trace rows.** Inside the agent loop this holds for
-free. Around it, it does not: an execution created before a long setup phase
-looks abandoned for the whole of that phase, and a nested agent run -- proposal
-drafting builds a researcher profile that way -- can stack many turns into one
-stretch of silence. Such callers use
-:meth:`DatabaseAgentRecorder.heartbeat`, or
-:class:`NestedRunHeartbeatRecorder` to report once per nested turn.
+healthy ``RUNNING`` row must be touched at least as often as the timeout below
+allows, including during work that writes no trace rows.** The loop's own writes
+do not carry that on their own -- they cover the turns it drives, and the slowest
+things a run does are not always its turns. An execution created before a long
+setup phase, a nested agent run (proposal drafting builds a researcher profile
+that way), a tool handler that calls a provider several times itself (the same
+workflow judges every submitted draft) -- each writes nothing against this row
+for its whole duration.
 
-Holding that contract is what lets the timeout below be sized to a single
-provider call rather than guessed at. Getting it wrong reclaims a working run,
-whose next write then raises ``InterruptedError`` and fails it -- so the timeout
-errs long, and a run that is cancelled or reclaimed also stops before its next
-*tool call* (:meth:`DatabaseAgentRecorder.is_active`) rather than only at its
-next write, which would come after the tool had already taken effect.
+So the contract is not held caller by caller. ``agent.heartbeat`` installs the
+recorder's :meth:`DatabaseAgentRecorder.heartbeat` for the length of a run and
+every provider adapter touches it before calling out, so *any* provider call
+under the run reports through it, wherever in the stack it was made. That makes
+one provider call the unit of silence everywhere, by construction -- which is
+what lets the timeout below be sized rather than guessed at. Work that happens
+before the loop is driving anything is still explicit: the proposal runner calls
+``heartbeat()`` around its setup and passes a
+:class:`NestedRunHeartbeatRecorder` into the profile build.
+
+Getting the size wrong reclaims a working run, whose next write then raises
+``InterruptedError`` and fails it -- so the timeout errs long, and a run that is
+cancelled or reclaimed also stops before its next *tool call*
+(:meth:`DatabaseAgentRecorder.is_active`) rather than only at its next write,
+which would come after the tool had already taken effect.
 
 That matters because a worker can die between claiming an execution and
 recording its terminal status: a deploy, an OOM kill, a lost broker connection.
@@ -53,14 +62,14 @@ from research_ai.models import AgentExecution
 logger = logging.getLogger(__name__)
 
 # Sized to one *provider call*, which is the real unit of silence -- not one
-# model turn, and not one agent run.
+# model turn, not one tool call, and not one agent run.
 #
-# Every caller keeps its heartbeat inside one model turn (the loop writes a row
-# per turn and per tool result; nested agent runs report through
-# ``NestedRunHeartbeatRecorder``). But a single turn is not quick: the Claude
-# adapter allows a 600s call and retries it up to 8 times, and Bedrock is
-# configured the same way, so one legitimate turn can occupy roughly 80 minutes
-# of wall clock without a write. Two hours clears that with margin.
+# Every provider adapter reports the run alive before calling out, so this is
+# the longest a healthy run can go without a write. One call is not quick: the
+# Claude adapter allows 600s and retries up to 8 times, Bedrock is configured
+# the same way, and those retries happen inside the vendor SDK where nothing can
+# report between them. So a single legitimate call can occupy roughly 80 minutes
+# of wall clock. Two hours clears that with margin.
 #
 # The asymmetry is what justifies erring long. Reclaiming a live run fails work
 # a user was waiting on; reclaiming late only delays an automatic cleanup, and

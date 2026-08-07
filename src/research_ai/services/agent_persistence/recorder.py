@@ -475,6 +475,10 @@ class NestedRunHeartbeatRecorder:
     def __init__(self, outer: DatabaseAgentRecorder):
         self.outer = outer
 
+    def heartbeat(self) -> bool:
+        """Report the *outer* run alive; the nested run has no row of its own."""
+        return self.outer.heartbeat()
+
     def record_message(self, message: Message, *, turn: AssistantTurn | None = None):
         self.outer.heartbeat()
 
