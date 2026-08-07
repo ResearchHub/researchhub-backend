@@ -65,11 +65,17 @@ logger = logging.getLogger(__name__)
 # model turn, not one tool call, and not one agent run.
 #
 # Every provider adapter reports the run alive before calling out, so this is
-# the longest a healthy run can go without a write. One call is not quick: the
-# Claude adapter allows 600s and retries up to 8 times, Bedrock is configured
-# the same way, and those retries happen inside the vendor SDK where nothing can
-# report between them. So a single legitimate call can occupy roughly 80 minutes
-# of wall clock. Two hours clears that with margin.
+# the longest a healthy run can go without a write -- and one call is not quick.
+# Both adapters allow a 600s read, and both retry inside the vendor SDK, where
+# nothing can report between attempts: the Claude client's ``max_retries=8`` is
+# 8 retries *after* the first try (9 attempts, ~90 minutes) and botocore's
+# ``max_attempts=8`` is the total (8 attempts, ~80 minutes). So a single
+# legitimate call can occupy an hour and a half. Two hours clears that.
+#
+# That ceiling is set by the SDKs, not by this sweep: reporting per provider call
+# is the finest granularity reachable without owning the retry loop ourselves.
+# Streaming, or hand-rolled retries touching per attempt, would cut the bound to
+# one attempt and let this shrink to minutes.
 #
 # The asymmetry is what justifies erring long. Reclaiming a live run fails work
 # a user was waiting on; reclaiming late only delays an automatic cleanup, and

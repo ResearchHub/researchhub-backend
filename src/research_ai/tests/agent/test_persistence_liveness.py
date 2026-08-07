@@ -134,9 +134,9 @@ class AgentLivenessSweepTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
 
     def test_one_slow_retrying_provider_call_is_not_reclaimed(self):
-        # Arrange: the worst legitimate silence is a single model turn, and one
-        # is not quick -- the providers allow a 600s call retried up to 8 times,
-        # so ~80 minutes can pass between writes with nothing wrong.
+        # Arrange: the worst legitimate silence is a single provider call, and
+        # one is not quick -- a 600s read retried inside the SDK up to 9 attempts
+        # means ~90 minutes can pass between writes with nothing wrong.
         execution = self._execution(
             AgentExecution.Status.RUNNING, age=timedelta(minutes=90)
         )
