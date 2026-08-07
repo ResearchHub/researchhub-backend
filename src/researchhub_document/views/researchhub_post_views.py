@@ -36,7 +36,6 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
     REGISTERED_REPORT,
-    RESEARCHHUB_POST_DOCUMENT_TYPES,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
@@ -478,10 +477,7 @@ class ResearchhubPostViewSet(
                     GrantCacheMixin.invalidate_grant_feed_cache()
 
                 if not TESTING:
-                    if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                        rh_post.discussion_src.save(file_name, full_src_file)
-                    else:
-                        rh_post.eln_src.save(file_name, full_src_file)
+                    rh_post.discussion_src.save(file_name, full_src_file)
 
                 unified_document.update_filters(
                     (

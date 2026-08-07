@@ -15,7 +15,6 @@ from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     DOCUMENT_TYPES,
     REGISTERED_REPORT,
-    RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
 from researchhub_document.related_models.constants.editor_type import (
     CK_EDITOR,
@@ -122,13 +121,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
         default=CK_EDITOR,
         max_length=32,
         help_text="Editor used to compose the post",
-    )
-    eln_src = models.FileField(
-        blank=True,
-        default=None,
-        max_length=512,
-        null=True,
-        upload_to="uploads/post_eln/%Y/%m/%d/",
     )
     image = models.TextField(
         blank=True,
@@ -244,10 +236,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     def get_full_markdown(self):
         try:
-            if self.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                src = self.discussion_src
-            else:
-                src = self.eln_src
+            src = self.discussion_src
             with src.open() as file:
                 return file.read().decode("utf-8")
         except Exception:
