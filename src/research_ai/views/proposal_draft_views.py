@@ -13,6 +13,9 @@ from research_ai.serializers import (
     ProposalDraftCreateSerializer,
     ProposalDraftSerializer,
 )
+from research_ai.services.proposal_draft.cancel_service import (
+    ProposalDraftCancelService,
+)
 from research_ai.tasks import run_proposal_draft_task
 from user.permissions import IsModerator, UserIsEditor
 
@@ -102,3 +105,34 @@ class ProposalDraftDetailView(APIView):
         draft = get_object_or_404(ProposalDraft, id=draft_id)
 
         return Response(ProposalDraftSerializer(draft).data)
+
+
+class ProposalDraftCancelView(APIView):
+    """
+    View for stopping a queued or in-flight proposal draft job.
+
+    Idempotent by design: cancelling a draft that already finished -- or that
+    someone else cancelled a moment earlier -- is a success reporting
+    ``cancelled: false``, so a client that cannot tell whether its first request
+    landed can simply send it again. The draft is returned either way, since the
+    state the caller wanted to change is the state worth reporting back.
+
+    Cancellation is cooperative: this records the decision and returns without
+    waiting for the worker, which stops at its next checkpoint. The draft is
+    terminal from this moment even while a model call is still in flight.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def post(self, request, draft_id):
+        draft = get_object_or_404(ProposalDraft, id=draft_id)
+        cancelled = ProposalDraftCancelService().cancel(
+            draft, cancelled_by=request.user
+        )
+        draft.refresh_from_db()
+
+        return Response({"cancelled": cancelled, **ProposalDraftSerializer(draft).data})
