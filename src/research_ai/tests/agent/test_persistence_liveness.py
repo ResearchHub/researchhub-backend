@@ -12,6 +12,7 @@ from research_ai.services.agent_persistence import (
     AgentConversationBusyError,
     AgentExecutionService,
     AgentLivenessService,
+    DatabaseAgentRecorder,
 )
 from research_ai.services.agent_persistence.liveness_service import (
     NEVER_STARTED_ERROR_TYPE,
@@ -117,6 +118,60 @@ class AgentLivenessSweepTests(TestCase):
         self.assertEqual(reclaimed.total, 0)
         execution.refresh_from_db()
         self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
+
+    def test_a_long_setup_phase_writing_no_rows_is_not_reclaimed(self):
+        # Arrange: the proposal-draft shape. Its execution is created before the
+        # RFP fetch and the profile build -- itself an agent run of up to 16 tool
+        # turns that writes nothing against this execution -- so a healthy run
+        # can sit a long while on its creation-time heartbeat.
+        execution = self._execution(
+            AgentExecution.Status.RUNNING, age=timedelta(minutes=40)
+        )
+
+        # Act
+        reclaimed = AgentLivenessService().reclaim_stalled()
+
+        # Assert: the default timeout has to clear that gap, or the sweep fails
+        # a run that was working.
+        self.assertEqual(reclaimed.total, 0)
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.RUNNING)
+
+    def test_a_heartbeat_protects_a_run_the_sweep_would_have_reclaimed(self):
+        # Arrange: past the timeout, so the next sweep would take it.
+        execution = self._execution(
+            AgentExecution.Status.RUNNING, age=HEARTBEAT + timedelta(minutes=1)
+        )
+        recorder = DatabaseAgentRecorder(execution)
+
+        # Act
+        self.assertTrue(recorder.heartbeat())
+        reclaimed = self.liveness.reclaim_stalled()
+
+        # Assert
+        self.assertEqual(reclaimed.total, 0)
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.RUNNING)
+
+    def test_a_heartbeat_on_a_terminal_run_reports_false_and_writes_nothing(self):
+        # Arrange: cancelled from another process while a caller still holds a
+        # recorder for it.
+        recorder = AgentExecutionService().start(
+            self.conversation, provider="fake", model="fake-model-v1"
+        )
+        AgentLivenessService().cancel(recorder.execution)
+        execution = AgentExecution.objects.get(id=recorder.execution.id)
+        cancelled_at = execution.last_activity_at
+
+        # Act
+        alive = recorder.heartbeat()
+
+        # Assert: no heartbeat can revive a run, and the timestamps its
+        # cancellation left behind are not moved.
+        self.assertFalse(alive)
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+        self.assertEqual(execution.last_activity_at, cancelled_at)
 
     def test_reclaiming_unblocks_a_conversation_a_dead_worker_stranded(self):
         # Arrange: one active execution per conversation is enforced, so the

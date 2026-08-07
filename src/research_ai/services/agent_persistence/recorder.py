@@ -146,6 +146,30 @@ class DatabaseAgentRecorder:
                 last_activity_at=timezone.now(),
             )
 
+    def heartbeat(self) -> bool:
+        """Report that this run is still being driven; ``False`` once terminal.
+
+        Every other write here stamps ``last_activity_at`` as a side effect,
+        which is enough while a run is inside the agent loop -- a model turn or
+        a tool call lands a row. It is not enough for work a caller does *around*
+        the loop: an execution created before a long setup phase looks abandoned
+        to :class:`AgentLivenessService` for as long as that phase runs, however
+        healthy it is. This is the explicit way to say otherwise.
+
+        Scoped to non-terminal rows on purpose. A heartbeat cannot revive a run
+        -- it touches no status -- but writing one onto a cancelled execution
+        would still move the timestamps its cancellation left behind, and the
+        ``False`` return is how a caller learns to stop.
+        """
+        updated = AgentExecution.objects.filter(
+            id=self.execution.id,
+            status__in=[
+                AgentExecution.Status.PENDING,
+                AgentExecution.Status.RUNNING,
+            ],
+        ).update(last_activity_at=timezone.now())
+        return bool(updated)
+
     def _provenance(self, message: Message) -> str:
         if message.role == "assistant":
             return AgentExecutionMessage.Provenance.MODEL

@@ -5,6 +5,17 @@ write -- each context message, each trace row, the terminal transition -- so a
 run that is genuinely working touches it at least once per model turn. Nothing
 read it before this module.
 
+Reading it imposes a contract on everything that creates an execution: **a
+healthy ``RUNNING`` row must be touched more often than the heartbeat timeout,
+including during work that writes no trace rows.** Inside the agent loop this
+holds for free. Around it, it does not: an execution created before a long setup
+phase looks abandoned for the whole of that phase. A caller doing such work
+either keeps it under the timeout or calls
+:meth:`DatabaseAgentRecorder.heartbeat` -- which exists for exactly this -- and
+the timeout below is sized for the longest such gap in the codebase rather than
+for one model turn. Getting this wrong reclaims a working run, whose next write
+then raises ``InterruptedError`` and fails it, so the timeout errs long.
+
 That matters because a worker can die between claiming an execution and
 recording its terminal status: a deploy, an OOM kill, a lost broker connection.
 The row stays ``RUNNING``, and since a linear conversation permits only one
@@ -35,11 +46,15 @@ from research_ai.models import AgentExecution
 
 logger = logging.getLogger(__name__)
 
-# A single model turn can legitimately go minutes without a durable write: a
-# large note in context, a slow provider, a full-text fetch. These ceilings sit
-# well past any healthy gap so the sweep only ever catches a run nobody is
-# driving.
-DEFAULT_HEARTBEAT_TIMEOUT = timedelta(minutes=15)
+# Sized to the longest gap a *healthy* run can leave, which is not one model
+# turn. Inside the agent loop every turn and tool result lands a row, so the gap
+# is minutes at most. Around the loop it is bounded only by whatever a caller
+# does between creating the execution and driving it: proposal drafting builds a
+# researcher profile there, itself an agent run of up to 16 tool turns writing
+# no rows against this execution. One hour leaves that ample room. Being
+# generous costs only how long a genuinely stuck conversation waits to recover,
+# which beats reclaiming a run that was working.
+DEFAULT_HEARTBEAT_TIMEOUT = timedelta(minutes=60)
 DEFAULT_QUEUE_TIMEOUT = timedelta(minutes=30)
 
 _HEARTBEAT_TIMEOUT_SETTING = "RESEARCH_AI_AGENT_HEARTBEAT_TIMEOUT_SECONDS"
