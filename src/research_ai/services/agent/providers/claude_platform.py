@@ -27,7 +27,6 @@ from typing import Any
 from anthropic import AnthropicAWS
 from django.conf import settings
 
-from research_ai.services.agent import heartbeat
 from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
@@ -339,8 +338,6 @@ class ClaudePlatformProvider(LLMProvider):
         max_tokens: int,
         temperature: float,
     ) -> AssistantTurn:
-        # This call is the run's unit of silence -- report before making it.
-        heartbeat.touch()
         if self._client is None:
             raise ProviderError(
                 "Claude Platform on AWS is not configured "

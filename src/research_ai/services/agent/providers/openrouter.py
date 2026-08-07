@@ -15,7 +15,6 @@ from typing import Any
 from django.conf import settings
 from openai import OpenAI
 
-from research_ai.services.agent import heartbeat
 from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
@@ -137,8 +136,6 @@ class OpenRouterProvider(LLMProvider):
         max_tokens: int,
         temperature: float,
     ) -> AssistantTurn:
-        # This call is the run's unit of silence -- report before making it.
-        heartbeat.touch()
         if self._client is None:
             raise ProviderError(
                 "OPENROUTER_API_KEY is not configured; cannot call OpenRouter."

@@ -194,15 +194,6 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PAPER_MISC,
         },
     },
-    # Research AI agent liveness
-    "research_ai_reclaim-stalled-agent-executions": {
-        "task": "research_ai.tasks.reclaim_stalled_agent_executions_task",
-        "schedule": crontab(minute="*/5"),
-        "options": {
-            "priority": 5,
-            "queue": QUEUE_AGENTS,
-        },
-    },
     # Paper ingestion tasks
     "paper-fetch-all": {
         "task": "paper.ingestion.pipeline.fetch_all_papers",

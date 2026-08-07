@@ -3,7 +3,6 @@
 from django.test import TestCase
 
 from research_ai.models import AgentConversation
-from research_ai.services.agent import heartbeat
 from research_ai.services.agent.loop import Agent
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Toolset
@@ -28,9 +27,6 @@ class FakeProvider(LLMProvider):
         return [tool.name for tool in tools]
 
     def complete(self, **kwargs):
-        # Stands in for the adapter liveness contract (see providers.base): a
-        # provider call reports the run alive before it goes to work.
-        heartbeat.touch()
         self.calls.append(list(kwargs["messages"]))
         turn = self.turns.pop(0)
         if isinstance(turn, BaseException):

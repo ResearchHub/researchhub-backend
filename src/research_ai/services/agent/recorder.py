@@ -45,17 +45,6 @@ class AgentRecorder(Protocol):
         """The run failed; every message up to the failure was recorded."""
         ...
 
-    def heartbeat(self) -> object:
-        """Report that this run is still alive, independent of any message.
-
-        Optional. Recorders whose runs can be reclaimed as abandoned implement
-        this; the loop installs it for the whole run (see ``agent.heartbeat``) so
-        every provider call underneath reports through it, including calls made
-        by a tool handler rather than by the loop. A recorder without it is
-        simply never asked.
-        """
-        ...
-
     def is_active(self) -> bool:
         """Whether this run still owns the work it is recording.
 

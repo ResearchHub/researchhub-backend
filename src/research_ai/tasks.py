@@ -6,7 +6,6 @@ from django.utils import timezone
 
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft
-from research_ai.services.agent_persistence import AgentLivenessService
 from research_ai.services.expert_finder import finder as expert_finder_mod
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
@@ -250,21 +249,6 @@ def run_notebook_chat_turn_task(execution_id: int):
             extra={"execution_id": execution_id, "error": result["error"]},
         )
     return result
-
-
-@app.task(queue=QUEUE_AGENTS)
-def reclaim_stalled_agent_executions_task():
-    """
-    Periodic sweep that unsticks agent executions no worker is driving.
-
-    A conversation permits one active execution, so a row abandoned mid-flight
-    blocks every later turn on it until this runs.
-    """
-    reclaimed = AgentLivenessService().reclaim_stalled()
-    return {
-        "stalled": reclaimed.stalled,
-        "never_started": reclaimed.never_started,
-    }
 
 
 @app.task(queue=QUEUE_AGENTS)

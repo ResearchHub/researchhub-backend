@@ -18,16 +18,9 @@ def build_expert_profile(
     *,
     provider: LLMProvider | None = None,
     oa_client: OpenAlex | None = None,
-    recorder=None,
 ) -> dict:
-    """Build the source-attributed researcher profile for an ``Expert`` (no write).
-
-    ``recorder`` only observes: pass one when this build runs inside another
-    agent's execution, so that execution keeps reporting itself alive.
-    """
-    return run_profile_agent(
-        expert, provider=provider, oa_client=oa_client, recorder=recorder
-    )
+    """Build the source-attributed researcher profile for an ``Expert`` (no write)."""
+    return run_profile_agent(expert, provider=provider, oa_client=oa_client)
 
 
 def build_and_store_expert_profile(expert, **kwargs) -> dict:

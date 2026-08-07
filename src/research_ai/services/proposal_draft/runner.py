@@ -62,7 +62,6 @@ from research_ai.services.agent import (
 from research_ai.services.agent_persistence import (
     AgentConversationService,
     AgentExecutionService,
-    NestedRunHeartbeatRecorder,
     NoteAgentConversationService,
 )
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
@@ -194,11 +193,6 @@ class _ProposalDraftRunner:
             self._record_setup_failure(AgentRunError(message, iterations=0))
             return self._fail(message)
 
-        # Keeps the trace execution alive across the RFP fetch. The profile
-        # build that follows is a whole agent run writing nothing here, and no
-        # boundary heartbeat can shorten it -- the liveness timeout is sized to
-        # cover it. On the far side, ``_build_agent`` stamps the row again.
-        self._heartbeat()
         self._ensure_profile()
 
         system_prompt = build_proposal_system_prompt(
@@ -283,20 +277,6 @@ class _ProposalDraftRunner:
             logger.warning("could not initialize proposal agent trace", exc_info=True)
             self.agent_recorder = None
 
-    def _heartbeat(self) -> None:
-        """Mark the trace execution alive during setup that writes no rows.
-
-        The execution is created before any of the drafting work, so without
-        this the liveness sweep sees nothing but its creation timestamp for the
-        whole setup phase and can reclaim a run that is working.
-        """
-        if self.agent_recorder is None:
-            return
-        try:
-            self.agent_recorder.heartbeat()
-        except Exception:  # noqa: BLE001 - observability cannot break drafting
-            logger.warning("could not record proposal agent heartbeat", exc_info=True)
-
     def _record_setup_failure(self, error: Exception) -> None:
         if self.agent_recorder is None or self.agent_recorder.terminal_observed:
             return
@@ -315,14 +295,6 @@ class _ProposalDraftRunner:
                 self.expert,
                 provider=self.provider,
                 oa_client=self.oa_client,
-                # The profile build is its own agent run and writes nothing to
-                # this execution, so without a heartbeat per nested turn its
-                # whole duration reads as silence to the liveness sweep.
-                recorder=(
-                    NestedRunHeartbeatRecorder(self.agent_recorder)
-                    if self.agent_recorder is not None
-                    else None
-                ),
             )
         except Exception:  # noqa: BLE001 - profile build is best-effort
             logger.exception("proposal draft: profile build failed")

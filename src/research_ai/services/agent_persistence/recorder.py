@@ -146,30 +146,6 @@ class DatabaseAgentRecorder:
                 last_activity_at=timezone.now(),
             )
 
-    def heartbeat(self) -> bool:
-        """Report that this run is still being driven; ``False`` once terminal.
-
-        Every other write here stamps ``last_activity_at`` as a side effect,
-        which is enough while a run is inside the agent loop -- a model turn or
-        a tool call lands a row. It is not enough for work a caller does *around*
-        the loop: an execution created before a long setup phase looks abandoned
-        to :class:`AgentLivenessService` for as long as that phase runs, however
-        healthy it is. This is the explicit way to say otherwise.
-
-        Scoped to non-terminal rows on purpose. A heartbeat cannot revive a run
-        -- it touches no status -- but writing one onto a cancelled execution
-        would still move the timestamps its cancellation left behind, and the
-        ``False`` return is how a caller learns to stop.
-        """
-        updated = AgentExecution.objects.filter(
-            id=self.execution.id,
-            status__in=[
-                AgentExecution.Status.PENDING,
-                AgentExecution.Status.RUNNING,
-            ],
-        ).update(last_activity_at=timezone.now())
-        return bool(updated)
-
     def is_active(self) -> bool:
         """Whether this execution is still ours to advance.
 
@@ -449,43 +425,3 @@ class DatabaseAgentRecorder:
                 conversation.next_chat_sequence += 1
                 conversation.save(update_fields=["next_chat_sequence", "updated_date"])
             return created
-
-
-class NestedRunHeartbeatRecorder:
-    """Keeps an outer execution's heartbeat fresh while a nested agent runs.
-
-    Some work happens between creating an execution and driving it, and is
-    itself a whole agent run: proposal drafting builds a researcher profile that
-    way, up to 16 tool turns writing nothing against the proposal's own row.
-    ``AgentLivenessService`` reads that row's heartbeat to decide whether anyone
-    is still driving it, so without this the nested run's entire duration counts
-    as silence and a healthy draft can be reclaimed.
-
-    Passed as the *nested* agent's recorder, it persists nothing of that run --
-    the nested run has its own outputs and is not part of the outer trace. It
-    only reports, once per nested turn, that the outer run is still alive. That
-    is what keeps the liveness timeout bounded by one model turn rather than by
-    a whole nested agent.
-    """
-
-    # The nested run's messages are not durable state, so a failed heartbeat
-    # must never break the run it is only observing.
-    requires_durable_messages = False
-
-    def __init__(self, outer: DatabaseAgentRecorder):
-        self.outer = outer
-
-    def heartbeat(self) -> bool:
-        """Report the *outer* run alive; the nested run has no row of its own."""
-        return self.outer.heartbeat()
-
-    def record_message(self, message: Message, *, turn: AssistantTurn | None = None):
-        self.outer.heartbeat()
-
-    def on_run_finished(self, result) -> None:
-        self.outer.heartbeat()
-
-    def on_run_failed(self, error: Exception) -> None:
-        # Deliberately not a failure signal for the outer run: the nested build
-        # is best-effort and the outer run continues without it.
-        self.outer.heartbeat()

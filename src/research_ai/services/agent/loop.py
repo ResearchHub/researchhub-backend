@@ -13,7 +13,6 @@ multi-turn chat needs.
 import logging
 from dataclasses import dataclass
 
-from research_ai.services.agent import heartbeat
 from research_ai.services.agent.errors import (
     AgentRunError,
     IncompleteTurnError,
@@ -307,20 +306,16 @@ class Agent:
         return result_blocks, stop
 
     def _drive(self, messages: list[Message], *, new_message: Message) -> AgentResult:
-        # Every provider call made anywhere under this run reports the recorder
-        # alive, including calls a tool handler makes itself -- the loop's own
-        # writes only cover the turns it drives. See ``agent.heartbeat``.
-        with heartbeat.reporting_to(getattr(self.recorder, "heartbeat", None)):
-            try:
-                self._record_message(new_message)
-                result = self._loop(messages)
-            except Exception as error:
-                # Every message up to the failure was already recorded as it was
-                # appended; this only marks the terminal outcome.
-                self._record_terminal("on_run_failed", error)
-                raise
-            self._record_terminal("on_run_finished", result)
-            return result
+        try:
+            self._record_message(new_message)
+            result = self._loop(messages)
+        except Exception as error:
+            # Every message up to the failure was already recorded as it was
+            # appended; this only marks the terminal outcome.
+            self._record_terminal("on_run_failed", error)
+            raise
+        self._record_terminal("on_run_finished", result)
+        return result
 
     def _loop(self, messages: list[Message]) -> AgentResult:
         rendered_tools = self.toolset.render_specs(self.provider)
