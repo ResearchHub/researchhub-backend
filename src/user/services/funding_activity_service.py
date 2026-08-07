@@ -12,7 +12,7 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
-from reputation.models import Bounty, Distribution
+from reputation.models import Bounty, BountySolution, Distribution
 from reputation.related_models.escrow import Escrow, EscrowRecipients
 from researchhub_comment.constants.rh_comment_thread_types import (
     COMMUNITY_REVIEW,
@@ -161,6 +161,54 @@ class FundingActivityService:
     # -------------------------------------------------------------------------
     # Query methods
     # -------------------------------------------------------------------------
+
+    @classmethod
+    def get_peer_review_comment(
+        cls, activity: FundingActivity
+    ) -> RhCommentModel | None:
+        """Resolve the review comment represented by a review funding activity."""
+        if activity.source_type == FundingActivity.TIP_REVIEW:
+            distribution = activity.source
+            proof_purchase = getattr(distribution, "proof_item", None)
+            comment = getattr(proof_purchase, "item", None)
+            if isinstance(comment, RhCommentModel) and comment.comment_type in (
+                PEER_REVIEW,
+                COMMUNITY_REVIEW,
+            ):
+                return comment
+            return None
+
+        if activity.source_type != FundingActivity.BOUNTY_PAYOUT:
+            return None
+
+        escrow_recipient = activity.source
+        escrow = getattr(escrow_recipient, "escrow", None)
+        if escrow is None:
+            return None
+
+        bounty = escrow.bounties.filter(bounty_type=Bounty.Type.REVIEW).first()
+        if bounty is None:
+            return None
+
+        comment_content_type = cls._get_content_type(RhCommentModel)
+        solution = (
+            BountySolution.objects.filter(
+                bounty=bounty,
+                status=BountySolution.Status.AWARDED,
+                created_by_id=escrow_recipient.user_id,
+                awarded_amount=escrow_recipient.amount,
+                content_type=comment_content_type,
+            )
+            .order_by("-updated_date")
+            .first()
+        )
+        comment = solution.item if solution else None
+        if isinstance(comment, RhCommentModel) and comment.comment_type in (
+            PEER_REVIEW,
+            COMMUNITY_REVIEW,
+        ):
+            return comment
+        return None
 
     @classmethod
     def get_fundraise_payouts(cls, start_date=None, end_date=None):

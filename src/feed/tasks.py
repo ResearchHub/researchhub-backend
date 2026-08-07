@@ -75,7 +75,9 @@ def create_feed_entry(
     metrics = serialize_feed_metrics(item, item_content_type)
 
     action_date = item.created_date
-    if (
+    if item_content_type.model == "fundingactivity":
+        action_date = item.activity_date
+    elif (
         action == FeedEntry.PUBLISH
         and item_content_type.model == "paper"
         and item.paper_publish_date
@@ -238,6 +240,8 @@ def _get_unified_document(
                 doc = None
         case "usdfundraisecontribution":
             doc = item.fundraise.unified_document
+        case "fundingactivity":
+            doc = item.unified_document
         case _:
             doc = None
 
@@ -275,6 +279,14 @@ def _get_authors_for_item(item: Any, item_content_type: ContentType) -> list[Aut
                 and item.user.author_profile
             ):
                 authors = [item.user.author_profile]
+        case "fundingactivity":
+            if (
+                hasattr(item, "funder")
+                and item.funder
+                and hasattr(item.funder, "author_profile")
+                and item.funder.author_profile
+            ):
+                authors = [item.funder.author_profile]
 
     return authors
 

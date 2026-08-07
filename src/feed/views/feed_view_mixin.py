@@ -105,13 +105,17 @@ class FeedViewMixin:
 
         # Collect IDs for each content type
         for item in response_data["results"]:
+            content_object = item.get("content_object")
+            if not content_object:
+                continue
+
             content_type_str = item.get("content_type")
             if content_type_str == paper_type_str:
-                paper_ids.append(int(item["content_object"]["id"]))
+                paper_ids.append(int(content_object["id"]))
             elif content_type_str == post_type_str:
-                post_ids.append(int(item["content_object"]["id"]))
+                post_ids.append(int(content_object["id"]))
             elif content_type_str == comment_type_str:
-                comment_ids.append(int(item["content_object"]["id"]))
+                comment_ids.append(int(content_object["id"]))
 
         # Process paper votes
         if paper_ids:
@@ -126,10 +130,14 @@ class FeedViewMixin:
                 paper_votes_map[int(vote.object_id)] = VoteSerializer(vote).data
 
             for item in response_data["results"]:
-                if item.get("content_type") == paper_type_str:
-                    paper_id = int(item["content_object"]["id"])
-                    if paper_id in paper_votes_map:
-                        item["user_vote"] = paper_votes_map[paper_id]
+                if item.get("content_type") != paper_type_str:
+                    continue
+                content_object = item.get("content_object")
+                if not content_object:
+                    continue
+                paper_id = int(content_object["id"])
+                if paper_id in paper_votes_map:
+                    item["user_vote"] = paper_votes_map[paper_id]
 
         # Process post votes
         if post_ids:
@@ -144,10 +152,14 @@ class FeedViewMixin:
                 post_votes_map[int(vote.object_id)] = VoteSerializer(vote).data
 
             for item in response_data["results"]:
-                if item.get("content_type") == post_type_str:
-                    post_id = int(item["content_object"]["id"])
-                    if post_id in post_votes_map:
-                        item["user_vote"] = post_votes_map[post_id]
+                if item.get("content_type") != post_type_str:
+                    continue
+                content_object = item.get("content_object")
+                if not content_object:
+                    continue
+                post_id = int(content_object["id"])
+                if post_id in post_votes_map:
+                    item["user_vote"] = post_votes_map[post_id]
 
         # Process comment votes
         if comment_ids:
@@ -162,10 +174,14 @@ class FeedViewMixin:
                 comment_votes_map[int(vote.object_id)] = VoteSerializer(vote).data
 
             for item in response_data["results"]:
-                if item.get("content_type") == comment_type_str:
-                    comment_id = int(item["content_object"]["id"])
-                    if comment_id in comment_votes_map:
-                        item["user_vote"] = comment_votes_map[comment_id]
+                if item.get("content_type") != comment_type_str:
+                    continue
+                content_object = item.get("content_object")
+                if not content_object:
+                    continue
+                comment_id = int(content_object["id"])
+                if comment_id in comment_votes_map:
+                    item["user_vote"] = comment_votes_map[comment_id]
 
     def get_common_serializer_context(self):
         """
