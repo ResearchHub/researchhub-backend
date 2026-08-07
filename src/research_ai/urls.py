@@ -21,6 +21,7 @@ from research_ai.views.expert_finder_views import (
     InvitedExpertOverviewView,
 )
 from research_ai.views.notebook_chat_views import (
+    NotebookChatCancelView,
     NotebookChatMessageView,
     NotebookChatView,
 )
@@ -109,5 +110,9 @@ urlpatterns = [
     path(
         "notebook/notes/<int:note_id>/chat/messages/",
         NotebookChatMessageView.as_view(),
+    ),
+    path(
+        "notebook/notes/<int:note_id>/chat/cancel/",
+        NotebookChatCancelView.as_view(),
     ),
 ]
