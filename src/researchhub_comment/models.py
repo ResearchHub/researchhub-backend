@@ -6,6 +6,6 @@ from .related_models.rh_comment_thread_model import (
 
 __all__ = [
     "RhCommentModel",
-    "RhCommentThreadModel",
     "RhCommentThreadManager",
+    "RhCommentThreadModel",
 ]

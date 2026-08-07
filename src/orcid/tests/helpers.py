@@ -14,7 +14,7 @@ class OrcidTestHelper:
 
     @staticmethod
     def create_author(
-        name: str = "u", orcid_id: str = None, orcid_connected: bool = True
+        name: str = "u", orcid_id: str | None = None, orcid_connected: bool = True
     ):
         """Create a user with ORCID connected to their author profile."""
         orcid_url = orcid_id or OrcidTestHelper.ORCID_URL
@@ -67,8 +67,8 @@ class OrcidTestHelper:
     @staticmethod
     def make_openalex_work(
         doi: str,
-        orcid_url: str = None,
-        openalex_author_id: str = None,
+        orcid_url: str | None = None,
+        openalex_author_id: str | None = None,
         position: str = "first",
     ) -> dict:
         """Build an OpenAlex work response."""

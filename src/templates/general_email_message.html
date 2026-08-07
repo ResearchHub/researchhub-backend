@@ -33,7 +33,9 @@
       </div>
     </div>
     <div class="footer">
-      <a href="{{opt_out}}">Unsubscribe or change how frequently I get updated</a>
+      {% if opt_out %}
+      <a href="{{opt_out}}">Unsubscribe</a>
+      {% endif %}
     </div>
 </body>
 

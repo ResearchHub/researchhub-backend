@@ -149,7 +149,7 @@ def sync_interaction_event_to_personalize_task(interaction_id):
     except Exception as e:
         logger.error(
             f"Exception syncing event to Personalize: "
-            f"interaction_id={interaction_id}, error={str(e)}",
+            f"interaction_id={interaction_id}, error={e!s}",
         )
         raise
 

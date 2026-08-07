@@ -374,14 +374,14 @@ class BusinessInsightMetricTests(TestCase):
             expert_email="expert@example.com",
             template="collaboration",
             status=GeneratedEmail.Status.SENT,
-            channel=GeneratedEmail.Channel.EMAIL,
+            channels=[GeneratedEmail.Channel.EMAIL],
         )
         GeneratedEmail.objects.create(
             created_by=self.user,
             expert_email="linkedin-expert@example.com",
             template="collaboration",
             status=GeneratedEmail.Status.SENT,
-            channel=GeneratedEmail.Channel.LINKEDIN,
+            channels=[GeneratedEmail.Channel.LINKEDIN],
         )
         invited_user = User.objects.create_user(
             username="invited-expert",
@@ -404,7 +404,6 @@ class BusinessInsightMetricTests(TestCase):
                     "email": 1,
                     "linkedin": 1,
                     "x": 0,
-                    "other": 0,
                 },
             },
         )

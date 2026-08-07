@@ -9,6 +9,7 @@ from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft
 from research_ai.services.expert_finder import finder as expert_finder_mod
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
+from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.services.outreach.email_generator import generate_expert_email
 from research_ai.services.outreach.email_sender import send_plain_email
 from research_ai.services.outreach.invited_experts import (
@@ -236,6 +237,21 @@ def run_expert_finder_search(
 
 
 @app.task(queue=QUEUE_AGENTS)
+def run_notebook_chat_turn_task(execution_id: int):
+    """
+    Background task to run one prepared notebook chat turn.
+    """
+    logger.info("Starting notebook chat turn", extra={"execution_id": execution_id})
+    result = NotebookChatService().run_turn(execution_id)
+    if result.get("error"):
+        logger.warning(
+            "Notebook chat turn ended with an error",
+            extra={"execution_id": execution_id, "error": result["error"]},
+        )
+    return result
+
+
+@app.task(queue=QUEUE_AGENTS)
 def run_proposal_draft_task(draft_id: int):
     """
     Background task to run one headless proposal-drafting job.
@@ -342,7 +358,7 @@ def _resolved_expert_dict_for_bulk(rec: GeneratedEmail) -> dict:
         "affiliation": rec.expert_affiliation or "",
         "expertise": rec.expertise or "",
         "email": (rec.expert_email or "").strip(),
-        "notes": rec.notes or "",
+        "notes": "",
     }
 
 
@@ -505,7 +521,7 @@ def send_queued_emails_task(
             )
             GeneratedEmail.objects.filter(id=rec.id).update(
                 status=GeneratedEmail.Status.SENT,
-                channel=GeneratedEmail.Channel.EMAIL,
+                channels=[GeneratedEmail.Channel.EMAIL],
                 ses_message_id=ses_message_id or "",
                 updated_date=timezone.now(),
             )

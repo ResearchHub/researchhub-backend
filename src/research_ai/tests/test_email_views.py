@@ -842,7 +842,7 @@ class GeneratedEmailDetailViewTests(APITestCase):
             {
                 "email_body": "Updated body",
                 "status": "sent",
-                "channel": "linkedin",
+                "channels": ["linkedin"],
             },
             format="json",
         )
@@ -850,10 +850,64 @@ class GeneratedEmailDetailViewTests(APITestCase):
         email.refresh_from_db()
         self.assertEqual(email.email_body, "Updated body")
         self.assertEqual(email.status, "sent")
-        self.assertEqual(email.channel, "linkedin")
-        self.assertEqual(response.json()["channel"], "linkedin")
+        self.assertEqual(email.channels, ["linkedin"])
+        self.assertEqual(response.json()["channels"], ["linkedin"])
         expert.refresh_from_db()
         self.assertIsNotNone(expert.last_email_sent_at)
+
+    def test_patch_can_mark_outreach_sent_via_multiple_channels(self):
+        # Arrange
+        email = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_email="multichannel@uni.edu",
+            expert_name="Dr. Multi",
+            email_subject="Subj",
+            email_body="Body",
+        )
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.patch(
+            f"/api/research_ai/expert-finder/emails/{email.id}/",
+            {
+                "status": "sent",
+                "channels": ["email", "linkedin"],
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        email.refresh_from_db()
+        self.assertEqual(email.status, "sent")
+        self.assertEqual(email.channels, ["email", "linkedin"])
+        self.assertEqual(response.json()["channels"], ["email", "linkedin"])
+
+    def test_patch_replaces_outreach_channels_with_full_list(self):
+        # Arrange: already sent via email; later also mark LinkedIn
+        email = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_email="channels@uni.edu",
+            expert_name="Dr. Channels",
+            email_subject="Subj",
+            email_body="Body",
+            status=GeneratedEmail.Status.SENT,
+            channels=["email"],
+        )
+        self.client.force_authenticate(self.moderator)
+
+        # Act: client sends the full desired list (replace, not append)
+        response = self.client.patch(
+            f"/api/research_ai/expert-finder/emails/{email.id}/",
+            {"channels": ["email", "linkedin"]},
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        email.refresh_from_db()
+        self.assertEqual(email.channels, ["email", "linkedin"])
+        self.assertEqual(response.json()["channels"], ["email", "linkedin"])
 
     def test_patch_can_set_status_closed(self):
         email = self._create_email()
@@ -1286,6 +1340,6 @@ class SendEmailViewTests(APITestCase):
         self.assertEqual(result["failed"], 0)
         email_rec.refresh_from_db()
         self.assertEqual(email_rec.status, "sent")
-        self.assertEqual(email_rec.channel, GeneratedEmail.Channel.EMAIL)
+        self.assertEqual(email_rec.channels, [GeneratedEmail.Channel.EMAIL])
         self.assertEqual(email_rec.ses_message_id, "ses-msg-id-123")
         mock_send.assert_called_once()

@@ -55,8 +55,8 @@ class HubDocument(BaseDocument):
         self,
         filter_: Q | None = None,
         exclude: Q | None = None,
-        count: int = None,
-        alias: str = None,
+        count: int | None = None,
+        alias: str | None = None,
     ) -> QuerySet:
         qs = (
             super()

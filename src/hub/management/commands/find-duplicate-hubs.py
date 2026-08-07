@@ -437,7 +437,7 @@ class Command(BaseCommand):
                 )
             except Exception as e:
                 self.stdout.write(
-                    self.style.ERROR(f"Error writing to {output_file}: {str(e)}")
+                    self.style.ERROR(f"Error writing to {output_file}: {e!s}")
                 )
 
     def _get_timestamp(self):
@@ -537,7 +537,7 @@ class Command(BaseCommand):
                 self.stdout.write(
                     self.style.ERROR(
                         f"\n✗ ERROR consolidating hub {dup_hub.id} "
-                        f"({dup_hub.slug}): {str(e)}"
+                        f"({dup_hub.slug}): {e!s}"
                     )
                 )
                 if not dry_run:

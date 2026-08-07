@@ -20,9 +20,13 @@ class EmailSubscriptionService:
     def __init__(
         self,
         frontend_url: str | None = None,
+        list_unsubscribe_url: str | None = None,
     ):
         self._frontend_url = frontend_url or (
             f"{settings.BASE_FRONTEND_URL.rstrip('/')}/email/unsubscribe/"
+        )
+        self._list_unsubscribe_url = list_unsubscribe_url or (
+            f"{settings.BASE_FRONTEND_URL.rstrip('/')}/api/email/unsubscribe"
         )
 
     def _generate_unsubscribe_code(self, email: str) -> str:
@@ -38,9 +42,27 @@ class EmailSubscriptionService:
     def generate_unsubscribe_url(self, email: str) -> str:
         """
         Return the frontend unsubscribe URL for the given email address.
+
+        This is the human-facing link for the email body, where the recipient
+        lands on a page and confirms.
+        """
+        return self._with_code(self._frontend_url, email)
+
+    def generate_list_unsubscribe_url(self, email: str) -> str:
+        """
+        Return the `List-Unsubscribe` header URL for the given email address.
+
+        This is the RFC 8058 one-click unsubscribe link that is included in the email
+        header `List-Unsubscribe` and used by the mail provider.
+        """
+        return self._with_code(self._list_unsubscribe_url, email)
+
+    def _with_code(self, base_url: str, email: str) -> str:
+        """
+        Return `base_url` with a signed code for `email` in the query string.
         """
         code = self._generate_unsubscribe_code(email)
-        parts = urlsplit(self._frontend_url)
+        parts = urlsplit(base_url)
         query = [
             (key, value)
             for key, value in parse_qsl(parts.query, keep_blank_values=True)

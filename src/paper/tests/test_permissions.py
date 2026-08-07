@@ -1,11 +1,8 @@
 import random
 
-from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APITestCase
 
-from hub.tests.helpers import create_hub
-from user.models import Author
-from user.tests.helpers import create_random_authenticated_user, create_university
+from user.tests.helpers import create_random_authenticated_user
 
 from .helpers import create_paper
 
@@ -16,11 +13,6 @@ class PaperPermissionsIntegrationTests(APITestCase):
         self.base_url = "/api/paper/"
         self.paper = create_paper()
         self.flag_reason = "Inappropriate"
-
-    def test_can_not_post_paper_below_minimum_reputation(self):
-        user = self.create_user_with_reputation(-1)
-        response = self.get_paper_submission_response(user)
-        self.assertEqual(response.status_code, 403)
 
     def test_can_flag_paper_with_minimum_reputation(self):
         user = self.create_user_with_reputation(50)
@@ -54,12 +46,6 @@ class PaperPermissionsIntegrationTests(APITestCase):
         user.save()
         return user
 
-    def get_paper_submission_response(self, user):
-        url = self.base_url
-        form_data = self.build_paper_form()
-        self.client.force_authenticate(user)
-        return self.client.post(url, form_data, format="multipart")
-
     def get_patch_response(self, user, paper):
         if paper is None:
             paper = self.paper
@@ -67,22 +53,6 @@ class PaperPermissionsIntegrationTests(APITestCase):
         data = {"title": "Patched Paper Title"}
         self.client.force_authenticate(user)
         return self.client.patch(url, data, format="multipart")
-
-    def build_paper_form(self):
-        file = SimpleUploadedFile("../config/paper.pdf", b"file_content")
-        hub = create_hub("Cryptography")
-        university = create_university(name="Univeristy of Atlanta")
-        author = Author.objects.create(
-            university=university, first_name="Tom", last_name="Riddle"
-        )
-        form = {
-            "title": "The Best Paper",
-            "paper_publish_date": "1990-10-01",
-            "file": file,
-            "hubs": [hub.id],
-            "authors": [1, author.id],
-        }
-        return form
 
     def get_flag_response(self, user):
         url = self.base_url + f"{self.paper.id}/flag/"

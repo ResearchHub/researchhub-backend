@@ -110,7 +110,7 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
             serializer = DynamicPostSerializer
 
         if not serializer:
-            raise Exception(f"No content object serializer for {str(content_object)}")
+            raise Exception(f"No content object serializer for {content_object!s}")
 
         # Full serialization for shallow depths
         new_context = increment_depth(context)

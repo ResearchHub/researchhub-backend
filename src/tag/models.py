@@ -54,7 +54,7 @@ class Concept(DefaultModel):
 
     @classmethod
     def create_or_update(cls, paper_concept):
-        stored_concept, created = cls.objects.get_or_create(
+        stored_concept, _ = cls.objects.get_or_create(
             openalex_id=paper_concept["openalex_id"],
             defaults={
                 "display_name": paper_concept.get("display_name", ""),

@@ -114,8 +114,9 @@
       {% endif %}
     </div>
     <div class="footer">
-      <a class="footer-link" href="{{opt_out}}">Unsubscribe from this list</a>
-      <a class="footer-link" href="{{update_subscription}}">Update subscription preferences</a>
+      {% if opt_out %}
+      <a class="footer-link" href="{{opt_out}}">Unsubscribe</a>
+      {% endif %}
     </div>
     <div style="display: none">{% now "U" %}</div>
   </body>

@@ -251,11 +251,11 @@ class ResearchhubPost(AbstractGenericReactionModel):
     def get_full_markdown(self):
         try:
             if self.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                byte_string = self.discussion_src.read()
+                src = self.discussion_src
             else:
-                byte_string = self.eln_src.read()
-            full_markdown = byte_string.decode("utf-8")
-            return full_markdown
+                src = self.eln_src
+            with src.open() as file:
+                return file.read().decode("utf-8")
         except Exception:
             logger.exception("Error getting full markdown for document %s", self.id)
             return None

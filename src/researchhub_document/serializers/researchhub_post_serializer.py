@@ -263,16 +263,7 @@ class ResearchhubPostSerializer(
         return serializer.data
 
     def get_full_markdown(self, instance):
-        try:
-            if instance.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                byte_string = instance.discussion_src.read()
-            else:
-                byte_string = instance.eln_src.read()
-            full_markdown = byte_string.decode("utf-8")
-            return full_markdown
-        except Exception:
-            logger.exception("Error getting full markdown for document")
-            return None
+        return instance.get_full_markdown()
 
     def get_hubs(self, instance):
         return SimpleHubSerializer(instance.unified_document.hubs, many=True).data

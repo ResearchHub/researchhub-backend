@@ -260,6 +260,22 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
             completed_fundraise.id,
         )
 
+    def test_delete_is_not_allowed_for_anonymous_users(self) -> None:
+        """Verify the public journal feed cannot delete its backing posts."""
+        # Arrange
+        proposal = self.create_completed_proposal("Protected Proposal")
+        registered_report = self.create_registered_report(proposal)
+        self.client.force_authenticate(user=None)
+
+        # Act
+        response = self.client.delete(f"/api/journal_v2_feed/{registered_report.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertTrue(
+            ResearchhubPost.objects.filter(id=registered_report.id).exists()
+        )
+
     def create_completed_proposal(self, title: str) -> ResearchhubPost:
         """Create a proposal with a funded completed fundraise and journey."""
         proposal = create_post(

@@ -256,9 +256,7 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
         :return:
         """
         if hasattr(view, "multi_match_search_fields"):
-            view_search_fields = copy.deepcopy(
-                getattr(view, "multi_match_search_fields")
-            )
+            view_search_fields = copy.deepcopy(view.multi_match_search_fields)
         else:
             view_search_fields = copy.deepcopy(view.search_fields)
 

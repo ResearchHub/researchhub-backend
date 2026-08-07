@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.db.models import Count, Exists, OuterRef
+from django.db.models import Exists, OuterRef
 
 from research_ai.constants import EXPERT_REGISTERED_USER_LINK_WINDOW_DAYS
 from research_ai.models import Expert, GeneratedEmail, ProposalDraft
@@ -35,13 +35,12 @@ def get_expert_finder_metrics(period):
         .count()
     )
     outreach_by_channel = {choice: 0 for choice, _ in GeneratedEmail.Channel.choices}
-    for row in (
-        emails.filter(status=GeneratedEmail.Status.SENT)
-        .exclude(channel="")
-        .values("channel")
-        .annotate(count=Count("id"))
+    for channels in emails.filter(status=GeneratedEmail.Status.SENT).values_list(
+        "channels", flat=True
     ):
-        outreach_by_channel[row["channel"]] = row["count"]
+        for channel in set(channels or []):
+            if channel in outreach_by_channel:
+                outreach_by_channel[channel] += 1
 
     return {
         "experts_generated_outreach_for": (

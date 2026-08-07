@@ -45,7 +45,9 @@ def _has_publishable_output(execution: AgentExecution) -> bool:
 @dataclass(frozen=True)
 class PreparedAgentExecution:
     execution: AgentExecution
-    recorder: DatabaseAgentRecorder
+    # None when the turn was prepared ``pending``: the recorder is created by
+    # whichever worker claims the execution, not at preparation time.
+    recorder: DatabaseAgentRecorder | None
     human_message: AgentConversationMessage | None
     context: list[Message]
 
@@ -88,7 +90,14 @@ class AgentChatService:
         configuration: dict | None = None,
         system_prompt: str = "",
         prompt_is_backend_composed: bool = False,
+        pending: bool = False,
     ) -> PreparedAgentExecution:
+        """Append the user's message and create the turn's execution.
+
+        With ``pending=True`` the execution is created ``PENDING`` for a
+        worker to claim via ``executions.claim_pending`` (which also picks the
+        prompt provenance), and the returned ``recorder`` is ``None``.
+        """
         with transaction.atomic():
             locked = AgentConversation.objects.select_for_update().get(
                 id=conversation.id
@@ -109,24 +118,36 @@ class AgentChatService:
                 self.contexts.seal_interrupted_tool_calls(parent)
             context = self.contexts.reconstruct(parent) if parent else []
             human_message = self.conversations.add_human_message(locked, human_content)
-            recorder = self.executions.start(
-                locked,
-                provider=provider,
-                model=model,
-                configuration=configuration,
-                system_prompt=system_prompt,
-                trigger_message=human_message,
-                context_parent=parent,
-                initial_prompt_provenance=(
-                    AgentExecutionMessage.Provenance.BACKEND
-                    if prompt_is_backend_composed
-                    else AgentExecutionMessage.Provenance.HUMAN
-                ),
-                publish_assistant_message=True,
-            )
-        return PreparedAgentExecution(
-            recorder.execution, recorder, human_message, context
-        )
+            if pending:
+                execution = self.executions.create_pending(
+                    locked,
+                    provider=provider,
+                    model=model,
+                    configuration=configuration,
+                    system_prompt=system_prompt,
+                    trigger_message=human_message,
+                    context_parent=parent,
+                    publish_assistant_message=True,
+                )
+                recorder = None
+            else:
+                recorder = self.executions.start(
+                    locked,
+                    provider=provider,
+                    model=model,
+                    configuration=configuration,
+                    system_prompt=system_prompt,
+                    trigger_message=human_message,
+                    context_parent=parent,
+                    initial_prompt_provenance=(
+                        AgentExecutionMessage.Provenance.BACKEND
+                        if prompt_is_backend_composed
+                        else AgentExecutionMessage.Provenance.HUMAN
+                    ),
+                    publish_assistant_message=True,
+                )
+                execution = recorder.execution
+        return PreparedAgentExecution(execution, recorder, human_message, context)
 
     @staticmethod
     def _retry_provenance(execution: AgentExecution) -> str:

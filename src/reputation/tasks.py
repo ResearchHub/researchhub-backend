@@ -10,7 +10,7 @@ from django.db.models.functions import Cast
 
 import utils.locking as lock
 from hub.models import Hub
-from mailing_list.lib import base_email_context, send_email
+from mailing_list.lib import send_email
 from notification.models import Notification
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.lib import (
@@ -195,20 +195,20 @@ def check_open_bounties():
             notification.send_notification()
 
             outer_subject = "Your ResearchHub Bounty Submission Period Ending"
-            context = {**base_email_context}
-            context["action"] = {
-                "message": (
-                    f"Your bounty submission period is ending in 24 hours. "
-                    f"After that, no new reviews will be submitted. You'll "
-                    f"have {ASSESSMENT_PERIOD_DAYS} days to review and award "
-                    f"the best solutions."
-                ),
-                "frontend_view_link": unified_doc.frontend_view_link(),
+            context = {
+                "action": {
+                    "message": (
+                        f"Your bounty submission period is ending in 24 hours. "
+                        f"After that, no new reviews will be submitted. You'll "
+                        f"have {ASSESSMENT_PERIOD_DAYS} days to review and award "
+                        f"the best solutions."
+                    ),
+                    "frontend_view_link": unified_doc.frontend_view_link(),
+                },
+                "subject": "Bounty Submission Period Ending Soon",
             }
-            context["subject"] = "Bounty Submission Period Ending Soon"
             send_email(
                 [bounty_creator.email],
-                "general_email_message.txt",
                 outer_subject,
                 context,
                 html_template="general_email_message.html",
@@ -236,19 +236,19 @@ def check_open_bounties():
         creator_notification.send_notification()
 
         outer_subject = "Your ResearchHub Bounty Entered Assessment Phase"
-        context = {**base_email_context}
-        context["action"] = {
-            "message": (
-                f"Submission period has ended. No new peer reviews will be submitted. "
-                f"You have {ASSESSMENT_PERIOD_DAYS} days to review and award the best "
-                f"solutions."
-            ),
-            "frontend_view_link": unified_doc.frontend_view_link(),
+        context = {
+            "action": {
+                "message": (
+                    f"Submission period has ended. No new peer reviews will be "
+                    f"submitted. You have {ASSESSMENT_PERIOD_DAYS} days to review and "
+                    f"award the best solutions."
+                ),
+                "frontend_view_link": unified_doc.frontend_view_link(),
+            },
+            "subject": "Bounty Entered Assessment Phase",
         }
-        context["subject"] = "Bounty Entered Assessment Phase"
         send_email(
             [bounty_creator.email],
-            "general_email_message.txt",
             outer_subject,
             context,
             html_template="general_email_message.html",
@@ -328,16 +328,18 @@ def check_open_bounties():
             notification.send_notification()
 
             outer_subject = "Your ResearchHub Bounty Assessment Period Ending"
-            context = {**base_email_context}
-            context["action"] = {
-                "message": "Assessment period ending in 24 hours. Award solutions now \
-                or remaining funds will be refunded.",
-                "frontend_view_link": unified_doc.frontend_view_link(),
+            context = {
+                "action": {
+                    "message": (
+                        "Assessment period ending in 24 hours. Award solutions "
+                        "now or remaining funds will be refunded."
+                    ),
+                    "frontend_view_link": unified_doc.frontend_view_link(),
+                },
+                "subject": "Bounty Assessment Period Ending Soon",
             }
-            context["subject"] = "Bounty Assessment Period Ending Soon"
             send_email(
                 [bounty_creator.email],
-                "general_email_message.txt",
                 outer_subject,
                 context,
                 html_template="general_email_message.html",

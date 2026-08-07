@@ -6,8 +6,8 @@ from research_ai.services.agent.providers.claude_platform import ClaudePlatformP
 from research_ai.services.agent.providers.openrouter import OpenRouterProvider
 
 __all__ = [
-    "LLMProvider",
     "BedrockProvider",
     "ClaudePlatformProvider",
+    "LLMProvider",
     "OpenRouterProvider",
 ]

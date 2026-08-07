@@ -261,7 +261,7 @@ class RFPSummaryView(APIView):
                 {"detail": "Not a grant document."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        obj, created = RFPSummary.objects.get_or_create(
+        obj, _ = RFPSummary.objects.get_or_create(
             grant=grant,
             defaults={"created_by": request.user},
         )

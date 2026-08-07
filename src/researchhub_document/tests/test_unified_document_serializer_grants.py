@@ -246,7 +246,7 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
 
         # Check that get_grant method exists
         self.assertTrue(hasattr(serializer, "get_grant"))
-        self.assertTrue(callable(getattr(serializer, "get_grant")))
+        self.assertTrue(callable(serializer.get_grant))
 
     def test_grant_with_empty_context(self):
         """Test grant serialization with empty context"""

@@ -20,7 +20,7 @@ dependencies = [
     "cloudscraper>=1.2.60,<2.0.0",
     "daphne>=4.2.2,<5.0.0",
     "dj-rest-auth[with-mfa,with-social]>=7.0.2,<8.0.0",
-    "django==5.2.15",
+    "django==5.2.16",
     "django-allauth>=65.13.0,<66.0.0",
     "django-celery-results==2.6.0",
     "django-cors-headers==3.5.0",
@@ -91,18 +91,26 @@ extend-exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
 extend-select = [
+    "B006",  # mutable-argument-default
+    "B009",  # get-attr-with-constant
     "C4",    # flake8-comprehensions
     "E",     # pycodestyle errors
     "FURB",  # refurb
+    "G201",  # logging-exc-info
     "I",     # isort
     "N",     # pep8-naming
     "PERF",  # flake8-perf
     "PIE",   # flake8-pie
     "RSE",   # flake8-raise
+    "RUF010",# explicit-f-string-type-conversion
+    "RUF013",# implicit-optional
+    "RUF022",# unsorted-dunder-all
+    "RUF059",# unused-unpacked-variable
     "S113",  # flake8-bandit: request-without-timeout
     "SIM",   # flake8-simplify
     "T20",   # flake8-print: forbid print statements
     "TID",   # flake8-tidy-imports 
+    "TRY401",# verbose-log-message,
     "UP",    # pyupgrade
     "W",     # pycodestyle warnings
 ]

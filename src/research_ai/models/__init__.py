@@ -19,11 +19,11 @@ __all__ = [
     "AgentConversationMessage",
     "AgentExecution",
     "AgentExecutionMessage",
-    "NoteAgentConversation",
     "EmailTemplate",
     "Expert",
     "ExpertSearch",
     "GeneratedEmail",
+    "NoteAgentConversation",
     "ProposalDraft",
     "SearchExpert",
 ]

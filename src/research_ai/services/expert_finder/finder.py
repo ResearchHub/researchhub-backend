@@ -547,8 +547,8 @@ class ExpertFinderService:
                 replace_count = ExpertPersist.replace_search_experts_for_search(
                     expert_search_id, to_persist
                 )
-            except Exception as e:  # noqa: BLE001
-                logger.exception("Expert persist failed search_id=%s: %s", search_id, e)
+            except Exception as e:
+                logger.exception("Expert persist failed search_id=%s", search_id)
                 return fail_return(
                     f"Saving experts failed: {e}"[:2000],
                     current_step="Persist failed",

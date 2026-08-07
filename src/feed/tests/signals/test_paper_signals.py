@@ -174,10 +174,10 @@ class PaperSignalsTests(AWSMockTestCase):
         self.paper.save(update_fields=["external_metadata"])
 
         # Assert - error should be logged
-        mock_logger.error.assert_called_once()
-        error_message = mock_logger.error.call_args[0][0]
-        self.assertIn("Failed to update feed metrics", error_message)
-        self.assertIn(str(self.paper.id), error_message)
+        mock_logger.exception.assert_called_once()
+        log_args = mock_logger.exception.call_args[0]
+        self.assertIn("Failed to update feed metrics", log_args[0])
+        self.assertEqual(self.paper.id, log_args[1])
 
     @patch("feed.signals.paper_signals.update_feed_metrics")
     def test_signal_includes_x_metrics_in_serialized_data(
