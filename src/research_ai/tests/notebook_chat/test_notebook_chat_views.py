@@ -208,19 +208,28 @@ class NotebookChatViewTests(APITestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_cancel_is_scoped_to_the_requesting_users_conversation(self):
-        # Arrange: the owner has a turn running; the viewer has their own
-        # conversation on the same note.
+        # Arrange: two people each have a turn running on the same note. Each
+        # holds their own conversation, so stop must reach one and not the other.
         self.client.force_authenticate(self.owner)
-        posted, _delay = self._post_message()
+        owners, _delay = self._post_message()
         self.client.force_authenticate(self.viewer)
+        viewers, _delay = self._post_message("Summarize it for me too")
+        self.assertNotEqual(owners.data["execution_id"], viewers.data["execution_id"])
 
         # Act
         response = self.client.post(self.cancel_url)
 
-        # Assert: the viewer cannot stop someone else's turn.
-        self.assertFalse(response.data["cancelled"])
-        execution = AgentExecution.objects.get(id=posted.data["execution_id"])
-        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
+        # Assert: the viewer stopped their own turn and left the owner's running.
+        self.assertTrue(response.data["cancelled"])
+        self.assertEqual(response.data["execution_id"], viewers.data["execution_id"])
+        self.assertEqual(
+            AgentExecution.objects.get(id=viewers.data["execution_id"]).status,
+            AgentExecution.Status.CANCELLED,
+        )
+        self.assertEqual(
+            AgentExecution.objects.get(id=owners.data["execution_id"]).status,
+            AgentExecution.Status.PENDING,
+        )
 
     def test_get_chat_without_conversation_returns_empty(self):
         # Arrange

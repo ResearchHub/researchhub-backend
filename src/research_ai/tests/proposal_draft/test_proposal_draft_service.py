@@ -1350,38 +1350,10 @@ class ProposalDraftServiceTests(TestCase):
         # The work in hand is still persisted, as it is for a failed run.
         self.assertTrue(draft.last_submission)
 
-    def test_cancelling_mid_run_is_not_recorded_as_a_failure(self):
-        # Arrange: cancellation reaches the run as an ordinary error, so the
-        # guard that keeps it out of FAILED is worth pinning on its own.
-        draft = self._pending_draft()
-        cancels = ProposalDraftCancelService()
-
-        class _CancellingPanel(_FakePanel):
-            def score(self, proposal, *, context=None):
-                cancels.cancel(ProposalDraft.objects.get(id=draft.id))
-                return super().score(proposal, context=context)
-
-        # Arrange: a panel score below the bar, so the run would otherwise fail.
-        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
-
-        # Act
-        result = run_proposal_draft(
-            self.search_expert.id,
-            draft_id=draft.id,
-            provider=provider,
-            panel=_CancellingPanel(overall=1, gaps=["raise overall quality"]),
-            oa_client=_FakeOpenAlex(),
-        )
-
-        # Assert
-        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
-        draft.refresh_from_db()
-        self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
-        self.assertEqual(draft.error_message, "")
-
     def test_a_cancelled_run_spends_no_further_judge_panels(self):
         # Arrange: an always-submitting provider would keep going for the whole
-        # round budget. Cancel lands during the first round's judging.
+        # round budget. Cancel lands during the first round's judging, and the
+        # score is below the bar, so the run would otherwise fail.
         draft = self._pending_draft()
         cancels = ProposalDraftCancelService()
 
@@ -1403,9 +1375,14 @@ class ProposalDraftServiceTests(TestCase):
         )
 
         # Assert: the next round is cut before the gates run, so judging -- the
-        # most expensive thing a round does -- happens once and not again.
+        # most expensive thing a round does -- happens once and not again. The
+        # below-bar score never becomes a failure, either: cancellation reaches
+        # the run as an ordinary error, and the guard keeps it out of FAILED.
         self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
         self.assertEqual(len(panel.contexts), 1)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
+        self.assertEqual(draft.error_message, "")
 
     def test_a_run_with_no_agent_trace_still_stops_when_cancelled(self):
         # Arrange: the agent trace is best-effort -- a run whose execution could

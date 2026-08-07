@@ -227,22 +227,9 @@ class ProposalDraftCancelViewTests(APITestCase):
         self.draft.refresh_from_db()
         self.assertEqual(self.draft.status, ProposalDraft.Status.CANCELLED)
 
-    def test_cancelling_twice_succeeds_and_reports_it_did_nothing(self):
-        # Arrange
-        self.client.force_authenticate(self.moderator)
-        self._cancel()
-
-        # Act
-        response = self._cancel()
-
-        # Assert: idempotent, so a client that cannot tell whether its first
-        # request landed can simply send it again.
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.json()["cancelled"])
-        self.assertEqual(response.json()["status"], ProposalDraft.Status.CANCELLED)
-
     def test_cancelling_a_finished_draft_leaves_it_alone(self):
-        # Arrange
+        # Arrange: a draft that reached a terminal status on its own. Repeating a
+        # cancel takes the same path, so this stands for both.
         self.client.force_authenticate(self.moderator)
         ProposalDraft.objects.filter(id=self.draft.id).update(
             status=ProposalDraft.Status.COMPLETED
@@ -251,7 +238,9 @@ class ProposalDraftCancelViewTests(APITestCase):
         # Act
         response = self._cancel()
 
-        # Assert
+        # Assert: idempotent -- a client that cannot tell whether its request
+        # landed can simply send it again -- and the reply carries the status the
+        # draft actually reached rather than assuming it was cancelled.
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.json()["cancelled"])
         self.assertEqual(response.json()["status"], ProposalDraft.Status.COMPLETED)

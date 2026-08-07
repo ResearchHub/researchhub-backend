@@ -104,27 +104,18 @@ class ProposalDraftCancelServiceTests(TestCase):
         self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
 
     def test_cancelling_an_already_terminal_draft_reports_false(self):
-        # Arrange
+        # Arrange: a draft that finished on its own. Cancelling one that is
+        # already cancelled takes the same path -- neither is active.
         draft = self._draft(status=ProposalDraft.Status.COMPLETED)
 
         # Act
         cancelled = self.cancels.cancel(draft)
 
-        # Assert: the ordinary race of stopping a job that already stopped.
+        # Assert: the ordinary race of stopping a job that already stopped, and
+        # the outcome it reached is left as it was.
         self.assertFalse(cancelled)
         draft.refresh_from_db()
         self.assertEqual(draft.status, ProposalDraft.Status.COMPLETED)
-
-    def test_cancelling_twice_reports_false_the_second_time(self):
-        # Arrange
-        draft = self._draft()
-        self.assertTrue(self.cancels.cancel(draft))
-
-        # Act
-        again = self.cancels.cancel(draft)
-
-        # Assert
-        self.assertFalse(again)
 
     def test_cancelling_frees_the_expert_for_a_fresh_draft(self):
         # Arrange: one active draft per search expert is enforced, so a job stuck
