@@ -78,11 +78,21 @@ def _apply_turn_metrics(
     execution: AgentExecution,
     turn: AssistantTurn | None,
     trace_fields: dict,
+    *,
+    sealed: bool = False,
 ) -> list[str]:
+    """Fold one turn's metrics into the execution; return the fields to save.
+
+    ``sealed`` marks an execution that already reached a terminal status. Its
+    work counters are still true and still accumulate -- the tokens were really
+    spent -- but ``stop_reason`` is not its last turn's stop reason any more, it
+    is why the run ended, and that answer is already written.
+    """
     if turn is None:
         return []
     execution.iterations += 1
-    execution.stop_reason = turn.stop_reason.value
+    if not sealed:
+        execution.stop_reason = turn.stop_reason.value
     execution.input_tokens = _add_optional(
         execution.input_tokens, trace_fields["input_tokens"]
     )
@@ -98,15 +108,17 @@ def _apply_turn_metrics(
     execution.total_latency_ms = _add_optional(
         execution.total_latency_ms, turn.latency_ms
     )
-    return [
+    fields = [
         "iterations",
-        "stop_reason",
         "input_tokens",
         "output_tokens",
         "cache_read_tokens",
         "cache_write_tokens",
         "total_latency_ms",
     ]
+    if not sealed:
+        fields.append("stop_reason")
+    return fields
 
 
 class DatabaseAgentRecorder:
@@ -145,6 +157,21 @@ class DatabaseAgentRecorder:
                 system_prompt=system_prompt,
                 last_activity_at=timezone.now(),
             )
+
+    def is_active(self) -> bool:
+        """Whether this execution is still ours to advance.
+
+        The agent loop calls this before each tool call so a run cancelled from
+        elsewhere stops before the tool takes effect. One indexed read per tool
+        call, against a model turn that costs seconds at minimum.
+        """
+        return AgentExecution.objects.filter(
+            id=self.execution.id,
+            status__in=[
+                AgentExecution.Status.PENDING,
+                AgentExecution.Status.RUNNING,
+            ],
+        ).exists()
 
     def _provenance(self, message: Message) -> str:
         if message.role == "assistant":
@@ -254,14 +281,22 @@ class DatabaseAgentRecorder:
             conversation.next_trace_sequence += 1
             conversation.save(update_fields=["next_trace_sequence", "updated_date"])
 
+            # The trace row above is history and always lands -- the turn really
+            # happened. The execution's lifecycle fields are not: cancellation
+            # can commit between this method and the context write that preceded
+            # it, and a sealed run's outcome must not be reopened by a write that
+            # was already in flight when someone stopped it. Advancing
+            # ``last_activity_at`` past ``finished_at`` would be incoherent on
+            # its own.
+            sealed = _is_terminal(execution.status)
             execution.next_message_sequence += 1
-            execution.last_activity_at = now
-            update_fields = [
-                "next_message_sequence",
-                "last_activity_at",
-                "updated_date",
-            ]
-            update_fields.extend(_apply_turn_metrics(execution, turn, turn_fields))
+            update_fields = ["next_message_sequence", "updated_date"]
+            if not sealed:
+                execution.last_activity_at = now
+                update_fields.append("last_activity_at")
+            update_fields.extend(
+                _apply_turn_metrics(execution, turn, turn_fields, sealed=sealed)
+            )
             execution.save(update_fields=update_fields)
 
     def on_run_finished(self, result) -> None:

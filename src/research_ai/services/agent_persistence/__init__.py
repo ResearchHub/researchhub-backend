@@ -1,5 +1,6 @@
 """Django persistence and read services for the provider-neutral agent core."""
 
+from .cancel_service import AgentExecutionCancelService
 from .chat_service import AgentChatService, PreparedAgentExecution
 from .context_service import AgentContextService
 from .conversation_service import (
@@ -23,6 +24,7 @@ __all__ = [
     "AgentContextService",
     "AgentConversationBusyError",
     "AgentConversationService",
+    "AgentExecutionCancelService",
     "AgentExecutionService",
     "AgentRetentionService",
     "AgentRunDetails",

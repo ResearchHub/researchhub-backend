@@ -88,3 +88,26 @@ class NotebookChatMessageView(APIView):
             },
             status=status.HTTP_202_ACCEPTED,
         )
+
+
+class NotebookChatCancelView(APIView):
+    """Stop the note assistant's in-flight turn.
+
+    Idempotent by design: cancelling when nothing is running -- or when the
+    turn finished a moment earlier -- is a success reporting ``cancelled:
+    false``, not an error, because the client cannot know which side of that
+    race it is on when the user clicks stop.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def post(self, request, note_id):
+        note = _get_viewable_note_or_404(note_id, request.user)
+        execution = NotebookChatService().cancel_active_turn(note, request.user)
+        if execution is None:
+            return Response({"cancelled": False, "execution_id": None})
+        return Response({"cancelled": True, "execution_id": execution.id})
