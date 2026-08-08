@@ -187,6 +187,38 @@ class Agent:
                 raise
             logger.warning("agent recorder record_message failed", exc_info=True)
 
+    def _ensure_active(self) -> None:
+        """Stop before a tool call if this run no longer owns its execution.
+
+        Every other stop point is a write, and writes happen *after* the tool
+        has already run: a turn cancelled between recording its tool calls and
+        dispatching them would otherwise spend the whole call, side effects
+        included, before noticing. Checking here is what keeps a stopped run from
+        doing more work.
+
+        It narrows that window rather than closing it -- a cancellation
+        committing between this check and ``dispatch`` still lets one tool
+        through, and no probe here can prevent that. Correctness under a
+        concurrent turn is therefore not this check's job and must not be built
+        on it: a tool that mutates shared state guards its own write, the way
+        ``edit_note`` requires the version id it read and rejects the edit if the
+        document moved.
+
+        The check is optional (see ``AgentRecorder.is_active``) and its failure
+        is not a stop signal: a recorder that cannot answer must not be able to
+        halt a healthy run.
+        """
+        is_active = getattr(self.recorder, "is_active", None)
+        if is_active is None:
+            return
+        try:
+            active = is_active()
+        except Exception:  # noqa: BLE001 - an unanswerable check is not a stop
+            logger.warning("agent recorder is_active failed", exc_info=True)
+            return
+        if not active:
+            raise InterruptedError("agent execution is no longer running")
+
     def _record_terminal(self, hook: str, *args) -> None:
         """Best-effort terminal observation must not mask the run outcome."""
         if self.recorder is None:
@@ -257,6 +289,9 @@ class Agent:
         result_blocks: list[ToolResultBlock] = []
         stop = False
         for call in tool_calls:
+            # Per call, not once per turn: a turn can ask for several tools, and
+            # a cancellation landing partway through must not let the rest run.
+            self._ensure_active()
             logger.info(
                 "iter %d -> %s(%s)", iteration, call.name, _compact_args(call.input)
             )
