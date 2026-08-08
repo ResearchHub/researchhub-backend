@@ -42,6 +42,20 @@ class ToolsetDispatchTests(SimpleTestCase):
         self.assertEqual(result, {"error": "kaboom"})
         self.assertFalse(stop)
 
+    def test_an_interrupted_run_propagates_instead_of_becoming_a_tool_error(self):
+        # Arrange: a handler that stops because the *run* should stop -- it was
+        # cancelled, or its execution was reclaimed -- not because the tool
+        # failed at what it was asked to do.
+        def interrupted(input):
+            raise InterruptedError("this run was cancelled")
+
+        toolset = Toolset([Tool("submit", "submit", {"type": "object"}, interrupted)])
+
+        # Act & Assert: handed back as an error result, the model would answer it
+        # with another attempt against a run nobody is waiting for.
+        with self.assertRaises(InterruptedError):
+            toolset.dispatch("submit", {})
+
     def test_handler_exception_with_empty_message_uses_class_name(self):
         # Arrange: some exceptions str() to "" -- the model must still see a
         # non-empty error.

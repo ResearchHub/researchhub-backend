@@ -16,6 +16,11 @@ class ProposalDraft(DefaultModel):
         PROCESSING = "PROCESSING"
         COMPLETED = "COMPLETED"
         FAILED = "FAILED"
+        # Stopped on request rather than by anything going wrong. Distinct from
+        # FAILED so the record does not blame the run for a decision someone
+        # made about it, and terminal like the rest -- which also releases
+        # ``ra_pd_one_active_per_search_expert`` for a fresh attempt.
+        CANCELLED = "CANCELLED"
 
     class Step(models.TextChoices):
         QUEUED = "QUEUED"
