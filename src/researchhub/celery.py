@@ -49,6 +49,14 @@ app.conf.beat_schedule = {
             "queue": QUEUE_CACHES,
         },
     },
+    "feed-warm-activity-feed-cache": {
+        "task": "feed.tasks.warm_activity_feed_cache",
+        "schedule": crontab(minute="*/5"),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_CACHES,
+        },
+    },
     # Hub
     "hub_calculate-and-set-hub-counts": {
         "task": "hub.tasks.calculate_and_set_hub_counts",

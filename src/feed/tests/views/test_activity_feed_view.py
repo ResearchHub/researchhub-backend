@@ -1,7 +1,9 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.db import connection
 from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
@@ -10,6 +12,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
+from discussion.models import Vote
 from feed.models import FeedEntry
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from purchase.models import Fundraise
@@ -72,6 +75,7 @@ class ActivityFeedBaseTests(AWSMockTestCase):
 
     def setUp(self):
         super().setUp()
+        cache.clear()
         self.user = create_test_user("activity_user")
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
@@ -208,6 +212,39 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
         self.assertIn("amount_raised", related_work["fundraise"])
         self.assertIn("start_date", related_work["fundraise"])
         self.assertIn("end_date", related_work["fundraise"])
+
+    def test_related_work_includes_document_metrics(self):
+        # Arrange
+        self.prereg_post.score = 12
+        self.prereg_post.save(update_fields=["score"])
+
+        # Act
+        entry = self._get_entry(self.prereg_comment_entry.id)
+
+        # Assert
+        related_metrics = entry["related_work"]["metrics"]
+        self.assertEqual(related_metrics["votes"], 12)
+        self.assertEqual(related_metrics["adjusted_score"], 12)
+        # Entry metrics mirror related-work for the activity card vote UI.
+        self.assertEqual(entry["metrics"]["votes"], 12)
+        self.assertEqual(entry["metrics"]["adjusted_score"], 12)
+
+    def test_user_vote_attached_to_related_work_not_comment(self):
+        # Arrange — vote is on the prereg post (card target), not the comment.
+        Vote.objects.create(
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=self.prereg_post.id,
+            vote_type=Vote.UPVOTE,
+        )
+
+        # Act
+        entry = self._get_entry(self.prereg_comment_entry.id)
+
+        # Assert
+        self.assertEqual(entry["related_work"]["id"], self.prereg_post.id)
+        self.assertEqual(entry["related_work"]["user_vote"]["vote_type"], Vote.UPVOTE)
+        self.assertEqual(entry["user_vote"]["vote_type"], Vote.UPVOTE)
 
     def test_related_work_on_grant_post(self):
         # Act
@@ -829,6 +866,7 @@ class ActivityFeedActionDateOrderingTests(AWSMockTestCase):
 
     def setUp(self):
         super().setUp()
+        cache.clear()
         self.user = create_test_user()
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
@@ -1618,3 +1656,105 @@ class ActivityFeedFunderFilterTests(APITestCase):
         resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
         ids = [e["id"] for e in resp.data["results"]]
         self.assertEqual(len(ids), len(set(ids)))
+
+
+class ActivityFeedCacheTests(ActivityFeedBaseTests):
+    """Public warm-cache behavior for the unscoped activity feed."""
+
+    @patch("feed.views.activity_feed_view.cache")
+    def test_authenticated_non_mod_uses_cache(self, mock_cache):
+        # Arrange
+        mock_cache.get.return_value = {
+            "next": None,
+            "previous": None,
+            "results": [{"id": self.prereg_entry.id, "content_object": {"id": 1}}],
+        }
+
+        # Act
+        response = self.client.get(ACTIVITY_LIST_URL, {"page": 1, "page_size": 20})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
+
+    @patch("feed.views.activity_feed_view.cache")
+    def test_moderator_bypasses_cache(self, mock_cache):
+        # Arrange
+        from user.tests.helpers import create_random_authenticated_user
+
+        moderator = create_random_authenticated_user(
+            "activity_cache_mod", moderator=True
+        )
+        mod_client = APIClient()
+        mod_client.force_authenticate(user=moderator)
+
+        # Act
+        response = mod_client.get(ACTIVITY_LIST_URL, {"page": 1, "page_size": 20})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_cache.get.assert_not_called()
+        mock_cache.set.assert_not_called()
+
+    @patch("feed.views.activity_feed_view.cache")
+    def test_hub_editor_bypasses_cache(self, mock_cache):
+        # Arrange
+        from user.tests.helpers import create_hub_editor
+
+        editor = create_hub_editor("activity_cache_editor", "Activity Cache Hub")[0]
+        editor_client = APIClient()
+        editor_client.force_authenticate(user=editor)
+
+        # Act
+        response = editor_client.get(ACTIVITY_LIST_URL, {"page": 1, "page_size": 20})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_cache.get.assert_not_called()
+        mock_cache.set.assert_not_called()
+
+    @patch("feed.views.activity_feed_view.cache")
+    def test_scoped_and_filtered_requests_skip_cache(self, mock_cache):
+        # Arrange / Act
+        cases = [
+            {"scope": "financial", "page": 1, "page_size": 20},
+            {"grant_id": 1, "page": 1, "page_size": 20},
+            {"document_type": "PREREGISTRATION", "page": 1, "page_size": 20},
+            {"page": 21, "page_size": 20},
+            {"page": 1, "page_size": 10},
+        ]
+        for params in cases:
+            mock_cache.reset_mock()
+            response = self.client.get(ACTIVITY_LIST_URL, params)
+
+            # Assert
+            self.assertEqual(response.status_code, status.HTTP_200_OK, params)
+            mock_cache.get.assert_not_called()
+            mock_cache.set.assert_not_called()
+
+    @patch("feed.views.activity_feed_view.cache")
+    def test_warm_activity_feed_cache_replaces_pages(self, mock_cache):
+        # Arrange / Act
+        from feed.activity_feed_cache import (
+            ACTIVITY_FEED_MAX_CACHED_PAGE,
+            activity_feed_cache_key,
+        )
+        from feed.tasks import warm_activity_feed_cache
+
+        warm_activity_feed_cache()
+
+        # Assert
+        self.assertEqual(mock_cache.set.call_count, ACTIVITY_FEED_MAX_CACHED_PAGE)
+        written_keys = [call.args[0] for call in mock_cache.set.call_args_list]
+        self.assertEqual(
+            written_keys,
+            [
+                activity_feed_cache_key(page)
+                for page in range(1, ACTIVITY_FEED_MAX_CACHED_PAGE + 1)
+            ],
+        )
+        for call in mock_cache.set.call_args_list:
+            payload = call.args[1]
+            self.assertIn("results", payload)
+            self.assertIn("next", payload)

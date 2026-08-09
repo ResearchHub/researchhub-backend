@@ -1018,6 +1018,7 @@ class RelatedWorkSerializer(serializers.Serializer):
     authors = serializers.SerializerMethodField()
     grant = serializers.SerializerMethodField()
     fundraise = serializers.SerializerMethodField()
+    metrics = serializers.SerializerMethodField()
 
     _OPTIONAL_FIELDS = ("authors", "grant", "fundraise")
 
@@ -1091,6 +1092,15 @@ class RelatedWorkSerializer(serializers.Serializer):
             return None
 
         return SimpleAuthorSerializer(authors, many=True).data
+
+    def get_metrics(self, unified_document):
+        """Votes/score for the related document."""
+        content = self._get_content(unified_document)
+        votes = 0 if content is None else (getattr(content, "score", 0) or 0)
+        return {
+            "votes": votes,
+            "adjusted_score": calculate_adjusted_score(votes, {}),
+        }
 
     def get_grant(self, unified_document):
         if unified_document.document_type != GRANT:
@@ -1207,6 +1217,12 @@ class ActivityFeedEntrySerializer(FeedEntrySerializer):
 
     def get_related_work(self, obj):
         return RelatedWorkSerializer.serialize(obj.unified_document, self.context)
+
+    def get_metrics(self, obj):
+        related = RelatedWorkSerializer.serialize(obj.unified_document, self.context)
+        if related and related.get("metrics") is not None:
+            return related["metrics"]
+        return super().get_metrics(obj)
 
     def get_nonprofit(self, obj):
         return _serialize_feed_entry_nonprofit(obj)

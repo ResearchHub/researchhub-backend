@@ -442,3 +442,16 @@ def refresh_feed_hot_scores_batch(
         "errors": errors,
         "duration": duration,
     }
+
+
+@app.task
+def warm_activity_feed_cache():
+    """Replace public activity-feed cache pages 1-20 with fresh payloads."""
+    from feed.views.activity_feed_view import ActivityFeedViewSet
+
+    start = time.time()
+    ActivityFeedViewSet.warm_public_cache()
+    logger.info(
+        "Warmed activity feed cache pages in %.2fs",
+        time.time() - start,
+    )
