@@ -23,6 +23,7 @@ from research_ai.services.outreach.rfp_email_context import (
     get_expert_for_search_by_email,
 )
 from research_ai.services.proposal_draft import run_proposal_draft
+from research_ai.services.proposal_draft.cancel_service import ACTIVE_STATUSES
 from researchhub.celery import QUEUE_AGENTS, app
 from user.models import User
 
@@ -284,7 +285,12 @@ def run_proposal_draft_task(draft_id: int):
         result = run_proposal_draft(draft.search_expert_id, draft_id=draft.id)
     except Exception as e:
         logger.exception("Proposal draft task failed", extra={"draft_id": draft_id})
-        ProposalDraft.objects.filter(id=draft_id).update(
+        # Conditional on the draft still being active, like every write the
+        # runner makes. This is the last-resort handler for something that
+        # escaped the runner entirely -- constructing it, or persisting its own
+        # outcome -- and an unguarded write here would report a cancelled draft
+        # as FAILED and stamp an error message on a deliberate stop.
+        ProposalDraft.objects.filter(id=draft_id, status__in=ACTIVE_STATUSES).update(
             status=ProposalDraft.Status.FAILED,
             error_message=str(e)[:10000],
         )

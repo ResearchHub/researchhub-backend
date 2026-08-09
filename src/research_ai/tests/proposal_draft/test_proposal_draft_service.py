@@ -39,6 +39,11 @@ from research_ai.services.agent_persistence import (
     NoteAgentConversationService,
 )
 from research_ai.services.proposal_draft import run_proposal_draft
+from research_ai.services.proposal_draft.cancel_service import (
+    ProposalDraftCancelledError,
+    ProposalDraftCancelService,
+)
+from research_ai.services.proposal_draft.draft_recorder import DraftRecorder
 from research_ai.services.proposal_draft.runner import (
     PROFILE_SCHEMA_VERSION,
     _ProposalDraftRunner,
@@ -1302,3 +1307,223 @@ class ProposalDraftServiceTests(TestCase):
         tool = toolset.get("get_work_fulltext")
         self.assertIsNotNone(tool)
         self.assertIs(tool.handler.__self__, runner.fulltext_toolset)
+
+    # -- cancelling a run in flight ----------------------------------------
+
+    def _pending_draft(self):
+        return ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.user,
+            status=ProposalDraft.Status.PENDING,
+            step=ProposalDraft.Step.QUEUED,
+        )
+
+    def test_cancelling_mid_run_ends_cancelled_and_ships_no_note(self):
+        # Arrange: a run whose only round clears every gate, cancelled while the
+        # panel is judging it. The accepted round is exactly what makes this
+        # worth checking -- the run has a shippable proposal in hand.
+        draft = self._pending_draft()
+        cancels = ProposalDraftCancelService()
+
+        class _CancellingPanel(_FakePanel):
+            def score(self, proposal, *, context=None):
+                cancels.cancel(ProposalDraft.objects.get(id=draft.id))
+                return super().score(proposal, context=context)
+
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            draft_id=draft.id,
+            provider=provider,
+            panel=_CancellingPanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: cancelled rather than completed, and no Note -- a run someone
+        # called off must not still publish its proposal.
+        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
+        self.assertEqual(draft.error_message, "")
+        self.assertIsNone(draft.note)
+        self.assertEqual(Note.objects.count(), 0)
+        # The work in hand is still persisted, as it is for a failed run.
+        self.assertTrue(draft.last_submission)
+
+    def test_a_cancelled_run_spends_no_further_judge_panels(self):
+        # Arrange: an always-submitting provider would keep going for the whole
+        # round budget. Cancel lands during the first round's judging, and the
+        # score is below the bar, so the run would otherwise fail.
+        draft = self._pending_draft()
+        cancels = ProposalDraftCancelService()
+
+        class _CancellingPanel(_FakePanel):
+            def score(self, proposal, *, context=None):
+                cancels.cancel(ProposalDraft.objects.get(id=draft.id))
+                return super().score(proposal, context=context)
+
+        panel = _CancellingPanel(overall=1, gaps=["raise overall quality"])
+        provider = _AlwaysSubmitProvider(_clean_payload())
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            draft_id=draft.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: the next round is cut before the gates run, so judging -- the
+        # most expensive thing a round does -- happens once and not again. The
+        # below-bar score never becomes a failure, either: cancellation reaches
+        # the run as an ordinary error, and the guard keeps it out of FAILED.
+        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
+        self.assertEqual(len(panel.contexts), 1)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
+        self.assertEqual(draft.error_message, "")
+
+    def test_a_run_with_no_agent_trace_still_stops_when_cancelled(self):
+        # Arrange: the agent trace is best-effort -- a run whose execution could
+        # not be created keeps drafting without one. Then the loop's own
+        # ownership check has nothing to read, and the draft's status is the only
+        # thing that can stop the run.
+        draft = self._pending_draft()
+        cancels = ProposalDraftCancelService()
+
+        class _CancellingPanel(_FakePanel):
+            def score(self, proposal, *, context=None):
+                cancels.cancel(ProposalDraft.objects.get(id=draft.id))
+                return super().score(proposal, context=context)
+
+        panel = _CancellingPanel(overall=1, gaps=["raise overall quality"])
+        provider = _AlwaysSubmitProvider(_clean_payload())
+        broken_executions = Mock(wraps=AgentExecutionService())
+        broken_executions.start.side_effect = RuntimeError("no trace today")
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            draft_id=draft.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+            execution_service=broken_executions,
+        )
+
+        # Assert
+        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
+        self.assertEqual(len(panel.contexts), 1)
+        self.assertFalse(AgentExecution.objects.exists())
+
+    def test_a_refused_completion_leaves_no_published_note_behind(self):
+        # Arrange: the narrowest window there is -- every checkpoint has passed
+        # and the run holds an accepted proposal, so the Note is written before
+        # the status that would justify it. If the COMPLETED write is then
+        # refused, the Note must not survive: reporting a draft cancelled while a
+        # proposal goes out under the expert's name is the worst outcome here.
+        #
+        # The refusal is injected rather than raced, because a cancel issued from
+        # this thread would join the run's own transaction and roll back with it.
+        # Which statuses the guard refuses is covered directly in
+        # ``test_proposal_draft_cancel``.
+        draft = self._pending_draft()
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        def _refuse(_self, _note):
+            raise ProposalDraftCancelledError("cancelled before it shipped")
+
+        # Act
+        with patch.object(DraftRecorder, "complete", _refuse):
+            result = run_proposal_draft(
+                self.search_expert.id,
+                draft_id=draft.id,
+                provider=provider,
+                panel=_FakePanel(overall=5),
+                oa_client=_FakeOpenAlex(),
+            )
+
+        # Assert: the Note went with the rolled-back transaction, and nothing
+        # points at one. The run did reach a terminal status -- which one depends
+        # on why the write was refused, and is not what this pins.
+        self.assertEqual(Note.objects.count(), 0)
+        draft.refresh_from_db()
+        self.assertIsNone(draft.note)
+        self.assertNotEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.assertNotEqual(draft.status, ProposalDraft.Status.PROCESSING)
+
+    def test_a_trace_created_as_the_draft_is_cancelled_is_not_left_running(self):
+        # Arrange: the cancel lands after mark_processing and before the trace
+        # exists, so it finds no execution to stop -- and then the run creates
+        # one. Nothing sweeps for stalled executions any more, and retrying the
+        # endpoint on an already-cancelled draft used to return before looking,
+        # so an execution left RUNNING here would have stayed that way.
+        draft = self._pending_draft()
+        cancels = ProposalDraftCancelService()
+        real_start = _ProposalDraftRunner._start_agent_recording
+
+        def _cancel_then_start(self_runner, run_config):
+            cancels.cancel(ProposalDraft.objects.get(id=draft.id))
+            return real_start(self_runner, run_config)
+
+        # Act
+        with patch.object(
+            _ProposalDraftRunner, "_start_agent_recording", _cancel_then_start
+        ):
+            result = run_proposal_draft(
+                self.search_expert.id,
+                draft_id=draft.id,
+                provider=_AlwaysSubmitProvider(_clean_payload()),
+                panel=_FakePanel(overall=5),
+                oa_client=_FakeOpenAlex(),
+            )
+
+        # Assert: the draft is cancelled and its trace reached a terminal status
+        # of its own, so the conversation is not left permanently busy.
+        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
+        self.assertTrue(AgentExecution.objects.exists())
+        self.assertFalse(
+            AgentExecution.objects.filter(
+                status__in=[
+                    AgentExecution.Status.RUNNING,
+                    AgentExecution.Status.PENDING,
+                ]
+            ).exists()
+        )
+
+    def test_cancelling_between_the_claim_and_the_first_write_runs_nothing(self):
+        # Arrange: the task claimed the draft, so it is PROCESSING, and the
+        # cancel lands before the runner's own first write. That write used to be
+        # an unguarded save that would have put PROCESSING straight back.
+        draft = self._pending_draft()
+        ProposalDraft.objects.filter(id=draft.id).update(
+            status=ProposalDraft.Status.PROCESSING
+        )
+        cancels = ProposalDraftCancelService()
+        provider = _AlwaysSubmitProvider(_clean_payload())
+        panel = _FakePanel(overall=5)
+
+        def _cancel_then_config(self_runner):
+            cancels.cancel(ProposalDraft.objects.get(id=draft.id))
+            return {"generator_model_id": "fake"}
+
+        # Act
+        with patch.object(_ProposalDraftRunner, "_run_config", _cancel_then_config):
+            result = run_proposal_draft(
+                self.search_expert.id,
+                draft_id=draft.id,
+                provider=provider,
+                panel=panel,
+                oa_client=_FakeOpenAlex(),
+            )
+
+        # Assert: no model was called and no judging was paid for.
+        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
+        self.assertEqual(provider.call_count, 0)
+        self.assertEqual(len(panel.contexts), 0)
+        self.assertEqual(Note.objects.count(), 0)
