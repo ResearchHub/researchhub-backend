@@ -115,10 +115,12 @@ def execution_phase(
     if not execution_claimed:
         return {"state": PHASE_QUEUED, "label": "Waiting to start"}
     ordered = list(events)
+    # Stale open calls -- ones a later assistant row has overtaken -- are
+    # history whose receipt was lost, not what the turn is doing now.
     open_calls = [
         event
         for event in ordered
-        if isinstance(event, ToolCallEvent) and not event.completed
+        if isinstance(event, ToolCallEvent) and not event.completed and not event.stale
     ]
     if len(open_calls) == 1:
         (call,) = open_calls

@@ -45,6 +45,12 @@ class ToolCallEvent:
     result: dict | None = None
     is_error: bool = False
     finished_at: datetime | None = None
+    # A later assistant row exists, so this call is not what the run is doing
+    # now: a client dispatch returns before the loop asks the model to
+    # continue, and a server-side call's result rides in the later row itself,
+    # closing it. Open-and-stale therefore means the receipt was lost (trace
+    # writes are best-effort); the outcome stays unknown rather than guessed.
+    stale: bool = False
 
     @property
     def completed(self) -> bool:
@@ -117,8 +123,17 @@ class _Walk:
         event.finished_at = finished_at
 
     def begin_assistant_row(self, execution_id: int) -> None:
-        """A new assistant row demotes the previous one out of final position."""
+        """A new assistant row demotes what preceded it out of "current".
+
+        Earlier narration loses final-turn standing, and calls still open go
+        stale: the model does not get to speak again until its dispatches have
+        returned, so a call left open across this boundary is one whose result
+        row was lost, not one still running.
+        """
         self.pending_final[execution_id] = []
+        for event in self.events.get(execution_id, []):
+            if isinstance(event, ToolCallEvent) and not event.completed:
+                event.stale = True
 
     def narrate(self, execution_id: int, event: NarrationEvent) -> None:
         self.events.setdefault(execution_id, []).append(event)
@@ -140,7 +155,9 @@ def conversation_activity_events(
     is echoed by its ``tool_result``. A call whose result row never landed --
     the turn is still running, or it crashed or was truncated mid-flight --
     stays uncompleted rather than being guessed at; the presenter decides what
-    an open call means from the execution's own status.
+    an open call means from the execution's own status. An open call a later
+    assistant row has overtaken is additionally marked ``stale``: still of
+    unknown outcome, but demonstrably not what the run is doing now.
     """
     rows = AgentExecutionMessage.objects.filter(conversation=conversation).exclude(
         provenance__in=[

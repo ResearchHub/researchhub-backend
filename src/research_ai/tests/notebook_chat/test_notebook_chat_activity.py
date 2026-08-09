@@ -522,6 +522,60 @@ class NotebookChatActivityProjectionTests(TestCase):
         self._finish(AgentExecution.Status.FAILED)
         self.assertIsNone(self._entry()["phase"])
 
+    def test_phase_moves_on_when_a_lost_result_leaves_a_call_open(self):
+        # Arrange: the call's result row was lost (trace writes are
+        # best-effort) and the model has since spoken again -- proof the
+        # dispatch finished, whatever its outcome was.
+        self._add_trace_row(
+            1,
+            [{"type": "tool_use", "id": "t1", "name": "read_note", "input": {}}],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self._add_trace_row(
+            2,
+            [{"type": "text", "text": "The note is long; summarizing."}],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+
+        # Act
+        entry = self._entry()
+
+        # Assert: the phase reports the newer work, while the feed keeps the
+        # call open rather than guessing an outcome for it.
+        self.assertEqual(entry["phase"]["state"], "responding")
+        (event,) = _tool_calls(entry["activity"])
+        self.assertEqual(event["status"], "in_progress")
+
+    def test_phase_names_the_current_call_despite_an_older_stale_one(self):
+        # Arrange: an open call whose result row was lost, then a later turn
+        # dispatching a single fresh call.
+        self._add_trace_row(
+            1,
+            [{"type": "tool_use", "id": "t1", "name": "read_note", "input": {}}],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self._add_trace_row(
+            2,
+            [
+                {
+                    "type": "tool_use",
+                    "id": "t2",
+                    "name": "web_search",
+                    "input": {"query": "anything"},
+                }
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+
+        # Act
+        phase = self._entry()["phase"]
+
+        # Assert: one call is genuinely current, so it is named rather than
+        # hidden behind the generic batch label.
+        self.assertEqual(phase["state"], "using_tool")
+        self.assertEqual(phase["tool"], "web_search")
+        self.assertEqual(phase["label"], "Searching the web")
+
     def test_phase_is_queued_until_a_worker_claims_the_turn(self):
         # Arrange: a submitted turn no worker has picked up; nothing is
         # thinking yet, and during a backlog this state can last a while.
