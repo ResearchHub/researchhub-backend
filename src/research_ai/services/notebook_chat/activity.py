@@ -77,13 +77,16 @@ PHASE_THINKING = "thinking"
 
 
 def public_activity(
-    events: Iterable[ActivityEvent], *, execution_active: bool
+    events: Iterable[ActivityEvent],
+    *,
+    execution_active: bool,
+    answer_published: bool,
 ) -> list[dict]:
     """Render events to the public shapes; nothing raw passes through."""
     public = []
     for event in events:
         if isinstance(event, NarrationEvent):
-            rendered = _public_narration(event, execution_active)
+            rendered = _public_narration(event, answer_published)
         else:
             rendered = _public_tool_call(event, execution_active)
         if rendered is not None:
@@ -122,11 +125,13 @@ def execution_phase(
     return {"state": PHASE_THINKING, "label": "Thinking"}
 
 
-def _public_narration(event: NarrationEvent, execution_active: bool) -> dict | None:
-    # On a finished turn the final assistant text is published as the chat
-    # message, so echoing it here too would show the answer twice. While the
-    # turn is live nothing is published yet and this is the only way to read it.
-    if event.from_final_turn and not execution_active:
+def _public_narration(event: NarrationEvent, answer_published: bool) -> dict | None:
+    # Once the final assistant text is published as the chat message, echoing
+    # it here too would show the answer twice. Until then it stays: on a live
+    # turn nothing is published yet, and a turn that fails or is stopped never
+    # publishes, leaving the feed as the only account of what the model last
+    # said.
+    if event.from_final_turn and answer_published:
         return None
     return {
         "type": "narration",

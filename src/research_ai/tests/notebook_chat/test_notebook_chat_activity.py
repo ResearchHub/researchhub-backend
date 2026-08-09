@@ -367,7 +367,7 @@ class NotebookChatActivityProjectionTests(TestCase):
         self.execution.save(update_fields=["status"])
         self.assertEqual(self._single_event()["status"], "interrupted")
 
-    def test_live_turn_shows_its_newest_text_but_a_finished_turn_does_not(self):
+    def test_live_turn_shows_its_newest_text_but_a_succeeded_turn_does_not(self):
         # Arrange: the only assistant text so far, which is either narration in
         # progress or the answer, depending on whether the run is over.
         self._add_trace_row(
@@ -380,10 +380,31 @@ class NotebookChatActivityProjectionTests(TestCase):
         (narration,) = _narrations(self._entry()["activity"])
         self.assertEqual(narration["text"], "Let me look into that.")
 
-        # ...and once the run ends the same text is the published answer, so
-        # repeating it in the feed would show it twice.
+        # ...and once the run succeeds the same text is the published answer,
+        # so repeating it in the feed would show it twice.
         self._finish()
         self.assertEqual(_narrations(self._entry()["activity"]), [])
+
+    def test_unsuccessful_turn_keeps_its_newest_text(self):
+        # Arrange: text the model wrote on a turn that never got to publish
+        # an answer.
+        self._add_trace_row(
+            1,
+            [{"type": "text", "text": "Let me look into that."}],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+
+        # Act & Assert: with no published message to repeat, the feed is the
+        # only surviving account of what the model said.
+        for status in (
+            AgentExecution.Status.FAILED,
+            AgentExecution.Status.INTERRUPTED,
+            AgentExecution.Status.CANCELLED,
+        ):
+            with self.subTest(status=status):
+                self._finish(status)
+                (narration,) = _narrations(self._entry()["activity"])
+                self.assertEqual(narration["text"], "Let me look into that.")
 
     def test_phase_names_the_open_tool_then_clears_when_terminal(self):
         # Arrange: a call whose result row has not landed.

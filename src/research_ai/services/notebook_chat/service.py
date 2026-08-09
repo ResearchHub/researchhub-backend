@@ -137,7 +137,14 @@ class NotebookChatService:
             execution_active = execution["status"] in active
             execution_events = events.get(execution["id"], [])
             execution["activity"] = public_activity(
-                execution_events, execution_active=execution_active
+                execution_events,
+                execution_active=execution_active,
+                # Publication is success-gated: only a succeeded run's final
+                # text becomes the chat message. A failed, interrupted or
+                # cancelled run never publishes, so its feed keeps that text.
+                answer_published=(
+                    execution["status"] == AgentExecution.Status.SUCCEEDED
+                ),
             )
             execution["phase"] = execution_phase(
                 execution_events, execution_active=execution_active

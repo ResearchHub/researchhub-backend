@@ -56,12 +56,14 @@ class NarrationEvent:
     """Assistant prose from one text block of an assistant trace row.
 
     ``from_final_turn`` marks text belonging to the execution's *last* assistant
-    message. That text is the answer itself -- the same string the chat
-    publishes as an assistant message once the run succeeds -- so a presenter
-    showing a finished turn must drop it to avoid saying everything twice.
-    While a run is still going the flag is meaningless in practice: the last
-    assistant message is simply the newest thing the model said, nothing is
-    published yet, and showing it is the whole point.
+    message. On a run that succeeds, that text is the answer itself -- the same
+    string the chat publishes as an assistant message -- so a presenter must
+    drop it to avoid saying everything twice. A run that ends any other way
+    publishes nothing, and the flag then marks the only surviving account of
+    what the model last said, which a presenter should keep. While a run is
+    still going the flag is meaningless in practice: the last assistant message
+    is simply the newest thing the model said, nothing is published yet, and
+    showing it is the whole point.
 
     The distinction cannot be drawn from the block alone. A turn that used the
     provider's own web search puts narration, the server-side call, and the
