@@ -407,6 +407,70 @@ class NotebookChatActivityProjectionTests(TestCase):
                 (narration,) = _narrations(self._entry()["activity"])
                 self.assertEqual(narration["text"], "Let me look into that.")
 
+    def test_narration_survives_when_the_answers_trace_row_was_lost(self):
+        # Arrange: a tool-calling row landed, but the answer's own trace write
+        # failed (trace writes are best-effort), so the newest persisted
+        # assistant row is mid-run narration. The run still succeeded and its
+        # answer publishes from memory.
+        self._add_trace_row(
+            1,
+            [
+                {"type": "text", "text": "Let me read the note."},
+                {"type": "tool_use", "id": "t1", "name": "read_note", "input": {}},
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self._add_trace_row(
+            2,
+            [{"type": "tool_result", "tool_use_id": "t1", "content": {"ok": True}}],
+            AgentExecutionMessage.Provenance.TOOL,
+            role="user",
+        )
+        self.execution.status = AgentExecution.Status.SUCCEEDED
+        self.execution.publish_output_to_chat = True
+        self.execution.final_output = {"text": "The note covers perovskites."}
+        self.execution.save(
+            update_fields=["status", "publish_output_to_chat", "final_output"]
+        )
+
+        # Act: the read repairs the missing publication, then renders.
+        entry = self._entry()
+
+        # Assert: the published answer does not contain this narration, so
+        # suppressing it would erase words the chat never shows.
+        self.assertEqual(
+            list(
+                self.conversation.chat_messages.filter(role="ASSISTANT").values_list(
+                    "content", flat=True
+                )
+            ),
+            ["The note covers perovskites."],
+        )
+        (narration,) = _narrations(entry["activity"])
+        self.assertEqual(narration["text"], "Let me read the note.")
+
+    def test_published_answer_split_across_final_row_blocks_is_not_echoed(self):
+        # Arrange: a final row whose answer spans two text blocks; the chat
+        # publishes their verbatim join, so each block is part of the answer.
+        self._add_trace_row(
+            1,
+            [
+                {"type": "text", "text": "Searching now. "},
+                {"type": "text", "text": "Batteries improved."},
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self.execution.status = AgentExecution.Status.SUCCEEDED
+        self.execution.publish_output_to_chat = True
+        self.execution.final_output = {"text": "Searching now. Batteries improved."}
+        self.execution.save(
+            update_fields=["status", "publish_output_to_chat", "final_output"]
+        )
+
+        # Act & Assert: every block of the published answer stays out of the
+        # feed even though no single block equals the published string.
+        self.assertEqual(_narrations(self._entry()["activity"]), [])
+
     def test_succeeded_turn_stuck_on_publication_repair_keeps_its_text(self):
         # Arrange: a succeeded run whose answer publication failed and whose
         # on-read repair keeps failing, so the chat shows no assistant message.

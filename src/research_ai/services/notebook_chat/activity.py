@@ -82,12 +82,13 @@ def public_activity(
     *,
     execution_active: bool,
     answer_published: bool,
+    published_answer: str | None,
 ) -> list[dict]:
     """Render events to the public shapes; nothing raw passes through."""
     public = []
     for event in events:
         if isinstance(event, NarrationEvent):
-            rendered = _public_narration(event, answer_published)
+            rendered = _public_narration(event, answer_published, published_answer)
         else:
             rendered = _public_tool_call(event, execution_active)
         if rendered is not None:
@@ -136,13 +137,27 @@ def execution_phase(
     return {"state": PHASE_THINKING, "label": "Thinking"}
 
 
-def _public_narration(event: NarrationEvent, answer_published: bool) -> dict | None:
+def _public_narration(
+    event: NarrationEvent, answer_published: bool, published_answer: str | None
+) -> dict | None:
     # Once the final assistant text is published as the chat message, echoing
     # it here too would show the answer twice. Until then it stays: on a live
     # turn nothing is published yet, and a turn that fails or is stopped never
     # publishes, leaving the feed as the only account of what the model last
     # said.
-    if event.from_final_turn and answer_published:
+    # The containment clause keeps the flag honest: trace writes are
+    # best-effort, so ``from_final_turn`` can land on the newest *surviving*
+    # row rather than the answer's own. Text the published answer does not
+    # contain is narration a lost final write left behind, and it stays. The
+    # answer joins its row's text blocks verbatim, so containment holds for
+    # every block that really is the answer. With no published text to check
+    # -- a regeneration replaced this answer -- position stands, keeping the
+    # replaced answer buried.
+    if (
+        event.from_final_turn
+        and answer_published
+        and (published_answer is None or event.text in published_answer)
+    ):
         return None
     return {
         "type": "narration",

@@ -133,6 +133,11 @@ class NotebookChatService:
         data = self.chat.representation(conversation)
         events = conversation_activity_events(conversation)
         active = {AgentExecution.Status.PENDING, AgentExecution.Status.RUNNING}
+        published_answers = {
+            message["execution_id"]: message["content"]
+            for message in data["messages"]
+            if message["execution_id"] is not None
+        }
         for execution in data["executions"]:
             execution_active = execution["status"] in active
             execution_events = events.get(execution["id"], [])
@@ -149,6 +154,10 @@ class NotebookChatService:
                     execution["status"] == AgentExecution.Status.SUCCEEDED
                     and not execution["assistant_message_pending"]
                 ),
+                # The published text itself, so the presenter can tell the
+                # answer's own trace row from older narration a lost final
+                # trace write left misflagged as the answer.
+                published_answer=published_answers.get(execution["id"]),
             )
             execution["phase"] = execution_phase(
                 execution_events,

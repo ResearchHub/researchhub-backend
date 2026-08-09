@@ -55,15 +55,19 @@ class ToolCallEvent:
 class NarrationEvent:
     """Assistant prose from one text block of an assistant trace row.
 
-    ``from_final_turn`` marks text belonging to the execution's *last* assistant
-    message. On a run that succeeds, that text is the answer itself -- the same
-    string the chat publishes as an assistant message -- so a presenter must
-    drop it to avoid saying everything twice. A run that ends any other way
-    publishes nothing, and the flag then marks the only surviving account of
-    what the model last said, which a presenter should keep. While a run is
-    still going the flag is meaningless in practice: the last assistant message
-    is simply the newest thing the model said, nothing is published yet, and
-    showing it is the whole point.
+    ``from_final_turn`` marks text belonging to the execution's newest
+    *persisted* assistant message. On a run that succeeds, that text is
+    normally the answer itself -- the same string the chat publishes as an
+    assistant message -- so a presenter must drop it to avoid saying everything
+    twice. Normally, because trace writes are best-effort: when the answer's
+    own row was lost the flag lands on the newest surviving row instead, and a
+    presenter can only tell the two apart by checking the text against the
+    published answer. A run that ends any other way publishes nothing, and the
+    flag then marks the only surviving account of what the model last said,
+    which a presenter should keep. While a run is still going the flag is
+    meaningless in practice: the last assistant message is simply the newest
+    thing the model said, nothing is published yet, and showing it is the
+    whole point.
 
     The distinction cannot be drawn from the block alone. A turn that used the
     provider's own web search puts narration, the server-side call, and the
