@@ -151,7 +151,13 @@ class NotebookChatService:
                 ),
             )
             execution["phase"] = execution_phase(
-                execution_events, execution_active=execution_active
+                execution_events,
+                execution_active=execution_active,
+                # A pending turn is waiting for a worker to claim it; only a
+                # claimed one has model work for the phase to describe.
+                execution_claimed=(
+                    execution["status"] == AgentExecution.Status.RUNNING
+                ),
             )
         return data
 

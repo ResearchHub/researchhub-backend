@@ -458,6 +458,44 @@ class NotebookChatActivityProjectionTests(TestCase):
         self._finish(AgentExecution.Status.FAILED)
         self.assertIsNone(self._entry()["phase"])
 
+    def test_phase_is_queued_until_a_worker_claims_the_turn(self):
+        # Arrange: a submitted turn no worker has picked up; nothing is
+        # thinking yet, and during a backlog this state can last a while.
+        self.execution.status = AgentExecution.Status.PENDING
+        self.execution.save(update_fields=["status"])
+
+        # Act & Assert
+        self.assertEqual(
+            self._entry()["phase"],
+            {"state": "queued", "label": "Waiting to start"},
+        )
+
+    def test_phase_stays_generic_while_a_batch_of_calls_is_open(self):
+        # Arrange: one assistant turn dispatched two calls. They run in order
+        # but their results land as one batch, so mid-batch the trace cannot
+        # say which call is the current one.
+        self._add_trace_row(
+            1,
+            [
+                {"type": "tool_use", "id": "t1", "name": "read_note", "input": {}},
+                {
+                    "type": "tool_use",
+                    "id": "t2",
+                    "name": "web_search",
+                    "input": {"query": "anything"},
+                },
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+
+        # Act
+        phase = self._entry()["phase"]
+
+        # Assert: a tool phase that names no specific call.
+        self.assertEqual(phase["state"], "using_tool")
+        self.assertEqual(phase["label"], "Running tools")
+        self.assertNotIn("tool", phase)
+
     def test_phase_is_thinking_once_the_tool_result_lands(self):
         # Arrange: the call completed and the model has not spoken since.
         self._add_trace_row(
@@ -634,6 +672,7 @@ class NotebookChatActivityViewTests(APITestCase):
             )
         before = self.client.get(self.chat_url)
         self.assertEqual(before.data["executions"][0]["activity"], [])
+        self.assertEqual(before.data["executions"][0]["phase"]["state"], "queued")
 
         _make_service(
             provider=FakeProvider(

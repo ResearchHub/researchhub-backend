@@ -71,6 +71,7 @@ _MAX_SOURCES = 5
 # pathological turn cannot make every poll of this conversation huge.
 _MAX_NARRATION_CHARS = 4000
 
+PHASE_QUEUED = "queued"
 PHASE_USING_TOOL = "using_tool"
 PHASE_RESPONDING = "responding"
 PHASE_THINKING = "thinking"
@@ -95,31 +96,41 @@ def public_activity(
 
 
 def execution_phase(
-    events: Iterable[ActivityEvent], *, execution_active: bool
+    events: Iterable[ActivityEvent],
+    *,
+    execution_active: bool,
+    execution_claimed: bool,
 ) -> dict | None:
     """What a live turn is doing right now, or ``None`` once it is terminal.
 
-    Derived rather than stored: the trace rows already say it, and a separate
-    persisted phase would be one more thing a dead worker could leave lying
-    about the run's state.
+    A turn no worker has claimed yet is ``queued``: nothing is thinking, and
+    during a backlog that difference stays visible for a while. Everything
+    else is derived rather than stored: the trace rows already say it, and a
+    separate persisted phase would be one more thing a dead worker could leave
+    lying about the run's state.
     """
     if not execution_active:
         return None
+    if not execution_claimed:
+        return {"state": PHASE_QUEUED, "label": "Waiting to start"}
     ordered = list(events)
-    open_call = next(
-        (
-            event
-            for event in reversed(ordered)
-            if isinstance(event, ToolCallEvent) and not event.completed
-        ),
-        None,
-    )
-    if open_call is not None:
+    open_calls = [
+        event
+        for event in ordered
+        if isinstance(event, ToolCallEvent) and not event.completed
+    ]
+    if len(open_calls) == 1:
+        (call,) = open_calls
         return {
             "state": PHASE_USING_TOOL,
-            "label": _active_label(open_call.tool),
-            "tool": open_call.tool,
+            "label": _active_label(call.tool),
+            "tool": call.tool,
         }
+    if open_calls:
+        # One turn can dispatch several calls. They run in their emitted order
+        # but their results land as one batch, so mid-batch the trace cannot
+        # say which call is the current one -- naming any would be a guess.
+        return {"state": PHASE_USING_TOOL, "label": "Running tools"}
     if ordered and isinstance(ordered[-1], NarrationEvent):
         return {"state": PHASE_RESPONDING, "label": "Writing a response"}
     return {"state": PHASE_THINKING, "label": "Thinking"}
