@@ -93,12 +93,19 @@ class Toolset:
         caught and logged -> ``({"error": str(exc)}, False)``. A terminal tool
         returns ``stop=True`` after a non-error result so the loop ends after
         its result is delivered.
+
+        ``InterruptedError`` is the exception: it says the *run* should stop, not
+        that the tool failed, so handing it back as a retryable error would have
+        the model try again against a run nobody is waiting for. It propagates,
+        as it does out of a provider call.
         """
         tool = self._tools.get(name)
         if tool is None:
             return {"error": f"unknown tool: {name}"}, False
         try:
             result = tool.handler(input or {})
+        except InterruptedError:
+            raise
         except Exception as exc:  # noqa: BLE001 - tool errors go back to the model
             # A leaked exception is a bug in a handler (they promise not to
             # raise): keep the traceback, and never hand the model an empty

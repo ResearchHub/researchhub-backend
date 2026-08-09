@@ -20,10 +20,17 @@ def _as_text(payload) -> str:
 class _FakeProvider:
     """A judge provider whose ``complete`` returns a fixed JSON text."""
 
-    def __init__(self, model_id, payload, stop_reason=StopReason.END_TURN):
+    def __init__(
+        self,
+        model_id,
+        payload,
+        stop_reason=StopReason.END_TURN,
+        stop_details=None,
+    ):
         self.model_id = model_id
         self._text = _as_text(payload)
         self._stop_reason = stop_reason
+        self._stop_details = stop_details
         self.calls = []
 
     def complete(self, **_kwargs) -> AssistantTurn:
@@ -32,7 +39,18 @@ class _FakeProvider:
             text_blocks=[TextBlock(text=self._text)],
             tool_calls=[],
             stop_reason=self._stop_reason,
+            stop_details=self._stop_details,
         )
+
+
+def _refused_provider(model_id="j1", category="bio"):
+    """A judge a safety classifier declines: a 200 turn with no content."""
+    return _FakeProvider(
+        model_id,
+        "",
+        stop_reason=StopReason.CONTENT_FILTERED,
+        stop_details={"type": "refusal", "category": category},
+    )
 
 
 class _FlakyProvider:
@@ -193,6 +211,23 @@ class ProposalJudgePanelTests(SimpleTestCase):
         self.assertEqual(result["judges_reporting"], 0)
         self.assertEqual(len(provider.calls), 2)
         self.assertIn("max_tokens", result["judge_errors"][0])
+
+    def test_score_does_not_retry_a_refused_judge(self):
+        # Arrange: a safety classifier's verdict is a property of the model
+        # and the request, so the same model asked the same question refuses
+        # again -- the retry would be spent for nothing.
+        refused = _refused_provider("j1", category="bio")
+        panel = ProposalJudgePanel(providers=[refused])
+
+        # Act
+        result = panel.score("draft")
+
+        # Assert: asked once, and the reason names the classifier category.
+        self.assertEqual(len(refused.calls), 1)
+        self.assertEqual(result["judges_reporting"], 0)
+        error = result["judge_errors"][0]
+        self.assertIn("content_filtered", error)
+        self.assertIn("bio", error)
 
     def test_score_rejects_an_empty_judge_turn(self):
         # Arrange: a turn that emitted no text at all (all reasoning, no answer).
