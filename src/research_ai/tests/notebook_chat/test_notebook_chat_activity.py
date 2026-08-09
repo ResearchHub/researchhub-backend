@@ -12,6 +12,7 @@ from research_ai.models import (
     AgentExecution,
     AgentExecutionMessage,
 )
+from research_ai.services.agent_persistence.recorder import DatabaseAgentRecorder
 from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
@@ -405,6 +406,40 @@ class NotebookChatActivityProjectionTests(TestCase):
                 self._finish(status)
                 (narration,) = _narrations(self._entry()["activity"])
                 self.assertEqual(narration["text"], "Let me look into that.")
+
+    def test_succeeded_turn_stuck_on_publication_repair_keeps_its_text(self):
+        # Arrange: a succeeded run whose answer publication failed and whose
+        # on-read repair keeps failing, so the chat shows no assistant message.
+        self._add_trace_row(
+            1,
+            [{"type": "text", "text": "Here is the answer."}],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self.execution.status = AgentExecution.Status.SUCCEEDED
+        self.execution.publish_output_to_chat = True
+        self.execution.final_output = {"text": "Here is the answer."}
+        self.execution.save(
+            update_fields=["status", "publish_output_to_chat", "final_output"]
+        )
+
+        # Act: read while every repair attempt fails.
+        with (
+            patch.object(
+                DatabaseAgentRecorder,
+                "publish_assistant_output",
+                side_effect=Exception("db down"),
+            ),
+            self.assertLogs(
+                "research_ai.services.agent_persistence.chat_service", "WARNING"
+            ),
+        ):
+            entry = self._entry()
+
+        # Assert: until the answer actually lands as a chat message, the feed
+        # still carries the model's text rather than showing nothing at all.
+        self.assertTrue(entry["assistant_message_pending"])
+        (narration,) = _narrations(entry["activity"])
+        self.assertEqual(narration["text"], "Here is the answer.")
 
     def test_phase_names_the_open_tool_then_clears_when_terminal(self):
         # Arrange: a call whose result row has not landed.

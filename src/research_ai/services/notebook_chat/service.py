@@ -139,11 +139,15 @@ class NotebookChatService:
             execution["activity"] = public_activity(
                 execution_events,
                 execution_active=execution_active,
-                # Publication is success-gated: only a succeeded run's final
-                # text becomes the chat message. A failed, interrupted or
-                # cancelled run never publishes, so its feed keeps that text.
+                # The final text is dropped only while the chat truly carries
+                # it. Publication is success-gated, so any other terminal
+                # status keeps the text here, and a succeeded run stuck on
+                # publication repair (``assistant_message_pending``) keeps it
+                # too until the repair lands. A superseded run reports not
+                # pending, so an answer a regeneration replaced stays out.
                 answer_published=(
                     execution["status"] == AgentExecution.Status.SUCCEEDED
+                    and not execution["assistant_message_pending"]
                 ),
             )
             execution["phase"] = execution_phase(
