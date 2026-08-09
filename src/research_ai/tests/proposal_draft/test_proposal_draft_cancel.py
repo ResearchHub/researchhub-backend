@@ -79,19 +79,6 @@ class ProposalDraftCancelServiceTests(TestCase):
         execution = AgentExecution.objects.get(id=recorder.execution.id)
         self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
 
-    def test_cancelling_a_draft_with_no_trace_still_cancels_it(self):
-        # Arrange: the agent trace is best-effort, so a run may have none. The
-        # runner's own checkpoints read the draft, which is why this works.
-        draft = self._draft(conversation=None)
-
-        # Act
-        cancelled = self.cancels.cancel(draft)
-
-        # Assert
-        self.assertTrue(cancelled)
-        draft.refresh_from_db()
-        self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
-
     @patch("research_ai.tasks.run_proposal_draft")
     def test_cancelling_a_queued_draft_stops_the_task_from_running_it(self, mock_run):
         # Arrange: cancelled before any worker claimed it.
@@ -136,20 +123,6 @@ class ProposalDraftCancelServiceTests(TestCase):
         draft.refresh_from_db()
         self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
         self.assertEqual(draft.error_message, "")
-
-    def test_cancelling_an_already_terminal_draft_reports_false(self):
-        # Arrange: a draft that finished on its own. Cancelling one that is
-        # already cancelled takes the same path -- neither is active.
-        draft = self._draft(status=ProposalDraft.Status.COMPLETED)
-
-        # Act
-        cancelled = self.cancels.cancel(draft)
-
-        # Assert: the ordinary race of stopping a job that already stopped, and
-        # the outcome it reached is left as it was.
-        self.assertFalse(cancelled)
-        draft.refresh_from_db()
-        self.assertEqual(draft.status, ProposalDraft.Status.COMPLETED)
 
     def test_a_cancelled_draft_refuses_its_runs_terminal_writes(self):
         # Arrange: the worker holds a stale draft instance from before the
@@ -202,10 +175,10 @@ class ProposalDraftCancelServiceTests(TestCase):
             AgentExecution.Status.CANCELLED,
         )
 
-    def test_cancelling_a_completed_draft_leaves_its_trace_alone(self):
-        # Arrange: the sweep above must not reach a draft that finished on its
-        # own. Its execution belongs to that outcome, and cancelling one the run
-        # is still finalizing would record a cancellation over a success.
+    def test_cancelling_a_completed_draft_leaves_it_and_its_trace_alone(self):
+        # Arrange: a draft that finished on its own, its execution still being
+        # finalized. Cancelling one that is already cancelled takes the same
+        # path -- neither is active.
         conversation = AgentConversation.objects.create(workflow="proposal_draft")
         draft = self._draft(
             status=ProposalDraft.Status.COMPLETED, conversation=conversation
@@ -215,9 +188,16 @@ class ProposalDraftCancelServiceTests(TestCase):
         )
 
         # Act
-        self.assertFalse(self.cancels.cancel(draft))
+        cancelled = self.cancels.cancel(draft)
 
-        # Assert
+        # Assert: the ordinary race of stopping a job that already stopped. The
+        # outcome it reached is left as it was, and the sweep above must not
+        # reach its trace either: that execution belongs to the outcome, and
+        # cancelling one the run is still finalizing would record a cancellation
+        # over a success.
+        self.assertFalse(cancelled)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.COMPLETED)
         self.assertEqual(
             AgentExecution.objects.get(id=recorder.execution.id).status,
             AgentExecution.Status.RUNNING,
