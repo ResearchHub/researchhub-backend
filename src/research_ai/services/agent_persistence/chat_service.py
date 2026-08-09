@@ -42,6 +42,20 @@ def _has_publishable_output(execution: AgentExecution) -> bool:
     return isinstance(text, str) and bool(text)
 
 
+def _max_iterations(execution: AgentExecution) -> int | None:
+    """The iteration ceiling this attempt was submitted with, if it recorded one.
+
+    Read from the execution's own configuration snapshot rather than current
+    settings, so a client rendering "step 4 of 30" shows the bound the run is
+    actually held to and not one a later settings change invented.
+    """
+    configuration = execution.configuration
+    if not isinstance(configuration, dict):
+        return None
+    value = configuration.get("max_iterations")
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 @dataclass(frozen=True)
 class PreparedAgentExecution:
     execution: AgentExecution
@@ -259,6 +273,15 @@ class AgentChatService:
                 "retry_of_id": execution.retry_of_id,
                 "context_parent_id": execution.context_parent_id,
                 "stop_reason": execution.stop_reason,
+                # Progress signals. ``last_activity_at`` is the run's heartbeat
+                # -- the recorder stamps it on every durable write -- so a
+                # client can tell a turn that is working slowly from one that
+                # has gone quiet, well before the liveness sweep reclaims it.
+                "started_at": execution.started_at,
+                "finished_at": execution.finished_at,
+                "last_activity_at": execution.last_activity_at,
+                "iterations": execution.iterations,
+                "max_iterations": _max_iterations(execution),
                 "assistant_message_pending": (
                     execution.status == AgentExecution.Status.SUCCEEDED
                     and execution.publish_output_to_chat

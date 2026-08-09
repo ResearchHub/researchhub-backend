@@ -178,8 +178,9 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         # Act
         representation = chat.representation(self.conversation)
 
-        # Assert
-        self.assertNotIn("secret token", json.dumps(representation))
+        # Assert: default=str because the representation carries the progress
+        # timestamps as datetimes, which DRF renders on the way out.
+        self.assertNotIn("secret token", json.dumps(representation, default=str))
         self.assertEqual(
             representation["executions"][0]["error"],
             {
@@ -187,6 +188,55 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
                 "message": "The agent could not complete this request.",
             },
         )
+
+    def test_representation_reports_progress_for_a_finished_turn(self):
+        # Arrange
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(
+            self.conversation,
+            "Question",
+            configuration={"max_iterations": 12},
+        )
+
+        # Act
+        agent(FakeProvider([text_turn("Answer")]), prepared.recorder).run("Question")
+        (entry,) = chat.representation(self.conversation)["executions"]
+
+        # Assert: enough for a client to render elapsed time and "step N of M".
+        self.assertIsNotNone(entry["started_at"])
+        self.assertIsNotNone(entry["finished_at"])
+        self.assertIsNotNone(entry["last_activity_at"])
+        self.assertEqual(entry["iterations"], 1)
+        self.assertEqual(entry["max_iterations"], 12)
+
+    def test_max_iterations_is_absent_when_the_attempt_recorded_none(self):
+        # Arrange: max_iterations is read from the attempt's own configuration
+        # snapshot, so a run that never recorded one reports nothing rather
+        # than borrowing today's settings.
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(self.conversation, "Question")
+
+        # Act
+        agent(FakeProvider([text_turn("Answer")]), prepared.recorder).run("Question")
+        (entry,) = chat.representation(self.conversation)["executions"]
+
+        # Assert
+        self.assertIsNone(entry["max_iterations"])
+
+    def test_a_running_turn_reports_a_heartbeat_and_no_finish(self):
+        # Arrange: a turn in flight, no terminal hook called.
+        chat = AgentChatService()
+        chat.prepare_turn(self.conversation, "Question")
+
+        # Act
+        (entry,) = chat.representation(self.conversation)["executions"]
+
+        # Assert: last_activity_at is what lets a client tell a turn working
+        # slowly from one that has gone quiet.
+        self.assertEqual(entry["status"], AgentExecution.Status.RUNNING)
+        self.assertIsNotNone(entry["started_at"])
+        self.assertIsNotNone(entry["last_activity_at"])
+        self.assertIsNone(entry["finished_at"])
 
     def test_public_representation_costs_the_same_however_long_the_chat_is(self):
         # Arrange
