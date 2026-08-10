@@ -89,7 +89,30 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
             first_trace.provenance, AgentExecutionMessage.Provenance.BACKEND
         )
         self.assertEqual(first_trace.content[0]["text"], wrapped_prompt)
-        self.assertNotIn("secret", json.dumps(representation["messages"]))
+        # ``default=str`` because the payload carries datetimes; DRF's
+        # encoder handles those on the real API path.
+        self.assertNotIn("secret", json.dumps(representation["messages"], default=str))
+
+    def test_messages_carry_created_timestamps(self):
+        # Arrange
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(self.conversation, "Question")
+
+        # Act
+        agent(FakeProvider([text_turn("Answer")]), prepared.recorder).run("Question")
+        representation = chat.representation(self.conversation)
+
+        # Assert: both roles report when their row landed in the chat.
+        question, answer = representation["messages"]
+        self.assertEqual(
+            [message["created_date"] for message in (question, answer)],
+            list(
+                self.conversation.chat_messages.order_by("sequence").values_list(
+                    "created_date", flat=True
+                )
+            ),
+        )
+        self.assertLessEqual(question["created_date"], answer["created_date"])
 
     def test_retry_reuses_human_message_and_provenance(self):
         # Arrange
