@@ -46,9 +46,10 @@ class NotebookChatView(APIView):
 
     ``?activity=live`` is the polling form: it recomputes the activity feed
     only for turns the client may not yet hold settled -- active ones, and
-    ones settled so recently that no poll has necessarily seen them -- and
-    omits the ``activity`` key for the rest, which a client is expected to
-    already hold from its first load. Use it while watching a turn; use the
+    ones whose last change (settling, or a delayed answer publication) is
+    recent enough that no poll has necessarily seen it -- and omits the
+    ``activity`` key for the rest, which a client is expected to already hold
+    from its first load. Use it while watching a turn; use the
     default for the initial fetch. Any other value falls back to the full
     projection, so a stale or mistyped client parameter costs performance
     rather than correctness.

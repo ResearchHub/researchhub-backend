@@ -589,8 +589,8 @@ class NotebookChatActivityProjectionTests(TestCase):
     def test_repair_landing_on_a_poll_reenters_the_live_scope(self):
         # Arrange: a succeeded turn whose publication kept failing until the
         # turn aged past the grace window and a newer attempt displaced it.
-        # Neither age nor position can catch the repair; only the read that
-        # performs it knows the turn just re-rendered.
+        # Neither age nor position can catch the repair; the publication
+        # stamping the turn's heartbeat is what pulls it back into the window.
         self._add_trace_row(
             1,
             [{"type": "text", "text": "Here is the answer."}],
@@ -609,22 +609,67 @@ class NotebookChatActivityProjectionTests(TestCase):
             status=AgentExecution.Status.SUCCEEDED,
         )
 
-        # Act: the poll whose repair publishes the answer, then the poll after.
+        # Act: the poll whose repair publishes the answer, then a poll after
+        # the grace window has passed again.
         repairing = self.service.representation(
             self.conversation, activity_scope=ACTIVITY_LIVE
         )
+        _settle_beyond_grace(self.execution.id)
         settled = self.service.representation(
             self.conversation, activity_scope=ACTIVITY_LIVE
         )
 
         # Assert: the repairing poll delivers the corrected feed -- the
-        # narration moved into the chat -- and the next poll omits the turn
-        # again.
+        # narration moved into the chat -- and once the window passes the
+        # turn drops back out of the projection.
         repaired_entry = repairing["executions"][0]
         self.assertFalse(repaired_entry["assistant_message_pending"])
         self.assertIn("activity", repaired_entry)
         self.assertEqual(_narrations(repaired_entry["activity"]), [])
         self.assertNotIn("activity", settled["executions"][0])
+
+    def test_answer_published_by_another_request_reenters_the_live_scope(self):
+        # Arrange: the same stuck turn, but the publication lands on a request
+        # whose response carries no feed -- ``prepare_turn`` repairing before
+        # the next question lands, or another tab's poll -- before this client
+        # polls again.
+        self._add_trace_row(
+            1,
+            [{"type": "text", "text": "Here is the answer."}],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self.execution.status = AgentExecution.Status.SUCCEEDED
+        self.execution.publish_output_to_chat = True
+        self.execution.final_output = {"text": "Here is the answer."}
+        self.execution.save(
+            update_fields=["status", "publish_output_to_chat", "final_output"]
+        )
+        _settle_beyond_grace(self.execution.id)
+        AgentExecution.objects.create(
+            conversation=self.conversation,
+            attempt=2,
+            status=AgentExecution.Status.SUCCEEDED,
+        )
+        DatabaseAgentRecorder(self.execution).publish_assistant_output()
+
+        # Act: a poll that performed no repair of its own.
+        live = self.service.representation(
+            self.conversation, activity_scope=ACTIVITY_LIVE
+        )
+
+        # Assert: the publication stamp pulled the turn back into the grace
+        # window, so the corrected feed reaches every client polling within
+        # it -- not only whichever request landed the message. Once the
+        # window passes, the turn drops back out.
+        entry = live["executions"][0]
+        self.assertFalse(entry["assistant_message_pending"])
+        self.assertIn("activity", entry)
+        self.assertEqual(_narrations(entry["activity"]), [])
+        _settle_beyond_grace(self.execution.id)
+        later = self.service.representation(
+            self.conversation, activity_scope=ACTIVITY_LIVE
+        )
+        self.assertNotIn("activity", later["executions"][0])
 
     def test_phase_names_the_open_tool_then_clears_when_terminal(self):
         # Arrange: a call whose result row has not landed.

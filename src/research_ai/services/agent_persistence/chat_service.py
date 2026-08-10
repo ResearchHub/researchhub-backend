@@ -237,16 +237,8 @@ class AgentChatService:
         }
 
     def representation(self, conversation: AgentConversation) -> dict:
-        """Repair pending publication and return user-safe chat lifecycle data.
-
-        ``repaired_execution_ids`` reports the publications that landed during
-        this very read. The transition is invisible in the rest of the payload
-        -- the turn was ``SUCCEEDED`` before and after -- yet it changes how
-        the turn's activity renders, and a caller scoping that work to "what
-        could have changed" would otherwise skip exactly the turn that just
-        did.
-        """
-        repaired = self.repair_pending_outputs(conversation)
+        """Repair pending publication and return user-safe chat lifecycle data."""
+        self.repair_pending_outputs(conversation)
         # Skew here is safe in the one direction it can go: an answer published
         # after this read is reported still pending, which costs a poll. Reading
         # it later could not report a live answer as already superseded.
@@ -285,6 +277,8 @@ class AgentChatService:
                 # -- the recorder stamps it on every durable write -- so a
                 # client can tell a turn that is working slowly from one that
                 # has gone quiet, well before the liveness sweep reclaims it.
+                # On a settled turn it can move once more, when a stuck answer
+                # finally publishes, marking the turn's last visible change.
                 "started_at": execution.started_at,
                 "finished_at": execution.finished_at,
                 "last_activity_at": execution.last_activity_at,
@@ -305,10 +299,9 @@ class AgentChatService:
             "conversation_id": conversation.id,
             "messages": messages,
             "executions": executions,
-            "repaired_execution_ids": repaired,
         }
 
-    def repair_pending_outputs(self, conversation: AgentConversation) -> list[int]:
+    def repair_pending_outputs(self, conversation: AgentConversation) -> None:
         """Retry any successful chat publication that previously failed.
 
         Two kinds of success are skipped before publication is even attempted:
@@ -316,15 +309,6 @@ class AgentChatService:
         text. Neither can ever publish, so calling through would take two row
         locks on every read to be refused. Publication re-checks supersession
         under its own lock, so this pass is an optimisation, not the guarantee.
-
-        Returns the ids of candidates that ended this pass published,
-        whoever published them. A publication landing changes how the turn
-        presents -- its final text moves out of the working feed and into the
-        chat -- so a caller that serves a scoped projection needs to know
-        which turns transitioned under the read it is building. That is a
-        fact about the transition, not about authorship: a concurrent reader
-        repairing the same turn can land the message first, and this pass's
-        snapshot shows the answer all the same.
         """
         candidates = [
             execution
@@ -336,7 +320,7 @@ class AgentChatService:
             if _has_publishable_output(execution)
         ]
         if not candidates:
-            return []
+            return
         superseded = superseded_execution_ids(conversation)
         for execution in candidates:
             if execution.id in superseded:
@@ -353,15 +337,3 @@ class AgentChatService:
                     "failed to repair agent response publication",
                     exc_info=True,
                 )
-        # Asked of the table rather than collected from the publish calls: a
-        # concurrent reader can land a candidate's message between the scan
-        # and this pass's own attempt, which then creates nothing -- yet the
-        # snapshot built on top of this pass shows the answer all the same.
-        return list(
-            conversation.executions.filter(
-                id__in=[candidate.id for candidate in candidates],
-                generated_chat_message__isnull=False,
-            )
-            .order_by("attempt")
-            .values_list("id", flat=True)
-        )

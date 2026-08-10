@@ -73,10 +73,13 @@ WORKFLOW = "notebook_chat"
 ACTIVITY_ALL = "all"
 ACTIVITY_LIVE = "live"
 
-# How long a settled turn stays in the live projection. A turn can settle and
-# be displaced as newest by a fresh message between two polls -- cancel, then
-# rephrase -- and the settled feed must still reach a client whose cached copy
-# shows the turn mid-flight. The window needs only to outlast a polling
+# How long a turn stays in the live projection after its last transition. A
+# turn can settle and be displaced as newest by a fresh message between two
+# polls -- cancel, then rephrase -- and the settled feed must still reach a
+# client whose cached copy shows the turn mid-flight. A stuck answer that
+# finally publishes restarts the clock the same way: publication stamps the
+# turn's heartbeat, so the re-rendered feed reaches every client regardless of
+# which request landed it. The window needs only to outlast a polling
 # interval; a client that stopped polling for longer is expected to refetch the
 # full projection anyway. It also keeps a just-cancelled turn in scope while
 # its worker unwinds, when trace rows can genuinely still land.
@@ -152,33 +155,27 @@ class NotebookChatService:
         ``activity_scope`` trades completeness for cost. ``"all"`` projects
         activity for every execution and is what a client wants on first load.
         ``"live"`` projects it only for executions the client may not hold
-        settled -- active turns, anything that settled within
-        ``ACTIVITY_SETTLED_GRACE`` (a turn can settle and be displaced by a new
-        message between two polls, and the client's cached feed would otherwise
-        show it mid-flight forever), the latest attempt, and any turn whose
-        pending answer published during this very read, which re-renders its
-        feed no matter how long ago it settled. The rest **omit the
-        ``activity`` key entirely**. An absent key means "unchanged, keep what
-        you have"; it is deliberately not an empty list, which would be
-        indistinguishable from a turn that used no tools. This is what keeps a
-        poll from re-reading the whole conversation's trace payloads, which
-        grow with every turn ever taken on the note.
+        settled -- active turns, anything whose last transition happened
+        within ``ACTIVITY_SETTLED_GRACE`` (settling, or a stuck answer
+        publishing late: either re-renders the feed, and the turn can be
+        displaced by a new message before the client's next poll), and the
+        latest attempt. The rest **omit the ``activity`` key entirely**. An
+        absent key means "unchanged, keep what you have"; it is deliberately
+        not an empty list, which would be indistinguishable from a turn that
+        used no tools. This is what keeps a poll from re-reading the whole
+        conversation's trace payloads, which grow with every turn ever taken
+        on the note.
 
         ``phase`` is present on every execution and is ``None`` for terminal
         ones, so a client reads "what is it doing" from one field either way.
         """
         data = self.chat.representation(conversation)
-        # Publications that landed during this very read. The turn's status
-        # did not change, but its rendering did -- the final text moved into
-        # the chat -- so the client's cached feed is stale no matter how long
-        # ago the turn settled. Popped so the transient never reaches clients.
-        repaired = data.pop("repaired_execution_ids")
         active = {AgentExecution.Status.PENDING, AgentExecution.Status.RUNNING}
         executions = data["executions"]
         scoped_ids = (
             None
             if activity_scope == ACTIVITY_ALL
-            else self._live_activity_ids(executions, active, repaired)
+            else self._live_activity_ids(executions, active)
         )
         events = conversation_activity_events(conversation, execution_ids=scoped_ids)
         published_answers = {
@@ -221,28 +218,31 @@ class NotebookChatService:
         return data
 
     @staticmethod
-    def _live_activity_ids(
-        executions: list[dict], active: set, repaired: list[int]
-    ) -> list[int]:
+    def _live_activity_ids(executions: list[dict], active: set) -> list[int]:
         """Executions whose activity a poll may not yet hold settled."""
         now = timezone.now()
-        # A repair that landed during this read re-rendered its turn -- the
-        # final text moved into the chat -- so its feed must ship regardless
-        # of the turn's age or position.
-        ids = set(repaired)
+        ids = set()
         for execution in executions:
             if execution["status"] in active:
                 ids.add(execution["id"])
                 continue
-            # A terminal turn stays in scope for a grace period after it
-            # settles. Excluding it the moment it stops being newest would
-            # strand any client that did not poll in between -- its cached
-            # feed would show the turn mid-flight forever. A missing
-            # timestamp cannot prove the client saw the settled feed, so it
-            # counts as fresh; that costs a walk of one turn's rows, never
-            # correctness.
-            settled_at = execution["finished_at"] or execution["last_activity_at"]
-            if settled_at is None or now - settled_at <= ACTIVITY_SETTLED_GRACE:
+            # A terminal turn stays in scope for a grace period after its
+            # last transition -- the *latest* of finishing and the final
+            # heartbeat, because a stuck answer that publishes late stamps
+            # ``last_activity_at`` and re-renders the turn no matter how long
+            # ago it finished, and no request but the one that happened to
+            # land it would otherwise know. Excluding a turn the moment it
+            # stops being newest would likewise strand any client that did
+            # not poll in between -- its cached feed would show the turn
+            # mid-flight forever. A missing timestamp cannot prove the client
+            # saw the settled feed, so it counts as fresh; that costs a walk
+            # of one turn's rows, never correctness.
+            transitions = [
+                at
+                for at in (execution["finished_at"], execution["last_activity_at"])
+                if at is not None
+            ]
+            if not transitions or now - max(transitions) <= ACTIVITY_SETTLED_GRACE:
                 ids.add(execution["id"])
         if executions:
             # Ordered by attempt, so the last entry is the newest turn. Its feed
