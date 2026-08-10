@@ -2,13 +2,15 @@ from urllib.parse import unquote
 
 from django.conf import settings
 from django.core import mail
+from django.template.loader import render_to_string
 from django.test import TestCase, override_settings
 
 from mailing_list.lib import send_email, send_transactional_email
 from mailing_list.models import EmailOptOut
 from mailing_list.services import EmailSubscriptionService
 
-TEMPLATE_HTML = "general_email_message.html"
+TEMPLATE = "general_email_message"
+TEMPLATE_WITH_TEXT = "support_receipt"
 BASE_CONTEXT = {"action": {"message": "hello"}, "subject": "Test"}
 
 
@@ -24,7 +26,7 @@ class SendEmailTests(TestCase):
             "recipients": recipients,
             "subject": "Test",
             "email_context": {**BASE_CONTEXT},
-            "html_template": TEMPLATE_HTML,
+            "template": TEMPLATE,
         }
         kwargs.update(overrides)
         return send_email(**kwargs)
@@ -113,13 +115,6 @@ class SendEmailTests(TestCase):
         first, second = (msg.extra_headers["List-Unsubscribe"] for msg in mail.outbox)
         self.assertNotEqual(first, second)
 
-    def test_rejects_a_send_with_neither_template(self):
-        # Act & Assert: a body-less message is a programming error, not a send
-        with self.assertRaises(ValueError):
-            self._send(["good@example.com"], html_template=None)
-
-        self.assertEqual(len(mail.outbox), 0)
-
     def test_derives_the_text_body_from_the_html_when_no_text_template(self):
         # Act
         self._send(["good@example.com"])
@@ -134,7 +129,7 @@ class SendEmailTests(TestCase):
         # Act
         self._send(
             ["good@example.com"],
-            html_template="organization_invite.html",
+            template="organization_invite",
             email_context=context,
         )
 
@@ -265,7 +260,7 @@ class SendTransactionalEmailTests(TestCase):
             "recipients": recipients,
             "subject": "Test",
             "email_context": {**BASE_CONTEXT},
-            "html_template": TEMPLATE_HTML,
+            "template": TEMPLATE,
         }
         kwargs.update(overrides)
         return send_transactional_email(**kwargs)
@@ -289,6 +284,19 @@ class SendTransactionalEmailTests(TestCase):
         headers = mail.outbox[0].extra_headers
         self.assertNotIn("List-Unsubscribe", headers)
         self.assertNotIn("List-Unsubscribe-Post", headers)
+
+    def test_renders_text_template_when_one_exists(self):
+        # Arrange
+        context = {"amount": 10, "date": "2026-01-01", "method": "RSC"}
+
+        # Act
+        self._send(
+            ["good@example.com"], template=TEMPLATE_WITH_TEXT, email_context=context
+        )
+
+        # Assert
+        expected = render_to_string(f"{TEMPLATE_WITH_TEXT}.txt", context)
+        self.assertEqual(mail.outbox[0].body, expected)
 
     def test_does_not_mark_mail_as_bulk(self):
         # Act
