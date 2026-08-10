@@ -372,7 +372,7 @@ class NotebookChatTitleTests(TestCase):
             password="password",
             email="owner@researchhub_test.com",
         )
-        self.note, _content = create_note(self.user, organization=None)
+        self.note = create_note(self.user, organization=None)[0]
         Permission.objects.create(
             access_type=ADMIN,
             content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
@@ -460,8 +460,8 @@ class NotebookChatResolutionTests(TestCase):
             email="other@researchhub_test.com",
         )
         unified_doc_ct = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
-        self.note, _content = create_note(self.user, organization=None)
-        self.other_note, _other = create_note(self.user, organization=None)
+        self.note = create_note(self.user, organization=None)[0]
+        self.other_note = create_note(self.user, organization=None)[0]
         for note in (self.note, self.other_note):
             Permission.objects.create(
                 access_type=ADMIN,
