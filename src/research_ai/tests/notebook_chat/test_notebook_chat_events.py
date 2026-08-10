@@ -125,6 +125,19 @@ class PublishingRecorderTests(unittest.TestCase):
             [(7, 9, TURN_FINISHED), (7, 9, TURN_FAILED)],
         )
 
+    def test_an_interrupted_run_publishes_no_failure(self):
+        # Arrange: interruption means the execution was sealed from outside
+        # (cancelled), and the sealing path already announced it.
+        error = InterruptedError("agent execution is no longer running")
+
+        # Act
+        self.recorder.on_run_failed(error)
+
+        # Assert: forwarded for persistence, but no contradictory event on
+        # top of the turn_cancelled the subscribers already received.
+        self.wrapped.on_run_failed.assert_called_once_with(error)
+        self.publisher.publish.assert_not_called()
+
     def test_a_refused_write_publishes_nothing(self):
         # Arrange: the run was cancelled, so the durable write is refused.
         self.wrapped.record_message.side_effect = InterruptedError("cancelled")

@@ -532,6 +532,20 @@ class NotebookChatResolutionTests(TestCase):
         self.assertFalse(idle["has_active_turn"])
 
 
+class CancellingProvider(FakeProvider):
+    """Seals the execution mid-turn, like a cancel landing during the call."""
+
+    def __init__(self, turns, execution_id):
+        super().__init__(turns)
+        self.execution_id = execution_id
+
+    def complete(self, **kwargs):
+        AgentExecution.objects.filter(id=self.execution_id).update(
+            status=AgentExecution.Status.CANCELLED
+        )
+        return super().complete(**kwargs)
+
+
 class NotebookChatEventEmissionTests(TestCase):
     """Where the service nudges the chat's WebSocket group.
 
@@ -616,6 +630,27 @@ class NotebookChatEventEmissionTests(TestCase):
         # Assert
         kinds = [kind for _, _, kind in self._events(run_publisher)]
         self.assertEqual(kinds[-1], TURN_FAILED)
+        self.assertNotIn(TURN_FINISHED, kinds)
+
+    def test_cancelled_mid_run_turn_publishes_no_failure(self):
+        # Arrange: the cancel lands while the model call is in flight, so the
+        # worker's next durable write is refused. Subscribers already got
+        # turn_cancelled from the cancel path; nothing here may contradict it.
+        execution = self._submit()
+        run_publisher = Mock()
+        runner = _make_service(
+            provider=CancellingProvider([text_turn("Too late.")], execution.id),
+            event_publisher=run_publisher,
+        )
+
+        # Act
+        runner.run_turn(execution.id)
+
+        # Assert: the turn stays cancelled and no terminal event was pushed.
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+        kinds = [kind for _, _, kind in self._events(run_publisher)]
+        self.assertNotIn(TURN_FAILED, kinds)
         self.assertNotIn(TURN_FINISHED, kinds)
 
     def test_run_turn_duplicate_delivery_publishes_nothing(self):
