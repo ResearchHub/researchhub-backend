@@ -647,6 +647,24 @@ class NotebookChatEventEmissionTests(TestCase):
             (self.conversation.id, execution.id, TURN_CANCELLED),
         )
 
+    def test_cancel_that_lost_the_race_publishes_nothing(self):
+        # Arrange: the turn goes terminal between the scan and the
+        # transition, so the cancel service refuses it.
+        self._submit()
+        cancel_publisher = Mock()
+        cancels = Mock()
+        cancels.cancel.return_value = False
+        service = _make_service(
+            event_publisher=cancel_publisher, cancel_service=cancels
+        )
+
+        # Act
+        cancelled = service.cancel_active_turn(self.conversation)
+
+        # Assert: no event may announce a cancellation that did not happen.
+        self.assertIsNone(cancelled)
+        cancel_publisher.publish.assert_not_called()
+
     def test_cancel_without_active_turn_publishes_nothing(self):
         # Act
         cancelled = self.service.cancel_active_turn(self.conversation)

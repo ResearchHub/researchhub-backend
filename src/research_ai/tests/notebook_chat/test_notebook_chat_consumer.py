@@ -54,7 +54,7 @@ class NotebookChatConsumerTests(TransactionTestCase):
             email="other@researchhub_test.com",
         )
 
-        self.note, _content = create_note(self.user, organization=None)
+        self.note = create_note(self.user, organization=None)[0]
         self._grant_note_access(self.user, self.note)
         self._grant_note_access(self.other_user, self.note)
         service = NotebookChatService()
@@ -64,8 +64,11 @@ class NotebookChatConsumerTests(TransactionTestCase):
         )
 
         # A second note the owner can view, with no chats on it.
-        self.other_note, _content = create_note(self.user, organization=None)
+        self.other_note = create_note(self.user, organization=None)[0]
         self._grant_note_access(self.user, self.other_note)
+
+        # A note the owner has no access to at all.
+        self.hidden_note = create_note(self.other_user, organization=None)[0]
 
     def _grant_note_access(self, user, note):
         Permission.objects.create(
@@ -111,6 +114,17 @@ class NotebookChatConsumerTests(TransactionTestCase):
 
         # Act
         _communicator, connected, code = await self._connect(self.other_user)
+
+        # Assert
+        self.assertFalse(connected)
+        self.assertEqual(code, CLOSE_NOT_FOUND)
+
+    async def test_an_invisible_note_reads_as_not_found(self):
+        # Act: the note exists but the user cannot view it; the close code
+        # matches a missing note's, so nothing about it leaks.
+        _communicator, connected, code = await self._connect(
+            self.user, note_id=self.hidden_note.id
+        )
 
         # Assert
         self.assertFalse(connected)
