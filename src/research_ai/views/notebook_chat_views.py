@@ -21,7 +21,11 @@ from note.related_models.note_model import Note
 from research_ai.permissions import ResearchAIPermission
 from research_ai.serializers import NotebookChatMessageCreateSerializer
 from research_ai.services.agent_persistence import AgentConversationBusyError
-from research_ai.services.notebook_chat import NotebookChatService
+from research_ai.services.notebook_chat import (
+    ACTIVITY_ALL,
+    ACTIVITY_LIVE,
+    NotebookChatService,
+)
 from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
@@ -38,7 +42,18 @@ def _get_viewable_note_or_404(note_id: int, user) -> Note:
 
 
 class NotebookChatView(APIView):
-    """Read the user's assistant conversation on a note."""
+    """Read the user's assistant conversation on a note.
+
+    ``?activity=live`` is the polling form: it recomputes the activity feed
+    only for turns the client may not yet hold settled -- active ones, and
+    ones whose last change (settling, or a delayed answer publication) is
+    recent enough that no poll has necessarily seen it -- and omits the
+    ``activity`` key for the rest, which a client is expected to already hold
+    from its first load. Use it while watching a turn; use the
+    default for the initial fetch. Any other value falls back to the full
+    projection, so a stale or mistyped client parameter costs performance
+    rather than correctness.
+    """
 
     permission_classes = [
         IsAuthenticated,
@@ -52,7 +67,12 @@ class NotebookChatView(APIView):
         conversation = service.get_conversation(note, request.user)
         if conversation is None:
             return Response({"conversation_id": None, "messages": [], "executions": []})
-        return Response(service.representation(conversation))
+        scope = (
+            ACTIVITY_LIVE
+            if request.query_params.get("activity") == ACTIVITY_LIVE
+            else ACTIVITY_ALL
+        )
+        return Response(service.representation(conversation, activity_scope=scope))
 
 
 class NotebookChatMessageView(APIView):

@@ -277,6 +277,8 @@ class AgentChatService:
                 # -- the recorder stamps it on every durable write -- so a
                 # client can tell a turn that is working slowly from one that
                 # has gone quiet, well before the liveness sweep reclaims it.
+                # On a settled turn it can move once more, when a stuck answer
+                # finally publishes, marking the turn's last visible change.
                 "started_at": execution.started_at,
                 "finished_at": execution.finished_at,
                 "last_activity_at": execution.last_activity_at,
@@ -299,7 +301,7 @@ class AgentChatService:
             "executions": executions,
         }
 
-    def repair_pending_outputs(self, conversation: AgentConversation) -> int:
+    def repair_pending_outputs(self, conversation: AgentConversation) -> None:
         """Retry any successful chat publication that previously failed.
 
         Two kinds of success are skipped before publication is even attempted:
@@ -318,9 +320,8 @@ class AgentChatService:
             if _has_publishable_output(execution)
         ]
         if not candidates:
-            return 0
+            return
         superseded = superseded_execution_ids(conversation)
-        repaired = 0
         for execution in candidates:
             if execution.id in superseded:
                 continue
@@ -330,12 +331,9 @@ class AgentChatService:
                 # add the next question, and swallowing a database error
                 # without one would break every write that follows.
                 with transaction.atomic():
-                    repaired += int(
-                        self.recorder_factory(execution).publish_assistant_output()
-                    )
+                    self.recorder_factory(execution).publish_assistant_output()
             except Exception:  # noqa: BLE001 - reads still expose pending state
                 logger.warning(
                     "failed to repair agent response publication",
                     exc_info=True,
                 )
-        return repaired

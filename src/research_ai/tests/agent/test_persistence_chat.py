@@ -1,10 +1,12 @@
 """User-facing chat preparation, retry, publication, and repair coverage."""
 
 import json
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.db import IntegrityError, connection
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 
 from research_ai.models import (
     AgentConversation,
@@ -139,6 +141,38 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
             ["Question", "Durable answer"],
         )
         self.assertFalse(representation["executions"][0]["assistant_message_pending"])
+
+    def test_late_publication_advances_the_turns_heartbeat(self):
+        # Arrange: a stuck publication on a turn that finished long ago -- the
+        # shape a scoped poll would otherwise read as "cannot have changed".
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(self.conversation, "Question")
+        with patch.object(
+            DatabaseAgentRecorder,
+            "publish_assistant_output",
+            side_effect=IntegrityError("chat insert failed"),
+        ):
+            agent(FakeProvider([text_turn("Durable answer")]), prepared.recorder).run(
+                "Question"
+            )
+        long_ago = timezone.now() - timedelta(hours=1)
+        AgentExecution.objects.filter(id=prepared.execution.id).update(
+            finished_at=long_ago, last_activity_at=long_ago
+        )
+
+        # Act: the repair that finally lands the answer.
+        chat.repair_pending_outputs(self.conversation)
+
+        # Assert: publication stamped ``last_activity_at`` past
+        # ``finished_at``. The stamp lives on the row, so every reader learns
+        # the turn just re-rendered, not only the request that landed the
+        # message -- while a publish that creates nothing moves nothing.
+        execution = AgentExecution.objects.get(id=prepared.execution.id)
+        self.assertGreater(execution.last_activity_at, execution.finished_at)
+        stamped = execution.last_activity_at
+        self.assertFalse(DatabaseAgentRecorder(execution).publish_assistant_output())
+        execution.refresh_from_db()
+        self.assertEqual(execution.last_activity_at, stamped)
 
     def test_large_assistant_output_repairs_as_the_same_bounded_text(self):
         # Arrange

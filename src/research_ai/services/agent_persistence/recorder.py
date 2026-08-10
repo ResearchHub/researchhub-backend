@@ -285,9 +285,9 @@ class DatabaseAgentRecorder:
             # happened. The execution's lifecycle fields are not: cancellation
             # can commit between this method and the context write that preceded
             # it, and a sealed run's outcome must not be reopened by a write that
-            # was already in flight when someone stopped it. Advancing
-            # ``last_activity_at`` past ``finished_at`` would be incoherent on
-            # its own.
+            # was already in flight when someone stopped it. A leftover trace
+            # write must not bump the heartbeat of a run someone already sealed;
+            # only a deliberate transition may (``publish_assistant_output``).
             sealed = _is_terminal(execution.status)
             execution.next_message_sequence += 1
             update_fields = ["next_message_sequence", "updated_date"]
@@ -442,6 +442,14 @@ class DatabaseAgentRecorder:
                 },
             )
             if created:
+                # The one deliberate heartbeat advance on a sealed row: the
+                # answer moving into the chat re-renders the turn, and the
+                # live activity scope decides "could a client's cached feed be
+                # stale?" from this timestamp. A repair landing minutes after
+                # ``finished_at`` would otherwise be invisible to every poll
+                # except the one that happened to perform it.
+                execution.last_activity_at = timezone.now()
+                execution.save(update_fields=["last_activity_at", "updated_date"])
                 conversation.next_chat_sequence += 1
                 conversation.save(update_fields=["next_chat_sequence", "updated_date"])
             return created
