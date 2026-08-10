@@ -6,10 +6,15 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from note.tests.helpers import create_note
-from research_ai.models import AgentConversation, AgentExecution
+from research_ai.models import (
+    AgentConversation,
+    AgentExecution,
+    NoteAgentConversation,
+)
 from research_ai.services.agent_persistence import AgentConversationBusyError
 from research_ai.services.notebook_chat import WORKFLOW, NotebookChatService
 from research_ai.services.notebook_chat.config import NotebookChatConfig
+from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -55,13 +60,15 @@ class NotebookChatServiceTests(TestCase):
             user=self.user,
         )
         self.service = _make_service()
+        self.conversation = self.service.create_conversation(self.note, self.user)
 
-    def _submit(self, text="Please add a summary."):
+    def _submit(self, text="Please add a summary.", conversation=None):
+        conversation = self.conversation if conversation is None else conversation
         with (
             patch("research_ai.tasks.run_notebook_chat_turn_task.delay") as delay,
             self.captureOnCommitCallbacks(execute=True),
         ):
-            execution = self.service.submit_message(self.note, self.user, text)
+            execution = self.service.submit_message(self.note, conversation, text)
         return execution, delay
 
     def test_submit_message_prepares_turn_and_schedules_task(self):
@@ -81,7 +88,7 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.trigger_message.content, "Please add a summary.")
         delay.assert_called_once_with(execution.id)
 
-    def test_submit_message_reuses_the_users_conversation_on_the_note(self):
+    def test_second_message_continues_the_same_conversation(self):
         # Arrange
         first, _delay = self._submit()
         first.status = AgentExecution.Status.SUCCEEDED
@@ -100,24 +107,22 @@ class NotebookChatServiceTests(TestCase):
 
         # Act & Assert
         with self.assertRaises(ValueError):
-            service.submit_message(self.note, self.user, "   ")
+            service.submit_message(self.note, self.conversation, "   ")
         with self.assertRaises(ValueError):
-            service.submit_message(self.note, self.user, "x" * 11)
+            service.submit_message(self.note, self.conversation, "x" * 11)
 
-    def test_first_message_race_reuses_the_concurrently_created_conversation(self):
-        # Arrange: another request created the conversation after this
-        # request's unlocked pre-check ran empty; the re-check under the note
-        # lock must pick it up instead of creating a duplicate.
-        existing = self.service.get_or_create_conversation(self.note, self.user)
-        with patch.object(
-            NotebookChatService, "get_conversation", side_effect=[None, existing]
-        ):
-            # Act
-            conversation = self.service.get_or_create_conversation(self.note, self.user)
+    def test_create_conversation_makes_a_new_chat_each_time(self):
+        # Act
+        second = self.service.create_conversation(self.note, self.user)
 
-        # Assert
-        self.assertEqual(conversation.id, existing.id)
-        self.assertEqual(AgentConversation.objects.count(), 1)
+        # Assert: both chats coexist on the note for the same user.
+        self.assertNotEqual(second.id, self.conversation.id)
+        self.assertEqual(
+            AgentConversation.objects.filter(
+                user=self.user, workflow=WORKFLOW, note_links__note=self.note
+            ).count(),
+            2,
+        )
 
     def test_submit_message_while_turn_is_running_raises_busy(self):
         # Arrange
@@ -125,7 +130,19 @@ class NotebookChatServiceTests(TestCase):
 
         # Act & Assert
         with self.assertRaises(AgentConversationBusyError):
-            self.service.submit_message(self.note, self.user, "again")
+            self.service.submit_message(self.note, self.conversation, "again")
+
+    def test_busy_chat_does_not_block_the_users_other_chats(self):
+        # Arrange: a turn is pending on the first chat.
+        self._submit()
+        second = self.service.create_conversation(self.note, self.user)
+
+        # Act
+        execution, _delay = self._submit("Different thread", conversation=second)
+
+        # Assert: each chat serializes its own turns independently.
+        self.assertEqual(execution.conversation_id, second.id)
+        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
 
     def test_run_turn_edits_note_and_publishes_reply(self):
         # Arrange
@@ -266,7 +283,7 @@ class NotebookChatServiceTests(TestCase):
             ),
             self.captureOnCommitCallbacks(execute=True),
         ):
-            execution = self.service.submit_message(self.note, self.user, "Hi")
+            execution = self.service.submit_message(self.note, self.conversation, "Hi")
 
         # Assert: failed instead of holding the busy check forever.
         execution.refresh_from_db()
@@ -345,3 +362,164 @@ class NotebookChatServiceTests(TestCase):
         self.assertIn("First answer", texts)
         self.assertIn("Second question", texts)
         self.assertEqual(AgentConversation.objects.filter(user=self.user).count(), 1)
+
+
+class NotebookChatTitleTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            username="owner@researchhub_test.com",
+            password="password",
+            email="owner@researchhub_test.com",
+        )
+        self.note = create_note(self.user, organization=None)[0]
+        Permission.objects.create(
+            access_type=ADMIN,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=self.note.unified_document.id,
+            user=self.user,
+        )
+        self.service = _make_service()
+        self.conversation = self.service.create_conversation(self.note, self.user)
+
+    def _submit(self, text, conversation=None):
+        conversation = self.conversation if conversation is None else conversation
+        with (
+            patch("research_ai.tasks.run_notebook_chat_turn_task.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            return self.service.submit_message(self.note, conversation, text)
+
+    def test_first_message_titles_the_chat_as_one_bounded_line(self):
+        # Act
+        self._submit("Draft an\nabstract   for this note\n\nplease")
+
+        # Assert
+        self.conversation.refresh_from_db()
+        self.assertEqual(
+            self.conversation.title, "Draft an abstract for this note please"
+        )
+
+    def test_long_first_message_is_truncated_in_the_title(self):
+        # Act
+        self._submit("word " * 100)
+
+        # Assert
+        self.conversation.refresh_from_db()
+        self.assertLessEqual(len(self.conversation.title), TITLE_MAX_CHARS)
+        self.assertTrue(self.conversation.title.startswith("word word"))
+        self.assertFalse(self.conversation.title.endswith(" "))
+
+    def test_title_does_not_change_after_the_first_message(self):
+        # Arrange
+        first = self._submit("Original question")
+        AgentExecution.objects.filter(id=first.id).update(
+            status=AgentExecution.Status.SUCCEEDED
+        )
+
+        # Act
+        self._submit("A completely different follow-up")
+
+        # Assert
+        self.conversation.refresh_from_db()
+        self.assertEqual(self.conversation.title, "Original question")
+
+    def test_explicit_title_survives_the_first_message(self):
+        # Arrange
+        named = self.service.create_conversation(
+            self.note, self.user, title="Planning thread"
+        )
+
+        # Act
+        self._submit("Something unrelated", conversation=named)
+
+        # Assert
+        named.refresh_from_db()
+        self.assertEqual(named.title, "Planning thread")
+
+    def test_rename_conversation_updates_the_title(self):
+        # Act
+        self.service.rename_conversation(self.conversation, "Literature review")
+
+        # Assert
+        self.conversation.refresh_from_db()
+        self.assertEqual(self.conversation.title, "Literature review")
+
+
+class NotebookChatResolutionTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            username="owner@researchhub_test.com",
+            password="password",
+            email="owner@researchhub_test.com",
+        )
+        self.other_user = user_model.objects.create_user(
+            username="other@researchhub_test.com",
+            password="password",
+            email="other@researchhub_test.com",
+        )
+        unified_doc_ct = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
+        self.note = create_note(self.user, organization=None)[0]
+        self.other_note = create_note(self.user, organization=None)[0]
+        for note in (self.note, self.other_note):
+            Permission.objects.create(
+                access_type=ADMIN,
+                content_type=unified_doc_ct,
+                object_id=note.unified_document.id,
+                user=self.user,
+            )
+        self.service = _make_service()
+        self.conversation = self.service.create_conversation(self.note, self.user)
+
+    def test_get_conversation_resolves_the_users_chat_on_the_note(self):
+        # Act & Assert
+        self.assertEqual(
+            self.service.get_conversation(self.note, self.user, self.conversation.id),
+            self.conversation,
+        )
+
+    def test_get_conversation_rejects_other_users_notes_and_workflows(self):
+        # Arrange
+        other_users_chat = self.service.create_conversation(self.note, self.other_user)
+        other_notes_chat = self.service.create_conversation(self.other_note, self.user)
+        other_workflow = AgentConversation.objects.create(
+            user=self.user, workflow="proposal_draft"
+        )
+        NoteAgentConversation.objects.create(
+            note=self.note, conversation=other_workflow
+        )
+
+        # Act & Assert: none of them resolve for (note, user, notebook_chat).
+        for conversation in (other_users_chat, other_notes_chat, other_workflow):
+            self.assertIsNone(
+                self.service.get_conversation(self.note, self.user, conversation.id)
+            )
+
+    def test_list_conversations_projects_the_users_chats_newest_first(self):
+        # Arrange: a second chat with a pending turn; another user's chat that
+        # must stay invisible.
+        second = self.service.create_conversation(self.note, self.user)
+        with (
+            patch("research_ai.tasks.run_notebook_chat_turn_task.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            self.service.submit_message(self.note, second, "Find related work")
+        self.service.create_conversation(self.note, self.other_user)
+
+        # Act
+        listing = self.service.list_conversations(self.note, self.user)
+
+        # Assert: the chat with the newest activity leads, carrying its
+        # derived title, message preview, and busy flag; the untouched chat
+        # reports none of those.
+        self.assertEqual(
+            [entry["id"] for entry in listing], [second.id, self.conversation.id]
+        )
+        active, idle = listing
+        self.assertEqual(active["title"], "Find related work")
+        self.assertEqual(active["last_message_preview"], "Find related work")
+        self.assertTrue(active["has_active_turn"])
+        self.assertEqual(idle["title"], "")
+        self.assertIsNone(idle["last_message_preview"])
+        self.assertFalse(idle["has_active_turn"])

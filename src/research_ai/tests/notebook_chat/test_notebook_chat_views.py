@@ -62,65 +62,148 @@ class NotebookChatViewTests(APITestCase):
             object_id=self.note.unified_document.id,
             user=self.regular_user,
         )
-        self.chat_url = f"/api/research_ai/notebook/notes/{self.note.id}/chat/"
-        self.messages_url = f"{self.chat_url}messages/"
-        self.cancel_url = f"{self.chat_url}cancel/"
+        self.chats_url = f"/api/research_ai/notebook/notes/{self.note.id}/chats/"
 
-    def _post_message(self, text="Summarize the note"):
+    def _chat_url(self, conversation_id):
+        return f"{self.chats_url}{conversation_id}/"
+
+    def _create_chat(self, **payload):
+        return self.client.post(self.chats_url, payload, format="json")
+
+    def _create_chat_id(self):
+        response = self._create_chat()
+        self.assertEqual(response.status_code, 201)
+        return response.data["conversation_id"]
+
+    def _post_message(self, conversation_id, text="Summarize the note"):
         with patch("research_ai.tasks.run_notebook_chat_turn_task.delay") as delay:
             response = self.client.post(
-                self.messages_url, {"message": text}, format="json"
+                f"{self._chat_url(conversation_id)}messages/",
+                {"message": text},
+                format="json",
             )
         return response, delay
 
-    def test_post_message_starts_a_turn(self):
+    def _cancel(self, conversation_id):
+        return self.client.post(f"{self._chat_url(conversation_id)}cancel/")
+
+    # -- creating chats ---------------------------------------------------
+
+    def test_create_chat_returns_an_empty_representation(self):
         # Arrange
         self.client.force_authenticate(self.owner)
 
         # Act
-        response, _delay = self._post_message()
+        response = self._create_chat()
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNotNone(response.data["conversation_id"])
+        self.assertEqual(response.data["title"], "")
+        self.assertEqual(response.data["messages"], [])
+        self.assertEqual(response.data["executions"], [])
+
+    def test_create_chat_accepts_a_title(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+
+        # Act
+        response = self._create_chat(title="Methods discussion")
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["title"], "Methods discussion")
+
+    def test_a_user_can_keep_several_chats_on_one_note(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+
+        # Act
+        first = self._create_chat_id()
+        second = self._create_chat_id()
+
+        # Assert
+        self.assertNotEqual(first, second)
+        listing = self.client.get(self.chats_url)
+        self.assertEqual(len(listing.data["chats"]), 2)
+
+    def test_create_chat_requires_note_access(self):
+        # Arrange
+        self.client.force_authenticate(self.outsider)
+
+        # Act
+        response = self._create_chat()
+
+        # Assert
+        self.assertEqual(response.status_code, 404)
+
+    # -- sending messages -------------------------------------------------
+
+    def test_post_message_starts_a_turn(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+
+        # Act
+        response, _delay = self._post_message(chat_id)
 
         # Assert
         self.assertEqual(response.status_code, 202)
         execution = AgentExecution.objects.get(id=response.data["execution_id"])
         self.assertEqual(execution.status, AgentExecution.Status.PENDING)
-        self.assertEqual(response.data["conversation_id"], execution.conversation_id)
+        self.assertEqual(response.data["conversation_id"], chat_id)
         self.assertEqual(execution.trigger_message.content, "Summarize the note")
 
     def test_post_message_as_viewer_is_allowed(self):
         # Arrange: viewers can chat; the edit tool refuses writes for them.
         self.client.force_authenticate(self.viewer)
+        chat_id = self._create_chat_id()
 
         # Act
-        response, _delay = self._post_message()
+        response, _delay = self._post_message(chat_id)
 
         # Assert
         self.assertEqual(response.status_code, 202)
 
-    def test_post_message_requires_note_access(self):
-        # Arrange
-        self.client.force_authenticate(self.outsider)
+    def test_post_message_to_another_users_chat_is_not_found(self):
+        # Arrange: the viewer knows the owner's chat id but must not reach it.
+        self.client.force_authenticate(self.owner)
+        owners_chat = self._create_chat_id()
+        self.client.force_authenticate(self.viewer)
 
         # Act
-        response, _delay = self._post_message()
+        response, _delay = self._post_message(owners_chat)
 
         # Assert
         self.assertEqual(response.status_code, 404)
         self.assertFalse(AgentExecution.objects.exists())
 
+    def test_post_message_to_unknown_chat_is_not_found(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+
+        # Act
+        response, _delay = self._post_message(999999)
+
+        # Assert
+        self.assertEqual(response.status_code, 404)
+
     def test_deleted_note_chat_is_hidden(self):
         # Arrange: a chat exists, then the note is soft-deleted.
         self.client.force_authenticate(self.owner)
-        self._post_message()
+        chat_id = self._create_chat_id()
+        self._post_message(chat_id)
         self.note.unified_document.is_removed = True
         self.note.unified_document.save(update_fields=["is_removed"])
 
         # Act
-        get_response = self.client.get(self.chat_url)
-        post_response, _delay = self._post_message()
+        list_response = self.client.get(self.chats_url)
+        get_response = self.client.get(self._chat_url(chat_id))
+        post_response, _delay = self._post_message(chat_id)
 
         # Assert: same deletion boundary as NoteViewSet -- the note, its chat
         # history, and new turns are all gone (404, not the busy 409).
+        self.assertEqual(list_response.status_code, 404)
         self.assertEqual(get_response.status_code, 404)
         self.assertEqual(post_response.status_code, 404)
 
@@ -129,17 +212,18 @@ class NotebookChatViewTests(APITestCase):
         self.client.force_authenticate(self.regular_user)
 
         # Act
-        post_response, _delay = self._post_message()
-        get_response = self.client.get(self.chat_url)
+        create_response = self._create_chat()
+        list_response = self.client.get(self.chats_url)
 
         # Assert
-        self.assertEqual(post_response.status_code, 403)
-        self.assertEqual(get_response.status_code, 403)
-        self.assertFalse(AgentExecution.objects.exists())
+        self.assertEqual(create_response.status_code, 403)
+        self.assertEqual(list_response.status_code, 403)
 
     def test_post_message_requires_authentication(self):
         # Act
-        response = self.client.post(self.messages_url, {"message": "hi"}, format="json")
+        response = self.client.post(
+            f"{self._chat_url(1)}messages/", {"message": "hi"}, format="json"
+        )
 
         # Assert
         self.assertEqual(response.status_code, 401)
@@ -147,9 +231,10 @@ class NotebookChatViewTests(APITestCase):
     def test_post_empty_message_is_rejected(self):
         # Arrange
         self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
 
         # Act
-        response, _delay = self._post_message("")
+        response, _delay = self._post_message(chat_id, "")
 
         # Assert
         self.assertEqual(response.status_code, 400)
@@ -157,22 +242,40 @@ class NotebookChatViewTests(APITestCase):
     def test_post_while_turn_is_running_returns_conflict(self):
         # Arrange
         self.client.force_authenticate(self.owner)
-        first, _delay = self._post_message()
+        chat_id = self._create_chat_id()
+        first, _delay = self._post_message(chat_id)
         self.assertEqual(first.status_code, 202)
 
         # Act
-        second, _delay = self._post_message("another")
+        second, _delay = self._post_message(chat_id, "another")
 
         # Assert
         self.assertEqual(second.status_code, 409)
 
-    def test_cancel_stops_the_running_turn_and_frees_the_conversation(self):
-        # Arrange
+    def test_busy_chat_does_not_block_the_users_other_chats(self):
+        # Arrange: a turn is running in the first chat.
         self.client.force_authenticate(self.owner)
-        posted, _delay = self._post_message()
+        busy_chat = self._create_chat_id()
+        self._post_message(busy_chat)
+        other_chat = self._create_chat_id()
 
         # Act
-        response = self.client.post(self.cancel_url)
+        response, _delay = self._post_message(other_chat, "Separate thread")
+
+        # Assert: the 409 is per chat, not per note.
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.data["conversation_id"], other_chat)
+
+    # -- cancelling -------------------------------------------------------
+
+    def test_cancel_stops_the_running_turn_and_frees_the_chat(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+        posted, _delay = self._post_message(chat_id)
+
+        # Act
+        response = self._cancel(chat_id)
 
         # Assert
         self.assertEqual(response.status_code, 200)
@@ -181,82 +284,107 @@ class NotebookChatViewTests(APITestCase):
         execution = AgentExecution.objects.get(id=posted.data["execution_id"])
         self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
         # The whole point: the user can send the next message immediately.
-        again, _delay = self._post_message("Try this instead")
+        again, _delay = self._post_message(chat_id, "Try this instead")
         self.assertEqual(again.status_code, 202)
 
     def test_cancel_with_nothing_running_succeeds_and_reports_nothing(self):
         # Arrange: the client cannot know which side of the race it is on when
         # the user clicks stop, so this is a success, not an error.
         self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
 
         # Act
-        response = self.client.post(self.cancel_url)
+        response = self._cancel(chat_id)
 
         # Assert
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.data["cancelled"])
         self.assertIsNone(response.data["execution_id"])
 
-    def test_cancel_requires_note_access(self):
-        # Arrange
-        self.client.force_authenticate(self.outsider)
-
-        # Act
-        response = self.client.post(self.cancel_url)
-
-        # Assert
-        self.assertEqual(response.status_code, 404)
-
-    def test_cancel_is_scoped_to_the_requesting_users_conversation(self):
-        # Arrange: two people each have a turn running on the same note. Each
-        # holds their own conversation, so stop must reach one and not the other.
+    def test_cancel_of_another_users_chat_is_not_found(self):
+        # Arrange: the owner's turn is running; the viewer aims stop at it.
         self.client.force_authenticate(self.owner)
-        owners, _delay = self._post_message()
+        owners_chat = self._create_chat_id()
+        posted, _delay = self._post_message(owners_chat)
         self.client.force_authenticate(self.viewer)
-        viewers, _delay = self._post_message("Summarize it for me too")
-        self.assertNotEqual(owners.data["execution_id"], viewers.data["execution_id"])
 
         # Act
-        response = self.client.post(self.cancel_url)
+        response = self._cancel(owners_chat)
 
-        # Assert: the viewer stopped their own turn and left the owner's running.
-        self.assertTrue(response.data["cancelled"])
-        self.assertEqual(response.data["execution_id"], viewers.data["execution_id"])
+        # Assert: not reachable, and the owner's turn is untouched.
+        self.assertEqual(response.status_code, 404)
         self.assertEqual(
-            AgentExecution.objects.get(id=viewers.data["execution_id"]).status,
-            AgentExecution.Status.CANCELLED,
-        )
-        self.assertEqual(
-            AgentExecution.objects.get(id=owners.data["execution_id"]).status,
+            AgentExecution.objects.get(id=posted.data["execution_id"]).status,
             AgentExecution.Status.PENDING,
         )
 
-    def test_get_chat_without_conversation_returns_empty(self):
-        # Arrange
+    def test_cancel_only_touches_the_addressed_chat(self):
+        # Arrange: the same user runs turns in two chats on the note.
         self.client.force_authenticate(self.owner)
+        first_chat = self._create_chat_id()
+        first_posted, _delay = self._post_message(first_chat)
+        second_chat = self._create_chat_id()
+        second_posted, _delay = self._post_message(second_chat)
 
         # Act
-        response = self.client.get(self.chat_url)
+        response = self._cancel(second_chat)
 
         # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertIsNone(response.data["conversation_id"])
-        self.assertEqual(response.data["messages"], [])
-        self.assertEqual(response.data["executions"], [])
-
-    def test_get_chat_returns_the_users_conversation(self):
-        # Arrange
-        self.client.force_authenticate(self.owner)
-        posted, _delay = self._post_message("What is this note about?")
-
-        # Act
-        response = self.client.get(self.chat_url)
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["cancelled"])
         self.assertEqual(
-            response.data["conversation_id"], posted.data["conversation_id"]
+            AgentExecution.objects.get(id=second_posted.data["execution_id"]).status,
+            AgentExecution.Status.CANCELLED,
         )
+        self.assertEqual(
+            AgentExecution.objects.get(id=first_posted.data["execution_id"]).status,
+            AgentExecution.Status.PENDING,
+        )
+
+    # -- reading chats ----------------------------------------------------
+
+    def test_list_chats_starts_empty(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+
+        # Act
+        response = self.client.get(self.chats_url)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["chats"], [])
+
+    def test_list_chats_shows_titles_previews_and_activity(self):
+        # Arrange: one busy chat named from its first message, one idle chat.
+        self.client.force_authenticate(self.owner)
+        idle_chat = self._create_chat_id()
+        busy_chat = self._create_chat_id()
+        self._post_message(busy_chat, "Compare the cited methods")
+
+        # Act
+        response = self.client.get(self.chats_url)
+
+        # Assert: newest activity first.
+        busy, idle = response.data["chats"]
+        self.assertEqual(busy["id"], busy_chat)
+        self.assertEqual(busy["title"], "Compare the cited methods")
+        self.assertEqual(busy["last_message_preview"], "Compare the cited methods")
+        self.assertTrue(busy["has_active_turn"])
+        self.assertEqual(idle["id"], idle_chat)
+        self.assertFalse(idle["has_active_turn"])
+
+    def test_get_chat_returns_its_representation(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+        self._post_message(chat_id, "What is this note about?")
+
+        # Act
+        response = self.client.get(self._chat_url(chat_id))
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["conversation_id"], chat_id)
+        self.assertEqual(response.data["title"], "What is this note about?")
         self.assertEqual(len(response.data["messages"]), 1)
         self.assertEqual(
             response.data["messages"][0]["content"], "What is this note about?"
@@ -267,26 +395,82 @@ class NotebookChatViewTests(APITestCase):
             AgentExecution.Status.PENDING,
         )
 
-    def test_get_chat_is_scoped_per_user(self):
-        # Arrange: the owner has a conversation; the viewer sees their own
-        # (empty) chat, not the owner's.
+    def test_get_unknown_chat_is_not_found(self):
+        # Arrange
         self.client.force_authenticate(self.owner)
-        self._post_message()
+
+        # Act
+        response = self.client.get(self._chat_url(999999))
+
+        # Assert
+        self.assertEqual(response.status_code, 404)
+
+    def test_chats_are_scoped_per_user(self):
+        # Arrange: the owner has a chat; the viewer neither lists nor reads it.
+        self.client.force_authenticate(self.owner)
+        owners_chat = self._create_chat_id()
         self.client.force_authenticate(self.viewer)
 
         # Act
-        response = self.client.get(self.chat_url)
+        listing = self.client.get(self.chats_url)
+        detail = self.client.get(self._chat_url(owners_chat))
 
         # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertIsNone(response.data["conversation_id"])
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(listing.data["chats"], [])
+        self.assertEqual(detail.status_code, 404)
 
-    def test_get_chat_requires_note_access(self):
+    def test_list_chats_requires_note_access(self):
         # Arrange
         self.client.force_authenticate(self.outsider)
 
         # Act
-        response = self.client.get(self.chat_url)
+        response = self.client.get(self.chats_url)
+
+        # Assert
+        self.assertEqual(response.status_code, 404)
+
+    # -- renaming ---------------------------------------------------------
+
+    def test_rename_chat(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+
+        # Act
+        response = self.client.patch(
+            self._chat_url(chat_id), {"title": "Grant ideas"}, format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["title"], "Grant ideas")
+        detail = self.client.get(self._chat_url(chat_id))
+        self.assertEqual(detail.data["title"], "Grant ideas")
+
+    def test_rename_chat_rejects_a_blank_title(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+
+        # Act
+        response = self.client.patch(
+            self._chat_url(chat_id), {"title": ""}, format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+
+    def test_rename_of_another_users_chat_is_not_found(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        owners_chat = self._create_chat_id()
+        self.client.force_authenticate(self.viewer)
+
+        # Act
+        response = self.client.patch(
+            self._chat_url(owners_chat), {"title": "Mine now"}, format="json"
+        )
 
         # Assert
         self.assertEqual(response.status_code, 404)

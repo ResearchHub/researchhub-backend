@@ -16,11 +16,30 @@ class AgentConversationService:
         *,
         user=None,
         workflow: str = "",
+        title: str = "",
     ) -> AgentConversation:
         return AgentConversation.objects.create(
             user=user,
             workflow=workflow,
+            title=title,
         )
+
+    def set_title(self, conversation: AgentConversation, title: str) -> None:
+        conversation.title = title
+        conversation.save(update_fields=["title", "updated_date"])
+
+    def set_title_if_blank(self, conversation: AgentConversation, title: str) -> None:
+        """Set a derived title unless one exists, without clobbering a rename.
+
+        Filtered update rather than read-then-save: a concurrent rename and a
+        first-message derivation race here, and the user's explicit title must
+        win no matter which lands first.
+        """
+        updated = AgentConversation.objects.filter(id=conversation.id, title="").update(
+            title=title
+        )
+        if updated:
+            conversation.title = title
 
     def add_human_message(
         self, conversation: AgentConversation, content: str

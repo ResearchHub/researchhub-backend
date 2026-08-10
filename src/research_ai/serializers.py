@@ -1024,6 +1024,27 @@ class NotebookChatMessageCreateSerializer(serializers.Serializer):
     message = serializers.CharField(max_length=20000)
 
 
+class NotebookChatCreateSerializer(serializers.Serializer):
+    """
+    Request body for creating a chat on a note.
+
+    The title is optional: a chat created without one is named from its
+    first message.
+    """
+
+    title = serializers.CharField(
+        max_length=255, required=False, allow_blank=True, default=""
+    )
+
+
+class NotebookChatUpdateSerializer(serializers.Serializer):
+    """
+    Request body for renaming a chat.
+    """
+
+    title = serializers.CharField(max_length=255)
+
+
 class ProposalDraftCreateSerializer(serializers.Serializer):
     """
     Request body for enqueueing a proposal-drafting job.

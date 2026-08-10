@@ -1,7 +1,12 @@
 """The notebook chat assistant: research + note edits driven by user feedback.
 
-One conversation per (note, user), workflow ``notebook_chat``. A turn is
-split across two processes:
+A user can keep any number of chats on a note, workflow ``notebook_chat``.
+Each chat is its own ``AgentConversation`` -- resolved by id, never by
+position -- with its own context lineage and its own busy check, so turns in
+different chats on the same note may run concurrently. That is safe by
+construction: note edits are optimistic-concurrency guarded and versioned
+(see ``NoteToolset``), so parallel agents can at worst reject each other's
+stale writes, never corrupt the note. A turn is split across two processes:
 
 - ``submit_message`` (request path) resolves the conversation, appends the
   user's message, and creates a ``PENDING`` execution via
@@ -29,10 +34,16 @@ import logging
 from datetime import timedelta
 
 from django.db import transaction
+from django.db.models import Exists, OuterRef, Subquery
+from django.db.models.functions import Left
 from django.utils import timezone
 
 from note.related_models.note_model import Note
-from research_ai.models import AgentConversation, AgentExecution
+from research_ai.models import (
+    AgentConversation,
+    AgentConversationMessage,
+    AgentExecution,
+)
 from research_ai.models.agent import AgentExecutionMessage
 from research_ai.prompts.notebook_chat_prompts import build_notebook_chat_system_prompt
 from research_ai.services.agent import (
@@ -85,6 +96,19 @@ ACTIVITY_LIVE = "live"
 # its worker unwinds, when trace rows can genuinely still land.
 ACTIVITY_SETTLED_GRACE = timedelta(seconds=60)
 
+# Derived chat titles are list labels, not documents: one collapsed line,
+# well under the model field's 255-char bound.
+TITLE_MAX_CHARS = 120
+
+# How much of a chat's newest message the listing carries as a preview,
+# truncated in the database so a 20k-character turn never rides along.
+LIST_PREVIEW_CHARS = 160
+
+
+def _derive_title(text: str) -> str:
+    """A list-friendly chat name from the first message: one bounded line."""
+    return " ".join(text.split())[:TITLE_MAX_CHARS].rstrip()
+
 
 class NotebookChatService:
     """Prepare and run notebook chat turns.
@@ -135,13 +159,65 @@ class NotebookChatService:
 
     # -- request path -----------------------------------------------------
 
-    def get_conversation(self, note: Note, user) -> AgentConversation | None:
-        """The user's existing notebook chat conversation on ``note``, if any."""
+    def get_conversation(
+        self, note: Note, user, conversation_id: int
+    ) -> AgentConversation | None:
+        """The user's notebook chat ``conversation_id`` on ``note``, if any.
+
+        Scoped to the note, the requesting user, and this workflow, so a
+        conversation id belonging to another user, another note, or another
+        workflow does not resolve -- the API turns that ``None`` into a 404.
+        """
         return (
             self.note_conversations.for_note(note)
-            .filter(workflow=WORKFLOW, user=user)
+            .filter(workflow=WORKFLOW, user=user, id=conversation_id)
             .first()
         )
+
+    def list_conversations(self, note: Note, user) -> list[dict]:
+        """The user's chats on ``note``, newest activity first.
+
+        A listing projection, deliberately not ``representation``: one query
+        with a bounded preview of each chat's newest message, instead of
+        walking every conversation's executions and running publication
+        repair. ``has_active_turn`` is what lets a chat picker show a spinner
+        without fetching any chat's full state.
+        """
+        last_message = (
+            AgentConversationMessage.objects.filter(
+                conversation=OuterRef("pk"), is_active=True
+            )
+            .order_by("-sequence")
+            .annotate(preview=Left("content", LIST_PREVIEW_CHARS))
+            .values("preview")[:1]
+        )
+        conversations = (
+            self.note_conversations.for_note(note)
+            .filter(workflow=WORKFLOW, user=user)
+            .annotate(
+                last_message_preview=Subquery(last_message),
+                has_active_turn=Exists(
+                    AgentExecution.objects.filter(
+                        conversation=OuterRef("pk"),
+                        status__in=[
+                            AgentExecution.Status.PENDING,
+                            AgentExecution.Status.RUNNING,
+                        ],
+                    )
+                ),
+            )
+        )
+        return [
+            {
+                "id": conversation.id,
+                "title": conversation.title,
+                "created_date": conversation.created_date,
+                "updated_date": conversation.updated_date,
+                "last_message_preview": conversation.last_message_preview,
+                "has_active_turn": conversation.has_active_turn,
+            }
+            for conversation in conversations
+        ]
 
     def representation(
         self, conversation: AgentConversation, *, activity_scope: str = ACTIVITY_ALL
@@ -251,29 +327,39 @@ class NotebookChatService:
             ids.add(executions[-1]["id"])
         return sorted(ids)
 
-    def get_or_create_conversation(self, note: Note, user) -> AgentConversation:
-        conversation = self.get_conversation(note, user)
-        if conversation is not None:
-            return conversation
+    def create_conversation(
+        self, note: Note, user, title: str = ""
+    ) -> AgentConversation:
+        """Create a new chat on ``note`` owned by ``user``.
+
+        Any number of chats per (note, user) is expected, so concurrent
+        creates are simply two new chats -- no serialization needed. Atomic so
+        a conversation never outlives a failed note attachment.
+        """
         with transaction.atomic():
-            # Serialize concurrent first messages on the note row: without
-            # this, each request creates its own conversation and the busy
-            # check in ``prepare_turn`` -- which locks per conversation --
-            # would happily run both turns against the note at once.
-            Note.objects.select_for_update().get(id=note.id)
-            conversation = self.get_conversation(note, user)
-            if conversation is not None:
-                return conversation
-            conversation = self.conversations.create(user=user, workflow=WORKFLOW)
+            conversation = self.conversations.create(
+                user=user, workflow=WORKFLOW, title=title
+            )
             self.note_conversations.attach(conversation, note)
-            return conversation
+        return conversation
 
-    def submit_message(self, note: Note, user, text: str) -> AgentExecution:
-        """Record the user's message and schedule the agent turn.
+    def rename_conversation(
+        self, conversation: AgentConversation, title: str
+    ) -> AgentConversation:
+        self.conversations.set_title(conversation, title)
+        return conversation
 
-        Raises ``ValueError`` on an empty or oversized message and lets
-        ``AgentConversationBusyError`` propagate when a turn is already
-        running on the conversation (the API maps it to a 409).
+    def submit_message(
+        self, note: Note, conversation: AgentConversation, text: str
+    ) -> AgentExecution:
+        """Record the user's message on ``conversation`` and schedule the turn.
+
+        ``conversation`` must have been resolved through ``get_conversation``
+        so it is known to belong to ``note``. A chat still untitled takes its
+        name from this message. Raises ``ValueError`` on an empty or oversized
+        message and lets ``AgentConversationBusyError`` propagate when a turn
+        is already running on this conversation (the API maps it to a 409);
+        other chats on the note are unaffected.
         """
         text = (text or "").strip()
         if not text:
@@ -282,7 +368,6 @@ class NotebookChatService:
         if len(text) > config.max_message_chars:
             raise ValueError(f"message exceeds {config.max_message_chars} characters")
 
-        conversation = self.get_or_create_conversation(note, user)
         prepared = self.chat.prepare_turn(
             conversation,
             text,
@@ -298,10 +383,15 @@ class NotebookChatService:
             system_prompt=build_notebook_chat_system_prompt(note),
         )
         execution = prepared.execution
+        # After prepare_turn so a refused turn (busy, for instance) names
+        # nothing; the filtered update keeps a concurrent rename authoritative.
+        self.conversations.set_title_if_blank(conversation, _derive_title(text))
         transaction.on_commit(lambda: self._schedule_turn(execution.id))
         return execution
 
-    def cancel_active_turn(self, note: Note, user) -> AgentExecution | None:
+    def cancel_active_turn(
+        self, conversation: AgentConversation
+    ) -> AgentExecution | None:
         """Stop the conversation's in-flight turn; ``None`` if none was running.
 
         Cancellation is cooperative: the worker is not interrupted here, it
@@ -311,9 +401,6 @@ class NotebookChatService:
         the worker does afterwards can revive the row -- every terminal
         transition in the recorder is guarded on ``RUNNING``.
         """
-        conversation = self.get_conversation(note, user)
-        if conversation is None:
-            return None
         execution = (
             conversation.executions.filter(
                 status__in=[

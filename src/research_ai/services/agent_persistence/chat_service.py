@@ -297,6 +297,7 @@ class AgentChatService:
         ]
         return {
             "conversation_id": conversation.id,
+            "title": conversation.title,
             "messages": messages,
             "executions": executions,
         }
