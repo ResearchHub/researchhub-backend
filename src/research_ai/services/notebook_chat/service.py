@@ -69,6 +69,12 @@ from research_ai.services.notebook_chat.activity import (
     public_activity,
 )
 from research_ai.services.notebook_chat.config import NotebookChatConfig
+from research_ai.services.notebook_chat.events import (
+    TURN_CANCELLED,
+    TURN_QUEUED,
+    ConversationEventPublisher,
+    PublishingRecorder,
+)
 from research_ai.services.notebook_chat.toolset import (
     NotebookWebSearchToolset,
     compose_notebook_toolset,
@@ -115,7 +121,9 @@ class NotebookChatService:
 
     Runtime collaborators are injectable for tests; in production they default
     to the settings-configured generator provider, OpenAlex client, Brave web
-    search, and database persistence services.
+    search, database persistence services, and the channel-layer event
+    publisher (see ``events``) that nudges subscribed WebSocket clients as a
+    turn advances.
     """
 
     def __init__(
@@ -130,6 +138,7 @@ class NotebookChatService:
         context_service: AgentContextService | None = None,
         cancel_service: AgentExecutionCancelService | None = None,
         config: NotebookChatConfig | None = None,
+        event_publisher: ConversationEventPublisher | None = None,
     ):
         self._provider = provider
         self._oa_client = oa_client
@@ -150,6 +159,9 @@ class NotebookChatService:
         )
         self.cancels = (
             AgentExecutionCancelService() if cancel_service is None else cancel_service
+        )
+        self.events = (
+            ConversationEventPublisher() if event_publisher is None else event_publisher
         )
         self._config = config
 
@@ -387,6 +399,9 @@ class NotebookChatService:
         # nothing; the filtered update keeps a concurrent rename authoritative.
         self.conversations.set_title_if_blank(conversation, _derive_title(text))
         transaction.on_commit(lambda: self._schedule_turn(execution.id))
+        # After the schedule registration, so the commit-time order is
+        # enqueue-then-nudge and a nudged refetch finds the turn queued.
+        self.events.publish(conversation.id, execution.id, TURN_QUEUED)
         return execution
 
     def cancel_active_turn(
@@ -413,7 +428,12 @@ class NotebookChatService:
         )
         if execution is None:
             return None
-        return execution if self.cancels.cancel(execution) else None
+        if not self.cancels.cancel(execution):
+            return None
+        # The worker's own writes stop publishing once the row is terminal
+        # (a refused write emits nothing), so the cancel is announced here.
+        self.events.publish(conversation.id, execution.id, TURN_CANCELLED)
+        return execution
 
     def _schedule_turn(self, execution_id: int) -> None:
         """Queue the worker turn, failing the execution if the broker refuses.
@@ -437,7 +457,7 @@ class NotebookChatService:
                 else None
             )
             if recorder is not None:
-                recorder.on_run_failed(exc)
+                self._publishing_recorder(recorder, execution).on_run_failed(exc)
 
     # -- worker path ------------------------------------------------------
 
@@ -463,6 +483,10 @@ class NotebookChatService:
                 execution.status,
             )
             return {"execution_id": execution.id, "skipped": True}
+        # Every durable write and terminal transition below flows through the
+        # recorder, so wrapping it here is what pushes the whole turn's
+        # progress to subscribed clients.
+        recorder = self._publishing_recorder(recorder, execution)
         try:
             return self._run_turn(execution, recorder)
         except Exception as exc:
@@ -531,6 +555,17 @@ class NotebookChatService:
             "iterations": result.iterations,
             "final_text": result.final_text,
         }
+
+    def _publishing_recorder(
+        self, recorder, execution: AgentExecution
+    ) -> PublishingRecorder:
+        """Wrap ``recorder`` so its writes nudge the chat's WebSocket group."""
+        return PublishingRecorder(
+            recorder,
+            self.events,
+            conversation_id=execution.conversation_id,
+            execution_id=execution.id,
+        )
 
     def _turn_config(self, execution: AgentExecution) -> NotebookChatConfig:
         """The knobs this turn was submitted with, not today's settings.

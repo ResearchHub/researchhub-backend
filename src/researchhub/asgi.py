@@ -22,6 +22,7 @@ from django.conf import settings
 
 import note.routing
 import notification.routing
+import research_ai.routing
 from researchhub.settings import CELERY_WORKER
 from researchhub.token_auth import TokenAuthMiddlewareStack
 
@@ -46,6 +47,7 @@ if not CELERY_WORKER:
                 [
                     *note.routing.websocket_urlpatterns,
                     *notification.routing.websocket_urlpatterns,
+                    *research_ai.routing.websocket_urlpatterns,
                 ]
             )
         )

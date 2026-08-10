@@ -14,6 +14,13 @@ from research_ai.models import (
 from research_ai.services.agent_persistence import AgentConversationBusyError
 from research_ai.services.notebook_chat import WORKFLOW, NotebookChatService
 from research_ai.services.notebook_chat.config import NotebookChatConfig
+from research_ai.services.notebook_chat.events import (
+    TURN_CANCELLED,
+    TURN_FAILED,
+    TURN_FINISHED,
+    TURN_PROGRESS,
+    TURN_QUEUED,
+)
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
@@ -523,3 +530,148 @@ class NotebookChatResolutionTests(TestCase):
         self.assertEqual(idle["title"], "")
         self.assertIsNone(idle["last_message_preview"])
         self.assertFalse(idle["has_active_turn"])
+
+
+class NotebookChatEventEmissionTests(TestCase):
+    """Where the service nudges the chat's WebSocket group.
+
+    The publisher is a Mock: the contract under test is which lifecycle
+    points emit which kind, always naming the right conversation and
+    execution. Commit deferral, group naming, and delivery are the
+    publisher's and consumer's own tests.
+    """
+
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            username="owner@researchhub_test.com",
+            password="password",
+            email="owner@researchhub_test.com",
+        )
+        self.note = create_note(self.user, organization=None)[0]
+        Permission.objects.create(
+            access_type=ADMIN,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=self.note.unified_document.id,
+            user=self.user,
+        )
+        self.publisher = Mock()
+        self.service = _make_service(event_publisher=self.publisher)
+        self.conversation = self.service.create_conversation(self.note, self.user)
+
+    def _submit(self, text="Please add a summary."):
+        with (
+            patch("research_ai.tasks.run_notebook_chat_turn_task.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            return self.service.submit_message(self.note, self.conversation, text)
+
+    @staticmethod
+    def _events(publisher):
+        return [call.args for call in publisher.publish.call_args_list]
+
+    def test_submit_message_publishes_turn_queued(self):
+        # Act
+        execution = self._submit()
+
+        # Assert
+        self.publisher.publish.assert_called_once_with(
+            self.conversation.id, execution.id, TURN_QUEUED
+        )
+
+    def test_run_turn_publishes_progress_then_finished(self):
+        # Arrange
+        execution = self._submit()
+        run_publisher = Mock()
+        runner = _make_service(
+            provider=FakeProvider([text_turn("Done.")]),
+            event_publisher=run_publisher,
+        )
+
+        # Act
+        runner.run_turn(execution.id)
+
+        # Assert: every durable write nudged, the settled turn last, and each
+        # event names this conversation and execution.
+        events = self._events(run_publisher)
+        kinds = [kind for _, _, kind in events]
+        self.assertIn(TURN_PROGRESS, kinds)
+        self.assertEqual(kinds[-1], TURN_FINISHED)
+        for conversation_id, execution_id, _ in events:
+            self.assertEqual(conversation_id, self.conversation.id)
+            self.assertEqual(execution_id, execution.id)
+
+    def test_run_turn_provider_failure_publishes_turn_failed(self):
+        # Arrange
+        execution = self._submit()
+        run_publisher = Mock()
+        runner = _make_service(
+            provider=FakeProvider([RuntimeError("provider exploded")]),
+            event_publisher=run_publisher,
+        )
+
+        # Act
+        runner.run_turn(execution.id)
+
+        # Assert
+        kinds = [kind for _, _, kind in self._events(run_publisher)]
+        self.assertEqual(kinds[-1], TURN_FAILED)
+        self.assertNotIn(TURN_FINISHED, kinds)
+
+    def test_run_turn_duplicate_delivery_publishes_nothing(self):
+        # Arrange: another worker already claimed this execution.
+        execution = self._submit()
+        self.assertIsNotNone(self.service.chat.executions.claim_pending(execution))
+        run_publisher = Mock()
+        runner = _make_service(event_publisher=run_publisher)
+
+        # Act
+        result = runner.run_turn(execution.id)
+
+        # Assert: a skipped delivery changed nothing, so it announces nothing.
+        self.assertTrue(result["skipped"])
+        run_publisher.publish.assert_not_called()
+
+    def test_cancel_active_turn_publishes_turn_cancelled(self):
+        # Arrange
+        execution = self._submit()
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            cancelled = self.service.cancel_active_turn(self.conversation)
+
+        # Assert
+        self.assertIsNotNone(cancelled)
+        self.assertEqual(
+            self.publisher.publish.call_args.args,
+            (self.conversation.id, execution.id, TURN_CANCELLED),
+        )
+
+    def test_cancel_without_active_turn_publishes_nothing(self):
+        # Act
+        cancelled = self.service.cancel_active_turn(self.conversation)
+
+        # Assert
+        self.assertIsNone(cancelled)
+        self.publisher.publish.assert_not_called()
+
+    def test_failed_enqueue_publishes_turn_failed_after_turn_queued(self):
+        # Act: the broker refuses the task after the turn committed.
+        with (
+            patch(
+                "research_ai.tasks.run_notebook_chat_turn_task.delay",
+                side_effect=RuntimeError("broker down"),
+            ),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            execution = self.service.submit_message(self.note, self.conversation, "Hi")
+
+        # Assert: subscribers saw the turn appear, then fail -- never a
+        # silently stuck spinner.
+        self.assertEqual(
+            self._events(self.publisher),
+            [
+                (self.conversation.id, execution.id, TURN_QUEUED),
+                (self.conversation.id, execution.id, TURN_FAILED),
+            ],
+        )
