@@ -217,6 +217,20 @@ class AgentCancellationTests(TestCase):
         self.assertEqual(dispatched, ["read"])
         self.assertEqual(result.final_text, "done")
 
+    def test_terminal_hooks_report_whether_they_sealed_the_run(self):
+        # Arrange
+        recorder = self._running()
+
+        # Act & Assert: the hook that performs the transition says so; on the
+        # now-sealed row a repeat reports no transition. Event observers key
+        # on exactly this report to publish only outcomes that landed.
+        self.assertTrue(recorder.on_run_failed(RuntimeError("boom")))
+        self.assertFalse(recorder.on_run_failed(RuntimeError("boom")))
+        recorder = self._running()
+        result = _finished_run(final_text="done", stop_reason="end_turn")
+        self.assertTrue(recorder.on_run_finished(result))
+        self.assertFalse(recorder.on_run_finished(result))
+
     def test_cancelling_an_already_terminal_execution_reports_false(self):
         # Arrange
         recorder = self._running()
@@ -317,13 +331,16 @@ class AgentCancellationTests(TestCase):
 
         # Act
         self.cancels.cancel(recorder.execution)
-        recorder.on_run_finished(
+        transitioned = recorder.on_run_finished(
             _finished_run(final_text="Here is the summary", stop_reason="end_turn")
         )
 
-        # Assert: nothing was published, so the answer is gone from the context
-        # the next turn continues from -- otherwise the model would resume as
-        # though it had already replied.
+        # Assert: the hook reports it sealed nothing -- what tells observers
+        # layered on the recorder to stay quiet about a finish that never
+        # landed -- and nothing was published, so the answer is gone from the
+        # context the next turn continues from; otherwise the model would
+        # resume as though it had already replied.
+        self.assertFalse(transitioned)
         self.assertFalse(
             AgentConversationMessage.objects.filter(
                 generated_by_execution=recorder.execution,

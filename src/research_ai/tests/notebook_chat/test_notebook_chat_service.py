@@ -11,7 +11,10 @@ from research_ai.models import (
     AgentExecution,
     NoteAgentConversation,
 )
-from research_ai.services.agent_persistence import AgentConversationBusyError
+from research_ai.services.agent_persistence import (
+    AgentConversationBusyError,
+    DatabaseAgentRecorder,
+)
 from research_ai.services.notebook_chat import WORKFLOW, NotebookChatService
 from research_ai.services.notebook_chat.config import NotebookChatConfig
 from research_ai.services.notebook_chat.events import (
@@ -652,6 +655,39 @@ class NotebookChatEventEmissionTests(TestCase):
         kinds = [kind for _, _, kind in self._events(run_publisher)]
         self.assertNotIn(TURN_FAILED, kinds)
         self.assertNotIn(TURN_FINISHED, kinds)
+
+    def test_cancelled_just_before_the_finish_publishes_no_finished(self):
+        # Arrange: the narrowest cancellation window -- after the closing
+        # assistant message was durably recorded, before the terminal hook
+        # runs. The recorder discards the finish, so no event may claim it.
+        execution = self._submit()
+        run_publisher = Mock()
+        runner = _make_service(
+            provider=FakeProvider([text_turn("Almost made it.")]),
+            event_publisher=run_publisher,
+        )
+        original = DatabaseAgentRecorder.on_run_finished
+
+        def _cancel_then_finish(recorder, result):
+            AgentExecution.objects.filter(id=recorder.execution.id).update(
+                status=AgentExecution.Status.CANCELLED
+            )
+            return original(recorder, result)
+
+        # Act
+        with patch.object(
+            DatabaseAgentRecorder, "on_run_finished", _cancel_then_finish
+        ):
+            runner.run_turn(execution.id)
+
+        # Assert: the cancellation stands and neither terminal kind was
+        # pushed over the turn_cancelled the cancel path already published.
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+        kinds = [kind for _, _, kind in self._events(run_publisher)]
+        self.assertIn(TURN_PROGRESS, kinds)
+        self.assertNotIn(TURN_FINISHED, kinds)
+        self.assertNotIn(TURN_FAILED, kinds)
 
     def test_run_turn_duplicate_delivery_publishes_nothing(self):
         # Arrange: another worker already claimed this execution.

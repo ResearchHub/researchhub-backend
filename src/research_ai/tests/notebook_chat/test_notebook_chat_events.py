@@ -110,7 +110,10 @@ class PublishingRecorderTests(unittest.TestCase):
         self.publisher.publish.assert_called_once_with(7, 9, TURN_PROGRESS)
 
     def test_terminal_hooks_forward_then_publish(self):
-        # Arrange
+        # Arrange: the wrapped recorder reports that each hook performed its
+        # terminal transition itself.
+        self.wrapped.on_run_finished.return_value = True
+        self.wrapped.on_run_failed.return_value = True
         result, error = object(), RuntimeError("boom")
 
         # Act
@@ -125,18 +128,37 @@ class PublishingRecorderTests(unittest.TestCase):
             [(7, 9, TURN_FINISHED), (7, 9, TURN_FAILED)],
         )
 
-    def test_an_interrupted_run_publishes_no_failure(self):
-        # Arrange: interruption means the execution was sealed from outside
-        # (cancelled), and the sealing path already announced it.
-        error = InterruptedError("agent execution is no longer running")
+    def test_terminal_hooks_that_did_not_transition_publish_nothing(self):
+        # Arrange: each hook finds the execution already sealed from outside
+        # (cancelled) and reports performing no transition of its own.
+        self.wrapped.on_run_finished.return_value = False
+        self.wrapped.on_run_failed.return_value = False
 
         # Act
-        self.recorder.on_run_failed(error)
+        self.recorder.on_run_finished(object())
+        self.recorder.on_run_failed(InterruptedError("no longer running"))
 
         # Assert: forwarded for persistence, but no contradictory event on
         # top of the turn_cancelled the subscribers already received.
-        self.wrapped.on_run_failed.assert_called_once_with(error)
+        self.wrapped.on_run_finished.assert_called_once()
+        self.wrapped.on_run_failed.assert_called_once()
         self.publisher.publish.assert_not_called()
+
+    def test_a_recorder_without_a_transition_report_keeps_its_events(self):
+        # Arrange: only an explicit False suppresses; a recorder that does
+        # not track transitions returns None and stays fully announced.
+        self.wrapped.on_run_finished.return_value = None
+        self.wrapped.on_run_failed.return_value = None
+
+        # Act
+        self.recorder.on_run_finished(object())
+        self.recorder.on_run_failed(RuntimeError("boom"))
+
+        # Assert
+        self.assertEqual(
+            [call.args for call in self.publisher.publish.call_args_list],
+            [(7, 9, TURN_FINISHED), (7, 9, TURN_FAILED)],
+        )
 
     def test_a_refused_write_publishes_nothing(self):
         # Arrange: the run was cancelled, so the durable write is refused.
