@@ -22,8 +22,9 @@ from research_ai.views.expert_finder_views import (
 )
 from research_ai.views.notebook_chat_views import (
     NotebookChatCancelView,
+    NotebookChatDetailView,
+    NotebookChatListCreateView,
     NotebookChatMessageView,
-    NotebookChatView,
 )
 from research_ai.views.proposal_draft_views import (
     ProposalDraftCancelView,
@@ -109,15 +110,19 @@ urlpatterns = [
         ProposalDraftCancelView.as_view(),
     ),
     path(
-        "notebook/notes/<int:note_id>/chat/",
-        NotebookChatView.as_view(),
+        "notebook/notes/<int:note_id>/chats/",
+        NotebookChatListCreateView.as_view(),
     ),
     path(
-        "notebook/notes/<int:note_id>/chat/messages/",
+        "notebook/notes/<int:note_id>/chats/<int:conversation_id>/",
+        NotebookChatDetailView.as_view(),
+    ),
+    path(
+        "notebook/notes/<int:note_id>/chats/<int:conversation_id>/messages/",
         NotebookChatMessageView.as_view(),
     ),
     path(
-        "notebook/notes/<int:note_id>/chat/cancel/",
+        "notebook/notes/<int:note_id>/chats/<int:conversation_id>/cancel/",
         NotebookChatCancelView.as_view(),
     ),
 ]

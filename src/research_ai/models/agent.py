@@ -24,6 +24,14 @@ class AgentConversation(DefaultModel):
             "such as proposal_draft or notebook_chat."
         ),
     )
+    title = models.CharField(
+        max_length=255,
+        blank=True,
+        db_comment=(
+            "User-visible conversation name. Blank until the workflow derives "
+            "one (typically from the first message) or the user sets it."
+        ),
+    )
     next_trace_sequence = models.PositiveBigIntegerField(default=1)
     next_chat_sequence = models.PositiveBigIntegerField(default=1)
 

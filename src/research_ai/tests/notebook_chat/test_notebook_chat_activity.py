@@ -94,6 +94,7 @@ class NotebookChatActivityTests(TestCase):
             object_id=self.note.unified_document.id,
             user=self.user,
         )
+        self.conversation = _make_service().create_conversation(self.note, self.user)
 
     def _run_turn(
         self,
@@ -107,7 +108,7 @@ class NotebookChatActivityTests(TestCase):
             patch("research_ai.tasks.run_notebook_chat_turn_task.delay"),
             self.captureOnCommitCallbacks(execute=True),
         ):
-            execution = service.submit_message(self.note, self.user, text)
+            execution = service.submit_message(self.note, self.conversation, text)
         runner = _make_service(
             provider=FakeProvider(provider_turns),
             web_search_client=web_search_client,
@@ -361,7 +362,9 @@ class NotebookChatActivityTests(TestCase):
             patch("research_ai.tasks.run_notebook_chat_turn_task.delay"),
             self.captureOnCommitCallbacks(execute=True),
         ):
-            queued = _make_service().submit_message(self.note, self.user, "Rephrased.")
+            queued = _make_service().submit_message(
+                self.note, self.conversation, "Rephrased."
+            )
 
         # Act
         live = _make_service().representation(
@@ -942,7 +945,10 @@ class NotebookChatActivityViewTests(APITestCase):
             object_id=self.note.unified_document.id,
             user=self.owner,
         )
-        self.chat_url = f"/api/research_ai/notebook/notes/{self.note.id}/chat/"
+        chats_url = f"/api/research_ai/notebook/notes/{self.note.id}/chats/"
+        self.client.force_authenticate(self.owner)
+        created = self.client.post(chats_url, {}, format="json")
+        self.chat_url = f"{chats_url}{created.data['conversation_id']}/"
 
     def test_get_chat_includes_each_turns_activity(self):
         # Arrange: a submitted turn has no activity yet; a completed turn has
