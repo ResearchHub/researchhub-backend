@@ -317,11 +317,14 @@ class AgentChatService:
         locks on every read to be refused. Publication re-checks supersession
         under its own lock, so this pass is an optimisation, not the guarantee.
 
-        Returns the ids of executions whose answer published on this pass. A
-        publication landing changes how the turn presents -- its final text
-        moves out of the working feed and into the chat -- so a caller that
-        serves a scoped projection needs to know which turns transitioned
-        under the read it is building.
+        Returns the ids of candidates that ended this pass published,
+        whoever published them. A publication landing changes how the turn
+        presents -- its final text moves out of the working feed and into the
+        chat -- so a caller that serves a scoped projection needs to know
+        which turns transitioned under the read it is building. That is a
+        fact about the transition, not about authorship: a concurrent reader
+        repairing the same turn can land the message first, and this pass's
+        snapshot shows the answer all the same.
         """
         candidates = [
             execution
@@ -335,7 +338,6 @@ class AgentChatService:
         if not candidates:
             return []
         superseded = superseded_execution_ids(conversation)
-        repaired = []
         for execution in candidates:
             if execution.id in superseded:
                 continue
@@ -345,11 +347,21 @@ class AgentChatService:
                 # add the next question, and swallowing a database error
                 # without one would break every write that follows.
                 with transaction.atomic():
-                    if self.recorder_factory(execution).publish_assistant_output():
-                        repaired.append(execution.id)
+                    self.recorder_factory(execution).publish_assistant_output()
             except Exception:  # noqa: BLE001 - reads still expose pending state
                 logger.warning(
                     "failed to repair agent response publication",
                     exc_info=True,
                 )
-        return repaired
+        # Asked of the table rather than collected from the publish calls: a
+        # concurrent reader can land a candidate's message between the scan
+        # and this pass's own attempt, which then creates nothing -- yet the
+        # snapshot built on top of this pass shows the answer all the same.
+        return list(
+            conversation.executions.filter(
+                id__in=[candidate.id for candidate in candidates],
+                generated_chat_message__isnull=False,
+            )
+            .order_by("attempt")
+            .values_list("id", flat=True)
+        )

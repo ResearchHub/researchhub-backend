@@ -140,6 +140,40 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         )
         self.assertFalse(representation["executions"][0]["assistant_message_pending"])
 
+    def test_repair_reports_a_publication_a_concurrent_reader_landed(self):
+        # Arrange: a stuck publication, then a repair pass that loses the
+        # race -- another reader's repair lands the message between this
+        # pass's candidate scan and its own attempt.
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(self.conversation, "Question")
+        with patch.object(
+            DatabaseAgentRecorder,
+            "publish_assistant_output",
+            side_effect=IntegrityError("chat insert failed"),
+        ):
+            agent(FakeProvider([text_turn("Durable answer")]), prepared.recorder).run(
+                "Question"
+            )
+        execution = AgentExecution.objects.get(id=prepared.execution.id)
+        real_publish = DatabaseAgentRecorder.publish_assistant_output
+
+        def concurrent_repair_wins():
+            real_publish(DatabaseAgentRecorder(execution))
+            return False
+
+        # Act
+        with patch.object(
+            DatabaseAgentRecorder,
+            "publish_assistant_output",
+            side_effect=concurrent_repair_wins,
+        ):
+            repaired = chat.repair_pending_outputs(self.conversation)
+
+        # Assert: this pass created nothing, but the turn transitioned to
+        # published under it, and the caller needs the transition rather
+        # than the authorship.
+        self.assertEqual(repaired, [execution.id])
+
     def test_large_assistant_output_repairs_as_the_same_bounded_text(self):
         # Arrange
         chat = AgentChatService()
