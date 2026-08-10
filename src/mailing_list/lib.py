@@ -1,12 +1,13 @@
 import logging
+import re
 from time import sleep
 from typing import Any
 
+from bs4 import BeautifulSoup
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
-from django.utils.html import strip_tags
 
 from mailing_list.models import EmailOptOut
 from mailing_list.services import EmailSubscriptionService
@@ -172,11 +173,45 @@ def _render_body(
     if template:
         plain_body = render_to_string(template, context)
     elif html_body:
-        plain_body = strip_tags(html_body).strip()
+        plain_body = _html_to_text(html_body)
     else:
         plain_body = ""
 
     return plain_body, html_body
+
+
+def _html_to_text(html: str) -> str:
+    """
+    Convert HTML to readable plain text: non-text elements dropped, entities
+    decoded, links kept as "label (url)", block boundaries as line breaks.
+    """
+    soup = BeautifulSoup(html, "lxml")
+
+    for element in soup(["head", "script", "style", "title"]):
+        element.decompose()
+
+    for a in soup.find_all("a", href=True):
+        label = " ".join(a.get_text().split())
+        href = a["href"]
+        if (
+            label
+            and href.startswith(("http://", "https://"))  # NOSONAR - Ignore http
+            and label != href
+        ):
+            a.replace_with(f"{label} ({href})")
+
+    # Mark block boundaries with a sentinel that survives whitespace
+    # collapsing, so newlines in the HTML source don't become line breaks
+    # but element structure does.
+    for block in soup.find_all(
+        ["br", "div", "h1", "h2", "h3", "h4", "li", "p", "table", "td", "tr"]
+    ):
+        block.insert(0, "\0")
+        block.append("\0")
+
+    text = " ".join(soup.get_text().split())
+    text = re.sub(r" ?\0 ?", "\0", text)
+    return re.sub(r"\0{3,}", "\0\0", text).replace("\0", "\n").strip("\n ")
 
 
 def _is_allowed_recipient(email: str) -> bool:

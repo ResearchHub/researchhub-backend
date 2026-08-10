@@ -127,6 +127,60 @@ class SendEmailTests(TestCase):
         # Assert
         self.assertIn("hello", mail.outbox[0].body)
 
+    def test_derived_text_body_excludes_embedded_css(self):
+        # Arrange: this template carries a <style> block and has no text template
+        context = {"user_name": "user1", "subject": "subject1"}
+
+        # Act
+        self._send(
+            ["good@example.com"],
+            html_template="organization_invite.html",
+            email_context=context,
+        )
+
+        # Assert: the CSS rules must not leak into the text part
+        body = mail.outbox[0].body
+        self.assertIn("invited you", body)
+        self.assertNotIn("@media", body)
+        self.assertNotIn("{", body)
+
+    def test_derived_text_body_keeps_link_urls(self):
+        # Act
+        self._send(["good@example.com"])
+
+        # Assert: a text-only reader must still be able to follow the links
+        body = mail.outbox[0].body
+        self.assertIn(
+            f"Unsubscribe ({settings.BASE_FRONTEND_URL}/email/unsubscribe/?code=",
+            body,
+        )
+
+    def test_derived_text_body_decodes_html_entities(self):
+        # Arrange: autoescaping encodes the apostrophe as &#x27; in the HTML
+        context = {"action": {"message": "it's here"}, "subject": "subject1"}
+
+        # Act
+        self._send(["good@example.com"], email_context=context)
+
+        # Assert
+        body = mail.outbox[0].body
+        self.assertIn("it's here", body)
+        self.assertNotIn("&#x27;", body)
+
+    def test_derived_text_body_has_no_ragged_html_whitespace(self):
+        # Act
+        self._send(["good@example.com"])
+
+        # Assert
+        # no indentation carried over from the HTML markup and no runs of blank lines
+        body = mail.outbox[0].body
+        self.assertFalse(
+            any(line != line.strip() for line in body.splitlines()),
+            "text body has lines with leading/trailing whitespace",
+        )
+        self.assertNotIn("\n\n\n", body)
+        self.assertEqual(body, body.strip())
+
     def test_renders_assets_base_url_without_the_caller_supplying_it(self):
         # Act
         self._send(["good@example.com"])
