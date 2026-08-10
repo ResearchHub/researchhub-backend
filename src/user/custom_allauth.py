@@ -8,7 +8,7 @@ from django.utils.safestring import mark_safe
 
 from mailing_list.lib import send_transactional_email
 
-BRANDED_TEMPLATE = "general_branded_email.html"
+BRANDED_TEMPLATE = "general_branded_email"
 
 
 class CustomAccountAdapter(DefaultAccountAdapter):
@@ -35,7 +35,7 @@ class CustomAccountAdapter(DefaultAccountAdapter):
                 "subject": subject,
                 "assets_base_url": settings.ASSETS_BASE_URL,
             },
-            html_template=BRANDED_TEMPLATE,
+            template=BRANDED_TEMPLATE,
         )
 
 
@@ -71,6 +71,6 @@ class CustomResetPasswordForm(ResetPasswordForm):
                     "subject": subject,
                     "assets_base_url": settings.ASSETS_BASE_URL,
                 },
-                html_template=BRANDED_TEMPLATE,
+                template=BRANDED_TEMPLATE,
             )
         return email

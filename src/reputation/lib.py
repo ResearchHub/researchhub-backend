@@ -549,7 +549,7 @@ def check_hotwallet():
             ["pat@researchhub.com", "tyler@researchhub.com", "dev@researchhub.com"],
             "Hotwallet Balance Alert",
             context,
-            html_template="general_email_message.html",
+            template="general_email_message",
         )
 
 

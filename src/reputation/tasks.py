@@ -211,7 +211,7 @@ def check_open_bounties():
                 [bounty_creator.email],
                 outer_subject,
                 context,
-                html_template="general_email_message.html",
+                template="general_email_message",
             )
 
     # Transition OPEN -> ASSESSMENT when expiration_date passes
@@ -251,7 +251,7 @@ def check_open_bounties():
             [bounty_creator.email],
             outer_subject,
             context,
-            html_template="general_email_message.html",
+            template="general_email_message",
         )
 
         # Notify reviewers who submitted peer reviews on this document
@@ -342,7 +342,7 @@ def check_open_bounties():
                 [bounty_creator.email],
                 outer_subject,
                 context,
-                html_template="general_email_message.html",
+                template="general_email_message",
             )
 
     expired_assessment_bounties = assessment_bounties.filter(

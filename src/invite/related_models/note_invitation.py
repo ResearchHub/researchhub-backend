@@ -21,7 +21,7 @@ class NoteInvitation(Invitation):
         email = self.recipient_email
         note = self.note
         invite_type = self.invite_type.lower()
-        html_template = "note_invite.html"
+        template = "note_invite"
         subject = "ResearchHub | Note Collaboration"
         email_context = {
             "access_type": invite_type.lower(),
@@ -35,4 +35,4 @@ class NoteInvitation(Invitation):
         else:
             email_context["user_name"] = "User"
 
-        send_email([email], subject, email_context, html_template=html_template)
+        send_email([email], subject, email_context, template=template)
