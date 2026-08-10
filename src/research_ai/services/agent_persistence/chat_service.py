@@ -237,8 +237,16 @@ class AgentChatService:
         }
 
     def representation(self, conversation: AgentConversation) -> dict:
-        """Repair pending publication and return user-safe chat lifecycle data."""
-        self.repair_pending_outputs(conversation)
+        """Repair pending publication and return user-safe chat lifecycle data.
+
+        ``repaired_execution_ids`` reports the publications that landed during
+        this very read. The transition is invisible in the rest of the payload
+        -- the turn was ``SUCCEEDED`` before and after -- yet it changes how
+        the turn's activity renders, and a caller scoping that work to "what
+        could have changed" would otherwise skip exactly the turn that just
+        did.
+        """
+        repaired = self.repair_pending_outputs(conversation)
         # Skew here is safe in the one direction it can go: an answer published
         # after this read is reported still pending, which costs a poll. Reading
         # it later could not report a live answer as already superseded.
@@ -297,9 +305,10 @@ class AgentChatService:
             "conversation_id": conversation.id,
             "messages": messages,
             "executions": executions,
+            "repaired_execution_ids": repaired,
         }
 
-    def repair_pending_outputs(self, conversation: AgentConversation) -> int:
+    def repair_pending_outputs(self, conversation: AgentConversation) -> list[int]:
         """Retry any successful chat publication that previously failed.
 
         Two kinds of success are skipped before publication is even attempted:
@@ -307,6 +316,12 @@ class AgentChatService:
         text. Neither can ever publish, so calling through would take two row
         locks on every read to be refused. Publication re-checks supersession
         under its own lock, so this pass is an optimisation, not the guarantee.
+
+        Returns the ids of executions whose answer published on this pass. A
+        publication landing changes how the turn presents -- its final text
+        moves out of the working feed and into the chat -- so a caller that
+        serves a scoped projection needs to know which turns transitioned
+        under the read it is building.
         """
         candidates = [
             execution
@@ -318,9 +333,9 @@ class AgentChatService:
             if _has_publishable_output(execution)
         ]
         if not candidates:
-            return 0
+            return []
         superseded = superseded_execution_ids(conversation)
-        repaired = 0
+        repaired = []
         for execution in candidates:
             if execution.id in superseded:
                 continue
@@ -330,9 +345,8 @@ class AgentChatService:
                 # add the next question, and swallowing a database error
                 # without one would break every write that follows.
                 with transaction.atomic():
-                    repaired += int(
-                        self.recorder_factory(execution).publish_assistant_output()
-                    )
+                    if self.recorder_factory(execution).publish_assistant_output():
+                        repaired.append(execution.id)
             except Exception:  # noqa: BLE001 - reads still expose pending state
                 logger.warning(
                     "failed to repair agent response publication",

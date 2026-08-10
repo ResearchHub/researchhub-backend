@@ -586,6 +586,46 @@ class NotebookChatActivityProjectionTests(TestCase):
         (narration,) = _narrations(entry["activity"])
         self.assertEqual(narration["text"], "Here is the answer.")
 
+    def test_repair_landing_on_a_poll_reenters_the_live_scope(self):
+        # Arrange: a succeeded turn whose publication kept failing until the
+        # turn aged past the grace window and a newer attempt displaced it.
+        # Neither age nor position can catch the repair; only the read that
+        # performs it knows the turn just re-rendered.
+        self._add_trace_row(
+            1,
+            [{"type": "text", "text": "Here is the answer."}],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self.execution.status = AgentExecution.Status.SUCCEEDED
+        self.execution.publish_output_to_chat = True
+        self.execution.final_output = {"text": "Here is the answer."}
+        self.execution.save(
+            update_fields=["status", "publish_output_to_chat", "final_output"]
+        )
+        _settle_beyond_grace(self.execution.id)
+        AgentExecution.objects.create(
+            conversation=self.conversation,
+            attempt=2,
+            status=AgentExecution.Status.SUCCEEDED,
+        )
+
+        # Act: the poll whose repair publishes the answer, then the poll after.
+        repairing = self.service.representation(
+            self.conversation, activity_scope=ACTIVITY_LIVE
+        )
+        settled = self.service.representation(
+            self.conversation, activity_scope=ACTIVITY_LIVE
+        )
+
+        # Assert: the repairing poll delivers the corrected feed -- the
+        # narration moved into the chat -- and the next poll omits the turn
+        # again.
+        repaired_entry = repairing["executions"][0]
+        self.assertFalse(repaired_entry["assistant_message_pending"])
+        self.assertIn("activity", repaired_entry)
+        self.assertEqual(_narrations(repaired_entry["activity"]), [])
+        self.assertNotIn("activity", settled["executions"][0])
+
     def test_phase_names_the_open_tool_then_clears_when_terminal(self):
         # Arrange: a call whose result row has not landed.
         self._add_trace_row(

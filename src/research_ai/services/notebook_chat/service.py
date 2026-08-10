@@ -155,24 +155,30 @@ class NotebookChatService:
         settled -- active turns, anything that settled within
         ``ACTIVITY_SETTLED_GRACE`` (a turn can settle and be displaced by a new
         message between two polls, and the client's cached feed would otherwise
-        show it mid-flight forever), and the latest attempt, whose rendering
-        can still change late when a delayed publication repair lands. The rest
-        **omit the ``activity`` key entirely**. An absent key means "unchanged,
-        keep what you have"; it is deliberately not an empty list, which would
-        be indistinguishable from a turn that used no tools. This is what keeps
-        a poll from re-reading the whole conversation's trace payloads, which
+        show it mid-flight forever), the latest attempt, and any turn whose
+        pending answer published during this very read, which re-renders its
+        feed no matter how long ago it settled. The rest **omit the
+        ``activity`` key entirely**. An absent key means "unchanged, keep what
+        you have"; it is deliberately not an empty list, which would be
+        indistinguishable from a turn that used no tools. This is what keeps a
+        poll from re-reading the whole conversation's trace payloads, which
         grow with every turn ever taken on the note.
 
         ``phase`` is present on every execution and is ``None`` for terminal
         ones, so a client reads "what is it doing" from one field either way.
         """
         data = self.chat.representation(conversation)
+        # Publications that landed during this very read. The turn's status
+        # did not change, but its rendering did -- the final text moved into
+        # the chat -- so the client's cached feed is stale no matter how long
+        # ago the turn settled. Popped so the transient never reaches clients.
+        repaired = data.pop("repaired_execution_ids")
         active = {AgentExecution.Status.PENDING, AgentExecution.Status.RUNNING}
         executions = data["executions"]
         scoped_ids = (
             None
             if activity_scope == ACTIVITY_ALL
-            else self._live_activity_ids(executions, active)
+            else self._live_activity_ids(executions, active, repaired)
         )
         events = conversation_activity_events(conversation, execution_ids=scoped_ids)
         published_answers = {
@@ -215,10 +221,15 @@ class NotebookChatService:
         return data
 
     @staticmethod
-    def _live_activity_ids(executions: list[dict], active: set) -> list[int]:
+    def _live_activity_ids(
+        executions: list[dict], active: set, repaired: list[int]
+    ) -> list[int]:
         """Executions whose activity a poll may not yet hold settled."""
         now = timezone.now()
-        ids = set()
+        # A repair that landed during this read re-rendered its turn -- the
+        # final text moved into the chat -- so its feed must ship regardless
+        # of the turn's age or position.
+        ids = set(repaired)
         for execution in executions:
             if execution["status"] in active:
                 ids.add(execution["id"])
