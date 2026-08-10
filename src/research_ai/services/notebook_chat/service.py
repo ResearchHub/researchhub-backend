@@ -398,10 +398,14 @@ class NotebookChatService:
         # After prepare_turn so a refused turn (busy, for instance) names
         # nothing; the filtered update keeps a concurrent rename authoritative.
         self.conversations.set_title_if_blank(conversation, _derive_title(text))
-        transaction.on_commit(lambda: self._schedule_turn(execution.id))
-        # After the schedule registration, so the commit-time order is
-        # enqueue-then-nudge and a nudged refetch finds the turn queued.
+        # Nudge before scheduling: both defer to the same commit -- and under
+        # autocommit, the production request path, run right here in this
+        # order -- so subscribers always see turn_queued before anything the
+        # scheduled worker can publish, and before the failure published when
+        # a broker refusal fails the turn synchronously inside the scheduling
+        # step. The queued row itself is already committed either way.
         self.events.publish(conversation.id, execution.id, TURN_QUEUED)
+        transaction.on_commit(lambda: self._schedule_turn(execution.id))
         return execution
 
     def cancel_active_turn(

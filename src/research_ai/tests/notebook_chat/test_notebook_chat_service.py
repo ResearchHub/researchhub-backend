@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 
 from note.tests.helpers import create_note
 from research_ai.models import (
@@ -23,6 +23,7 @@ from research_ai.services.notebook_chat.events import (
     TURN_FINISHED,
     TURN_PROGRESS,
     TURN_QUEUED,
+    ConversationEventPublisher,
 )
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
 from research_ai.tests.agent.persistence_test_helpers import (
@@ -30,6 +31,7 @@ from research_ai.tests.agent.persistence_test_helpers import (
     text_turn,
     tool_turn,
 )
+from research_ai.tests.notebook_chat.test_notebook_chat_events import FakeChannelLayer
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -763,4 +765,47 @@ class NotebookChatEventEmissionTests(TestCase):
                 (self.conversation.id, execution.id, TURN_QUEUED),
                 (self.conversation.id, execution.id, TURN_FAILED),
             ],
+        )
+
+
+class NotebookChatEventSendOrderTests(TransactionTestCase):
+    """Send order as production sees it: autocommit, no wrapping transaction.
+
+    Here ``on_commit`` runs its callback at registration time, so submitting
+    a message schedules the worker -- and can fail the turn -- while
+    ``submit_message`` is still on the stack. That interleaving is invisible
+    to the ``TestCase`` suites above: their wrapping transaction defers every
+    callback to one commit point, where either registration order sends
+    queued first. Only out here does the real wire order get pinned.
+    """
+
+    def test_a_refused_broker_sends_queued_before_failed(self):
+        # Arrange: a real publisher over a recording layer, so the order
+        # events leave the process is what is asserted -- not the order the
+        # service called publish().
+        user = get_user_model().objects.create_user(
+            username="owner@researchhub_test.com",
+            password="password",
+            email="owner@researchhub_test.com",
+        )
+        note = create_note(user, organization=None)[0]
+        layer = FakeChannelLayer()
+        service = _make_service(
+            event_publisher=ConversationEventPublisher(channel_layer=layer)
+        )
+        conversation = service.create_conversation(note, user)
+
+        # Act: the broker refuses, failing the turn synchronously inside the
+        # scheduling step.
+        with patch(
+            "research_ai.tasks.run_notebook_chat_turn_task.delay",
+            side_effect=RuntimeError("broker down"),
+        ):
+            service.submit_message(note, conversation, "Hello")
+
+        # Assert: queued left the process before the failure did -- a
+        # terminal event may never be followed by its own turn's queued.
+        self.assertEqual(
+            [message["data"]["kind"] for _group, message in layer.sent],
+            [TURN_QUEUED, TURN_FAILED],
         )
