@@ -259,6 +259,12 @@ class AgentChatService:
                 "sequence": message.sequence,
                 "role": message.role.lower(),
                 "content": message.content,
+                # When the message landed in the chat. For an assistant row
+                # that is publication time: normally the moment the run
+                # succeeded, but later if the answer needed publication
+                # repair -- production time stays readable from the
+                # generating execution's ``finished_at``.
+                "created_date": message.created_date,
                 "execution_id": message.generated_by_execution_id,
             }
             for message in chat_messages

@@ -389,6 +389,7 @@ class NotebookChatViewTests(APITestCase):
         self.assertEqual(
             response.data["messages"][0]["content"], "What is this note about?"
         )
+        self.assertIsNotNone(response.data["messages"][0]["created_date"])
         self.assertEqual(len(response.data["executions"]), 1)
         self.assertEqual(
             response.data["executions"][0]["status"],
