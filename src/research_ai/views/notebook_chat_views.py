@@ -44,12 +44,14 @@ def _get_viewable_note_or_404(note_id: int, user) -> Note:
 class NotebookChatView(APIView):
     """Read the user's assistant conversation on a note.
 
-    ``?activity=live`` is the polling form: it recomputes the activity feed only
-    for turns that can still change and omits the ``activity`` key for settled
-    ones, which a client is expected to already hold from its first load. Use it
-    while watching a turn; use the default for the initial fetch. Any other
-    value falls back to the full projection, so a stale or mistyped client
-    parameter costs performance rather than correctness.
+    ``?activity=live`` is the polling form: it recomputes the activity feed
+    only for turns the client may not yet hold settled -- active ones, and
+    ones settled so recently that no poll has necessarily seen them -- and
+    omits the ``activity`` key for the rest, which a client is expected to
+    already hold from its first load. Use it while watching a turn; use the
+    default for the initial fetch. Any other value falls back to the full
+    projection, so a stale or mistyped client parameter costs performance
+    rather than correctness.
     """
 
     permission_classes = [

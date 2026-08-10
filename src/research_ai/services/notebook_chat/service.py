@@ -26,8 +26,10 @@ touching another note the same user could access.
 """
 
 import logging
+from datetime import timedelta
 
 from django.db import transaction
+from django.utils import timezone
 
 from note.related_models.note_model import Note
 from research_ai.models import AgentConversation, AgentExecution
@@ -70,6 +72,15 @@ WORKFLOW = "notebook_chat"
 # Activity projection scopes for ``NotebookChatService.representation``.
 ACTIVITY_ALL = "all"
 ACTIVITY_LIVE = "live"
+
+# How long a settled turn stays in the live projection. A turn can settle and
+# be displaced as newest by a fresh message between two polls -- cancel, then
+# rephrase -- and the settled feed must still reach a client whose cached copy
+# shows the turn mid-flight. The window needs only to outlast a polling
+# interval; a client that stopped polling for longer is expected to refetch the
+# full projection anyway. It also keeps a just-cancelled turn in scope while
+# its worker unwinds, when trace rows can genuinely still land.
+ACTIVITY_SETTLED_GRACE = timedelta(seconds=60)
 
 
 class NotebookChatService:
@@ -140,14 +151,17 @@ class NotebookChatService:
 
         ``activity_scope`` trades completeness for cost. ``"all"`` projects
         activity for every execution and is what a client wants on first load.
-        ``"live"`` projects it only for executions that can still change -- the
-        active turn, plus the latest attempt so the poll that observes the turn
-        finish still carries its final feed -- and **omits the ``activity`` key
-        entirely** for the rest. An absent key means "unchanged, keep what you
-        have"; it is deliberately not an empty list, which would be
-        indistinguishable from a turn that used no tools. This is what keeps a
-        poll from re-reading the whole conversation's trace payloads, which grow
-        with every turn ever taken on the note.
+        ``"live"`` projects it only for executions the client may not hold
+        settled -- active turns, anything that settled within
+        ``ACTIVITY_SETTLED_GRACE`` (a turn can settle and be displaced by a new
+        message between two polls, and the client's cached feed would otherwise
+        show it mid-flight forever), and the latest attempt, whose rendering
+        can still change late when a delayed publication repair lands. The rest
+        **omit the ``activity`` key entirely**. An absent key means "unchanged,
+        keep what you have"; it is deliberately not an empty list, which would
+        be indistinguishable from a turn that used no tools. This is what keeps
+        a poll from re-reading the whole conversation's trace payloads, which
+        grow with every turn ever taken on the note.
 
         ``phase`` is present on every execution and is ``None`` for terminal
         ones, so a client reads "what is it doing" from one field either way.
@@ -202,10 +216,23 @@ class NotebookChatService:
 
     @staticmethod
     def _live_activity_ids(executions: list[dict], active: set) -> list[int]:
-        """Executions whose activity a poll still has to recompute."""
-        ids = {
-            execution["id"] for execution in executions if execution["status"] in active
-        }
+        """Executions whose activity a poll may not yet hold settled."""
+        now = timezone.now()
+        ids = set()
+        for execution in executions:
+            if execution["status"] in active:
+                ids.add(execution["id"])
+                continue
+            # A terminal turn stays in scope for a grace period after it
+            # settles. Excluding it the moment it stops being newest would
+            # strand any client that did not poll in between -- its cached
+            # feed would show the turn mid-flight forever. A missing
+            # timestamp cannot prove the client saw the settled feed, so it
+            # counts as fresh; that costs a walk of one turn's rows, never
+            # correctness.
+            settled_at = execution["finished_at"] or execution["last_activity_at"]
+            if settled_at is None or now - settled_at <= ACTIVITY_SETTLED_GRACE:
+                ids.add(execution["id"])
         if executions:
             # Ordered by attempt, so the last entry is the newest turn. Its feed
             # is what the client is watching, and on the poll that catches it

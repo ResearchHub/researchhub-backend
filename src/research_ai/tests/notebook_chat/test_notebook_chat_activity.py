@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from note.tests.helpers import create_note
@@ -14,6 +15,7 @@ from research_ai.models import (
 )
 from research_ai.services.agent_persistence.recorder import DatabaseAgentRecorder
 from research_ai.services.notebook_chat import ACTIVITY_LIVE, NotebookChatService
+from research_ai.services.notebook_chat.service import ACTIVITY_SETTLED_GRACE
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -64,6 +66,14 @@ def _make_service(provider=None, web_search_client=None, oa_client=None):
         web_search_client=(
             Mock(configured=False) if web_search_client is None else web_search_client
         ),
+    )
+
+
+def _settle_beyond_grace(execution_id):
+    """Age a settled turn past the live scope's grace window."""
+    long_ago = timezone.now() - 2 * ACTIVITY_SETTLED_GRACE
+    AgentExecution.objects.filter(id=execution_id).update(
+        finished_at=long_ago, last_activity_at=long_ago
     )
 
 
@@ -295,13 +305,15 @@ class NotebookChatActivityTests(TestCase):
         self.assertEqual(list(published), ["Here is the summary."])
 
     def test_live_scope_recomputes_only_the_turns_that_can_still_change(self):
-        # Arrange: two finished turns on the same conversation.
+        # Arrange: two finished turns, the first settled longer ago than the
+        # grace window -- every poll since has had its settled feed.
         first = self._run_turn(
             [
                 tool_turn("t1", "read_note", {"note_id": self.note.id}),
                 text_turn("First."),
             ]
         )
+        _settle_beyond_grace(first.id)
         second = self._run_turn(
             [
                 tool_turn("t2", "read_note", {"note_id": self.note.id}),
@@ -324,6 +336,44 @@ class NotebookChatActivityTests(TestCase):
         self.assertEqual(len(_tool_calls(full_by_id[second.id]["activity"])), 1)
         self.assertNotIn("activity", live_by_id[first.id])
         self.assertEqual(len(_tool_calls(live_by_id[second.id]["activity"])), 1)
+
+    def test_just_settled_turn_keeps_its_feed_while_a_new_turn_displaces_it(self):
+        # Arrange: the cancel-then-rephrase shape. A turn settles and a new
+        # message lands before the client's next poll, so the settled turn is
+        # neither active nor newest -- only the grace window can still hand
+        # over its settled feed, without which the client's cached copy shows
+        # it mid-flight forever.
+        old = self._run_turn(
+            [
+                tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                text_turn("First."),
+            ]
+        )
+        _settle_beyond_grace(old.id)
+        recent = self._run_turn(
+            [
+                tool_turn("t2", "read_note", {"note_id": self.note.id}),
+                text_turn("Second."),
+            ],
+            text="And again.",
+        )
+        with (
+            patch("research_ai.tasks.run_notebook_chat_turn_task.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            queued = _make_service().submit_message(self.note, self.user, "Rephrased.")
+
+        # Act
+        live = _make_service().representation(
+            old.conversation, activity_scope=ACTIVITY_LIVE
+        )
+
+        # Assert: the long-settled turn stays omitted, the just-settled one is
+        # delivered despite being displaced, and the queued newest rides along.
+        by_id = {entry["id"]: entry for entry in live["executions"]}
+        self.assertNotIn("activity", by_id[old.id])
+        self.assertEqual(len(_tool_calls(by_id[recent.id]["activity"])), 1)
+        self.assertIn("activity", by_id[queued.id])
 
     def test_failed_tool_call_reports_failed_without_error_text(self):
         # Arrange: web search is unconfigured, so the tool returns an error
@@ -843,13 +893,16 @@ class NotebookChatActivityViewTests(APITestCase):
         self.assertEqual(event["status"], "succeeded")
 
     def test_activity_live_query_param_selects_the_polling_projection(self):
-        # Arrange: two finished turns, so one of them is no longer the latest.
+        # Arrange: two finished turns, the older settled beyond the grace
+        # window, so it is the one a poll no longer recomputes.
         self.client.force_authenticate(self.owner)
+        execution_ids = []
         for text, call_id in (("First", "t1"), ("Second", "t2")):
             with patch("research_ai.tasks.run_notebook_chat_turn_task.delay"):
                 posted = self.client.post(
                     f"{self.chat_url}messages/", {"message": text}, format="json"
                 )
+            execution_ids.append(posted.data["execution_id"])
             _make_service(
                 provider=FakeProvider(
                     [
@@ -858,6 +911,7 @@ class NotebookChatActivityViewTests(APITestCase):
                     ]
                 )
             ).run_turn(posted.data["execution_id"])
+        _settle_beyond_grace(execution_ids[0])
 
         # Act
         full = self.client.get(self.chat_url)
