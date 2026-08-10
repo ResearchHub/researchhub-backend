@@ -209,6 +209,12 @@ def _html_to_text(html: str) -> str:
         block.insert(0, "\0")
         block.append("\0")
 
+    # Where the HTML renders whitespace literally, the text's own line
+    # breaks are visible content and must survive the collapse below.
+    for element in soup.find_all(style=re.compile(r"white-space:\s*pre")):
+        for node in element.find_all(string=True):
+            node.replace_with(re.sub(r"[^\S\n]*\n[^\S\n]*", "\0", node))
+
     text = " ".join(soup.get_text().split())
     text = re.sub(r" ?\0 ?", "\0", text)
     return re.sub(r"\0{3,}", "\0\0", text).replace("\0", "\n").strip("\n ")

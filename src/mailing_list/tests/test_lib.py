@@ -167,6 +167,21 @@ class SendEmailTests(TestCase):
         self.assertIn("it's here", body)
         self.assertNotIn("&#x27;", body)
 
+    def test_derived_text_body_keeps_line_breaks_of_pre_line_content(self):
+        # Arrange
+        # The template renders the message with white-space: pre-line,
+        # so its own line breaks are visible in HTML and must survive in text
+        context = {
+            "action": {"message": "First alert.\n\nSecond alert."},
+            "subject": "Test",
+        }
+
+        # Act
+        self._send(["good@example.com"], email_context=context)
+
+        # Assert
+        self.assertIn("First alert.\n\nSecond alert.", mail.outbox[0].body)
+
     def test_derived_text_body_has_no_ragged_html_whitespace(self):
         # Act
         self._send(["good@example.com"])
