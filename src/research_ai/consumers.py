@@ -10,7 +10,9 @@ a client should refetch on any event and treat the socket as droppable.
 
 Admission mirrors the REST contract in ``notebook_chat_views`` and must be
 kept in sync with ``NOTEBOOK_CHAT_PERMISSIONS`` there: authentication
-(4401), the editor-or-moderator rollout gate (4403, the REST 403), and
+(4401 -- including a deactivated account, which ``TokenAuthMiddleware``
+still resolves from its lingering token but DRF's ``TokenAuthentication``
+refuses), the editor-or-moderator rollout gate (4403, the REST 403), and
 owner-scoped resolution of the note and conversation (4404, the REST 404).
 Resolution failures close with the same code whether the chat does not
 exist, belongs to someone else, or sits on an invisible note -- the group is
@@ -57,7 +59,10 @@ def _rejection_code(user, note_id: int, conversation_id: int) -> int | None:
 class NotebookChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         user = self.scope.get("user")
-        if user is None or user.is_anonymous:
+        # ``is_active`` alongside ``is_anonymous``: deactivating an account
+        # must revoke this socket the same way DRF revokes the REST API,
+        # even while the account's auth token still resolves to a user.
+        if user is None or user.is_anonymous or not user.is_active:
             await self.close(code=CLOSE_UNAUTHENTICATED)
             return
 

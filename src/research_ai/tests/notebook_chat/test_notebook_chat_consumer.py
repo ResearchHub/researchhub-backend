@@ -98,6 +98,19 @@ class NotebookChatConsumerTests(TransactionTestCase):
         self.assertFalse(connected)
         self.assertEqual(code, CLOSE_UNAUTHENTICATED)
 
+    async def test_deactivated_account_is_rejected(self):
+        # Arrange: the account is disabled but its token still resolves, the
+        # state the auth middleware hands over for a lingering token.
+        self.user.is_active = False
+        await self.user.asave(update_fields=["is_active"])
+
+        # Act
+        _communicator, connected, code = await self._connect(self.user)
+
+        # Assert: deactivation revokes the socket like it revokes the REST API.
+        self.assertFalse(connected)
+        self.assertEqual(code, CLOSE_UNAUTHENTICATED)
+
     async def test_user_outside_the_rollout_gate_is_rejected(self):
         # Act: authenticated, but neither editor nor moderator.
         _communicator, connected, code = await self._connect(self.other_user)
