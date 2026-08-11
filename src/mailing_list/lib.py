@@ -7,7 +7,8 @@ from bs4 import BeautifulSoup
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.mail import EmailMultiAlternatives
-from django.template.loader import render_to_string
+from django.template import TemplateDoesNotExist
+from django.template.loader import get_template
 
 from mailing_list.models import EmailOptOut
 from mailing_list.services import EmailSubscriptionService
@@ -22,14 +23,15 @@ def send_email(
     subject: str,
     email_context: dict[str, Any],
     *,
-    template: str | None = None,
-    html_template: str | None = None,
+    template: str,
     sender: str = DEFAULT_SENDER,
     reply_to: str | None = None,
     cc: list[str] | None = None,
 ) -> None:
     """
     Send notification email, skipping addresses that have opted out.
+
+    `template` base name of the template without extension.
 
     This is the standard entry point, and the right default for anything the
     recipient could reasonably not want. Recipients get a signed unsubscribe
@@ -45,7 +47,6 @@ def send_email(
         template=template,
         subject=subject,
         email_context=email_context,
-        html_template=html_template,
         sender=sender,
         reply_to=reply_to,
         cc=cc,
@@ -58,14 +59,15 @@ def send_transactional_email(
     subject: str,
     email_context: dict[str, Any],
     *,
-    template: str | None = None,
-    html_template: str | None = None,
+    template: str,
     sender: str = DEFAULT_SENDER,
     reply_to: str | None = None,
     cc: list[str] | None = None,
 ) -> None:
     """
     Send transactional email that ignores notification opt-outs.
+
+    `template` base name of the template without extension.
 
     Transactional emails can include email confirmation, password reset, and others.
     Opting out of other notifications must not lock someone out of their own account.
@@ -75,7 +77,6 @@ def send_transactional_email(
         template=template,
         subject=subject,
         email_context=email_context,
-        html_template=html_template,
         sender=sender,
         reply_to=reply_to,
         cc=cc,
@@ -88,8 +89,7 @@ def _send(
     subject: str,
     email_context: dict[str, Any],
     *,
-    template: str | None,
-    html_template: str | None,
+    template: str,
     sender: str,
     reply_to: str | None,
     cc: list[str] | None,
@@ -101,9 +101,6 @@ def _send(
     Sends are best-effort: a recipient that fails is logged and skipped so one
     bad address cannot abort the rest of the batch.
     """
-    if not template and not html_template:
-        raise ValueError("Template or HTML template required")
-
     subject = subject.replace("\n", "").replace("\r", "")
 
     if not isinstance(recipients, list):
@@ -111,6 +108,12 @@ def _send(
 
     if not settings.PRODUCTION:
         subject = "[Staging] " + subject
+
+    html_template = get_template(f"{template}.html")
+    try:
+        text_template = get_template(f"{template}.txt")
+    except TemplateDoesNotExist:
+        text_template = None
 
     opted_out = EmailOptOut.filter_opted_out(recipients) if unsubscribable else set()
     subscriptions = EmailSubscriptionService()
@@ -138,7 +141,10 @@ def _send(
                 headers["List-Unsubscribe"] = f"<{one_click_url}>"
                 headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
 
-        plain_body, html_body = _render_body(template, html_template, context)
+        html_body = html_template.render(context)
+        plain_body = (
+            text_template.render(context) if text_template else _html_to_text(html_body)
+        )
 
         try:
             message = EmailMultiAlternatives(
@@ -150,8 +156,7 @@ def _send(
                 cc=cc,
                 headers=headers,
             )
-            if html_body:
-                message.attach_alternative(html_body, "text/html")
+            message.attach_alternative(html_body, "text/html")
             message.send(fail_silently=False)
         except Exception:
             logger.exception("Email send failed to %s", recipient)
@@ -159,25 +164,6 @@ def _send(
         # Stagger sends based on AWS SES limit
         # https://docs.aws.amazon.com/ses/latest/DeveloperGuide/manage-sending-limits.html
         sleep(0.2)
-
-
-def _render_body(
-    template: str | None, html_template: str | None, context: dict[str, Any]
-) -> tuple[str, str | None]:
-    """
-    Render the plain-text and HTML bodies, deriving the text from the HTML when
-    no text template is given.
-    """
-    html_body = render_to_string(html_template, context) if html_template else None
-
-    if template:
-        plain_body = render_to_string(template, context)
-    elif html_body:
-        plain_body = _html_to_text(html_body)
-    else:
-        plain_body = ""
-
-    return plain_body, html_body
 
 
 def _html_to_text(html: str) -> str:

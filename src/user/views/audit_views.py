@@ -524,6 +524,6 @@ class AuditViewSet(viewsets.GenericViewSet):
             recipient,
             subject,
             email_context,
-            html_template="flagged_and_removed_content.html",
+            template="flagged_and_removed_content",
             sender=f"ResearchHub Digest <digest@{EMAIL_DOMAIN}>",
         )
