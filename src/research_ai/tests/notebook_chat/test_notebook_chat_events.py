@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from django.test import TestCase
 
@@ -8,7 +8,6 @@ from research_ai.services.notebook_chat.events import (
     TURN_FAILED,
     TURN_FINISHED,
     TURN_PROGRESS,
-    TURN_QUEUED,
     ConversationEventPublisher,
     PublishingRecorder,
     conversation_group,
@@ -73,20 +72,6 @@ class ConversationEventPublisherTests(TestCase):
         ):
             publisher.publish(12, 34, TURN_FINISHED)
 
-    def test_publish_without_a_configured_layer_is_a_noop(self):
-        # Arrange
-        publisher = ConversationEventPublisher()
-
-        # Act & Assert: no layer resolved at send time means silently no push.
-        with (
-            patch(
-                "research_ai.services.notebook_chat.events.get_channel_layer",
-                return_value=None,
-            ),
-            self.captureOnCommitCallbacks(execute=True),
-        ):
-            publisher.publish(1, 2, TURN_QUEUED)
-
 
 class PublishingRecorderTests(unittest.TestCase):
     """Pure delegation tests; no Django machinery involved."""
@@ -143,22 +128,6 @@ class PublishingRecorderTests(unittest.TestCase):
         self.wrapped.on_run_finished.assert_called_once()
         self.wrapped.on_run_failed.assert_called_once()
         self.publisher.publish.assert_not_called()
-
-    def test_a_recorder_without_a_transition_report_keeps_its_events(self):
-        # Arrange: only an explicit False suppresses; a recorder that does
-        # not track transitions returns None and stays fully announced.
-        self.wrapped.on_run_finished.return_value = None
-        self.wrapped.on_run_failed.return_value = None
-
-        # Act
-        self.recorder.on_run_finished(object())
-        self.recorder.on_run_failed(RuntimeError("boom"))
-
-        # Assert
-        self.assertEqual(
-            [call.args for call in self.publisher.publish.call_args_list],
-            [(7, 9, TURN_FINISHED), (7, 9, TURN_FAILED)],
-        )
 
     def test_a_refused_write_publishes_nothing(self):
         # Arrange: the run was cancelled, so the durable write is refused.

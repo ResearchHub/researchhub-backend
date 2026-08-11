@@ -77,8 +77,6 @@ class ConversationEventPublisher:
     def _send(self, conversation_id: int, execution_id: int, kind: str) -> None:
         try:
             layer = self._channel_layer or get_channel_layer()
-            if layer is None:
-                return
             async_to_sync(layer.group_send)(
                 conversation_group(conversation_id),
                 {

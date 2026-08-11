@@ -746,27 +746,6 @@ class NotebookChatEventEmissionTests(TestCase):
         self.assertIsNone(cancelled)
         self.publisher.publish.assert_not_called()
 
-    def test_failed_enqueue_publishes_turn_failed_after_turn_queued(self):
-        # Act: the broker refuses the task after the turn committed.
-        with (
-            patch(
-                "research_ai.tasks.run_notebook_chat_turn_task.delay",
-                side_effect=RuntimeError("broker down"),
-            ),
-            self.captureOnCommitCallbacks(execute=True),
-        ):
-            execution = self.service.submit_message(self.note, self.conversation, "Hi")
-
-        # Assert: subscribers saw the turn appear, then fail -- never a
-        # silently stuck spinner.
-        self.assertEqual(
-            self._events(self.publisher),
-            [
-                (self.conversation.id, execution.id, TURN_QUEUED),
-                (self.conversation.id, execution.id, TURN_FAILED),
-            ],
-        )
-
 
 class NotebookChatEventSendOrderTests(TransactionTestCase):
     """Send order under autocommit, where ``on_commit`` runs immediately.
@@ -796,10 +775,18 @@ class NotebookChatEventSendOrderTests(TransactionTestCase):
             "research_ai.tasks.run_notebook_chat_turn_task.delay",
             side_effect=RuntimeError("broker down"),
         ):
-            service.submit_message(note, conversation, "Hello")
+            execution = service.submit_message(note, conversation, "Hello")
 
-        # Assert: queued goes out before the refusal's failure.
+        # Assert: queued goes out before the refusal's failure, each naming
+        # this conversation and execution.
         self.assertEqual(
-            [message["data"]["kind"] for _group, message in layer.sent],
-            [TURN_QUEUED, TURN_FAILED],
+            [message["data"] for _group, message in layer.sent],
+            [
+                {
+                    "conversation_id": conversation.id,
+                    "execution_id": execution.id,
+                    "kind": kind,
+                }
+                for kind in (TURN_QUEUED, TURN_FAILED)
+            ],
         )

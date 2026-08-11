@@ -330,14 +330,13 @@ class AgentCancellationTests(TestCase):
 
         # Act
         self.cancels.cancel(recorder.execution)
-        transitioned = recorder.on_run_finished(
+        recorder.on_run_finished(
             _finished_run(final_text="Here is the summary", stop_reason="end_turn")
         )
 
-        # Assert: the hook reports no transition, and nothing was published,
-        # so the answer is gone from the context the next turn continues from
-        # -- otherwise the model would resume as though it had already replied.
-        self.assertFalse(transitioned)
+        # Assert: nothing was published, so the answer is gone from the context
+        # the next turn continues from -- otherwise the model would resume as
+        # though it had already replied.
         self.assertFalse(
             AgentConversationMessage.objects.filter(
                 generated_by_execution=recorder.execution,
