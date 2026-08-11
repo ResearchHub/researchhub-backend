@@ -1,5 +1,3 @@
-.PHONY: help start-celery test
-
 .DEFAULT_GOAL := help
 
 CELERY_QUEUES := \
@@ -23,12 +21,15 @@ CELERY_QUEUES := \
 	reputation \
 	x_metrics
 
+.PHONY: help
 help: ## Show this help
 	@awk -F':.*## ' '/^[a-zA-Z_-]+:.*##/ {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+.PHONY: test
 test: ## Run the Django test suite
 	cd src && uv run manage.py test --keepdb
 
+.PHONY: start-celery
 start-celery: ## Run the Celery worker with beat
 	cd src && uv run celery \
 		--app=researchhub \
