@@ -1,6 +1,7 @@
 .DEFAULT_GOAL := help
 
 CELERY_QUEUES := \
+	agents \
 	bluesky_metrics \
 	bounties \
 	caches \
@@ -9,7 +10,6 @@ CELERY_QUEUES := \
 	elastic_search \
 	external_reporting \
 	github_metrics \
-	hot_score \
 	hubs \
 	logs \
 	notifications \
