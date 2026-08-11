@@ -217,6 +217,19 @@ class AgentCancellationTests(TestCase):
         self.assertEqual(dispatched, ["read"])
         self.assertEqual(result.final_text, "done")
 
+    def test_terminal_hooks_report_whether_they_sealed_the_run(self):
+        # Arrange
+        recorder = self._running()
+
+        # Act & Assert: the hook that seals the run says so; a repeat on the
+        # sealed row reports no transition.
+        self.assertTrue(recorder.on_run_failed(RuntimeError("boom")))
+        self.assertFalse(recorder.on_run_failed(RuntimeError("boom")))
+        recorder = self._running()
+        result = _finished_run(final_text="done", stop_reason="end_turn")
+        self.assertTrue(recorder.on_run_finished(result))
+        self.assertFalse(recorder.on_run_finished(result))
+
     def test_cancelling_an_already_terminal_execution_reports_false(self):
         # Arrange
         recorder = self._running()

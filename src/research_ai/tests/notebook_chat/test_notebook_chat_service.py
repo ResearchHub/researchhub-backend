@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 
 from note.tests.helpers import create_note
 from research_ai.models import (
@@ -11,15 +11,27 @@ from research_ai.models import (
     AgentExecution,
     NoteAgentConversation,
 )
-from research_ai.services.agent_persistence import AgentConversationBusyError
+from research_ai.services.agent_persistence import (
+    AgentConversationBusyError,
+    DatabaseAgentRecorder,
+)
 from research_ai.services.notebook_chat import WORKFLOW, NotebookChatService
 from research_ai.services.notebook_chat.config import NotebookChatConfig
+from research_ai.services.notebook_chat.events import (
+    TURN_CANCELLED,
+    TURN_FAILED,
+    TURN_FINISHED,
+    TURN_PROGRESS,
+    TURN_QUEUED,
+    ConversationEventPublisher,
+)
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
     tool_turn,
 )
+from research_ai.tests.notebook_chat.test_notebook_chat_events import FakeChannelLayer
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -523,3 +535,258 @@ class NotebookChatResolutionTests(TestCase):
         self.assertEqual(idle["title"], "")
         self.assertIsNone(idle["last_message_preview"])
         self.assertFalse(idle["has_active_turn"])
+
+
+class CancellingProvider(FakeProvider):
+    """Seals the execution mid-turn, like a cancel landing during the call."""
+
+    def __init__(self, turns, execution_id):
+        super().__init__(turns)
+        self.execution_id = execution_id
+
+    def complete(self, **kwargs):
+        AgentExecution.objects.filter(id=self.execution_id).update(
+            status=AgentExecution.Status.CANCELLED
+        )
+        return super().complete(**kwargs)
+
+
+class NotebookChatEventEmissionTests(TestCase):
+    """Where the service nudges the chat's WebSocket group.
+
+    The publisher is a Mock: the contract under test is which lifecycle
+    points emit which kind, always naming the right conversation and
+    execution. Commit deferral, group naming, and delivery are the
+    publisher's and consumer's own tests.
+    """
+
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            username="owner@researchhub_test.com",
+            password="password",
+            email="owner@researchhub_test.com",
+        )
+        self.note = create_note(self.user, organization=None)[0]
+        Permission.objects.create(
+            access_type=ADMIN,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=self.note.unified_document.id,
+            user=self.user,
+        )
+        self.publisher = Mock()
+        self.service = _make_service(event_publisher=self.publisher)
+        self.conversation = self.service.create_conversation(self.note, self.user)
+
+    def _submit(self, text="Please add a summary."):
+        with (
+            patch("research_ai.tasks.run_notebook_chat_turn_task.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            return self.service.submit_message(self.note, self.conversation, text)
+
+    @staticmethod
+    def _events(publisher):
+        return [call.args for call in publisher.publish.call_args_list]
+
+    def test_submit_message_publishes_turn_queued(self):
+        # Act
+        execution = self._submit()
+
+        # Assert
+        self.publisher.publish.assert_called_once_with(
+            self.conversation.id, execution.id, TURN_QUEUED
+        )
+
+    def test_run_turn_publishes_progress_then_finished(self):
+        # Arrange
+        execution = self._submit()
+        run_publisher = Mock()
+        runner = _make_service(
+            provider=FakeProvider([text_turn("Done.")]),
+            event_publisher=run_publisher,
+        )
+
+        # Act
+        runner.run_turn(execution.id)
+
+        # Assert: every durable write nudged, the settled turn last, and each
+        # event names this conversation and execution.
+        events = self._events(run_publisher)
+        kinds = [kind for _, _, kind in events]
+        self.assertIn(TURN_PROGRESS, kinds)
+        self.assertEqual(kinds[-1], TURN_FINISHED)
+        for conversation_id, execution_id, _ in events:
+            self.assertEqual(conversation_id, self.conversation.id)
+            self.assertEqual(execution_id, execution.id)
+
+    def test_run_turn_provider_failure_publishes_turn_failed(self):
+        # Arrange
+        execution = self._submit()
+        run_publisher = Mock()
+        runner = _make_service(
+            provider=FakeProvider([RuntimeError("provider exploded")]),
+            event_publisher=run_publisher,
+        )
+
+        # Act
+        runner.run_turn(execution.id)
+
+        # Assert
+        kinds = [kind for _, _, kind in self._events(run_publisher)]
+        self.assertEqual(kinds[-1], TURN_FAILED)
+        self.assertNotIn(TURN_FINISHED, kinds)
+
+    def test_cancelled_mid_run_turn_publishes_no_failure(self):
+        # Arrange: the cancel lands while the model call is in flight, so the
+        # worker's next durable write is refused. Subscribers already got
+        # turn_cancelled from the cancel path; nothing here may contradict it.
+        execution = self._submit()
+        run_publisher = Mock()
+        runner = _make_service(
+            provider=CancellingProvider([text_turn("Too late.")], execution.id),
+            event_publisher=run_publisher,
+        )
+
+        # Act
+        runner.run_turn(execution.id)
+
+        # Assert: the turn stays cancelled and no terminal event was pushed.
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+        kinds = [kind for _, _, kind in self._events(run_publisher)]
+        self.assertNotIn(TURN_FAILED, kinds)
+        self.assertNotIn(TURN_FINISHED, kinds)
+
+    def test_cancelled_just_before_the_finish_publishes_no_finished(self):
+        # Arrange: the narrowest cancellation window -- after the closing
+        # assistant message was durably recorded, before the terminal hook
+        # runs. The recorder discards the finish, so no event may claim it.
+        execution = self._submit()
+        run_publisher = Mock()
+        runner = _make_service(
+            provider=FakeProvider([text_turn("Almost made it.")]),
+            event_publisher=run_publisher,
+        )
+        original = DatabaseAgentRecorder.on_run_finished
+
+        def _cancel_then_finish(recorder, result):
+            AgentExecution.objects.filter(id=recorder.execution.id).update(
+                status=AgentExecution.Status.CANCELLED
+            )
+            return original(recorder, result)
+
+        # Act
+        with patch.object(
+            DatabaseAgentRecorder, "on_run_finished", _cancel_then_finish
+        ):
+            runner.run_turn(execution.id)
+
+        # Assert: the cancellation stands and neither terminal kind was
+        # pushed over the turn_cancelled the cancel path already published.
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+        kinds = [kind for _, _, kind in self._events(run_publisher)]
+        self.assertIn(TURN_PROGRESS, kinds)
+        self.assertNotIn(TURN_FINISHED, kinds)
+        self.assertNotIn(TURN_FAILED, kinds)
+
+    def test_run_turn_duplicate_delivery_publishes_nothing(self):
+        # Arrange: another worker already claimed this execution.
+        execution = self._submit()
+        self.assertIsNotNone(self.service.chat.executions.claim_pending(execution))
+        run_publisher = Mock()
+        runner = _make_service(event_publisher=run_publisher)
+
+        # Act
+        result = runner.run_turn(execution.id)
+
+        # Assert: a skipped delivery changed nothing, so it announces nothing.
+        self.assertTrue(result["skipped"])
+        run_publisher.publish.assert_not_called()
+
+    def test_cancel_active_turn_publishes_turn_cancelled(self):
+        # Arrange
+        execution = self._submit()
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            cancelled = self.service.cancel_active_turn(self.conversation)
+
+        # Assert
+        self.assertIsNotNone(cancelled)
+        self.assertEqual(
+            self.publisher.publish.call_args.args,
+            (self.conversation.id, execution.id, TURN_CANCELLED),
+        )
+
+    def test_cancel_that_lost_the_race_publishes_nothing(self):
+        # Arrange: the turn goes terminal between the scan and the
+        # transition, so the cancel service refuses it.
+        self._submit()
+        cancel_publisher = Mock()
+        cancels = Mock()
+        cancels.cancel.return_value = False
+        service = _make_service(
+            event_publisher=cancel_publisher, cancel_service=cancels
+        )
+
+        # Act
+        cancelled = service.cancel_active_turn(self.conversation)
+
+        # Assert: no event may announce a cancellation that did not happen.
+        self.assertIsNone(cancelled)
+        cancel_publisher.publish.assert_not_called()
+
+    def test_cancel_without_active_turn_publishes_nothing(self):
+        # Act
+        cancelled = self.service.cancel_active_turn(self.conversation)
+
+        # Assert
+        self.assertIsNone(cancelled)
+        self.publisher.publish.assert_not_called()
+
+
+class NotebookChatEventSendOrderTests(TransactionTestCase):
+    """Send order under autocommit, where ``on_commit`` runs immediately.
+
+    The ``TestCase`` suites above cannot see this interleaving: their
+    wrapping transaction defers every callback to one commit point.
+    """
+
+    def test_a_refused_broker_sends_queued_before_failed(self):
+        # Arrange: a real publisher over a recording layer, so send order --
+        # not publish() call order -- is what is asserted.
+        user = get_user_model().objects.create_user(
+            username="owner@researchhub_test.com",
+            password="password",
+            email="owner@researchhub_test.com",
+        )
+        note = create_note(user, organization=None)[0]
+        layer = FakeChannelLayer()
+        service = _make_service(
+            event_publisher=ConversationEventPublisher(channel_layer=layer)
+        )
+        conversation = service.create_conversation(note, user)
+
+        # Act: the broker refuses, failing the turn synchronously inside the
+        # scheduling step.
+        with patch(
+            "research_ai.tasks.run_notebook_chat_turn_task.delay",
+            side_effect=RuntimeError("broker down"),
+        ):
+            execution = service.submit_message(note, conversation, "Hello")
+
+        # Assert: queued goes out before the refusal's failure, each naming
+        # this conversation and execution.
+        self.assertEqual(
+            [message["data"] for _group, message in layer.sent],
+            [
+                {
+                    "conversation_id": conversation.id,
+                    "execution_id": execution.id,
+                    "kind": kind,
+                }
+                for kind in (TURN_QUEUED, TURN_FAILED)
+            ],
+        )

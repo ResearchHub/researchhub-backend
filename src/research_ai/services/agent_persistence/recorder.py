@@ -299,7 +299,8 @@ class DatabaseAgentRecorder:
             )
             execution.save(update_fields=update_fields)
 
-    def on_run_finished(self, result) -> None:
+    def on_run_finished(self, result) -> bool:
+        """Seal the run as ``SUCCEEDED``; ``False`` if it was already terminal."""
         now = timezone.now()
         final_output, _truncated, _size = serialize_final_output(result.final_text)
         transitioned = False
@@ -331,7 +332,7 @@ class DatabaseAgentRecorder:
             terminal = _is_terminal(execution.status)
         self.terminal_observed = terminal
         if not transitioned:
-            return
+            return False
         # Publish what the model actually answered, not the snapshot trimmed to
         # fit the execution row: chat content is unbounded text, so truncating
         # it here would drop the tail of a successful response for good.
@@ -342,8 +343,10 @@ class DatabaseAgentRecorder:
                 logger.warning(
                     "failed to publish agent response to chat", exc_info=True
                 )
+        return True
 
-    def on_run_failed(self, error: Exception) -> None:
+    def on_run_failed(self, error: Exception) -> bool:
+        """Seal as ``FAILED``/``INTERRUPTED``; ``False`` if already terminal."""
         now = timezone.now()
         raw_stop_reason = getattr(error, "stop_reason", "") or ""
         stop_reason = _safe_exception_message(raw_stop_reason)
@@ -367,6 +370,7 @@ class DatabaseAgentRecorder:
             if isinstance(error, InterruptedError)
             else AgentExecution.Status.FAILED
         )
+        transitioned = False
         with transaction.atomic():
             execution = AgentExecution.objects.select_for_update().get(
                 id=self.execution.id
@@ -397,8 +401,10 @@ class DatabaseAgentRecorder:
                         "updated_date",
                     ]
                 )
+                transitioned = True
             terminal = _is_terminal(execution.status)
         self.terminal_observed = terminal
+        return transitioned
 
     def publish_assistant_output(self, text: str | None = None) -> bool:
         """Publish or repair the canonical assistant message idempotently."""
