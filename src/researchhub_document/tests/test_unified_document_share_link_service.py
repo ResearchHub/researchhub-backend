@@ -12,6 +12,9 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from researchhub_document.related_models.unified_document_share_link_model import (
     UnifiedDocumentShareLink,
 )
@@ -58,6 +61,16 @@ class UnifiedDocumentShareLinkServiceTests(TestCase):
             applicant=self.author,
         )
         return grant_creator
+
+    def test_cannot_create_link_for_proposal_pending_moderation(self):
+        # Arrange: a proposal still sitting in the moderation queue
+        self.unified_document.status = ResearchhubUnifiedDocument.PENDING
+        self.unified_document.save(update_fields=["status"])
+
+        # Act / Assert: eligibility alone is not enough to share it
+        with self.assertRaises(ValueError):
+            self.service.create_or_get(self.unified_document.id, self.author)
+        self.assertFalse(UnifiedDocumentShareLink.objects.exists())
 
     def test_moderator_can_create_share_link_for_private_proposal(self):
         # Act

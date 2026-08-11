@@ -74,9 +74,12 @@ class UnifiedDocumentShareLinkService:
     def resolve_unified_document_id(self, token: str) -> int | None:
         """Return the unified document id a live token grants access to.
 
-        Unknown tokens, expired links, removed documents, and non-proposals all
-        answer ``None`` so callers cannot tell them apart. The expiry bound is
-        the inverse of ``is_expired()``.
+        Unknown tokens, expired links, removed documents, non-proposals, and
+        anything that has not cleared moderation all answer ``None`` so callers
+        cannot tell them apart. Re-checking moderation here, and not only when
+        the link is minted, is what stops a link handed out earlier from
+        outliving a later decline. The expiry bound is the inverse of
+        ``is_expired()``.
         """
         # Absent tokens are the common case, so skip the query entirely.
         if not token:
@@ -88,6 +91,7 @@ class UnifiedDocumentShareLinkService:
                 expires_at__gt=timezone.now(),
                 unified_document__is_removed=False,
                 unified_document__document_type=PREREGISTRATION,
+                unified_document__status=ResearchhubUnifiedDocument.APPROVED,
             )
             .values_list("unified_document_id", flat=True)
             .first()
@@ -102,6 +106,12 @@ class UnifiedDocumentShareLinkService:
             raise PermissionError(
                 "Only moderators, the proposal's authors, or the creator of a "
                 "grant it applied to can generate a share link."
+            )
+        # Checked after eligibility so moderation state is not disclosed to
+        # users who have no business knowing the proposal exists.
+        if not unified_document.is_approved:
+            raise ValueError(
+                "Only proposals that have cleared moderation can be shared."
             )
 
     def _is_eligible(

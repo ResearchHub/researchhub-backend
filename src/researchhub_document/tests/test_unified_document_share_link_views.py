@@ -9,6 +9,9 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from researchhub_document.related_models.unified_document_share_link_model import (
     UnifiedDocumentShareLink,
 )
@@ -116,6 +119,25 @@ class UnifiedDocumentShareLinkViewTests(APITestCase):
         )
 
         # Assert
+        self.assertEqual(post_response.status_code, 404)
+        self.assertEqual(metadata_response.status_code, 403)
+
+    def test_share_token_stops_working_once_proposal_leaves_approved(self):
+        # Arrange: a link minted while approved, then sent back for moderation
+        link = self._mint(self.proposal)
+        self.unified_document.status = ResearchhubUnifiedDocument.DECLINED
+        self.unified_document.save(update_fields=["status"])
+
+        # Act
+        post_response = self.client.get(
+            f"/api/researchhubpost/{self.proposal.id}/?st={link.token}"
+        )
+        metadata_response = self.client.get(
+            f"/api/researchhub_unified_document/{self.unified_document.id}"
+            f"/get_document_metadata/?st={link.token}"
+        )
+
+        # Assert: an already-shared link cannot outlive the decline
         self.assertEqual(post_response.status_code, 404)
         self.assertEqual(metadata_response.status_code, 403)
 
