@@ -21,6 +21,9 @@ CELERY_QUEUES := \
 	reputation \
 	x_metrics
 
+DOCKER_IMAGE ?= researchhub-backend:local
+DOCKER_PLATFORM ?= linux/arm64
+
 .PHONY: help
 help: ## Show this help
 	@awk -F':.*## ' '/^[a-zA-Z_-]+:.*##/ {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -28,6 +31,14 @@ help: ## Show this help
 .PHONY: test
 test: ## Run the Django test suite
 	cd src && uv run manage.py test --keepdb
+
+.PHONY: docker-build
+docker-build: ## Build the Docker image
+	docker buildx build \
+		--platform "$(DOCKER_PLATFORM)" \
+		--tag "$(DOCKER_IMAGE)" \
+		--load \
+		.
 
 .PHONY: start-celery
 start-celery: ## Run the Celery worker with beat
