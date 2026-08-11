@@ -9,6 +9,8 @@ defined in the ASGI_APPLICATION setting.
 
 import os
 
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "researchhub.settings")
+
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
 
@@ -24,8 +26,6 @@ import note.routing
 import notification.routing
 from researchhub.settings import CELERY_WORKER
 from researchhub.token_auth import TokenAuthMiddlewareStack
-
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "researchhub.settings")
 
 # Wrap Django ASGI application with Elastic APM middleware.
 # This is necessary to capture transaction data for performance monitoring.
