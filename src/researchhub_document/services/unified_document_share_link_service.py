@@ -81,6 +81,27 @@ class UnifiedDocumentShareLinkService:
             )
             return link, True
 
+    def disable(self, unified_document_id: int, user: User) -> bool:
+        """Turn sharing off for a proposal, killing any link handed out.
+
+        Deletes rather than expires, so re-sharing later mints a fresh token
+        and a URL that was turned off can never come back to life. Returns
+        whether a link was actually removed. Takes the same lock as
+        ``create_or_get`` so a concurrent share cannot slip in behind it.
+        """
+        with transaction.atomic():
+            unified_document = (
+                ResearchhubUnifiedDocument.objects.select_for_update().get(
+                    pk=unified_document_id
+                )
+            )
+            self._assert_can_manage(unified_document, user)
+
+            deleted, _ = UnifiedDocumentShareLink.objects.filter(
+                unified_document=unified_document
+            ).delete()
+            return deleted > 0
+
     def resolve_unified_document_id(self, token: str) -> int | None:
         """Return the unified document id a live token grants access to.
 
@@ -110,18 +131,28 @@ class UnifiedDocumentShareLinkService:
     def _assert_can_share(
         self, unified_document: ResearchhubUnifiedDocument, user: User
     ) -> None:
+        self._assert_can_manage(unified_document, user)
+        # Checked after eligibility so moderation state is not disclosed to
+        # users who have no business knowing the proposal exists.
+        if not unified_document.is_approved:
+            raise ValueError(
+                "Only proposals that have cleared moderation can be shared."
+            )
+
+    def _assert_can_manage(
+        self, unified_document: ResearchhubUnifiedDocument, user: User
+    ) -> None:
+        """Guard shared by sharing and turning sharing off.
+
+        Deliberately excludes the moderation gate: turning sharing off has to
+        stay available for a proposal that has since been declined.
+        """
         if unified_document.document_type != PREREGISTRATION:
             raise ValueError("Only proposals can be shared.")
         if not self._is_eligible(unified_document, user):
             raise PermissionError(
                 "Only moderators, the proposal's authors, or the creator of a "
                 "grant it applied to can generate a share link."
-            )
-        # Checked after eligibility so moderation state is not disclosed to
-        # users who have no business knowing the proposal exists.
-        if not unified_document.is_approved:
-            raise ValueError(
-                "Only proposals that have cleared moderation can be shared."
             )
 
     def _is_eligible(

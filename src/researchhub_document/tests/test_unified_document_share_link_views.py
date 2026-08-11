@@ -82,6 +82,46 @@ class UnifiedDocumentShareLinkViewTests(APITestCase):
         self.assertEqual(metadata_response.status_code, 200)
         self.assertEqual(metadata_response.data["fundraise"]["id"], self.fundraise.id)
 
+    def test_turning_sharing_off_kills_the_link_and_later_reshare_differs(self):
+        # Arrange
+        link = self._mint(self.proposal)
+        post_url = f"/api/researchhubpost/{self.proposal.id}/"
+        self.assertEqual(
+            self.client.get(f"{post_url}?st={link.token}").status_code, 200
+        )
+
+        # Act
+        self.client.force_authenticate(self.moderator)
+        disable_response = self.client.delete(
+            f"/api/researchhub_unified_document/{self.unified_document.id}/share_link/"
+        )
+        reshare_response = self.client.post(
+            f"/api/researchhub_unified_document/{self.unified_document.id}/share_link/"
+        )
+        self.client.force_authenticate(user=None)
+        revoked_response = self.client.get(f"{post_url}?st={link.token}")
+
+        # Assert: the old URL stays dead even after sharing is turned back on
+        self.assertEqual(disable_response.status_code, 204)
+        self.assertEqual(revoked_response.status_code, 404)
+        self.assertEqual(reshare_response.status_code, 201)
+        self.assertNotEqual(reshare_response.data["token"], link.token)
+
+    def test_unaffiliated_user_cannot_turn_sharing_off(self):
+        # Arrange
+        link = self._mint(self.proposal)
+        outsider = create_random_default_user("view-outsider")
+
+        # Act
+        self.client.force_authenticate(outsider)
+        response = self.client.delete(
+            f"/api/researchhub_unified_document/{self.unified_document.id}/share_link/"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(UnifiedDocumentShareLink.objects.filter(pk=link.pk).exists())
+
     def test_share_link_does_not_expose_proposal_elsewhere(self):
         # Arrange
         self._mint(self.proposal)

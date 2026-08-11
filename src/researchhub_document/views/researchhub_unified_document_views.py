@@ -197,6 +197,27 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
+    @share_link.mapping.delete
+    def disable_share_link(self, request, pk=None):
+        """Turn sharing off, invalidating any link already handed out.
+
+        Idempotent: answers 204 whether or not a link existed, so a toggle can
+        call it without first checking.
+        """
+        if pk is None or not str(pk).isdigit():
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            UnifiedDocumentShareLinkService().disable(pk, request.user)
+        except ResearchhubUnifiedDocument.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        except PermissionError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_403_FORBIDDEN)
+        except ValueError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def check_user_vote(self, request):
         paper_ids = request.query_params.get("paper_ids", "")
