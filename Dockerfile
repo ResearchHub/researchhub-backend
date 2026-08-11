@@ -27,7 +27,7 @@ WORKDIR /app/src
 COPY --from=builder /opt/venv /opt/venv
 COPY --chown=app:app src ./
 
-RUN python -m compileall --quiet . \
+RUN python -m compileall -q . \
     && python manage.py collectstatic --noinput
 
 USER app
