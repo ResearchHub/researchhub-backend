@@ -122,6 +122,23 @@ class UnifiedDocumentShareLinkViewTests(APITestCase):
         self.assertEqual(post_response.status_code, 404)
         self.assertEqual(metadata_response.status_code, 403)
 
+    def test_share_token_keeps_embedded_document_unredacted(self):
+        # Arrange
+        link = self._mint(self.proposal)
+
+        # Act
+        response = self.client.get(
+            f"/api/researchhub_unified_document/{self.unified_document.id}"
+            f"/get_document_metadata/?st={link.token}"
+        )
+
+        # Assert: the embedded post keeps the fields the page asked for rather
+        # than collapsing to the redaction stub
+        document = response.data["documents"][0]
+        self.assertEqual(response.status_code, 200)
+        self.assertNotEqual(document, {"id": self.proposal.id, "is_public": False})
+        self.assertIn("discussion_aggregates", document)
+
     def test_share_token_stops_working_once_proposal_leaves_approved(self):
         # Arrange: a link minted while approved, then sent back for moderation
         link = self._mint(self.proposal)

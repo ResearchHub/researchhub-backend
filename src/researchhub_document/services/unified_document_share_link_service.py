@@ -28,9 +28,19 @@ def get_shared_unified_document_id(request) -> int | None:
     Returns ``None`` when there is no token or the token is not live. Callers
     must compare the id against the document actually being served: the token
     authorizes one document, never the request as a whole.
+
+    Reached from serializers as well as views, so it tolerates a missing or
+    plain Django request and fails closed rather than raising.
     """
-    token = request.query_params.get(SHARE_TOKEN_PARAM)
-    return UnifiedDocumentShareLinkService().resolve_unified_document_id(token)
+    params = getattr(request, "query_params", None)
+    if params is None:
+        params = getattr(request, "GET", None)
+    if params is None:
+        return None
+
+    return UnifiedDocumentShareLinkService().resolve_unified_document_id(
+        params.get(SHARE_TOKEN_PARAM)
+    )
 
 
 class UnifiedDocumentShareLinkService:

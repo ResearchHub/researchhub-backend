@@ -33,6 +33,9 @@ from researchhub_document.related_models.constants.document_type import (
     REGISTERED_REPORT,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
+from researchhub_document.services.unified_document_share_link_service import (
+    get_shared_unified_document_id,
+)
 from review.serializers.review_serializer import DynamicReviewSerializer
 from user.serializers import (
     AuthorSerializer,
@@ -434,8 +437,14 @@ class DynamicPostSerializer(
         if unified_document is not None and not (
             unified_document.is_public and unified_document.is_approved
         ):
+            # A share token admits only the document it was issued for, so an
+            # embedded neighbour in the same payload stays redacted.
+            is_shared = (
+                get_shared_unified_document_id(self.context.get("request"))
+                == unified_document.id
+            )
             user = get_user_from_request(self.context)
-            if not unified_document.is_visible_to_user(user):
+            if not is_shared and not unified_document.is_visible_to_user(user):
                 return {"id": instance.id, "is_public": False}
         return super().to_representation(instance)
 
