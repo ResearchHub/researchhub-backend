@@ -1,5 +1,5 @@
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.contenttypes.models import ContentType
 
@@ -9,8 +9,9 @@ from feed.feed_list_dto import (
     GrantFeedPostSerializer,
 )
 from feed.models import FeedEntry
+from feed.views.feed_view_mixin import FeedViewMixin
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
-from purchase.models import Fundraise, Grant, GrantApplication
+from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from purchase.related_models.constants.currency import USD
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -275,11 +276,17 @@ class FundingFeedListDtoTests(AWSMockTestCase):
         self.assertEqual(nonprofit_data, {"id": nonprofit.id, "name": "Test Nonprofit"})
         self.assertNotIn("ein", nonprofit_data)
 
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.rsc_to_usd")
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
-    def test_funding_fundraise_contributors_omit_contribution_details(
-        self, mock_usd_to_rsc
-    ):
+    def test_serializes_only_public_fundraise_contributor_fields(
+        self,
+        mock_usd_to_rsc: MagicMock,
+        mock_rsc_to_usd: MagicMock,
+    ) -> None:
+        """The funding feed serializes only public fundraise contributor fields."""
+        # Arrange
         mock_usd_to_rsc.return_value = 200.0
+        mock_rsc_to_usd.return_value = 100.0
 
         unified_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
@@ -291,12 +298,22 @@ class FundingFeedListDtoTests(AWSMockTestCase):
             renderable_text="Proposal",
             unified_document=unified_doc,
         )
-        Fundraise.objects.create(
+        fundraise = Fundraise.objects.create(
             unified_document=unified_doc,
             created_by=self.user,
             goal_amount=Decimal("100.00"),
             goal_currency=USD,
             status=Fundraise.OPEN,
+        )
+        contributor = create_random_default_user("funding_dto_contributor")
+        Purchase.objects.create(
+            user=contributor,
+            item=fundraise,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            amount="10",
+            paid_status=Purchase.PAID,
+            rsc_usd_rate=1.0,
         )
 
         feed_entry = FeedEntry(
@@ -311,11 +328,20 @@ class FundingFeedListDtoTests(AWSMockTestCase):
             metrics={"votes": 0, "replies": 0, "adjusted_score": 0},
         )
 
-        content = FundingFeedListEntrySerializer(feed_entry).data["content_object"]
+        # Act
+        context = FeedViewMixin().get_common_serializer_context()
+        content = FundingFeedListEntrySerializer(
+            feed_entry,
+            context=context,
+        ).data["content_object"]
         top = content["fundraise"]["contributors"]["top"]
-        for contributor in top:
-            self.assertNotIn("contributions", contributor)
-            self.assertNotIn("total_contribution", contributor)
+
+        # Assert
+        self.assertEqual(len(top), 1)
+        self.assertEqual(
+            set(top[0]),
+            {"id", "author_profile", "first_name", "last_name"},
+        )
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
     def test_funding_feed_includes_slim_bounties(self, mock_usd_to_rsc):
