@@ -30,4 +30,4 @@ jobs:
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Build Docker image
-        run: make docker-build
+        run: make docker-build DOCKER_PLATFORM=linux/arm64 DOCKER_IMAGE=researchhub-backend:ci
