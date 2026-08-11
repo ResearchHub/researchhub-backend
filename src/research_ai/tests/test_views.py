@@ -389,9 +389,81 @@ class ExpertListViewTests(APITestCase):
     def tearDown(self):
         cache.clear()
 
-    def test_experts_list_requires_moderator(self):
+    def test_experts_list_requires_editor_or_moderator_without_document(self):
         self.client.force_authenticate(self.user)
         response = self.client.get(self.URL)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_experts_list_grant_creator_can_filter_by_unified_document(self):
+        from decimal import Decimal
+
+        from django.utils import timezone
+
+        from purchase.models import Grant
+        from researchhub_document.helpers import create_post
+        from researchhub_document.related_models.constants.document_type import GRANT
+
+        creator = create_random_authenticated_user("grant_creator_experts")
+        post = create_post(created_by=creator, document_type=GRANT)
+        Grant.objects.create(
+            created_by=creator,
+            unified_document=post.unified_document,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Test Org",
+            description="Grant for expert list auth",
+            status=Grant.OPEN,
+            end_date=timezone.now() + timedelta(days=30),
+        )
+        search = ExpertSearch.objects.create(
+            created_by=self.moderator,
+            unified_document_id=post.unified_document_id,
+            query="Grant experts",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        expert = Expert.objects.create(
+            email="grant_expert@example.com",
+            first_name="Grant",
+            last_name="Expert",
+        )
+        SearchExpert.objects.create(expert_search=search, expert=expert, position=0)
+
+        self.client.force_authenticate(creator)
+        response = self.client.get(
+            self.URL, {"unified_document_id": post.unified_document_id}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["total"], 1)
+        self.assertEqual(
+            response.json()["items"][0]["email"], "grant_expert@example.com"
+        )
+
+    def test_experts_list_denies_unrelated_user_for_grant_unified_document(self):
+        from decimal import Decimal
+
+        from django.utils import timezone
+
+        from purchase.models import Grant
+        from researchhub_document.helpers import create_post
+        from researchhub_document.related_models.constants.document_type import GRANT
+
+        creator = create_random_authenticated_user("grant_creator_deny")
+        post = create_post(created_by=creator, document_type=GRANT)
+        Grant.objects.create(
+            created_by=creator,
+            unified_document=post.unified_document,
+            amount=Decimal("1000.00"),
+            currency="USD",
+            organization="Test Org",
+            description="Grant for expert list auth",
+            status=Grant.OPEN,
+            end_date=timezone.now() + timedelta(days=30),
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(
+            self.URL, {"unified_document_id": post.unified_document_id}
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_experts_list_returns_expert_rows_with_registered_user(self):
