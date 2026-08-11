@@ -1,12 +1,26 @@
+from django.contrib.auth.models import AnonymousUser
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.core.cache import cache
+from django.db.models import Count, Exists, OuterRef, Prefetch, Q
+from rest_framework.request import Request
+from rest_framework.response import Response
+from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import ModelViewSet
 
+from discussion.serializers import VoteSerializer
+from feed.activity_feed_cache import (
+    ACTIVITY_FEED_CACHE_PAGE_SIZE,
+    ACTIVITY_FEED_CACHE_TIMEOUT,
+    ACTIVITY_FEED_MAX_CACHED_PAGE,
+    activity_feed_cache_key,
+    should_cache_activity_feed,
+)
 from feed.models import FeedEntry
-from feed.serializers import FeedEntrySerializer
+from feed.serializers import ActivityFeedEntrySerializer
 from feed.views.common import FeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
 from paper.related_models.paper_model import Paper
+from purchase.models import Fundraise
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
@@ -21,6 +35,9 @@ from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     hidden_comment_ids,
 )
+from researchhub_document.related_models.constants.document_type import GRANT, PAPER
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
 
 
@@ -33,8 +50,9 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
       - scope: "grants" returns all activity across every grant and
         every preregistration that applied to any grant.
         "peer_reviews" returns only peer review comments.
-        "financial" returns only fundraise contribution activity
-        across RSC and USD contributions.
+        "financial" returns fundraise contribution activity
+        (RSC and USD contributions), approved grant post
+        feed entries, bounty payouts, and review tips.
       - document_type: PREREGISTRATION, GRANT, etc.
       - grant_id: all activity on a grant and its applied preregistrations
       - funder_id: all activity on OPEN/COMPLETED grants where this user is
@@ -44,9 +62,13 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
 
     Filters can be combined: e.g. ?scope=grants&content_type=RHCOMMENTMODEL
     returns only comments across all grant-related documents.
+
+    The unscoped public discovery feed (pages 1–20, page_size=20) may be served
+    from a shared warm cache. Moderators and hub editors always get a live
+    response. Votes are attached after the cache read for authenticated users.
     """
 
-    serializer_class = FeedEntrySerializer
+    serializer_class = ActivityFeedEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
     http_method_names = ["get", "head", "options"]
@@ -56,22 +78,105 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         context.update(self.get_common_serializer_context())
         return context
 
+    def add_user_votes_to_response(self, user, response_data):
+        """Attach votes for related_work documents."""
+        results = response_data.get("results") or []
+        paper_ids: list[int] = []
+        post_ids: list[int] = []
+
+        for item in results:
+            related = item.get("related_work")
+            if not related or related.get("id") is None:
+                continue
+            work_id = int(related["id"])
+            if (related.get("document_type") or "").upper() == PAPER:
+                paper_ids.append(work_id)
+            else:
+                post_ids.append(work_id)
+
+        paper_votes_map = {}
+        if paper_ids:
+            for vote in self._get_user_votes(user, paper_ids, self._paper_content_type):
+                paper_votes_map[int(vote.object_id)] = VoteSerializer(vote).data
+
+        post_votes_map = {}
+        if post_ids:
+            for vote in self._get_user_votes(user, post_ids, self._post_content_type):
+                post_votes_map[int(vote.object_id)] = VoteSerializer(vote).data
+
+        for item in results:
+            related = item.get("related_work")
+            if not related or related.get("id") is None:
+                continue
+            work_id = int(related["id"])
+            if (related.get("document_type") or "").upper() == PAPER:
+                vote_data = paper_votes_map.get(work_id)
+            else:
+                vote_data = post_votes_map.get(work_id)
+            if not vote_data:
+                continue
+            related["user_vote"] = vote_data
+            item["user_vote"] = vote_data
+
     def list(self, request, *args, **kwargs):
-        response = super().list(request, *args, **kwargs)
+        cache_key = None
+        if should_cache_activity_feed(request):
+            page = int(request.query_params.get("page", "1"))
+            cache_key = activity_feed_cache_key(page)
+
+            cached_response = cache.get(cache_key)
+            if cached_response is not None:
+                if request.user.is_authenticated:
+                    self.add_user_votes_to_response(request.user, cached_response)
+                return Response(cached_response)
+
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page, many=True)
+        response_data = self.get_paginated_response(serializer.data).data
+
+        if cache_key:
+            cache.set(cache_key, response_data, timeout=ACTIVITY_FEED_CACHE_TIMEOUT)
 
         if request.user.is_authenticated:
-            self.add_user_votes_to_response(request.user, response.data)
+            self.add_user_votes_to_response(request.user, response_data)
 
-        return response
+        return Response(response_data)
 
     def get_queryset(self):
-        queryset = FeedEntry.objects.select_related(
-            "content_type",
-            "unified_document",
-            "user",
-            "user__author_profile",
-            "user__userverification",
-        ).order_by("-action_date")
+        queryset = (
+            FeedEntry.objects.select_related(
+                "content_type",
+                "unified_document",
+                "user",
+                "user__author_profile",
+                "user__userverification",
+                "unified_document__paper__uploaded_by__author_profile",
+            )
+            .prefetch_related(
+                Prefetch(
+                    "unified_document__posts",
+                    queryset=ResearchhubPost.objects.select_related(
+                        "created_by__author_profile"
+                    ).prefetch_related("authors"),
+                ),
+                Prefetch(
+                    "unified_document__grants",
+                    queryset=Grant.objects.annotate(
+                        num_applicants=Count("applications", distinct=True),
+                    ),
+                ),
+                Prefetch(
+                    "unified_document__fundraises",
+                    queryset=Fundraise.objects.select_related(
+                        "created_by__author_profile",
+                        "escrow",
+                    ).prefetch_related("nonprofit_links__nonprofit"),
+                ),
+                "unified_document__paper__authors",
+            )
+            .order_by("-action_date")
+        )
 
         # Exclude paper publications
         paper_ct = ContentType.objects.get_for_model(Paper)
@@ -91,6 +196,12 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
         funder_id = self.request.query_params.get("funder_id")
+
+        if not grant_id and not funder_id and not scope:
+            queryset = queryset.filter(
+                unified_document__is_public=True,
+                unified_document__is_removed=False,
+            )
 
         if grant_id:
             queryset = self._filter_by_grant(queryset, grant_id)
@@ -115,6 +226,44 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
             queryset = self._filter_by_content_type(queryset, content_type)
 
         return queryset
+
+    @classmethod
+    def build_page_payload(
+        cls,
+        page: int,
+        page_size: int = ACTIVITY_FEED_CACHE_PAGE_SIZE,
+    ) -> dict:
+        """Serialize one unscoped public discovery page (for cache warm)."""
+        factory = APIRequestFactory()
+        wsgi_request = factory.get(
+            "/api/activity_feed/",
+            {"page": str(page), "page_size": str(page_size)},
+        )
+        request = Request(wsgi_request)
+        request.user = AnonymousUser()
+
+        view = cls()
+        view.request = request
+        view.format_kwarg = None
+        view.action = "list"
+        view.kwargs = {}
+        view.headers = {}
+
+        queryset = view.filter_queryset(view.get_queryset())
+        page_items = view.paginate_queryset(queryset)
+        serializer = view.get_serializer(page_items, many=True)
+        return view.get_paginated_response(serializer.data).data
+
+    @classmethod
+    def warm_public_cache(cls) -> None:
+        """Replace cached payloads for pages 1–MAX with fresh public data."""
+        for page in range(1, ACTIVITY_FEED_MAX_CACHED_PAGE + 1):
+            payload = cls.build_page_payload(page)
+            cache.set(
+                activity_feed_cache_key(page),
+                payload,
+                timeout=ACTIVITY_FEED_CACHE_TIMEOUT,
+            )
 
     @staticmethod
     def _filter_by_grant(queryset, grant_id):
@@ -206,15 +355,25 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     @staticmethod
     def _filter_financial_activities(queryset):
         """
-        Return feed entries for fundraise contributions.
+        Return feed entries for fundraise contributions, grant post
+        publications, bounty payouts, and review tips.
         """
         purchase_type = ContentType.objects.get_for_model(Purchase)
         usd_contribution_type = ContentType.objects.get_for_model(
             UsdFundraiseContribution
         )
+        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
+        fa_ct = ContentType.objects.get_for_model(FundingActivity)
         contribution_purchase_ids = Purchase.objects.filter(
             purchase_type=Purchase.FUNDRAISE_CONTRIBUTION
         ).values_list("id", flat=True)
+        financial_funding_activity = FundingActivity.objects.filter(
+            id=OuterRef("object_id"),
+            source_type__in=[
+                FundingActivity.BOUNTY_PAYOUT,
+                FundingActivity.TIP_REVIEW,
+            ],
+        )
 
         return queryset.filter(
             Q(
@@ -222,6 +381,11 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
                 object_id__in=contribution_purchase_ids,
             )
             | Q(content_type=usd_contribution_type)
+            | Q(
+                content_type=post_ct,
+                unified_document__document_type=GRANT,
+            )
+            | (Q(content_type=fa_ct) & Q(Exists(financial_funding_activity)))
         )
 
     @staticmethod
