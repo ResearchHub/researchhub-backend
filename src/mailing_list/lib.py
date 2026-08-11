@@ -1,12 +1,14 @@
 import logging
+import re
 from time import sleep
 from typing import Any
 
+from bs4 import BeautifulSoup
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.mail import EmailMultiAlternatives
-from django.template.loader import render_to_string
-from django.utils.html import strip_tags
+from django.template import TemplateDoesNotExist
+from django.template.loader import get_template
 
 from mailing_list.models import EmailOptOut
 from mailing_list.services import EmailSubscriptionService
@@ -21,14 +23,15 @@ def send_email(
     subject: str,
     email_context: dict[str, Any],
     *,
-    template: str | None = None,
-    html_template: str | None = None,
+    template: str,
     sender: str = DEFAULT_SENDER,
     reply_to: str | None = None,
     cc: list[str] | None = None,
 ) -> None:
     """
     Send notification email, skipping addresses that have opted out.
+
+    `template` base name of the template without extension.
 
     This is the standard entry point, and the right default for anything the
     recipient could reasonably not want. Recipients get a signed unsubscribe
@@ -44,7 +47,6 @@ def send_email(
         template=template,
         subject=subject,
         email_context=email_context,
-        html_template=html_template,
         sender=sender,
         reply_to=reply_to,
         cc=cc,
@@ -57,14 +59,15 @@ def send_transactional_email(
     subject: str,
     email_context: dict[str, Any],
     *,
-    template: str | None = None,
-    html_template: str | None = None,
+    template: str,
     sender: str = DEFAULT_SENDER,
     reply_to: str | None = None,
     cc: list[str] | None = None,
 ) -> None:
     """
     Send transactional email that ignores notification opt-outs.
+
+    `template` base name of the template without extension.
 
     Transactional emails can include email confirmation, password reset, and others.
     Opting out of other notifications must not lock someone out of their own account.
@@ -74,7 +77,6 @@ def send_transactional_email(
         template=template,
         subject=subject,
         email_context=email_context,
-        html_template=html_template,
         sender=sender,
         reply_to=reply_to,
         cc=cc,
@@ -87,8 +89,7 @@ def _send(
     subject: str,
     email_context: dict[str, Any],
     *,
-    template: str | None,
-    html_template: str | None,
+    template: str,
     sender: str,
     reply_to: str | None,
     cc: list[str] | None,
@@ -100,9 +101,6 @@ def _send(
     Sends are best-effort: a recipient that fails is logged and skipped so one
     bad address cannot abort the rest of the batch.
     """
-    if not template and not html_template:
-        raise ValueError("Template or HTML template required")
-
     subject = subject.replace("\n", "").replace("\r", "")
 
     if not isinstance(recipients, list):
@@ -110,6 +108,12 @@ def _send(
 
     if not settings.PRODUCTION:
         subject = "[Staging] " + subject
+
+    html_template = get_template(f"{template}.html")
+    try:
+        text_template = get_template(f"{template}.txt")
+    except TemplateDoesNotExist:
+        text_template = None
 
     opted_out = EmailOptOut.filter_opted_out(recipients) if unsubscribable else set()
     subscriptions = EmailSubscriptionService()
@@ -137,7 +141,10 @@ def _send(
                 headers["List-Unsubscribe"] = f"<{one_click_url}>"
                 headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
 
-        plain_body, html_body = _render_body(template, html_template, context)
+        html_body = html_template.render(context)
+        plain_body = (
+            text_template.render(context) if text_template else _html_to_text(html_body)
+        )
 
         try:
             message = EmailMultiAlternatives(
@@ -149,8 +156,7 @@ def _send(
                 cc=cc,
                 headers=headers,
             )
-            if html_body:
-                message.attach_alternative(html_body, "text/html")
+            message.attach_alternative(html_body, "text/html")
             message.send(fail_silently=False)
         except Exception:
             logger.exception("Email send failed to %s", recipient)
@@ -160,23 +166,44 @@ def _send(
         sleep(0.2)
 
 
-def _render_body(
-    template: str | None, html_template: str | None, context: dict[str, Any]
-) -> tuple[str, str | None]:
+def _html_to_text(html: str) -> str:
     """
-    Render the plain-text and HTML bodies, deriving the text from the HTML when
-    no text template is given.
+    Convert HTML to readable plain text: non-text elements dropped, entities
+    decoded, links kept as "label (url)", block boundaries as line breaks.
     """
-    html_body = render_to_string(html_template, context) if html_template else None
+    soup = BeautifulSoup(html, "lxml")
 
-    if template:
-        plain_body = render_to_string(template, context)
-    elif html_body:
-        plain_body = strip_tags(html_body).strip()
-    else:
-        plain_body = ""
+    for element in soup(["head", "script", "style", "title"]):
+        element.decompose()
 
-    return plain_body, html_body
+    for a in soup.find_all("a", href=True):
+        label = " ".join(a.get_text().split())
+        href = a["href"]
+        if (
+            label
+            and href.startswith(("http://", "https://"))  # NOSONAR - Ignore http
+            and label != href
+        ):
+            a.replace_with(f"{label} ({href})")
+
+    # Mark block boundaries with a sentinel that survives whitespace
+    # collapsing, so newlines in the HTML source don't become line breaks
+    # but element structure does.
+    for block in soup.find_all(
+        ["br", "div", "h1", "h2", "h3", "h4", "li", "p", "table", "td", "tr"]
+    ):
+        block.insert(0, "\0")
+        block.append("\0")
+
+    # Where the HTML renders whitespace literally, the text's own line
+    # breaks are visible content and must survive the collapse below.
+    for element in soup.find_all(style=re.compile(r"white-space:\s*pre")):
+        for node in element.find_all(string=True):
+            node.replace_with(re.sub(r"[^\S\n]*\n[^\S\n]*", "\0", node))
+
+    text = " ".join(soup.get_text().split())
+    text = re.sub(r" ?\0 ?", "\0", text)
+    return re.sub(r"\0{3,}", "\0\0", text).replace("\0", "\n").strip("\n ")
 
 
 def _is_allowed_recipient(email: str) -> bool:

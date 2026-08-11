@@ -247,8 +247,7 @@ def send_support_email(
             email,
             subject,
             context,
-            template="support_receipt.txt",
-            html_template="support_receipt.html",
+            template="support_receipt",
         )
     elif email_type == "recipient":
         subject = "Someone Sent You RSC on ResearchHub!"
@@ -256,8 +255,7 @@ def send_support_email(
             email,
             subject,
             context,
-            template="support_receipt.txt",
-            html_template="support_receipt.html",
+            template="support_receipt",
         )
 
 

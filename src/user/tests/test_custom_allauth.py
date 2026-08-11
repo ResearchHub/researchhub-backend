@@ -49,7 +49,7 @@ class CustomAccountAdapterTests(SimpleTestCase):
         args, kwargs = mock_send.call_args
         self.assertEqual(args[0], "user@example.com")
         self.assertEqual(args[1], "Confirm Your Email Address")
-        self.assertEqual(kwargs["html_template"], "general_branded_email.html")
+        self.assertEqual(kwargs["template"], "general_branded_email")
         self.assertEqual(args[2]["cta_url"], "https://www.researchhub.com/verify/key1")
 
 

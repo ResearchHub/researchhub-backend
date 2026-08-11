@@ -1,10 +1,12 @@
 """User-facing chat preparation, retry, publication, and repair coverage."""
 
 import json
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.db import IntegrityError, connection
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 
 from research_ai.models import (
     AgentConversation,
@@ -87,7 +89,30 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
             first_trace.provenance, AgentExecutionMessage.Provenance.BACKEND
         )
         self.assertEqual(first_trace.content[0]["text"], wrapped_prompt)
-        self.assertNotIn("secret", json.dumps(representation["messages"]))
+        # ``default=str`` because the payload carries datetimes; DRF's
+        # encoder handles those on the real API path.
+        self.assertNotIn("secret", json.dumps(representation["messages"], default=str))
+
+    def test_messages_carry_created_timestamps(self):
+        # Arrange
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(self.conversation, "Question")
+
+        # Act
+        agent(FakeProvider([text_turn("Answer")]), prepared.recorder).run("Question")
+        representation = chat.representation(self.conversation)
+
+        # Assert: both roles report when their row landed in the chat.
+        question, answer = representation["messages"]
+        self.assertEqual(
+            [message["created_date"] for message in (question, answer)],
+            list(
+                self.conversation.chat_messages.order_by("sequence").values_list(
+                    "created_date", flat=True
+                )
+            ),
+        )
+        self.assertLessEqual(question["created_date"], answer["created_date"])
 
     def test_retry_reuses_human_message_and_provenance(self):
         # Arrange
@@ -140,6 +165,38 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         )
         self.assertFalse(representation["executions"][0]["assistant_message_pending"])
 
+    def test_late_publication_advances_the_turns_heartbeat(self):
+        # Arrange: a stuck publication on a turn that finished long ago -- the
+        # shape a scoped poll would otherwise read as "cannot have changed".
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(self.conversation, "Question")
+        with patch.object(
+            DatabaseAgentRecorder,
+            "publish_assistant_output",
+            side_effect=IntegrityError("chat insert failed"),
+        ):
+            agent(FakeProvider([text_turn("Durable answer")]), prepared.recorder).run(
+                "Question"
+            )
+        long_ago = timezone.now() - timedelta(hours=1)
+        AgentExecution.objects.filter(id=prepared.execution.id).update(
+            finished_at=long_ago, last_activity_at=long_ago
+        )
+
+        # Act: the repair that finally lands the answer.
+        chat.repair_pending_outputs(self.conversation)
+
+        # Assert: publication stamped ``last_activity_at`` past
+        # ``finished_at``. The stamp lives on the row, so every reader learns
+        # the turn just re-rendered, not only the request that landed the
+        # message -- while a publish that creates nothing moves nothing.
+        execution = AgentExecution.objects.get(id=prepared.execution.id)
+        self.assertGreater(execution.last_activity_at, execution.finished_at)
+        stamped = execution.last_activity_at
+        self.assertFalse(DatabaseAgentRecorder(execution).publish_assistant_output())
+        execution.refresh_from_db()
+        self.assertEqual(execution.last_activity_at, stamped)
+
     def test_large_assistant_output_repairs_as_the_same_bounded_text(self):
         # Arrange
         chat = AgentChatService()
@@ -178,8 +235,9 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         # Act
         representation = chat.representation(self.conversation)
 
-        # Assert
-        self.assertNotIn("secret token", json.dumps(representation))
+        # Assert: default=str because the representation carries the progress
+        # timestamps as datetimes, which DRF renders on the way out.
+        self.assertNotIn("secret token", json.dumps(representation, default=str))
         self.assertEqual(
             representation["executions"][0]["error"],
             {
@@ -187,6 +245,55 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
                 "message": "The agent could not complete this request.",
             },
         )
+
+    def test_representation_reports_progress_for_a_finished_turn(self):
+        # Arrange
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(
+            self.conversation,
+            "Question",
+            configuration={"max_iterations": 12},
+        )
+
+        # Act
+        agent(FakeProvider([text_turn("Answer")]), prepared.recorder).run("Question")
+        (entry,) = chat.representation(self.conversation)["executions"]
+
+        # Assert: enough for a client to render elapsed time and "step N of M".
+        self.assertIsNotNone(entry["started_at"])
+        self.assertIsNotNone(entry["finished_at"])
+        self.assertIsNotNone(entry["last_activity_at"])
+        self.assertEqual(entry["iterations"], 1)
+        self.assertEqual(entry["max_iterations"], 12)
+
+    def test_max_iterations_is_absent_when_the_attempt_recorded_none(self):
+        # Arrange: max_iterations is read from the attempt's own configuration
+        # snapshot, so a run that never recorded one reports nothing rather
+        # than borrowing today's settings.
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(self.conversation, "Question")
+
+        # Act
+        agent(FakeProvider([text_turn("Answer")]), prepared.recorder).run("Question")
+        (entry,) = chat.representation(self.conversation)["executions"]
+
+        # Assert
+        self.assertIsNone(entry["max_iterations"])
+
+    def test_a_running_turn_reports_a_heartbeat_and_no_finish(self):
+        # Arrange: a turn in flight, no terminal hook called.
+        chat = AgentChatService()
+        chat.prepare_turn(self.conversation, "Question")
+
+        # Act
+        (entry,) = chat.representation(self.conversation)["executions"]
+
+        # Assert: last_activity_at is what lets a client tell a turn working
+        # slowly from one that has gone quiet.
+        self.assertEqual(entry["status"], AgentExecution.Status.RUNNING)
+        self.assertIsNotNone(entry["started_at"])
+        self.assertIsNotNone(entry["last_activity_at"])
+        self.assertIsNone(entry["finished_at"])
 
     def test_public_representation_costs_the_same_however_long_the_chat_is(self):
         # Arrange

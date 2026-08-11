@@ -30,17 +30,6 @@ src/celerybeat-schedule.db
 dump.rdb
 src/dump.rdb
 
-src/.elasticbeanstalk
-src/.ebextensions
-src/.platform
-src/Dockerfile
-
-
-# Elastic Beanstalk Files
-.elasticbeanstalk/*
-!.elasticbeanstalk/*.cfg.yml
-!.elasticbeanstalk/*.global.yml
-
 # Coverage
 .coverage
 coverage.xml

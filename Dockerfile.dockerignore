@@ -1,0 +1,15 @@
+*
+
+!pyproject.toml
+!uv.lock
+!src/
+!src/**
+
+src/config_local/*
+!src/config_local/__init__.py
+src/**/__pycache__/
+src/**/*.py[cod]
+src/.pytest_cache/
+src/.ruff_cache/
+src/celerybeat-schedule*
+src/dump.rdb

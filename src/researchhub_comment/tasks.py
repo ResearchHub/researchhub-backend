@@ -67,7 +67,7 @@ def celery_create_mention_notification(comment_id, recipients):
                 [notification.recipient.email],
                 outer_subject,
                 context,
-                html_template="general_email_message.html",
+                template="general_email_message",
             )
 
 
@@ -103,7 +103,7 @@ def send_author_update_email_notifications(comment_id, follower_user_ids):
                     [user.email],
                     subject,
                     context,
-                    html_template="general_email_message.html",
+                    template="general_email_message",
                 )
             except Exception as e:
                 # Log individual user failures but continue with others

@@ -42,6 +42,20 @@ def _has_publishable_output(execution: AgentExecution) -> bool:
     return isinstance(text, str) and bool(text)
 
 
+def _max_iterations(execution: AgentExecution) -> int | None:
+    """The iteration ceiling this attempt was submitted with, if it recorded one.
+
+    Read from the execution's own configuration snapshot rather than current
+    settings, so a client rendering "step 4 of 30" shows the bound the run is
+    actually held to and not one a later settings change invented.
+    """
+    configuration = execution.configuration
+    if not isinstance(configuration, dict):
+        return None
+    value = configuration.get("max_iterations")
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 @dataclass(frozen=True)
 class PreparedAgentExecution:
     execution: AgentExecution
@@ -245,6 +259,12 @@ class AgentChatService:
                 "sequence": message.sequence,
                 "role": message.role.lower(),
                 "content": message.content,
+                # When the message landed in the chat. For an assistant row
+                # that is publication time: normally the moment the run
+                # succeeded, but later if the answer needed publication
+                # repair -- production time stays readable from the
+                # generating execution's ``finished_at``.
+                "created_date": message.created_date,
                 "execution_id": message.generated_by_execution_id,
             }
             for message in chat_messages
@@ -259,6 +279,17 @@ class AgentChatService:
                 "retry_of_id": execution.retry_of_id,
                 "context_parent_id": execution.context_parent_id,
                 "stop_reason": execution.stop_reason,
+                # Progress signals. ``last_activity_at`` is the run's heartbeat
+                # -- the recorder stamps it on every durable write -- so a
+                # client can tell a turn that is working slowly from one that
+                # has gone quiet, well before the liveness sweep reclaims it.
+                # On a settled turn it can move once more, when a stuck answer
+                # finally publishes, marking the turn's last visible change.
+                "started_at": execution.started_at,
+                "finished_at": execution.finished_at,
+                "last_activity_at": execution.last_activity_at,
+                "iterations": execution.iterations,
+                "max_iterations": _max_iterations(execution),
                 "assistant_message_pending": (
                     execution.status == AgentExecution.Status.SUCCEEDED
                     and execution.publish_output_to_chat
@@ -272,11 +303,12 @@ class AgentChatService:
         ]
         return {
             "conversation_id": conversation.id,
+            "title": conversation.title,
             "messages": messages,
             "executions": executions,
         }
 
-    def repair_pending_outputs(self, conversation: AgentConversation) -> int:
+    def repair_pending_outputs(self, conversation: AgentConversation) -> None:
         """Retry any successful chat publication that previously failed.
 
         Two kinds of success are skipped before publication is even attempted:
@@ -295,9 +327,8 @@ class AgentChatService:
             if _has_publishable_output(execution)
         ]
         if not candidates:
-            return 0
+            return
         superseded = superseded_execution_ids(conversation)
-        repaired = 0
         for execution in candidates:
             if execution.id in superseded:
                 continue
@@ -307,12 +338,9 @@ class AgentChatService:
                 # add the next question, and swallowing a database error
                 # without one would break every write that follows.
                 with transaction.atomic():
-                    repaired += int(
-                        self.recorder_factory(execution).publish_assistant_output()
-                    )
+                    self.recorder_factory(execution).publish_assistant_output()
             except Exception:  # noqa: BLE001 - reads still expose pending state
                 logger.warning(
                     "failed to repair agent response publication",
                     exc_info=True,
                 )
-        return repaired

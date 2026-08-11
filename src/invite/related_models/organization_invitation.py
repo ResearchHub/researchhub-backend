@@ -22,7 +22,7 @@ class OrganizationInvitation(Invitation):
         email = self.recipient_email
         organization = self.organization
         invite_type = self.invite_type.lower()
-        html_template = "organization_invite.html"
+        template = "organization_invite"
         inviter_name = f"{inviter.first_name} {inviter.last_name}"
         subject = f"{inviter_name} has invited you to join {organization.name}"
         email_context = {
@@ -38,4 +38,4 @@ class OrganizationInvitation(Invitation):
         else:
             email_context["user_name"] = "User"
 
-        send_email([email], subject, email_context, html_template=html_template)
+        send_email([email], subject, email_context, template=template)
