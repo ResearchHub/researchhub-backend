@@ -221,9 +221,8 @@ class AgentCancellationTests(TestCase):
         # Arrange
         recorder = self._running()
 
-        # Act & Assert: the hook that performs the transition says so; on the
-        # now-sealed row a repeat reports no transition. Event observers key
-        # on exactly this report to publish only outcomes that landed.
+        # Act & Assert: the hook that seals the run says so; a repeat on the
+        # sealed row reports no transition.
         self.assertTrue(recorder.on_run_failed(RuntimeError("boom")))
         self.assertFalse(recorder.on_run_failed(RuntimeError("boom")))
         recorder = self._running()
@@ -335,11 +334,9 @@ class AgentCancellationTests(TestCase):
             _finished_run(final_text="Here is the summary", stop_reason="end_turn")
         )
 
-        # Assert: the hook reports it sealed nothing -- what tells observers
-        # layered on the recorder to stay quiet about a finish that never
-        # landed -- and nothing was published, so the answer is gone from the
-        # context the next turn continues from; otherwise the model would
-        # resume as though it had already replied.
+        # Assert: the hook reports no transition, and nothing was published,
+        # so the answer is gone from the context the next turn continues from
+        # -- otherwise the model would resume as though it had already replied.
         self.assertFalse(transitioned)
         self.assertFalse(
             AgentConversationMessage.objects.filter(

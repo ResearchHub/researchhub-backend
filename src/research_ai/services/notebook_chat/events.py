@@ -66,10 +66,8 @@ class ConversationEventPublisher:
     def publish(self, conversation_id: int, execution_id: int, kind: str) -> None:
         """Emit ``kind`` for ``execution_id`` once the current transaction commits.
 
-        Outside a transaction this sends immediately (``on_commit`` semantics),
-        which is the worker path: the recorder's writes commit before its hooks
-        return. ``robust`` because a lost nudge costs one poll interval, while
-        an exception here could otherwise cancel sibling commit callbacks.
+        Sends immediately when no transaction is active. ``robust`` so a
+        failed send cannot cancel sibling commit callbacks.
         """
         transaction.on_commit(
             lambda: self._send(conversation_id, execution_id, kind),
@@ -104,19 +102,11 @@ class ConversationEventPublisher:
 class PublishingRecorder:
     """Wraps a turn's recorder to publish an event after each durable write.
 
-    The wrapped recorder stays the authority on persistence and its contracts
-    (``requires_durable_messages``, ``is_active``, ``terminal_observed`` --
-    everything undefined here is delegated). This wrapper only appends a
-    post-write nudge, and only for writes that actually landed: publish after
-    the wrapped call returns, never when it raises, and never when a terminal
-    hook reports that it performed no transition of its own. A cancelled run
-    therefore emits nothing on its way down --
-    whether it unwinds through a refused write (``InterruptedError``) into
-    the failure hook or races cancellation to the finish hook, the row was
-    sealed from outside and the hook finds nothing left to record. The
-    sealing path (cancellation) already published the authoritative event;
-    announcing ``turn_failed`` or ``turn_finished`` over it would hand
-    subscribers a contradiction.
+    Everything undefined here is delegated to the wrapped recorder. Events
+    fire only for writes that landed: never when the wrapped call raises,
+    and never when a terminal hook reports it performed no transition --
+    that run was sealed from outside (cancelled), and the sealing path
+    already published the authoritative event.
     """
 
     def __init__(
@@ -143,22 +133,13 @@ class PublishingRecorder:
         self._publish(TURN_PROGRESS)
 
     def on_run_finished(self, result) -> None:
-        # Only an explicit ``False`` report suppresses the event: it means the
-        # hook found the row already sealed from outside and discarded the
-        # result, so the sealing path's event stands alone. A recorder that
-        # does not track transitions returns ``None`` and keeps its events.
-        # On a real finish the wrapped hook also publishes the assistant's
-        # reply to the chat before returning, so this event's refetch already
-        # sees the answer.
+        # Only an explicit False suppresses; None (a recorder that does not
+        # track transitions) keeps the event.
         if self._recorder.on_run_finished(result) is False:
             return
         self._publish(TURN_FINISHED)
 
     def on_run_failed(self, error: Exception) -> None:
-        # Same rule as the finish hook. A report of no transition here is the
-        # cancelled run's own unwinding reaching this hook (an interruption,
-        # or a late failure) after cancellation already sealed the row and
-        # told the subscribers.
         if self._recorder.on_run_failed(error) is False:
             return
         self._publish(TURN_FAILED)

@@ -769,20 +769,15 @@ class NotebookChatEventEmissionTests(TestCase):
 
 
 class NotebookChatEventSendOrderTests(TransactionTestCase):
-    """Send order as production sees it: autocommit, no wrapping transaction.
+    """Send order under autocommit, where ``on_commit`` runs immediately.
 
-    Here ``on_commit`` runs its callback at registration time, so submitting
-    a message schedules the worker -- and can fail the turn -- while
-    ``submit_message`` is still on the stack. That interleaving is invisible
-    to the ``TestCase`` suites above: their wrapping transaction defers every
-    callback to one commit point, where either registration order sends
-    queued first. Only out here does the real wire order get pinned.
+    The ``TestCase`` suites above cannot see this interleaving: their
+    wrapping transaction defers every callback to one commit point.
     """
 
     def test_a_refused_broker_sends_queued_before_failed(self):
-        # Arrange: a real publisher over a recording layer, so the order
-        # events leave the process is what is asserted -- not the order the
-        # service called publish().
+        # Arrange: a real publisher over a recording layer, so send order --
+        # not publish() call order -- is what is asserted.
         user = get_user_model().objects.create_user(
             username="owner@researchhub_test.com",
             password="password",
@@ -803,8 +798,7 @@ class NotebookChatEventSendOrderTests(TransactionTestCase):
         ):
             service.submit_message(note, conversation, "Hello")
 
-        # Assert: queued left the process before the failure did -- a
-        # terminal event may never be followed by its own turn's queued.
+        # Assert: queued goes out before the refusal's failure.
         self.assertEqual(
             [message["data"]["kind"] for _group, message in layer.sent],
             [TURN_QUEUED, TURN_FAILED],

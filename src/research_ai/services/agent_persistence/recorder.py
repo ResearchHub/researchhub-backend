@@ -300,12 +300,7 @@ class DatabaseAgentRecorder:
             execution.save(update_fields=update_fields)
 
     def on_run_finished(self, result) -> bool:
-        """Seal the run as ``SUCCEEDED`` and publish its answer to the chat.
-
-        Returns whether this call performed the transition. ``False`` means
-        the execution was already terminal -- cancellation won the race --
-        so the result was discarded and nothing was published.
-        """
+        """Seal the run as ``SUCCEEDED``; ``False`` if it was already terminal."""
         now = timezone.now()
         final_output, _truncated, _size = serialize_final_output(result.final_text)
         transitioned = False
@@ -351,12 +346,7 @@ class DatabaseAgentRecorder:
         return True
 
     def on_run_failed(self, error: Exception) -> bool:
-        """Seal the run as ``FAILED`` (``INTERRUPTED`` for an interruption).
-
-        Returns whether this call performed the transition, exactly as
-        ``on_run_finished`` does; an execution sealed from outside leaves
-        nothing here to record, only to report.
-        """
+        """Seal as ``FAILED``/``INTERRUPTED``; ``False`` if already terminal."""
         now = timezone.now()
         raw_stop_reason = getattr(error, "stop_reason", "") or ""
         stop_reason = _safe_exception_message(raw_stop_reason)

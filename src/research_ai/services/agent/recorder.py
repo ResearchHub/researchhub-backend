@@ -40,20 +40,16 @@ class AgentRecorder(Protocol):
     def on_run_finished(self, result: AgentResult) -> bool | None:
         """The run completed; every message was already recorded.
 
-        A recorder that persists a terminal outcome reports whether this call
-        performed the transition itself: ``False`` means the run was already
-        sealed from elsewhere (cancelled, for instance) and the result was
-        discarded. Observers layered over such a recorder use the report to
-        stay silent about outcomes that never landed; the loop ignores it,
-        and recorders that do not track it return ``None``.
+        Returns whether this call performed the terminal transition itself
+        (``False`` if the run was already sealed elsewhere, ``None`` from
+        recorders that do not track it). The loop ignores the report.
         """
         ...
 
     def on_run_failed(self, error: Exception) -> bool | None:
         """The run failed; every message up to the failure was recorded.
 
-        Reports whether this call sealed the run, under the same contract as
-        ``on_run_finished``.
+        Reports its transition like ``on_run_finished``.
         """
         ...
 
