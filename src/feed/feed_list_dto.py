@@ -339,7 +339,7 @@ def _serialize_slim_fundraise(fundraise, context):
         fundraise.created_by, context=context, **created_by_fields
     ).data
 
-    contributor_fields = context.get("pch_dfs_get_contributors", {})
+    contributor_fields = context.get("pch_dfs_get_contributors", created_by_fields)
     aggregated = fundraise.get_contributors_summary()
     top = [
         DynamicUserSerializer(entry.user, context=context, **contributor_fields).data
