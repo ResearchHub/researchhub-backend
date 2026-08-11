@@ -25,10 +25,12 @@ test:
 	cd src && uv run manage.py test --keepdb
 
 start-celery:
-	cd src && uv run celery -A researchhub worker \
-		-Q "$$(echo $(CELERY_QUEUES) | tr ' ' ',')" \
-		-l info \
+	cd src && uv run celery \
+		--app=researchhub \
+		worker \
+		--queues "$$(echo $(CELERY_QUEUES) | tr ' ' ',')" \
+		--loglevel=info \
 		--prefetch-multiplier=1 \
-		-P prefork \
+		--pool=prefork \
 		--concurrency=1 \
 		--beat
