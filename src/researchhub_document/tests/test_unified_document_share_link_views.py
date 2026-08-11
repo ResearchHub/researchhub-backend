@@ -1,0 +1,142 @@
+from datetime import timedelta
+
+from django.utils import timezone
+from rest_framework.test import APITestCase
+
+from purchase.related_models.constants.currency import USD
+from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.unified_document_share_link_model import (
+    UnifiedDocumentShareLink,
+)
+from researchhub_document.services.unified_document_share_link_service import (
+    UnifiedDocumentShareLinkService,
+)
+from user.tests.helpers import create_random_default_user
+
+
+class UnifiedDocumentShareLinkViewTests(APITestCase):
+    def setUp(self):
+        self.service = UnifiedDocumentShareLinkService()
+        self.moderator = create_random_default_user("view-mod", moderator=True)
+        self.author = create_random_default_user("view-author")
+
+        self.proposal = self._create_private_proposal("Gene editing proposal")
+        self.unified_document = self.proposal.unified_document
+        self.fundraise = Fundraise.objects.create(
+            created_by=self.author,
+            unified_document=self.unified_document,
+            goal_amount=5000,
+            goal_currency=USD,
+        )
+        # Serializing a fundraise converts its goal via the latest exchange rate.
+        RscExchangeRate.objects.create(rate=1.0)
+
+    def _create_private_proposal(self, title):
+        proposal = create_post(
+            title=title,
+            created_by=self.author,
+            document_type=PREREGISTRATION,
+        )
+        unified_document = proposal.unified_document
+        unified_document.is_public = False
+        unified_document.save(update_fields=["is_public"])
+        return proposal
+
+    def _mint(self, proposal):
+        link, _ = self.service.create_or_get(
+            proposal.unified_document_id, self.moderator
+        )
+        return link
+
+    def test_anonymous_user_can_view_private_proposal_with_valid_token(self):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act: mint the link, then load the proposal page as an anonymous visitor
+        create_response = self.client.post(
+            f"/api/researchhub_unified_document/{self.unified_document.id}/share_link/"
+        )
+        token = create_response.data["token"]
+        self.client.force_authenticate(user=None)
+        post_response = self.client.get(
+            f"/api/researchhubpost/{self.proposal.id}/?st={token}"
+        )
+        metadata_response = self.client.get(
+            f"/api/researchhub_unified_document/{self.unified_document.id}"
+            f"/get_document_metadata/?st={token}"
+        )
+
+        # Assert
+        self.assertEqual(create_response.status_code, 201)
+        self.assertTrue(token)
+        self.assertEqual(post_response.status_code, 200)
+        self.assertEqual(post_response.data["id"], self.proposal.id)
+        self.assertEqual(post_response.data["title"], "Gene editing proposal")
+        self.assertEqual(metadata_response.status_code, 200)
+        self.assertEqual(metadata_response.data["fundraise"]["id"], self.fundraise.id)
+
+    def test_share_link_does_not_expose_proposal_elsewhere(self):
+        # Arrange
+        self._mint(self.proposal)
+
+        # Act
+        post_response = self.client.get(f"/api/researchhubpost/{self.proposal.id}/")
+        metadata_response = self.client.get(
+            f"/api/researchhub_unified_document/{self.unified_document.id}"
+            "/get_document_metadata/"
+        )
+        fundraise_response = self.client.get(f"/api/fundraise/{self.fundraise.id}/")
+
+        # Assert: the token unlocks one document through one surface only
+        self.assertEqual(post_response.status_code, 404)
+        self.assertEqual(metadata_response.status_code, 403)
+        self.assertEqual(fundraise_response.status_code, 401)
+        self.assertFalse(
+            ResearchhubPost.objects.visible_to(None)
+            .filter(pk=self.proposal.pk)
+            .exists()
+        )
+
+    def test_share_token_does_not_unlock_a_different_proposal(self):
+        # Arrange
+        other_proposal = self._create_private_proposal("Unrelated proposal")
+        link = self._mint(self.proposal)
+
+        # Act: a valid token paired with someone else's document
+        post_response = self.client.get(
+            f"/api/researchhubpost/{other_proposal.id}/?st={link.token}"
+        )
+        metadata_response = self.client.get(
+            f"/api/researchhub_unified_document/{other_proposal.unified_document_id}"
+            f"/get_document_metadata/?st={link.token}"
+        )
+
+        # Assert
+        self.assertEqual(post_response.status_code, 404)
+        self.assertEqual(metadata_response.status_code, 403)
+
+    def test_expired_or_unknown_share_token_does_not_unlock_the_proposal_page(self):
+        # Arrange
+        link = self._mint(self.proposal)
+        UnifiedDocumentShareLink.objects.filter(pk=link.pk).update(
+            expires_at=timezone.now() - timedelta(days=1)
+        )
+        post_url = f"/api/researchhubpost/{self.proposal.id}/"
+        metadata_url = (
+            f"/api/researchhub_unified_document/{self.unified_document.id}"
+            "/get_document_metadata/"
+        )
+
+        # Act
+        expired_post = self.client.get(f"{post_url}?st={link.token}")
+        expired_metadata = self.client.get(f"{metadata_url}?st={link.token}")
+        unknown_post = self.client.get(f"{post_url}?st=not-a-real-token")
+
+        # Assert: an expired link reads exactly like no link at all
+        self.assertEqual(expired_post.status_code, 404)
+        self.assertEqual(expired_metadata.status_code, 403)
+        self.assertEqual(unknown_post.status_code, 404)

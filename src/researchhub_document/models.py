@@ -6,6 +6,7 @@ from .related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
     UnifiedDocumentConcepts,
 )
+from .related_models.unified_document_share_link_model import UnifiedDocumentShareLink
 
 __all__ = [
     "DocumentFilter",
@@ -14,4 +15,5 @@ __all__ = [
     "ResearchhubPost",
     "ResearchhubUnifiedDocument",
     "UnifiedDocumentConcepts",
+    "UnifiedDocumentShareLink",
 ]

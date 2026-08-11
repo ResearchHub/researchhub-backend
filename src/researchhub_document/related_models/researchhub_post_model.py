@@ -37,7 +37,11 @@ class ResearchhubPostQuerySet(models.QuerySet):
         """Restrict to posts safe for anonymous/public discovery surfaces."""
         return self.filter(self._public_visibility_filter())
 
-    def visible_to(self, user: User | None) -> "ResearchhubPostQuerySet":
+    def visible_to(
+        self,
+        user: User | None,
+        shared_unified_document_id: int | None = None,
+    ) -> "ResearchhubPostQuerySet":
         """Restrict to posts the given user is allowed to see.
 
         Anonymous users only see public posts that cleared moderation. Authors
@@ -47,9 +51,23 @@ class ResearchhubPostQuerySet(models.QuerySet):
 
         Grant posts do not use unified-document moderation status. Their backing
         document stays approved, so ``Grant.status`` decides whether they cleared.
+
+        ``shared_unified_document_id`` additionally admits the single document a
+        valid share token was issued for. It is opt-in per call site so a share
+        token can never widen discovery surfaces such as feeds: pass it only
+        where a caller is serving that one document.
         """
+        public = self._public_visibility_filter()
+        # An empty Q is the neutral element of OR: Django drops it when
+        # combining, so an absent token adds nothing to the filter.
+        shared = (
+            Q(unified_document_id=shared_unified_document_id)
+            if shared_unified_document_id is not None
+            else Q()
+        )
+
         if user is None or not getattr(user, "is_authenticated", False):
-            return self.publicly_visible()
+            return self.filter(public | shared)
 
         if user.is_moderator_or_editor():
             return self
@@ -72,9 +90,7 @@ class ResearchhubPostQuerySet(models.QuerySet):
         )
 
         return self.filter(
-            self._public_visibility_filter()
-            | created_by_user
-            | visible_to_grant_or_permitted
+            public | shared | created_by_user | visible_to_grant_or_permitted
         ).distinct()
 
     def _public_visibility_filter(self) -> Q:

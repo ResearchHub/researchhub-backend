@@ -13,6 +13,11 @@ from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocum
 from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
     ResearchhubUnifiedDocumentSerializer,
+    UnifiedDocumentShareLinkSerializer,
+)
+from researchhub_document.services.unified_document_share_link_service import (
+    UnifiedDocumentShareLinkService,
+    get_shared_unified_document_id,
 )
 from utils.permissions import ReadOnly
 
@@ -158,6 +163,39 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
             },
         }
         return context
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated],
+        url_path="share_link",
+    )
+    def share_link(self, request, pk=None):
+        """Return the proposal's share link, generating one when needed.
+
+        Regenerates an expired link, so callers must only hit this on an
+        explicit user action and never on page render.
+        """
+        # Screened here so a malformed id answers 404 rather than falling
+        # through to the ValueError branch reserved for rejected requests.
+        if pk is None or not str(pk).isdigit():
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            link, created = UnifiedDocumentShareLinkService().create_or_get(
+                pk, request.user
+            )
+        except ResearchhubUnifiedDocument.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        except PermissionError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_403_FORBIDDEN)
+        except ValueError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            UnifiedDocumentShareLinkSerializer(link).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def check_user_vote(self, request):
@@ -311,7 +349,12 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def get_document_metadata(self, request, pk=None):
         unified_document = get_object_or_404(ResearchhubUnifiedDocument, pk=pk)
-        if not unified_document.is_visible_to_user(request.user):
+        # A share token admits only the document it was issued for.
+        is_visible = (
+            unified_document.is_visible_to_user(request.user)
+            or get_shared_unified_document_id(request) == unified_document.id
+        )
+        if not is_visible:
             return Response(status=status.HTTP_403_FORBIDDEN)
         metadata_context = self._get_document_metadata_context()
 
