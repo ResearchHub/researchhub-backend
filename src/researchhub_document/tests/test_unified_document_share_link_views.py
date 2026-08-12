@@ -5,9 +5,14 @@ from rest_framework.test import APITestCase
 
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.grant_application_model import GrantApplication
+from purchase.related_models.grant_model import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.helpers import create_post
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -18,7 +23,7 @@ from researchhub_document.related_models.unified_document_share_link_model impor
 from researchhub_document.services.unified_document_share_link_service import (
     UnifiedDocumentShareLinkService,
 )
-from user.tests.helpers import create_random_default_user
+from user.tests.helpers import create_hub_editor, create_random_default_user
 
 
 class UnifiedDocumentShareLinkViewTests(APITestCase):
@@ -48,6 +53,23 @@ class UnifiedDocumentShareLinkViewTests(APITestCase):
         unified_document.is_public = False
         unified_document.save(update_fields=["is_public"])
         return proposal
+
+    def _create_grant_creator_applying_to_proposal(self):
+        grant_creator = create_random_default_user("view-grant-creator")
+        grant_post = create_post(created_by=grant_creator, document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=grant_creator,
+            unified_document=grant_post.unified_document,
+            amount=1000,
+            currency=USD,
+            description="Funding opportunity",
+        )
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=self.proposal,
+            applicant=self.author,
+        )
+        return grant_creator
 
     def _mint(self, proposal):
         link, _ = self.service.create_or_get(
@@ -97,6 +119,34 @@ class UnifiedDocumentShareLinkViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["token"], link.token)
         self.assertEqual(UnifiedDocumentShareLink.objects.count(), 1)
+
+    def test_fetching_link_is_restricted_to_authors_admins_editors_and_grant_creators(
+        self,
+    ):
+        # Arrange
+        link = self._mint(self.proposal)
+        url = (
+            f"/api/researchhub_unified_document/{self.unified_document.id}/share_link/"
+        )
+        editor, _ = create_hub_editor("view-hub-editor", "view-share-link-hub")
+        grant_creator = self._create_grant_creator_applying_to_proposal()
+        outsider = create_random_default_user("view-outsider-get")
+
+        # Act / Assert: each eligible role reads the same link
+        for eligible_user in (self.author, self.moderator, editor, grant_creator):
+            self.client.force_authenticate(eligible_user)
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200, eligible_user.email)
+            self.assertEqual(response.data["token"], link.token)
+
+        # Assert: an unaffiliated authenticated user is refused
+        self.client.force_authenticate(outsider)
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+        # Assert: an anonymous request is refused before it even reaches the
+        # eligibility check, since the action requires authentication
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.get(url).status_code, 401)
 
     def test_fetching_link_returns_404_when_absent_or_expired(self):
         # Arrange
