@@ -6,9 +6,15 @@ from django.db.models import Q, QuerySet
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.mixins import (
+    CreateModelMixin,
+    DestroyModelMixin,
+    RetrieveModelMixin,
+    UpdateModelMixin,
+)
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import GenericViewSet, ModelViewSet
 
 from hub.models import Hub
 from invite.models import NoteInvitation
@@ -518,7 +524,15 @@ class NoteViewSet(ModelViewSet):
         return Response(serializer.data, status=200)
 
 
-class NoteContentViewSet(ModelViewSet):
+class NoteContentViewSet(
+    CreateModelMixin,
+    RetrieveModelMixin,
+    UpdateModelMixin,
+    DestroyModelMixin,
+    GenericViewSet,
+):
+    # No ListModelMixin: the queryset is unscoped and permissions are only
+    # checked per object in get_object, so a list action would expose every note.
     ordering = "-created_date"
     queryset = NoteContent.objects.all()
     permission_classes = [IsAuthenticated, HasEditingPermission]

@@ -1,4 +1,5 @@
 from django.core.files.base import ContentFile
+from django.db.models import Q
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -6,10 +7,6 @@ from rest_framework.viewsets import ModelViewSet
 
 from note.models import NoteTemplate
 from note.serializers import NoteTemplateSerializer
-from researchhub_access_group.permissions import (
-    HasEditingPermission,
-    HasOrgEditingPermission,
-)
 from user.models import Organization
 
 
@@ -19,6 +16,19 @@ class NoteTemplateViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = NoteTemplateSerializer
     http_method_names = ["get", "head", "options", "post"]
+
+    def get_queryset(self):
+        user = self.request.user
+        return (
+            self.queryset.filter(
+                Q(is_default=True)
+                | Q(created_by=user)
+                | Q(organization__permissions__user=user)
+            )
+            .filter(is_removed=False)
+            .distinct()
+            .order_by("-created_date")
+        )
 
     def create(self, request, *args, **kwargs):
         user = request.user
@@ -57,15 +67,11 @@ class NoteTemplateViewSet(ModelViewSet):
         full_src_file = ContentFile(data.encode())
         return file_name, full_src_file
 
-    @action(
-        detail=True,
-        methods=["post", "delete"],
-        permission_classes=[HasOrgEditingPermission | HasEditingPermission],
-    )
+    @action(detail=True, methods=["post", "delete"])
     def delete(self, request, pk=None):
-        template = NoteTemplate.objects.get(id=pk)
+        template = self.get_object()
 
-        if template.is_default:
+        if template.is_default or not self._can_delete(request.user, template):
             status_code = 403
         else:
             template.is_removed = True
@@ -74,3 +80,13 @@ class NoteTemplateViewSet(ModelViewSet):
 
         serializer = self.serializer_class(template)
         return Response(serializer.data, status=status_code)
+
+    def _can_delete(self, user, template):
+        # Mirrors the create authorization: creator, or org admin/member.
+        if template.created_by == user:
+            return True
+        organization = template.organization
+        return organization is not None and (
+            organization.org_has_admin_user(user)
+            or organization.org_has_member_user(user)
+        )
