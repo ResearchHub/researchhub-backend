@@ -84,7 +84,7 @@ class NoteVersionConsumer(AsyncWebsocketConsumer):
     ``note.services.note_events`` whenever a new content version is committed,
     whoever wrote it. Payloads are ids and metadata only; a client should
     refetch on any event and treat the socket as droppable (the REST API
-    remains the source of truth). Contract: ``docs/NOTE_VERSION_EVENTS.md``.
+    remains the source of truth).
     """
 
     async def connect(self):

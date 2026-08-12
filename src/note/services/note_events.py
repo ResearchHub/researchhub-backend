@@ -21,8 +21,6 @@ note read access can be narrower than org membership -- private notes must
 not leak version activity to the rest of the org -- and because autosave
 emits every couple of seconds while someone types, which only clients
 actually viewing the note should receive.
-
-The full payload contract lives in ``docs/NOTE_VERSION_EVENTS.md``.
 """
 
 import logging
