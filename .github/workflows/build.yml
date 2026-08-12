@@ -1,0 +1,37 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Get Git SHA
+        id: git_sha
+        run: |
+          GIT_SHA=$(git rev-parse HEAD)
+          echo "$GIT_SHA" > src/git_hash.txt
+          SHORT_GIT_SHA=${GIT_SHA:0:7}
+          echo "short=$SHORT_GIT_SHA" >> "$GITHUB_OUTPUT"
+          echo "long=$GIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Build Docker image
+        run: make docker-build DOCKER_PLATFORM=linux/arm64 DOCKER_IMAGE=researchhub-backend:${{ steps.git_sha.outputs.long }}
