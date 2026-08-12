@@ -59,6 +59,9 @@ from researchhub_document.services.proposal_visibility_service import (
 from researchhub_document.services.registered_report_work_service import (
     RegisteredReportWorkService,
 )
+from researchhub_document.services.unified_document_share_link_service import (
+    get_shared_unified_document_id,
+)
 from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.models import User
 from user.services.risk_score_service import RiskScoreService
@@ -190,6 +193,9 @@ class ResearchhubPostViewSet(
 
     def get_queryset(self):
         request = self.request
+        # Deliberately not applied to the registered-report subquery below: a
+        # share token covers its own proposal, not other works in the journey.
+        shared_unified_document_id = get_shared_unified_document_id(request)
         try:
             registered_reports = (
                 ResearchhubPost.objects.visible_to(request.user)
@@ -200,7 +206,9 @@ class ResearchhubPostViewSet(
                 .order_by("id")
             )
             query_set = (
-                ResearchhubPost.objects.visible_to(request.user)
+                ResearchhubPost.objects.visible_to(
+                    request.user, shared_unified_document_id
+                )
                 .annotate(
                     registered_report_id=Subquery(registered_reports.values("id")[:1])
                 )
