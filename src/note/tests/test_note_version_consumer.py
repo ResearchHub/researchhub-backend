@@ -230,6 +230,7 @@ class NoteVersionConsumerTests(TransactionTestCase):
         output = await communicator.receive_output()
         self.assertEqual(output["type"], "websocket.close")
         self.assertEqual(output["code"], CLOSE_NOT_FOUND)
+        await communicator.disconnect()
 
     async def test_deactivated_subscriber_is_closed_instead_of_receiving_events(self):
         # Arrange
@@ -251,6 +252,7 @@ class NoteVersionConsumerTests(TransactionTestCase):
         output = await communicator.receive_output()
         self.assertEqual(output["type"], "websocket.close")
         self.assertEqual(output["code"], CLOSE_UNAUTHENTICATED)
+        await communicator.disconnect()
 
     async def test_creating_a_version_delivers_the_event_end_to_end(self):
         # Arrange

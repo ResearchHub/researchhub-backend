@@ -165,6 +165,19 @@ class NoteContentApiTests(APITestCase):
         self.assertEqual(version.parent_version_id, self.seed_version.id)
         self.assertEqual(version.note_id, self.note.id)
 
+    def test_retrieve_denied_for_a_soft_deleted_note(self):
+        # Arrange: deleting a note leaves permissions intact, so versions
+        # must read as missing like the note detail does.
+        self.note.unified_document.is_removed = True
+        self.note.unified_document.save(update_fields=["is_removed"])
+        self.client.force_authenticate(self.viewer)
+
+        # Act
+        response = self.client.get(f"/api/note_content/{self.seed_version.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, 404)
+
     def test_retrieve_denied_without_read_access(self):
         # Arrange
         self.client.force_authenticate(self.outsider)

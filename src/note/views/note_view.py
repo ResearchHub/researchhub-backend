@@ -532,6 +532,11 @@ class NoteContentViewSet(ModelViewSet):
             return [IsAuthenticated(), HasAccessPermission()]
         return super().get_permissions()
 
+    def get_queryset(self):
+        # Versions of a soft-deleted note read as missing, matching the note
+        # detail queryset and the version socket's admission gate.
+        return super().get_queryset().filter(note__unified_document__is_removed=False)
+
     def get_object(self):
         request_method = self.request.method
         if request_method == "POST":
