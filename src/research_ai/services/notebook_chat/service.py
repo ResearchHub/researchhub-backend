@@ -390,7 +390,6 @@ class NotebookChatService:
                 "max_iterations": config.max_iterations,
                 "max_tokens": config.max_tokens,
                 "temperature": config.temperature,
-                "max_identical_tool_failures": config.max_identical_tool_failures,
                 "note_id": note.id,
             },
             system_prompt=build_notebook_chat_system_prompt(note),
@@ -536,7 +535,6 @@ class NotebookChatService:
             system_prompt=execution.system_prompt,
             max_tokens=config.max_tokens,
             temperature=config.temperature,
-            max_identical_tool_failures=config.max_identical_tool_failures,
             recorder=recorder,
         )
 
@@ -586,12 +584,7 @@ class NotebookChatService:
         return NotebookChatConfig(
             **{
                 field: (stored[field] if field in stored else getattr(defaults, field))
-                for field in (
-                    "max_iterations",
-                    "max_tokens",
-                    "temperature",
-                    "max_identical_tool_failures",
-                )
+                for field in ("max_iterations", "max_tokens", "temperature")
             },
             max_message_chars=defaults.max_message_chars,
         )

@@ -18,7 +18,6 @@ from research_ai.services.agent.errors import (
     IncompleteTurnError,
     IterationLimitError,
     ProviderError,
-    RepeatedToolFailureError,
 )
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.recorder import AgentRecorder
@@ -39,8 +38,6 @@ logger = logging.getLogger(__name__)
 _LOG_VALUE_LIMIT = 300
 
 # Sent instead of dispatching a call from a turn that stopped on max_tokens.
-# Deterministic per tool name so repeated truncations read as identical
-# failures to the circuit breaker.
 _TRUNCATED_CALL_ERROR = (
     "your response was cut off before completion (output token limit or "
     "context window reached), so the {name} call's input was truncated and "
@@ -139,18 +136,6 @@ class AgentResult:
     iterations: int
 
 
-@dataclass
-class _FailureStreak:
-    """One tool's run of consecutive identical failures: identity plus count."""
-
-    input: object  # None when the identity deliberately excludes the input
-    content: object
-    count: int = 1
-
-    def matches(self, call_input, content) -> bool:
-        return (self.input, self.content) == (call_input, content)
-
-
 class Agent:
     """Drives a provider + toolset over multiple turns until completion."""
 
@@ -163,7 +148,6 @@ class Agent:
         max_iterations: int,
         max_tokens: int | None,
         temperature: float,
-        max_identical_tool_failures: int = 0,
         recorder: AgentRecorder | None = None,
     ):
         self.provider = provider
@@ -173,9 +157,6 @@ class Agent:
         # None lets the provider spend up to its model's output ceiling.
         self.max_tokens = max_tokens
         self.temperature = temperature
-        # 0 disables the breaker; N fails the run on the Nth consecutive
-        # identical failure of one tool.
-        self.max_identical_tool_failures = max_identical_tool_failures
         self.recorder = recorder
 
     def run(self, user_prompt: str) -> AgentResult:
@@ -341,62 +322,6 @@ class Agent:
             )
         return result_blocks, stop
 
-    def _check_repeated_failures(
-        self,
-        streaks: dict[str, _FailureStreak],
-        tool_calls,
-        result_blocks: list[ToolResultBlock],
-        messages: list[Message],
-        iteration: int,
-        *,
-        include_input: bool = True,
-    ) -> None:
-        """Fail the run once one tool has erred identically too many turns.
-
-        Streaks are per tool and survive other tools' successes -- the stuck
-        shape is ``read_note`` succeeding between identical ``edit_note``
-        failures. A turn extends a streak only when it adds nothing new: every
-        call of the tool repeated the same input and produced the same whole
-        result content. Any fresh input -- even beside an exact repeat -- is
-        the model correcting itself, and resets the streak to the latest
-        attempt. The truncated-turn path passes ``include_input=False``
-        because a cut input differs at every attempt without carrying new
-        intent; there the deterministic error text alone is the identity.
-        Called after the tool results are recorded so the failed run's
-        transcript stays resumable.
-        """
-        limit = self.max_identical_tool_failures
-        if not limit:
-            return
-        by_name: dict[str, list[tuple]] = {}
-        for call, block in zip(tool_calls, result_blocks):
-            by_name.setdefault(call.name, []).append((call, block))
-        for name, pairs in by_name.items():
-            if any(not block.is_error for _, block in pairs):
-                streaks.pop(name, None)
-                continue
-            attempts = [
-                (call.input if include_input else None, block.content)
-                for call, block in pairs
-            ]
-            streak = streaks.get(name)
-            if streak is not None and all(streak.matches(*a) for a in attempts):
-                streak.count += 1
-            else:
-                call_input, content = attempts[-1]
-                streak = _FailureStreak(input=call_input, content=content)
-                streaks[name] = streak
-            if streak.count >= limit:
-                error_text = ""
-                if isinstance(streak.content, dict):
-                    error_text = str(streak.content.get("error", ""))
-                raise RepeatedToolFailureError(
-                    f"tool {name!r} failed identically {streak.count} times in a "
-                    f"row: {_truncate(error_text, 200)}",
-                    messages=messages,
-                    iterations=iteration,
-                )
-
     def _drive(self, messages: list[Message], *, new_message: Message) -> AgentResult:
         try:
             self._record_message(new_message)
@@ -416,9 +341,6 @@ class Agent:
             ", ".join(self.toolset.names),
             self.max_iterations,
         )
-        # Per-tool streaks of consecutive identical failures for the breaker.
-        failure_streaks: dict[str, _FailureStreak] = {}
-
         for iteration in range(1, self.max_iterations + 1):
             # Before spending on the model, not only before a tool: a provider
             # call is the most expensive thing an iteration does and can hold the
@@ -493,16 +415,6 @@ class Agent:
                 tool_result_message = Message(role="user", content=result_blocks)
                 messages.append(tool_result_message)
                 self._record_message(tool_result_message)
-                # A cut input differs at every attempt without meaning anything
-                # new, so only the deterministic error text identifies the loop.
-                self._check_repeated_failures(
-                    failure_streaks,
-                    turn.tool_calls,
-                    result_blocks,
-                    messages,
-                    iteration,
-                    include_input=False,
-                )
                 continue
 
             result_blocks, stop = self._dispatch_tool_calls(turn.tool_calls, iteration)
@@ -518,10 +430,6 @@ class Agent:
                     stop_reason="stop_tool",
                     iterations=iteration,
                 )
-
-            self._check_repeated_failures(
-                failure_streaks, turn.tool_calls, result_blocks, messages, iteration
-            )
 
         logger.info("agent hit iteration cap of %d", self.max_iterations)
         raise IterationLimitError(

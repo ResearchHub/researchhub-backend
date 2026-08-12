@@ -285,13 +285,12 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.stop_reason, "iteration_limit")
         self.assertIn("error", result)
 
-    def test_submit_message_snapshots_budget_and_breaker_config(self):
+    def test_submit_message_snapshots_the_token_budget(self):
         # Act
         execution, _delay = self._submit()
 
         # Assert: null max_tokens is the recorded "model's own ceiling" choice.
         self.assertIsNone(execution.configuration["max_tokens"])
-        self.assertEqual(execution.configuration["max_identical_tool_failures"], 3)
 
     def test_run_turn_passes_the_model_max_budget_through(self):
         # Arrange
@@ -362,39 +361,12 @@ class NotebookChatServiceTests(TestCase):
             result["final_text"], "The note was too large to rewrite in one pass."
         )
 
-    def test_repeated_identical_tool_failures_fail_the_turn(self):
-        # Arrange: the model retries an invalid edit identically, forever.
-        execution, _delay = self._submit("Replace the note body.")
-        invalid_edit = {
-            "note_id": self.note.id,
-            "expected_version_id": self.content.id,
-            "content": {"type": "paragraph"},
-        }
-        provider = FakeProvider(
-            [tool_turn(f"t{i}", "edit_note", invalid_edit) for i in range(30)]
-        )
-        service = _make_service(provider=provider)
-
-        # Act
-        result = service.run_turn(execution.id)
-
-        # Assert: aborted on the third identical failure, not at the (30x
-        # larger) iteration cap.
-        execution.refresh_from_db()
-        self.assertEqual(execution.status, AgentExecution.Status.FAILED)
-        self.assertEqual(execution.stop_reason, "repeated_tool_failure")
-        self.assertEqual(len(provider.calls), 3)
-        self.assertIn("error", result)
-
-        # The chat is free again and the next turn chains off the failed run.
-        second, _delay = self._submit("Try something else")
-        self.assertEqual(second.context_parent_id, execution.id)
-
-    def test_stored_zero_breaker_config_disables_the_breaker(self):
-        # Arrange: the turn was submitted with the breaker off.
+    def test_repeated_failing_edits_are_bounded_by_the_iteration_cap(self):
+        # Arrange: the model retries an invalid edit forever; each failure
+        # result carries the real error for it to act on, and only the
+        # iteration cap bounds the run.
         execution, _delay = self._submit("Replace the note body.")
         stored = AgentExecution.objects.get(id=execution.id).configuration
-        stored["max_identical_tool_failures"] = 0
         stored["max_iterations"] = 4
         AgentExecution.objects.filter(id=execution.id).update(configuration=stored)
         invalid_edit = {
@@ -408,13 +380,18 @@ class NotebookChatServiceTests(TestCase):
         service = _make_service(provider=provider)
 
         # Act
-        service.run_turn(execution.id)
+        result = service.run_turn(execution.id)
 
-        # Assert: only the iteration cap bounds the run.
+        # Assert
         execution.refresh_from_db()
         self.assertEqual(execution.status, AgentExecution.Status.FAILED)
         self.assertEqual(execution.stop_reason, "iteration_limit")
         self.assertEqual(len(provider.calls), 4)
+        self.assertIn("error", result)
+
+        # The chat is free again and the next turn chains off the failed run.
+        second, _delay = self._submit("Try something else")
+        self.assertEqual(second.context_parent_id, execution.id)
 
     def test_run_turn_provider_failure_marks_execution_failed(self):
         # Arrange
@@ -770,25 +747,6 @@ class NotebookChatEventEmissionTests(TestCase):
         run_publisher = Mock()
         runner = _make_service(
             provider=FakeProvider([RuntimeError("provider exploded")]),
-            event_publisher=run_publisher,
-        )
-
-        # Act
-        runner.run_turn(execution.id)
-
-        # Assert
-        kinds = [kind for _, _, kind in self._events(run_publisher)]
-        self.assertEqual(kinds[-1], TURN_FAILED)
-        self.assertNotIn(TURN_FINISHED, kinds)
-
-    def test_run_turn_breaker_failure_publishes_turn_failed(self):
-        # Arrange: the same tool fails identically until the breaker trips.
-        execution = self._submit()
-        run_publisher = Mock()
-        runner = _make_service(
-            provider=FakeProvider(
-                [tool_turn(f"t{i}", "read_note", {"note_id": -1}) for i in range(5)]
-            ),
             event_publisher=run_publisher,
         )
 

@@ -65,13 +65,3 @@ class IncompleteTurnError(AgentRunError):
 
 class IterationLimitError(AgentRunError):
     """The loop hit ``max_iterations`` without the run completing."""
-
-
-class RepeatedToolFailureError(AgentRunError):
-    """One tool failed identically too many consecutive times.
-
-    Carries a fixed ``stop_reason`` the way ``IncompleteTurnError`` carries the
-    provider's, so persistence names the abort cause instead of a generic error.
-    """
-
-    stop_reason = "repeated_tool_failure"

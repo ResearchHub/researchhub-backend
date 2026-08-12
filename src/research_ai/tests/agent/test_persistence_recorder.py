@@ -12,7 +12,6 @@ from research_ai.models import (
     AgentExecution,
     AgentExecutionMessage,
 )
-from research_ai.services.agent.errors import RepeatedToolFailureError
 from research_ai.services.agent.loop import AgentResult
 from research_ai.services.agent.tools import MAX_TOOL_RESULT_BYTES, Tool
 from research_ai.services.agent.types import (
@@ -122,25 +121,6 @@ class AgentRecorderPersistenceTests(AgentPersistenceTestCase):
         self.assertEqual(interrupted.status, AgentExecution.Status.INTERRUPTED)
         self.assertEqual(interrupted.messages.count(), 1)
         self.assertEqual(interrupted.error_type, "InterruptedError")
-
-    def test_repeated_tool_failure_persists_its_stop_reason(self):
-        # Arrange: the same tool errs identically until the breaker trips.
-        recorder = self.recorder()
-        provider = FakeProvider([tool_turn(f"t{i}", "broken", {}) for i in range(3)])
-        tool = Tool(
-            "broken", "broken", {"type": "object"}, lambda _args: {"error": "boom"}
-        )
-
-        # Act / Assert
-        with self.assertRaises(RepeatedToolFailureError):
-            agent(provider, recorder, [tool], max_identical_tool_failures=3).run(
-                "start"
-            )
-        execution = AgentExecution.objects.get(id=recorder.execution.id)
-        self.assertEqual(execution.status, AgentExecution.Status.FAILED)
-        self.assertEqual(execution.stop_reason, "repeated_tool_failure")
-        self.assertEqual(execution.error_type, "RepeatedToolFailureError")
-        self.assertEqual(execution.iterations, 3)
 
     def test_tool_errors_are_persisted_as_correlated_results(self):
         # Arrange

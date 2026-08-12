@@ -63,7 +63,7 @@ def text_turn(text, *, usage=None, latency_ms=None, provider_state=None):
     )
 
 
-def agent(provider, recorder, tools=None, *, max_identical_tool_failures=0):
+def agent(provider, recorder, tools=None):
     return Agent(
         provider,
         Toolset(tools or []),
@@ -71,7 +71,6 @@ def agent(provider, recorder, tools=None, *, max_identical_tool_failures=0):
         max_iterations=5,
         max_tokens=2048,
         temperature=0.1,
-        max_identical_tool_failures=max_identical_tool_failures,
         recorder=recorder,
     )
 
