@@ -592,6 +592,25 @@ class RepeatedFailureBreakerTests(SimpleTestCase):
         # Assert
         self.assertEqual(result.final_text, "done")
 
+    def test_changing_input_with_the_same_error_resets_the_streak(self):
+        # Arrange: a constant error text over changing inputs is the model
+        # correcting itself, not a stuck loop -- it must not be aborted.
+        provider = FakeProvider(
+            [_build_tool_turn(f"t{i}", "broken", {"attempt": i}) for i in range(4)]
+            + [_build_text_turn("done")]
+        )
+        agent = _build_agent(
+            provider,
+            _build_breaker_toolset(),
+            max_identical_tool_failures=3,
+        )
+
+        # Act
+        result = agent.run("go")
+
+        # Assert
+        self.assertEqual(result.final_text, "done")
+
     def test_another_tools_success_does_not_reset_the_streak(self):
         # Arrange: the incident shape -- reads succeed between identical edit
         # failures, and the run is still stuck.
@@ -661,11 +680,13 @@ class RepeatedFailureBreakerTests(SimpleTestCase):
 
     def test_repeated_truncations_trip_the_breaker(self):
         # Arrange: the synthesized truncation error is deterministic per tool,
-        # so a model re-emitting the same oversized call burns out quickly.
+        # so a model re-emitting the same oversized call burns out quickly --
+        # even though each cut input differs, since a truncated input carries
+        # no new intent and is excluded from the failure identity.
         provider = FakeProvider(
             [
                 _build_tool_turn(
-                    f"t{i}", "search", {}, stop_reason=StopReason.MAX_TOKENS
+                    f"t{i}", "search", {"cut": i}, stop_reason=StopReason.MAX_TOKENS
                 )
                 for i in range(3)
             ]

@@ -331,41 +331,52 @@ class Agent:
 
     def _check_repeated_failures(
         self,
-        streaks: dict[str, tuple[dict, int]],
+        streaks: dict[str, tuple[tuple, int]],
         tool_calls,
         result_blocks: list[ToolResultBlock],
         messages: list[Message],
         iteration: int,
+        *,
+        include_input: bool = True,
     ) -> None:
         """Fail the run once one tool has erred identically too many turns.
 
         Streaks are per tool and survive other tools' successes -- the stuck
         shape is ``read_note`` succeeding between identical ``edit_note``
-        failures. Identical means the whole result content matches (error text
-        alone can legitimately repeat across different inputs), and several
-        identical failures inside one turn count once. Called after the tool
-        results are recorded so the failed run's transcript stays resumable.
+        failures. Identical means the same call input produced the same whole
+        result content: a constant error text over *changing* inputs is the
+        model correcting itself, not a stuck loop, and must not abort the run.
+        The truncated-turn path passes ``include_input=False`` because a cut
+        input differs at every attempt without carrying any new intent -- there
+        the deterministic error text alone is the identity. Several identical
+        failures inside one turn count once. Called after the tool results are
+        recorded so the failed run's transcript stays resumable.
         """
         limit = self.max_identical_tool_failures
         if not limit:
             return
-        by_name: dict[str, list[ToolResultBlock]] = {}
+        by_name: dict[str, list[tuple]] = {}
         for call, block in zip(tool_calls, result_blocks):
-            by_name.setdefault(call.name, []).append(block)
-        for name, blocks in by_name.items():
-            if any(not block.is_error for block in blocks):
+            by_name.setdefault(call.name, []).append((call, block))
+        for name, pairs in by_name.items():
+            if any(not block.is_error for _, block in pairs):
                 streaks.pop(name, None)
                 continue
-            last_content, streak = streaks.get(name, (None, 0))
-            if any(block.content == last_content for block in blocks):
+            keys = [
+                (call.input if include_input else None, block.content)
+                for call, block in pairs
+            ]
+            last_key, streak = streaks.get(name, (None, 0))
+            if any(key == last_key for key in keys):
                 streak += 1
             else:
-                last_content, streak = blocks[-1].content, 1
-            streaks[name] = (last_content, streak)
+                last_key, streak = keys[-1], 1
+            streaks[name] = (last_key, streak)
             if streak >= limit:
+                content = last_key[1]
                 error_text = ""
-                if isinstance(last_content, dict):
-                    error_text = str(last_content.get("error", ""))
+                if isinstance(content, dict):
+                    error_text = str(content.get("error", ""))
                 raise RepeatedToolFailureError(
                     f"tool {name!r} failed identically {streak} times in a row: "
                     f"{_truncate(error_text, 200)}",
@@ -392,8 +403,8 @@ class Agent:
             ", ".join(self.toolset.names),
             self.max_iterations,
         )
-        # Per-tool (last failure content, consecutive count) for the breaker.
-        failure_streaks: dict[str, tuple[dict, int]] = {}
+        # Per-tool (last failure identity, consecutive count) for the breaker.
+        failure_streaks: dict[str, tuple[tuple, int]] = {}
 
         for iteration in range(1, self.max_iterations + 1):
             # Before spending on the model, not only before a tool: a provider
@@ -469,8 +480,15 @@ class Agent:
                 tool_result_message = Message(role="user", content=result_blocks)
                 messages.append(tool_result_message)
                 self._record_message(tool_result_message)
+                # A cut input differs at every attempt without meaning anything
+                # new, so only the deterministic error text identifies the loop.
                 self._check_repeated_failures(
-                    failure_streaks, turn.tool_calls, result_blocks, messages, iteration
+                    failure_streaks,
+                    turn.tool_calls,
+                    result_blocks,
+                    messages,
+                    iteration,
+                    include_input=False,
                 )
                 continue
 
