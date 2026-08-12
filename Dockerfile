@@ -26,6 +26,7 @@ WORKDIR /app/src
 
 COPY --from=builder /opt/venv /opt/venv
 COPY --chown=app:app src ./
+COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint
 
 RUN python -m compileall -q . \
     && python manage.py collectstatic --noinput
@@ -34,4 +35,5 @@ USER app
 
 EXPOSE 8000
 
-CMD ["daphne", "--bind", "0.0.0.0", "--port", "8000", "researchhub.asgi:application"]
+ENTRYPOINT ["/usr/local/bin/entrypoint"]
+CMD ["api"]
