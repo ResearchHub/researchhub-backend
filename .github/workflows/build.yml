@@ -11,15 +11,22 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+env:
+  AWS_REGION: us-west-2
+  CONTAINER_REPOSITORY: ${{ vars.CONTAINER_REPOSITORY }}
+
 jobs:
   build:
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
+      id-token: write # required for requesting JWT token from AWS
 
     steps:
       - name: Checkout out sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Get Git SHA
         id: git_sha
@@ -33,5 +40,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
-      - name: Build Docker image
-        run: make docker-build DOCKER_PLATFORM=linux/arm64 DOCKER_IMAGE=researchhub-backend:${{ steps.git_sha.outputs.long }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+
+      - name: Build and push image
+        run: make docker-push DOCKER_PLATFORM=linux/arm64 DOCKER_IMAGE=${{ env.CONTAINER_REPOSITORY }}:${{ steps.git_sha.outputs.long }}
