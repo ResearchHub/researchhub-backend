@@ -662,6 +662,51 @@ class RepeatedFailureBreakerTests(SimpleTestCase):
             agent.run("go")
         self.assertEqual(ctx.exception.iterations, 2)
 
+    def test_correction_beside_an_exact_repeat_resets_the_streak(self):
+        # Arrange: at two strikes for input A, the next turn repeats A but
+        # also tries a correction B in parallel -- fresh input anywhere in the
+        # turn means the model is adapting, so the run must not be aborted.
+        def mixed(i):
+            return AssistantTurn(
+                text_blocks=[],
+                tool_calls=[
+                    ToolUseBlock(id=f"a{i}", name="broken", input={"v": "A"}),
+                    ToolUseBlock(id=f"b{i}", name="broken", input={"v": "B"}),
+                ],
+                stop_reason=StopReason.TOOL_USE,
+            )
+
+        survives = FakeProvider(
+            [
+                _build_tool_turn("t1", "broken", {"v": "A"}),
+                _build_tool_turn("t2", "broken", {"v": "A"}),
+                mixed(3),
+                _build_text_turn("done"),
+            ]
+        )
+        agent = _build_agent(
+            survives, _build_breaker_toolset(), max_identical_tool_failures=3
+        )
+        self.assertEqual(agent.run("go").final_text, "done")
+
+        # Act / Assert: the mixed turn resets the streak to the latest
+        # attempt, so pure repeats of B afterwards still trip.
+        trips = FakeProvider(
+            [
+                _build_tool_turn("t1", "broken", {"v": "A"}),
+                _build_tool_turn("t2", "broken", {"v": "A"}),
+                mixed(3),
+                _build_tool_turn("t4", "broken", {"v": "B"}),
+                _build_tool_turn("t5", "broken", {"v": "B"}),
+            ]
+        )
+        agent = _build_agent(
+            trips, _build_breaker_toolset(), max_identical_tool_failures=3
+        )
+        with self.assertRaises(RepeatedToolFailureError) as ctx:
+            agent.run("go")
+        self.assertEqual(ctx.exception.iterations, 5)
+
     def test_zero_disables_the_breaker(self):
         # Arrange
         provider = FakeProvider(

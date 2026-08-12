@@ -139,6 +139,18 @@ class AgentResult:
     iterations: int
 
 
+@dataclass
+class _FailureStreak:
+    """One tool's run of consecutive identical failures: identity plus count."""
+
+    input: object  # None when the identity deliberately excludes the input
+    content: object
+    count: int = 1
+
+    def matches(self, call_input, content) -> bool:
+        return (self.input, self.content) == (call_input, content)
+
+
 class Agent:
     """Drives a provider + toolset over multiple turns until completion."""
 
@@ -331,7 +343,7 @@ class Agent:
 
     def _check_repeated_failures(
         self,
-        streaks: dict[str, tuple[tuple, int]],
+        streaks: dict[str, _FailureStreak],
         tool_calls,
         result_blocks: list[ToolResultBlock],
         messages: list[Message],
@@ -343,14 +355,15 @@ class Agent:
 
         Streaks are per tool and survive other tools' successes -- the stuck
         shape is ``read_note`` succeeding between identical ``edit_note``
-        failures. Identical means the same call input produced the same whole
-        result content: a constant error text over *changing* inputs is the
-        model correcting itself, not a stuck loop, and must not abort the run.
-        The truncated-turn path passes ``include_input=False`` because a cut
-        input differs at every attempt without carrying any new intent -- there
-        the deterministic error text alone is the identity. Several identical
-        failures inside one turn count once. Called after the tool results are
-        recorded so the failed run's transcript stays resumable.
+        failures. A turn extends a streak only when it adds nothing new: every
+        call of the tool repeated the same input and produced the same whole
+        result content. Any fresh input -- even beside an exact repeat -- is
+        the model correcting itself, and resets the streak to the latest
+        attempt. The truncated-turn path passes ``include_input=False``
+        because a cut input differs at every attempt without carrying new
+        intent; there the deterministic error text alone is the identity.
+        Called after the tool results are recorded so the failed run's
+        transcript stays resumable.
         """
         limit = self.max_identical_tool_failures
         if not limit:
@@ -362,24 +375,24 @@ class Agent:
             if any(not block.is_error for _, block in pairs):
                 streaks.pop(name, None)
                 continue
-            keys = [
+            attempts = [
                 (call.input if include_input else None, block.content)
                 for call, block in pairs
             ]
-            last_key, streak = streaks.get(name, (None, 0))
-            if any(key == last_key for key in keys):
-                streak += 1
+            streak = streaks.get(name)
+            if streak is not None and all(streak.matches(*a) for a in attempts):
+                streak.count += 1
             else:
-                last_key, streak = keys[-1], 1
-            streaks[name] = (last_key, streak)
-            if streak >= limit:
-                content = last_key[1]
+                call_input, content = attempts[-1]
+                streak = _FailureStreak(input=call_input, content=content)
+                streaks[name] = streak
+            if streak.count >= limit:
                 error_text = ""
-                if isinstance(content, dict):
-                    error_text = str(content.get("error", ""))
+                if isinstance(streak.content, dict):
+                    error_text = str(streak.content.get("error", ""))
                 raise RepeatedToolFailureError(
-                    f"tool {name!r} failed identically {streak} times in a row: "
-                    f"{_truncate(error_text, 200)}",
+                    f"tool {name!r} failed identically {streak.count} times in a "
+                    f"row: {_truncate(error_text, 200)}",
                     messages=messages,
                     iterations=iteration,
                 )
@@ -403,8 +416,8 @@ class Agent:
             ", ".join(self.toolset.names),
             self.max_iterations,
         )
-        # Per-tool (last failure identity, consecutive count) for the breaker.
-        failure_streaks: dict[str, tuple[tuple, int]] = {}
+        # Per-tool streaks of consecutive identical failures for the breaker.
+        failure_streaks: dict[str, _FailureStreak] = {}
 
         for iteration in range(1, self.max_iterations + 1):
             # Before spending on the model, not only before a tool: a provider
