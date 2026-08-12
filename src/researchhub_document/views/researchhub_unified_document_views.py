@@ -1,3 +1,5 @@
+from functools import wraps
+
 from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -20,6 +22,31 @@ from researchhub_document.services.unified_document_share_link_service import (
     get_shared_unified_document_id,
 )
 from utils.permissions import ReadOnly
+
+
+def _share_link_errors_to_responses(handler):
+    """Translate share-link service failures into HTTP responses.
+
+    Keeps the three share_link handlers free of identical guard clauses. The
+    id is screened here so a malformed one answers 404 rather than reaching
+    the ValueError branch, which is reserved for rejected requests.
+    """
+
+    @wraps(handler)
+    def wrapper(self, request, pk=None):
+        if pk is None or not str(pk).isdigit():
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            return handler(self, request, pk)
+        except ResearchhubUnifiedDocument.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        except PermissionError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_403_FORBIDDEN)
+        except ValueError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+    return wrapper
 
 
 class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
@@ -170,52 +197,45 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
         permission_classes=[IsAuthenticated],
         url_path="share_link",
     )
+    @_share_link_errors_to_responses
     def share_link(self, request, pk=None):
         """Return the proposal's share link, generating one when needed.
 
         Regenerates an expired link, so callers must only hit this on an
-        explicit user action and never on page render.
+        explicit user action and never on page render. Use GET to read a link
+        without minting one.
         """
-        # Screened here so a malformed id answers 404 rather than falling
-        # through to the ValueError branch reserved for rejected requests.
-        if pk is None or not str(pk).isdigit():
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        try:
-            link, created = UnifiedDocumentShareLinkService().create_or_get(
-                pk, request.user
-            )
-        except ResearchhubUnifiedDocument.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        except PermissionError as error:
-            return Response({"detail": str(error)}, status=status.HTTP_403_FORBIDDEN)
-        except ValueError as error:
-            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
-
+        link, created = UnifiedDocumentShareLinkService().create_or_get(
+            pk, request.user
+        )
         return Response(
             UnifiedDocumentShareLinkSerializer(link).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
+    @share_link.mapping.get
+    @_share_link_errors_to_responses
+    def get_share_link(self, request, pk=None):
+        """Return the proposal's live share link without generating one.
+
+        Answers 404 when sharing is off or the link has lapsed, so callers see
+        the same thing either way.
+        """
+        link = UnifiedDocumentShareLinkService().get_live_link(pk, request.user)
+        if link is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        return Response(UnifiedDocumentShareLinkSerializer(link).data)
+
     @share_link.mapping.delete
+    @_share_link_errors_to_responses
     def disable_share_link(self, request, pk=None):
         """Turn sharing off, invalidating any link already handed out.
 
         Idempotent: answers 204 whether or not a link existed, so a toggle can
         call it without first checking.
         """
-        if pk is None or not str(pk).isdigit():
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        try:
-            UnifiedDocumentShareLinkService().disable(pk, request.user)
-        except ResearchhubUnifiedDocument.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        except PermissionError as error:
-            return Response({"detail": str(error)}, status=status.HTTP_403_FORBIDDEN)
-        except ValueError as error:
-            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
-
+        UnifiedDocumentShareLinkService().disable(pk, request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])

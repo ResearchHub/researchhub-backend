@@ -81,6 +81,25 @@ class UnifiedDocumentShareLinkService:
             )
             return link, True
 
+    def get_live_link(
+        self, unified_document_id: int, user: User
+    ) -> UnifiedDocumentShareLink | None:
+        """Return the proposal's live share link without minting one.
+
+        Read-only, so it is safe to call on page render. An expired link
+        answers ``None`` exactly as a missing one does, since fetching must
+        never resurrect a URL that has lapsed.
+        """
+        unified_document = ResearchhubUnifiedDocument.objects.get(
+            pk=unified_document_id
+        )
+        self._assert_can_manage(unified_document, user)
+
+        link = UnifiedDocumentShareLink.objects.filter(
+            unified_document=unified_document
+        ).first()
+        return None if link is None or link.is_expired() else link
+
     def disable(self, unified_document_id: int, user: User) -> bool:
         """Turn sharing off for a proposal, killing any link handed out.
 
