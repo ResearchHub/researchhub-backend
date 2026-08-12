@@ -12,7 +12,7 @@ from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
 from discussion.models import Flag
 from discussion.serializers import DynamicFlagSerializer, FlagSerializer
 from discussion.views import censor
-from mailing_list.lib import send_transactional_email
+from mailing_list.services import EmailService
 from notification.models import Notification
 from reputation.models import Distribution
 from reputation.serializers import DynamicDistributionSerializer
@@ -520,7 +520,7 @@ class AuditViewSet(viewsets.GenericViewSet):
 
         recipient = [receiver.email]
         subject = "ResearchHub | Notice of Flagged and Removed Content"
-        send_transactional_email(
+        EmailService().send_transactional_email(
             recipient,
             subject,
             email_context,

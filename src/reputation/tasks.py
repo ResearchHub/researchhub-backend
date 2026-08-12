@@ -10,7 +10,7 @@ from django.db.models.functions import Cast
 
 import utils.locking as lock
 from hub.models import Hub
-from mailing_list.lib import send_email
+from mailing_list.services import EmailService
 from notification.models import Notification
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.lib import (
@@ -165,6 +165,7 @@ def check_hotwallet_balance():
 @app.task
 def check_open_bounties():
     now = datetime.now(UTC)
+    email_service = EmailService()
 
     open_bounties = Bounty.objects.filter(
         status=Bounty.OPEN, parent__isnull=True
@@ -207,7 +208,7 @@ def check_open_bounties():
                 },
                 "subject": "Bounty Submission Period Ending Soon",
             }
-            send_email(
+            email_service.send_email(
                 [bounty_creator.email],
                 outer_subject,
                 context,
@@ -247,7 +248,7 @@ def check_open_bounties():
             },
             "subject": "Bounty Entered Assessment Phase",
         }
-        send_email(
+        email_service.send_email(
             [bounty_creator.email],
             outer_subject,
             context,
@@ -338,7 +339,7 @@ def check_open_bounties():
                 },
                 "subject": "Bounty Assessment Period Ending Soon",
             }
-            send_email(
+            email_service.send_email(
                 [bounty_creator.email],
                 outer_subject,
                 context,

@@ -5,9 +5,8 @@ from django.core import mail
 from django.template.loader import render_to_string
 from django.test import TestCase, override_settings
 
-from mailing_list.lib import send_email, send_transactional_email
 from mailing_list.models import EmailOptOut
-from mailing_list.services import EmailSubscriptionService
+from mailing_list.services import EmailService, EmailSubscriptionService
 
 TEMPLATE = "general_email_message"
 TEMPLATE_WITH_TEXT = "support_receipt"
@@ -19,7 +18,7 @@ BASE_CONTEXT = {"action": {"message": "hello"}, "subject": "Test"}
     PRODUCTION=False,
 )
 class SendEmailTests(TestCase):
-    """`send_email` suppresses opt-outs and attaches unsubscribe links."""
+    """`EmailService.send_email` suppresses opt-outs and attaches unsubscribe links."""
 
     def _send(self, recipients, **overrides):
         kwargs = {
@@ -29,7 +28,7 @@ class SendEmailTests(TestCase):
             "template": TEMPLATE,
         }
         kwargs.update(overrides)
-        return send_email(**kwargs)
+        return EmailService(send_interval_seconds=0).send_email(**kwargs)
 
     def test_sends_to_recipient_without_a_suppression_record(self):
         # Act
@@ -177,6 +176,25 @@ class SendEmailTests(TestCase):
         # Assert
         self.assertIn("First alert.\n\nSecond alert.", mail.outbox[0].body)
 
+    def test_derived_text_body_drops_whitespace_around_pre_line_breaks(self):
+        # Arrange
+        # Indentation around a line break is layout, not content: the break
+        # itself survives, the horizontal whitespace hugging it does not
+        context = {
+            "action": {
+                "message": "First alert.  \n   Second alert.  \n  \n  Third alert."
+            },
+            "subject": "Test",
+        }
+
+        # Act
+        self._send(["good@example.com"], email_context=context)
+
+        # Assert
+        self.assertIn(
+            "First alert.\nSecond alert.\n\nThird alert.", mail.outbox[0].body
+        )
+
     def test_derived_text_body_has_no_ragged_html_whitespace(self):
         # Act
         self._send(["good@example.com"])
@@ -253,7 +271,7 @@ class SendEmailTests(TestCase):
     PRODUCTION=False,
 )
 class SendTransactionalEmailTests(TestCase):
-    """`send_transactional_email` ignores opt-outs and adds no unsubscribe."""
+    """`EmailService.send_transactional_email` ignores opt-outs, no unsubscribe."""
 
     def _send(self, recipients, **overrides):
         kwargs = {
@@ -263,7 +281,7 @@ class SendTransactionalEmailTests(TestCase):
             "template": TEMPLATE,
         }
         kwargs.update(overrides)
-        return send_transactional_email(**kwargs)
+        return EmailService(send_interval_seconds=0).send_transactional_email(**kwargs)
 
     def test_sends_to_an_opted_out_recipient(self):
         # Arrange: opting out must not block account or payment mail

@@ -1,7 +1,7 @@
 from django.db import models
 
 from invite.models import Invitation
-from mailing_list.lib import send_email
+from mailing_list.services import EmailService
 from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
 from researchhub_access_group.constants import ACCESS_TYPE_CHOICES, VIEWER
 from user.models import Organization
@@ -38,4 +38,4 @@ class OrganizationInvitation(Invitation):
         else:
             email_context["user_name"] = "User"
 
-        send_email([email], subject, email_context, template=template)
+        EmailService().send_email([email], subject, email_context, template=template)
