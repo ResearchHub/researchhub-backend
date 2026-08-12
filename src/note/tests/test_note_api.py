@@ -5,7 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
 from invite.related_models.note_invitation import NoteInvitation
-from note.models import Note
+from note.models import Note, NoteTemplate
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -79,6 +79,38 @@ class NoteTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 0)
+
+    def test_user_cannot_list_other_users_note_contents(self):
+        # Arrange
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "PRIVATE",
+                "title": "TEST",
+            },
+        )
+        note = response.data
+        response = self.client.post(
+            "/api/note_content/",
+            {
+                "full_src": "private note body",
+                "note": note["id"],
+                "plain_text": "private note body",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        other_user = get_user_model().objects.create_user(
+            username="other2", password=uuid.uuid4().hex, email="other2@researchhub.com"
+        )
+
+        # Act
+        self.client.force_authenticate(other_user)
+        response = self.client.get("/api/note_content/")
+
+        # Assert
+        self.assertEqual(response.status_code, 405)
+        self.assertNotIn("private note body", str(response.data))
 
     def test_org_member_can_list_org_notes(self):
         # Arrange
@@ -877,6 +909,118 @@ class NoteTests(APITestCase):
 
         self.assertEqual(delete_response.status_code, 403)
         self.assertEqual(delete_response.data["is_removed"], False)
+
+    def test_user_cannot_list_other_orgs_note_templates(self):
+        # Arrange
+        response = self.client.post(
+            "/api/note_template/",
+            {
+                "full_src": "org template body",
+                "is_default": False,
+                "organization": self.org["id"],
+                "name": "ORG TEMPLATE",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        template = response.data
+
+        other_user = get_user_model().objects.create_user(
+            username="other3", password=uuid.uuid4().hex, email="other3@researchhub.com"
+        )
+
+        # Act
+        self.client.force_authenticate(other_user)
+        list_response = self.client.get("/api/note_template/")
+        retrieve_response = self.client.get(f"/api/note_template/{template['id']}/")
+
+        # Assert
+        self.assertEqual(list_response.status_code, 200)
+        self.assertNotIn("ORG TEMPLATE", str(list_response.data))
+        self.assertEqual(retrieve_response.status_code, 404)
+
+    def test_user_cannot_delete_other_orgs_note_template(self):
+        # Arrange
+        response = self.client.post(
+            "/api/note_template/",
+            {
+                "full_src": "org template body",
+                "is_default": False,
+                "organization": self.org["id"],
+                "name": "ORG TEMPLATE",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        template = response.data
+
+        other_user = get_user_model().objects.create_user(
+            username="other4", password=uuid.uuid4().hex, email="other4@researchhub.com"
+        )
+
+        # Act
+        self.client.force_authenticate(other_user)
+        response = self.client.post(f"/api/note_template/{template['id']}/delete/")
+
+        # Assert
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(NoteTemplate.objects.get(id=template["id"]).is_removed)
+
+    def test_any_user_can_list_default_note_templates(self):
+        # Arrange
+        response = self.client.post(
+            "/api/note_template/",
+            {
+                "full_src": "default template body",
+                "is_default": True,
+                "name": "DEFAULT TEMPLATE",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        other_user = get_user_model().objects.create_user(
+            username="other5", password=uuid.uuid4().hex, email="other5@researchhub.com"
+        )
+
+        # Act
+        self.client.force_authenticate(other_user)
+        response = self.client.get("/api/note_template/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("DEFAULT TEMPLATE", str(response.data))
+
+    def test_org_member_can_delete_org_note_template(self):
+        # Arrange
+        response = self.client.post(
+            "/api/note_template/",
+            {
+                "full_src": "org template body",
+                "is_default": False,
+                "organization": self.org["id"],
+                "name": "ORG TEMPLATE",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        template = response.data
+
+        member_user = get_user_model().objects.create_user(
+            username="member2",
+            password=uuid.uuid4().hex,
+            email="member2@researchhub.com",
+        )
+        Permission.objects.create(
+            access_type="MEMBER",
+            content_type=self.organization_ct,
+            object_id=self.org["id"],
+            user=member_user,
+        )
+
+        # Act
+        self.client.force_authenticate(member_user)
+        response = self.client.post(f"/api/note_template/{template['id']}/delete/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(NoteTemplate.objects.get(id=template["id"]).is_removed)
 
     def test_note_content_json_functionality(self):
         # Create workspace note
