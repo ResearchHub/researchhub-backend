@@ -38,6 +38,11 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 # that want a different route pass ``model_id`` or use a prefixed model ref.
 MODEL_ID = "anthropic/claude-opus-5"
 
+# What ``max_tokens=None`` resolves to. Deliberately below the model's 128K
+# ceiling: the completion is not streamed, so a longer emission would outlive
+# the client read timeout and die whole. Raise only after moving to streaming.
+MAX_OUTPUT_TOKENS = 32_768
+
 # Same guard as the Bedrock adapter: Opus 4.7+ and Fable reject sampling params
 # (temperature/top_p) with a 400. OpenRouter forwards params to the upstream
 # provider verbatim, so omit them for those models here too.
@@ -133,7 +138,7 @@ class OpenRouterProvider(LLMProvider):
         system_prompt: str,
         messages: list[Message],
         rendered_tools: Any,
-        max_tokens: int,
+        max_tokens: int | None,
         temperature: float,
     ) -> AssistantTurn:
         if self._client is None:
@@ -143,7 +148,7 @@ class OpenRouterProvider(LLMProvider):
         kwargs: dict = {
             "model": self.model_id,
             "messages": self._render_messages(system_prompt, messages),
-            "max_tokens": max_tokens,
+            "max_tokens": MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens,
         }
         if _accepts_sampling_params(self.model_id):
             kwargs["temperature"] = temperature

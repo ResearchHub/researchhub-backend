@@ -25,9 +25,10 @@ class AgentService:
         toolset: Toolset,
         *,
         system_prompt: str,
-        max_tokens: int = 4096,
+        max_tokens: int | None = 4096,
         temperature: float = 0.0,
         max_iterations: int | None = None,
+        max_identical_tool_failures: int = 0,
         recorder: AgentRecorder | None = None,
     ) -> Agent:
         """Build an ``Agent`` for ``toolset`` with the injected provider."""
@@ -40,5 +41,6 @@ class AgentService:
             ),
             max_tokens=max_tokens,
             temperature=temperature,
+            max_identical_tool_failures=max_identical_tool_failures,
             recorder=recorder,
         )

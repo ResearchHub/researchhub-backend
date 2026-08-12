@@ -43,6 +43,22 @@ from research_ai.services.agent.types import (
 )
 
 
+class _FakeStream:
+    """Stands in for the SDK's ``MessageStreamManager`` context manager."""
+
+    def __init__(self, response):
+        self._response = response
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def get_final_message(self):
+        return self._response
+
+
 class FakeMessages:
     """Returns queued Messages API responses; records the kwargs it was sent."""
 
@@ -50,9 +66,9 @@ class FakeMessages:
         self._responses = list(responses)
         self.calls = []
 
-    def create(self, **kwargs):
+    def stream(self, **kwargs):
         self.calls.append(deepcopy(kwargs))
-        return self._responses.pop(0)
+        return _FakeStream(self._responses.pop(0))
 
 
 class FakeAnthropicClient:
@@ -424,7 +440,7 @@ class CompleteAndParseTests(SimpleTestCase):
     def test_client_exception_raises_provider_error(self):
         # Arrange: the SDK dies (throttling, network, SigV4 rejection).
         class ExplodingMessages:
-            def create(self, **kwargs):
+            def stream(self, **kwargs):
                 raise ValueError("overloaded_error")
 
         class ExplodingClient:
@@ -438,6 +454,62 @@ class CompleteAndParseTests(SimpleTestCase):
         with self.assertRaisesRegex(ProviderError, "overloaded_error") as ctx:
             _complete(provider)
         self.assertIsInstance(ctx.exception.__cause__, ValueError)
+
+    def test_mid_stream_exception_raises_provider_error(self):
+        # Arrange: the connection dies after the stream opened, while the turn
+        # was still being emitted.
+        class ExplodingStream:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc_info):
+                return False
+
+            def get_final_message(self):
+                raise ValueError("connection reset")
+
+        class ExplodingMessages:
+            def stream(self, **kwargs):
+                return ExplodingStream()
+
+        class ExplodingClient:
+            messages = ExplodingMessages()
+
+        provider = ClaudePlatformProvider(
+            client=ExplodingClient(), model_id="claude-opus-5"
+        )
+
+        # Act / Assert
+        with self.assertRaisesRegex(ProviderError, "connection reset") as ctx:
+            _complete(provider)
+        self.assertIsInstance(ctx.exception.__cause__, ValueError)
+
+    def test_none_max_tokens_resolves_to_the_model_output_ceiling(self):
+        # Arrange
+        provider = _build_provider([_build_response([])])
+
+        # Act
+        provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools=[],
+            max_tokens=None,
+            temperature=0.0,
+        )
+
+        # Assert
+        call = provider._client.messages.calls[0]
+        self.assertEqual(call["max_tokens"], claude_platform.MAX_OUTPUT_TOKENS)
+
+    def test_explicit_max_tokens_is_forwarded_unchanged(self):
+        # Arrange: the _complete helper passes max_tokens=100.
+        provider = _build_provider([_build_response([])])
+
+        # Act
+        _complete(provider)
+
+        # Assert
+        self.assertEqual(provider._client.messages.calls[0]["max_tokens"], 100)
 
 
 class ServerSideToolTests(SimpleTestCase):

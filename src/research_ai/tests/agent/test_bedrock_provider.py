@@ -5,6 +5,7 @@ from copy import deepcopy
 from django.test import SimpleTestCase
 
 from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.providers import bedrock
 from research_ai.services.agent.providers.bedrock import BedrockProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
@@ -153,6 +154,29 @@ class CompleteAndParseTests(SimpleTestCase):
         # Assert: captured whole, alongside the visible text.
         self.assertEqual([b.data for b in turn.thinking_blocks], [reasoning])
         self.assertEqual(turn.text, "done")
+
+    def test_none_max_tokens_resolves_to_the_adapter_output_ceiling(self):
+        # Arrange
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+        }
+        provider = _build_provider([response])
+
+        # Act
+        provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=None,
+            temperature=0.0,
+        )
+
+        # Assert
+        self.assertEqual(
+            provider._client.calls[0]["inferenceConfig"]["maxTokens"],
+            bedrock.MAX_OUTPUT_TOKENS,
+        )
 
     def test_omits_temperature_for_opus_5(self):
         # Arrange: the new default model rejects sampling params with a 400.

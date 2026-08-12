@@ -6,6 +6,7 @@ from research_ai.services.agent.errors import (
     IncompleteTurnError,
     IterationLimitError,
     ProviderError,
+    RepeatedToolFailureError,
 )
 from research_ai.services.agent.loop import Agent, _summarize_server_result
 from research_ai.services.agent.providers.base import LLMProvider
@@ -30,12 +31,12 @@ def _build_text_turn(text, *, stop_reason=StopReason.END_TURN):
     )
 
 
-def _build_tool_turn(tool_use_id, name, tool_input):
+def _build_tool_turn(tool_use_id, name, tool_input, *, stop_reason=StopReason.TOOL_USE):
     """Build an AssistantTurn that requests a single tool call."""
     return AssistantTurn(
         text_blocks=[],
         tool_calls=[ToolUseBlock(id=tool_use_id, name=name, input=tool_input)],
-        stop_reason=StopReason.TOOL_USE,
+        stop_reason=stop_reason,
     )
 
 
@@ -75,7 +76,14 @@ def _build_toolset(seen=None):
     )
 
 
-def _build_agent(provider, toolset, *, max_iterations=12, recorder=None):
+def _build_agent(
+    provider,
+    toolset,
+    *,
+    max_iterations=12,
+    max_identical_tool_failures=0,
+    recorder=None,
+):
     """Build an Agent wired to the given provider and toolset with fixed defaults."""
     return Agent(
         provider,
@@ -84,6 +92,7 @@ def _build_agent(provider, toolset, *, max_iterations=12, recorder=None):
         max_iterations=max_iterations,
         max_tokens=4096,
         temperature=0.0,
+        max_identical_tool_failures=max_identical_tool_failures,
         recorder=recorder,
     )
 
@@ -425,6 +434,280 @@ class AgentLoopTests(SimpleTestCase):
         self.assertEqual(provider.calls[0][:2], history)
         self.assertEqual(provider.calls[0][2].content[0].text, "follow up")
         self.assertEqual(result.final_text, "second answer")
+
+
+class TruncatedTurnTests(SimpleTestCase):
+    """Turns cut off on max_tokens while requesting tools are not dispatched."""
+
+    def test_truncated_tool_turn_is_answered_not_dispatched(self):
+        # Arrange: the provider truncates mid-call, then completes normally.
+        provider = FakeProvider(
+            [
+                _build_tool_turn(
+                    "t1", "search", {"q": "par"}, stop_reason=StopReason.MAX_TOKENS
+                ),
+                _build_text_turn("done"),
+            ]
+        )
+        seen = []
+        agent = _build_agent(provider, _build_toolset(seen))
+
+        # Act
+        result = agent.run("find jane")
+
+        # Assert: the handler never ran; the model got the real cause instead.
+        self.assertEqual(seen, [])
+        self.assertEqual(result.final_text, "done")
+        self.assertEqual(result.iterations, 2)
+        synthesized = provider.calls[1][-1]
+        self.assertEqual(synthesized.role, "user")
+        block = synthesized.content[0]
+        self.assertEqual(block.tool_use_id, "t1")
+        self.assertTrue(block.is_error)
+        self.assertIn("truncated", block.content["error"])
+        self.assertIn("search", block.content["error"])
+
+    def test_truncated_turn_synthesizes_a_result_for_every_call(self):
+        # Arrange: two calls in the cut-off turn, one of them a terminal tool.
+        truncated = AssistantTurn(
+            text_blocks=[],
+            tool_calls=[
+                ToolUseBlock(id="t1", name="search", input={}),
+                ToolUseBlock(id="t2", name="submit", input={}),
+            ],
+            stop_reason=StopReason.MAX_TOKENS,
+        )
+        provider = FakeProvider([truncated, _build_text_turn("done")])
+        seen = []
+        agent = _build_agent(provider, _build_toolset(seen))
+
+        # Act
+        result = agent.run("go")
+
+        # Assert: every call is answered (the API requires a result per call),
+        # and the unexecuted terminal tool does not end the run.
+        self.assertEqual(seen, [])
+        synthesized = provider.calls[1][-1]
+        self.assertEqual([b.tool_use_id for b in synthesized.content], ["t1", "t2"])
+        self.assertTrue(all(b.is_error for b in synthesized.content))
+        self.assertEqual(result.stop_reason, "end_turn")
+
+    def test_truncated_turn_results_are_recorded(self):
+        # Arrange
+        provider = FakeProvider(
+            [
+                _build_tool_turn("t1", "search", {}, stop_reason=StopReason.MAX_TOKENS),
+                _build_text_turn("done"),
+            ]
+        )
+        recorder = RecordingRecorder()
+        agent = _build_agent(provider, _build_toolset(), recorder=recorder)
+
+        # Act
+        result = agent.run("go")
+
+        # Assert: the synthesized results are on the durable transcript.
+        self.assertEqual([m for m, _ in recorder.messages], result.messages)
+        roles = [m.role for m, _ in recorder.messages]
+        self.assertEqual(roles, ["user", "assistant", "user", "assistant"])
+
+
+def _build_breaker_toolset(flaky_results=None):
+    """``search`` succeeds, ``broken`` errs identically, ``flaky`` pops a queue."""
+    flaky_results = list(flaky_results or [])
+    return Toolset(
+        [
+            Tool("search", "search", {"type": "object"}, lambda i: {"ok": True}),
+            Tool("broken", "broken", {"type": "object"}, lambda i: {"error": "boom"}),
+            Tool("flaky", "flaky", {"type": "object"}, lambda i: flaky_results.pop(0)),
+        ]
+    )
+
+
+class RepeatedFailureBreakerTests(SimpleTestCase):
+    def test_identical_failures_trip_the_breaker(self):
+        # Arrange: the same tool fails the same way three turns running.
+        provider = FakeProvider(
+            [_build_tool_turn(f"t{i}", "broken", {}) for i in range(3)]
+        )
+        recorder = RecordingRecorder()
+        agent = _build_agent(
+            provider,
+            _build_breaker_toolset(),
+            max_identical_tool_failures=3,
+            recorder=recorder,
+        )
+
+        # Act / Assert
+        with self.assertRaisesRegex(RepeatedToolFailureError, "broken.*3 times") as ctx:
+            agent.run("go")
+        self.assertEqual(ctx.exception.stop_reason, "repeated_tool_failure")
+        self.assertEqual(ctx.exception.iterations, 3)
+        # The tripping turn's results were recorded before the abort, so the
+        # transcript stays resumable.
+        self.assertEqual(ctx.exception.messages[-1].role, "user")
+        self.assertEqual(recorder.failed, [ctx.exception])
+
+    def test_success_of_the_same_tool_resets_the_streak(self):
+        # Arrange: two failures, a success, two more failures -- never three.
+        provider = FakeProvider(
+            [_build_tool_turn(f"t{i}", "flaky", {}) for i in range(5)]
+            + [_build_text_turn("done")]
+        )
+        flaky = [
+            {"error": "x"},
+            {"error": "x"},
+            {"ok": 1},
+            {"error": "x"},
+            {"error": "x"},
+        ]
+        agent = _build_agent(
+            provider,
+            _build_breaker_toolset(flaky),
+            max_identical_tool_failures=3,
+        )
+
+        # Act
+        result = agent.run("go")
+
+        # Assert
+        self.assertEqual(result.final_text, "done")
+
+    def test_different_error_content_resets_the_streak(self):
+        # Arrange: the error keeps changing, so the model is getting new signal.
+        provider = FakeProvider(
+            [_build_tool_turn(f"t{i}", "flaky", {}) for i in range(4)]
+            + [_build_text_turn("done")]
+        )
+        flaky = [{"error": "a"}, {"error": "a"}, {"error": "b"}, {"error": "a"}]
+        agent = _build_agent(
+            provider,
+            _build_breaker_toolset(flaky),
+            max_identical_tool_failures=3,
+        )
+
+        # Act
+        result = agent.run("go")
+
+        # Assert
+        self.assertEqual(result.final_text, "done")
+
+    def test_another_tools_success_does_not_reset_the_streak(self):
+        # Arrange: the incident shape -- reads succeed between identical edit
+        # failures, and the run is still stuck.
+        provider = FakeProvider(
+            [
+                _build_tool_turn("t1", "broken", {}),
+                _build_tool_turn("t2", "search", {}),
+                _build_tool_turn("t3", "broken", {}),
+                _build_tool_turn("t4", "search", {}),
+                _build_tool_turn("t5", "broken", {}),
+            ]
+        )
+        agent = _build_agent(
+            provider,
+            _build_breaker_toolset(),
+            max_identical_tool_failures=3,
+        )
+
+        # Act / Assert
+        with self.assertRaises(RepeatedToolFailureError) as ctx:
+            agent.run("go")
+        self.assertEqual(ctx.exception.iterations, 5)
+
+    def test_parallel_identical_failures_count_once_per_turn(self):
+        # Arrange: one turn fanning out two identical failing calls is one
+        # strike, not two.
+        def fan_out(i):
+            return AssistantTurn(
+                text_blocks=[],
+                tool_calls=[
+                    ToolUseBlock(id=f"a{i}", name="broken", input={}),
+                    ToolUseBlock(id=f"b{i}", name="broken", input={}),
+                ],
+                stop_reason=StopReason.TOOL_USE,
+            )
+
+        completes = FakeProvider([fan_out(1), _build_text_turn("done")])
+        agent = _build_agent(
+            completes, _build_breaker_toolset(), max_identical_tool_failures=2
+        )
+        self.assertEqual(agent.run("go").final_text, "done")
+
+        # Act / Assert: the second identical turn is the second strike.
+        trips = FakeProvider([fan_out(1), fan_out(2)])
+        agent = _build_agent(
+            trips, _build_breaker_toolset(), max_identical_tool_failures=2
+        )
+        with self.assertRaises(RepeatedToolFailureError) as ctx:
+            agent.run("go")
+        self.assertEqual(ctx.exception.iterations, 2)
+
+    def test_zero_disables_the_breaker(self):
+        # Arrange
+        provider = FakeProvider(
+            [_build_tool_turn(f"t{i}", "broken", {}) for i in range(4)]
+        )
+        agent = _build_agent(
+            provider,
+            _build_breaker_toolset(),
+            max_iterations=3,
+            max_identical_tool_failures=0,
+        )
+
+        # Act / Assert: only the iteration cap bounds the run.
+        with self.assertRaises(IterationLimitError):
+            agent.run("go")
+
+    def test_repeated_truncations_trip_the_breaker(self):
+        # Arrange: the synthesized truncation error is deterministic per tool,
+        # so a model re-emitting the same oversized call burns out quickly.
+        provider = FakeProvider(
+            [
+                _build_tool_turn(
+                    f"t{i}", "search", {}, stop_reason=StopReason.MAX_TOKENS
+                )
+                for i in range(3)
+            ]
+        )
+        agent = _build_agent(provider, _build_toolset(), max_identical_tool_failures=3)
+
+        # Act / Assert
+        with self.assertRaises(RepeatedToolFailureError) as ctx:
+            agent.run("go")
+        self.assertEqual(ctx.exception.iterations, 3)
+
+    def test_terminal_tool_success_wins_over_the_breaker(self):
+        # Arrange: the tripping turn also completed the run via a terminal
+        # tool; the finished result must win over the abort.
+        turn = AssistantTurn(
+            text_blocks=[],
+            tool_calls=[
+                ToolUseBlock(id="t1", name="broken", input={}),
+                ToolUseBlock(id="t2", name="submit", input={}),
+            ],
+            stop_reason=StopReason.TOOL_USE,
+        )
+        provider = FakeProvider([turn])
+
+        def submit(input):
+            return {"received": True}
+
+        toolset = Toolset(
+            [
+                Tool(
+                    "broken", "broken", {"type": "object"}, lambda i: {"error": "boom"}
+                ),
+                Tool("submit", "submit", {"type": "object"}, submit, is_terminal=True),
+            ]
+        )
+        agent = _build_agent(provider, toolset, max_identical_tool_failures=1)
+
+        # Act
+        result = agent.run("go")
+
+        # Assert
+        self.assertEqual(result.stop_reason, "stop_tool")
 
 
 def _build_server_search_turn(*, stop_reason=StopReason.PAUSE_TURN):

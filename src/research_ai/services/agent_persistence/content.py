@@ -10,7 +10,10 @@ logger = logging.getLogger(__name__)
 
 MAX_TRACE_MESSAGE_BYTES = 128 * 1024
 MAX_BLOCK_PAYLOAD_BYTES = 48 * 1024
-MAX_CONTEXT_MESSAGE_BYTES = 512 * 1024
+# Must exceed the largest single model turn: a full 128K-token turn serializes
+# to ~750KB with JSON escaping, and an over-limit assistant message is replaced
+# by a marker that orphans its tool results (the conversation stops resuming).
+MAX_CONTEXT_MESSAGE_BYTES = 2 * 1024 * 1024
 _PREVIEW_CHARS = 2048
 _FINAL_OUTPUT_SUFFIX = "\n[Response truncated for durable storage.]"
 _COMPACTED_MESSAGE_TEXT = (

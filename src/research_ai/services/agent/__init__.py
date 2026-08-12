@@ -14,7 +14,8 @@ Public surface:
 - Recording: ``AgentRecorder`` (protocol; implementations live outside the
   package and are injected).
 - Errors: ``AgentRunError`` and its subclasses ``ProviderError``,
-  ``IncompleteTurnError``, ``IterationLimitError``.
+  ``IncompleteTurnError``, ``IterationLimitError``,
+  ``RepeatedToolFailureError``.
 - Factory: ``AgentService``.
 
 Importing this package has no side effects (no network, no Django models).
@@ -26,6 +27,7 @@ from research_ai.services.agent.errors import (
     IncompleteTurnError,
     IterationLimitError,
     ProviderError,
+    RepeatedToolFailureError,
 )
 from research_ai.services.agent.loop import Agent, AgentResult
 from research_ai.services.agent.providers.base import LLMProvider
@@ -67,6 +69,7 @@ __all__ = [
     "Message",
     "OpenRouterProvider",
     "ProviderError",
+    "RepeatedToolFailureError",
     "ServerToolBlock",
     "StopReason",
     "TextBlock",

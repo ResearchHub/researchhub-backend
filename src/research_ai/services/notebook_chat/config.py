@@ -15,6 +15,9 @@ _SETTING_OVERRIDES = {
     "max_iterations": "RESEARCH_AI_NOTEBOOK_CHAT_MAX_ITERATIONS",
     "max_tokens": "RESEARCH_AI_NOTEBOOK_CHAT_MAX_TOKENS",
     "temperature": "RESEARCH_AI_NOTEBOOK_CHAT_TEMPERATURE",
+    "max_identical_tool_failures": (
+        "RESEARCH_AI_NOTEBOOK_CHAT_MAX_IDENTICAL_TOOL_FAILURES"
+    ),
     "max_message_chars": "RESEARCH_AI_NOTEBOOK_CHAT_MAX_MESSAGE_CHARS",
 }
 
@@ -28,14 +31,19 @@ class NotebookChatConfig:
     # with retries, small enough that a runaway loop stays cheap.
     max_iterations: int = 30
 
-    # One model turn's total output budget. An edit_note call re-emits the
-    # whole Tiptap document, so the ceiling is sized for a full note plus
-    # reasoning, not just a chat reply.
-    max_tokens: int = 16384
+    # One model turn's total output budget (thinking + text). None lets the
+    # provider spend up to its model's output ceiling (128K on Claude
+    # Platform): an edit_note call re-emits the whole Tiptap document, and any
+    # lower ceiling truncates that call mid-emission on large notes.
+    max_tokens: int | None = None
 
     # Only forwarded to models that still accept sampling params and only when
     # thinking is off; the current Opus/Sonnet generations reject it outright.
     temperature: float = 1.0
+
+    # Fail the turn on the Nth consecutive identical failure of one tool
+    # (0 disables). Bounds a stuck retry loop far under max_iterations.
+    max_identical_tool_failures: int = 3
 
     # Ceiling on one user chat message (bounds the seed prompt).
     max_message_chars: int = 20000

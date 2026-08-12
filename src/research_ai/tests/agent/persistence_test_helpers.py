@@ -39,13 +39,14 @@ def tool_turn(
     name,
     tool_input,
     *,
+    stop_reason=StopReason.TOOL_USE,
     usage=None,
     latency_ms=None,
 ):
     return AssistantTurn(
         text_blocks=[TextBlock(text=f"calling {name}")],
         tool_calls=[ToolUseBlock(id=call_id, name=name, input=tool_input)],
-        stop_reason=StopReason.TOOL_USE,
+        stop_reason=stop_reason,
         usage=usage,
         latency_ms=latency_ms,
     )
@@ -62,7 +63,7 @@ def text_turn(text, *, usage=None, latency_ms=None, provider_state=None):
     )
 
 
-def agent(provider, recorder, tools=None):
+def agent(provider, recorder, tools=None, *, max_identical_tool_failures=0):
     return Agent(
         provider,
         Toolset(tools or []),
@@ -70,6 +71,7 @@ def agent(provider, recorder, tools=None):
         max_iterations=5,
         max_tokens=2048,
         temperature=0.1,
+        max_identical_tool_failures=max_identical_tool_failures,
         recorder=recorder,
     )
 
