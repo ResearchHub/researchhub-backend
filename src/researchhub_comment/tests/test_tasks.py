@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
+from mailing_list.services import EmailService
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_comment.tasks import send_author_update_email_notifications
@@ -43,12 +44,12 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
             comment_type=AUTHOR_UPDATE,
         )
 
-    @patch("researchhub_comment.tasks.send_email")
+    @patch.object(EmailService, "send_email")
     def test_sends_email_to_each_follower(self, mock_send_email):
         """
         Test that an email is sent to every follower.
 
-        Suppressed and opted-out addresses are filtered by ``send_email``
+        Suppressed and opted-out addresses are filtered by ``EmailService.send_email``
         itself, so this task does not gate on notification preferences.
         """
         # Arrange
@@ -75,7 +76,7 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         self.assertEqual(email_context["author_name"], self.author.full_name())
 
     @patch("researchhub_comment.tasks.logger")
-    @patch("researchhub_comment.tasks.send_email")
+    @patch.object(EmailService, "send_email")
     def test_handles_email_sending_failure_gracefully(
         self, mock_send_email, mock_logger
     ):
@@ -94,7 +95,7 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         error_message = mock_logger.error.call_args[0][0]
         self.assertIn(str(self.follower1.id), error_message)
 
-    @patch("researchhub_comment.tasks.send_email")
+    @patch.object(EmailService, "send_email")
     def test_email_context_contains_correct_information(self, mock_send_email):
         """
         Test that the email context contains all the expected information.
@@ -128,7 +129,7 @@ class SendAuthorUpdateEmailNotificationsTaskTests(TestCase):
         self.assertEqual(email_context["document_title"], self.preregistration.title)
         self.assertEqual(email_context["author_name"], self.author.full_name())
 
-    @patch("researchhub_comment.tasks.send_email")
+    @patch.object(EmailService, "send_email")
     def test_processes_multiple_users_correctly(self, mock_send_email):
         """
         Test that the task processes multiple users correctly.

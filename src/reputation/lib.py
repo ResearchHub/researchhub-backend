@@ -19,7 +19,7 @@ from ethereum.lib import (
     get_nonce,
     get_private_key,
 )
-from mailing_list.lib import send_transactional_email
+from mailing_list.services import EmailService
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
@@ -545,7 +545,7 @@ def check_hotwallet():
             "action": {"message": "\n\n".join(messages)},
             "subject": "Hotwallet Balance Alert",
         }
-        send_transactional_email(
+        EmailService().send_transactional_email(
             ["pat@researchhub.com", "tyler@researchhub.com", "dev@researchhub.com"],
             "Hotwallet Balance Alert",
             context,

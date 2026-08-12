@@ -5,7 +5,7 @@ from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 
-from mailing_list.lib import send_email
+from mailing_list.services import EmailService
 from researchhub.celery import QUEUE_NOTIFICATION, app
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,8 @@ def celery_create_mention_notification(comment_id, recipients):
     thread = comment.thread
 
     unified_document = thread.unified_document
+    email_service = EmailService()
+
     for recipient in recipients:
         if (
             recipient
@@ -63,7 +65,7 @@ def celery_create_mention_notification(comment_id, recipients):
                 },
                 "subject": outer_subject,
             }
-            send_email(
+            email_service.send_email(
                 [notification.recipient.email],
                 outer_subject,
                 context,
@@ -95,11 +97,12 @@ def send_author_update_email_notifications(comment_id, follower_user_ids):
         }
 
         subject = "Update on Preregistration You're Following"
+        email_service = EmailService()
 
         for user_id in follower_user_ids:
             try:
                 user = User.objects.get(id=user_id)
-                send_email(
+                email_service.send_email(
                     [user.email],
                     subject,
                     context,
