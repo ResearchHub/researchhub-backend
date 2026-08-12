@@ -39,6 +39,9 @@ class NoteContentSerializer(ModelSerializer):
     class Meta:
         model = NoteContent
         fields = "__all__"
+        # Server-owned lineage and attribution: set by the create paths,
+        # never client-writable (PUT/PATCH must not forge them).
+        read_only_fields = ["created_by", "created_via", "note", "parent_version"]
 
     def get_src(self, note_content):
         if note_content.json:  # If JSON exists, don't return src

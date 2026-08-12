@@ -207,6 +207,51 @@ class NoteVersionConsumerTests(TransactionTestCase):
         )
         await communicator.disconnect()
 
+    async def test_revoked_viewer_is_closed_instead_of_receiving_events(self):
+        # Arrange: admitted while permitted, then the permission is revoked
+        # (as make_private or remove_permission would).
+        communicator, connected, _detail = await self._connect(self.viewer)
+        self.assertTrue(connected)
+        await database_sync_to_async(
+            Permission.objects.filter(user=self.viewer).delete
+        )()
+
+        # Act: an event lands on the note's group.
+        await get_channel_layer().group_send(
+            note_group(self.note.id),
+            {
+                "type": EVENT_TYPE,
+                "data": {"type": NOTE_VERSION_CREATED, "note_id": self.note.id},
+            },
+        )
+
+        # Assert: access is re-checked per event, so the client is closed,
+        # not served.
+        output = await communicator.receive_output()
+        self.assertEqual(output["type"], "websocket.close")
+        self.assertEqual(output["code"], CLOSE_NOT_FOUND)
+
+    async def test_deactivated_subscriber_is_closed_instead_of_receiving_events(self):
+        # Arrange
+        communicator, connected, _detail = await self._connect(self.viewer)
+        self.assertTrue(connected)
+        self.viewer.is_active = False
+        await self.viewer.asave(update_fields=["is_active"])
+
+        # Act
+        await get_channel_layer().group_send(
+            note_group(self.note.id),
+            {
+                "type": EVENT_TYPE,
+                "data": {"type": NOTE_VERSION_CREATED, "note_id": self.note.id},
+            },
+        )
+
+        # Assert
+        output = await communicator.receive_output()
+        self.assertEqual(output["type"], "websocket.close")
+        self.assertEqual(output["code"], CLOSE_UNAUTHENTICATED)
+
     async def test_creating_a_version_delivers_the_event_end_to_end(self):
         # Arrange
         communicator, connected, _detail = await self._connect(self.viewer)

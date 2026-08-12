@@ -134,6 +134,37 @@ class NoteContentApiTests(APITestCase):
         self.assertEqual(response.data["id"], self.seed_version.id)
         self.assertEqual(response.data["plain_text"], "some text")
 
+    def test_update_cannot_forge_attribution_or_lineage(self):
+        # Arrange: an editor of the note tries to rewrite server-owned fields.
+        other_note, other_version = create_note(self.author, organization=None)
+        version = NoteContent.objects.create(
+            note=self.note,
+            plain_text="v2",
+            created_by=self.author,
+            created_via=NoteContent.CREATED_VIA_EDITOR,
+            parent_version=self.seed_version,
+        )
+        self.client.force_authenticate(self.author)
+
+        # Act
+        response = self.client.patch(
+            f"/api/note_content/{version.id}/",
+            {
+                "created_by": self.outsider.id,
+                "created_via": NoteContent.CREATED_VIA_AGENT,
+                "parent_version": other_version.id,
+                "note": other_note.id,
+            },
+        )
+
+        # Assert: the read-only fields are ignored and the row is unchanged.
+        self.assertEqual(response.status_code, 200)
+        version.refresh_from_db()
+        self.assertEqual(version.created_by_id, self.author.id)
+        self.assertEqual(version.created_via, NoteContent.CREATED_VIA_EDITOR)
+        self.assertEqual(version.parent_version_id, self.seed_version.id)
+        self.assertEqual(version.note_id, self.note.id)
+
     def test_retrieve_denied_without_read_access(self):
         # Arrange
         self.client.force_authenticate(self.outsider)

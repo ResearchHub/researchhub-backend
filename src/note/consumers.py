@@ -6,7 +6,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 
 from note.related_models.note_model import Note
 from note.services.note_events import note_group
-from user.models import Organization
+from user.models import Organization, User
 
 # Private-use WebSocket close codes (4000-4999), mapped to the REST statuses
 # the same request would have received.
@@ -62,8 +62,7 @@ class NoteConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps(data))
 
 
-@database_sync_to_async
-def _note_rejection_code(user, note_id: int) -> int | None:
+def _note_rejection(user, note_id: int) -> int | None:
     """Why ``user`` may not watch this note, or ``None`` to admit them.
 
     Admission matches the note's read permissions exactly (the
@@ -75,6 +74,26 @@ def _note_rejection_code(user, note_id: int) -> int | None:
     if note is None or not note.permissions.has_user(user):
         return CLOSE_NOT_FOUND
     return None
+
+
+@database_sync_to_async
+def _note_rejection_code(user, note_id: int) -> int | None:
+    return _note_rejection(user, note_id)
+
+
+@database_sync_to_async
+def _revalidation_code(user_id: int, note_id: int) -> int | None:
+    """The connect-time gate, re-run from fresh database state.
+
+    The scope's user object and the group membership both reflect
+    connect time; deactivation or a permission revocation since then
+    (``make_private``, permission removal) must stop event delivery, not
+    just future connects.
+    """
+    user = User.objects.filter(id=user_id, is_active=True).first()
+    if user is None:
+        return CLOSE_UNAUTHENTICATED
+    return _note_rejection(user, note_id)
 
 
 class NoteVersionConsumer(AsyncWebsocketConsumer):
@@ -106,6 +125,8 @@ class NoteVersionConsumer(AsyncWebsocketConsumer):
             await self.close(code=rejection)
             return
 
+        self._user_id = user.id
+        self._note_id = note_id
         self.group_name = note_group(note_id)
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         # The client offers ("Token", <key>) as subprotocols for
@@ -117,5 +138,14 @@ class NoteVersionConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def note_version_event(self, event):
-        """Forward one published note event to the client."""
+        """Forward one published note event to the client.
+
+        Access is re-checked per event: group membership only proves the
+        client was admitted once, and a since-revoked viewer must not keep
+        receiving a private note's activity.
+        """
+        rejection = await _revalidation_code(self._user_id, self._note_id)
+        if rejection is not None:
+            await self.close(code=rejection)
+            return
         await self.send(text_data=json.dumps(event["data"]))
