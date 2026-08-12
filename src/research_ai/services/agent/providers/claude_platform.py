@@ -51,6 +51,11 @@ logger = logging.getLogger(__name__)
 # Callers that want a different model pass ``model_id``.
 MODEL_ID = "claude-opus-5"
 
+# claude-opus-5's output ceiling; what ``max_tokens=None`` resolves to. On
+# Opus 5 the budget covers thinking + text together, so an artificially low
+# ceiling truncates tool calls mid-emission. Review alongside MODEL_ID.
+MAX_OUTPUT_TOKENS = 128_000
+
 # How much the model may deliberate and spend per turn: low | medium | high |
 # xhigh | max. ``high`` is the API default and the closest match to the prior
 # Bedrock behaviour; ``xhigh`` trades tokens for depth on agentic work, and
@@ -71,9 +76,10 @@ THINKING = "adaptive"
 # ~0.1x cache reads.
 PROMPT_CACHING = True
 
-# An agent turn that thinks and writes a full proposal section runs long; an
-# explicit timeout also suppresses the SDK's non-streaming duration guard.
-# Retries absorb transient throttling so one 429 does not kill a long run.
+# The turn is streamed, so this applies per phase (connect, and the gap
+# between streamed chunks), not to the whole turn -- a healthy long emission
+# can exceed it; only a stalled connection trips it. Retries absorb transient
+# throttling so one 429 does not kill a long run.
 TIMEOUT_SECONDS = 600.0
 MAX_RETRIES = 8
 
@@ -374,7 +380,7 @@ class ClaudePlatformProvider(LLMProvider):
         system_prompt: str,
         messages: list[Message],
         rendered_tools: Any,
-        max_tokens: int,
+        max_tokens: int | None,
         temperature: float,
     ) -> AssistantTurn:
         if self._client is None:
@@ -392,7 +398,7 @@ class ClaudePlatformProvider(LLMProvider):
             system["cache_control"] = {"type": "ephemeral"}
         kwargs: dict = {
             "model": self.model_id,
-            "max_tokens": max_tokens,
+            "max_tokens": MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens,
             "system": [system],
             "messages": self._render_messages(messages, cache_last=self.prompt_caching),
         }
@@ -454,7 +460,11 @@ class ClaudePlatformProvider(LLMProvider):
 
         started = time.perf_counter()
         try:
-            response = self._client.messages.create(**kwargs)
+            # Streamed so a turn's wall clock is bounded by chunk gaps, not
+            # the whole emission -- a full-budget turn legitimately outlives
+            # any sane whole-request timeout.
+            with self._client.messages.stream(**kwargs) as stream:
+                response = stream.get_final_message()
         except Exception as e:
             logger.exception("Claude Platform complete failed")
             raise ProviderError(f"Claude Platform complete failed: {e}") from e

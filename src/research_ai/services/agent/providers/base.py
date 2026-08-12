@@ -48,12 +48,13 @@ class LLMProvider(ABC):
         system_prompt: str,
         messages: list[Message],
         rendered_tools: Any,
-        max_tokens: int,
+        max_tokens: int | None,
         temperature: float,
     ) -> AssistantTurn:
         """Run one model turn and return the parsed ``AssistantTurn``.
 
         ``rendered_tools`` is whatever ``render_tools`` produced for this
-        provider; it is passed through opaquely.
+        provider; it is passed through opaquely. ``max_tokens=None`` means the
+        adapter's own output ceiling for its model.
         """
         raise NotImplementedError

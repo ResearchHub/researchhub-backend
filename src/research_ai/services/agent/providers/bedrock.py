@@ -32,6 +32,11 @@ logger = logging.getLogger(__name__)
 # throughput only. Callers that want a different model pass ``model_id``.
 MODEL_ID = "us.anthropic.claude-opus-5"
 
+# What ``max_tokens=None`` resolves to. Deliberately below the model's 128K
+# ceiling: ``converse`` is not streamed, so a longer emission would outlive the
+# client read timeout and die whole. Raise only after moving to ConverseStream.
+MAX_OUTPUT_TOKENS = 32_768
+
 # Prompt caching is the dominant cost lever for this uncached, ever-growing tool
 # loop: the tools+system prefix is byte-identical every turn and the conversation
 # only grows by appending, so cache points turn full-price re-reads into ~0.1x
@@ -102,10 +107,12 @@ class BedrockProvider(LLMProvider):
         system_prompt: str,
         messages: list[Message],
         rendered_tools: Any,
-        max_tokens: int,
+        max_tokens: int | None,
         temperature: float,
     ) -> AssistantTurn:
-        inference_config: dict = {"maxTokens": max_tokens}
+        inference_config: dict = {
+            "maxTokens": MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens
+        }
         if _accepts_sampling_params(self.model_id):
             inference_config["temperature"] = temperature
         system: list[dict] = [{"text": system_prompt}]

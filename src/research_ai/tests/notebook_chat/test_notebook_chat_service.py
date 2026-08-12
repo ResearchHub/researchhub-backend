@@ -11,6 +11,7 @@ from research_ai.models import (
     AgentExecution,
     NoteAgentConversation,
 )
+from research_ai.services.agent.types import StopReason
 from research_ai.services.agent_persistence import (
     AgentConversationBusyError,
     DatabaseAgentRecorder,
@@ -54,6 +55,18 @@ def _make_service(provider=None, **kwargs):
         web_search_client=Mock(configured=False),
         **kwargs,
     )
+
+
+class CapturingProvider(FakeProvider):
+    """Records the ``max_tokens`` each ``complete`` call was given."""
+
+    def __init__(self, turns):
+        super().__init__(turns)
+        self.max_tokens_seen = []
+
+    def complete(self, **kwargs):
+        self.max_tokens_seen.append(kwargs["max_tokens"])
+        return super().complete(**kwargs)
 
 
 class NotebookChatServiceTests(TestCase):
@@ -271,6 +284,114 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.FAILED)
         self.assertEqual(execution.stop_reason, "iteration_limit")
         self.assertIn("error", result)
+
+    def test_submit_message_snapshots_the_token_budget(self):
+        # Act
+        execution, _delay = self._submit()
+
+        # Assert: null max_tokens is the recorded "model's own ceiling" choice.
+        self.assertIsNone(execution.configuration["max_tokens"])
+
+    def test_run_turn_passes_the_model_max_budget_through(self):
+        # Arrange
+        execution, _delay = self._submit()
+        provider = CapturingProvider([text_turn("Done.")])
+        service = _make_service(provider=provider)
+
+        # Act
+        service.run_turn(execution.id)
+
+        # Assert: None reaches the provider, which resolves its model ceiling.
+        self.assertEqual(provider.max_tokens_seen, [None])
+
+    def test_run_turn_honors_the_recorded_max_tokens(self):
+        # Arrange: the turn was submitted with a pinned budget; a later
+        # settings change must not retroactively alter it.
+        execution, _delay = self._submit()
+        stored = AgentExecution.objects.get(id=execution.id).configuration
+        stored["max_tokens"] = 12345
+        AgentExecution.objects.filter(id=execution.id).update(configuration=stored)
+        provider = CapturingProvider([text_turn("Done.")])
+        service = _make_service(provider=provider)
+
+        # Act
+        service.run_turn(execution.id)
+
+        # Assert
+        self.assertEqual(provider.max_tokens_seen, [12345])
+
+    def test_truncated_edit_note_call_is_not_dispatched(self):
+        # Arrange: the incident shape -- the model's edit_note turn was cut
+        # off at the output token limit, so its content never fully arrived.
+        execution, _delay = self._submit("Replace the note body.")
+        self.note.refresh_from_db()
+        original_version_id = self.note.latest_version_id
+        provider = FakeProvider(
+            [
+                tool_turn(
+                    "t1",
+                    "edit_note",
+                    {"note_id": self.note.id},
+                    stop_reason=StopReason.MAX_TOKENS,
+                ),
+                text_turn("The note was too large to rewrite in one pass."),
+            ]
+        )
+        service = _make_service(provider=provider)
+
+        # Act
+        result = service.run_turn(execution.id)
+
+        # Assert: nothing was written, the model was told the real cause
+        # (not a misleading validation error), and the turn completed.
+        execution.refresh_from_db()
+        self.note.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
+        self.assertEqual(self.note.latest_version_id, original_version_id)
+        tool_results = [
+            block
+            for message in provider.calls[1]
+            for block in message.content
+            if getattr(block, "type", "") == "tool_result"
+        ]
+        self.assertEqual(len(tool_results), 1)
+        self.assertTrue(tool_results[0].is_error)
+        self.assertIn("truncated", tool_results[0].content["error"])
+        self.assertEqual(
+            result["final_text"], "The note was too large to rewrite in one pass."
+        )
+
+    def test_repeated_failing_edits_are_bounded_by_the_iteration_cap(self):
+        # Arrange: the model retries an invalid edit forever; each failure
+        # result carries the real error for it to act on, and only the
+        # iteration cap bounds the run.
+        execution, _delay = self._submit("Replace the note body.")
+        stored = AgentExecution.objects.get(id=execution.id).configuration
+        stored["max_iterations"] = 4
+        AgentExecution.objects.filter(id=execution.id).update(configuration=stored)
+        invalid_edit = {
+            "note_id": self.note.id,
+            "expected_version_id": self.content.id,
+            "content": {"type": "paragraph"},
+        }
+        provider = FakeProvider(
+            [tool_turn(f"t{i}", "edit_note", invalid_edit) for i in range(6)]
+        )
+        service = _make_service(provider=provider)
+
+        # Act
+        result = service.run_turn(execution.id)
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.FAILED)
+        self.assertEqual(execution.stop_reason, "iteration_limit")
+        self.assertEqual(len(provider.calls), 4)
+        self.assertIn("error", result)
+
+        # The chat is free again and the next turn chains off the failed run.
+        second, _delay = self._submit("Try something else")
+        self.assertEqual(second.context_parent_id, execution.id)
 
     def test_run_turn_provider_failure_marks_execution_failed(self):
         # Arrange

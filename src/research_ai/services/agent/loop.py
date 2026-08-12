@@ -37,6 +37,14 @@ logger = logging.getLogger(__name__)
 # (e.g. a full proposal submission) or result never floods the log.
 _LOG_VALUE_LIMIT = 300
 
+# Sent instead of dispatching a call from a turn that stopped on max_tokens.
+_TRUNCATED_CALL_ERROR = (
+    "your response was cut off before completion (output token limit or "
+    "context window reached), so the {name} call's input was truncated and "
+    "the tool was NOT executed. Do not assume it ran. Produce less output "
+    "this turn and retry -- or tell the user what you could not do."
+)
+
 
 def _truncate(text: str, limit: int = _LOG_VALUE_LIMIT) -> str:
     """Collapse whitespace and cap ``text`` to ``limit`` chars for one-line logs."""
@@ -138,7 +146,7 @@ class Agent:
         *,
         system_prompt: str,
         max_iterations: int,
-        max_tokens: int,
+        max_tokens: int | None,
         temperature: float,
         recorder: AgentRecorder | None = None,
     ):
@@ -146,6 +154,7 @@ class Agent:
         self.toolset = toolset
         self.system_prompt = system_prompt
         self.max_iterations = max_iterations
+        # None lets the provider spend up to its model's output ceiling.
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.recorder = recorder
@@ -332,7 +341,6 @@ class Agent:
             ", ".join(self.toolset.names),
             self.max_iterations,
         )
-
         for iteration in range(1, self.max_iterations + 1):
             # Before spending on the model, not only before a tool: a provider
             # call is the most expensive thing an iteration does and can hold the
@@ -385,6 +393,29 @@ class Agent:
                     messages=messages,
                     iterations=iteration,
                 )
+
+            if turn.stop_reason == StopReason.MAX_TOKENS:
+                # The turn was cut off mid-emission, so the calls' inputs
+                # cannot be trusted. Dispatching them would hand each tool a
+                # partial input whose own validation error misnames the cause;
+                # answer with the real one instead so the model adapts.
+                logger.warning(
+                    "iter %d max_tokens: %d truncated tool call(s) not dispatched",
+                    iteration,
+                    len(turn.tool_calls),
+                )
+                result_blocks = [
+                    ToolResultBlock(
+                        tool_use_id=call.id,
+                        content={"error": _TRUNCATED_CALL_ERROR.format(name=call.name)},
+                        is_error=True,
+                    )
+                    for call in turn.tool_calls
+                ]
+                tool_result_message = Message(role="user", content=result_blocks)
+                messages.append(tool_result_message)
+                self._record_message(tool_result_message)
+                continue
 
             result_blocks, stop = self._dispatch_tool_calls(turn.tool_calls, iteration)
             tool_result_message = Message(role="user", content=result_blocks)

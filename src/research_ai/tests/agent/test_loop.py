@@ -30,12 +30,12 @@ def _build_text_turn(text, *, stop_reason=StopReason.END_TURN):
     )
 
 
-def _build_tool_turn(tool_use_id, name, tool_input):
+def _build_tool_turn(tool_use_id, name, tool_input, *, stop_reason=StopReason.TOOL_USE):
     """Build an AssistantTurn that requests a single tool call."""
     return AssistantTurn(
         text_blocks=[],
         tool_calls=[ToolUseBlock(id=tool_use_id, name=name, input=tool_input)],
-        stop_reason=StopReason.TOOL_USE,
+        stop_reason=stop_reason,
     )
 
 
@@ -425,6 +425,82 @@ class AgentLoopTests(SimpleTestCase):
         self.assertEqual(provider.calls[0][:2], history)
         self.assertEqual(provider.calls[0][2].content[0].text, "follow up")
         self.assertEqual(result.final_text, "second answer")
+
+
+class TruncatedTurnTests(SimpleTestCase):
+    """Turns cut off on max_tokens while requesting tools are not dispatched."""
+
+    def test_truncated_tool_turn_is_answered_not_dispatched(self):
+        # Arrange: the provider truncates mid-call, then completes normally.
+        provider = FakeProvider(
+            [
+                _build_tool_turn(
+                    "t1", "search", {"q": "par"}, stop_reason=StopReason.MAX_TOKENS
+                ),
+                _build_text_turn("done"),
+            ]
+        )
+        seen = []
+        agent = _build_agent(provider, _build_toolset(seen))
+
+        # Act
+        result = agent.run("find jane")
+
+        # Assert: the handler never ran; the model got the real cause instead.
+        self.assertEqual(seen, [])
+        self.assertEqual(result.final_text, "done")
+        self.assertEqual(result.iterations, 2)
+        synthesized = provider.calls[1][-1]
+        self.assertEqual(synthesized.role, "user")
+        block = synthesized.content[0]
+        self.assertEqual(block.tool_use_id, "t1")
+        self.assertTrue(block.is_error)
+        self.assertIn("truncated", block.content["error"])
+        self.assertIn("search", block.content["error"])
+
+    def test_truncated_turn_synthesizes_a_result_for_every_call(self):
+        # Arrange: two calls in the cut-off turn, one of them a terminal tool.
+        truncated = AssistantTurn(
+            text_blocks=[],
+            tool_calls=[
+                ToolUseBlock(id="t1", name="search", input={}),
+                ToolUseBlock(id="t2", name="submit", input={}),
+            ],
+            stop_reason=StopReason.MAX_TOKENS,
+        )
+        provider = FakeProvider([truncated, _build_text_turn("done")])
+        seen = []
+        agent = _build_agent(provider, _build_toolset(seen))
+
+        # Act
+        result = agent.run("go")
+
+        # Assert: every call is answered (the API requires a result per call),
+        # and the unexecuted terminal tool does not end the run.
+        self.assertEqual(seen, [])
+        synthesized = provider.calls[1][-1]
+        self.assertEqual([b.tool_use_id for b in synthesized.content], ["t1", "t2"])
+        self.assertTrue(all(b.is_error for b in synthesized.content))
+        self.assertEqual(result.stop_reason, "end_turn")
+
+    def test_truncated_turn_results_are_recorded(self):
+        # Arrange
+        provider = FakeProvider(
+            [
+                _build_tool_turn("t1", "search", {}, stop_reason=StopReason.MAX_TOKENS),
+                _build_text_turn("done"),
+            ]
+        )
+        recorder = RecordingRecorder()
+        agent = _build_agent(provider, _build_toolset(), recorder=recorder)
+
+        # Act
+        result = agent.run("go")
+
+        # Assert: the synthesized results are on the durable transcript.
+        self.assertEqual([m for m, _ in recorder.messages], result.messages)
+        roles = [m.role for m, _ in recorder.messages]
+        self.assertEqual(roles, ["user", "assistant", "user", "assistant"])
 
 
 def _build_server_search_turn(*, stop_reason=StopReason.PAUSE_TURN):

@@ -25,7 +25,7 @@ class AgentService:
         toolset: Toolset,
         *,
         system_prompt: str,
-        max_tokens: int = 4096,
+        max_tokens: int | None = 4096,
         temperature: float = 0.0,
         max_iterations: int | None = None,
         recorder: AgentRecorder | None = None,

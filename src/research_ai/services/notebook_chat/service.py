@@ -579,13 +579,11 @@ class NotebookChatService:
         defaults = self.config
         # Built field-by-field rather than via dataclasses.replace so the
         # value is statically a NotebookChatConfig, not a bare dataclass.
+        # Presence check, not ``is not None``: a stored null is a recorded
+        # choice (max_tokens null = the model's own ceiling), not a gap.
         return NotebookChatConfig(
             **{
-                field: (
-                    stored[field]
-                    if stored.get(field) is not None
-                    else getattr(defaults, field)
-                )
+                field: (stored[field] if field in stored else getattr(defaults, field))
                 for field in ("max_iterations", "max_tokens", "temperature")
             },
             max_message_chars=defaults.max_message_chars,

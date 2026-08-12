@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from django.test import SimpleTestCase, override_settings
 
 from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.providers import openrouter
 from research_ai.services.agent.providers.openrouter import OpenRouterProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
@@ -202,6 +203,24 @@ class CompleteRequestTests(SimpleTestCase):
         self.assertEqual(kwargs["max_tokens"], 100)
         self.assertEqual(kwargs["temperature"], 0.5)
         self.assertEqual(kwargs["tools"], rendered_tools)
+
+    def test_none_max_tokens_resolves_to_the_adapter_output_ceiling(self):
+        # Arrange
+        provider = _build_provider([_response(content="ok")])
+
+        # Act
+        provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools=[],
+            max_tokens=None,
+            temperature=0.5,
+        )
+
+        # Assert
+        self.assertEqual(
+            provider._client.calls[0]["max_tokens"], openrouter.MAX_OUTPUT_TOKENS
+        )
 
     def test_no_tools_key_when_toolset_is_empty(self):
         # Arrange
