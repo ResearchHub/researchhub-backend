@@ -43,6 +43,8 @@ def write_proposal_note(submitted: dict, *, created_by=None) -> Note:
         # object round-trips as an object and breaks note loading.
         json=json.dumps(prosemirror) if prosemirror is not None else None,
         plain_text=str(submitted.get("plain_text") or ""),
+        created_by=created_by,
+        created_via=NoteContent.CREATED_VIA_SYSTEM,
     )
     note.refresh_from_db()
     return note

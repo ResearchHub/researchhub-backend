@@ -321,6 +321,7 @@ class ResearchhubPostViewSet(
                         registered_report_note,
                         serializer.validated_data["renderable_text"],
                         serializer.validated_data["full_json"],
+                        created_by=created_by,
                     )
                     if not authors:
                         authors = journal_entry_service.get_registered_report_authors(

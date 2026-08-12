@@ -116,6 +116,13 @@ class NoteToolsetTests(TestCase):
         self.assertEqual(self.note.latest_version.plain_text, "Updated by the agent")
         # The prior version is kept as history.
         self.assertEqual(self.note.notes.count(), 2)
+        # Attribution for version events and history: who wrote it, through
+        # what surface, and from which base version.
+        self.assertEqual(self.note.latest_version.created_by, self.owner)
+        self.assertEqual(
+            self.note.latest_version.created_via, NoteContent.CREATED_VIA_AGENT
+        )
+        self.assertEqual(self.note.latest_version.parent_version_id, self.content.id)
 
         read, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
         self.assertEqual(read["content"], TIPTAP_DOC)

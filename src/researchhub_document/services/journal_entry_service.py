@@ -164,12 +164,15 @@ class JournalEntryService:
         note: Note,
         plain_text: str,
         document: dict[str, object],
+        created_by: User | None = None,
     ) -> None:
         """Save the final immutable editor document before publishing its report."""
         NoteContent.objects.create(
             note=note,
             plain_text=plain_text,
             json=document,
+            created_by=created_by,
+            created_via=NoteContent.CREATED_VIA_SYSTEM,
         )
 
     def _get_registered_report_context(
@@ -246,6 +249,8 @@ class JournalEntryService:
             note=note,
             json=self._get_proposal_note_json(proposal),
             plain_text=self._get_proposal_note_plain_text(proposal),
+            created_by=creator,
+            created_via=NoteContent.CREATED_VIA_SYSTEM,
         )
         note.refresh_from_db()
         return note

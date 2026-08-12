@@ -114,8 +114,40 @@ class Note(DefaultModel):
 
 
 class NoteContent(models.Model):
+    # created_via values; null means unknown (legacy rows).
+    CREATED_VIA_EDITOR = "editor"
+    CREATED_VIA_AGENT = "agent"
+    CREATED_VIA_SYSTEM = "system"
+    CREATED_VIA_CHOICES = [
+        (CREATED_VIA_EDITOR, CREATED_VIA_EDITOR),
+        (CREATED_VIA_AGENT, CREATED_VIA_AGENT),
+        (CREATED_VIA_SYSTEM, CREATED_VIA_SYSTEM),
+    ]
+
     created_date = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        related_name="created_note_versions",
+        on_delete=models.SET_NULL,
+    )
+    created_via = models.CharField(
+        max_length=16,
+        null=True,
+        blank=True,
+        choices=CREATED_VIA_CHOICES,
+    )
     note = models.ForeignKey(Note, related_name="notes", on_delete=models.CASCADE)
+    # The version this one was derived from (advisory; null for legacy rows
+    # and writers that do not track a base).
+    parent_version = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        related_name="derived_versions",
+        on_delete=models.SET_NULL,
+    )
     plain_text = models.TextField(null=True)
     src = models.FileField(
         max_length=512,

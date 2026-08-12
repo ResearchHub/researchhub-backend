@@ -19,7 +19,7 @@ from collections.abc import Collection
 
 from django.db import transaction
 
-from note.related_models.note_model import Note
+from note.related_models.note_model import Note, NoteContent
 from note.services.note_content_service import NoteContentService
 from research_ai.services.agent import Tool, Toolset
 from researchhub_document.registered_report_note_metadata import parse_note_json
@@ -165,7 +165,15 @@ class NoteToolset:
                             "call read_note again and re-apply your edit"
                         )
                     }
-                version = self._service.create_version(locked, input.get("content"))
+                version = self._service.create_version(
+                    locked,
+                    input.get("content"),
+                    created_by=self._user,
+                    created_via=NoteContent.CREATED_VIA_AGENT,
+                    # The verified expected version is the base this edit was
+                    # applied against.
+                    parent_version_id=locked.latest_version_id,
+                )
         except (ValueError, Note.DoesNotExist) as exc:
             return {"error": str(exc)}
         return {"note_id": note.id, "version_id": version.id, "saved": True}

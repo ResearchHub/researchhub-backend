@@ -4,7 +4,14 @@ from channels.db import database_sync_to_async
 from channels.exceptions import StopConsumer
 from channels.generic.websocket import AsyncWebsocketConsumer
 
+from note.related_models.note_model import Note
+from note.services.note_events import note_group
 from user.models import Organization
+
+# Private-use WebSocket close codes (4000-4999), mapped to the REST statuses
+# the same request would have received.
+CLOSE_UNAUTHENTICATED = 4401
+CLOSE_NOT_FOUND = 4404
 
 
 @database_sync_to_async
@@ -53,3 +60,62 @@ class NoteConsumer(AsyncWebsocketConsumer):
     async def send_note_notification(self, event):
         data = event["data"]
         await self.send(text_data=json.dumps(data))
+
+
+@database_sync_to_async
+def _note_rejection_code(user, note_id: int) -> int | None:
+    """Why ``user`` may not watch this note, or ``None`` to admit them.
+
+    Admission matches the note's read permissions exactly (the
+    ``HasAccessPermission`` predicate): any non-NO_ACCESS user- or org-level
+    permission on the unified document. An invisible note closes with the
+    same code as a missing one so nothing about its existence leaks.
+    """
+    note = Note.objects.filter(id=note_id, unified_document__is_removed=False).first()
+    if note is None or not note.permissions.has_user(user):
+        return CLOSE_NOT_FOUND
+    return None
+
+
+class NoteVersionConsumer(AsyncWebsocketConsumer):
+    """Subscribes one client to one note's events (``ws/notebook/notes/<id>/``).
+
+    Carries the ``note_version_created`` nudges published by
+    ``note.services.note_events`` whenever a new content version is committed,
+    whoever wrote it. Payloads are ids and metadata only; a client should
+    refetch on any event and treat the socket as droppable (the REST API
+    remains the source of truth). Contract: ``docs/NOTE_VERSION_EVENTS.md``.
+    """
+
+    async def connect(self):
+        user = self.scope.get("user")
+        # ``is_active`` alongside ``is_anonymous``: deactivating an account
+        # must revoke this socket the same way DRF revokes the REST API,
+        # even while the account's auth token still resolves to a user.
+        if user is None or user.is_anonymous or not user.is_active:
+            await self.close(code=CLOSE_UNAUTHENTICATED)
+            return
+
+        # The route constrains this to digits; the cast normalizes away
+        # artifacts like leading zeros so the group name always matches the
+        # one the publisher derives from model ids.
+        note_id = int(self.scope["url_route"]["kwargs"]["note_id"])
+
+        rejection = await _note_rejection_code(user, note_id)
+        if rejection is not None:
+            await self.close(code=rejection)
+            return
+
+        self.group_name = note_group(note_id)
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        # The client offers ("Token", <key>) as subprotocols for
+        # TokenAuthMiddleware; echo the name back like the other consumers.
+        await self.accept(subprotocol="Token")
+
+    async def disconnect(self, close_code):
+        if hasattr(self, "group_name"):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def note_version_event(self, event):
+        """Forward one published note event to the client."""
+        await self.send(text_data=json.dumps(event["data"]))
