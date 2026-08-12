@@ -40,14 +40,6 @@ docker-build: ## Build the Docker image
 		--load \
 		.
 
-.PHONY: docker-push
-docker-push: ## Build and push the Docker image
-	docker buildx build \
-		--platform "$(DOCKER_PLATFORM)" \
-		--tag "$(DOCKER_IMAGE)" \
-		--push \
-		.
-
 .PHONY: start-celery
 start-celery: ## Run the Celery worker with beat
 	cd src && uv run celery \
