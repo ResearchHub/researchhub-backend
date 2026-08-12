@@ -176,6 +176,25 @@ class SendEmailTests(TestCase):
         # Assert
         self.assertIn("First alert.\n\nSecond alert.", mail.outbox[0].body)
 
+    def test_derived_text_body_drops_whitespace_around_pre_line_breaks(self):
+        # Arrange
+        # Indentation around a line break is layout, not content: the break
+        # itself survives, the horizontal whitespace hugging it does not
+        context = {
+            "action": {
+                "message": "First alert.  \n   Second alert.  \n  \n  Third alert."
+            },
+            "subject": "Test",
+        }
+
+        # Act
+        self._send(["good@example.com"], email_context=context)
+
+        # Assert
+        self.assertIn(
+            "First alert.\nSecond alert.\n\nThird alert.", mail.outbox[0].body
+        )
+
     def test_derived_text_body_has_no_ragged_html_whitespace(self):
         # Act
         self._send(["good@example.com"])
