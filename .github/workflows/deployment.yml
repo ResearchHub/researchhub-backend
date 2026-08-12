@@ -24,7 +24,7 @@ on:
         default: main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.inputs.deploy_env }}
+  group: ${{ github.workflow }}-${{ github.event.inputs.deploy_env || 'staging' }}
   cancel-in-progress: false
 
 env:
