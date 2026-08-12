@@ -238,6 +238,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         wsgi_request = factory.get(
             "/api/activity_feed/",
             {"page": str(page), "page_size": str(page_size)},
+            HTTP_HOST="researchhub.com",
         )
         request = Request(wsgi_request)
         request.user = AnonymousUser()
