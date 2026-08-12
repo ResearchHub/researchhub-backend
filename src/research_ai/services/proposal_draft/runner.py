@@ -110,6 +110,7 @@ class _ProposalDraftRunner:
         *,
         progress_callback=None,
         provider=None,
+        model_ref: str | None = None,
         panel: ProposalJudgePanel | None = None,
         oa_client: OpenAlex | None = None,
         web_search_client=None,
@@ -121,9 +122,12 @@ class _ProposalDraftRunner:
         self.search_expert = search_expert
         self.expert = search_expert.expert
         self.provider = provider
+        self.model_ref = model_ref
         self.oa_client = oa_client or OpenAlex()
         self.web_search_client = web_search_client
-        self.panel = panel or ProposalJudgePanel()
+        # The default single-judge roster critiques on the generator model
+        # itself, so a user-selected generator carries its judge along.
+        self.panel = panel or ProposalJudgePanel(generator_model_id=model_ref)
         self.config = config or ProposalDraftConfig.from_settings()
         self.conversations = (
             AgentConversationService()
@@ -259,7 +263,7 @@ class _ProposalDraftRunner:
         if not generator_model_id and self.provider is not None:
             generator_model_id = type(self.provider).__name__
         if not generator_model_id:
-            generator_model_id = generator_model_ref()
+            generator_model_id = self.model_ref or generator_model_ref()
         return {
             "generator_model_id": generator_model_id,
             "judge_roster": list(self.panel.model_ids),
@@ -345,7 +349,8 @@ class _ProposalDraftRunner:
 
     def _build_agent(self, system_prompt: str):
         provider = self.provider or resolve_provider(
-            native_tools=frozenset({"web_search"})
+            self.model_ref,
+            native_tools=frozenset({"web_search"}),
         )
         toolset = self._compose_toolset(provider)
         if self.agent_recorder is not None:
@@ -619,6 +624,7 @@ def run_proposal_draft(
     draft_id=None,
     progress_callback=None,
     provider=None,
+    model_ref: str | None = None,
     panel: ProposalJudgePanel | None = None,
     oa_client: OpenAlex | None = None,
     web_search_client=None,
@@ -635,6 +641,11 @@ def run_proposal_draft(
     Returns a result dict carrying the final status, the gate report, and (on success)
     the note id.
 
+    ``model_ref`` selects the generator (and, by default, the single-judge
+    panel) as a provider-prefixed model ref -- the user's choice, recorded on
+    the draft; ``None`` runs the settings-configured generator. An injected
+    ``provider`` wins over ``model_ref``.
+
     Runtime collaborators are injectable for tests; in production they default
     to the settings-configured generator provider (Claude Platform on AWS unless
     ``RESEARCH_AI_GENERATOR_PROVIDER`` selects Bedrock or OpenRouter), judge panel,
@@ -650,12 +661,14 @@ def run_proposal_draft(
             search_expert=search_expert,
             status=ProposalDraft.Status.PENDING,
             step=ProposalDraft.Step.QUEUED,
+            model_ref=model_ref or "",
         )
     runner = _ProposalDraftRunner(
         search_expert,
         draft,
         progress_callback=progress_callback,
         provider=provider,
+        model_ref=model_ref,
         panel=panel,
         oa_client=oa_client,
         web_search_client=web_search_client,
