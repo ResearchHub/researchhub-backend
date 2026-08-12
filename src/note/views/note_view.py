@@ -538,6 +538,19 @@ class NoteContentViewSet(
     permission_classes = [IsAuthenticated, HasEditingPermission]
     serializer_class = NoteContentSerializer
 
+    def get_permissions(self):
+        # Reading one version only requires read access to its note (the
+        # same gate as the note detail); every mutating action keeps the
+        # stricter editing gate.
+        if self.action == "retrieve":
+            return [IsAuthenticated(), HasAccessPermission()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        # Versions of a soft-deleted note read as missing, matching the note
+        # detail queryset and the version socket's admission gate.
+        return super().get_queryset().filter(note__unified_document__is_removed=False)
+
     def get_object(self):
         request_method = self.request.method
         if request_method == "POST":
@@ -571,6 +584,7 @@ class NoteContentViewSet(
         full_json = data.get("full_json", None)
         note_id = data.get("note", None)
         plain_text = data.get("plain_text", None)
+        parent_version_id = data.get("parent_version", None)
         self.kwargs["pk"] = note_id
 
         note = self.get_object()
@@ -580,8 +594,21 @@ class NoteContentViewSet(
                 {"detail": "Published registered report content cannot be edited."},
                 status=status.HTTP_409_CONFLICT,
             )
+        parent_version = None
+        if parent_version_id is not None:
+            parent_version = self._get_parent_version(note, parent_version_id)
+            if parent_version is None:
+                return Response(
+                    {"detail": "parent_version is not a version of this note."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
         note_content = NoteContent.objects.create(
-            note=note, plain_text=plain_text, json=full_json
+            note=note,
+            plain_text=plain_text,
+            json=full_json,
+            created_by=user,
+            created_via=NoteContent.CREATED_VIA_EDITOR,
+            parent_version=parent_version,
         )
 
         # Only save src if full_json is not provided
@@ -595,6 +622,14 @@ class NoteContentViewSet(
         serializer = self.serializer_class(note_content)
         data = serializer.data
         return Response(data, status=200)
+
+    def _get_parent_version(self, note, parent_version_id):
+        """The referenced version, or ``None`` when it is not one of ``note``'s."""
+        try:
+            parent_version_id = int(parent_version_id)
+        except (TypeError, ValueError):
+            return None
+        return NoteContent.objects.filter(id=parent_version_id, note=note).first()
 
     def _create_src_content_file(self, note_content, full_src, user):
         file_name = f"NOTE-CONTENT-{note_content.id}--USER-{user.id}.txt"

@@ -42,12 +42,21 @@ def _node_text(node) -> str:
 
 class NoteContentService:
     def create_version(
-        self, note: Note, content_json: dict, plain_text: str | None = None
+        self,
+        note: Note,
+        content_json: dict,
+        plain_text: str | None = None,
+        *,
+        created_by=None,
+        created_via: str | None = None,
+        parent_version_id: int | None = None,
     ) -> NoteContent:
         """Append a new content version to ``note`` and return it.
 
         ``content_json`` must be a complete Tiptap document (``{"type": "doc",
         ...}``). ``plain_text`` is derived from the document when not given.
+        ``created_by``/``created_via``/``parent_version_id`` record who wrote
+        the version, through what surface, and from which base version.
         On registered-report drafts, the previous version's publish metadata
         is restored onto the document, overriding whatever the caller sent.
         The document is persisted as a JSON-encoded string, the shape the
@@ -76,6 +85,9 @@ class NoteContentService:
             note=note,
             json=json.dumps(content_json),
             plain_text=plain_text,
+            created_by=created_by,
+            created_via=created_via,
+            parent_version_id=parent_version_id,
         )
 
     def _restore_registered_report_prefill(self, note: Note, content_json: dict):

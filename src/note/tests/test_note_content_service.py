@@ -76,6 +76,25 @@ class NoteContentServiceTests(TestCase):
         self.assertEqual(json.loads(version.json), TIPTAP_DOC)
         self.assertEqual(version.plain_text, "Title\nHello world")
         self.assertEqual(self.note.notes.count(), 2)
+        # No attribution unless the caller provides it.
+        self.assertIsNone(version.created_by)
+        self.assertIsNone(version.created_via)
+        self.assertIsNone(version.parent_version_id)
+
+    def test_create_version_records_attribution(self):
+        # Act
+        version = self.service.create_version(
+            self.note,
+            TIPTAP_DOC,
+            created_by=self.user,
+            created_via=NoteContent.CREATED_VIA_AGENT,
+            parent_version_id=self.initial_content.id,
+        )
+
+        # Assert
+        self.assertEqual(version.created_by, self.user)
+        self.assertEqual(version.created_via, NoteContent.CREATED_VIA_AGENT)
+        self.assertEqual(version.parent_version_id, self.initial_content.id)
 
     def test_create_version_rejects_non_document_content(self):
         # Act & Assert
