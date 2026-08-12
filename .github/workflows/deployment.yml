@@ -28,6 +28,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
   STAGING_DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
   PROD_DEPLOY_ROLE_ARN: ${{ vars.PROD_DEPLOY_ROLE_ARN }}
   DEPLOY_ENV: ${{ github.event.inputs.deploy_env || 'staging' }}
@@ -131,7 +132,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Assume role
         id: aws_credentials
@@ -142,7 +143,7 @@ jobs:
           role-chaining: true
           role-duration-seconds: 3600
           role-skip-session-tagging: true
-          aws-region: us-west-2
+          aws-region: ${{ env.AWS_REGION }}
           retry-max-attempts: 3
           output-credentials: true
 
@@ -156,7 +157,7 @@ jobs:
           environment_name: ${{ env.DEPLOY_ENV }}-backend-api
           version_label: ${{ env.SHORT_GIT_SHA }}
           use_existing_version_if_available: true
-          region: us-west-2
+          region: ${{ env.AWS_REGION }}
           deployment_package: target/deploy.zip
           wait_for_environment_recovery: 300
 
@@ -191,7 +192,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Assume role
         id: aws_credentials
@@ -202,7 +203,7 @@ jobs:
           role-chaining: true
           role-duration-seconds: 3600
           role-skip-session-tagging: true
-          aws-region: us-west-2
+          aws-region: ${{ env.AWS_REGION }}
           retry-max-attempts: 3
           output-credentials: true
 
@@ -216,6 +217,6 @@ jobs:
           environment_name: ${{ env.DEPLOY_ENV }}-backend-worker-${{ matrix.worker }}
           version_label: ${{ env.SHORT_GIT_SHA }}
           use_existing_version_if_available: true
-          region: us-west-2
+          region: ${{ env.AWS_REGION }}
           deployment_package: target/deploy.zip
           wait_for_environment_recovery: 300
