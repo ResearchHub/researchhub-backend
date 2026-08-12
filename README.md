@@ -46,8 +46,8 @@ code --install-extension ms-vscode-remote.vscode-remote-extensionpack
 Clone the repository and create an initial configuration by copying the sample configuration files to `config_local`:
 
 ```shell
-cp db_config.sample.py src/config_local/db.py
-cp keys.sample.py src/config_local/keys.py
+cp misc/db_config.sample.py src/config_local/db.py
+cp misc/keys.sample.py src/config_local/keys.py
 ```
 
 Make adjustments to the new configuration files as needed.
