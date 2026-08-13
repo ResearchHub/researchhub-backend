@@ -4,7 +4,7 @@ run-name: Deploy to ${{ github.event.inputs.deploy_env || 'staging' }} (${{ gith
 
 on:
   workflow_run:
-    workflows: ["Automated Tests"]
+    workflows: ["Tests"]
     branches: [main]
     types:
       - completed
