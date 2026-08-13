@@ -164,6 +164,7 @@ class PublishingRecorder:
             execution_id=execution_id,
             store=(ExecutionStreamStore() if stream_store is None else stream_store),
             publisher=publisher,
+            is_active=getattr(recorder, "is_active", None),
         )
 
     def __getattr__(self, name):
@@ -172,33 +173,47 @@ class PublishingRecorder:
     def _publish(self, kind: str) -> None:
         self._publisher.publish(self._conversation_id, self._execution_id, kind)
 
+    def _stream_best_effort(self, operation: str, callback, *args) -> None:
+        try:
+            callback(*args)
+        except Exception:  # noqa: BLE001 - previews must never break a turn
+            logger.warning(
+                "notebook chat stream %s failed (execution=%s)",
+                operation,
+                self._execution_id,
+                exc_info=True,
+            )
+
     def record_message(self, message, *, turn=None) -> None:
-        self._stream.flush()
+        self._stream_best_effort("flush", self._stream.flush)
         self._recorder.record_message(message, turn=turn)
         if turn is not None:
             # The complete provider turn is now durable and the REST activity
             # projection supersedes its transient preview.
-            self._stream.clear()
+            self._stream_best_effort("clear", self._stream.clear)
         self._publish(TURN_PROGRESS)
 
     def record_stream_event(self, iteration, event) -> None:
-        self._stream.append(iteration, event)
+        self._stream_best_effort("append", self._stream.append, iteration, event)
 
     def flush_stream_events(self) -> None:
-        self._stream.flush()
+        self._stream_best_effort("flush", self._stream.flush)
+
+    def _clear_stream(self) -> None:
+        self._stream_best_effort("clear", self._stream.clear)
 
     def on_run_finished(self, result) -> None:
         # Only an explicit False suppresses; None (a recorder that does not
         # track transitions) keeps the event.
         if self._recorder.on_run_finished(result) is False:
-            self._stream.clear()
+            self._clear_stream()
             return
-        self._stream.clear()
+        self._clear_stream()
         self._publish(TURN_FINISHED)
 
     def on_run_failed(self, error: Exception) -> None:
         if self._recorder.on_run_failed(error) is False:
-            self._stream.clear()
+            self._clear_stream()
             return
-        self._stream.clear()
+        self._clear_stream()
         self._publish(TURN_FAILED)

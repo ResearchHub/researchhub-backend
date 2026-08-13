@@ -57,12 +57,14 @@ class NotebookStreamBuffer:
         execution_id: int,
         store: ExecutionStreamStore,
         publisher,
+        is_active=None,
         clock=time.monotonic,
     ):
         self.conversation_id = conversation_id
         self.execution_id = execution_id
         self.store = store
         self.publisher = publisher
+        self.is_active = is_active
         self.clock = clock
         self.iteration: int | None = None
         self.sequence = 0
@@ -70,8 +72,11 @@ class NotebookStreamBuffer:
         self.pending: OrderedDict[str, dict] = OrderedDict()
         self.pending_chars = 0
         self.last_flush_at: float | None = None
+        self.stopped = False
 
     def append(self, iteration: int, event) -> None:
+        if self.stopped:
+            return
         item_type, maximum = self._event_shape(event)
         if item_type is None:
             return
@@ -119,6 +124,13 @@ class NotebookStreamBuffer:
     def flush(self, *, now: float | None = None) -> None:
         if not self.pending or self.iteration is None:
             return
+        if self.is_active is not None and not self.is_active():
+            # Cancellation clears the shared snapshot. Drop this worker's
+            # buffered copy so an in-flight provider cannot recreate it or
+            # publish deltas after the authoritative turn_cancelled event.
+            self._reset(None)
+            self.stopped = True
+            return
         self.sequence += 1
         stream_id = self._stream_id()
         snapshot = {
@@ -152,8 +164,9 @@ class NotebookStreamBuffer:
         self.iteration = None
         self.sequence = 0
         self.last_flush_at = None
+        self.stopped = False
 
-    def _reset(self, iteration: int) -> None:
+    def _reset(self, iteration: int | None) -> None:
         self.items.clear()
         self.pending.clear()
         self.pending_chars = 0

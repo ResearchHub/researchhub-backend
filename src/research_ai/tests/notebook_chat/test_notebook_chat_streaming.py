@@ -116,3 +116,27 @@ class NotebookStreamBufferTests(SimpleTestCase):
 
         # Assert
         self.assertIsNone(self.store.get(9))
+
+    def test_inactive_execution_drops_pending_and_future_deltas(self):
+        # Arrange
+        active = True
+        buffer = NotebookStreamBuffer(
+            conversation_id=7,
+            execution_id=9,
+            store=self.store,
+            publisher=self.publisher,
+            is_active=lambda: active,
+            clock=lambda: self.now,
+        )
+        buffer.append(1, TextStreamDelta(block_index=0, text="before"))
+        self.store.clear(9)  # cancel_active_turn clears the shared snapshot
+        active = False
+        self.now += 0.1
+
+        # Act
+        buffer.append(1, TextStreamDelta(block_index=0, text="after"))
+        buffer.append(1, TextStreamDelta(block_index=0, text="later"))
+
+        # Assert
+        self.assertIsNone(self.store.get(9))
+        self.assertEqual(len(self.publisher.calls), 1)

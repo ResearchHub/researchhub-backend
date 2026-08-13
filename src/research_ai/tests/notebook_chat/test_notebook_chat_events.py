@@ -123,6 +123,7 @@ class PublishingRecorderTests(unittest.TestCase):
 
     def setUp(self):
         self.wrapped = Mock()
+        self.wrapped.is_active.return_value = True
         self.publisher = Mock()
         self.stream_store = Mock()
         self.recorder = PublishingRecorder(
@@ -177,6 +178,40 @@ class PublishingRecorderTests(unittest.TestCase):
             self.publisher.publish_stream.call_args.kwargs["deltas"][0]["delta"],
             "hello",
         )
+
+    def test_stream_cache_failures_do_not_interrupt_durable_recording(self):
+        # Arrange: the first failed checkpoint leaves a pending preview, so
+        # record_message retries both the flush and the subsequent clear.
+        self.stream_store.set.side_effect = RuntimeError("redis down")
+        self.stream_store.clear.side_effect = RuntimeError("redis down")
+        message, turn = object(), object()
+
+        # Act
+        with self.assertLogs(
+            "research_ai.services.notebook_chat.events", level="WARNING"
+        ):
+            self.recorder.record_stream_event(
+                1, TextStreamDelta(block_index=0, text="hello")
+            )
+            self.recorder.record_message(message, turn=turn)
+
+        # Assert: only the transient preview was lost. The authoritative
+        # message and its durable progress notification still landed.
+        self.wrapped.record_message.assert_called_once_with(message, turn=turn)
+        self.publisher.publish.assert_called_once_with(7, 9, TURN_PROGRESS)
+
+    def test_inactive_execution_drops_stream_events(self):
+        # Arrange
+        self.wrapped.is_active.return_value = False
+
+        # Act
+        self.recorder.record_stream_event(
+            1, TextStreamDelta(block_index=0, text="too late")
+        )
+
+        # Assert
+        self.stream_store.set.assert_not_called()
+        self.publisher.publish_stream.assert_not_called()
 
     def test_terminal_hooks_that_did_not_transition_publish_nothing(self):
         # Arrange: each hook finds the execution already sealed from outside
