@@ -5,7 +5,7 @@
 
 <p align="left">
 
-[![Automated Tests](https://github.com/ResearchHub/researchhub-backend-internal/actions/workflows/run-automated-tests.yml/badge.svg)](https://github.com/ResearchHub/researchhub-backend-internal/actions/workflows/run-automated-tests.yml)
+[![Tests](https://github.com/ResearchHub/researchhub-backend-internal/actions/workflows/tests.yml/badge.svg)](https://github.com/ResearchHub/researchhub-backend-internal/actions/workflows/tests.yml)
 </p>
 <p align="left">&nbsp;</p>
 
