@@ -1,11 +1,17 @@
 name: Docker Deployment
-run-name: Deploy Docker image to staging (${{ github.event.workflow_run.head_sha }})
+run-name: Deploy Docker image to staging (${{ github.event.inputs.git_ref || github.event.workflow_run.head_sha }})
 
 on:
   workflow_run:
-    workflows: ["Build", "Tests"]
+    workflows: ["Build"]
     branches: [main]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Enter Git hash or branch"
+        required: false
+        default: main
 
 concurrency:
   group: ${{ github.workflow }}-staging
@@ -15,11 +21,16 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION }}
   CONTAINER_REPOSITORY: ${{ vars.CONTAINER_REPOSITORY }}
   DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
-  GIT_SHA: ${{ github.event.workflow_run.head_sha }}
+  GIT_REF: ${{ github.event.inputs.git_ref || github.event.workflow_run.head_sha }}
 
 jobs:
   deploy-api:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success'
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -30,16 +41,19 @@ jobs:
       - name: Checkout application repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ env.GIT_SHA }}
+          ref: ${{ env.GIT_REF }}
 
       - name: Get Git SHA
         id: git_sha
-        run: echo "short=${GIT_SHA:0:7}" >> "$GITHUB_OUTPUT"
+        run: |
+          GIT_SHA=$(git rev-parse HEAD)
+          echo "long=$GIT_SHA" >> "$GITHUB_OUTPUT"
+          echo "short=${GIT_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
       - name: Generate Beanstalk Docker deployment package
         run: |
           docker/package-beanstalk.sh \
-            "$CONTAINER_REPOSITORY:$GIT_SHA" \
+            "$CONTAINER_REPOSITORY:${{ steps.git_sha.outputs.long }}" \
             target
 
       - name: Configure AWS credentials
@@ -47,6 +61,16 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify container image exists
+        env:
+          IMAGE_TAG: ${{ steps.git_sha.outputs.long }}
+        run: |
+          REPOSITORY_NAME=${CONTAINER_REPOSITORY#*/}
+          aws ecr describe-images \
+            --repository-name "$REPOSITORY_NAME" \
+            --image-ids "imageTag=$IMAGE_TAG" \
+            > /dev/null
 
       - name: Assume staging deploy role
         id: aws_credentials
