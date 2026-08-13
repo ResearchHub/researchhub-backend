@@ -37,7 +37,9 @@ from research_ai.services.agent.types import (
     ServerToolBlock,
     StopReason,
     TextBlock,
+    TextStreamDelta,
     ThinkingBlock,
+    ThinkingStreamDelta,
     ToolResultBlock,
     ToolUseBlock,
     TurnUsage,
@@ -297,6 +299,57 @@ class RenderMessagesTests(SimpleTestCase):
 
 
 class CompleteAndParseTests(SimpleTestCase):
+    def test_reports_text_and_readable_thinking_deltas_in_order(self):
+        # Arrange
+        response = _build_response([AnthropicTextBlock(type="text", text="answer")])
+        sdk_events = [
+            SimpleNamespace(
+                type="content_block_delta",
+                index=0,
+                delta=SimpleNamespace(type="thinking_delta", thinking="plan "),
+            ),
+            SimpleNamespace(
+                type="content_block_delta",
+                index=1,
+                delta=SimpleNamespace(type="text_delta", text="answer"),
+            ),
+            # Signatures are replay state, not user-visible stream content.
+            SimpleNamespace(
+                type="content_block_delta",
+                index=0,
+                delta=SimpleNamespace(type="signature_delta", signature="secret"),
+            ),
+        ]
+
+        class Messages:
+            def stream(self, **_kwargs):
+                return _FakeStream(response, sdk_events)
+
+        provider = ClaudePlatformProvider(
+            client=SimpleNamespace(messages=Messages()), model_id="claude-opus-5"
+        )
+        observed = []
+
+        # Act
+        turn = provider.complete_with_events(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools=[],
+            max_tokens=100,
+            temperature=0.0,
+            on_event=observed.append,
+        )
+
+        # Assert
+        self.assertEqual(turn.text, "answer")
+        self.assertEqual(
+            observed,
+            [
+                ThinkingStreamDelta(block_index=0, text="plan "),
+                TextStreamDelta(block_index=1, text="answer"),
+            ],
+        )
+
     def test_complete_parses_text_tool_use_and_stop_reason(self):
         # Arrange
         response = _build_response(

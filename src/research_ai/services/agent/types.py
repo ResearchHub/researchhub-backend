@@ -147,6 +147,31 @@ class TurnUsage:
 
 
 @dataclass(frozen=True)
+class TextStreamDelta:
+    """One user-visible text fragment from an in-flight provider turn."""
+
+    block_index: int
+    text: str
+    type: str = "text_delta"
+
+
+@dataclass(frozen=True)
+class ThinkingStreamDelta:
+    """One readable reasoning-summary fragment from an in-flight turn.
+
+    Providers must never use this event for opaque signatures, redacted
+    blocks, or encrypted continuation state.
+    """
+
+    block_index: int
+    text: str
+    type: str = "thinking_delta"
+
+
+ProviderStreamEvent = TextStreamDelta | ThinkingStreamDelta
+
+
+@dataclass(frozen=True)
 class AssistantTurn:
     """A parsed model response: text, tool calls, stop reason, and raw payload.
 

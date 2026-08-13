@@ -66,13 +66,16 @@ EDITED_DOC = {
 }
 
 
-def _make_service(provider=None, web_search_client=None, oa_client=None):
+def _make_service(
+    provider=None, web_search_client=None, oa_client=None, stream_store=None
+):
     return NotebookChatService(
         provider=provider,
         oa_client=Mock() if oa_client is None else oa_client,
         web_search_client=(
             Mock(configured=False) if web_search_client is None else web_search_client
         ),
+        stream_store=stream_store,
     )
 
 
@@ -570,6 +573,50 @@ class NotebookChatActivityProjectionTests(TestCase):
             [event["type"] for event in activity], ["thinking", "narration"]
         )
         self.assertNotIn("sig-opaque", json.dumps(activity, default=str))
+
+    def test_active_turn_includes_reconnectable_stream_snapshot(self):
+        # Arrange
+        snapshot = {
+            "id": f"{self.execution.id}:1",
+            "sequence": 3,
+            "iteration": 1,
+            "items": [
+                {
+                    "id": "iteration-1:block-0:narration",
+                    "type": "narration",
+                    "text": "Partial answer",
+                    "at": timezone.now().isoformat(),
+                }
+            ],
+        }
+        stream_store = Mock()
+        stream_store.get.return_value = snapshot
+        service = _make_service(stream_store=stream_store)
+
+        # Act
+        data = service.representation(self.conversation)
+        (execution,) = data["executions"]
+
+        # Assert
+        self.assertEqual(execution["stream"], snapshot)
+        self.assertEqual(
+            execution["phase"],
+            {"state": "responding", "label": "Writing a response"},
+        )
+
+    def test_terminal_turn_omits_transient_stream_state(self):
+        # Arrange
+        self._finish()
+        stream_store = Mock()
+        service = _make_service(stream_store=stream_store)
+
+        # Act
+        data = service.representation(self.conversation)
+        (execution,) = data["executions"]
+
+        # Assert
+        self.assertNotIn("stream", execution)
+        stream_store.get.assert_not_called()
 
     def test_bedrock_and_openrouter_thinking_shapes_extract_their_text(self):
         shapes = (

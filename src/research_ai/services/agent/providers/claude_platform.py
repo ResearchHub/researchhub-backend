@@ -36,10 +36,13 @@ from research_ai.services.agent.types import (
     AssistantTurn,
     Block,
     Message,
+    ProviderStreamEvent,
     ServerToolBlock,
     StopReason,
     TextBlock,
+    TextStreamDelta,
     ThinkingBlock,
+    ThinkingStreamDelta,
     ToolResultBlock,
     ToolUseBlock,
     TurnUsage,
@@ -390,6 +393,26 @@ class ClaudePlatformProvider(LLMProvider):
         temperature: float,
         before_retry: Callable[[], None] | None = None,
     ) -> AssistantTurn:
+        return self.complete_with_events(
+            system_prompt=system_prompt,
+            messages=messages,
+            rendered_tools=rendered_tools,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            before_retry=before_retry,
+        )
+
+    def complete_with_events(
+        self,
+        *,
+        system_prompt: str,
+        messages: list[Message],
+        rendered_tools: Any,
+        max_tokens: int | None,
+        temperature: float,
+        on_event: Callable[[ProviderStreamEvent], None] | None = None,
+        before_retry: Callable[[], None] | None = None,
+    ) -> AssistantTurn:
         if self._client is None:
             raise ProviderError(
                 "Claude Platform on AWS is not configured "
@@ -475,7 +498,7 @@ class ClaudePlatformProvider(LLMProvider):
                 # Streamed so a turn's wall clock is bounded by chunk gaps,
                 # not the whole emission -- a full-budget turn legitimately
                 # outlives any sane whole-request timeout.
-                response = self._stream_turn(kwargs)
+                response = self._stream_turn(kwargs, on_event=on_event)
             except Exception as e:
                 logger.exception("Claude Platform complete failed")
                 raise ProviderError(f"Claude Platform complete failed: {e}") from e
@@ -513,7 +536,7 @@ class ClaudePlatformProvider(LLMProvider):
 
     # -- private helpers --------------------------------------------------
 
-    def _stream_turn(self, kwargs: dict) -> Any:
+    def _stream_turn(self, kwargs: dict, *, on_event=None) -> Any:
         """Stream one turn, restoring the container the SDK accumulator drops.
 
         Anthropic discloses the code-execution container on ``message_delta``,
@@ -524,6 +547,7 @@ class ClaudePlatformProvider(LLMProvider):
         container = None
         with self._client.messages.stream(**kwargs) as stream:
             for event in stream:
+                self._report_stream_event(event, on_event)
                 # The SDK declares it on the event's ``delta``; an id the API
                 # sends elsewhere lands on the event itself as a model extra.
                 delta = getattr(event, "delta", None)
@@ -536,6 +560,25 @@ class ClaudePlatformProvider(LLMProvider):
         if container is not None:
             response.container = container
         return response
+
+    @staticmethod
+    def _report_stream_event(event: Any, on_event) -> None:
+        """Translate SDK deltas into the provider-neutral streaming surface."""
+        if on_event is None or getattr(event, "type", None) != "content_block_delta":
+            return
+        index = getattr(event, "index", None)
+        delta = getattr(event, "delta", None)
+        if not isinstance(index, int) or delta is None:
+            return
+        delta_type = getattr(delta, "type", None)
+        if delta_type == "text_delta":
+            text = getattr(delta, "text", None)
+            if isinstance(text, str) and text:
+                on_event(TextStreamDelta(block_index=index, text=text))
+        elif delta_type == "thinking_delta":
+            thinking = getattr(delta, "thinking", None)
+            if isinstance(thinking, str) and thinking:
+                on_event(ThinkingStreamDelta(block_index=index, text=thinking))
 
     def _render_messages(
         self, messages: list[Message], *, cache_last: bool = False

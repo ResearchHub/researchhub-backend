@@ -896,6 +896,7 @@ class NotebookChatEventEmissionTests(TestCase):
     def test_cancel_active_turn_publishes_turn_cancelled(self):
         # Arrange
         execution = self._submit()
+        self.service.streams = Mock()
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
@@ -907,6 +908,7 @@ class NotebookChatEventEmissionTests(TestCase):
             self.publisher.publish.call_args.args,
             (self.conversation.id, execution.id, TURN_CANCELLED),
         )
+        self.service.streams.clear.assert_called_once_with(execution.id)
 
     def test_cancel_that_lost_the_race_publishes_nothing(self):
         # Arrange: the turn goes terminal between the scan and the

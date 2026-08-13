@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 from django.test import TestCase
 
+from research_ai.services.agent.types import TextStreamDelta
 from research_ai.services.notebook_chat.events import (
     EVENT_TYPE,
     TURN_FAILED,
@@ -12,6 +13,7 @@ from research_ai.services.notebook_chat.events import (
     PublishingRecorder,
     conversation_group,
 )
+from research_ai.services.notebook_chat.streaming import STREAM_DELTA
 
 
 class FakeChannelLayer:
@@ -72,6 +74,49 @@ class ConversationEventPublisherTests(TestCase):
         ):
             publisher.publish(12, 34, TURN_FINISHED)
 
+    def test_publish_stream_forwards_delta_payload_immediately(self):
+        # Arrange
+        layer = FakeChannelLayer()
+        publisher = ConversationEventPublisher(channel_layer=layer)
+
+        # Act
+        publisher.publish_stream(
+            12,
+            34,
+            stream_id="34:1",
+            sequence=2,
+            iteration=1,
+            deltas=[
+                {
+                    "id": "block",
+                    "type": "narration",
+                    "delta": "hi",
+                    "at": "2026-08-13T12:00:00Z",
+                }
+            ],
+        )
+
+        # Assert
+        self.assertEqual(
+            layer.sent[0][1]["data"],
+            {
+                "conversation_id": 12,
+                "execution_id": 34,
+                "kind": STREAM_DELTA,
+                "stream_id": "34:1",
+                "sequence": 2,
+                "iteration": 1,
+                "deltas": [
+                    {
+                        "id": "block",
+                        "type": "narration",
+                        "delta": "hi",
+                        "at": "2026-08-13T12:00:00Z",
+                    }
+                ],
+            },
+        )
+
 
 class PublishingRecorderTests(unittest.TestCase):
     """Pure delegation tests; no Django machinery involved."""
@@ -79,8 +124,13 @@ class PublishingRecorderTests(unittest.TestCase):
     def setUp(self):
         self.wrapped = Mock()
         self.publisher = Mock()
+        self.stream_store = Mock()
         self.recorder = PublishingRecorder(
-            self.wrapped, self.publisher, conversation_id=7, execution_id=9
+            self.wrapped,
+            self.publisher,
+            conversation_id=7,
+            execution_id=9,
+            stream_store=self.stream_store,
         )
 
     def test_record_message_forwards_then_publishes_progress(self):
@@ -111,6 +161,21 @@ class PublishingRecorderTests(unittest.TestCase):
         self.assertEqual(
             [call.args for call in self.publisher.publish.call_args_list],
             [(7, 9, TURN_FINISHED), (7, 9, TURN_FAILED)],
+        )
+
+    def test_stream_event_is_checkpointed_and_published(self):
+        # Arrange
+        event = TextStreamDelta(block_index=0, text="hello")
+
+        # Act
+        self.recorder.record_stream_event(1, event)
+
+        # Assert
+        self.stream_store.set.assert_called_once()
+        self.publisher.publish_stream.assert_called_once()
+        self.assertEqual(
+            self.publisher.publish_stream.call_args.kwargs["deltas"][0]["delta"],
+            "hello",
         )
 
     def test_terminal_hooks_that_did_not_transition_publish_nothing(self):
