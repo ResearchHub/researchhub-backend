@@ -1,15 +1,8 @@
 name: Build
 
 on:
+  workflow_call:
   workflow_dispatch:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
@@ -23,10 +16,8 @@ jobs:
       id-token: write # required for requesting JWT token from AWS
 
     steps:
-      - name: Checkout out sources
+      - name: Check out sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Get Git SHA
         id: git_sha

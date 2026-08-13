@@ -3,7 +3,7 @@ run-name: Deploy Docker image to staging (${{ github.event.inputs.git_ref || git
 
 on:
   workflow_run:
-    workflows: ["Build"]
+    workflows: ["Tests"]
     branches: [main]
     types: [completed]
   workflow_dispatch:
@@ -21,7 +21,6 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION }}
   CONTAINER_REPOSITORY: ${{ vars.CONTAINER_REPOSITORY }}
   DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
-  GIT_REF: ${{ github.event.inputs.git_ref || github.event.workflow_run.head_sha }}
 
 jobs:
   deploy-api:
@@ -29,6 +28,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (
         github.event_name == 'workflow_run' &&
+        github.event.workflow_run.event == 'push' &&
         github.event.workflow_run.conclusion == 'success'
       )
     runs-on: ubuntu-latest
@@ -41,7 +41,7 @@ jobs:
       - name: Checkout application repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ env.GIT_REF }}
+          ref: ${{ github.event.inputs.git_ref || github.event.workflow_run.head_sha }}
 
       - name: Get Git SHA
         id: git_sha
