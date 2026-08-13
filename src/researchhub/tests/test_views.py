@@ -14,10 +14,8 @@ class ViewsTestCase(TestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.content.decode("utf-8"),
-            "Authenticate with a token in the Authorization header.",
-        )
+        self.assertEqual(response["Content-Type"], "application/json")
+        self.assertEqual(response.json(), {"message": "Welcome to the ResearchHub API"})
 
     @patch("researchhub.views.views.render_to_string")
     def test_robots_txt_view(self, mock_render):
