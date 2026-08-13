@@ -3,7 +3,7 @@ run-name: Deploy Docker image to staging (${{ github.event.workflow_run.head_sha
 
 on:
   workflow_run:
-    workflows: ["Build"]
+    workflows: ["Build", "Tests"]
     branches: [main]
     types: [completed]
 
