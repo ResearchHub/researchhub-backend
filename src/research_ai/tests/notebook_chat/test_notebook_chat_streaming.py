@@ -1,8 +1,11 @@
+from unittest.mock import Mock
+
 from django.test import SimpleTestCase
 
 from research_ai.services.agent.types import TextStreamDelta, ThinkingStreamDelta
 from research_ai.services.notebook_chat.streaming import (
     MAX_STREAM_THINKING_CHARS,
+    STREAM_ACTIVE_CHECK_INTERVAL_SECONDS,
     ExecutionStreamStore,
     NotebookStreamBuffer,
 )
@@ -117,26 +120,30 @@ class NotebookStreamBufferTests(SimpleTestCase):
         # Assert
         self.assertIsNone(self.store.get(9))
 
-    def test_inactive_execution_drops_pending_and_future_deltas(self):
+    def test_activity_checks_are_throttled_and_cancellation_stops_deltas(self):
         # Arrange
-        active = True
+        is_active = Mock(return_value=True)
         buffer = NotebookStreamBuffer(
             conversation_id=7,
             execution_id=9,
             store=self.store,
             publisher=self.publisher,
-            is_active=lambda: active,
+            is_active=is_active,
             clock=lambda: self.now,
         )
         buffer.append(1, TextStreamDelta(block_index=0, text="before"))
-        self.store.clear(9)  # cancel_active_turn clears the shared snapshot
-        active = False
         self.now += 0.1
+        buffer.append(1, TextStreamDelta(block_index=0, text="middle"))
+        self.store.clear(9)  # cancel_active_turn clears the shared snapshot
+        is_active.return_value = False
+        self.now += STREAM_ACTIVE_CHECK_INTERVAL_SECONDS
 
         # Act
         buffer.append(1, TextStreamDelta(block_index=0, text="after"))
         buffer.append(1, TextStreamDelta(block_index=0, text="later"))
 
-        # Assert
+        # Assert: batches poll execution ownership at most once per interval,
+        # then stop permanently after observing cancellation.
         self.assertIsNone(self.store.get(9))
-        self.assertEqual(len(self.publisher.calls), 1)
+        self.assertEqual(len(self.publisher.calls), 2)
+        self.assertEqual(is_active.call_count, 2)

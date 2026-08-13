@@ -18,6 +18,8 @@ STREAM_DELTA = "stream_delta"
 STREAM_CACHE_TTL_SECONDS = 60 * 60
 STREAM_FLUSH_INTERVAL_SECONDS = 0.075
 STREAM_FLUSH_CHARS = 512
+# Execution ownership is database-backed; keep it far below the frame rate.
+STREAM_ACTIVE_CHECK_INTERVAL_SECONDS = 1.0
 MAX_STREAM_TEXT_CHARS = 100_000
 MAX_STREAM_THINKING_CHARS = 4_000
 
@@ -72,6 +74,7 @@ class NotebookStreamBuffer:
         self.pending: OrderedDict[str, dict] = OrderedDict()
         self.pending_chars = 0
         self.last_flush_at: float | None = None
+        self.last_active_check_at: float | None = None
         self.stopped = False
 
     def append(self, iteration: int, event) -> None:
@@ -124,7 +127,8 @@ class NotebookStreamBuffer:
     def flush(self, *, now: float | None = None) -> None:
         if not self.pending or self.iteration is None:
             return
-        if self.is_active is not None and not self.is_active():
+        now = self.clock() if now is None else now
+        if self._active_check_due(now) and not self.is_active():
             # Cancellation clears the shared snapshot. Drop this worker's
             # buffered copy so an in-flight provider cannot recreate it or
             # publish deltas after the authoritative turn_cancelled event.
@@ -154,7 +158,7 @@ class NotebookStreamBuffer:
         )
         self.pending.clear()
         self.pending_chars = 0
-        self.last_flush_at = self.clock() if now is None else now
+        self.last_flush_at = now
 
     def clear(self) -> None:
         self.pending.clear()
@@ -164,6 +168,7 @@ class NotebookStreamBuffer:
         self.iteration = None
         self.sequence = 0
         self.last_flush_at = None
+        self.last_active_check_at = None
         self.stopped = False
 
     def _reset(self, iteration: int | None) -> None:
@@ -173,6 +178,19 @@ class NotebookStreamBuffer:
         self.iteration = iteration
         self.sequence = 0
         self.last_flush_at = None
+        self.last_active_check_at = None
+
+    def _active_check_due(self, now: float) -> bool:
+        """Whether the throttled execution-ownership probe should run now."""
+        if self.is_active is None:
+            return False
+        if (
+            self.last_active_check_at is not None
+            and now - self.last_active_check_at < STREAM_ACTIVE_CHECK_INTERVAL_SECONDS
+        ):
+            return False
+        self.last_active_check_at = now
+        return True
 
     def _stream_id(self) -> str:
         return f"{self.execution_id}:{self.iteration}"
