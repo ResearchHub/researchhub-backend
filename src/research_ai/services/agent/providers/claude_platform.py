@@ -420,39 +420,13 @@ class ClaudePlatformProvider(LLMProvider):
                 "cannot complete a turn."
             )
 
-        system: dict = {"type": "text", "text": system_prompt}
-        if self.prompt_caching:
-            # Render order is tools -> system -> messages, so one breakpoint on
-            # the system block caches the whole tools+system prefix -- the
-            # bytes that repeat unchanged on every turn.
-            system["cache_control"] = {"type": "ephemeral"}
-        kwargs: dict = {
-            "model": self.model_id,
-            "max_tokens": MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens,
-            "system": [system],
-            "messages": self._render_messages(messages, cache_last=self.prompt_caching),
-        }
-        if rendered_tools:
-            kwargs["tools"] = rendered_tools
-        container_id = _container_id(messages)
-        if container_id:
-            # Required when code execution paused on a tool call, and useful
-            # for ordinary container reuse. The identifier is response-level
-            # state, separate from the content blocks replayed above.
-            kwargs["container"] = container_id
-            logger.info("claude platform: reusing code execution container")
-        if self.thinking:
-            thinking: dict = {"type": self.thinking}
-            if self.thinking == "adaptive" and THINKING_DISPLAY:
-                thinking["display"] = THINKING_DISPLAY
-            kwargs["thinking"] = thinking
-        if self.effort:
-            kwargs["output_config"] = {"effort": self.effort}
-        # Thinking pins temperature to its default, so forwarding the loop's
-        # value is at best a no-op and at worst a 400 -- omit it whenever the
-        # model or the thinking config rules it out.
-        if not self.thinking and _accepts_sampling_params(self.model_id):
-            kwargs["temperature"] = temperature
+        kwargs = self._request_kwargs(
+            system_prompt=system_prompt,
+            messages=messages,
+            rendered_tools=rendered_tools,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
 
         diagnostics = _continuation_diagnostics(
             _latest_assistant_content(kwargs["messages"]),
@@ -506,7 +480,7 @@ class ClaudePlatformProvider(LLMProvider):
             self._log_usage(response)
             self._log_continuation_state(response)
             if not self._response_missing_required_container(
-                response, request_container_id=container_id
+                response, request_container_id=kwargs.get("container")
             ):
                 break
             if attempt == 0:
@@ -560,6 +534,51 @@ class ClaudePlatformProvider(LLMProvider):
         if container is not None:
             response.container = container
         return response
+
+    def _request_kwargs(
+        self,
+        *,
+        system_prompt: str,
+        messages: list[Message],
+        rendered_tools: Any,
+        max_tokens: int | None,
+        temperature: float,
+    ) -> dict:
+        """Build optional and required Messages API request fields."""
+        system: dict = {"type": "text", "text": system_prompt}
+        if self.prompt_caching:
+            # Render order is tools -> system -> messages, so one breakpoint on
+            # the system block caches the whole tools+system prefix -- the
+            # bytes that repeat unchanged on every turn.
+            system["cache_control"] = {"type": "ephemeral"}
+        kwargs: dict = {
+            "model": self.model_id,
+            "max_tokens": MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens,
+            "system": [system],
+            "messages": self._render_messages(messages, cache_last=self.prompt_caching),
+        }
+        if rendered_tools:
+            kwargs["tools"] = rendered_tools
+        container_id = _container_id(messages)
+        if container_id:
+            # Required when code execution paused on a tool call, and useful
+            # for ordinary container reuse. The identifier is response-level
+            # state, separate from the content blocks replayed above.
+            kwargs["container"] = container_id
+            logger.info("claude platform: reusing code execution container")
+        if self.thinking:
+            thinking: dict = {"type": self.thinking}
+            if self.thinking == "adaptive" and THINKING_DISPLAY:
+                thinking["display"] = THINKING_DISPLAY
+            kwargs["thinking"] = thinking
+        if self.effort:
+            kwargs["output_config"] = {"effort": self.effort}
+        # Thinking pins temperature to its default, so forwarding the loop's
+        # value is at best a no-op and at worst a 400 -- omit it whenever the
+        # model or the thinking config rules it out.
+        if not self.thinking and _accepts_sampling_params(self.model_id):
+            kwargs["temperature"] = temperature
+        return kwargs
 
     @staticmethod
     def _report_stream_event(event: Any, on_event) -> None:
