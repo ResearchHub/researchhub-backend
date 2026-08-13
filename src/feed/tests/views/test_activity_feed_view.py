@@ -15,6 +15,7 @@ from rest_framework.test import APIClient, APITestCase
 from discussion.models import Vote
 from feed.models import FeedEntry
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
+from paper.models import Paper
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
@@ -36,6 +37,7 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
 )
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
+    PAPER,
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -1066,6 +1068,168 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
         # Assert
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(len(resp.data["results"]), 0)
+
+
+def _make_comment_feed_entry(user, unified_document, target, comment_type):
+    """Create a comment on `target` and a matching feed entry."""
+    thread = RhCommentThreadModel.objects.create(
+        thread_type=comment_type,
+        content_type=ContentType.objects.get_for_model(target),
+        object_id=target.id,
+        created_by=user,
+    )
+    comment = RhCommentModel.objects.create(
+        comment_content_json={"ops": [{"insert": comment_type}]},
+        comment_type=comment_type,
+        created_by=user,
+        thread=thread,
+    )
+    entry = _make_feed_entry(
+        RhCommentModel,
+        comment.id,
+        unified_document,
+        user=user,
+    )
+    return comment, entry
+
+
+class ActivityFeedContentExclusionTests(AWSMockTestCase):
+    """Paper activity is excluded; peer reviews are proposal-only."""
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+        self.user = create_test_user("activity_exclusion")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+        self.prereg_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        self.prereg_post = ResearchhubPost.objects.create(
+            title="Proposal",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=self.prereg_doc,
+        )
+
+        self.discussion_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="DISCUSSION",
+        )
+        self.discussion_post = ResearchhubPost.objects.create(
+            title="Discussion",
+            created_by=self.user,
+            document_type="DISCUSSION",
+            unified_document=self.discussion_doc,
+        )
+
+        self.paper_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PAPER,
+        )
+        self.paper = Paper.objects.create(
+            title="Preprint",
+            unified_document=self.paper_doc,
+        )
+
+        _, self.proposal_review_entry = _make_comment_feed_entry(
+            self.user, self.prereg_doc, self.prereg_post, PEER_REVIEW
+        )
+        _, self.discussion_review_entry = _make_comment_feed_entry(
+            self.user, self.discussion_doc, self.discussion_post, PEER_REVIEW
+        )
+        _, self.paper_review_entry = _make_comment_feed_entry(
+            self.user, self.paper_doc, self.paper, PEER_REVIEW
+        )
+        _, self.proposal_comment_entry = _make_comment_feed_entry(
+            self.user, self.prereg_doc, self.prereg_post, GENERIC_COMMENT
+        )
+        _, self.paper_comment_entry = _make_comment_feed_entry(
+            self.user, self.paper_doc, self.paper, GENERIC_COMMENT
+        )
+
+        self.proposal_bounty_fa = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.BOUNTY_PAYOUT,
+            total_amount=Decimal(25),
+            total_usd_cents=500,
+            unified_document=self.prereg_doc,
+            activity_date=timezone.now(),
+            source_content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            source_object_id=self.prereg_post.id,
+        )
+        self.proposal_bounty_entry = _make_feed_entry(
+            FundingActivity,
+            self.proposal_bounty_fa.id,
+            self.prereg_doc,
+            user=self.user,
+        )
+
+        self.paper_bounty_fa = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.BOUNTY_PAYOUT,
+            total_amount=Decimal(10),
+            total_usd_cents=200,
+            unified_document=self.paper_doc,
+            activity_date=timezone.now(),
+            source_content_type=ContentType.objects.get_for_model(Paper),
+            source_object_id=self.paper.id,
+        )
+        self.paper_bounty_entry = _make_feed_entry(
+            FundingActivity,
+            self.paper_bounty_fa.id,
+            self.paper_doc,
+            user=self.user,
+        )
+
+        self.discussion_post_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.discussion_post.id,
+            self.discussion_doc,
+            user=self.user,
+        )
+
+    def _ids(self, params=None):
+        resp = self.client.get(ACTIVITY_LIST_URL, params or {})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        return {entry["id"] for entry in resp.data["results"]}
+
+    def test_unscoped_keeps_proposal_peer_reviews_and_drops_others(self):
+        # Act
+        ids = self._ids()
+
+        # Assert
+        self.assertIn(self.proposal_review_entry.id, ids)
+        self.assertNotIn(self.discussion_review_entry.id, ids)
+        self.assertNotIn(self.paper_review_entry.id, ids)
+
+    def test_unscoped_excludes_paper_comments_and_bounties(self):
+        # Act
+        ids = self._ids()
+
+        # Assert
+        self.assertIn(self.proposal_comment_entry.id, ids)
+        self.assertIn(self.proposal_bounty_entry.id, ids)
+        self.assertIn(self.discussion_post_entry.id, ids)
+        self.assertNotIn(self.paper_comment_entry.id, ids)
+        self.assertNotIn(self.paper_bounty_entry.id, ids)
+
+    def test_peer_reviews_scope_only_returns_proposal_reviews(self):
+        # Act
+        ids = self._ids({"scope": "peer_reviews"})
+
+        # Assert
+        self.assertIn(self.proposal_review_entry.id, ids)
+        self.assertNotIn(self.discussion_review_entry.id, ids)
+        self.assertNotIn(self.paper_review_entry.id, ids)
+        self.assertNotIn(self.proposal_comment_entry.id, ids)
+
+    def test_financial_scope_excludes_paper_bounty_payouts(self):
+        # Act
+        ids = self._ids({"scope": "financial"})
+
+        # Assert
+        self.assertIn(self.proposal_bounty_entry.id, ids)
+        self.assertNotIn(self.paper_bounty_entry.id, ids)
 
 
 class ActivityFeedFinancialScopeTests(AWSMockTestCase):
