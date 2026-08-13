@@ -318,7 +318,9 @@ class CompleteAndParseTests(SimpleTestCase):
 
         # Assert
         call = provider._client.messages.calls[0]
-        self.assertEqual(call["thinking"], {"type": "adaptive"})
+        self.assertEqual(
+            call["thinking"], {"type": "adaptive", "display": "summarized"}
+        )
         self.assertEqual(call["output_config"], {"effort": "high"})
         self.assertNotIn("temperature", call)
 

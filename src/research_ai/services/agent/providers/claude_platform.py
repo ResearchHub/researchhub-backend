@@ -70,6 +70,12 @@ EFFORT = "high"
 # effort ``high`` or below).
 THINKING = "adaptive"
 
+# Readable reasoning must be asked for: from Opus 4.7 on ``display`` defaults
+# to "omitted", which returns thinking blocks whose text is empty. "summarized"
+# returns a readable summary instead; billing is identical either way. Only
+# the adaptive config carries the field.
+THINKING_DISPLAY = "summarized"
+
 # Prompt caching is the dominant cost lever for this uncached, ever-growing tool
 # loop: the tools+system prefix is byte-identical every turn and the conversation
 # only grows by appending, so cache breakpoints turn full-price re-reads into
@@ -412,7 +418,10 @@ class ClaudePlatformProvider(LLMProvider):
             kwargs["container"] = container_id
             logger.info("claude platform: reusing code execution container")
         if self.thinking:
-            kwargs["thinking"] = {"type": self.thinking}
+            thinking: dict = {"type": self.thinking}
+            if self.thinking == "adaptive" and THINKING_DISPLAY:
+                thinking["display"] = THINKING_DISPLAY
+            kwargs["thinking"] = thinking
         if self.effort:
             kwargs["output_config"] = {"effort": self.effort}
         # Thinking pins temperature to its default, so forwarding the loop's
