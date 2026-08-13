@@ -1,0 +1,76 @@
+name: Docker Deployment
+run-name: Deploy Docker image to staging (${{ github.event.workflow_run.head_sha }})
+
+on:
+  workflow_run:
+    workflows: ["Build"]
+    branches: [main]
+    types: [completed]
+
+concurrency:
+  group: ${{ github.workflow }}-staging
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  CONTAINER_REPOSITORY: ${{ vars.CONTAINER_REPOSITORY }}
+  DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
+  GIT_SHA: ${{ github.event.workflow_run.head_sha }}
+
+jobs:
+  deploy-api:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # required for requesting JWT token from AWS
+
+    steps:
+      - name: Checkout application repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.GIT_SHA }}
+
+      - name: Get Git SHA
+        id: git_sha
+        run: echo "short=${GIT_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Beanstalk Docker deployment package
+        run: |
+          docker/package-beanstalk.sh \
+            "$CONTAINER_REPOSITORY:$GIT_SHA" \
+            target
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Assume staging deploy role
+        id: aws_credentials
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          role-session-name: github-actions-beanstalk-docker-session
+          role-chaining: true
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+          aws-region: ${{ env.AWS_REGION }}
+          retry-max-attempts: 3
+          output-credentials: true
+
+      - name: Deploy staging Backend - API
+        uses: einaregilsson/beanstalk-deploy@a67044fa332b06e68985b06d361934c28ab09007 # v23
+        with:
+          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
+          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
+          aws_session_token: ${{ steps.aws_credentials.outputs.aws-session-token }}
+          application_name: backend
+          environment_name: staging-backend-api-docker
+          version_label: ${{ steps.git_sha.outputs.short }}-docker
+          use_existing_version_if_available: true
+          region: ${{ env.AWS_REGION }}
+          deployment_package: target/deploy.zip
+          wait_for_environment_recovery: 300
