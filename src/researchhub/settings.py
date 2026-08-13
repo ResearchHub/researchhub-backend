@@ -325,6 +325,8 @@ ROOT_URLCONF = "researchhub.urls"
 
 FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400 * 24.1  # ~655MB max data allowed
 
+DATA_UPLOAD_MAX_MEMORY_SIZE = 2621440  # 2.5MB (default)
+
 PAGINATION_PAGE_SIZE = 10
 
 DEFAULT_RENDERER_CLASSES = ("rest_framework.renderers.JSONRenderer",)
