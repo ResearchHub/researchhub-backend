@@ -292,7 +292,7 @@ class NotebookChatService:
             if execution_active:
                 # Present even when empty so reconnecting clients can replace
                 # a stale transient preview with the current snapshot.
-                stream = self.streams.get(execution["id"])
+                stream = self._stream_snapshot(execution["id"])
                 execution["stream"] = stream
             if scoped_ids is None or execution["id"] in scoped_ids:
                 execution["activity"] = public_activity(
@@ -466,7 +466,7 @@ class NotebookChatService:
             return None
         if not self.cancels.cancel(execution):
             return None
-        self.streams.clear(execution.id)
+        self._clear_stream(execution.id)
         # The worker's own writes stop publishing once the row is terminal
         # (a refused write emits nothing), so the cancel is announced here.
         self.events.publish(conversation.id, execution.id, TURN_CANCELLED)
@@ -610,6 +610,29 @@ class NotebookChatService:
             execution_id=execution.id,
             stream_store=self.streams,
         )
+
+    def _stream_snapshot(self, execution_id: int) -> dict | None:
+        """Read an optional transient preview without breaking durable chat reads."""
+        try:
+            return self.streams.get(execution_id)
+        except Exception:  # noqa: BLE001 - stream recovery is best-effort
+            logger.warning(
+                "notebook chat stream read failed (execution=%s)",
+                execution_id,
+                exc_info=True,
+            )
+            return None
+
+    def _clear_stream(self, execution_id: int) -> None:
+        """Remove an optional preview without changing the durable outcome."""
+        try:
+            self.streams.clear(execution_id)
+        except Exception:  # noqa: BLE001 - stream cleanup is best-effort
+            logger.warning(
+                "notebook chat stream cleanup failed (execution=%s)",
+                execution_id,
+                exc_info=True,
+            )
 
     def _turn_config(self, execution: AgentExecution) -> NotebookChatConfig:
         """The knobs this turn was submitted with, not today's settings.

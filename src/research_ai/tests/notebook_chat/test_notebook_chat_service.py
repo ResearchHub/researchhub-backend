@@ -910,6 +910,29 @@ class NotebookChatEventEmissionTests(TestCase):
         )
         self.service.streams.clear.assert_called_once_with(execution.id)
 
+    def test_cancel_active_turn_survives_stream_cache_failure(self):
+        # Arrange
+        execution = self._submit()
+        self.service.streams = Mock()
+        self.service.streams.clear.side_effect = RuntimeError("redis down")
+
+        # Act
+        with (
+            self.assertLogs(
+                "research_ai.services.notebook_chat.service", level="WARNING"
+            ),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            cancelled = self.service.cancel_active_turn(self.conversation)
+
+        # Assert: cancellation and its notification remain authoritative even
+        # when the transient preview cannot be removed.
+        self.assertEqual(cancelled, execution)
+        self.assertEqual(
+            self.publisher.publish.call_args.args,
+            (self.conversation.id, execution.id, TURN_CANCELLED),
+        )
+
     def test_cancel_that_lost_the_race_publishes_nothing(self):
         # Arrange: the turn goes terminal between the scan and the
         # transition, so the cancel service refuses it.

@@ -604,6 +604,23 @@ class NotebookChatActivityProjectionTests(TestCase):
             {"state": "responding", "label": "Writing a response"},
         )
 
+    def test_stream_cache_failure_is_treated_as_a_missing_snapshot(self):
+        # Arrange
+        stream_store = Mock()
+        stream_store.get.side_effect = RuntimeError("redis down")
+        service = _make_service(stream_store=stream_store)
+
+        # Act
+        with self.assertLogs(
+            "research_ai.services.notebook_chat.service", level="WARNING"
+        ):
+            data = service.representation(self.conversation)
+        (execution,) = data["executions"]
+
+        # Assert: durable chat state remains available without a preview.
+        self.assertIsNone(execution["stream"])
+        stream_store.get.assert_called_once_with(self.execution.id)
+
     def test_terminal_turn_omits_transient_stream_state(self):
         # Arrange
         self._finish()
