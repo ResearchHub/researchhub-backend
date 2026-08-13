@@ -38,6 +38,7 @@ PUBLIC_EVENT_KEYS = {
 }
 
 PUBLIC_NARRATION_KEYS = {"type", "text", "at"}
+PUBLIC_THINKING_KEYS = {"type", "text", "at"}
 
 
 def _tool_calls(activity):
@@ -46,6 +47,10 @@ def _tool_calls(activity):
 
 def _narrations(activity):
     return [event for event in activity if event["type"] == "narration"]
+
+
+def _thinkings(activity):
+    return [event for event in activity if event["type"] == "thinking"]
 
 
 EDITED_DOC = {
@@ -164,7 +169,16 @@ class NotebookChatActivityTests(TestCase):
         # document twice (edit input and read_note result).
         execution = self._run_turn(
             [
-                tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                tool_turn(
+                    "t1",
+                    "read_note",
+                    {"note_id": self.note.id},
+                    thinking={
+                        "type": "thinking",
+                        "thinking": "I should inspect the note first.",
+                        "signature": "thinking-signature-sentinel",
+                    },
+                ),
                 tool_turn(
                     "t2",
                     "edit_note",
@@ -186,8 +200,11 @@ class NotebookChatActivityTests(TestCase):
             self.assertLessEqual(set(event), PUBLIC_EVENT_KEYS)
         for event in _narrations(activity):
             self.assertLessEqual(set(event), PUBLIC_NARRATION_KEYS)
+        for event in _thinkings(activity):
+            self.assertLessEqual(set(event), PUBLIC_THINKING_KEYS)
         serialized = json.dumps(activity, default=str)
         self.assertNotIn("Edited by the assistant", serialized)
+        self.assertNotIn("thinking-signature-sentinel", serialized)
 
     def test_web_search_reports_query_and_citation_sources(self):
         # Arrange
@@ -304,6 +321,43 @@ class NotebookChatActivityTests(TestCase):
             role="ASSISTANT"
         ).values_list("content", flat=True)
         self.assertEqual(list(published), ["Here is the summary."])
+
+    def test_thinking_traces_surface_as_feed_events(self):
+        # Arrange
+        execution = self._run_turn(
+            [
+                tool_turn(
+                    "t1",
+                    "read_note",
+                    {"note_id": self.note.id},
+                    thinking={
+                        "type": "thinking",
+                        "thinking": "I should read the note before answering.",
+                        "signature": "sig-opaque",
+                    },
+                ),
+                text_turn("Here is the summary."),
+            ]
+        )
+
+        # Act
+        activity = self._activity(execution)
+
+        # Assert
+        self.assertEqual(
+            [
+                (event["type"], event.get("text") or event.get("tool"))
+                for event in activity
+            ],
+            [
+                ("thinking", "I should read the note before answering."),
+                ("narration", "calling read_note"),
+                ("tool_call", "read_note"),
+            ],
+        )
+        (thinking,) = _thinkings(activity)
+        self.assertLessEqual(set(thinking), PUBLIC_THINKING_KEYS)
+        self.assertNotIn("sig-opaque", json.dumps(activity, default=str))
 
     def test_live_scope_recomputes_only_the_turns_that_can_still_change(self):
         # Arrange: two finished turns, the first settled longer ago than the
@@ -435,6 +489,230 @@ class NotebookChatActivityProjectionTests(TestCase):
         (execution,) = data["executions"]
         (event,) = _tool_calls(execution["activity"])
         return event
+
+    def test_claude_thinking_block_produces_a_thinking_event(self):
+        # Arrange
+        self._add_trace_row(
+            1,
+            [
+                {
+                    "type": "thinking",
+                    "data": {
+                        "type": "thinking",
+                        "thinking": "I should inspect the evidence.",
+                        "signature": "sig-opaque",
+                    },
+                },
+                {"type": "text", "text": "I will inspect the evidence."},
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+
+        # Act
+        activity = self._entry()["activity"]
+
+        # Assert
+        (thinking,) = _thinkings(activity)
+        self.assertEqual(thinking["text"], "I should inspect the evidence.")
+        self.assertEqual(
+            [event["type"] for event in activity], ["thinking", "narration"]
+        )
+        self.assertNotIn("sig-opaque", json.dumps(activity, default=str))
+
+    def test_bedrock_and_openrouter_thinking_shapes_extract_their_text(self):
+        shapes = (
+            (
+                "bedrock",
+                {"reasoningText": {"text": "Bedrock reasoning", "signature": "sig"}},
+                "Bedrock reasoning",
+            ),
+            (
+                "openrouter text",
+                {"type": "reasoning.text", "text": "OpenRouter reasoning"},
+                "OpenRouter reasoning",
+            ),
+            (
+                "openrouter summary",
+                {"type": "reasoning.summary", "summary": "Reasoning summary"},
+                "Reasoning summary",
+            ),
+        )
+        for name, data, expected in shapes:
+            with self.subTest(name=name):
+                # Arrange
+                AgentExecutionMessage.objects.filter(execution=self.execution).delete()
+                self._add_trace_row(
+                    1,
+                    [{"type": "thinking", "data": data}],
+                    AgentExecutionMessage.Provenance.MODEL,
+                )
+
+                # Act
+                activity = self._entry()["activity"]
+
+                # Assert
+                (thinking,) = _thinkings(activity)
+                self.assertEqual(thinking["text"], expected)
+
+    def test_unreadable_thinking_blocks_are_skipped(self):
+        shapes = (
+            (
+                "claude redacted",
+                {
+                    "type": "thinking",
+                    "data": {
+                        "type": "redacted_thinking",
+                        "data": "opaque-blob",
+                    },
+                },
+            ),
+            (
+                "claude empty",
+                {
+                    "type": "thinking",
+                    "data": {"type": "thinking", "thinking": ""},
+                },
+            ),
+            (
+                "bedrock redacted",
+                {
+                    "type": "thinking",
+                    "data": {"redactedContent": "opaque-blob"},
+                },
+            ),
+            (
+                "openrouter encrypted",
+                {
+                    "type": "thinking",
+                    "data": {
+                        "type": "reasoning.encrypted",
+                        "data": "opaque-blob",
+                    },
+                },
+            ),
+            ("malformed", {"type": "thinking", "data": "opaque-blob"}),
+        )
+        for name, block in shapes:
+            with self.subTest(name=name):
+                # Arrange
+                AgentExecutionMessage.objects.filter(execution=self.execution).delete()
+                self._add_trace_row(1, [block], AgentExecutionMessage.Provenance.MODEL)
+
+                # Act
+                activity = self._entry()["activity"]
+
+                # Assert
+                self.assertEqual(_thinkings(activity), [])
+                self.assertNotIn("opaque-blob", json.dumps(activity, default=str))
+
+    def test_thinking_survives_when_the_answer_is_published(self):
+        # Arrange
+        self._add_trace_row(
+            1,
+            [
+                {
+                    "type": "thinking",
+                    "data": {
+                        "type": "thinking",
+                        "thinking": "I have enough evidence to answer.",
+                    },
+                },
+                {"type": "text", "text": "Here is the answer."},
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self.execution.status = AgentExecution.Status.SUCCEEDED
+        self.execution.publish_output_to_chat = True
+        self.execution.final_output = {"text": "Here is the answer."}
+        self.execution.save(
+            update_fields=["status", "publish_output_to_chat", "final_output"]
+        )
+
+        # Act
+        activity = self._entry()["activity"]
+
+        # Assert
+        self.assertEqual(_narrations(activity), [])
+        (thinking,) = _thinkings(activity)
+        self.assertEqual(thinking["text"], "I have enough evidence to answer.")
+
+    def test_thinking_text_is_capped(self):
+        # Arrange
+        self._add_trace_row(
+            1,
+            [
+                {
+                    "type": "thinking",
+                    "data": {"type": "thinking", "thinking": "x" * 5000},
+                }
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+
+        # Act
+        (thinking,) = _thinkings(self._entry()["activity"])
+
+        # Assert
+        self.assertEqual(len(thinking["text"]), 4000)
+
+    def test_phase_stays_thinking_when_the_newest_row_is_only_thinking(self):
+        # Arrange
+        self._add_trace_row(
+            1,
+            [
+                {
+                    "type": "thinking",
+                    "data": {"type": "thinking", "thinking": "Considering."},
+                }
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+
+        # Act
+        phase = self._entry()["phase"]
+
+        # Assert
+        self.assertEqual(phase, {"state": "thinking", "label": "Thinking"})
+
+    def test_phase_is_responding_when_narration_follows_thinking(self):
+        # Arrange
+        self._add_trace_row(
+            1,
+            [
+                {
+                    "type": "thinking",
+                    "data": {"type": "thinking", "thinking": "Considering."},
+                },
+                {"type": "text", "text": "Writing now."},
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+
+        # Act
+        phase = self._entry()["phase"]
+
+        # Assert
+        self.assertEqual(phase["state"], "responding")
+
+    def test_user_row_thinking_shaped_block_is_ignored(self):
+        # Arrange
+        self._add_trace_row(
+            1,
+            [
+                {
+                    "type": "thinking",
+                    "data": {"type": "thinking", "thinking": "Not assistant data."},
+                }
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+            role="user",
+        )
+
+        # Act
+        activity = self._entry()["activity"]
+
+        # Assert
+        self.assertEqual(activity, [])
 
     def test_open_call_is_in_progress_while_running_then_interrupted(self):
         # Arrange: a tool call whose result row never landed.
@@ -982,6 +1260,41 @@ class NotebookChatActivityViewTests(APITestCase):
         self.assertEqual(event["tool"], "read_note")
         self.assertEqual(event["label"], "Read the note")
         self.assertEqual(event["status"], "succeeded")
+
+    def test_get_chat_surfaces_thinking_events(self):
+        # Arrange
+        with patch("research_ai.tasks.run_notebook_chat_turn_task.delay"):
+            posted = self.client.post(
+                f"{self.chat_url}messages/",
+                {"message": "Summarize the note"},
+                format="json",
+            )
+        _make_service(
+            provider=FakeProvider(
+                [
+                    tool_turn(
+                        "t1",
+                        "read_note",
+                        {"note_id": self.note.id},
+                        thinking={
+                            "type": "thinking",
+                            "thinking": "I should read the note first.",
+                            "signature": "sig-opaque",
+                        },
+                    ),
+                    text_turn("Summary."),
+                ]
+            )
+        ).run_turn(posted.data["execution_id"])
+
+        # Act
+        response = self.client.get(self.chat_url)
+
+        # Assert
+        (execution,) = response.data["executions"]
+        (thinking,) = _thinkings(execution["activity"])
+        self.assertEqual(thinking["text"], "I should read the note first.")
+        self.assertNotIn("sig-opaque", json.dumps(response.data, default=str))
 
     def test_activity_live_query_param_selects_the_polling_projection(self):
         # Arrange: two finished turns, the older settled beyond the grace

@@ -8,7 +8,9 @@ for), and title/url ``sources`` for citations. Sources come from every tool that
 yields citable items -- web search and the scholarly tools alike -- in one
 shape, so the frontend renders one citation list. Narration events carry the
 prose the model wrote between tool calls, which is what turns a slow turn from a
-spinner into a readable account of what the agent is doing.
+spinner into a readable account of what the agent is doing. Thinking events
+carry readable reasoning text while dropping provider signatures and encrypted
+state.
 
 Raw tool arguments and results never pass through: tool traffic includes whole
 note documents, paper full texts, and provider payloads, and tool error strings
@@ -24,6 +26,7 @@ from collections.abc import Iterable
 from research_ai.services.agent_persistence.activity import (
     ActivityEvent,
     NarrationEvent,
+    ThinkingEvent,
     ToolCallEvent,
 )
 from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE
@@ -70,6 +73,7 @@ _MAX_SOURCES = 5
 # generous enough never to cut real narration, and only exists so one
 # pathological turn cannot make every poll of this conversation huge.
 _MAX_NARRATION_CHARS = 4000
+_MAX_THINKING_CHARS = 4000
 
 PHASE_QUEUED = "queued"
 PHASE_USING_TOOL = "using_tool"
@@ -89,8 +93,12 @@ def public_activity(
     for event in events:
         if isinstance(event, NarrationEvent):
             rendered = _public_narration(event, answer_published, published_answer)
-        else:
+        elif isinstance(event, ThinkingEvent):
+            rendered = _public_thinking(event)
+        elif isinstance(event, ToolCallEvent):
             rendered = _public_tool_call(event, execution_active)
+        else:
+            rendered = None
         if rendered is not None:
             public.append(rendered)
     return public
@@ -164,6 +172,14 @@ def _public_narration(
     return {
         "type": "narration",
         "text": event.text[:_MAX_NARRATION_CHARS],
+        "at": event.at,
+    }
+
+
+def _public_thinking(event: ThinkingEvent) -> dict:
+    return {
+        "type": "thinking",
+        "text": event.text[:_MAX_THINKING_CHARS],
         "at": event.at,
     }
 

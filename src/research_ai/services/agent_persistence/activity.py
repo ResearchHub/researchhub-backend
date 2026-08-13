@@ -10,6 +10,8 @@ conversation order:
 - :class:`NarrationEvent` -- assistant prose recorded mid-run, which is what
   lets a long turn read as the agent explaining itself rather than as a
   spinner.
+- :class:`ThinkingEvent` -- readable reasoning text from one assistant
+  thinking block.
 
 A workflow presenter distills the raw payloads into public fields and drops the
 rest; nothing here is shaped for a response body.
@@ -86,7 +88,15 @@ class NarrationEvent:
     from_final_turn: bool = False
 
 
-ActivityEvent = ToolCallEvent | NarrationEvent
+@dataclass
+class ThinkingEvent:
+    """Readable reasoning from one assistant thinking block."""
+
+    text: str
+    at: datetime
+
+
+ActivityEvent = ToolCallEvent | NarrationEvent | ThinkingEvent
 
 
 @dataclass
@@ -138,6 +148,9 @@ class _Walk:
     def narrate(self, execution_id: int, event: NarrationEvent) -> None:
         self.events.setdefault(execution_id, []).append(event)
         self.pending_final.setdefault(execution_id, []).append(event)
+
+    def think(self, execution_id: int, event: ThinkingEvent) -> None:
+        self.events.setdefault(execution_id, []).append(event)
 
     def finish(self) -> dict[int, list[ActivityEvent]]:
         for narrations in self.pending_final.values():
@@ -217,6 +230,8 @@ def _apply_block(
         )
     elif block_type == "server_tool":
         _apply_server_block(walk, execution_id, block.get("data"), created)
+    elif block_type == "thinking" and role == "assistant":
+        _apply_thinking_block(walk, execution_id, block.get("data"), created)
     elif block_type == "text" and role == "assistant":
         _apply_text_block(walk, execution_id, block, created)
 
@@ -233,6 +248,31 @@ def _apply_text_block(
     if not isinstance(text, str) or not text.strip():
         return
     walk.narrate(execution_id, NarrationEvent(text=text.strip(), at=created))
+
+
+def _apply_thinking_block(
+    walk: _Walk, execution_id: int, data, created: datetime
+) -> None:
+    if not isinstance(data, dict):
+        return
+    text = _thinking_text(data)
+    if text is None:
+        return
+    walk.think(execution_id, ThinkingEvent(text=text, at=created))
+
+
+def _thinking_text(data: dict) -> str | None:
+    """Extract readable reasoning without exposing opaque provider state."""
+    reasoning = data.get("reasoningText")
+    for value in (
+        data.get("thinking"),
+        reasoning.get("text") if isinstance(reasoning, dict) else None,
+        data.get("text"),
+        data.get("summary"),
+    ):
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
 
 
 def _apply_server_block(
