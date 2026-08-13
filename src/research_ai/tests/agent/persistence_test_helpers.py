@@ -10,6 +10,7 @@ from research_ai.services.agent.types import (
     AssistantTurn,
     StopReason,
     TextBlock,
+    ThinkingBlock,
     ToolUseBlock,
 )
 from research_ai.services.agent_persistence import AgentExecutionService
@@ -42,20 +43,34 @@ def tool_turn(
     stop_reason=StopReason.TOOL_USE,
     usage=None,
     latency_ms=None,
+    thinking: dict | None = None,
 ):
     return AssistantTurn(
         text_blocks=[TextBlock(text=f"calling {name}")],
         tool_calls=[ToolUseBlock(id=call_id, name=name, input=tool_input)],
+        thinking_blocks=(
+            [ThinkingBlock(data=thinking)] if thinking is not None else []
+        ),
         stop_reason=stop_reason,
         usage=usage,
         latency_ms=latency_ms,
     )
 
 
-def text_turn(text, *, usage=None, latency_ms=None, provider_state=None):
+def text_turn(
+    text,
+    *,
+    usage=None,
+    latency_ms=None,
+    provider_state=None,
+    thinking: dict | None = None,
+):
     return AssistantTurn(
         text_blocks=[TextBlock(text=text)],
         tool_calls=[],
+        thinking_blocks=(
+            [ThinkingBlock(data=thinking)] if thinking is not None else []
+        ),
         stop_reason=StopReason.END_TURN,
         usage=usage,
         latency_ms=latency_ms,
