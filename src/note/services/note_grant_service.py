@@ -27,6 +27,7 @@ def resolve_selected_grant(
     grant = Grant.objects.filter(
         id=validated_grant_id,
         unified_document_id__in=visible_document_ids,
+        unified_document__is_removed=False,
     ).first()
     if grant is None:
         raise NotFound("Grant not found.")

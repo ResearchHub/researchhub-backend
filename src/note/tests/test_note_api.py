@@ -1735,6 +1735,9 @@ class NoteTests(APITestCase):
         # Arrange
         active_grant = self._create_grant()
         inactive_grant = self._create_grant(status=Grant.CLOSED)
+        removed_grant = self._create_grant()
+        removed_grant.unified_document.is_removed = True
+        removed_grant.unified_document.save(update_fields=["is_removed"])
         note_response = self.client.post(
             "/api/note/",
             {
@@ -1752,9 +1755,12 @@ class NoteTests(APITestCase):
             "/api/note/",
             {"document_type": DISCUSSION, "selected_grant": active_grant.id},
         )
-        missing_response = self.client.post(
+        removed_response = self.client.post(
             "/api/note/",
-            {"document_type": PREREGISTRATION, "selected_grant": 999_999_999},
+            {
+                "document_type": PREREGISTRATION,
+                "selected_grant": removed_grant.id,
+            },
         )
         inactive_response = self.client.post(
             "/api/note/",
@@ -1770,7 +1776,7 @@ class NoteTests(APITestCase):
 
         # Assert
         self.assertEqual(wrong_type_response.status_code, 400)
-        self.assertEqual(missing_response.status_code, 404)
+        self.assertEqual(removed_response.status_code, 404)
         self.assertEqual(inactive_response.status_code, 400)
         self.assertEqual(published_response.status_code, 409)
 
