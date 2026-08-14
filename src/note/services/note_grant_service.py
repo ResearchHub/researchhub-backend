@@ -13,12 +13,12 @@ def resolve_selected_grant(
     user: User,
 ) -> Grant | None:
     """Resolve a visible, active grant for a preregistration note."""
+    if grant_id is None:
+        return None
     if document_type != PREREGISTRATION:
         raise ValidationError(
             {"selected_grant": "Only preregistration notes can select a grant."}
         )
-    if grant_id is None:
-        return None
 
     validated_grant_id = IntegerField(min_value=1).run_validation(grant_id)
     visible_document_ids = ResearchhubPost.objects.visible_to(user).values(

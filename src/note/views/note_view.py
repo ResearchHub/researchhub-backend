@@ -266,21 +266,28 @@ class NoteViewSet(ModelViewSet):
             return Response({"data": "Invalid permissions"}, status=403)
 
         selection_requested = "selected_grant" in data
+        selected_grant_id = data.get("selected_grant", note.selected_grant_id)
         if selection_requested:
             if hasattr(note, "post"):
                 return Response(
                     {"detail": "Published notes cannot change grants."},
                     status=status.HTTP_409_CONFLICT,
                 )
-            selected_grant_id = data.get("selected_grant")
             data.pop("selected_grant")
-            selected_grant = resolve_selected_grant(
-                selected_grant_id, note.document_type, user
-            )
 
         serializer = self.get_serializer(note, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        if selection_requested:
+        document_type = serializer.validated_data.get(
+            "document_type", note.document_type
+        )
+        selection_requires_validation = selection_requested or (
+            note.selected_grant_id is not None
+            and document_type != note.document_type
+        )
+        if selection_requires_validation:
+            selected_grant = resolve_selected_grant(
+                selected_grant_id, document_type, user
+            )
             serializer.save(selected_grant=selected_grant)
         else:
             self.perform_update(serializer)

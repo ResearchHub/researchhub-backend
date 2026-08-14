@@ -1698,36 +1698,45 @@ class NoteTests(APITestCase):
             application["preregistration_post_id"], preregistration_response.data["id"]
         )
 
-    def test_creates_replaces_and_removes_selected_grant(self) -> None:
-        """A preregistration note can manage its selected grant."""
+    def test_adds_replaces_and_removes_selected_grant(self) -> None:
+        """A draft can manage its grant without violating its document type."""
         # Arrange
         first_grant = self._create_grant()
         second_grant = self._create_grant()
 
         # Act
-        create_response = self.client.post(
-            "/api/note/",
+        create_response = self.client.post("/api/note/")
+        note_id = create_response.data["id"]
+        add_response = self.client.patch(
+            f"/api/note/{note_id}/",
             {
                 "document_type": PREREGISTRATION,
                 "selected_grant": first_grant.id,
             },
         )
-        note_id = create_response.data["id"]
         replace_response = self.client.patch(
             f"/api/note/{note_id}/",
             {"selected_grant": second_grant.id},
         )
+        retain_response = self.client.patch(
+            f"/api/note/{note_id}/",
+            {"document_type": DISCUSSION},
+        )
         remove_response = self.client.patch(
             f"/api/note/{note_id}/",
-            {"selected_grant": None},
+            {"document_type": DISCUSSION, "selected_grant": None},
         )
 
         # Assert
         self.assertEqual(create_response.status_code, 200)
-        self.assertEqual(create_response.data["selected_grant"], first_grant.id)
+        self.assertEqual(add_response.status_code, 200)
+        self.assertEqual(add_response.data["document_type"], PREREGISTRATION)
+        self.assertEqual(add_response.data["selected_grant"], first_grant.id)
         self.assertEqual(replace_response.status_code, 200)
         self.assertEqual(replace_response.data["selected_grant"], second_grant.id)
+        self.assertEqual(retain_response.status_code, 400)
         self.assertEqual(remove_response.status_code, 200)
+        self.assertEqual(remove_response.data["document_type"], DISCUSSION)
         self.assertIsNone(remove_response.data["selected_grant"])
 
     def test_rejects_invalid_selected_grant_changes(self) -> None:
