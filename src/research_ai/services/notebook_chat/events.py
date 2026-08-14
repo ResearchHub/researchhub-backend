@@ -13,9 +13,9 @@ Two properties keep this layer simple and safe to lose:
   lifecycle events. Stream events carry only append deltas plus a monotonic
   sequence; any sequence gap is repaired from the REST snapshot.
 - **Emission is best-effort.** Durable events are deferred with
-  ``transaction.on_commit(robust=True)``. Stream snapshots are cached before
-  their delta is sent. A failing channel layer therefore never breaks the
-  turn, and REST always remains a recovery path.
+  ``transaction.on_commit(robust=True)``. Stream snapshots are periodically
+  checkpointed before their corresponding delta is sent. A failing channel
+  layer therefore never breaks the turn, and REST remains a recovery path.
 
 The group is scoped to one conversation because chats are private to their
 creator: the consumer admits only the owner, so events never reach an
@@ -100,8 +100,8 @@ class ConversationEventPublisher:
     ) -> None:
         """Publish one transient stream batch immediately.
 
-        The corresponding cache snapshot is written before this method is
-        called, so no database transaction needs to commit before the frame is
+        Recovery snapshots are checkpointed independently of these small
+        frames, so no database transaction needs to commit before the frame is
         safe to observe.
         """
         self._send_data(
