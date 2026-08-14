@@ -63,7 +63,7 @@ from research_ai.services.agent_persistence import (
 from research_ai.services.agent_persistence.activity import (
     conversation_activity_events,
 )
-from research_ai.services.note_tools import NoteToolset
+from research_ai.services.note_tools import NoteToolset, note_tool_mode
 from research_ai.services.notebook_chat.activity import (
     execution_phase,
     public_activity,
@@ -77,6 +77,7 @@ from research_ai.services.notebook_chat.events import (
 )
 from research_ai.services.notebook_chat.grant_tools import GrantSearchToolset
 from research_ai.services.notebook_chat.toolset import (
+    TOOLSET_VERSION,
     NotebookWebSearchToolset,
     compose_notebook_toolset,
 )
@@ -387,6 +388,7 @@ class NotebookChatService:
         if len(text) > config.max_message_chars:
             raise ValueError(f"message exceeds {config.max_message_chars} characters")
 
+        mode = note_tool_mode(note)
         prepared = self.chat.prepare_turn(
             conversation,
             text,
@@ -398,8 +400,10 @@ class NotebookChatService:
                 "max_tokens": config.max_tokens,
                 "temperature": config.temperature,
                 "note_id": note.id,
+                "note_tool_mode": mode,
+                "toolset_version": TOOLSET_VERSION,
             },
-            system_prompt=build_notebook_chat_system_prompt(note),
+            system_prompt=build_notebook_chat_system_prompt(note, note_mode=mode),
         )
         execution = prepared.execution
         # After prepare_turn so a refused turn (busy, for instance) names
@@ -528,11 +532,23 @@ class NotebookChatService:
             execution.model or None,
             native_tools=frozenset({"web_search"}),
         )
+        mode = note_tool_mode(note)
         toolset = compose_notebook_toolset(
-            note_toolset=NoteToolset(user=conversation.user, note_ids={note.id}),
+            note_toolset=NoteToolset(
+                user=conversation.user,
+                mode=mode,
+                note_ids={note.id},
+            ),
             grant_toolset=self._grant_toolset_factory(user=conversation.user),
             openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),
             web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
+            native_tool_names=provider.native_tool_names,
+        )
+        self._record_tool_registry(
+            execution,
+            note=note,
+            note_mode=mode,
+            local_tool_names=toolset.names,
             native_tool_names=provider.native_tool_names,
         )
         config = self._turn_config(execution)
@@ -564,6 +580,38 @@ class NotebookChatService:
             "iterations": result.iterations,
             "final_text": result.final_text,
         }
+
+    @staticmethod
+    def _record_tool_registry(
+        execution: AgentExecution,
+        *,
+        note: Note,
+        note_mode: str,
+        local_tool_names: list[str],
+        native_tool_names: frozenset[str],
+    ) -> None:
+        """Persist the exact prompt/tool contract used by this worker run."""
+        registered_tool_names = list(local_tool_names)
+        registered_tool_names.extend(
+            name
+            for name in sorted(native_tool_names)
+            if name not in registered_tool_names
+        )
+        configuration = {
+            **(execution.configuration or {}),
+            "note_tool_mode": note_mode,
+            "toolset_version": TOOLSET_VERSION,
+            "registered_tool_names": registered_tool_names,
+        }
+        system_prompt = build_notebook_chat_system_prompt(
+            note, note_mode=note_mode
+        )
+        AgentExecution.objects.filter(id=execution.id).update(
+            configuration=configuration,
+            system_prompt=system_prompt,
+        )
+        execution.configuration = configuration
+        execution.system_prompt = system_prompt
 
     def _publishing_recorder(
         self, recorder, execution: AgentExecution

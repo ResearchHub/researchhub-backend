@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, TransactionTestCase
 
+from note.models import NoteContent
 from note.tests.helpers import create_note
 from research_ai.models import (
     AgentConversation,
@@ -16,6 +17,7 @@ from research_ai.services.agent_persistence import (
     AgentConversationBusyError,
     DatabaseAgentRecorder,
 )
+from research_ai.services.note_tools import LEGACY_NOTE_MODE, SECTION_NOTE_MODE
 from research_ai.services.notebook_chat import WORKFLOW, NotebookChatService
 from research_ai.services.notebook_chat.config import NotebookChatConfig
 from research_ai.services.notebook_chat.events import (
@@ -27,6 +29,7 @@ from research_ai.services.notebook_chat.events import (
     ConversationEventPublisher,
 )
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
+from research_ai.services.notebook_chat.toolset import TOOLSET_VERSION
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -69,6 +72,12 @@ class CapturingProvider(FakeProvider):
         return super().complete(**kwargs)
 
 
+class NativeWebProvider(FakeProvider):
+    @property
+    def native_tool_names(self) -> frozenset[str]:
+        return frozenset({"web_search"})
+
+
 class NotebookChatServiceTests(TestCase):
     def setUp(self):
         user_model = get_user_model()
@@ -109,13 +118,43 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.PENDING)
         self.assertIn(str(self.note.id), execution.system_prompt)
         self.assertIn(self.note.title, execution.system_prompt)
-        self.assertIn("get_note_outline", execution.system_prompt)
-        self.assertIn("replace_note_section", execution.system_prompt)
+        self.assertIn("read_note", execution.system_prompt)
+        self.assertIn("edit_note", execution.system_prompt)
+        self.assertNotIn("get_note_outline", execution.system_prompt)
+        self.assertNotIn("replace_note_section", execution.system_prompt)
         self.assertIn("get_work_abstract", execution.system_prompt)
         self.assertIn("get_grant_details", execution.system_prompt)
         self.assertEqual(execution.configuration["note_id"], self.note.id)
+        self.assertEqual(
+            execution.configuration["note_tool_mode"], LEGACY_NOTE_MODE
+        )
+        self.assertEqual(
+            execution.configuration["toolset_version"], TOOLSET_VERSION
+        )
         self.assertEqual(execution.trigger_message.content, "Please add a summary.")
         delay.assert_called_once_with(execution.id)
+
+    def test_submit_message_uses_only_section_workflow_for_structured_note(self):
+        # Arrange
+        NoteContent.objects.create(
+            note=self.note,
+            json=json.dumps(EDITED_DOC),
+            plain_text="Edited by the assistant",
+        )
+        self.note.refresh_from_db()
+
+        # Act
+        execution, _delay = self._submit()
+
+        # Assert
+        self.assertIn("get_note_outline", execution.system_prompt)
+        self.assertIn("read_note_section", execution.system_prompt)
+        self.assertIn("replace_note_section", execution.system_prompt)
+        self.assertNotIn("read_note first", execution.system_prompt)
+        self.assertNotIn("edit_note", execution.system_prompt)
+        self.assertEqual(
+            execution.configuration["note_tool_mode"], SECTION_NOTE_MODE
+        )
 
     def test_second_message_continues_the_same_conversation(self):
         # Arrange
@@ -284,6 +323,48 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(result["final_text"], "Done.")
         grant_toolset_factory.assert_called_once_with(user=self.user)
         grant_toolset.build_tools.assert_called_once_with()
+
+    def test_worker_recomputes_and_records_the_effective_tool_contract(self):
+        # Arrange: the turn was queued while the note was legacy, then the
+        # editor saved structured content before a worker claimed it.
+        execution, _delay = self._submit()
+        NoteContent.objects.create(
+            note=self.note,
+            json=json.dumps(EDITED_DOC),
+            plain_text="Edited by the assistant",
+        )
+        provider = NativeWebProvider(
+            [
+                tool_turn("t1", "get_note_outline", {"note_id": self.note.id}),
+                text_turn("Done."),
+            ]
+        )
+        service = _make_service(provider=provider)
+
+        # Act
+        result = service.run_turn(execution.id)
+
+        # Assert
+        self.assertEqual(result["final_text"], "Done.")
+        execution.refresh_from_db()
+        registered = execution.configuration["registered_tool_names"]
+        self.assertEqual(
+            execution.configuration["note_tool_mode"], SECTION_NOTE_MODE
+        )
+        self.assertEqual(
+            execution.configuration["toolset_version"], TOOLSET_VERSION
+        )
+        self.assertIn("get_note_outline", registered)
+        self.assertIn("read_note_section", registered)
+        self.assertIn("replace_note_section", registered)
+        self.assertIn("get_work_abstract", registered)
+        self.assertIn("search_work_fulltext", registered)
+        self.assertIn("web_search", registered)
+        self.assertNotIn("read_note", registered)
+        self.assertNotIn("edit_note", registered)
+        self.assertNotIn("get_work_fulltext", registered)
+        self.assertIn("get_note_outline", execution.system_prompt)
+        self.assertNotIn("edit_note", execution.system_prompt)
 
     def test_run_turn_honors_the_recorded_iteration_limit(self):
         # Arrange: the turn was submitted with a one-iteration budget; the

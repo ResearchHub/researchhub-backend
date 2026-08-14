@@ -9,9 +9,11 @@ from note.tests.helpers import create_note
 from research_ai.services.note_tools import (
     EDIT_NOTE,
     GET_NOTE_OUTLINE,
+    LEGACY_NOTE_MODE,
     READ_NOTE,
     READ_NOTE_SECTION,
     REPLACE_NOTE_SECTION,
+    SECTION_NOTE_MODE,
     NoteToolset,
 )
 from researchhub_access_group.constants import ADMIN, VIEWER
@@ -95,7 +97,9 @@ class NoteToolsetTests(TestCase):
             user=self.viewer,
         )
 
-        self.toolset = NoteToolset(user=self.owner).as_toolset()
+        self.toolset = NoteToolset(
+            user=self.owner, mode=LEGACY_NOTE_MODE
+        ).as_toolset()
 
     def _seed_sectioned_note(self):
         version = NoteContent.objects.create(
@@ -106,29 +110,37 @@ class NoteToolsetTests(TestCase):
         self.note.refresh_from_db()
         return version
 
-    def test_section_tools_are_primary_and_full_document_tools_remain(self):
+    def test_legacy_mode_exposes_only_full_document_tools(self):
         # Act
         names = self.toolset.names
 
         # Assert
+        self.assertEqual(names, [READ_NOTE, EDIT_NOTE])
+
+    def test_section_mode_exposes_only_section_tools(self):
+        # Arrange
+        toolset = NoteToolset(
+            user=self.owner, mode=SECTION_NOTE_MODE
+        ).as_toolset()
+
+        # Act & Assert
         self.assertEqual(
-            names,
-            [
-                GET_NOTE_OUTLINE,
-                READ_NOTE_SECTION,
-                REPLACE_NOTE_SECTION,
-                READ_NOTE,
-                EDIT_NOTE,
-            ],
+            toolset.names,
+            [GET_NOTE_OUTLINE, READ_NOTE_SECTION, REPLACE_NOTE_SECTION],
         )
+        result, _ = toolset.dispatch(EDIT_NOTE, {"note_id": self.note.id})
+        self.assertEqual(result["error"], "unknown tool: edit_note")
 
     def test_outline_and_section_read_return_only_addressed_content(self):
         # Arrange
         version = self._seed_sectioned_note()
+        toolset = NoteToolset(
+            user=self.owner, mode=SECTION_NOTE_MODE
+        ).as_toolset()
 
         # Act
-        outline, _ = self.toolset.dispatch(GET_NOTE_OUTLINE, {"note_id": self.note.id})
-        section, _ = self.toolset.dispatch(
+        outline, _ = toolset.dispatch(GET_NOTE_OUTLINE, {"note_id": self.note.id})
+        section, _ = toolset.dispatch(
             READ_NOTE_SECTION,
             {"note_id": self.note.id, "section_id": "heading-1"},
         )
@@ -146,6 +158,9 @@ class NoteToolsetTests(TestCase):
     def test_replace_section_preserves_unread_document_content(self):
         # Arrange
         version = self._seed_sectioned_note()
+        toolset = NoteToolset(
+            user=self.owner, mode=SECTION_NOTE_MODE
+        ).as_toolset()
         replacement = [
             SECTIONED_DOC["content"][1],
             {
@@ -155,7 +170,7 @@ class NoteToolsetTests(TestCase):
         ]
 
         # Act
-        result, _ = self.toolset.dispatch(
+        result, _ = toolset.dispatch(
             REPLACE_NOTE_SECTION,
             {
                 "note_id": self.note.id,
@@ -178,6 +193,9 @@ class NoteToolsetTests(TestCase):
     def test_replace_section_rejects_stale_outline(self):
         # Arrange
         version = self._seed_sectioned_note()
+        toolset = NoteToolset(
+            user=self.owner, mode=SECTION_NOTE_MODE
+        ).as_toolset()
         newer = NoteContent.objects.create(
             note=self.note,
             json=json.dumps(SECTIONED_DOC),
@@ -185,7 +203,7 @@ class NoteToolsetTests(TestCase):
         )
 
         # Act
-        result, _ = self.toolset.dispatch(
+        result, _ = toolset.dispatch(
             REPLACE_NOTE_SECTION,
             {
                 "note_id": self.note.id,
@@ -215,7 +233,9 @@ class NoteToolsetTests(TestCase):
 
     def test_read_note_denied_for_user_without_access(self):
         # Arrange
-        toolset = NoteToolset(user=self.outsider).as_toolset()
+        toolset = NoteToolset(
+            user=self.outsider, mode=LEGACY_NOTE_MODE
+        ).as_toolset()
 
         # Act
         result, _ = toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
@@ -261,8 +281,26 @@ class NoteToolsetTests(TestCase):
         self.assertEqual(self.note.latest_version.parent_version_id, self.content.id)
 
         read, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
-        self.assertEqual(read["content"], TIPTAP_DOC)
-        self.assertEqual(read["version_id"], result["version_id"])
+        self.assertIn("restricted to legacy", read["error"])
+
+    def test_edit_note_rejects_content_that_is_already_structured(self):
+        # Arrange
+        version = self._seed_sectioned_note()
+
+        # Act
+        result, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": version.id,
+                "content": TIPTAP_DOC,
+            },
+        )
+
+        # Assert
+        self.assertIn("restricted to legacy", result["error"])
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.latest_version_id, version.id)
 
     def test_edit_note_rejects_stale_version(self):
         # Arrange: another writer saved a version after our read.
@@ -292,7 +330,9 @@ class NoteToolsetTests(TestCase):
 
     def test_edit_note_denied_for_viewer(self):
         # Arrange
-        toolset = NoteToolset(user=self.viewer).as_toolset()
+        toolset = NoteToolset(
+            user=self.viewer, mode=LEGACY_NOTE_MODE
+        ).as_toolset()
 
         # Act
         result, _ = toolset.dispatch(
@@ -322,14 +362,18 @@ class NoteToolsetTests(TestCase):
             ),
             plain_text="seeded",
         )
+        toolset = NoteToolset(
+            user=self.owner, mode=SECTION_NOTE_MODE
+        ).as_toolset()
 
         # Act
-        result, _ = self.toolset.dispatch(
-            EDIT_NOTE,
+        result, _ = toolset.dispatch(
+            REPLACE_NOTE_SECTION,
             {
                 "note_id": self.note.id,
+                "section_id": "body",
                 "expected_version_id": seeded.id,
-                "content": TIPTAP_DOC,
+                "content": TIPTAP_DOC["content"],
             },
         )
 
@@ -357,7 +401,11 @@ class NoteToolsetTests(TestCase):
 
     def test_scoped_toolset_allows_the_scoped_note(self):
         # Arrange
-        toolset = NoteToolset(user=self.owner, note_ids={self.note.id}).as_toolset()
+        toolset = NoteToolset(
+            user=self.owner,
+            mode=LEGACY_NOTE_MODE,
+            note_ids={self.note.id},
+        ).as_toolset()
 
         # Act
         result, _ = toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
@@ -375,7 +423,11 @@ class NoteToolsetTests(TestCase):
             object_id=other_note.unified_document.id,
             user=self.owner,
         )
-        toolset = NoteToolset(user=self.owner, note_ids={self.note.id}).as_toolset()
+        toolset = NoteToolset(
+            user=self.owner,
+            mode=LEGACY_NOTE_MODE,
+            note_ids={self.note.id},
+        ).as_toolset()
 
         # Act
         read_result, _ = toolset.dispatch(READ_NOTE, {"note_id": other_note.id})

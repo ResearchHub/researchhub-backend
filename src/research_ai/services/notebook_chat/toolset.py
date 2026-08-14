@@ -3,17 +3,22 @@
 Assembles the toolset one chat turn runs with: the note read/edit tools
 (scoped to the acting user's permissions), ResearchHub grant discovery, the
 OpenAlex literature tools, and web search. The OpenAlex toolset is reused minus
-``submit_profile`` -- a chat turn ends when the model answers in plain text, so
-a terminal submit tool from another flow must not ride along.
+``submit_profile`` and the legacy whole-text reader -- a chat turn ends when
+the model answers in plain text and uses abstract/detail passage retrieval.
 """
 
 import logging
 
 from research_ai.services.agent import Tool, Toolset
-from research_ai.services.researcher_profile.openalex_tools import SUBMIT_PROFILE
+from research_ai.services.researcher_profile.openalex_tools import (
+    GET_WORK_FULLTEXT,
+    SUBMIT_PROFILE,
+)
 from utils.brave_search import BraveSearch
 
 logger = logging.getLogger(__name__)
+
+TOOLSET_VERSION = "notebook-chat-v2"
 
 _DEFAULT_MAX_SEARCHES = 8  # per-turn ceiling on web searches
 _MAX_RESULTS = 5  # results surfaced to the model per call
@@ -105,7 +110,9 @@ def compose_notebook_toolset(
     one name in the request.
     """
     candidates = [
-        tool for tool in openalex_toolset.build_tools() if tool.name != SUBMIT_PROFILE
+        tool
+        for tool in openalex_toolset.build_tools()
+        if tool.name not in (SUBMIT_PROFILE, GET_WORK_FULLTEXT)
     ]
     candidates.extend(web_search_toolset.build_tools())
     candidates.extend(grant_toolset.build_tools())

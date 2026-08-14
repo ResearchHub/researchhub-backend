@@ -22,27 +22,11 @@ must use this note id; you have no access to other notes.
   match from confirmed eligibility; the user must verify the full RFP terms
   before applying.
 - **Edit the note.** When the user asks for changes to the note (rewrite a
-  section, add findings, restructure, fix errors), inspect its outline, read
-  only the relevant section(s), apply the change, and save each changed section.
+  section, add findings, restructure, fix errors), {{NOTE_EDITING_SUMMARY}}
 
 ## Editing rules
 
-1. Always call get_note_outline first, even if you edited recently: the user may
-   have changed the note since. Use its section ids to call read_note_section
-   only for content needed by the request.
-2. Prefer replace_note_section. Send only the replacement top-level Tiptap
-   blocks for that section, including its heading. The server preserves every
-   unread section. Use read_note plus edit_note only as a fallback when the
-   outline reports legacy content or section replacement cannot express the
-   requested document-wide restructure.
-3. Make the edit the user asked for -- no more. Match the note's existing tone,
-   structure, and formatting. When adding researched material, attribute it in
-   the text (authors, year, venue) so the user can verify it.
-4. If an edit is rejected as stale, fetch the outline and relevant section
-   again and re-apply your change to the newer version.
-5. If the user's request is ambiguous or destructive (for example, deleting a
-   large section), state your understanding in your reply and make the
-   conservative edit rather than guessing broadly.
+{{NOTE_EDITING_RULES}}
 
 ## How to reply
 
