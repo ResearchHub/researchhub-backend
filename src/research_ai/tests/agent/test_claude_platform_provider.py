@@ -829,6 +829,54 @@ class ServerSideToolTests(SimpleTestCase):
             _complete(provider, messages=messages)
         self.assertEqual(provider._client.messages.calls, [])
 
+    def test_response_without_required_container_is_retried_before_recording(self):
+        # Arrange: Platform occasionally leaves dynamic-filtering code open but
+        # omits the container required to replay it. The second response is a
+        # clean rerun of the identical request.
+        unresolved = ServerToolUseBlock(
+            id="srvtoolu_code",
+            name="code_execution",
+            input={"code": "await web_search(...)"},
+            type="server_tool_use",
+        )
+        provider = _build_provider(
+            [
+                _build_response([unresolved], stop_reason="pause_turn"),
+                _build_response([AnthropicTextBlock(type="text", text="recovered")]),
+            ]
+        )
+
+        # Act
+        turn = _complete(provider)
+
+        # Assert: the poisoned response never leaves the adapter; the retry's
+        # answer does, with spend from both requests accounted for.
+        self.assertEqual(turn.text, "recovered")
+        self.assertEqual(len(provider._client.messages.calls), 2)
+        self.assertEqual(turn.usage.input_tokens, 20)
+        self.assertEqual(turn.usage.output_tokens, 6)
+
+    def test_repeated_missing_container_fails_without_returning_poisoned_turn(self):
+        # Arrange
+        unresolved = ServerToolUseBlock(
+            id="srvtoolu_code",
+            name="code_execution",
+            input={"code": "await web_search(...)"},
+            type="server_tool_use",
+        )
+        provider = _build_provider(
+            [
+                _build_response([unresolved], stop_reason="pause_turn"),
+                _build_response([unresolved], stop_reason="pause_turn"),
+            ]
+        )
+
+        # Act / Assert: the provider fails before returning an AssistantTurn,
+        # so the agent recorder cannot append either unreplayable response.
+        with self.assertRaisesMessage(ProviderError, "unreplayable response"):
+            _complete(provider)
+        self.assertEqual(len(provider._client.messages.calls), 2)
+
     def test_open_web_search_span_needs_no_container(self):
         # Arrange: a paused plain web search is resumable without any
         # container -- only open *code execution* gates on one.
