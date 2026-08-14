@@ -37,7 +37,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # Default generator model in OpenRouter's ``vendor/model`` slug format. Callers
 # that want a different route pass ``model_id`` or use a prefixed model ref.
-MODEL_ID = "anthropic/claude-opus-5"
+MODEL_ID = "moonshotai/kimi-k3"
 
 # What ``max_tokens=None`` resolves to. Deliberately below the model's 128K
 # ceiling: the completion is not streamed, so a longer emission would outlive

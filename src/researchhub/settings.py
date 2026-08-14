@@ -549,11 +549,11 @@ OPENROUTER_API_KEY = os.environ.get(
     getattr(keys, "OPENROUTER_API_KEY", ""),
 )
 
-# Which provider the research_ai agent core generates with: "claude_platform"
-# (default, Claude Platform on AWS), "bedrock", or "openrouter". Each adapter
-# names its own model and inference knobs as module constants.
+# Which provider the research_ai agent core generates with: "openrouter"
+# (default), "claude_platform", or "bedrock". Each adapter names its own model
+# and inference knobs as module constants.
 RESEARCH_AI_GENERATOR_PROVIDER = os.environ.get(
-    "RESEARCH_AI_GENERATOR_PROVIDER", "claude_platform"
+    "RESEARCH_AI_GENERATOR_PROVIDER", "openrouter"
 )
 
 AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
