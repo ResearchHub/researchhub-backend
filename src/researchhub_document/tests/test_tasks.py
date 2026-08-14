@@ -12,6 +12,9 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
     REGISTERED_REPORT,
 )
+from researchhub_document.services.researchhub_post_author_service import (
+    replace_authors,
+)
 from researchhub_document.tasks import (
     assign_preregistration_dois,
 )
@@ -66,6 +69,11 @@ class AssignPreregistrationDoisTests(TestCase):
         preregistration_doi = self._build_mock_doi("10.55277/proposal")
         mock_doi_cls.return_value = preregistration_doi
         preregistration = self._create_post(days_old=10)
+        authors = [
+            create_random_default_user("doi_coauthor").author_profile,
+            self.user.author_profile,
+        ]
+        replace_authors(preregistration, authors)
 
         # Act
         assign_preregistration_dois()
@@ -73,6 +81,10 @@ class AssignPreregistrationDoisTests(TestCase):
         # Assert
         preregistration.refresh_from_db()
         self.assertEqual(preregistration.doi, "10.55277/proposal")
+        self.assertEqual(
+            preregistration_doi.register_doi_for_post.call_args.args[0],
+            authors,
+        )
         self.assertEqual(
             preregistration_doi.register_doi_for_post.call_args.args[2],
             preregistration,

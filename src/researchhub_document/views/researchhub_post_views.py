@@ -59,6 +59,11 @@ from researchhub_document.services.proposal_visibility_service import (
 from researchhub_document.services.registered_report_work_service import (
     RegisteredReportWorkService,
 )
+from researchhub_document.services.researchhub_post_author_service import (
+    ResearchhubPostAuthorValidationError,
+    replace_authors,
+    resolve_authors,
+)
 from researchhub_document.services.unified_document_share_link_service import (
     get_shared_unified_document_id,
 )
@@ -259,7 +264,6 @@ class ResearchhubPostViewSet(
 
     def create_researchhub_post(self, request):
         data = request.data
-        authors = data.get("authors", [])
         note_id = data.get("note_id", None)
         document_type = data.get("document_type")
         editor_type = data.get("editor_type")
@@ -278,10 +282,18 @@ class ResearchhubPostViewSet(
                 "Only moderators or hub editors can publish registered reports."
             )
 
+        try:
+            authors = resolve_authors(data.get("authors", []))
+        except ResearchhubPostAuthorValidationError as error:
+            return Response(
+                {"error": str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         if (
             document_type != REGISTERED_REPORT
             and authors
-            and request.user.author_profile.id not in authors
+            and request.user.author_profile not in authors
         ):
             return Response(
                 {"msg": "You must include yourself in the authors list"},
@@ -317,16 +329,16 @@ class ResearchhubPostViewSet(
                         )
                     )
                     note_id = serializer.validated_data["note_id"]
+                    if not authors:
+                        authors = journal_entry_service.get_registered_report_authors(
+                            registered_report_proposal
+                        )
                     journal_entry_service.persist_registered_report_content(
                         registered_report_note,
                         serializer.validated_data["renderable_text"],
                         serializer.validated_data["full_json"],
                         created_by=created_by,
                     )
-                    if not authors:
-                        authors = journal_entry_service.get_registered_report_authors(
-                            registered_report_proposal
-                        )
                     if image is None:
                         image = registered_report_proposal.image
                     if preview_img is None:
@@ -391,14 +403,17 @@ class ResearchhubPostViewSet(
                 )
                 file_name = f"RH-POST-{document_type}-USER-{created_by.id}.txt"
                 full_src_file = ContentFile(data["full_src"].encode())
-                rh_post.authors.set(authors)
+                authors = replace_authors(rh_post, authors)
                 self.add_upvote(created_by, rh_post)
                 if registered_report_proposal is not None:
                     journey_service.attach_stage(
                         registered_report_proposal.journey,
                         rh_post,
                     )
-                    journal_entry_service.register_registered_report_doi(rh_post)
+                    journal_entry_service.register_registered_report_doi(
+                        rh_post,
+                        authors,
+                    )
 
                 fundraise = None
                 if goal_amount := data.get("fundraise_goal_amount"):
@@ -582,11 +597,11 @@ class ResearchhubPostViewSet(
             logger.exception("Failed to create researchhub post")
             return Response({"error": str(e)}, status=400)
 
+    @transaction.atomic
     def update_existing_researchhub_posts(self, request):
         try:
             data = request.data
 
-            authors = data.get("authors", [])
             rh_post_id = data.get("post_id", None)
             rh_post = ResearchhubPost.objects.get(id=rh_post_id)
             if rh_post.document_type == REGISTERED_REPORT:
@@ -595,7 +610,15 @@ class ResearchhubPostViewSet(
                     status=status.HTTP_409_CONFLICT,
                 )
 
-            if authors and request.user.author_profile.id not in authors:
+            try:
+                authors = resolve_authors(data.get("authors", []))
+            except ResearchhubPostAuthorValidationError as error:
+                return Response(
+                    {"error": str(error)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if authors and request.user.author_profile not in authors:
                 return Response(
                     {"msg": "You must include yourself in the authors list"},
                     status=400,
@@ -629,8 +652,7 @@ class ResearchhubPostViewSet(
                     post_id=post.id,
                 )
 
-            if type(authors) is list:
-                rh_post.authors.set(authors)
+            replace_authors(rh_post, authors)
 
             if type(hubs) is list:
                 unified_doc = post.unified_document
@@ -757,6 +779,7 @@ class ResearchhubPostViewSet(
             return Response(response_data, status=200)
 
         except (KeyError, TypeError) as exception:
+            transaction.set_rollback(True)
             logger.exception("Failed to update researchhub post")
             return Response({"error": str(exception)}, status=400)
 

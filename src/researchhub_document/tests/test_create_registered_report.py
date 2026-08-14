@@ -25,6 +25,10 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.services.journal_entry_service import JournalEntryService
 from researchhub_document.services.journey_service import JourneyService
+from researchhub_document.services.researchhub_post_author_service import (
+    list_authors,
+    replace_authors,
+)
 from review.models import Review
 from user.models import User
 from user.tests.helpers import (
@@ -62,6 +66,12 @@ class CreateRegisteredReportTests(APITestCase):
         """Verify a moderator can publish a report for an eligible proposal."""
         # Arrange
         proposal = self._create_completed_proposal(self.user)
+        coauthor = create_random_default_user("rr_coauthor")
+        proposal_authors = [
+            coauthor.author_profile,
+            self.user.author_profile,
+        ]
+        replace_authors(proposal, proposal_authors)
         note = self._create_registered_report_note(proposal)
         payload = self._build_payload(proposal, note_id=note.id)
 
@@ -82,7 +92,7 @@ class CreateRegisteredReportTests(APITestCase):
             ResearchhubUnifiedDocument.APPROVED,
         )
         self.assertTrue(report.unified_document.is_public)
-        self.assertCountEqual(report.authors.all(), proposal.authors.all())
+        self.assertEqual(list_authors(report), proposal_authors)
         self.assertCountEqual(
             report.unified_document.hubs.all(),
             proposal.unified_document.hubs.all(),
@@ -96,7 +106,7 @@ class CreateRegisteredReportTests(APITestCase):
             version=report.version_number,
         )
         self.mock_doi.register_doi_for_post.assert_called_once_with(
-            list(report.authors.all()),
+            proposal_authors,
             report.title,
             report,
         )
@@ -125,10 +135,15 @@ class CreateRegisteredReportTests(APITestCase):
         """Verify publishing uses edited registered report authors and image."""
         # Arrange
         proposal = self._create_completed_proposal(self.user)
+        coauthor = create_random_default_user("rr_edited_coauthor")
+        submitted_authors = [
+            coauthor.author_profile,
+            self.user.author_profile,
+        ]
         note = self._create_registered_report_note(proposal)
         payload = self._build_payload(
             proposal,
-            authors=[self.user.author_profile.id],
+            authors=[author.id for author in submitted_authors],
             note_id=note.id,
             preview_img="https://example.com/edited-preview.png",
         )
@@ -139,10 +154,7 @@ class CreateRegisteredReportTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 200)
         report = ResearchhubPost.objects.get(id=response.data["id"])
-        self.assertCountEqual(
-            report.authors.all(),
-            [self.user.author_profile],
-        )
+        self.assertEqual(list_authors(report), submitted_authors)
         self.assertEqual(report.preview_img, "https://example.com/edited-preview.png")
 
     def test_create_report_persists_published_note_json(self) -> None:

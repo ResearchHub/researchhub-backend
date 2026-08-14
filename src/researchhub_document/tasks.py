@@ -8,6 +8,10 @@ from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
+from researchhub_document.services.researchhub_post_author_service import (
+    build_author_prefetch,
+    list_authors,
+)
 from utils.doi import DOI
 
 logger = logging.getLogger(__name__)
@@ -27,6 +31,7 @@ def assign_preregistration_dois() -> None:
             flags__isnull=True,
         )
         .select_related("created_by__author_profile", "unified_document")
+        .prefetch_related(build_author_prefetch())
         .order_by("id")
     )
 
@@ -36,8 +41,8 @@ def assign_preregistration_dois() -> None:
     for post in eligible_posts:
         try:
             doi = DOI()
-            author = post.created_by.author_profile
-            response = doi.register_doi_for_post([author], post.title, post)
+            authors = list_authors(post) or [post.created_by.author_profile]
+            response = doi.register_doi_for_post(authors, post.title, post)
 
             if response.status_code == 200:
                 post.doi = doi.doi

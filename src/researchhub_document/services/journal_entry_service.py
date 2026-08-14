@@ -31,6 +31,9 @@ from researchhub_document.related_models.constants.document_type import (
     REGISTERED_REPORT,
 )
 from researchhub_document.services.journey_service import JourneyService
+from researchhub_document.services.researchhub_post_author_service import (
+    list_authors,
+)
 from user.models import Author, User
 from utils.doi import DOI
 
@@ -105,25 +108,25 @@ class JournalEntryService:
 
     def get_registered_report_authors(self, proposal: ResearchhubPost) -> list[Author]:
         """Return proposal authors or its creator for a registered report."""
-        authors = list(proposal.authors.all())
+        authors = list_authors(proposal)
         if authors:
             return authors
         if proposal.created_by is not None:
             return [proposal.created_by.author_profile]
         return []
 
-    def register_registered_report_doi(self, report: ResearchhubPost) -> None:
+    def register_registered_report_doi(
+        self,
+        report: ResearchhubPost,
+        authors: list[Author],
+    ) -> None:
         """Register and persist the published report's journal DOI."""
         doi = self._doi_factory(
             journal=PaperVersion.RESEARCHHUB,
             version=report.version_number,
         )
         try:
-            response = doi.register_doi_for_post(
-                list(report.authors.all()),
-                report.title,
-                report,
-            )
+            response = doi.register_doi_for_post(authors, report.title, report)
         except RequestException as error:
             raise RegisteredReportDOIRegistrationError(
                 "Crossref did not respond while registering the registered report DOI."
