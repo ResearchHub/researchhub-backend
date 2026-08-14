@@ -525,9 +525,14 @@ class ClaudePlatformProvider(LLMProvider):
         container = None
         with self._client.messages.stream(**kwargs) as stream:
             for event in stream:
-                event_container = getattr(event, "container", None)
-                if event_container is not None:
-                    container = event_container
+                # The SDK declares it on the event's ``delta``; an id the API
+                # sends elsewhere lands on the event itself as a model extra.
+                delta = getattr(event, "delta", None)
+                disclosed = getattr(delta, "container", None) or getattr(
+                    event, "container", None
+                )
+                if disclosed is not None:
+                    container = disclosed
             response = stream.get_final_message()
         if container is not None:
             response.container = container

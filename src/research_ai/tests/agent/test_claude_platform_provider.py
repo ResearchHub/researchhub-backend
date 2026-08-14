@@ -80,17 +80,7 @@ class FakeMessages:
         # is never accumulated onto the final message.
         return _FakeStream(
             response.model_copy(update={"container": None}),
-            [
-                RawMessageDeltaEvent(
-                    type="message_delta",
-                    delta={
-                        "stop_reason": response.stop_reason,
-                        "stop_sequence": None,
-                    },
-                    usage={"output_tokens": response.usage.output_tokens},
-                    container=response.container,
-                )
-            ],
+            [_build_container_delta(response.container, response.stop_reason)],
         )
 
 
@@ -117,6 +107,25 @@ def _build_response(
         stop_reason=stop_reason,
         stop_details=stop_details,
         usage=usage or Usage(input_tokens=10, output_tokens=3),
+    )
+
+
+def _build_container_delta(container, stop_reason="tool_use"):
+    """The ``message_delta`` disclosing a container, in the SDK's wire shape.
+
+    Deserialized rather than constructed: the container is a field of the
+    event's ``delta``, and the SDK's models accept undeclared top-level keys.
+    """
+    return RawMessageDeltaEvent.model_validate(
+        {
+            "type": "message_delta",
+            "delta": {
+                "container": container.model_dump(mode="json"),
+                "stop_reason": stop_reason,
+                "stop_sequence": None,
+            },
+            "usage": {"output_tokens": 3},
+        }
     )
 
 
@@ -717,12 +726,7 @@ class ServerSideToolTests(SimpleTestCase):
             id="container_123",
             expires_at=datetime(2099, 1, 1, tzinfo=UTC),
         )
-        delta = RawMessageDeltaEvent(
-            type="message_delta",
-            delta={"stop_reason": "tool_use", "stop_sequence": None},
-            usage={"output_tokens": 3},
-            container=container,
-        )
+        delta = _build_container_delta(container)
 
         class DeltaOnlyMessages:
             def stream(self, **kwargs):
