@@ -435,7 +435,7 @@ class CreateRegisteredReportDraftTests(APITestCase):
             title=f"{user.username} proposal title",
         )
         proposal.unified_document.hubs.add(self.hub)
-        proposal.authors.add(user.author_profile)
+        replace_authors(proposal, [user.author_profile])
         proposal.image = "proposal-cover-image-key"
         proposal.preview_img = "https://example.com/proposal-preview.png"
         proposal.save(update_fields=["image", "preview_img"])

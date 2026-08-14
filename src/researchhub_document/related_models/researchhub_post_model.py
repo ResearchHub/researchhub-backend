@@ -289,8 +289,18 @@ class ResearchhubPostAuthor(models.Model):
         on_delete=models.CASCADE,
     )
     author = models.ForeignKey(Author, on_delete=models.CASCADE)
-    position = models.IntegerField(null=True)
+    position = models.IntegerField()
 
     class Meta:
         db_table = "researchhub_document_researchhubpost_authors"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(position__gte=1),
+                name="researchhubpostauthor_position_positive",
+            ),
+            models.UniqueConstraint(
+                fields=["researchhub_post", "position"],
+                name="unique_researchhubpostauthor_position",
+            ),
+        ]
         unique_together = ("researchhub_post", "author")

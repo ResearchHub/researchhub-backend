@@ -24,6 +24,9 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
 )
+from researchhub_document.services.researchhub_post_author_service import (
+    replace_authors,
+)
 from user.models import Author, User
 
 
@@ -259,7 +262,7 @@ def create_prefetched_post(
 
     # Add authors
     if authors:
-        post.authors.set(authors)
+        replace_authors(post, authors)
 
     # Add hubs
     if hubs:

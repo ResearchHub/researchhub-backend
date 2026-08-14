@@ -33,6 +33,9 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.researchhub_post_author_service import (
+    replace_authors,
+)
 from user.models import User
 from user.related_models.author_model import Author
 from utils.test_helpers import AWSMockTestCase
@@ -477,7 +480,7 @@ class FeedTasksTest(AWSMockTestCase):
         post = ResearchhubPost.objects.create(
             unified_document=unified_document, created_by=user
         )
-        post.authors.add(author1)
+        replace_authors(post, [author1])
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
 
         # Act

@@ -721,7 +721,7 @@ class CreateRegisteredReportTests(APITestCase):
             document_type=PREREGISTRATION,
             title=f"{user.id} proposal title",
         )
-        proposal.authors.add(user.author_profile)
+        replace_authors(proposal, [user.author_profile])
         proposal.unified_document.hubs.add(self.hub)
         proposal.image = "proposal-cover-image-key"
         proposal.preview_img = "https://example.com/proposal-preview.png"
