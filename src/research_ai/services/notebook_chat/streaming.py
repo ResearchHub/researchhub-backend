@@ -28,6 +28,10 @@ def _cache_key(execution_id: int) -> str:
     return f"research_ai:notebook_chat:stream:{execution_id}"
 
 
+def _cancelled_cache_key(execution_id: int) -> str:
+    return f"research_ai:notebook_chat:stream_cancelled:{execution_id}"
+
+
 class ExecutionStreamStore:
     """Cache-backed snapshot store shared by workers and REST processes."""
 
@@ -47,6 +51,21 @@ class ExecutionStreamStore:
 
     def clear(self, execution_id: int) -> None:
         self._cache.delete(_cache_key(execution_id))
+
+    def cancel(self, execution_id: int) -> None:
+        """Mark a stream cancelled before removing its reconnect snapshot."""
+        try:
+            self._cache.set(
+                _cancelled_cache_key(execution_id),
+                True,
+                timeout=STREAM_CACHE_TTL_SECONDS,
+            )
+        finally:
+            self.clear(execution_id)
+
+    def is_cancelled(self, execution_id: int) -> bool:
+        """Return the cheap, cache-backed cancellation signal for a worker."""
+        return self._cache.get(_cancelled_cache_key(execution_id)) is True
 
 
 class NotebookStreamBuffer:
@@ -128,7 +147,9 @@ class NotebookStreamBuffer:
         if not self.pending or self.iteration is None:
             return
         now = self.clock() if now is None else now
-        if self._active_check_due(now) and not self.is_active():
+        if self.store.is_cancelled(self.execution_id) or (
+            self._active_check_due(now) and not self.is_active()
+        ):
             # Cancellation clears the shared snapshot. Drop this worker's
             # buffered copy so an in-flight provider cannot recreate it or
             # publish deltas after the authoritative turn_cancelled event.

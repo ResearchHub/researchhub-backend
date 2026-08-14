@@ -908,13 +908,13 @@ class NotebookChatEventEmissionTests(TestCase):
             self.publisher.publish.call_args.args,
             (self.conversation.id, execution.id, TURN_CANCELLED),
         )
-        self.service.streams.clear.assert_called_once_with(execution.id)
+        self.service.streams.cancel.assert_called_once_with(execution.id)
 
     def test_cancel_active_turn_survives_stream_cache_failure(self):
         # Arrange
         execution = self._submit()
         self.service.streams = Mock()
-        self.service.streams.clear.side_effect = RuntimeError("redis down")
+        self.service.streams.cancel.side_effect = RuntimeError("redis down")
 
         # Act
         with (

@@ -624,9 +624,9 @@ class NotebookChatService:
             return None
 
     def _clear_stream(self, execution_id: int) -> None:
-        """Remove an optional preview without changing the durable outcome."""
+        """Mark a cancelled preview so its worker cannot recreate it."""
         try:
-            self.streams.clear(execution_id)
+            self.streams.cancel(execution_id)
         except Exception:  # noqa: BLE001 - stream cleanup is best-effort
             logger.warning(
                 "notebook chat stream cleanup failed (execution=%s)",

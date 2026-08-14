@@ -126,6 +126,7 @@ class PublishingRecorderTests(unittest.TestCase):
         self.wrapped.is_active.return_value = True
         self.publisher = Mock()
         self.stream_store = Mock()
+        self.stream_store.is_cancelled.return_value = False
         self.recorder = PublishingRecorder(
             self.wrapped,
             self.publisher,
