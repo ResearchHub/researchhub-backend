@@ -31,8 +31,10 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.researchhub_post_author_service import (
+    build_author_prefetch,
+)
 from review.models import Review
-from user.models import Author
 
 from .common import FeedPagination
 
@@ -145,7 +147,7 @@ class JournalV2FeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 "unified_document",
             )
             .prefetch_related(
-                Prefetch("authors", queryset=Author.objects.select_related("user")),
+                build_author_prefetch(),
                 *source_proposal_prefetches,
             )
             .annotate(

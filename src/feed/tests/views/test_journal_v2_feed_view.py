@@ -23,6 +23,9 @@ from researchhub_document.related_models.constants.document_type import (
     REGISTERED_REPORT,
 )
 from researchhub_document.services.journey_service import JourneyService
+from researchhub_document.services.researchhub_post_author_service import (
+    replace_authors,
+)
 from review.models import Review
 from user.tests.helpers import create_random_default_user
 from utils.test_helpers import AWSMockTestCase
@@ -45,13 +48,17 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         )
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
-    def test_list_returns_registered_reports_only(self, mock_usd_to_rsc: Any) -> None:
-        """Verify the journal feed excludes completed proposal cards."""
+    def test_returns_registered_reports_in_author_order(
+        self, mock_usd_to_rsc: Any
+    ) -> None:
+        """Return only registered reports with canonical author order."""
         # Arrange
         mock_usd_to_rsc.return_value = 100
         proposal_with_report = self.create_completed_proposal("Proposal With Report")
         grant_post = self.attach_grant_post_to_journey(proposal_with_report)
         registered_report = self.create_registered_report(proposal_with_report)
+        authors = [self.reviewer.author_profile, self.user.author_profile]
+        replace_authors(registered_report, authors)
         completed_proposal = self.create_completed_proposal("Completed Proposal")
         self.create_proposal_review(proposal_with_report, score=8)
 
@@ -77,6 +84,10 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         self.assertEqual(report_card["type"], REGISTERED_REPORT)
         self.assertEqual(report_card["journal_state"], "registered_report")
         self.assertEqual(report_card["proposal"]["id"], proposal_with_report.id)
+        self.assertEqual(
+            [author["id"] for author in report_card["authors"]],
+            [author.id for author in authors],
+        )
         self.assertNotIn("review_metrics", results[0]["metrics"])
         self.assertEqual(report_card["fundraise"]["status"], Fundraise.COMPLETED)
         self.assertEqual(

@@ -3,6 +3,7 @@ import math
 from typing import Any, override
 
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 
@@ -11,6 +12,10 @@ from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
+)
+from researchhub_document.services.researchhub_post_author_service import (
+    build_author_prefetch,
+    list_authors,
 )
 from search.analyzers import content_analyzer, title_analyzer
 from search.base.utils import generate_ngrams
@@ -61,7 +66,7 @@ class PostDocument(BaseDocument):
                 "last_name": author.last_name,
                 "full_name": author.full_name,
             }
-            for author in instance.authors.all()
+            for author in list_authors(instance)
         ]
 
     def prepare_hubs(self, instance) -> list[dict[str, Any]]:
@@ -104,6 +109,23 @@ class PostDocument(BaseDocument):
         # Update index when related unified document model is updated
         related_models = [ResearchhubUnifiedDocument]
 
+    @override
+    def get_queryset(
+        self,
+        filter_: Q | None = None,
+        exclude: Q | None = None,
+        count: int | None = None,
+        alias: str | None = None,
+    ) -> QuerySet:
+        """Return posts with their canonically ordered authors prefetched."""
+        queryset = super().get_queryset(
+            filter_=filter_,
+            exclude=exclude,
+            alias=alias,
+        )
+        queryset = queryset.prefetch_related(build_author_prefetch())
+        return queryset[:count] if count is not None else queryset
+
     # Used specifically for "autocomplete" style suggest feature.
     # Inlcudes a bunch of phrases the user may search by.
     def prepare_suggestion_phrases(self, instance) -> dict[str, Any]:
@@ -125,7 +147,7 @@ class PostDocument(BaseDocument):
         try:
             author_names_only = [
                 author.full_name
-                for author in instance.authors.all()
+                for author in list_authors(instance)
                 if author.first_name and author.last_name
             ]
             all_authors_as_str = ", ".join(author_names_only)

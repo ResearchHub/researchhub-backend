@@ -21,6 +21,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.researchhub_post_author_service import list_authors
 from review.serializers.review_serializer import ReviewSerializer
 from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.models import Author, User
@@ -1084,10 +1085,14 @@ class RelatedWorkSerializer(serializers.Serializer):
 
     def get_authors(self, unified_document):
         content = self._get_content(unified_document)
-        if not content or not hasattr(content, "authors"):
+        if not content:
             return None
 
-        authors = content.authors.all()
+        authors = (
+            list_authors(content)
+            if isinstance(content, ResearchhubPost)
+            else content.authors.all()
+        )
         if not authors:
             return None
 

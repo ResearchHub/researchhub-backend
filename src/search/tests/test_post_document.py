@@ -15,6 +15,9 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.researchhub_post_author_service import (
+    replace_authors,
+)
 from search.documents.post import PostDocument
 from user.tests.helpers import create_random_authenticated_user
 
@@ -73,6 +76,26 @@ class PostDocumentTests(TestCase):
             result = self.document.prepare_hot_score_v2(post)
 
         self.assertEqual(result, 0)
+
+    def test_preserves_author_order_in_search_fields(self) -> None:
+        """Preserve canonical author order in indexed author fields."""
+        # Arrange
+        post = self._create_post()
+        coauthor = create_random_authenticated_user("coauthor")
+        authors = [coauthor.author_profile, self.user.author_profile]
+        author_names = [author.full_name for author in authors]
+        replace_authors(post, authors)
+
+        # Act
+        prepared_authors = self.document.prepare_authors(post)
+        suggestions = self.document.prepare_suggestion_phrases(post)["input"]
+
+        # Assert
+        self.assertEqual(
+            [author["full_name"] for author in prepared_authors],
+            author_names,
+        )
+        self.assertIn(", ".join(author_names), suggestions)
 
     def test_should_index_object_excludes_private_unified_document(self):
         post = self._create_post("Private Post")

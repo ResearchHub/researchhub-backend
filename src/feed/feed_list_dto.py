@@ -28,6 +28,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.researchhub_post_author_service import list_authors
 from user.serializers import DynamicUserSerializer
 
 
@@ -344,10 +345,9 @@ class FundingFeedPostSerializer(serializers.Serializer):
             "bounties": _serialize_slim_bounties(post),
         }
 
-        if hasattr(post, "authors"):
-            authors = post.authors.all()
-            if authors:
-                data["authors"] = SimpleAuthorSerializer(authors, many=True).data
+        authors = list_authors(post)
+        if authors:
+            data["authors"] = SimpleAuthorSerializer(authors, many=True).data
 
         if post.unified_document and hasattr(post.unified_document, "reviews"):
             reviews = post.unified_document.reviews.all()
@@ -399,7 +399,7 @@ class JournalFeedPostSerializer(serializers.Serializer):
 
     def serialize_authors(self, post: ResearchhubPost) -> list[dict[str, Any]]:
         """Serialize the registered report's authors."""
-        return SimpleAuthorSerializer(post.authors.all(), many=True).data
+        return SimpleAuthorSerializer(list_authors(post), many=True).data
 
     @staticmethod
     def _get_image_url(post: ResearchhubPost) -> str | None:

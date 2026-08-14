@@ -41,6 +41,9 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.services.researchhub_post_author_service import (
+    build_author_prefetch,
+)
 from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
 
@@ -163,7 +166,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
                     "unified_document__posts",
                     queryset=ResearchhubPost.objects.select_related(
                         "created_by__author_profile"
-                    ).prefetch_related("authors"),
+                    ).prefetch_related(build_author_prefetch()),
                 ),
                 Prefetch(
                     "unified_document__grants",

@@ -44,6 +44,9 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.researchhub_post_author_service import (
+    replace_authors,
+)
 from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
 from utils.test_helpers import AWSMockTestCase, create_test_user
@@ -295,17 +298,21 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
         # Assert
         self.assertIsNone(entry["nonprofit"])
 
-    def test_related_work_includes_post_authors(self):
+    def test_returns_related_work_post_authors_in_order(self) -> None:
+        """Return related-work post authors in canonical order."""
         # Arrange
-        self.grant_post.authors.add(self.user.author_profile)
+        coauthor = create_test_user("activity_coauthor")
+        authors = [coauthor.author_profile, self.user.author_profile]
+        replace_authors(self.grant_post, authors)
 
         # Act
         entry = self._get_entry(self.grant_comment_entry.id)
 
         # Assert
-        authors = entry["related_work"]["authors"]
-        self.assertEqual(len(authors), 1)
-        self.assertEqual(authors[0]["id"], self.user.author_profile.id)
+        self.assertEqual(
+            [author["id"] for author in entry["related_work"]["authors"]],
+            [author.id for author in authors],
+        )
 
 
 class ActivityFeedRelatedWorkPrefetchTests(ActivityFeedRelatedWorkTests):

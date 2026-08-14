@@ -34,6 +34,9 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.researchhub_post_author_service import (
+    build_author_prefetch,
+)
 from review.models import Review
 
 from .common import FeedPagination
@@ -132,7 +135,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
                 "unified_document",
             )
             .prefetch_related(
-                "authors",
+                build_author_prefetch(),
                 "unified_document__hubs",
                 "unified_document__fundraises",
                 "unified_document__fundraises__nonprofit_links__nonprofit",

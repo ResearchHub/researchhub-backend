@@ -28,6 +28,9 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.researchhub_post_author_service import (
+    replace_authors,
+)
 from utils.test_helpers import AWSMockTestCase
 
 User = get_user_model()
@@ -178,26 +181,28 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         self.assertTrue(ResearchhubPost.objects.filter(id=self.post.id).exists())
 
-    def test_list_funding_feed(self):
-        """Test that funding feed only returns preregistration posts"""
+    def test_lists_funding_feed_in_author_order(self) -> None:
+        """List eligible funding posts with authors in canonical order."""
+        # Arrange
+        authors = [self.other_user.author_profile, self.user.author_profile]
+        replace_authors(self.post, authors)
         url = reverse("funding_feed-list")
+
+        # Act
         response = self.client.get(url)
 
+        # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Should only include non-removed preregistration posts (2 posts)
-        self.assertEqual(len(response.data["results"]), 2)
-
         self.assertEqual(response.data["results"][0]["content_type"], "RESEARCHHUBPOST")
-
-        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
-
-        self.assertIn(self.post.id, post_ids)
-        self.assertIn(self.other_post.id, post_ids)
-
-        # Verify non-preregistration and removed posts are not included
-        self.assertNotIn(self.non_preregistration_post.id, post_ids)
-        self.assertNotIn(self.removed_post.id, post_ids)
+        posts_by_id = {
+            item["content_object"]["id"]: item["content_object"]
+            for item in response.data["results"]
+        }
+        self.assertEqual(set(posts_by_id), {self.post.id, self.other_post.id})
+        self.assertEqual(
+            [author["id"] for author in posts_by_id[self.post.id]["authors"]],
+            [author.id for author in authors],
+        )
 
     def test_pending_preregistration_excluded_from_funding_feed(self):
         """Preregistrations awaiting moderation must not appear in the feed."""
