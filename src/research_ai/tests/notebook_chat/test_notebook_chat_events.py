@@ -1,4 +1,5 @@
 import unittest
+from contextlib import nullcontext
 from unittest.mock import Mock
 
 from django.test import TestCase
@@ -126,6 +127,7 @@ class PublishingRecorderTests(unittest.TestCase):
         self.wrapped.is_active.return_value = True
         self.publisher = Mock()
         self.stream_store = Mock()
+        self.stream_store.guard.return_value = nullcontext()
         self.stream_store.is_cancelled.return_value = False
         self.recorder = PublishingRecorder(
             self.wrapped,

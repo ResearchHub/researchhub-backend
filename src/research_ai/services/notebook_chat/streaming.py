@@ -6,8 +6,11 @@ turn is being emitted: small coalesced WebSocket deltas for the fast path and a
 bounded cache snapshot for reconnect/poll recovery.
 """
 
+import logging
 import time
+import uuid
 from collections import OrderedDict
+from contextlib import contextmanager
 
 from django.core.cache import cache
 from django.utils import timezone
@@ -20,8 +23,13 @@ STREAM_FLUSH_INTERVAL_SECONDS = 0.075
 STREAM_FLUSH_CHARS = 512
 # Execution ownership is database-backed; keep it far below the frame rate.
 STREAM_ACTIVE_CHECK_INTERVAL_SECONDS = 1.0
+STREAM_LOCK_TTL_SECONDS = 30
+STREAM_LOCK_WAIT_SECONDS = 2.0
+STREAM_LOCK_POLL_SECONDS = 0.005
 MAX_STREAM_TEXT_CHARS = 100_000
 MAX_STREAM_THINKING_CHARS = 4_000
+
+logger = logging.getLogger(__name__)
 
 
 def _cache_key(execution_id: int) -> str:
@@ -32,11 +40,64 @@ def _cancelled_cache_key(execution_id: int) -> str:
     return f"research_ai:notebook_chat:stream_cancelled:{execution_id}"
 
 
+def _lock_cache_key(execution_id: int) -> str:
+    return f"research_ai:notebook_chat:stream_lock:{execution_id}"
+
+
+class StreamGuardUnavailableError(RuntimeError):
+    """The optional stream cache could not serialize an operation in time."""
+
+
 class ExecutionStreamStore:
     """Cache-backed snapshot store shared by workers and REST processes."""
 
-    def __init__(self, cache_backend=None):
+    def __init__(
+        self,
+        cache_backend=None,
+        *,
+        clock=time.monotonic,
+        sleep=time.sleep,
+    ):
         self._cache = cache if cache_backend is None else cache_backend
+        self._clock = clock
+        self._sleep = sleep
+
+    @contextmanager
+    def guard(self, execution_id: int):
+        """Serialize stream publication and cancellation across processes."""
+        key = _lock_cache_key(execution_id)
+        token = uuid.uuid4().hex
+        deadline = self._clock() + STREAM_LOCK_WAIT_SECONDS
+        while True:
+            try:
+                acquired = self._cache.add(
+                    key,
+                    token,
+                    timeout=STREAM_LOCK_TTL_SECONDS,
+                )
+            except Exception as exc:
+                raise StreamGuardUnavailableError from exc
+            if acquired:
+                break
+            if self._clock() >= deadline:
+                raise StreamGuardUnavailableError(
+                    f"timed out serializing stream {execution_id}"
+                )
+            self._sleep(STREAM_LOCK_POLL_SECONDS)
+        try:
+            yield
+        finally:
+            try:
+                # The token prevents a stale owner from deleting a newer
+                # lease if its own lock expired while it was suspended.
+                if self._cache.get(key) == token:
+                    self._cache.delete(key)
+            except Exception:  # noqa: BLE001 - lock expiry is the fallback
+                logger.warning(
+                    "notebook chat stream lock release failed (execution=%s)",
+                    execution_id,
+                    exc_info=True,
+                )
 
     def get(self, execution_id: int) -> dict | None:
         value = self._cache.get(_cache_key(execution_id))
@@ -147,36 +208,38 @@ class NotebookStreamBuffer:
         if not self.pending or self.iteration is None:
             return
         now = self.clock() if now is None else now
-        if self.store.is_cancelled(self.execution_id) or (
-            self._active_check_due(now) and not self.is_active()
-        ):
-            # Cancellation clears the shared snapshot. Drop this worker's
-            # buffered copy so an in-flight provider cannot recreate it or
-            # publish deltas after the authoritative turn_cancelled event.
-            self._reset(None)
-            self.stopped = True
-            return
-        self.sequence += 1
-        stream_id = self._stream_id()
-        snapshot = {
-            "id": stream_id,
-            "sequence": self.sequence,
-            "iteration": self.iteration,
-            "items": [dict(item) for item in self.items.values()],
-        }
-        deltas = [dict(delta) for delta in self.pending.values()]
+        with self.store.guard(self.execution_id):
+            if self.store.is_cancelled(self.execution_id) or (
+                self._active_check_due(now) and not self.is_active()
+            ):
+                # Cancellation clears the shared snapshot. Drop this worker's
+                # buffered copy so an in-flight provider cannot recreate it or
+                # publish deltas after the authoritative turn_cancelled event.
+                self._reset(None)
+                self.stopped = True
+                return
+            self.sequence += 1
+            stream_id = self._stream_id()
+            snapshot = {
+                "id": stream_id,
+                "sequence": self.sequence,
+                "iteration": self.iteration,
+                "items": [dict(item) for item in self.items.values()],
+            }
+            deltas = [dict(delta) for delta in self.pending.values()]
 
-        # The snapshot lands first: a socket event can trigger an immediate
-        # fallback refetch, which must never observe an older stream revision.
-        self.store.set(self.execution_id, snapshot)
-        self.publisher.publish_stream(
-            self.conversation_id,
-            self.execution_id,
-            stream_id=stream_id,
-            sequence=self.sequence,
-            iteration=self.iteration,
-            deltas=deltas,
-        )
+            # Keep the snapshot write and its socket publication under the
+            # same cross-process guard as cancellation. Whichever operation
+            # obtains the guard first completes its client-visible event first.
+            self.store.set(self.execution_id, snapshot)
+            self.publisher.publish_stream(
+                self.conversation_id,
+                self.execution_id,
+                stream_id=stream_id,
+                sequence=self.sequence,
+                iteration=self.iteration,
+                deltas=deltas,
+            )
         self.pending.clear()
         self.pending_chars = 0
         self.last_flush_at = now

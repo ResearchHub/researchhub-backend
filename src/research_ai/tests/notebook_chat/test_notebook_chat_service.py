@@ -1,4 +1,5 @@
 import json
+from contextlib import contextmanager, nullcontext
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
@@ -27,6 +28,7 @@ from research_ai.services.notebook_chat.events import (
     ConversationEventPublisher,
 )
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
+from research_ai.services.notebook_chat.streaming import StreamGuardUnavailableError
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -897,6 +899,7 @@ class NotebookChatEventEmissionTests(TestCase):
         # Arrange
         execution = self._submit()
         self.service.streams = Mock()
+        self.service.streams.guard.return_value = nullcontext()
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
@@ -914,6 +917,7 @@ class NotebookChatEventEmissionTests(TestCase):
         # Arrange
         execution = self._submit()
         self.service.streams = Mock()
+        self.service.streams.guard.return_value = nullcontext()
         self.service.streams.cancel.side_effect = RuntimeError("redis down")
 
         # Act
@@ -931,6 +935,78 @@ class NotebookChatEventEmissionTests(TestCase):
         self.assertEqual(
             self.publisher.publish.call_args.args,
             (self.conversation.id, execution.id, TURN_CANCELLED),
+        )
+
+    def test_cancel_active_turn_survives_stream_guard_failure(self):
+        # Arrange
+        execution = self._submit()
+        self.service.streams = Mock()
+        self.service.streams.guard.side_effect = StreamGuardUnavailableError(
+            "redis down"
+        )
+
+        # Act
+        with (
+            self.assertLogs(
+                "research_ai.services.notebook_chat.service", level="WARNING"
+            ),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            cancelled = self.service.cancel_active_turn(self.conversation)
+
+        # Assert: the cache guard fails closed for stream writes, but cannot
+        # block the durable cancellation or its lifecycle notification.
+        self.assertEqual(cancelled, execution)
+        self.service.streams.cancel.assert_called_once_with(execution.id)
+        self.assertEqual(
+            self.publisher.publish.call_args.args,
+            (self.conversation.id, execution.id, TURN_CANCELLED),
+        )
+
+    def test_cancel_serializes_state_change_cleanup_and_event(self):
+        # Arrange
+        execution = self._submit()
+        order = []
+        streams = Mock()
+        cancels = Mock()
+        publisher = Mock()
+
+        @contextmanager
+        def guard(execution_id):
+            order.append(("guard_enter", execution_id))
+            yield
+            order.append(("guard_exit", execution_id))
+
+        streams.guard.side_effect = guard
+        streams.cancel.side_effect = lambda execution_id: order.append(
+            ("stream_cancel", execution_id)
+        )
+        cancels.cancel.side_effect = lambda candidate: (
+            order.append(("durable_cancel", candidate.id)) or True
+        )
+        publisher.publish.side_effect = lambda _, execution_id, __: order.append(
+            ("turn_cancelled", execution_id)
+        )
+        service = _make_service(
+            stream_store=streams,
+            cancel_service=cancels,
+            event_publisher=publisher,
+        )
+
+        # Act
+        cancelled = service.cancel_active_turn(self.conversation)
+
+        # Assert
+        self.assertEqual(cancelled, execution)
+        self.assertEqual(
+            order,
+            [
+                ("guard_enter", execution.id),
+                ("durable_cancel", execution.id),
+                ("stream_cancel", execution.id),
+                ("turn_cancelled", execution.id),
+                ("guard_exit", execution.id),
+            ],
         )
 
     def test_cancel_that_lost_the_race_publishes_nothing(self):

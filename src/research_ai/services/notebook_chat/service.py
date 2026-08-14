@@ -79,7 +79,10 @@ from research_ai.services.notebook_chat.grant_tools import (
     GrantSearchToolset,
     SelectedRFPToolset,
 )
-from research_ai.services.notebook_chat.streaming import ExecutionStreamStore
+from research_ai.services.notebook_chat.streaming import (
+    ExecutionStreamStore,
+    StreamGuardUnavailableError,
+)
 from research_ai.services.notebook_chat.toolset import (
     NotebookWebSearchToolset,
     compose_notebook_toolset,
@@ -464,6 +467,25 @@ class NotebookChatService:
         )
         if execution is None:
             return None
+        try:
+            with self.streams.guard(execution.id):
+                return self._cancel_execution(conversation, execution)
+        except StreamGuardUnavailableError:
+            # Cache failure must not prevent the durable cancellation. Stream
+            # writes also fail closed while the same cache is unavailable.
+            logger.warning(
+                "notebook chat stream serialization failed (execution=%s)",
+                execution.id,
+                exc_info=True,
+            )
+            return self._cancel_execution(conversation, execution)
+
+    def _cancel_execution(
+        self,
+        conversation: AgentConversation,
+        execution: AgentExecution,
+    ) -> AgentExecution | None:
+        """Cancel and announce one execution while its stream guard is held."""
         if not self.cancels.cancel(execution):
             return None
         self._clear_stream(execution.id)

@@ -1,3 +1,4 @@
+import threading
 from unittest.mock import Mock
 
 from django.test import SimpleTestCase
@@ -22,6 +23,12 @@ class FakeCache:
 
     def delete(self, key):
         self.values.pop(key, None)
+
+    def add(self, key, value, timeout=None):
+        if key in self.values:
+            return False
+        self.values[key] = value
+        return True
 
 
 class FakePublisher:
@@ -146,3 +153,50 @@ class NotebookStreamBufferTests(SimpleTestCase):
         self.assertIsNone(self.store.get(9))
         self.assertEqual(len(self.publisher.calls), 2)
         self.assertEqual(is_active.call_count, 1)
+
+    def test_cancellation_waits_for_an_inflight_stream_publication(self):
+        # Arrange
+        publish_started = threading.Event()
+        release_publish = threading.Event()
+        cancellation_started = threading.Event()
+        cancellation_finished = threading.Event()
+        order = []
+
+        def publish_stream(*args, **kwargs):
+            order.append("stream_delta")
+            publish_started.set()
+            release_publish.wait(timeout=1)
+
+        self.publisher.publish_stream = publish_stream
+        publish_thread = threading.Thread(
+            target=self.buffer.append,
+            args=(1, TextStreamDelta(block_index=0, text="before")),
+        )
+
+        def cancel_stream():
+            cancellation_started.set()
+            with self.store.guard(9):
+                self.store.cancel(9)
+                order.append("turn_cancelled")
+            cancellation_finished.set()
+
+        # Act
+        publish_thread.start()
+        self.assertTrue(publish_started.wait(timeout=1))
+        cancel_thread = threading.Thread(target=cancel_stream)
+        cancel_thread.start()
+        self.assertTrue(cancellation_started.wait(timeout=1))
+        self.assertFalse(cancellation_finished.wait(timeout=0.05))
+        release_publish.set()
+        publish_thread.join(timeout=1)
+        cancel_thread.join(timeout=1)
+
+        # Assert: cancellation cannot become visible until the earlier delta
+        # finishes, and its marker prevents every later delta.
+        self.assertFalse(publish_thread.is_alive())
+        self.assertFalse(cancel_thread.is_alive())
+        self.now += 0.1
+        self.buffer.append(1, TextStreamDelta(block_index=0, text="after"))
+        self.assertEqual(order, ["stream_delta", "turn_cancelled"])
+        self.assertTrue(cancellation_finished.is_set())
+        self.assertIsNone(self.store.get(9))
