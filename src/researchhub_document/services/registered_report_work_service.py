@@ -4,8 +4,11 @@ from django.db.models import Prefetch
 
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.services.journey_service import JourneyService
+from researchhub_document.services.researchhub_post_author_service import (
+    build_author_prefetch,
+)
 from review.models import Review
-from user.models import Author, User
+from user.models import User
 
 
 @dataclass(frozen=True)
@@ -47,11 +50,10 @@ class RegisteredReportWorkService:
                 "unified_document",
             )
             .prefetch_related(
-                Prefetch("authors", queryset=Author.objects.select_related("user")),
+                build_author_prefetch(),
                 "unified_document__hubs",
-                Prefetch(
-                    "journey__preregistration_post__authors",
-                    queryset=Author.objects.select_related("user"),
+                build_author_prefetch(
+                    "journey__preregistration_post__researchhubpostauthor_set"
                 ),
                 "journey__preregistration_post__unified_document__hubs",
                 Prefetch(

@@ -17,6 +17,7 @@ from researchhub_document.related_models.constants.journey_stage import (
 from researchhub_document.services.registered_report_work_service import (
     RegisteredReportWorkPayload,
 )
+from researchhub_document.services.researchhub_post_author_service import list_authors
 from review.serializers.review_serializer import DynamicReviewSerializer
 
 
@@ -189,7 +190,7 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
 
     def serialize_authors(self, post: ResearchhubPost) -> list[dict[str, Any]]:
         """Serialize registered report authors."""
-        authors = list(post.authors.all())
+        authors = list_authors(post)
         if not authors and post.created_by is not None:
             authors = [post.created_by.author_profile]
         return SimpleAuthorSerializer(authors, context=self.context, many=True).data

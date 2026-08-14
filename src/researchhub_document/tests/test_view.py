@@ -240,7 +240,7 @@ class ViewTests(APITestCase):
         self.assertEqual(doc_response.status_code, 400)
 
     def test_creates_post_with_multiple_authors(self) -> None:
-        """Store multiple post authors in their submitted order."""
+        """Store and return post authors in their submitted order."""
         # Arrange
         note = create_note(self.admin_user, self.organization)
         self.client.force_authenticate(self.admin_user)
@@ -249,7 +249,7 @@ class ViewTests(APITestCase):
         doc_response = self.client.post(
             "/api/researchhubpost/",
             {
-                "authors": [self.admin_author.id, self.member_author.id],
+                "authors": [self.member_author.id, self.admin_author.id],
                 "created_by": self.admin_user.id,
                 "document_type": "DISCUSSION",
                 "full_src": "body",
@@ -264,6 +264,9 @@ class ViewTests(APITestCase):
                 "title": ("sufficiently long title. sufficiently long title."),
             },
         )
+        post_response = self.client.get(
+            f"/api/researchhubpost/{doc_response.data['id']}/"
+        )
 
         # Assert
         self.assertEqual(doc_response.status_code, 200)
@@ -276,9 +279,14 @@ class ViewTests(APITestCase):
                 .values_list("author_id", "position")
             ),
             [
-                (self.admin_author.id, 1),
-                (self.member_author.id, 2),
+                (self.member_author.id, 1),
+                (self.admin_author.id, 2),
             ],
+        )
+        self.assertEqual(post_response.status_code, 200)
+        self.assertEqual(
+            [author["id"] for author in post_response.data["authors"]],
+            [self.member_author.id, self.admin_author.id],
         )
 
     def test_user_can_create_post_with_non_members(self):

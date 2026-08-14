@@ -22,6 +22,9 @@ from researchhub_document.related_models.constants.document_type import (
     REGISTERED_REPORT,
 )
 from researchhub_document.services.journey_service import JourneyService
+from researchhub_document.services.researchhub_post_author_service import (
+    replace_authors,
+)
 from user.models import User
 from user.tests.helpers import create_hub_editor, create_random_default_user
 
@@ -45,6 +48,10 @@ class CreateRegisteredReportDraftTests(APITestCase):
         """Verify a moderator creates an unpublished draft for another user."""
         # Arrange
         proposal = self._create_proposal(self.user)
+        coauthor = create_random_default_user("draft_proposal_coauthor")
+        proposal_authors = [coauthor.author_profile, self.user.author_profile]
+        replace_authors(proposal, proposal_authors)
+        author_ids = [author.id for author in proposal_authors]
         fundraise = self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
 
         # Act
@@ -98,7 +105,7 @@ class CreateRegisteredReportDraftTests(APITestCase):
         )
         self.assertEqual(
             response.data["registered_report_prefill"]["author_ids"],
-            [self.user.author_profile.id],
+            author_ids,
         )
         self.assertEqual(
             response.data["registered_report_prefill"]["hub_ids"],
@@ -120,7 +127,7 @@ class CreateRegisteredReportDraftTests(APITestCase):
         self.assertEqual(note_response.status_code, 200)
         self.assertEqual(
             note_response.data["registered_report_prefill"]["author_ids"],
-            [self.user.author_profile.id],
+            author_ids,
         )
         self.assertEqual(
             note_response.data["registered_report_prefill"]["hub_ids"],

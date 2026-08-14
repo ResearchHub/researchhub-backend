@@ -99,7 +99,7 @@ def _get_ordered_author_links() -> QuerySet[ResearchhubPostAuthor]:
     """Return post-author links in canonical order."""
     return (
         ResearchhubPostAuthor.objects.filter(author__is_removed=False)
-        .select_related("author")
+        .select_related("author", "author__user")
         .order_by(
             F("position").asc(nulls_last=True),
             "id",

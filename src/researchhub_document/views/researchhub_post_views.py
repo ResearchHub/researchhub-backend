@@ -61,6 +61,7 @@ from researchhub_document.services.registered_report_work_service import (
 )
 from researchhub_document.services.researchhub_post_author_service import (
     ResearchhubPostAuthorValidationError,
+    build_author_prefetch,
     replace_authors,
     resolve_authors,
 )
@@ -217,8 +218,9 @@ class ResearchhubPostViewSet(
                 .annotate(
                     registered_report_id=Subquery(registered_reports.values("id")[:1])
                 )
-                .select_related("unified_document")
+                .select_related("created_by__author_profile", "unified_document")
                 .prefetch_related(
+                    build_author_prefetch(),
                     Prefetch(
                         "grant_applications",
                         queryset=GrantApplication.objects.select_related("grant"),

@@ -445,6 +445,11 @@ class CreateRegisteredReportTests(APITestCase):
         """Verify registered report work data includes tracker and reviewer data."""
         # Arrange
         proposal = self._create_completed_proposal(self.user)
+        proposal_authors = [
+            self.moderator.author_profile,
+            self.user.author_profile,
+        ]
+        replace_authors(proposal, proposal_authors)
         grant_post = self._create_grant_post()
         proposal.journey.grant_post = grant_post
         proposal.journey.save(update_fields=["grant_post"])
@@ -493,7 +498,8 @@ class CreateRegisteredReportTests(APITestCase):
         note.latest_version.save(update_fields=["json"])
         report.note = note
         report.save(update_fields=["note"])
-        report.authors.add(self.user.author_profile)
+        report_authors = list(reversed(proposal_authors))
+        replace_authors(report, report_authors)
         self.service.attach_stage(proposal.journey, report)
 
         # Act
@@ -507,7 +513,18 @@ class CreateRegisteredReportTests(APITestCase):
         self.assertEqual(response.data["content_type"], "RESEARCHHUBPOST")
         self.assertEqual(response.data["content_object"]["id"], report.id)
         self.assertEqual(response.data["content_object"]["doi"], report.doi)
+        self.assertEqual(
+            [
+                author["id"]
+                for author in response.data["content_object"]["authors"]
+            ],
+            [author.id for author in report_authors],
+        )
         self.assertEqual(response.data["work"]["id"], report.id)
+        self.assertEqual(
+            [author["id"] for author in response.data["work"]["authors"]],
+            [author.id for author in report_authors],
+        )
         self.assertEqual(
             response.data["work"]["renderable_text"],
             report.renderable_text,
@@ -523,7 +540,10 @@ class CreateRegisteredReportTests(APITestCase):
         self.assertEqual(proposal_data["document_type"], PREREGISTRATION)
         self.assertEqual(proposal_data["status"], proposal.unified_document.status)
         self.assertEqual(proposal_data["hubs"][0]["id"], self.hub.id)
-        self.assertEqual(proposal_data["authors"][0]["id"], self.user.author_profile.id)
+        self.assertEqual(
+            [author["id"] for author in proposal_data["authors"]],
+            [author.id for author in proposal_authors],
+        )
         self.assertEqual(proposal_data["created_by"]["id"], self.user.id)
         self.assertEqual(len(proposal_data["peer_reviews"]), 1)
         self.assertEqual(proposal_data["peer_reviews"][0]["id"], active_review.id)

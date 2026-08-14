@@ -32,6 +32,9 @@ from researchhub_document.related_models.researchhub_post_model import (
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.researchhub_post_author_service import (
+    replace_authors,
+)
 from user.models import Action, Organization
 from user.tests.helpers import make_user_verified
 from utils.test_helpers import AWSMockTestCase
@@ -917,7 +920,7 @@ class DynamicPostSerializerRedactionTests(AWSMockTestCase):
         return DynamicPostSerializer(
             self.private_post,
             context={"request": request},
-            _include_fields=["id", "title", "renderable_text"],
+            _include_fields=["authors", "id", "title", "renderable_text"],
         ).data
 
     def test_outsider_gets_redacted_payload(self):
@@ -926,9 +929,22 @@ class DynamicPostSerializerRedactionTests(AWSMockTestCase):
         self.assertNotIn("title", data)
         self.assertNotIn("renderable_text", data)
 
-    def test_author_gets_full_payload(self):
+    def test_returns_full_payload_to_author(self) -> None:
+        """Return private post authors in canonical order to their owner."""
+        # Arrange
+        coauthor = _make_user("coauthor")
+        authors = [coauthor.author_profile, self.author.author_profile]
+        replace_authors(self.private_post, authors)
+
+        # Act
         data = self._serialize(self.author)
+
+        # Assert
         self.assertEqual(data["title"], "Secret title")
+        self.assertEqual(
+            [author["id"] for author in data["authors"]],
+            [author.id for author in authors],
+        )
 
     def test_public_post_is_not_redacted_for_outsider(self):
         public_post = create_post(

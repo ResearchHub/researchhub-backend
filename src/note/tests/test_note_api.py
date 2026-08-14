@@ -10,7 +10,7 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import Organization
-from user.tests.helpers import make_user_verified
+from user.tests.helpers import create_random_default_user, make_user_verified
 
 
 class NoteTests(APITestCase):
@@ -1122,8 +1122,9 @@ class NoteTests(APITestCase):
         # Verify that post is None
         self.assertIsNone(note["post"])
 
-    def test_note_with_post(self):
-        # Create a note first
+    def test_lists_note_with_ordered_post_authors(self) -> None:
+        """List a note with its post authors in canonical order."""
+        # Arrange
         response = self.client.post(
             "/api/note/",
             {
@@ -1134,11 +1135,13 @@ class NoteTests(APITestCase):
         )
         self.assertEqual(response.status_code, 200)
         note = response.data
+        coauthor = create_random_default_user("note_post_coauthor")
+        author_ids = [coauthor.author_profile.id, self.user.author_profile.id]
 
-        # Create a post associated with the note
         post_response = self.client.post(
             "/api/researchhubpost/",
             {
+                "authors": author_ids,
                 "document_type": "DISCUSSION",
                 "created_by": self.user.id,
                 "full_src": "Test post content",
@@ -1153,14 +1156,17 @@ class NoteTests(APITestCase):
         )
         self.assertEqual(post_response.status_code, 200)
 
-        # Re-fetch the note to verify post data
-        response = self.client.get(f"/api/note/{note['id']}/")
-        self.assertEqual(response.status_code, 200)
-        note = response.data
+        # Act
+        response = self.client.get("/api/note/")
 
-        # Verify post data is present and correctly structured
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        note = response.data["results"][0]
         self.assertIsNotNone(note["post"])
-        self.assertIn("authors", note["post"])
+        self.assertEqual(
+            [author["id"] for author in note["post"]["authors"]],
+            author_ids,
+        )
         self.assertIn("hubs", note["post"])
         self.assertIn("unified_document", note["post"])
 

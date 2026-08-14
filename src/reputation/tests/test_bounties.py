@@ -23,10 +23,14 @@ from reputation.tasks import check_open_bounties
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_comment.tests.helpers import create_rh_comment
+from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
+)
+from researchhub_document.services.researchhub_post_author_service import (
+    replace_authors,
 )
 from user.models import User
 from user.related_models.user_model import FOUNDATION_EMAIL, FOUNDATION_REVENUE_EMAIL
@@ -708,10 +712,17 @@ class BountyViewTests(APITestCase):
         )
         self.assertEqual(cancel_bounty_res_2.status_code, 404)
 
-    def test_get_bounties(self):
+    def test_lists_post_bounty_authors_in_canonical_order(self) -> None:
+        """List post-backed bounty authors in canonical order."""
         # Arrange
         self._authenticate_bounty_manager()
-        self.comment2 = create_rh_comment(created_by=self.user)
+        post = create_post(
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            title="Proposal Post",
+        )
+        authors = [self.user_2.author_profile, self.user.author_profile]
+        replace_authors(post, authors)
 
         res = self.client.post(
             "/api/bounty/",
@@ -728,8 +739,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 2000,
-                "item_content_type": self.comment2._meta.model_name,
-                "item_object_id": self.comment2.id,
+                "item_content_type": post._meta.model_name,
+                "item_object_id": post.id,
             },
         )
 
@@ -741,7 +752,20 @@ class BountyViewTests(APITestCase):
         # Assert
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data["results"]), 2)
-        # Verify assessment_end_date is included in list response
+        post_bounty = next(
+            bounty
+            for bounty in res.data["results"]
+            if bounty["unified_document"]["id"] == post.unified_document_id
+        )
+        self.assertEqual(
+            [
+                author["id"]
+                for author in post_bounty["unified_document"]["documents"][0][
+                    "authors"
+                ]
+            ],
+            [author.id for author in authors],
+        )
         for bounty in res.data["results"]:
             self.assertIn("assessment_end_date", bounty)
 

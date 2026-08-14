@@ -32,6 +32,7 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.services.journey_service import JourneyService
 from researchhub_document.services.researchhub_post_author_service import (
+    build_author_prefetch,
     list_authors,
 )
 from user.models import Author, User
@@ -200,7 +201,12 @@ class JournalEntryService:
     def _get_approved_proposal(self, proposal_id: int) -> ResearchhubPost:
         """Return an approved proposal or raise a validation error."""
         proposal = (
-            ResearchhubPost.objects.select_related("journey", "unified_document")
+            ResearchhubPost.objects.select_related(
+                "created_by__author_profile",
+                "journey",
+                "unified_document",
+            )
+            .prefetch_related(build_author_prefetch())
             .filter(
                 document_type=PREREGISTRATION,
                 id=proposal_id,

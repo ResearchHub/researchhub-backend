@@ -49,6 +49,9 @@ from researchhub_document.related_models.constants.document_type import (
     NOTE,
     REGISTERED_REPORT,
 )
+from researchhub_document.services.researchhub_post_author_service import (
+    build_author_prefetch,
+)
 from user.models import Organization, User
 
 
@@ -68,6 +71,12 @@ class NoteViewSet(ModelViewSet):
                 | Q(unified_document__permissions__user=user)
             )
             .distinct()
+            .select_related("post", "post__unified_document")
+            .prefetch_related(
+                build_author_prefetch(
+                    "post__researchhubpostauthor_set",
+                )
+            )
             .order_by("-created_date")
         )
 

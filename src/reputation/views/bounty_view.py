@@ -54,11 +54,18 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.researchhub_post_author_service import (
+    build_author_prefetch,
+)
 from user.models import User
 from user.permissions import IsModerator
 from utils.permissions import PostOnly
 
 logger = logging.getLogger(__name__)
+
+_BOUNTY_POST_AUTHOR_LOOKUP = (
+    "unified_document__posts__researchhubpostauthor_set"
+)
 
 
 def _open_bounty_exists_on_item(item_content_type, item_object_id):
@@ -778,6 +785,9 @@ class BountyViewSet(viewsets.ModelViewSet):
             else:
                 queryset = queryset.order_by(sort)
 
+        queryset = queryset.select_related("unified_document").prefetch_related(
+            build_author_prefetch(_BOUNTY_POST_AUTHOR_LOOKUP)
+        )
         page = self.paginate_queryset(queryset)
         context = self._get_retrieve_context()
         serializer = DynamicBountySerializer(
@@ -814,6 +824,9 @@ class BountyViewSet(viewsets.ModelViewSet):
     )
     def get_bounties(self, request):
         qs = self.filter_queryset(self.get_queryset()).filter(parent__isnull=True)
+        qs = qs.select_related("unified_document").prefetch_related(
+            build_author_prefetch(_BOUNTY_POST_AUTHOR_LOOKUP)
+        )
         qs = self._prioritize_preregistration_bounties(qs).order_by(
             "preregistration_first", "-created_date"
         )[:10]

@@ -32,6 +32,7 @@ from researchhub_document.related_models.constants.document_type import (
     REGISTERED_REPORT,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
+from researchhub_document.services.researchhub_post_author_service import list_authors
 from researchhub_document.services.unified_document_share_link_service import (
     get_shared_unified_document_id,
 )
@@ -152,11 +153,9 @@ class ResearchhubPostSerializer(
 
     def get_authors(self, post):
         # Probably legacy scenario, before ELN release
-        authors = list(post.authors.all())
-        if len(authors) == 0:
-            authors.append(post.created_by.author_profile)
-        else:
-            authors = post.authors
+        authors = list_authors(post)
+        if not authors:
+            authors = [post.created_by.author_profile]
 
         serializer = AuthorSerializer(
             authors,
@@ -453,7 +452,7 @@ class DynamicPostSerializer(
             ]
         }
         serializer = DynamicAuthorSerializer(
-            post.authors, context=context, many=True, **_context_fields
+            list_authors(post), context=context, many=True, **_context_fields
         )
         return serializer.data
 
