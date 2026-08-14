@@ -75,6 +75,7 @@ from research_ai.services.notebook_chat.events import (
     ConversationEventPublisher,
     PublishingRecorder,
 )
+from research_ai.services.notebook_chat.grant_tools import GrantSearchToolset
 from research_ai.services.notebook_chat.toolset import (
     NotebookWebSearchToolset,
     compose_notebook_toolset,
@@ -523,6 +524,7 @@ class NotebookChatService:
         )
         toolset = compose_notebook_toolset(
             note_toolset=NoteToolset(user=conversation.user, note_ids={note.id}),
+            grant_toolset=GrantSearchToolset(user=conversation.user),
             openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),
             web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
             native_tool_names=provider.native_tool_names,
