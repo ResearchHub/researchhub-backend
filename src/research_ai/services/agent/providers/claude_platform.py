@@ -58,11 +58,10 @@ MODEL_ID = "claude-opus-5"
 MAX_OUTPUT_TOKENS = 128_000
 
 # How much the model may deliberate and spend per turn: low | medium | high |
-# xhigh | max. ``high`` is the API default and the closest match to the prior
-# Bedrock behaviour; ``xhigh`` trades tokens for depth on agentic work, and
-# medium/low are the cost lever. "" omits the parameter entirely (models older
+# xhigh | max. ``low`` keeps routine agent workflows economical; higher levels
+# trade more tokens for depth. "" omits the parameter entirely (models older
 # than 4.5 reject it).
-EFFORT = "high"
+EFFORT = "low"
 
 # Adaptive thinking lets the model choose its own reasoning depth per turn; it
 # is the only supported on-mode from Opus 4.6 onward and is already the default

@@ -361,7 +361,7 @@ class CompleteAndParseTests(SimpleTestCase):
         self.assertEqual(
             call["thinking"], {"type": "adaptive", "display": "summarized"}
         )
-        self.assertEqual(call["output_config"], {"effort": "high"})
+        self.assertEqual(call["output_config"], {"effort": "low"})
         self.assertNotIn("temperature", call)
 
     def test_prompt_caching_marks_system_and_the_last_message_block(self):
