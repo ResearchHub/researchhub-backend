@@ -476,8 +476,7 @@ class ClaudePlatformProvider(LLMProvider):
                 # Streamed so a turn's wall clock is bounded by chunk gaps,
                 # not the whole emission -- a full-budget turn legitimately
                 # outlives any sane whole-request timeout.
-                with self._client.messages.stream(**kwargs) as stream:
-                    response = stream.get_final_message()
+                response = self._stream_turn(kwargs)
             except Exception as e:
                 logger.exception("Claude Platform complete failed")
                 raise ProviderError(f"Claude Platform complete failed: {e}") from e
@@ -514,6 +513,30 @@ class ClaudePlatformProvider(LLMProvider):
         return turn
 
     # -- private helpers --------------------------------------------------
+
+    def _stream_turn(self, kwargs: dict) -> Any:
+        """Stream one turn, restoring the container the SDK accumulator drops.
+
+        Anthropic discloses the code-execution container on ``message_delta``,
+        and the accumulator behind ``get_final_message`` copies only stop and
+        usage fields off that event -- so the id every later request needs to
+        resume the container reaches this process only through the events.
+        """
+        container = None
+        with self._client.messages.stream(**kwargs) as stream:
+            for event in stream:
+                # The SDK declares it on the event's ``delta``; an id the API
+                # sends elsewhere lands on the event itself as a model extra.
+                delta = getattr(event, "delta", None)
+                disclosed = getattr(delta, "container", None) or getattr(
+                    event, "container", None
+                )
+                if disclosed is not None:
+                    container = disclosed
+            response = stream.get_final_message()
+        if container is not None:
+            response.container = container
+        return response
 
     def _render_messages(
         self, messages: list[Message], *, cache_last: bool = False

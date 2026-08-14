@@ -8,6 +8,7 @@ from anthropic.types import (
     CodeExecutionToolResultBlock,
     Container,
     EncryptedCodeExecutionResultBlock,
+    RawMessageDeltaEvent,
     RedactedThinkingBlock,
     ServerToolUseBlock,
     Usage,
@@ -46,14 +47,18 @@ from research_ai.services.agent.types import (
 class _FakeStream:
     """Stands in for the SDK's ``MessageStreamManager`` context manager."""
 
-    def __init__(self, response):
+    def __init__(self, response, events=()):
         self._response = response
+        self._events = list(events)
 
     def __enter__(self):
         return self
 
     def __exit__(self, *exc_info):
         return False
+
+    def __iter__(self):
+        return iter(self._events)
 
     def get_final_message(self):
         return self._response
@@ -68,7 +73,15 @@ class FakeMessages:
 
     def stream(self, **kwargs):
         self.calls.append(deepcopy(kwargs))
-        return _FakeStream(self._responses.pop(0))
+        response = self._responses.pop(0)
+        if getattr(response, "container", None) is None:
+            return _FakeStream(response)
+        # Faithful to the SDK: the container arrives on ``message_delta`` and
+        # is never accumulated onto the final message.
+        return _FakeStream(
+            response.model_copy(update={"container": None}),
+            [_build_container_delta(response.container, response.stop_reason)],
+        )
 
 
 class FakeAnthropicClient:
@@ -94,6 +107,25 @@ def _build_response(
         stop_reason=stop_reason,
         stop_details=stop_details,
         usage=usage or Usage(input_tokens=10, output_tokens=3),
+    )
+
+
+def _build_container_delta(container, stop_reason="tool_use"):
+    """The ``message_delta`` disclosing a container, in the SDK's wire shape.
+
+    Deserialized rather than constructed: the container is a field of the
+    event's ``delta``, and the SDK's models accept undeclared top-level keys.
+    """
+    return RawMessageDeltaEvent.model_validate(
+        {
+            "type": "message_delta",
+            "delta": {
+                "container": container.model_dump(mode="json"),
+                "stop_reason": stop_reason,
+                "stop_sequence": None,
+            },
+            "usage": {"output_tokens": 3},
+        }
     )
 
 
@@ -475,6 +507,9 @@ class CompleteAndParseTests(SimpleTestCase):
             def __exit__(self, *exc_info):
                 return False
 
+            def __iter__(self):
+                raise ValueError("connection reset")
+
             def get_final_message(self):
                 raise ValueError("connection reset")
 
@@ -681,6 +716,36 @@ class ServerSideToolTests(SimpleTestCase):
         self.assertEqual(
             replayed_result["content"]["encrypted_stdout"],
             "enc-stdout",
+        )
+
+    def test_container_disclosed_only_by_a_stream_event_is_recorded(self):
+        # Arrange: Anthropic reports the container on ``message_delta``, which
+        # the SDK never accumulates onto the final message -- reading the final
+        # message alone loses the id every later request needs.
+        container = Container(
+            id="container_123",
+            expires_at=datetime(2099, 1, 1, tzinfo=UTC),
+        )
+        delta = _build_container_delta(container)
+
+        class DeltaOnlyMessages:
+            def stream(self, **kwargs):
+                return _FakeStream(_build_response([], stop_reason="tool_use"), [delta])
+
+        class DeltaOnlyClient:
+            messages = DeltaOnlyMessages()
+
+        provider = ClaudePlatformProvider(
+            client=DeltaOnlyClient(), model_id="claude-opus-5"
+        )
+
+        # Act
+        turn = _complete(provider)
+
+        # Assert
+        self.assertEqual(
+            turn.provider_state["anthropic"]["container"]["id"],
+            "container_123",
         )
 
     def test_code_execution_container_and_tool_caller_replay_on_followup(self):
