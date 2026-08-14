@@ -14,12 +14,12 @@ from research_ai.services.agent.providers.registry import (
 
 
 class GeneratorModelRefTests(SimpleTestCase):
-    def test_default_ref_is_openrouter_kimi_k3(self):
+    def test_default_ref_is_claude_platform(self):
         # Arrange / Act
         ref = generator_model_ref()
 
         # Assert
-        self.assertEqual(ref, "openrouter:moonshotai/kimi-k3")
+        self.assertEqual(ref, "claude_platform:claude-opus-5")
 
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
     def test_bedrock_ref_carries_provider_prefix(self):
@@ -35,7 +35,7 @@ class GeneratorModelRefTests(SimpleTestCase):
         ref = generator_model_ref()
 
         # Assert
-        self.assertEqual(ref, "openrouter:moonshotai/kimi-k3")
+        self.assertEqual(ref, "openrouter:anthropic/claude-opus-5")
 
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="acme")
     def test_unknown_provider_name_raises(self):
@@ -46,17 +46,16 @@ class GeneratorModelRefTests(SimpleTestCase):
 
 @patch.object(registry, "BedrockProvider")
 class ResolveProviderTests(SimpleTestCase):
-    def test_default_resolves_to_openrouter_kimi_k3(self, bedrock_cls):
+    def test_default_resolves_to_claude_platform(self, bedrock_cls):
         # Arrange / Act
         provider = resolve_provider()
 
         # Assert
-        self.assertIsInstance(provider, OpenRouterProvider)
-        self.assertEqual(provider.model_id, "moonshotai/kimi-k3")
+        self.assertIsInstance(provider, ClaudePlatformProvider)
+        self.assertEqual(provider.model_id, "claude-opus-5")
         self.assertEqual(provider.native_tool_names, frozenset())
         bedrock_cls.assert_not_called()
 
-    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="claude_platform")
     def test_native_web_search_must_be_enabled_explicitly(self, bedrock_cls):
         # Arrange / Act
         provider = resolve_provider(native_tools=frozenset({"web_search"}))
@@ -93,13 +92,13 @@ class ResolveProviderTests(SimpleTestCase):
         self.assertEqual(provider.native_tool_names, frozenset())
         bedrock_cls.assert_not_called()
 
-    def test_unprefixed_ref_uses_default_openrouter_generator(self, bedrock_cls):
+    def test_unprefixed_ref_uses_default_generator_provider(self, bedrock_cls):
         # Arrange / Act
-        provider = resolve_provider("moonshotai/kimi-k3")
+        provider = resolve_provider("claude-haiku-4-5")
 
         # Assert
-        self.assertIsInstance(provider, OpenRouterProvider)
-        self.assertEqual(provider.model_id, "moonshotai/kimi-k3")
+        self.assertIsInstance(provider, ClaudePlatformProvider)
+        self.assertEqual(provider.model_id, "claude-haiku-4-5")
         bedrock_cls.assert_not_called()
 
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")

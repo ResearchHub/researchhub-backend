@@ -1,7 +1,7 @@
 """Model-ref -> provider resolution for the agent core.
 
-The ``RESEARCH_AI_GENERATOR_PROVIDER`` setting selects ``openrouter``
-(the default), ``claude_platform``, or ``bedrock`` when no explicit model ref is
+The ``RESEARCH_AI_GENERATOR_PROVIDER`` setting selects ``claude_platform``
+(the default), ``bedrock``, or ``openrouter`` when no explicit model ref is
 given. A model ref can instead carry one of those provider prefixes, allowing
 the judge roster to mix providers in one panel.
 
@@ -22,7 +22,7 @@ from research_ai.services.agent.providers.openrouter import OpenRouterProvider
 BEDROCK = "bedrock"
 CLAUDE_PLATFORM = "claude_platform"
 OPENROUTER = "openrouter"
-DEFAULT_PROVIDER = OPENROUTER
+DEFAULT_PROVIDER = CLAUDE_PLATFORM
 
 _PROVIDERS = (BEDROCK, CLAUDE_PLATFORM, OPENROUTER)
 _PREFIXES = tuple(f"{provider}:" for provider in _PROVIDERS)

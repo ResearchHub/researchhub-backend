@@ -422,12 +422,12 @@ class ErrorTests(SimpleTestCase):
 
 
 class DefaultsTests(SimpleTestCase):
-    def test_model_id_defaults_to_kimi_k3(self):
+    def test_model_id_defaults_to_opus_5(self):
         # Arrange / Act
         provider = _build_provider(model_id=None)
 
         # Assert
-        self.assertEqual(provider.model_id, "moonshotai/kimi-k3")
+        self.assertEqual(provider.model_id, "anthropic/claude-opus-5")
 
     def test_round_trip_arguments_encoding(self):
         # Arrange: an assistant tool call rendered then a result echoing its id.

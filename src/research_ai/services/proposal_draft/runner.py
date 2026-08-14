@@ -636,8 +636,8 @@ def run_proposal_draft(
     the note id.
 
     Runtime collaborators are injectable for tests; in production they default
-    to the settings-configured generator provider (OpenRouter unless
-    ``RESEARCH_AI_GENERATOR_PROVIDER`` selects another provider), judge panel,
+    to the settings-configured generator provider (Claude Platform on AWS unless
+    ``RESEARCH_AI_GENERATOR_PROVIDER`` selects Bedrock or OpenRouter), judge panel,
     OpenAlex client, Brave web-search client, and database persistence services.
     """
     search_expert = SearchExpert.objects.select_related(
