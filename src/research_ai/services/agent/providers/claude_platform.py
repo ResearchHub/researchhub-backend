@@ -22,6 +22,7 @@ plus its Claude workspace id (``ANTHROPIC_AWS_WORKSPACE_ID``).
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -388,6 +389,7 @@ class ClaudePlatformProvider(LLMProvider):
         rendered_tools: Any,
         max_tokens: int | None,
         temperature: float,
+        before_retry: Callable[[], None] | None = None,
     ) -> AssistantTurn:
         if self._client is None:
             raise ProviderError(
@@ -487,6 +489,8 @@ class ClaudePlatformProvider(LLMProvider):
             ):
                 break
             if attempt == 0:
+                if before_retry is not None:
+                    before_retry()
                 # Do not persist a response the next request cannot replay.
                 # Repeating the identical stateless request gives Platform one
                 # chance to finish the server-side loop or disclose its

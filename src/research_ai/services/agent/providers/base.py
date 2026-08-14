@@ -15,6 +15,7 @@ results to tool uses by this id; rendering and parsing must keep them aligned.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any
 
 from research_ai.services.agent.tools import Tool
@@ -50,11 +51,14 @@ class LLMProvider(ABC):
         rendered_tools: Any,
         max_tokens: int | None,
         temperature: float,
+        before_retry: Callable[[], None] | None = None,
     ) -> AssistantTurn:
         """Run one model turn and return the parsed ``AssistantTurn``.
 
         ``rendered_tools`` is whatever ``render_tools`` produced for this
         provider; it is passed through opaquely. ``max_tokens=None`` means the
-        adapter's own output ceiling for its model.
+        adapter's own output ceiling for its model. A provider that retries
+        internally must invoke ``before_retry`` immediately before spending on
+        another request, when supplied.
         """
         raise NotImplementedError

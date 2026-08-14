@@ -130,13 +130,21 @@ def _build_provider(responses=None, **kwargs):
     )
 
 
-def _complete(provider, *, messages=None, rendered_tools=None, temperature=0.0):
+def _complete(
+    provider,
+    *,
+    messages=None,
+    rendered_tools=None,
+    temperature=0.0,
+    before_retry=None,
+):
     return provider.complete(
         system_prompt="sys",
         messages=messages or [Message(role="user", content=[TextBlock(text="hi")])],
         rendered_tools=rendered_tools if rendered_tools is not None else [],
         max_tokens=100,
         temperature=temperature,
+        before_retry=before_retry,
     )
 
 
@@ -876,6 +884,30 @@ class ServerSideToolTests(SimpleTestCase):
         with self.assertRaisesMessage(ProviderError, "unreplayable response"):
             _complete(provider)
         self.assertEqual(len(provider._client.messages.calls), 2)
+
+    def test_cancellation_probe_stops_missing_container_retry(self):
+        # Arrange
+        unresolved = ServerToolUseBlock(
+            id="srvtoolu_code",
+            name="code_execution",
+            input={"code": "await web_search(...)"},
+            type="server_tool_use",
+        )
+        provider = _build_provider(
+            [
+                _build_response([unresolved], stop_reason="pause_turn"),
+                _build_response([AnthropicTextBlock(type="text", text="unreached")]),
+            ]
+        )
+
+        def cancelled():
+            raise InterruptedError("agent execution is no longer running")
+
+        # Act / Assert: cancellation lands after the first response but before
+        # the provider can issue its hidden second request.
+        with self.assertRaises(InterruptedError):
+            _complete(provider, before_retry=cancelled)
+        self.assertEqual(len(provider._client.messages.calls), 1)
 
     def test_open_web_search_span_needs_no_container(self):
         # Arrange: a paused plain web search is resumable without any

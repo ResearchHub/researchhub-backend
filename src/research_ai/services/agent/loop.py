@@ -245,6 +245,7 @@ class Agent:
                 rendered_tools=rendered_tools,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
+                before_retry=self._ensure_active,
             )
         except AgentRunError as exc:
             # Attach the transcript so the failure is inspectable and the
