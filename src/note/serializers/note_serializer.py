@@ -111,10 +111,8 @@ class NoteSerializer(ModelSerializer):
         if not selection_requires_validation:
             return attrs
 
-        selected_grant = (
-            attrs["selected_grant"]
-            if "selected_grant" in attrs
-            else self.instance.selected_grant
+        selected_grant = attrs.get(
+            "selected_grant", getattr(self.instance, "selected_grant", None)
         )
         if selected_grant is None:
             return attrs
