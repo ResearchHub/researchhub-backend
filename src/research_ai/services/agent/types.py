@@ -168,7 +168,14 @@ class ThinkingStreamDelta:
     type: str = "thinking_delta"
 
 
-ProviderStreamEvent = TextStreamDelta | ThinkingStreamDelta
+@dataclass(frozen=True)
+class StreamReset:
+    """Discard the current preview before a provider replaces an attempt."""
+
+    type: str = "stream_reset"
+
+
+ProviderStreamEvent = TextStreamDelta | ThinkingStreamDelta | StreamReset
 
 
 @dataclass(frozen=True)

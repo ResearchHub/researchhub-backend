@@ -906,6 +906,7 @@ class NotebookChatEventEmissionTests(TestCase):
     def test_cancel_active_turn_publishes_turn_cancelled(self):
         # Arrange
         execution = self._submit()
+        self.publisher.reset_mock()
         self.service.streams = Mock()
         self.service.streams.guard.return_value = nullcontext()
 
@@ -921,55 +922,38 @@ class NotebookChatEventEmissionTests(TestCase):
         )
         self.service.streams.cancel.assert_called_once_with(execution.id)
 
-    def test_cancel_active_turn_survives_stream_cache_failure(self):
+    def test_cancel_active_turn_retries_when_cancellation_marker_fails(self):
         # Arrange
         execution = self._submit()
+        self.publisher.reset_mock()
         self.service.streams = Mock()
         self.service.streams.guard.return_value = nullcontext()
         self.service.streams.cancel.side_effect = RuntimeError("redis down")
 
-        # Act
-        with (
-            self.assertLogs(
-                "research_ai.services.notebook_chat.service", level="WARNING"
-            ),
-            self.captureOnCommitCallbacks(execute=True),
-        ):
-            cancelled = self.service.cancel_active_turn(self.conversation)
+        # Act / Assert: no durable cancellation is recorded without the marker
+        # that prevents the worker from reviving output after Redis recovers.
+        with self.assertRaises(NotebookChatCancellationTimeoutError):
+            self.service.cancel_active_turn(self.conversation)
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
+        self.publisher.publish.assert_not_called()
 
-        # Assert: cancellation and its notification remain authoritative even
-        # when the transient preview cannot be removed.
-        self.assertEqual(cancelled, execution)
-        self.assertEqual(
-            self.publisher.publish.call_args.args,
-            (self.conversation.id, execution.id, TURN_CANCELLED),
-        )
-
-    def test_cancel_active_turn_survives_stream_cache_unavailability(self):
+    def test_cancel_active_turn_retries_when_stream_cache_is_unavailable(self):
         # Arrange
         execution = self._submit()
+        self.publisher.reset_mock()
         self.service.streams = Mock()
         self.service.streams.guard.side_effect = StreamCacheUnavailableError(
             "redis down"
         )
 
-        # Act
-        with (
-            self.assertLogs(
-                "research_ai.services.notebook_chat.service", level="WARNING"
-            ),
-            self.captureOnCommitCallbacks(execute=True),
-        ):
-            cancelled = self.service.cancel_active_turn(self.conversation)
-
-        # Assert: the cache guard fails closed for stream writes, but cannot
-        # block the durable cancellation or its lifecycle notification.
-        self.assertEqual(cancelled, execution)
-        self.service.streams.cancel.assert_called_once_with(execution.id)
-        self.assertEqual(
-            self.publisher.publish.call_args.args,
-            (self.conversation.id, execution.id, TURN_CANCELLED),
-        )
+        # Act / Assert
+        with self.assertRaises(NotebookChatCancellationTimeoutError):
+            self.service.cancel_active_turn(self.conversation)
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
+        self.service.streams.cancel.assert_not_called()
+        self.publisher.publish.assert_not_called()
 
     def test_cancel_serializes_state_change_cleanup_and_event(self):
         # Arrange
@@ -1011,8 +995,8 @@ class NotebookChatEventEmissionTests(TestCase):
             order,
             [
                 ("guard_enter", execution.id),
-                ("durable_cancel", execution.id),
                 ("stream_cancel", execution.id),
+                ("durable_cancel", execution.id),
                 ("turn_cancelled", execution.id),
                 ("guard_exit", execution.id),
             ],

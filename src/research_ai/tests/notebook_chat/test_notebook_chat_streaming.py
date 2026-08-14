@@ -1,9 +1,14 @@
 import threading
+from contextlib import nullcontext
 from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
 
-from research_ai.services.agent.types import TextStreamDelta, ThinkingStreamDelta
+from research_ai.services.agent.types import (
+    StreamReset,
+    TextStreamDelta,
+    ThinkingStreamDelta,
+)
 from research_ai.services.notebook_chat import streaming
 from research_ai.services.notebook_chat.streaming import (
     MAX_STREAM_THINKING_CHARS,
@@ -12,6 +17,7 @@ from research_ai.services.notebook_chat.streaming import (
     ExecutionStreamStore,
     NotebookStreamBuffer,
     StreamCacheUnavailableError,
+    StreamGuardLeaseLostError,
     StreamGuardTimeoutError,
 )
 
@@ -200,6 +206,25 @@ class NotebookStreamBufferTests(SimpleTestCase):
         self.assertIsNone(self.store.get(9))
         self.assertNotIn(streaming._journal_cache_key(9), self.cache.values)
 
+    def test_retry_reset_replaces_the_discarded_preview(self):
+        # Arrange
+        self.buffer.append(1, TextStreamDelta(block_index=0, text="discarded"))
+
+        # Act
+        self.buffer.append(1, StreamReset())
+        reset_snapshot = self.store.get(9)
+        self.buffer.append(1, TextStreamDelta(block_index=0, text="accepted"))
+
+        # Assert
+        self.assertEqual(reset_snapshot["id"], "9:1:retry-1")
+        self.assertEqual(reset_snapshot["sequence"], 1)
+        self.assertEqual(reset_snapshot["items"], [])
+        self.assertEqual(self.publisher.calls[1][1]["deltas"], [])
+        recovered = self.store.get(9)
+        self.assertEqual(recovered["id"], "9:1:retry-1")
+        self.assertEqual(recovered["sequence"], 2)
+        self.assertEqual(recovered["items"][0]["text"], "accepted")
+
     def test_bounded_stream_guard_times_out_under_contention(self):
         # Arrange, Act & Assert
         with (
@@ -233,6 +258,46 @@ class NotebookStreamBufferTests(SimpleTestCase):
         )
         lease.reacquire.assert_called()
         lease.release.assert_called_once_with()
+
+    def test_redis_stream_guard_invalidates_after_renewal_failure(self):
+        # Arrange
+        renewal_attempted = threading.Event()
+        lease = Mock()
+        lease.acquire.return_value = True
+
+        def fail_renewal():
+            renewal_attempted.set()
+            raise ConnectionError("redis unavailable")
+
+        lease.reacquire.side_effect = fail_renewal
+        renewer = streaming._GuardLeaseRenewer(interval_seconds=0.01)
+        store = ExecutionStreamStore(cache_backend=self.cache)
+
+        # Act / Assert
+        with (
+            patch.object(streaming, "_guard_lease_renewer", renewer),
+            patch.object(store, "_redis_lock", return_value=lease),
+            self.assertLogs(
+                "research_ai.services.notebook_chat.streaming", level="WARNING"
+            ),
+            store.guard(9) as guard,
+        ):
+            self.assertTrue(renewal_attempted.wait(timeout=0.2))
+            with self.assertRaises(StreamGuardLeaseLostError):
+                guard.ensure_valid()
+
+    def test_lost_lease_prevents_stream_publication(self):
+        # Arrange
+        guard = Mock()
+        guard.ensure_valid.side_effect = StreamGuardLeaseLostError("lost")
+
+        # Act / Assert
+        with (
+            patch.object(self.store, "guard", return_value=nullcontext(guard)),
+            self.assertRaises(StreamGuardLeaseLostError),
+        ):
+            self.buffer.append(1, TextStreamDelta(block_index=0, text="unsafe"))
+        self.assertEqual(self.publisher.calls, [])
 
     def test_redis_stream_guard_uses_token_safe_expiring_lock(self):
         # Arrange

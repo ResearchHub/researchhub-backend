@@ -22,6 +22,7 @@ creator: the consumer admits only the owner, so events never reach an
 org-wide room the way note notifications do.
 """
 
+import asyncio
 import logging
 
 from asgiref.sync import async_to_sync
@@ -30,6 +31,7 @@ from django.db import transaction
 
 from research_ai.services.notebook_chat.streaming import (
     STREAM_DELTA,
+    STREAM_PUBLISH_TIMEOUT_SECONDS,
     ExecutionStreamStore,
     NotebookStreamBuffer,
 )
@@ -49,6 +51,12 @@ TURN_PROGRESS = "turn_progress"
 TURN_FINISHED = "turn_finished"
 TURN_FAILED = "turn_failed"
 TURN_CANCELLED = "turn_cancelled"
+
+
+async def _group_send_with_timeout(layer, group: str, message: dict) -> None:
+    """Bound a channel send below the stream guard's renewal interval."""
+    async with asyncio.timeout(STREAM_PUBLISH_TIMEOUT_SECONDS):
+        await layer.group_send(group, message)
 
 
 def conversation_group(conversation_id: int | str) -> str:
@@ -120,7 +128,8 @@ class ConversationEventPublisher:
     def _send_data(self, conversation_id: int, data: dict) -> None:
         try:
             layer = self._channel_layer or get_channel_layer()
-            async_to_sync(layer.group_send)(
+            async_to_sync(_group_send_with_timeout)(
+                layer,
                 conversation_group(conversation_id),
                 {
                     "type": EVENT_TYPE,
@@ -177,6 +186,11 @@ class PublishingRecorder:
         try:
             callback(*args)
         except Exception:  # noqa: BLE001 - previews must never break a turn
+            # A failed cache/guard operation leaves its batch pending and may
+            # no longer be serialized with cancellation. Stop retrying it on
+            # every provider chunk; a durable turn transition can re-enable a
+            # fresh preview only after cache cleanup succeeds.
+            self._stream.disable()
             logger.warning(
                 "notebook chat stream %s failed (execution=%s)",
                 operation,

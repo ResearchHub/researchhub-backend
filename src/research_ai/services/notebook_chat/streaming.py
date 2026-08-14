@@ -16,7 +16,11 @@ from contextlib import contextmanager
 from django.core.cache import cache
 from django.utils import timezone
 
-from research_ai.services.agent.types import TextStreamDelta, ThinkingStreamDelta
+from research_ai.services.agent.types import (
+    StreamReset,
+    TextStreamDelta,
+    ThinkingStreamDelta,
+)
 
 STREAM_DELTA = "stream_delta"
 STREAM_CACHE_TTL_SECONDS = 60 * 60
@@ -28,6 +32,9 @@ STREAM_CHECKPOINT_CHARS = 4_096
 STREAM_ACTIVE_CHECK_INTERVAL_SECONDS = 1.0
 STREAM_LOCK_TTL_SECONDS = 30
 STREAM_LOCK_RENEW_INTERVAL_SECONDS = STREAM_LOCK_TTL_SECONDS / 3
+# A publication that starts with a valid lease must finish before even one
+# failed renewal could let the lease expire underneath it.
+STREAM_PUBLISH_TIMEOUT_SECONDS = STREAM_LOCK_RENEW_INTERVAL_SECONDS / 2
 STREAM_LOCK_WAIT_SECONDS = 2.0
 STREAM_LOCK_POLL_SECONDS = 0.005
 MAX_STREAM_TEXT_CHARS = 100_000
@@ -75,14 +82,35 @@ class _GuardLeaseRenewer:
                     continue
                 for lease in tuple(self._leases):
                     try:
-                        # redis-py's reacquire script extends the TTL only if
-                        # this holder still owns the token.
-                        lease.reacquire()
-                    except Exception:  # noqa: BLE001 - expiry remains fallback
+                        lease.renew()
+                    except Exception:  # noqa: BLE001 - holder is invalidated
+                        self._leases.discard(lease)
                         logger.warning(
                             "notebook chat stream lock renewal failed",
                             exc_info=True,
                         )
+
+
+class _GuardLease:
+    """Expose whether a Redis lease remained valid during guarded work."""
+
+    def __init__(self, lease=None):
+        self.lease = lease
+        self._lost = threading.Event()
+
+    def renew(self) -> None:
+        try:
+            renewed = self.lease.reacquire()
+        except Exception:
+            self._lost.set()
+            raise
+        if renewed is False:
+            self._lost.set()
+            raise StreamGuardLeaseLostError("stream guard lease is no longer owned")
+
+    def ensure_valid(self) -> None:
+        if self._lost.is_set():
+            raise StreamGuardLeaseLostError("stream guard lease renewal failed")
 
 
 _guard_lease_renewer = _GuardLeaseRenewer()
@@ -110,6 +138,10 @@ class StreamCacheUnavailableError(RuntimeError):
 
 class StreamGuardTimeoutError(RuntimeError):
     """A bounded stream operation could not obtain its execution guard."""
+
+
+class StreamGuardLeaseLostError(StreamCacheUnavailableError):
+    """A guarded operation can no longer prove that it owns its Redis lease."""
 
 
 class ExecutionStreamStore:
@@ -146,13 +178,14 @@ class ExecutionStreamStore:
                 raise StreamGuardTimeoutError(
                     f"timed out serializing stream {execution_id}"
                 )
-            _guard_lease_renewer.register(lease)
+            guard = _GuardLease(lease)
+            _guard_lease_renewer.register(guard)
             try:
-                yield
+                yield guard
             finally:
                 # Unregister under the renewer's condition before releasing,
                 # so it cannot revive a lease after the critical section.
-                _guard_lease_renewer.unregister(lease)
+                _guard_lease_renewer.unregister(guard)
                 try:
                     lease.release()
                 except Exception:  # noqa: BLE001 - lease expiry is fallback
@@ -181,7 +214,7 @@ class ExecutionStreamStore:
                 )
             self._sleep(STREAM_LOCK_POLL_SECONDS)
         try:
-            yield
+            yield _GuardLease()
         finally:
             try:
                 # The token prevents a stale owner from deleting a newer
@@ -367,10 +400,14 @@ class NotebookStreamBuffer:
         self.last_flush_at: float | None = None
         self.last_checkpoint_at: float | None = None
         self.last_active_check_at: float | None = None
+        self.stream_revision = 0
         self.stopped = False
 
     def append(self, iteration: int, event) -> None:
         if self.stopped:
+            return
+        if isinstance(event, StreamReset):
+            self.restart(iteration)
             return
         item_type, maximum = self._event_shape(event)
         if item_type is None:
@@ -426,7 +463,7 @@ class NotebookStreamBuffer:
             self.stopped = True
             return
         checkpoint = self._checkpoint_due(now)
-        with self.store.guard(self.execution_id):
+        with self.store.guard(self.execution_id) as guard:
             if self.store.is_cancelled(self.execution_id):
                 # Cancellation clears the shared snapshot. Drop this worker's
                 # buffered copy so an in-flight provider cannot recreate it or
@@ -455,6 +492,10 @@ class NotebookStreamBuffer:
                     sequence=sequence,
                     deltas=deltas,
                 )
+            # A renewal failure permanently invalidates this critical section,
+            # even if Redis has since recovered. Do not publish under a lease
+            # that another process may now own.
+            guard.ensure_valid()
             # Keep socket publication under the same renewable cross-process
             # guard as cancellation. Full recovery snapshots are checkpointed
             # less often than the small WebSocket batches; the bounded delta
@@ -468,6 +509,7 @@ class NotebookStreamBuffer:
                 iteration=self.iteration,
                 deltas=deltas,
             )
+            guard.ensure_valid()
             self.sequence = sequence
         self.pending.clear()
         self.pending_chars = 0
@@ -475,6 +517,44 @@ class NotebookStreamBuffer:
         if checkpoint:
             self.uncheckpointed_chars = 0
             self.last_checkpoint_at = now
+
+    def restart(self, iteration: int) -> None:
+        """Replace a discarded provider attempt with a new empty preview."""
+        next_revision = self.stream_revision + 1 if self.iteration == iteration else 1
+        now = self.clock()
+        with self.store.guard(self.execution_id) as guard:
+            if self.store.is_cancelled(self.execution_id):
+                self.disable()
+                return
+            self._reset(iteration)
+            self.stream_revision = next_revision
+            self.sequence = 1
+            stream_id = self._stream_id()
+            self.store.set(
+                self.execution_id,
+                {
+                    "id": stream_id,
+                    "sequence": self.sequence,
+                    "iteration": iteration,
+                    "items": [],
+                },
+            )
+            guard.ensure_valid()
+            self.publisher.publish_stream(
+                self.conversation_id,
+                self.execution_id,
+                stream_id=stream_id,
+                sequence=self.sequence,
+                iteration=iteration,
+                deltas=[],
+            )
+            guard.ensure_valid()
+        self.last_checkpoint_at = now
+
+    def disable(self) -> None:
+        """Drop local state and fail closed for the rest of this model turn."""
+        self._reset(None)
+        self.stopped = True
 
     def clear(self) -> None:
         self.pending.clear()
@@ -487,6 +567,7 @@ class NotebookStreamBuffer:
         self.last_flush_at = None
         self.last_checkpoint_at = None
         self.last_active_check_at = None
+        self.stream_revision = 0
         self.stopped = False
 
     def _reset(self, iteration: int | None) -> None:
@@ -499,6 +580,7 @@ class NotebookStreamBuffer:
         self.last_flush_at = None
         self.last_checkpoint_at = None
         self.last_active_check_at = None
+        self.stream_revision = 0
 
     def _active_check_due(self, now: float) -> bool:
         """Whether the throttled execution-ownership probe should run now."""
@@ -520,7 +602,10 @@ class NotebookStreamBuffer:
         )
 
     def _stream_id(self) -> str:
-        return f"{self.execution_id}:{self.iteration}"
+        stream_id = f"{self.execution_id}:{self.iteration}"
+        if self.stream_revision:
+            return f"{stream_id}:retry-{self.stream_revision}"
+        return stream_id
 
     @staticmethod
     def _event_shape(event) -> tuple[str | None, int]:

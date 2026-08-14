@@ -486,15 +486,11 @@ class NotebookChatService:
                 return self._cancel_execution(conversation, execution)
         except StreamGuardTimeoutError as exc:
             raise NotebookChatCancellationTimeoutError from exc
-        except StreamCacheUnavailableError:
-            # Cache failure must not prevent the durable cancellation. Stream
-            # writes also fail closed while the same cache is unavailable.
-            logger.warning(
-                "notebook chat stream serialization failed (execution=%s)",
-                execution.id,
-                exc_info=True,
-            )
-            return self._cancel_execution(conversation, execution)
+        except StreamCacheUnavailableError as exc:
+            # Without the guard/marker, a worker that did not observe the same
+            # outage could publish after Redis recovers. Report a retryable
+            # failure instead of claiming an unserialized cancellation landed.
+            raise NotebookChatCancellationTimeoutError from exc
 
     def _cancel_execution(
         self,
@@ -502,9 +498,16 @@ class NotebookChatService:
         execution: AgentExecution,
     ) -> AgentExecution | None:
         """Cancel and announce one execution while its stream guard is held."""
+        try:
+            # Establish the worker-visible stop signal before the durable
+            # transition. If this fails, leave the execution active so the
+            # caller can safely retry rather than create a cancelled row whose
+            # in-flight worker has no way to observe the cancellation.
+            self.streams.cancel(execution.id)
+        except Exception as exc:  # noqa: BLE001 - normalize cache backends
+            raise NotebookChatCancellationTimeoutError from exc
         if not self.cancels.cancel(execution):
             return None
-        self._clear_stream(execution.id)
         # The worker's own writes stop publishing once the row is terminal
         # (a refused write emits nothing), so the cancel is announced here.
         self.events.publish(conversation.id, execution.id, TURN_CANCELLED)
@@ -660,17 +663,6 @@ class NotebookChatService:
                 exc_info=True,
             )
             return None
-
-    def _clear_stream(self, execution_id: int) -> None:
-        """Mark a cancelled preview so its worker cannot recreate it."""
-        try:
-            self.streams.cancel(execution_id)
-        except Exception:  # noqa: BLE001 - stream cleanup is best-effort
-            logger.warning(
-                "notebook chat stream cleanup failed (execution=%s)",
-                execution_id,
-                exc_info=True,
-            )
 
     def _turn_config(self, execution: AgentExecution) -> NotebookChatConfig:
         """The knobs this turn was submitted with, not today's settings.

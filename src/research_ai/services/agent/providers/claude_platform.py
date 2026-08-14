@@ -39,6 +39,7 @@ from research_ai.services.agent.types import (
     ProviderStreamEvent,
     ServerToolBlock,
     StopReason,
+    StreamReset,
     TextBlock,
     TextStreamDelta,
     ThinkingBlock,
@@ -486,6 +487,11 @@ class ClaudePlatformProvider(LLMProvider):
             if attempt == 0:
                 if before_retry is not None:
                     before_retry()
+                if on_event is not None:
+                    # The first response is intentionally discarded. Replace
+                    # its transient preview before streaming the retry so the
+                    # two attempts cannot be presented as one answer.
+                    on_event(StreamReset())
                 # Do not persist a response the next request cannot replay.
                 # Repeating the identical stateless request gives Platform one
                 # chance to finish the server-side loop or disclose its

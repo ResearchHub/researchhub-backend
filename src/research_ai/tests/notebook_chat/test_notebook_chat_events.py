@@ -1,10 +1,12 @@
+import asyncio
 import unittest
 from contextlib import nullcontext
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from django.test import TestCase
 
 from research_ai.services.agent.types import TextStreamDelta
+from research_ai.services.notebook_chat import events
 from research_ai.services.notebook_chat.events import (
     EVENT_TYPE,
     TURN_FAILED,
@@ -28,6 +30,11 @@ class FakeChannelLayer:
         if self._error is not None:
             raise self._error
         self.sent.append((group, message))
+
+
+class StalledChannelLayer:
+    async def group_send(self, group, message):
+        await asyncio.sleep(1)
 
 
 class ConversationEventPublisherTests(TestCase):
@@ -118,6 +125,26 @@ class ConversationEventPublisherTests(TestCase):
             },
         )
 
+    def test_stream_publication_is_bounded_below_the_guard_lease_interval(self):
+        # Arrange
+        publisher = ConversationEventPublisher(channel_layer=StalledChannelLayer())
+
+        # Act / Assert: timeout is best-effort and does not escape the publisher.
+        with (
+            patch.object(events, "STREAM_PUBLISH_TIMEOUT_SECONDS", 0.001),
+            self.assertLogs(
+                "research_ai.services.notebook_chat.events", level="WARNING"
+            ),
+        ):
+            publisher.publish_stream(
+                12,
+                34,
+                stream_id="34:1",
+                sequence=1,
+                iteration=1,
+                deltas=[],
+            )
+
 
 class PublishingRecorderTests(unittest.TestCase):
     """Pure delegation tests; no Django machinery involved."""
@@ -127,7 +154,7 @@ class PublishingRecorderTests(unittest.TestCase):
         self.wrapped.is_active.return_value = True
         self.publisher = Mock()
         self.stream_store = Mock()
-        self.stream_store.guard.return_value = nullcontext()
+        self.stream_store.guard.return_value = nullcontext(Mock())
         self.stream_store.is_cancelled.return_value = False
         self.recorder = PublishingRecorder(
             self.wrapped,
@@ -183,8 +210,7 @@ class PublishingRecorderTests(unittest.TestCase):
         )
 
     def test_stream_cache_failures_do_not_interrupt_durable_recording(self):
-        # Arrange: the first failed checkpoint leaves a pending preview, so
-        # record_message retries both the flush and the subsequent clear.
+        # Arrange: the first failed checkpoint disables this turn's preview.
         self.stream_store.set.side_effect = RuntimeError("redis down")
         self.stream_store.clear.side_effect = RuntimeError("redis down")
         message, turn = object(), object()
@@ -196,12 +222,17 @@ class PublishingRecorderTests(unittest.TestCase):
             self.recorder.record_stream_event(
                 1, TextStreamDelta(block_index=0, text="hello")
             )
+            self.recorder.record_stream_event(
+                1, TextStreamDelta(block_index=0, text="do not retry")
+            )
             self.recorder.record_message(message, turn=turn)
 
         # Assert: only the transient preview was lost. The authoritative
         # message and its durable progress notification still landed.
         self.wrapped.record_message.assert_called_once_with(message, turn=turn)
         self.publisher.publish.assert_called_once_with(7, 9, TURN_PROGRESS)
+        self.stream_store.set.assert_called_once()
+        self.publisher.publish_stream.assert_not_called()
 
     def test_inactive_execution_drops_stream_events(self):
         # Arrange
