@@ -17,7 +17,11 @@ from research_ai.services.agent_persistence import (
     AgentConversationBusyError,
     DatabaseAgentRecorder,
 )
-from research_ai.services.notebook_chat import WORKFLOW, NotebookChatService
+from research_ai.services.notebook_chat import (
+    WORKFLOW,
+    NotebookChatCancellationTimeoutError,
+    NotebookChatService,
+)
 from research_ai.services.notebook_chat.config import NotebookChatConfig
 from research_ai.services.notebook_chat.events import (
     TURN_CANCELLED,
@@ -28,7 +32,11 @@ from research_ai.services.notebook_chat.events import (
     ConversationEventPublisher,
 )
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
-from research_ai.services.notebook_chat.streaming import StreamCacheUnavailableError
+from research_ai.services.notebook_chat.streaming import (
+    STREAM_LOCK_WAIT_SECONDS,
+    StreamCacheUnavailableError,
+    StreamGuardTimeoutError,
+)
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -974,7 +982,7 @@ class NotebookChatEventEmissionTests(TestCase):
         @contextmanager
         def guard(execution_id, *, wait_seconds):
             order.append(("guard_enter", execution_id))
-            self.assertIsNone(wait_seconds)
+            self.assertEqual(wait_seconds, STREAM_LOCK_WAIT_SECONDS)
             yield
             order.append(("guard_exit", execution_id))
 
@@ -1009,6 +1017,30 @@ class NotebookChatEventEmissionTests(TestCase):
                 ("guard_exit", execution.id),
             ],
         )
+
+    def test_cancel_guard_timeout_does_not_cancel_without_serialization(self):
+        # Arrange
+        execution = self._submit()
+        streams = Mock()
+        streams.guard.side_effect = StreamGuardTimeoutError("publisher stalled")
+        cancels = Mock()
+        publisher = Mock()
+        service = _make_service(
+            stream_store=streams,
+            cancel_service=cancels,
+            event_publisher=publisher,
+        )
+
+        # Act / Assert
+        with self.assertRaises(NotebookChatCancellationTimeoutError):
+            service.cancel_active_turn(self.conversation)
+        streams.guard.assert_called_once_with(
+            execution.id,
+            wait_seconds=STREAM_LOCK_WAIT_SECONDS,
+        )
+        cancels.cancel.assert_not_called()
+        streams.cancel.assert_not_called()
+        publisher.publish.assert_not_called()
 
     def test_cancel_that_lost_the_race_publishes_nothing(self):
         # Arrange: the turn goes terminal between the scan and the

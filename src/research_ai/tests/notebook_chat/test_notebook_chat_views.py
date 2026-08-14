@@ -2,10 +2,12 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from rest_framework import status
 from rest_framework.test import APITestCase
 
 from note.tests.helpers import create_note
 from research_ai.models import AgentExecution
+from research_ai.services.notebook_chat import NotebookChatCancellationTimeoutError
 from researchhub_access_group.constants import ADMIN, VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -300,6 +302,27 @@ class NotebookChatViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.data["cancelled"])
         self.assertIsNone(response.data["execution_id"])
+
+    def test_cancel_returns_retryable_error_when_stream_is_busy(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+
+        # Act
+        with patch(
+            "research_ai.views.notebook_chat_views."
+            "NotebookChatService.cancel_active_turn",
+            side_effect=NotebookChatCancellationTimeoutError,
+        ):
+            response = self._cancel(chat_id)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.headers["Retry-After"], "2")
+        self.assertEqual(
+            response.data["detail"],
+            "Cancellation is temporarily busy. Please retry.",
+        )
 
     def test_cancel_of_another_users_chat_is_not_found(self):
         # Arrange: the owner's turn is running; the viewer aims stop at it.

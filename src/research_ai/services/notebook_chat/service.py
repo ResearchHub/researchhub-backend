@@ -80,8 +80,10 @@ from research_ai.services.notebook_chat.grant_tools import (
     SelectedRFPToolset,
 )
 from research_ai.services.notebook_chat.streaming import (
+    STREAM_LOCK_WAIT_SECONDS,
     ExecutionStreamStore,
     StreamCacheUnavailableError,
+    StreamGuardTimeoutError,
 )
 from research_ai.services.notebook_chat.toolset import (
     NotebookWebSearchToolset,
@@ -118,6 +120,10 @@ TITLE_MAX_CHARS = 120
 # How much of a chat's newest message the listing carries as a preview,
 # truncated in the database so a 20k-character turn never rides along.
 LIST_PREVIEW_CHARS = 160
+
+
+class NotebookChatCancellationTimeoutError(RuntimeError):
+    """Cancellation could not safely overtake an in-flight stream publish."""
 
 
 def _derive_title(text: str) -> str:
@@ -449,12 +455,13 @@ class NotebookChatService:
         """Stop the conversation's in-flight turn; ``None`` if none was running.
 
         Cancellation is cooperative: the worker is not interrupted here, it
-        notices at its next durable write and unwinds. This may first wait for
-        one in-flight stream publication so no older delta can follow the
-        cancellation event. Once the intent is recorded, the turn's status is
-        ``CANCELLED`` even though a model call may still be in flight. Nothing
-        the worker does afterwards can revive the row -- every terminal
-        transition in the recorder is guarded on ``RUNNING``.
+        notices at its next durable write and unwinds. This first waits briefly
+        for one in-flight stream publication so no older delta can follow the
+        cancellation event. If that wait times out, no cancellation is
+        recorded and the caller can safely retry. Once the intent is recorded,
+        the turn's status is ``CANCELLED`` even though a model call may still
+        be in flight. Nothing the worker does afterwards can revive the row --
+        every terminal transition in the recorder is guarded on ``RUNNING``.
         """
         execution = (
             conversation.executions.filter(
@@ -469,11 +476,16 @@ class NotebookChatService:
         if execution is None:
             return None
         try:
-            # Cancellation cannot time out into an unserialized fallback: it
-            # waits for any older stream publication to finish, then seals the
-            # stream and announces cancellation while holding the same guard.
-            with self.streams.guard(execution.id, wait_seconds=None):
+            # A timeout must never become an unserialized fallback. Let the
+            # request retry instead of either blocking a web worker forever or
+            # allowing an older stream delta to follow turn_cancelled.
+            with self.streams.guard(
+                execution.id,
+                wait_seconds=STREAM_LOCK_WAIT_SECONDS,
+            ):
                 return self._cancel_execution(conversation, execution)
+        except StreamGuardTimeoutError as exc:
+            raise NotebookChatCancellationTimeoutError from exc
         except StreamCacheUnavailableError:
             # Cache failure must not prevent the durable cancellation. Stream
             # writes also fail closed while the same cache is unavailable.

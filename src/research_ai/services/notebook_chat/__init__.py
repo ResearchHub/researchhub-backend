@@ -14,6 +14,7 @@ from research_ai.services.notebook_chat.service import (
     ACTIVITY_ALL,
     ACTIVITY_LIVE,
     WORKFLOW,
+    NotebookChatCancellationTimeoutError,
     NotebookChatService,
 )
 from research_ai.services.notebook_chat.toolset import (
@@ -28,6 +29,7 @@ __all__ = [
     "WORKFLOW",
     "ConversationEventPublisher",
     "GrantSearchToolset",
+    "NotebookChatCancellationTimeoutError",
     "NotebookChatConfig",
     "NotebookChatService",
     "NotebookWebSearchToolset",
