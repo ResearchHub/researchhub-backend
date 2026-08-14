@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 SEARCH_GRANTS = "search_grants"
 _MAX_QUERY_CHARS = 500
 _MAX_DESCRIPTION_CHARS = 3000
+_MAX_POST_CONTENT_CHARS = 3000
 
 
 class GrantSearchToolset:
@@ -89,6 +90,11 @@ class GrantSearchToolset:
             "title": title,
             "organization": (grant.organization or "").strip(),
             "description": (grant.description or "")[:_MAX_DESCRIPTION_CHARS],
+            "post_content": (
+                (post.renderable_text or "").strip()[:_MAX_POST_CONTENT_CHARS]
+                if post is not None
+                else ""
+            ),
             "amount": str(grant.amount),
             "currency": grant.currency,
             "deadline": grant.end_date.isoformat() if grant.end_date else None,

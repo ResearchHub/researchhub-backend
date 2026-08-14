@@ -27,12 +27,14 @@ class GrantSearchToolsetTests(TestCase):
         status=Grant.OPEN,
         is_public=True,
         end_date=None,
+        post_content=None,
+        short_title=None,
     ):
         post = create_post(
             created_by=self.owner,
             document_type=GRANT,
             title=title,
-            renderable_text=description,
+            renderable_text=description if post_content is None else post_content,
         )
         post.slug = title.lower().replace(" ", "-")
         post.save(update_fields=["slug"])
@@ -41,7 +43,7 @@ class GrantSearchToolsetTests(TestCase):
         return Grant.objects.create(
             created_by=self.owner,
             unified_document=post.unified_document,
-            short_title=title,
+            short_title=title if short_title is None else short_title,
             organization="Research Foundation",
             description=description,
             amount=Decimal("50000.00"),
@@ -110,6 +112,27 @@ class GrantSearchToolsetTests(TestCase):
         # Assert
         self.assertEqual([item["id"] for item in owner_result["grants"]], [private.id])
         self.assertEqual(other_result["grants"], [])
+
+    def test_search_returns_content_when_only_the_backing_post_matches(self):
+        # Arrange
+        post_content = "Supports single-cell proteomics in rare diseases. " + (
+            "x" * 4000
+        )
+        matching = self._grant(
+            title="Emerging Methods Award",
+            short_title="",
+            description="Funding for reproducible experimental research.",
+            post_content=post_content,
+        )
+
+        # Act
+        result = self._search(self.user, "single-cell proteomics")
+
+        # Assert
+        self.assertEqual([item["id"] for item in result["grants"]], [matching.id])
+        item = result["grants"][0]
+        self.assertEqual(item["title"], "Emerging Methods Award")
+        self.assertEqual(item["post_content"], post_content[:3000])
 
     def test_search_requires_a_bounded_query(self):
         # Arrange

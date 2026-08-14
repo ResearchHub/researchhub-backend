@@ -242,7 +242,12 @@ class NotebookChatActivityTests(TestCase):
 
     def test_grant_search_reports_query_and_grant_sources(self):
         # Arrange
-        post = Mock(id=42, slug="neural-biomarkers", title="Neural Biomarkers")
+        post = Mock(
+            id=42,
+            slug="neural-biomarkers",
+            title="Neural Biomarkers",
+            renderable_text="Post body must not enter activity.",
+        )
         grant = Mock(
             id=7,
             short_title="Neural Biomarkers",
@@ -283,6 +288,7 @@ class NotebookChatActivityTests(TestCase):
             ],
         )
         self.assertNotIn("Private result details", json.dumps(activity, default=str))
+        self.assertNotIn("Post body must not enter", json.dumps(activity, default=str))
 
     def test_scholarly_tools_report_names_and_citation_sources(self):
         # Arrange: a resolved author whose works ground the turn's citations.

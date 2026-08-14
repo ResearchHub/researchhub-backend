@@ -133,6 +133,7 @@ class NotebookChatService:
         provider=None,
         oa_client: OpenAlex | None = None,
         web_search_client=None,
+        grant_toolset_factory=None,
         chat_service: AgentChatService | None = None,
         conversation_service: AgentConversationService | None = None,
         note_conversation_service: NoteAgentConversationService | None = None,
@@ -144,6 +145,11 @@ class NotebookChatService:
         self._provider = provider
         self._oa_client = oa_client
         self._web_search_client = web_search_client
+        self._grant_toolset_factory = (
+            GrantSearchToolset
+            if grant_toolset_factory is None
+            else grant_toolset_factory
+        )
         self.chat = AgentChatService() if chat_service is None else chat_service
         self.conversations = (
             AgentConversationService()
@@ -524,7 +530,7 @@ class NotebookChatService:
         )
         toolset = compose_notebook_toolset(
             note_toolset=NoteToolset(user=conversation.user, note_ids={note.id}),
-            grant_toolset=GrantSearchToolset(user=conversation.user),
+            grant_toolset=self._grant_toolset_factory(user=conversation.user),
             openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),
             web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
             native_tool_names=provider.native_tool_names,
