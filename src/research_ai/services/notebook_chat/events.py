@@ -4,8 +4,8 @@ The polling projection (``?activity=live``) is the source of truth for durable
 chat state; its weakness is latency, not correctness. This module closes that
 gap with two kinds of per-conversation event: identifiers that nudge a refetch
 after a durable change, and bounded transient model-output deltas for text and
-readable thinking. A cache snapshot lets the REST projection repair a dropped
-or reordered transient frame.
+readable thinking. A cache checkpoint plus bounded delta journal lets the REST
+projection repair a dropped or reordered transient frame.
 
 Two properties keep this layer simple and safe to lose:
 
@@ -13,9 +13,9 @@ Two properties keep this layer simple and safe to lose:
   lifecycle events. Stream events carry only append deltas plus a monotonic
   sequence; any sequence gap is repaired from the REST snapshot.
 - **Emission is best-effort.** Durable events are deferred with
-  ``transaction.on_commit(robust=True)``. Stream snapshots are periodically
-  checkpointed before their corresponding delta is sent. A failing channel
-  layer therefore never breaks the turn, and REST remains a recovery path.
+  ``transaction.on_commit(robust=True)``. Stream recovery state advances
+  before its corresponding delta is sent. A failing channel layer therefore
+  never breaks the turn, and REST remains a recovery path.
 
 The group is scoped to one conversation because chats are private to their
 creator: the consumer admits only the owner, so events never reach an
@@ -100,9 +100,9 @@ class ConversationEventPublisher:
     ) -> None:
         """Publish one transient stream batch immediately.
 
-        Recovery snapshots are checkpointed independently of these small
-        frames, so no database transaction needs to commit before the frame is
-        safe to observe.
+        Recovery checkpoints and their delta journals are cache-backed, so no
+        database transaction needs to commit before the frame is safe to
+        observe.
         """
         self._send_data(
             conversation_id,

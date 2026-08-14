@@ -3,7 +3,7 @@
 Completed provider turns still land in the agent context and trace as one
 authoritative message. This module holds only the user-visible preview while a
 turn is being emitted: small coalesced WebSocket deltas for the fast path and a
-bounded cache snapshot for reconnect/poll recovery.
+bounded cache checkpoint plus delta journal for reconnect/poll recovery.
 """
 
 import logging
@@ -92,6 +92,10 @@ def _cache_key(execution_id: int) -> str:
     return f"research_ai:notebook_chat:stream:{execution_id}"
 
 
+def _journal_cache_key(execution_id: int) -> str:
+    return f"research_ai:notebook_chat:stream_journal:{execution_id}"
+
+
 def _cancelled_cache_key(execution_id: int) -> str:
     return f"research_ai:notebook_chat:stream_cancelled:{execution_id}"
 
@@ -109,7 +113,7 @@ class StreamGuardTimeoutError(RuntimeError):
 
 
 class ExecutionStreamStore:
-    """Cache-backed snapshot store shared by workers and REST processes."""
+    """Cache-backed recovery state shared by workers and REST processes."""
 
     def __init__(
         self,
@@ -208,18 +212,61 @@ class ExecutionStreamStore:
         )
 
     def get(self, execution_id: int) -> dict | None:
-        value = self._cache.get(_cache_key(execution_id))
-        return value if isinstance(value, dict) else None
+        # Read the journal first. If a checkpoint lands between these reads,
+        # its newer snapshot supersedes the older journal; the reverse order
+        # could observe an old snapshot after that journal has been cleared.
+        journal = self._cache.get(_journal_cache_key(execution_id))
+        snapshot = self._cache.get(_cache_key(execution_id))
+        if not isinstance(snapshot, dict):
+            return None
+        if not isinstance(journal, list):
+            return snapshot
+        return self._merge_journal(snapshot, journal)
 
     def set(self, execution_id: int, snapshot: dict) -> None:
+        """Replace the full checkpoint and retire deltas it now contains."""
         self._cache.set(
             _cache_key(execution_id),
             snapshot,
             timeout=STREAM_CACHE_TTL_SECONDS,
         )
+        self._cache.delete(_journal_cache_key(execution_id))
+
+    def append_deltas(
+        self,
+        execution_id: int,
+        *,
+        stream_id: str,
+        sequence: int,
+        deltas: list[dict],
+    ) -> None:
+        """Retain one published batch without rewriting the full checkpoint."""
+        key = _journal_cache_key(execution_id)
+        journal = self._cache.get(key)
+        if not isinstance(journal, list):
+            journal = []
+        journal = [
+            entry
+            for entry in journal
+            if isinstance(entry, dict)
+            and entry.get("id") == stream_id
+            and isinstance(entry.get("sequence"), int)
+            and entry["sequence"] < sequence
+        ]
+        journal.append(
+            {
+                "id": stream_id,
+                "sequence": sequence,
+                "deltas": [dict(delta) for delta in deltas],
+            }
+        )
+        self._cache.set(key, journal, timeout=STREAM_CACHE_TTL_SECONDS)
 
     def clear(self, execution_id: int) -> None:
-        self._cache.delete(_cache_key(execution_id))
+        try:
+            self._cache.delete(_cache_key(execution_id))
+        finally:
+            self._cache.delete(_journal_cache_key(execution_id))
 
     def cancel(self, execution_id: int) -> None:
         """Mark a stream cancelled before removing its reconnect snapshot."""
@@ -235,6 +282,61 @@ class ExecutionStreamStore:
     def is_cancelled(self, execution_id: int) -> bool:
         """Return the cheap, cache-backed cancellation signal for a worker."""
         return self._cache.get(_cancelled_cache_key(execution_id)) is True
+
+    @staticmethod
+    def _merge_journal(snapshot: dict, journal: list) -> dict:
+        """Apply contiguous batches newer than ``snapshot`` to a safe copy."""
+        stream_id = snapshot.get("id")
+        sequence = snapshot.get("sequence")
+        items = snapshot.get("items")
+        if not isinstance(stream_id, str) or not isinstance(sequence, int):
+            return snapshot
+        if not isinstance(items, list) or not all(
+            isinstance(item, dict) for item in items
+        ):
+            return snapshot
+
+        recovered = dict(snapshot)
+        recovered_items = [dict(item) for item in items]
+        recovered["items"] = recovered_items
+        items_by_id = {
+            item.get("id"): item
+            for item in recovered_items
+            if isinstance(item.get("id"), str)
+        }
+
+        for batch in journal:
+            if not isinstance(batch, dict) or batch.get("id") != stream_id:
+                continue
+            batch_sequence = batch.get("sequence")
+            if not isinstance(batch_sequence, int) or batch_sequence <= sequence:
+                continue
+            if batch_sequence != sequence + 1:
+                break
+            deltas = batch.get("deltas")
+            if not isinstance(deltas, list):
+                break
+            for delta in deltas:
+                if not isinstance(delta, dict):
+                    continue
+                item_id = delta.get("id")
+                fragment = delta.get("delta")
+                if not isinstance(item_id, str) or not isinstance(fragment, str):
+                    continue
+                item = items_by_id.get(item_id)
+                if item is None:
+                    item = {
+                        "id": item_id,
+                        "type": delta.get("type"),
+                        "text": "",
+                        "at": delta.get("at"),
+                    }
+                    recovered_items.append(item)
+                    items_by_id[item_id] = item
+                item["text"] += fragment
+            sequence = batch_sequence
+            recovered["sequence"] = sequence
+        return recovered
 
 
 class NotebookStreamBuffer:
@@ -332,7 +434,7 @@ class NotebookStreamBuffer:
                 self._reset(None)
                 self.stopped = True
                 return
-            self.sequence += 1
+            sequence = self.sequence + 1
             stream_id = self._stream_id()
             deltas = [dict(delta) for delta in self.pending.values()]
 
@@ -341,23 +443,32 @@ class NotebookStreamBuffer:
                     self.execution_id,
                     {
                         "id": stream_id,
-                        "sequence": self.sequence,
+                        "sequence": sequence,
                         "iteration": self.iteration,
                         "items": [dict(item) for item in self.items.values()],
                     },
                 )
+            else:
+                self.store.append_deltas(
+                    self.execution_id,
+                    stream_id=stream_id,
+                    sequence=sequence,
+                    deltas=deltas,
+                )
             # Keep socket publication under the same renewable cross-process
             # guard as cancellation. Full recovery snapshots are checkpointed
-            # less often than the small WebSocket batches to avoid rewriting
-            # all accumulated text at frame rate.
+            # less often than the small WebSocket batches; the bounded delta
+            # journal keeps every published sequence recoverable without
+            # rewriting all accumulated text at frame rate.
             self.publisher.publish_stream(
                 self.conversation_id,
                 self.execution_id,
                 stream_id=stream_id,
-                sequence=self.sequence,
+                sequence=sequence,
                 iteration=self.iteration,
                 deltas=deltas,
             )
+            self.sequence = sequence
         self.pending.clear()
         self.pending_chars = 0
         self.last_flush_at = now

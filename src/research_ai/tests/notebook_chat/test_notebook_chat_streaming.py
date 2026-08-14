@@ -105,8 +105,8 @@ class NotebookStreamBufferTests(SimpleTestCase):
         # Assert
         self.assertEqual(len(self.publisher.calls), 2)
         self.assertEqual(self.publisher.calls[-1][1]["deltas"][0]["delta"], "bc")
-        self.assertEqual(self.store.get(9)["items"][0]["text"], "a")
-        self.assertEqual(self.store.get(9)["sequence"], 1)
+        self.assertEqual(self.store.get(9)["items"][0]["text"], "abc")
+        self.assertEqual(self.store.get(9)["sequence"], 2)
 
     def test_full_snapshot_is_checkpointed_less_often_than_socket_deltas(self):
         # Arrange
@@ -121,10 +121,19 @@ class NotebookStreamBufferTests(SimpleTestCase):
         self.buffer.append(1, TextStreamDelta(block_index=0, text="g"))
 
         # Assert
+        checkpoint_calls = [
+            call for call in self.cache.set_calls if call[0] == streaming._cache_key(9)
+        ]
         self.assertEqual(len(self.publisher.calls), 7)
-        self.assertEqual(len(self.cache.set_calls), 2)
-        self.assertEqual(snapshot_before_interval["items"][0]["text"], "a")
+        self.assertEqual(len(checkpoint_calls), 2)
+        self.assertEqual(
+            self.cache.values[streaming._cache_key(9)]["items"][0]["text"],
+            "abcdefg",
+        )
+        self.assertEqual(snapshot_before_interval["items"][0]["text"], "abcdef")
+        self.assertEqual(snapshot_before_interval["sequence"], 6)
         self.assertEqual(self.store.get(9)["items"][0]["text"], "abcdefg")
+        self.assertNotIn(streaming._journal_cache_key(9), self.cache.values)
 
     def test_full_snapshot_checkpoints_after_enough_new_text(self):
         # Arrange
@@ -137,10 +146,32 @@ class NotebookStreamBufferTests(SimpleTestCase):
             self.buffer.append(1, TextStreamDelta(block_index=0, text=fragment))
 
         # Assert
-        self.assertEqual(len(self.cache.set_calls), 2)
+        checkpoint_calls = [
+            call for call in self.cache.set_calls if call[0] == streaming._cache_key(9)
+        ]
+        self.assertEqual(len(checkpoint_calls), 2)
         self.assertEqual(
             len(self.store.get(9)["items"][0]["text"]),
             STREAM_CHECKPOINT_CHARS + 1,
+        )
+
+    def test_delta_journal_recovers_items_created_between_checkpoints(self):
+        # Arrange
+        self.buffer.append(1, TextStreamDelta(block_index=0, text="first"))
+        self.now += 0.08
+
+        # Act
+        self.buffer.append(1, TextStreamDelta(block_index=1, text="second"))
+
+        # Assert
+        snapshot = self.store.get(9)
+        self.assertEqual(snapshot["sequence"], 2)
+        self.assertEqual(
+            [(item["id"], item["text"]) for item in snapshot["items"]],
+            [
+                ("iteration-1:block-0:narration", "first"),
+                ("iteration-1:block-1:narration", "second"),
+            ],
         )
 
     def test_thinking_preview_is_bounded_and_opaque_state_is_not_accepted(self):
@@ -167,6 +198,7 @@ class NotebookStreamBufferTests(SimpleTestCase):
 
         # Assert
         self.assertIsNone(self.store.get(9))
+        self.assertNotIn(streaming._journal_cache_key(9), self.cache.values)
 
     def test_bounded_stream_guard_times_out_under_contention(self):
         # Arrange, Act & Assert
