@@ -132,16 +132,27 @@ class NotebookChatActivityTests(TestCase):
 
     def test_note_tool_calls_report_labels_statuses_and_note_version(self):
         # Arrange
+        version = NoteContent.objects.create(
+            note=self.note,
+            json=json.dumps(EDITED_DOC),
+            plain_text="Edited by the assistant",
+        )
         execution = self._run_turn(
             [
-                tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                tool_turn("t1", "get_note_outline", {"note_id": self.note.id}),
                 tool_turn(
                     "t2",
-                    "edit_note",
+                    "read_note_section",
+                    {"note_id": self.note.id, "section_id": "body"},
+                ),
+                tool_turn(
+                    "t3",
+                    "replace_note_section",
                     {
                         "note_id": self.note.id,
-                        "expected_version_id": self.content.id,
-                        "content": EDITED_DOC,
+                        "section_id": "body",
+                        "expected_version_id": version.id,
+                        "content": EDITED_DOC["content"],
                     },
                 ),
                 text_turn("Done."),
@@ -155,14 +166,15 @@ class NotebookChatActivityTests(TestCase):
         self.note.refresh_from_db()
         self.assertEqual(
             [event["tool"] for event in _tool_calls(activity)],
-            (["read_note", "edit_note"]),
+            ["get_note_outline", "read_note_section", "replace_note_section"],
         )
-        read, edit = _tool_calls(activity)
-        self.assertEqual(read["label"], "Read the note")
+        outline, read, edit = _tool_calls(activity)
+        self.assertEqual(outline["label"], "Read the note outline")
+        self.assertEqual(read["label"], "Read a note section")
         self.assertEqual(read["status"], "succeeded")
         self.assertIsNotNone(read["started_at"])
         self.assertIsNotNone(read["finished_at"])
-        self.assertEqual(edit["label"], "Edited the note")
+        self.assertEqual(edit["label"], "Edited a note section")
         self.assertEqual(edit["status"], "succeeded")
         # The signal an open editor uses to reload the note.
         self.assertEqual(edit["note_version_id"], self.note.latest_version_id)
@@ -1344,6 +1356,11 @@ class NotebookChatActivityViewTests(APITestCase):
     def test_get_chat_includes_each_turns_activity(self):
         # Arrange: a submitted turn has no activity yet; a completed turn has
         # its tool calls.
+        NoteContent.objects.create(
+            note=self.note,
+            json=json.dumps(EDITED_DOC),
+            plain_text="Edited by the assistant",
+        )
         self.client.force_authenticate(self.owner)
         with patch("research_ai.tasks.run_notebook_chat_turn_task.delay"):
             posted = self.client.post(
@@ -1358,7 +1375,9 @@ class NotebookChatActivityViewTests(APITestCase):
         _make_service(
             provider=FakeProvider(
                 [
-                    tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                    tool_turn(
+                        "t1", "get_note_outline", {"note_id": self.note.id}
+                    ),
                     text_turn("Summary."),
                 ]
             )
@@ -1370,8 +1389,8 @@ class NotebookChatActivityViewTests(APITestCase):
         # Assert
         (execution,) = response.data["executions"]
         (event,) = _tool_calls(execution["activity"])
-        self.assertEqual(event["tool"], "read_note")
-        self.assertEqual(event["label"], "Read the note")
+        self.assertEqual(event["tool"], "get_note_outline")
+        self.assertEqual(event["label"], "Read the note outline")
         self.assertEqual(event["status"], "succeeded")
 
     def test_get_chat_surfaces_thinking_events(self):

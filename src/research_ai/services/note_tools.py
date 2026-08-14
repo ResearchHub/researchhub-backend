@@ -1,10 +1,9 @@
 """Notebook note tools for the agent core.
 
 ``NoteToolset`` lets an agent read and edit Tiptap notes on behalf of a
-specific user. Structured notes expose only outline -> section read -> section
-replace, so a small edit cannot round-trip an entire large document through the
-model. Legacy notes expose only the full-document fallback pair. Every write is
-guarded by a version id (optimistic concurrency) and appends a new
+specific user. It exposes only outline -> section read -> section replace, so a
+small edit cannot round-trip an entire large document through the model. Every
+write is guarded by a version id (optimistic concurrency) and appends a new
 ``NoteContent`` version rather than mutating in place, so any agent edit is
 recoverable from history.
 
@@ -34,10 +33,6 @@ REPLACE_NOTE_SECTION = "replace_note_section"
 READ_NOTE = "read_note"
 EDIT_NOTE = "edit_note"
 
-SECTION_NOTE_MODE = "section"
-LEGACY_NOTE_MODE = "legacy"
-_NOTE_MODES = frozenset({SECTION_NOTE_MODE, LEGACY_NOTE_MODE})
-
 _PREAMBLE_SECTION_ID = "preamble"
 _BODY_SECTION_ID = "body"
 
@@ -55,15 +50,6 @@ def _structured_document(latest: NoteContent | None) -> dict | None:
     if blocks is not None and not isinstance(blocks, list):
         return None
     return document
-
-
-def note_tool_mode(note: Note) -> str:
-    """Return the one note-tool mode this note can safely use."""
-    return (
-        SECTION_NOTE_MODE
-        if _structured_document(note.latest_version) is not None
-        else LEGACY_NOTE_MODE
-    )
 
 
 def _document_sections(document: dict) -> list[dict]:
@@ -159,25 +145,16 @@ class NoteToolset:
         self,
         *,
         user,
-        mode: str,
         service: NoteContentService | None = None,
         note_ids: Collection[int] | None = None,
     ):
-        if mode not in _NOTE_MODES:
-            raise ValueError(f"unsupported note tool mode: {mode}")
         self._user = user
-        self._mode = mode
         self._service = service or NoteContentService()
         self._note_ids = None if note_ids is None else frozenset(note_ids)
 
     # -- tool construction ------------------------------------------------
 
     def build_tools(self) -> list[Tool]:
-        if self._mode == LEGACY_NOTE_MODE:
-            return self._legacy_tools()
-        return self._section_tools()
-
-    def _section_tools(self) -> list[Tool]:
         return [
             Tool(
                 name=GET_NOTE_OUTLINE,
@@ -251,69 +228,6 @@ class NoteToolset:
                     ],
                 },
                 handler=self._replace_note_section,
-            ),
-        ]
-
-    def _legacy_tools(self) -> list[Tool]:
-        return [
-            Tool(
-                name=READ_NOTE,
-                description=(
-                    "Read an entire legacy ResearchHub notebook note. Returns "
-                    "the note title, "
-                    "the current Tiptap/ProseMirror document JSON as `content`, "
-                    "and the `version_id` that edit_note requires. For legacy "
-                    "notes `content` may be null; `plain_text` is included then "
-                    "as a read-only fallback."
-                ),
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "note_id": {
-                            "type": "integer",
-                            "description": "Id of the note to read.",
-                        },
-                    },
-                    "required": ["note_id"],
-                },
-                handler=self._read_note,
-            ),
-            Tool(
-                name=EDIT_NOTE,
-                description=(
-                    "Replace a legacy note's content with a complete Tiptap "
-                    "document "
-                    '(a JSON object like {"type": "doc", "content": [...]}). '
-                    "Always call read_note first and pass the version_id you "
-                    "read as expected_version_id; the edit is rejected if the "
-                    "note changed since. Each edit is saved as a new version, "
-                    "so prior content is kept as history."
-                ),
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "note_id": {
-                            "type": "integer",
-                            "description": "Id of the note to edit.",
-                        },
-                        "expected_version_id": {
-                            "type": ["integer", "null"],
-                            "description": (
-                                "version_id from read_note. Pass null only if "
-                                "read_note reported no version."
-                            ),
-                        },
-                        "content": {
-                            "type": "object",
-                            "description": (
-                                "Complete replacement Tiptap document, including "
-                                "unchanged parts."
-                            ),
-                        },
-                    },
-                    "required": ["note_id", "expected_version_id", "content"],
-                },
-                handler=self._edit_note,
             ),
         ]
 
@@ -411,62 +325,6 @@ class NoteToolset:
             "saved": True,
         }
 
-    def _read_note(self, input: dict) -> dict:
-        note = self._get_readable_note(input.get("note_id"))
-        if note is None:
-            return {"error": f"note {input.get('note_id')} not found or not accessible"}
-        latest = note.latest_version
-        if _structured_document(latest) is not None:
-            return {
-                "error": (
-                    "read_note is restricted to legacy note content; "
-                    "start a new turn to use section tools"
-                )
-            }
-        # Stored JSON may be a JSON-encoded string rather than a dict;
-        # normalize so `content` always matches the shape edit_note accepts.
-        content = parse_note_json(latest.json) if latest else None
-        result = {
-            "note_id": note.id,
-            "title": note.title,
-            "version_id": latest.id if latest else None,
-            "content": content,
-        }
-        if latest and content is None:
-            result["plain_text"] = latest.plain_text
-        return result
-
-    def _edit_note(self, input: dict) -> dict:
-        note = self._get_readable_note(input.get("note_id"))
-        if note is None:
-            return {"error": f"note {input.get('note_id')} not found or not accessible"}
-
-        permission_error = self._edit_permission_error(note)
-        if permission_error:
-            return permission_error
-
-        expected = input.get("expected_version_id")
-        try:
-            with transaction.atomic():
-                # Lock the note row so the version check and the append are
-                # one atomic step; a concurrent edit blocks here and then
-                # sees the new latest_version_id (-> stale error) on entry.
-                locked = Note.objects.select_for_update().get(id=note.id)
-                stale = self._stale_version_error(locked, expected)
-                if stale:
-                    return stale
-                if _structured_document(locked.latest_version) is not None:
-                    return {
-                        "error": (
-                            "edit_note is restricted to legacy note content; "
-                            "start a new turn to use section tools"
-                        )
-                    }
-                version = self._create_version(locked, input.get("content"))
-        except (ValueError, Note.DoesNotExist) as exc:
-            return {"error": str(exc)}
-        return {"note_id": note.id, "version_id": version.id, "saved": True}
-
     def _edit_permission_error(self, note: Note) -> dict | None:
         permissions = note.permissions
         if permissions.has_admin_user(self._user) or permissions.has_editor_user(
@@ -478,16 +336,11 @@ class NoteToolset:
     def _stale_version_error(self, note: Note, expected) -> dict | None:
         if note.latest_version_id == expected:
             return None
-        refresh_tool = (
-            "get_note_outline"
-            if self._mode == SECTION_NOTE_MODE
-            else "read_note"
-        )
         return {
             "error": (
                 f"stale version: note {note.id} is at version "
                 f"{note.latest_version_id}, expected {expected}; call "
-                f"{refresh_tool} again and re-apply your edit"
+                "get_note_outline again and re-apply your edit"
             )
         }
 

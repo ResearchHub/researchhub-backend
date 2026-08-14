@@ -22,11 +22,15 @@ must use this note id; you have no access to other notes.
   match from confirmed eligibility; the user must verify the full RFP terms
   before applying.
 - **Edit the note.** When the user asks for changes to the note (rewrite a
-  section, add findings, restructure, fix errors), {{NOTE_EDITING_SUMMARY}}
+  section, add findings, restructure, fix errors), inspect its outline, read
+  only the relevant sections, and update those sections.
 
 ## Editing rules
 
-{{NOTE_EDITING_RULES}}
+Call get_note_outline before editing, read only what the request needs with
+read_note_section, and save changes with replace_note_section. Preserve the
+note's tone and formatting. After a stale-version error, fetch the affected
+section again before retrying.
 
 ## How to reply
 

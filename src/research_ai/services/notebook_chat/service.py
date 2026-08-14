@@ -63,7 +63,7 @@ from research_ai.services.agent_persistence import (
 from research_ai.services.agent_persistence.activity import (
     conversation_activity_events,
 )
-from research_ai.services.note_tools import NoteToolset, note_tool_mode
+from research_ai.services.note_tools import NoteToolset
 from research_ai.services.notebook_chat.activity import (
     execution_phase,
     public_activity,
@@ -388,7 +388,6 @@ class NotebookChatService:
         if len(text) > config.max_message_chars:
             raise ValueError(f"message exceeds {config.max_message_chars} characters")
 
-        mode = note_tool_mode(note)
         prepared = self.chat.prepare_turn(
             conversation,
             text,
@@ -400,10 +399,9 @@ class NotebookChatService:
                 "max_tokens": config.max_tokens,
                 "temperature": config.temperature,
                 "note_id": note.id,
-                "note_tool_mode": mode,
                 "toolset_version": TOOLSET_VERSION,
             },
-            system_prompt=build_notebook_chat_system_prompt(note, note_mode=mode),
+            system_prompt=build_notebook_chat_system_prompt(note),
         )
         execution = prepared.execution
         # After prepare_turn so a refused turn (busy, for instance) names
@@ -532,11 +530,9 @@ class NotebookChatService:
             execution.model or None,
             native_tools=frozenset({"web_search"}),
         )
-        mode = note_tool_mode(note)
         toolset = compose_notebook_toolset(
             note_toolset=NoteToolset(
                 user=conversation.user,
-                mode=mode,
                 note_ids={note.id},
             ),
             grant_toolset=self._grant_toolset_factory(user=conversation.user),
@@ -547,7 +543,6 @@ class NotebookChatService:
         self._record_tool_registry(
             execution,
             note=note,
-            note_mode=mode,
             local_tool_names=toolset.names,
             native_tool_names=provider.native_tool_names,
         )
@@ -586,7 +581,6 @@ class NotebookChatService:
         execution: AgentExecution,
         *,
         note: Note,
-        note_mode: str,
         local_tool_names: list[str],
         native_tool_names: frozenset[str],
     ) -> None:
@@ -599,13 +593,10 @@ class NotebookChatService:
         )
         configuration = {
             **(execution.configuration or {}),
-            "note_tool_mode": note_mode,
             "toolset_version": TOOLSET_VERSION,
             "registered_tool_names": registered_tool_names,
         }
-        system_prompt = build_notebook_chat_system_prompt(
-            note, note_mode=note_mode
-        )
+        system_prompt = build_notebook_chat_system_prompt(note)
         AgentExecution.objects.filter(id=execution.id).update(
             configuration=configuration,
             system_prompt=system_prompt,

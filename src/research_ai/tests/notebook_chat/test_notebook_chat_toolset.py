@@ -28,7 +28,7 @@ class _Tools:
 
 
 class NotebookToolsetCompositionTests(SimpleTestCase):
-    def test_legacy_fulltext_reader_is_excluded_defensively(self):
+    def test_whole_text_reader_is_excluded_defensively(self):
         # Arrange: simulate an older OpenAlex registry that still offers both
         # focused retrieval and the whole-text tool.
         openalex = _Tools(

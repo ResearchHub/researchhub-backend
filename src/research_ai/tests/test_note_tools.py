@@ -9,11 +9,9 @@ from note.tests.helpers import create_note
 from research_ai.services.note_tools import (
     EDIT_NOTE,
     GET_NOTE_OUTLINE,
-    LEGACY_NOTE_MODE,
     READ_NOTE,
     READ_NOTE_SECTION,
     REPLACE_NOTE_SECTION,
-    SECTION_NOTE_MODE,
     NoteToolset,
 )
 from researchhub_access_group.constants import ADMIN, VIEWER
@@ -96,10 +94,7 @@ class NoteToolsetTests(TestCase):
             object_id=self.note.unified_document.id,
             user=self.viewer,
         )
-
-        self.toolset = NoteToolset(
-            user=self.owner, mode=LEGACY_NOTE_MODE
-        ).as_toolset()
+        self.toolset = NoteToolset(user=self.owner).as_toolset()
 
     def _seed_sectioned_note(self):
         version = NoteContent.objects.create(
@@ -110,37 +105,25 @@ class NoteToolsetTests(TestCase):
         self.note.refresh_from_db()
         return version
 
-    def test_legacy_mode_exposes_only_full_document_tools(self):
-        # Act
-        names = self.toolset.names
-
-        # Assert
-        self.assertEqual(names, [READ_NOTE, EDIT_NOTE])
-
-    def test_section_mode_exposes_only_section_tools(self):
-        # Arrange
-        toolset = NoteToolset(
-            user=self.owner, mode=SECTION_NOTE_MODE
-        ).as_toolset()
-
+    def test_exposes_only_section_tools(self):
         # Act & Assert
         self.assertEqual(
-            toolset.names,
+            self.toolset.names,
             [GET_NOTE_OUTLINE, READ_NOTE_SECTION, REPLACE_NOTE_SECTION],
         )
-        result, _ = toolset.dispatch(EDIT_NOTE, {"note_id": self.note.id})
-        self.assertEqual(result["error"], "unknown tool: edit_note")
+        for unavailable in (READ_NOTE, EDIT_NOTE):
+            result, _ = self.toolset.dispatch(unavailable, {"note_id": self.note.id})
+            self.assertEqual(result["error"], f"unknown tool: {unavailable}")
 
     def test_outline_and_section_read_return_only_addressed_content(self):
         # Arrange
         version = self._seed_sectioned_note()
-        toolset = NoteToolset(
-            user=self.owner, mode=SECTION_NOTE_MODE
-        ).as_toolset()
 
         # Act
-        outline, _ = toolset.dispatch(GET_NOTE_OUTLINE, {"note_id": self.note.id})
-        section, _ = toolset.dispatch(
+        outline, _ = self.toolset.dispatch(
+            GET_NOTE_OUTLINE, {"note_id": self.note.id}
+        )
+        section, _ = self.toolset.dispatch(
             READ_NOTE_SECTION,
             {"note_id": self.note.id, "section_id": "heading-1"},
         )
@@ -158,9 +141,6 @@ class NoteToolsetTests(TestCase):
     def test_replace_section_preserves_unread_document_content(self):
         # Arrange
         version = self._seed_sectioned_note()
-        toolset = NoteToolset(
-            user=self.owner, mode=SECTION_NOTE_MODE
-        ).as_toolset()
         replacement = [
             SECTIONED_DOC["content"][1],
             {
@@ -170,7 +150,7 @@ class NoteToolsetTests(TestCase):
         ]
 
         # Act
-        result, _ = toolset.dispatch(
+        result, _ = self.toolset.dispatch(
             REPLACE_NOTE_SECTION,
             {
                 "note_id": self.note.id,
@@ -189,13 +169,14 @@ class NoteToolsetTests(TestCase):
         self.assertEqual(stored["content"][1:3], replacement)
         self.assertEqual(stored["content"][3:], SECTIONED_DOC["content"][3:])
         self.assertEqual(self.note.latest_version.parent_version_id, version.id)
+        self.assertEqual(self.note.latest_version.created_by, self.owner)
+        self.assertEqual(
+            self.note.latest_version.created_via, NoteContent.CREATED_VIA_AGENT
+        )
 
     def test_replace_section_rejects_stale_outline(self):
         # Arrange
         version = self._seed_sectioned_note()
-        toolset = NoteToolset(
-            user=self.owner, mode=SECTION_NOTE_MODE
-        ).as_toolset()
         newer = NoteContent.objects.create(
             note=self.note,
             json=json.dumps(SECTIONED_DOC),
@@ -203,7 +184,7 @@ class NoteToolsetTests(TestCase):
         )
 
         # Act
-        result, _ = toolset.dispatch(
+        result, _ = self.toolset.dispatch(
             REPLACE_NOTE_SECTION,
             {
                 "note_id": self.note.id,
@@ -218,140 +199,39 @@ class NoteToolsetTests(TestCase):
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, newer.id)
 
-    def test_read_note_returns_content_and_version(self):
-        # Act
-        result, stop = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
-
-        # Assert
-        self.assertFalse(stop)
-        self.assertEqual(result["note_id"], self.note.id)
-        self.assertEqual(result["title"], self.note.title)
-        self.assertEqual(result["version_id"], self.content.id)
-        # The seeded note has plain_text only, so the fallback is included.
-        self.assertIsNone(result["content"])
-        self.assertEqual(result["plain_text"], "some text")
-
-    def test_read_note_denied_for_user_without_access(self):
+    def test_outline_denied_for_user_without_access(self):
         # Arrange
-        toolset = NoteToolset(
-            user=self.outsider, mode=LEGACY_NOTE_MODE
-        ).as_toolset()
+        toolset = NoteToolset(user=self.outsider).as_toolset()
 
         # Act
-        result, _ = toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+        result, _ = toolset.dispatch(GET_NOTE_OUTLINE, {"note_id": self.note.id})
 
         # Assert
-        self.assertIn("error", result)
+        self.assertIn("not found or not accessible", result["error"])
 
-    def test_read_note_unknown_id_returns_error(self):
-        # Act
-        result, _ = self.toolset.dispatch(READ_NOTE, {"note_id": 999999})
-
-        # Assert
-        self.assertIn("error", result)
-
-    def test_edit_note_creates_new_version(self):
-        # Act
-        result, _ = self.toolset.dispatch(
-            EDIT_NOTE,
-            {
-                "note_id": self.note.id,
-                "expected_version_id": self.content.id,
-                "content": TIPTAP_DOC,
-            },
-        )
-
-        # Assert
-        self.assertTrue(result.get("saved"))
-        self.note.refresh_from_db()
-        self.assertEqual(self.note.latest_version_id, result["version_id"])
-        # Stored as a JSON-encoded string (the shape the frontend editor
-        # loads), while read_note hands the model back the parsed document.
-        self.assertIsInstance(self.note.latest_version.json, str)
-        self.assertEqual(json.loads(self.note.latest_version.json), TIPTAP_DOC)
-        self.assertEqual(self.note.latest_version.plain_text, "Updated by the agent")
-        # The prior version is kept as history.
-        self.assertEqual(self.note.notes.count(), 2)
-        # Attribution for version events and history: who wrote it, through
-        # what surface, and from which base version.
-        self.assertEqual(self.note.latest_version.created_by, self.owner)
-        self.assertEqual(
-            self.note.latest_version.created_via, NoteContent.CREATED_VIA_AGENT
-        )
-        self.assertEqual(self.note.latest_version.parent_version_id, self.content.id)
-
-        read, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
-        self.assertIn("restricted to legacy", read["error"])
-
-    def test_edit_note_rejects_content_that_is_already_structured(self):
+    def test_replace_section_denied_for_viewer(self):
         # Arrange
         version = self._seed_sectioned_note()
-
-        # Act
-        result, _ = self.toolset.dispatch(
-            EDIT_NOTE,
-            {
-                "note_id": self.note.id,
-                "expected_version_id": version.id,
-                "content": TIPTAP_DOC,
-            },
-        )
-
-        # Assert
-        self.assertIn("restricted to legacy", result["error"])
-        self.note.refresh_from_db()
-        self.assertEqual(self.note.latest_version_id, version.id)
-
-    def test_edit_note_rejects_stale_version(self):
-        # Arrange: another writer saved a version after our read.
-        newer, _ = self.toolset.dispatch(
-            EDIT_NOTE,
-            {
-                "note_id": self.note.id,
-                "expected_version_id": self.content.id,
-                "content": TIPTAP_DOC,
-            },
-        )
-
-        # Act
-        result, _ = self.toolset.dispatch(
-            EDIT_NOTE,
-            {
-                "note_id": self.note.id,
-                "expected_version_id": self.content.id,
-                "content": TIPTAP_DOC,
-            },
-        )
-
-        # Assert
-        self.assertIn("stale version", result["error"])
-        self.note.refresh_from_db()
-        self.assertEqual(self.note.latest_version_id, newer["version_id"])
-
-    def test_edit_note_denied_for_viewer(self):
-        # Arrange
-        toolset = NoteToolset(
-            user=self.viewer, mode=LEGACY_NOTE_MODE
-        ).as_toolset()
+        toolset = NoteToolset(user=self.viewer).as_toolset()
 
         # Act
         result, _ = toolset.dispatch(
-            EDIT_NOTE,
+            REPLACE_NOTE_SECTION,
             {
                 "note_id": self.note.id,
-                "expected_version_id": self.content.id,
-                "content": TIPTAP_DOC,
+                "section_id": "heading-1",
+                "expected_version_id": version.id,
+                "content": [],
             },
         )
 
         # Assert
         self.assertIn("no edit permission", result["error"])
         self.note.refresh_from_db()
-        self.assertEqual(self.note.latest_version_id, self.content.id)
+        self.assertEqual(self.note.latest_version_id, version.id)
 
-    def test_edit_note_preserves_registered_report_prefill(self):
-        # Arrange: a registered-report draft whose latest version carries
-        # publish metadata that the agent's replacement document omits.
+    def test_replace_section_preserves_registered_report_prefill(self):
+        # Arrange
         prefill = {"proposal_id": 42}
         self.note.document_type = REGISTERED_REPORT
         self.note.save()
@@ -362,12 +242,9 @@ class NoteToolsetTests(TestCase):
             ),
             plain_text="seeded",
         )
-        toolset = NoteToolset(
-            user=self.owner, mode=SECTION_NOTE_MODE
-        ).as_toolset()
 
         # Act
-        result, _ = toolset.dispatch(
+        result, _ = self.toolset.dispatch(
             REPLACE_NOTE_SECTION,
             {
                 "note_id": self.note.id,
@@ -378,44 +255,13 @@ class NoteToolsetTests(TestCase):
         )
 
         # Assert
-        self.assertTrue(result.get("saved"))
+        self.assertTrue(result["saved"])
         self.note.refresh_from_db()
         stored = json.loads(self.note.latest_version.json)
         self.assertEqual(stored["attrs"]["registered_report_prefill"], prefill)
 
-    def test_edit_note_rejects_invalid_content(self):
-        # Act
-        result, _ = self.toolset.dispatch(
-            EDIT_NOTE,
-            {
-                "note_id": self.note.id,
-                "expected_version_id": self.content.id,
-                "content": {"type": "paragraph"},
-            },
-        )
-
-        # Assert
-        self.assertIn("error", result)
-        self.note.refresh_from_db()
-        self.assertEqual(self.note.latest_version_id, self.content.id)
-
-    def test_scoped_toolset_allows_the_scoped_note(self):
+    def test_scoped_toolset_rejects_other_accessible_notes(self):
         # Arrange
-        toolset = NoteToolset(
-            user=self.owner,
-            mode=LEGACY_NOTE_MODE,
-            note_ids={self.note.id},
-        ).as_toolset()
-
-        # Act
-        result, _ = toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
-
-        # Assert
-        self.assertEqual(result["note_id"], self.note.id)
-
-    def test_scoped_toolset_rejects_other_notes_the_user_can_access(self):
-        # Arrange: a second note the owner administers, toolset scoped to the
-        # first -- the scope must win over the user's own permissions.
         other_note, other_content = create_note(self.owner, organization=None)
         Permission.objects.create(
             access_type=ADMIN,
@@ -425,23 +271,15 @@ class NoteToolsetTests(TestCase):
         )
         toolset = NoteToolset(
             user=self.owner,
-            mode=LEGACY_NOTE_MODE,
             note_ids={self.note.id},
         ).as_toolset()
 
         # Act
-        read_result, _ = toolset.dispatch(READ_NOTE, {"note_id": other_note.id})
-        edit_result, _ = toolset.dispatch(
-            EDIT_NOTE,
-            {
-                "note_id": other_note.id,
-                "expected_version_id": other_content.id,
-                "content": TIPTAP_DOC,
-            },
+        result, _ = toolset.dispatch(
+            GET_NOTE_OUTLINE, {"note_id": other_note.id}
         )
 
-        # Assert: same not-found error as an inaccessible note, nothing leaked.
-        self.assertIn("not found or not accessible", read_result["error"])
-        self.assertIn("not found or not accessible", edit_result["error"])
+        # Assert
+        self.assertIn("not found or not accessible", result["error"])
         other_note.refresh_from_db()
         self.assertEqual(other_note.latest_version_id, other_content.id)

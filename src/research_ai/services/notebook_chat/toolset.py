@@ -3,7 +3,7 @@
 Assembles the toolset one chat turn runs with: the note read/edit tools
 (scoped to the acting user's permissions), ResearchHub grant discovery, the
 OpenAlex literature tools, and web search. The OpenAlex toolset is reused minus
-``submit_profile`` and the legacy whole-text reader -- a chat turn ends when
+``submit_profile`` and the whole-text reader -- a chat turn ends when
 the model answers in plain text and uses abstract/detail passage retrieval.
 """
 
@@ -18,7 +18,7 @@ from utils.brave_search import BraveSearch
 
 logger = logging.getLogger(__name__)
 
-TOOLSET_VERSION = "notebook-chat-v2"
+TOOLSET_VERSION = "notebook-chat-v3"
 
 _DEFAULT_MAX_SEARCHES = 8  # per-turn ceiling on web searches
 _MAX_RESULTS = 5  # results surfaced to the model per call
