@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -6,9 +7,16 @@ from rest_framework.test import APITestCase
 
 from invite.related_models.note_invitation import NoteInvitation
 from note.models import Note, NoteTemplate
+from purchase.models import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
+from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import (
+    DISCUSSION,
+    GRANT,
+    PREREGISTRATION,
+)
 from user.models import Organization
 from user.tests.helpers import make_user_verified
 
@@ -38,6 +46,17 @@ class NoteTests(APITestCase):
 
         # Create exchange rate
         RscExchangeRate.objects.create(rate=4.99014625)
+
+    def _create_grant(self, status: str = Grant.OPEN) -> Grant:
+        """Create a grant visible to the authenticated moderator."""
+        post = create_post(created_by=self.user, document_type=GRANT)
+        return Grant.objects.create(
+            created_by=self.user,
+            unified_document=post.unified_document,
+            amount=Decimal("1000.00"),
+            description="Grant requirements",
+            status=status,
+        )
 
     def test_user_can_list_created_notes(self):
         # Arrange
@@ -1678,6 +1697,82 @@ class NoteTests(APITestCase):
         self.assertEqual(
             application["preregistration_post_id"], preregistration_response.data["id"]
         )
+
+    def test_creates_replaces_and_removes_selected_grant(self) -> None:
+        """A preregistration note can manage its selected grant."""
+        # Arrange
+        first_grant = self._create_grant()
+        second_grant = self._create_grant()
+
+        # Act
+        create_response = self.client.post(
+            "/api/note/",
+            {
+                "document_type": PREREGISTRATION,
+                "selected_grant": first_grant.id,
+            },
+        )
+        note_id = create_response.data["id"]
+        replace_response = self.client.patch(
+            f"/api/note/{note_id}/",
+            {"selected_grant": second_grant.id},
+        )
+        remove_response = self.client.patch(
+            f"/api/note/{note_id}/",
+            {"selected_grant": None},
+        )
+
+        # Assert
+        self.assertEqual(create_response.status_code, 200)
+        self.assertEqual(create_response.data["selected_grant"], first_grant.id)
+        self.assertEqual(replace_response.status_code, 200)
+        self.assertEqual(replace_response.data["selected_grant"], second_grant.id)
+        self.assertEqual(remove_response.status_code, 200)
+        self.assertIsNone(remove_response.data["selected_grant"])
+
+    def test_rejects_invalid_selected_grant_changes(self) -> None:
+        """Selections reject invalid note, grant, and publication states."""
+        # Arrange
+        active_grant = self._create_grant()
+        inactive_grant = self._create_grant(status=Grant.CLOSED)
+        note_response = self.client.post(
+            "/api/note/",
+            {
+                "document_type": PREREGISTRATION,
+                "selected_grant": active_grant.id,
+            },
+        )
+        note = Note.objects.get(id=note_response.data["id"])
+        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        post.note = note
+        post.save(update_fields=["note"])
+
+        # Act
+        wrong_type_response = self.client.post(
+            "/api/note/",
+            {"document_type": DISCUSSION, "selected_grant": active_grant.id},
+        )
+        missing_response = self.client.post(
+            "/api/note/",
+            {"document_type": PREREGISTRATION, "selected_grant": 999_999_999},
+        )
+        inactive_response = self.client.post(
+            "/api/note/",
+            {
+                "document_type": PREREGISTRATION,
+                "selected_grant": inactive_grant.id,
+            },
+        )
+        published_response = self.client.patch(
+            f"/api/note/{note.id}/",
+            {"selected_grant": None},
+        )
+
+        # Assert
+        self.assertEqual(wrong_type_response.status_code, 400)
+        self.assertEqual(missing_response.status_code, 404)
+        self.assertEqual(inactive_response.status_code, 400)
+        self.assertEqual(published_response.status_code, 409)
 
 
 class AccessibleNoteTests(APITestCase):
