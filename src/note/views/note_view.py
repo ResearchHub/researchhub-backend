@@ -281,8 +281,7 @@ class NoteViewSet(ModelViewSet):
             "document_type", note.document_type
         )
         selection_requires_validation = selection_requested or (
-            note.selected_grant_id is not None
-            and document_type != note.document_type
+            note.selected_grant_id is not None and document_type != note.document_type
         )
         if selection_requires_validation:
             selected_grant = resolve_selected_grant(
