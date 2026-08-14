@@ -29,9 +29,9 @@ class NotebookChatConfig:
     max_iterations: int = 30
 
     # One model turn's total output budget (thinking + text). None lets the
-    # provider spend up to its model's output ceiling (128K on Claude
-    # Platform): an edit_note call re-emits the whole Tiptap document, and any
-    # lower ceiling truncates that call mid-emission on large notes.
+    # provider spend up to its model's output ceiling. Section replacement is
+    # the normal edit path; the room remains useful for the explicitly retained
+    # full-document fallback on unusual notes.
     max_tokens: int | None = None
 
     # Only forwarded to models that still accept sampling params and only when

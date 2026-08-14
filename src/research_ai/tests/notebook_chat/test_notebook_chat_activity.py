@@ -7,6 +7,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from note.models import NoteContent
 from note.tests.helpers import create_note
 from purchase.models import Grant
 from purchase.services.grant_search_service import GrantSearchService
@@ -166,6 +167,62 @@ class NotebookChatActivityTests(TestCase):
         # The signal an open editor uses to reload the note.
         self.assertEqual(edit["note_version_id"], self.note.latest_version_id)
 
+    def test_section_edit_reports_version_without_exposing_section_payload(self):
+        # Arrange
+        document = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "heading",
+                    "attrs": {"level": 1},
+                    "content": [{"type": "text", "text": "Methods"}],
+                },
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Old secret methods"}],
+                },
+            ],
+        }
+        version = NoteContent.objects.create(
+            note=self.note,
+            json=json.dumps(document),
+            plain_text="Methods\nOld secret methods",
+        )
+        replacement = [document["content"][0], EDITED_DOC["content"][0]]
+        execution = self._run_turn(
+            [
+                tool_turn("t1", "get_note_outline", {"note_id": self.note.id}),
+                tool_turn(
+                    "t2",
+                    "read_note_section",
+                    {"note_id": self.note.id, "section_id": "heading-0"},
+                ),
+                tool_turn(
+                    "t3",
+                    "replace_note_section",
+                    {
+                        "note_id": self.note.id,
+                        "section_id": "heading-0",
+                        "expected_version_id": version.id,
+                        "content": replacement,
+                    },
+                ),
+                text_turn("Done."),
+            ]
+        )
+
+        # Act
+        activity = self._activity(execution)
+
+        # Assert
+        outline, read, edit = _tool_calls(activity)
+        self.assertEqual(outline["label"], "Read the note outline")
+        self.assertEqual(read["label"], "Read a note section")
+        self.assertEqual(edit["label"], "Edited a note section")
+        self.note.refresh_from_db()
+        self.assertEqual(edit["note_version_id"], self.note.latest_version_id)
+        self.assertNotIn("Old secret methods", json.dumps(activity, default=str))
+
     def test_activity_never_carries_raw_tool_payloads(self):
         # Arrange: an edit turn, whose tool traffic contains the whole
         # document twice (edit input and read_note result).
@@ -315,8 +372,11 @@ class NotebookChatActivityTests(TestCase):
                 ),
                 tool_turn(
                     "t4",
-                    "get_work_fulltext",
-                    {"source_url": "https://doi.org/10.1000/crispr"},
+                    "search_work_fulltext",
+                    {
+                        "source_url": "https://doi.org/10.1000/crispr",
+                        "query": "CRISPR methods",
+                    },
                 ),
                 text_turn("Done."),
             ],
@@ -340,7 +400,8 @@ class NotebookChatActivityTests(TestCase):
         self.assertEqual(works["label"], "Fetched an author's publications")
         self.assertEqual(works["status"], "succeeded")
         self.assertEqual(works["sources"], [expected_source])
-        self.assertEqual(read_paper["label"], "Read a paper")
+        self.assertEqual(read_paper["label"], "Searched a paper")
+        self.assertEqual(read_paper["detail"], "CRISPR methods")
         self.assertEqual(read_paper["status"], "succeeded")
         self.assertEqual(read_paper["sources"], [expected_source])
         for event in _tool_calls(activity):

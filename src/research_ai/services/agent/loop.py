@@ -210,8 +210,8 @@ class Agent:
         through, and no probe here can prevent that. Correctness under a
         concurrent turn is therefore not this check's job and must not be built
         on it: a tool that mutates shared state guards its own write, the way
-        ``edit_note`` requires the version id it read and rejects the edit if the
-        document moved.
+        note edit tools require the version id they read and reject the edit if
+        the document moved.
 
         The check is optional (see ``AgentRecorder.is_active``) and its failure
         is not a stop signal: a recorder that cannot answer must not be able to

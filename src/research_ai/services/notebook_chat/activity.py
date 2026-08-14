@@ -29,9 +29,22 @@ from research_ai.services.agent_persistence.activity import (
     ThinkingEvent,
     ToolCallEvent,
 )
-from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE
-from research_ai.services.notebook_chat.grant_tools import SEARCH_GRANTS
-from research_ai.services.researcher_profile.openalex_tools import GET_WORK_FULLTEXT
+from research_ai.services.note_tools import (
+    EDIT_NOTE,
+    GET_NOTE_OUTLINE,
+    READ_NOTE,
+    READ_NOTE_SECTION,
+    REPLACE_NOTE_SECTION,
+)
+from research_ai.services.notebook_chat.grant_tools import (
+    GET_GRANT_DETAILS,
+    SEARCH_GRANTS,
+)
+from research_ai.services.researcher_profile.openalex_tools import (
+    GET_WORK_ABSTRACT,
+    GET_WORK_FULLTEXT,
+    SEARCH_WORK_FULLTEXT,
+)
 
 WEB_SEARCH = "web_search"
 SEARCH_INSTITUTIONS = "search_institutions"
@@ -41,27 +54,39 @@ GET_AUTHOR_WORKS = "get_author_works"
 
 _LABELS = {
     READ_NOTE: "Read the note",
+    GET_NOTE_OUTLINE: "Read the note outline",
+    READ_NOTE_SECTION: "Read a note section",
     EDIT_NOTE: "Edited the note",
+    REPLACE_NOTE_SECTION: "Edited a note section",
     WEB_SEARCH: "Searched the web",
     SEARCH_GRANTS: "Searched grants",
+    GET_GRANT_DETAILS: "Read grant details",
     SEARCH_INSTITUTIONS: "Searched institutions",
     SEARCH_AUTHORS: "Searched scholarly authors",
     GET_AUTHOR: "Looked up an author",
     GET_AUTHOR_WORKS: "Fetched an author's publications",
     GET_WORK_FULLTEXT: "Read a paper",
+    GET_WORK_ABSTRACT: "Read a paper abstract",
+    SEARCH_WORK_FULLTEXT: "Searched a paper",
 }
 # What each tool is doing while the call is still open, for the live phase.
 # Distinct from _LABELS, which reads as a completed step.
 _ACTIVE_LABELS = {
     READ_NOTE: "Reading the note",
+    GET_NOTE_OUTLINE: "Reading the note outline",
+    READ_NOTE_SECTION: "Reading a note section",
     EDIT_NOTE: "Editing the note",
+    REPLACE_NOTE_SECTION: "Editing a note section",
     WEB_SEARCH: "Searching the web",
     SEARCH_GRANTS: "Searching grants",
+    GET_GRANT_DETAILS: "Reading grant details",
     SEARCH_INSTITUTIONS: "Searching institutions",
     SEARCH_AUTHORS: "Searching scholarly authors",
     GET_AUTHOR: "Looking up an author",
     GET_AUTHOR_WORKS: "Fetching an author's publications",
     GET_WORK_FULLTEXT: "Reading a paper",
+    GET_WORK_ABSTRACT: "Reading a paper abstract",
+    SEARCH_WORK_FULLTEXT: "Searching a paper",
 }
 # The input field per tool whose value is the user's own kind of text -- safe
 # and meaningful to echo as the event detail.
@@ -70,6 +95,7 @@ _DETAIL_INPUT_FIELDS = {
     SEARCH_GRANTS: "query",
     SEARCH_INSTITUTIONS: "query",
     SEARCH_AUTHORS: "name",
+    SEARCH_WORK_FULLTEXT: "query",
 }
 _MAX_DETAIL_CHARS = 200
 _MAX_SOURCES = 5
@@ -201,7 +227,7 @@ def _public_tool_call(event: ToolCallEvent, execution_active: bool) -> dict:
     if detail:
         public["detail"] = detail
     succeeded = event.completed and not event.is_error
-    if succeeded and event.tool == EDIT_NOTE:
+    if succeeded and event.tool in (EDIT_NOTE, REPLACE_NOTE_SECTION):
         version_id = (event.result or {}).get("version_id")
         if isinstance(version_id, int):
             public["note_version_id"] = version_id
@@ -261,10 +287,17 @@ def _sources(event: ToolCallEvent) -> list[dict]:
     elif event.tool == SEARCH_GRANTS:
         items = result.get("grants")
         url_field = "url"
+    elif event.tool == GET_GRANT_DETAILS:
+        items = [result.get("grant")]
+        url_field = "url"
     elif event.tool == GET_AUTHOR_WORKS:
         items = result.get("works")
         url_field = "source_url"
-    elif event.tool == GET_WORK_FULLTEXT:
+    elif event.tool in (
+        GET_WORK_FULLTEXT,
+        GET_WORK_ABSTRACT,
+        SEARCH_WORK_FULLTEXT,
+    ):
         items = [result]
         url_field = "source_url"
     else:

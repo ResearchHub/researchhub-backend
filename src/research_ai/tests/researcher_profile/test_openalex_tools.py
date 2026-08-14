@@ -25,7 +25,8 @@ class ToolBuildTests(SimpleTestCase):
                 "search_authors",
                 "get_author",
                 "get_author_works",
-                "get_work_fulltext",
+                "get_work_abstract",
+                "search_work_fulltext",
                 SUBMIT_PROFILE,
             },
         )
@@ -76,6 +77,42 @@ class DispatchTests(SimpleTestCase):
         url = result["works"][0]["source_url"]
         self.assertIn(url, provider.returned_works)
         self.assertEqual(provider.returned_works[url]["title"], "Lead Paper")
+        self.assertNotIn("abstract", result["works"][0])
+
+    def test_get_author_works_caps_compact_list_at_ten(self):
+        # Arrange
+        client = MagicMock()
+        client.get_works_typed.return_value = [
+            MagicMock(
+                as_dict=lambda index=index: {
+                    "title": f"Paper {index}",
+                    "publication_date": "2024-01-01",
+                    "publication_year": "2024",
+                    "source_url": f"https://example.com/{index}",
+                    "author_position": "first",
+                    "pdf_url": "",
+                    "is_oa": True,
+                    "abstract": "large abstract",
+                }
+            )
+            for index in range(12)
+        ]
+        toolset = OpenAlexToolset(client=client).as_toolset()
+
+        # Act
+        result, _ = toolset.dispatch(
+            "get_author_works",
+            {"openalex_author_id": "A123", "max_results": 50},
+        )
+
+        # Assert
+        self.assertEqual(len(result["works"]), 10)
+        client.get_works_typed.assert_called_once_with(
+            openalex_author_id="A123",
+            batch_size=10,
+            sort="publication_date:desc",
+            open_access_only=True,
+        )
 
     def test_submit_profile_captures_input_and_stops(self):
         # Arrange
@@ -101,7 +138,7 @@ class DispatchTests(SimpleTestCase):
         self.assertIn("oa down", result["error"])
 
 
-class GetWorkFulltextTests(SimpleTestCase):
+class WorkDetailTests(SimpleTestCase):
     def _toolset_with_work(self, **kwargs):
         """A toolset that has already returned one work (so it can be read)."""
         client = MagicMock()
@@ -117,33 +154,53 @@ class GetWorkFulltextTests(SimpleTestCase):
         )
         return provider, toolset, result["works"][0]["source_url"]
 
-    def test_reads_pdf_text_for_returned_work(self):
+    def test_fetches_one_abstract_on_demand(self):
+        # Arrange
+        _, toolset, url = self._toolset_with_work(pdf_text_fetcher=lambda u: "")
+
+        # Act
+        result, _ = toolset.dispatch("get_work_abstract", {"source_url": url})
+
+        # Assert
+        self.assertEqual(result["abstract"], "Abstract text")
+
+    def test_searches_pdf_and_returns_relevant_passages(self):
         # Arrange: a stub fetcher stands in for the PDF download/extract.
         _, toolset, url = self._toolset_with_work(
-            pdf_text_fetcher=lambda pdf_url: "METHODS: single-cell RNA-seq on ..."
+            pdf_text_fetcher=lambda pdf_url: (
+                "Background that is not relevant. " * 80
+                + "METHODS: single-cell RNA-seq on patient samples with NovaSeq."
+            )
         )
         # Act
-        result, stop = toolset.dispatch("get_work_fulltext", {"source_url": url})
+        result, stop = toolset.dispatch(
+            "search_work_fulltext",
+            {"source_url": url, "query": "single-cell RNA-seq NovaSeq"},
+        )
         # Assert
         self.assertFalse(stop)
         self.assertEqual(result["content_type"], "pdf")
-        self.assertIn("single-cell", result["text"])
+        self.assertIn("single-cell", result["passages"][0]["text"])
+        self.assertNotIn("text", result)
 
-    def test_falls_back_to_abstract_when_no_pdf_text(self):
+    def test_fulltext_search_falls_back_to_abstract(self):
         # Arrange: the fetcher yields nothing, so the abstract is used.
         _, toolset, url = self._toolset_with_work(pdf_text_fetcher=lambda pdf_url: "")
         # Act
-        result, _ = toolset.dispatch("get_work_fulltext", {"source_url": url})
+        result, _ = toolset.dispatch(
+            "search_work_fulltext", {"source_url": url, "query": "abstract"}
+        )
         # Assert
         self.assertEqual(result["content_type"], "abstract")
-        self.assertEqual(result["text"], "Abstract text")
+        self.assertEqual(result["passages"][0]["text"], "Abstract text")
 
     def test_unknown_source_url_errors(self):
         # Arrange
         _, toolset, _ = self._toolset_with_work(pdf_text_fetcher=lambda u: "")
         # Act
         result, _ = toolset.dispatch(
-            "get_work_fulltext", {"source_url": "https://doi.org/10.9/nope"}
+            "search_work_fulltext",
+            {"source_url": "https://doi.org/10.9/nope", "query": "methods"},
         )
         # Assert
         self.assertIn("error", result)
@@ -154,8 +211,9 @@ class GetWorkFulltextTests(SimpleTestCase):
             pdf_text_fetcher=lambda u: "text", max_fulltext_fetches=1
         )
         # Act
-        first, _ = toolset.dispatch("get_work_fulltext", {"source_url": url})
-        second, _ = toolset.dispatch("get_work_fulltext", {"source_url": url})
+        args = {"source_url": url, "query": "methods"}
+        first, _ = toolset.dispatch("search_work_fulltext", args)
+        second, _ = toolset.dispatch("search_work_fulltext", args)
         # Assert
         self.assertNotIn("error", first)
         self.assertIn("budget", second["error"].lower())

@@ -1,10 +1,12 @@
 """Notebook note tools for the agent core.
 
 ``NoteToolset`` lets an agent read and edit Tiptap notes on behalf of a
-specific user. Reads hand the model the raw Tiptap/ProseMirror document JSON
-plus a version id; edits are full-document replaces guarded by that version id
-(optimistic concurrency), and each edit appends a new ``NoteContent`` version
-rather than mutating in place, so any agent edit is recoverable from history.
+specific user. Its normal path is outline -> section read -> section replace,
+so a small edit does not round-trip an entire large document through the model.
+Full-document read/replace tools remain available for legacy or unusually
+structured notes. Every write is guarded by a version id (optimistic
+concurrency) and appends a new ``NoteContent`` version rather than mutating in
+place, so any agent edit is recoverable from history.
 
 Permission checks mirror the HTTP layer on the note's unified document:
 reads use the ``HasAccessPermission`` predicate (any non-NO_ACCESS
@@ -20,14 +22,113 @@ from collections.abc import Collection
 from django.db import transaction
 
 from note.related_models.note_model import Note, NoteContent
-from note.services.note_content_service import NoteContentService
+from note.services.note_content_service import NoteContentService, extract_plain_text
 from research_ai.services.agent import Tool, Toolset
 from researchhub_document.registered_report_note_metadata import parse_note_json
 
 logger = logging.getLogger(__name__)
 
+GET_NOTE_OUTLINE = "get_note_outline"
+READ_NOTE_SECTION = "read_note_section"
+REPLACE_NOTE_SECTION = "replace_note_section"
 READ_NOTE = "read_note"
 EDIT_NOTE = "edit_note"
+
+_PREAMBLE_SECTION_ID = "preamble"
+_BODY_SECTION_ID = "body"
+
+
+def _document_blocks(document: dict) -> list[dict]:
+    blocks = document.get("content")
+    return blocks if isinstance(blocks, list) else []
+
+
+def _structured_document(latest: NoteContent | None) -> dict | None:
+    document = parse_note_json(latest.json) if latest else None
+    if document is None or document.get("type") != "doc":
+        return None
+    blocks = document.get("content")
+    if blocks is not None and not isinstance(blocks, list):
+        return None
+    return document
+
+
+def _document_sections(document: dict) -> list[dict]:
+    """Addressable heading-based ranges in a Tiptap document.
+
+    Heading ids use their top-level block index. They are intentionally valid
+    only for the version returned with the outline; the write-side version
+    check prevents an old positional id from targeting changed content.
+    """
+    blocks = _document_blocks(document)
+    headings = []
+    for index, block in enumerate(blocks):
+        if not isinstance(block, dict) or block.get("type") != "heading":
+            continue
+        attrs = block.get("attrs") or {}
+        try:
+            level = int(attrs.get("level") or 1)
+        except (TypeError, ValueError):
+            level = 1
+        headings.append(
+            {
+                "section_id": f"heading-{index}",
+                "heading": extract_plain_text({"type": "doc", "content": [block]}),
+                "level": level,
+                "start": index,
+            }
+        )
+
+    if not headings:
+        return [
+            {
+                "section_id": _BODY_SECTION_ID,
+                "heading": None,
+                "level": 0,
+                "start": 0,
+                "end": len(blocks),
+            }
+        ]
+
+    sections = []
+    if headings[0]["start"] > 0:
+        sections.append(
+            {
+                "section_id": _PREAMBLE_SECTION_ID,
+                "heading": None,
+                "level": 0,
+                "start": 0,
+                "end": headings[0]["start"],
+            }
+        )
+    for position, heading in enumerate(headings):
+        end = len(blocks)
+        for following in headings[position + 1 :]:
+            if following["level"] <= heading["level"]:
+                end = following["start"]
+                break
+        sections.append({**heading, "end": end})
+    return sections
+
+
+def _section_view(section: dict) -> dict:
+    return {
+        "section_id": section["section_id"],
+        "heading": section["heading"],
+        "level": section["level"],
+        "block_count": section["end"] - section["start"],
+    }
+
+
+def _find_section(document: dict, section_id: str) -> dict | None:
+    return next(
+        (
+            section
+            for section in _document_sections(document)
+            if section["section_id"] == section_id
+        ),
+        None,
+    )
 
 
 class NoteToolset:
@@ -57,9 +158,84 @@ class NoteToolset:
     def build_tools(self) -> list[Tool]:
         return [
             Tool(
+                name=GET_NOTE_OUTLINE,
+                description=(
+                    "Get a compact heading outline for a ResearchHub note. "
+                    "Returns addressable section ids and the current version_id. "
+                    "Use this first, then read only the sections needed."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "note_id": {
+                            "type": "integer",
+                            "description": "Id of the note to inspect.",
+                        },
+                    },
+                    "required": ["note_id"],
+                },
+                handler=self._get_note_outline,
+            ),
+            Tool(
+                name=READ_NOTE_SECTION,
+                description=(
+                    "Read one section returned by get_note_outline. Returns "
+                    "only that section's Tiptap top-level blocks plus the "
+                    "current version_id."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "note_id": {"type": "integer"},
+                        "section_id": {
+                            "type": "string",
+                            "description": "Exact section_id from get_note_outline.",
+                        },
+                    },
+                    "required": ["note_id", "section_id"],
+                },
+                handler=self._read_note_section,
+            ),
+            Tool(
+                name=REPLACE_NOTE_SECTION,
+                description=(
+                    "Replace one section with Tiptap top-level blocks. Read the "
+                    "outline/section first and pass its version_id as "
+                    "expected_version_id. Unread sections are preserved server-side."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "note_id": {"type": "integer"},
+                        "section_id": {
+                            "type": "string",
+                            "description": "Exact section_id from get_note_outline.",
+                        },
+                        "expected_version_id": {"type": ["integer", "null"]},
+                        "content": {
+                            "type": "array",
+                            "items": {"type": "object"},
+                            "description": (
+                                "Replacement top-level Tiptap blocks, including "
+                                "the section heading when the section has one."
+                            ),
+                        },
+                    },
+                    "required": [
+                        "note_id",
+                        "section_id",
+                        "expected_version_id",
+                        "content",
+                    ],
+                },
+                handler=self._replace_note_section,
+            ),
+            Tool(
                 name=READ_NOTE,
                 description=(
-                    "Read a ResearchHub notebook note. Returns the note title, "
+                    "Fallback: read an entire ResearchHub notebook note when "
+                    "section tools cannot represent the needed change. Returns "
+                    "the note title, "
                     "the current Tiptap/ProseMirror document JSON as `content`, "
                     "and the `version_id` that edit_note requires. For legacy "
                     "notes `content` may be null; `plain_text` is included then "
@@ -80,7 +256,8 @@ class NoteToolset:
             Tool(
                 name=EDIT_NOTE,
                 description=(
-                    "Replace a note's content with a complete Tiptap document "
+                    "Fallback: replace a note's content with a complete Tiptap "
+                    "document "
                     '(a JSON object like {"type": "doc", "content": [...]}). '
                     "Always call read_note first and pass the version_id you "
                     "read as expected_version_id; the edit is rejected if the "
@@ -120,6 +297,106 @@ class NoteToolset:
 
     # -- handlers ---------------------------------------------------------
 
+    def _get_note_outline(self, input: dict) -> dict:
+        note = self._get_readable_note(input.get("note_id"))
+        if note is None:
+            return {"error": f"note {input.get('note_id')} not found or not accessible"}
+        latest = note.latest_version
+        document = _structured_document(latest)
+        if document is None:
+            return {
+                "note_id": note.id,
+                "title": note.title,
+                "version_id": latest.id if latest else None,
+                "sections": [],
+                "fallback": "read_note",
+                "reason": "note has no structured Tiptap content",
+            }
+        return {
+            "note_id": note.id,
+            "title": note.title,
+            "version_id": latest.id if latest else None,
+            "sections": [
+                _section_view(section) for section in _document_sections(document)
+            ],
+        }
+
+    def _read_note_section(self, input: dict) -> dict:
+        note = self._get_readable_note(input.get("note_id"))
+        if note is None:
+            return {"error": f"note {input.get('note_id')} not found or not accessible"}
+        latest = note.latest_version
+        document = _structured_document(latest)
+        if document is None:
+            return {"error": "note has no structured content; use read_note fallback"}
+        section_id = str(input.get("section_id") or "")
+        section = _find_section(document, section_id)
+        if section is None:
+            return {
+                "error": (
+                    f"section {section_id!r} not found; call get_note_outline again"
+                )
+            }
+        blocks = _document_blocks(document)
+        return {
+            "note_id": note.id,
+            "title": note.title,
+            "version_id": latest.id if latest else None,
+            **_section_view(section),
+            "content": blocks[section["start"] : section["end"]],
+        }
+
+    def _replace_note_section(self, input: dict) -> dict:
+        note = self._get_readable_note(input.get("note_id"))
+        if note is None:
+            return {"error": f"note {input.get('note_id')} not found or not accessible"}
+        permission_error = self._edit_permission_error(note)
+        if permission_error:
+            return permission_error
+        replacement = input.get("content")
+        if not isinstance(replacement, list) or not all(
+            isinstance(block, dict) for block in replacement
+        ):
+            return {"error": "content must be an array of Tiptap block objects"}
+
+        expected = input.get("expected_version_id")
+        section_id = str(input.get("section_id") or "")
+        try:
+            with transaction.atomic():
+                locked = Note.objects.select_for_update().get(id=note.id)
+                stale = self._stale_version_error(locked, expected)
+                if stale:
+                    return stale
+                latest = locked.latest_version
+                document = _structured_document(latest)
+                if document is None:
+                    return {
+                        "error": (
+                            "note has no structured content; use edit_note fallback"
+                        )
+                    }
+                section = _find_section(document, section_id)
+                if section is None:
+                    return {
+                        "error": (
+                            f"section {section_id!r} not found; call "
+                            "get_note_outline again"
+                        )
+                    }
+                blocks = _document_blocks(document)
+                document["content"] = (
+                    blocks[: section["start"]] + replacement + blocks[section["end"] :]
+                )
+                version = self._create_version(locked, document)
+        except (ValueError, Note.DoesNotExist) as exc:
+            return {"error": str(exc)}
+        return {
+            "note_id": note.id,
+            "section_id": section_id,
+            "version_id": version.id,
+            "saved": True,
+        }
+
     def _read_note(self, input: dict) -> dict:
         note = self._get_readable_note(input.get("note_id"))
         if note is None:
@@ -143,12 +420,9 @@ class NoteToolset:
         if note is None:
             return {"error": f"note {input.get('note_id')} not found or not accessible"}
 
-        permissions = note.permissions
-        if not (
-            permissions.has_admin_user(self._user)
-            or permissions.has_editor_user(self._user)
-        ):
-            return {"error": f"no edit permission on note {note.id}"}
+        permission_error = self._edit_permission_error(note)
+        if permission_error:
+            return permission_error
 
         expected = input.get("expected_version_id")
         try:
@@ -157,26 +431,42 @@ class NoteToolset:
                 # one atomic step; a concurrent edit blocks here and then
                 # sees the new latest_version_id (-> stale error) on entry.
                 locked = Note.objects.select_for_update().get(id=note.id)
-                if locked.latest_version_id != expected:
-                    return {
-                        "error": (
-                            f"stale version: note {locked.id} is at version "
-                            f"{locked.latest_version_id}, expected {expected}; "
-                            "call read_note again and re-apply your edit"
-                        )
-                    }
-                version = self._service.create_version(
-                    locked,
-                    input.get("content"),
-                    created_by=self._user,
-                    created_via=NoteContent.CREATED_VIA_AGENT,
-                    # The verified expected version is the base this edit was
-                    # applied against.
-                    parent_version_id=locked.latest_version_id,
-                )
+                stale = self._stale_version_error(locked, expected)
+                if stale:
+                    return stale
+                version = self._create_version(locked, input.get("content"))
         except (ValueError, Note.DoesNotExist) as exc:
             return {"error": str(exc)}
         return {"note_id": note.id, "version_id": version.id, "saved": True}
+
+    def _edit_permission_error(self, note: Note) -> dict | None:
+        permissions = note.permissions
+        if permissions.has_admin_user(self._user) or permissions.has_editor_user(
+            self._user
+        ):
+            return None
+        return {"error": f"no edit permission on note {note.id}"}
+
+    @staticmethod
+    def _stale_version_error(note: Note, expected) -> dict | None:
+        if note.latest_version_id == expected:
+            return None
+        return {
+            "error": (
+                f"stale version: note {note.id} is at version "
+                f"{note.latest_version_id}, expected {expected}; call "
+                "get_note_outline again and re-apply your edit"
+            )
+        }
+
+    def _create_version(self, note: Note, content: dict) -> NoteContent:
+        return self._service.create_version(
+            note,
+            content,
+            created_by=self._user,
+            created_via=NoteContent.CREATED_VIA_AGENT,
+            parent_version_id=note.latest_version_id,
+        )
 
     def _get_readable_note(self, note_id) -> Note | None:
         """The note, or None when it does not exist or ``user`` cannot view it."""
