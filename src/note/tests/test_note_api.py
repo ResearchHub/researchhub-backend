@@ -1785,7 +1785,7 @@ class NoteTests(APITestCase):
 
         # Assert
         self.assertEqual(wrong_type_response.status_code, 400)
-        self.assertEqual(removed_response.status_code, 404)
+        self.assertEqual(removed_response.status_code, 400)
         self.assertEqual(inactive_response.status_code, 400)
         self.assertEqual(published_response.status_code, 409)
 
