@@ -11,12 +11,17 @@ from rest_framework.request import Request
 ACTIVITY_FEED_CACHE_PAGE_SIZE = 20
 ACTIVITY_FEED_MAX_CACHED_PAGE = 20
 ACTIVITY_FEED_CACHE_TIMEOUT = 60 * 10
+# Bump when unscoped public feed filtering or serialization changes.
+ACTIVITY_FEED_CACHE_VERSION = 2
 
 
 def activity_feed_cache_key(
     page: int, page_size: int = ACTIVITY_FEED_CACHE_PAGE_SIZE
 ) -> str:
-    return f"activity_feed:public:page-{page}:size-{page_size}"
+    return (
+        f"activity_feed:public:v{ACTIVITY_FEED_CACHE_VERSION}:"
+        f"page-{page}:size-{page_size}"
+    )
 
 
 def should_cache_activity_feed(request: Request) -> bool:

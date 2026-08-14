@@ -35,7 +35,11 @@ from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     hidden_comment_ids,
 )
-from researchhub_document.related_models.constants.document_type import GRANT, PAPER
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PAPER,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
@@ -43,8 +47,9 @@ from user.related_models.user_model import AI_EXPERT_EMAIL
 
 class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     """
-    Feed of all activity (papers, posts, comments) on documents,
-    without the main feed's preprint-hub filtering or personalization.
+    Feed of activity on documents, excluding paper/preprint-associated
+    entries. Peer reviews are limited to proposals (PREREGISTRATION).
+    These filters apply to every request.
 
     Supports filtering by:
       - scope: "grants" returns all activity across every grant and
@@ -192,6 +197,8 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
             content_type=comment_ct,
             user__email=AI_EXPERT_EMAIL,
         )
+        queryset = self._exclude_paper_documents(queryset)
+        queryset = self._exclude_non_proposal_peer_reviews(queryset)
 
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
@@ -337,6 +344,24 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         if not ud_ids:
             return queryset.none()
         return queryset.filter(unified_document_id__in=ud_ids)
+
+    @staticmethod
+    def _exclude_paper_documents(queryset):
+        """Drop entries whose parent document is a paper/preprint."""
+        return queryset.exclude(unified_document__document_type=PAPER)
+
+    @staticmethod
+    def _exclude_non_proposal_peer_reviews(queryset):
+        """Drop peer reviews that are not on a proposal."""
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        peer_review_ids = RhCommentModel.objects.filter(
+            comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
+        ).values("id")
+
+        return queryset.exclude(
+            Q(content_type=comment_ct, object_id__in=peer_review_ids)
+            & ~Q(unified_document__document_type=PREREGISTRATION)
+        )
 
     @staticmethod
     def _filter_peer_reviews(queryset):
