@@ -261,6 +261,26 @@ class NotebookChatServiceTests(TestCase):
         )
         self.assertEqual(result["final_text"], "Done.")
 
+    def test_run_turn_uses_injected_grant_toolset_factory(self):
+        # Arrange
+        execution, _delay = self._submit()
+        provider = FakeProvider([text_turn("Done.")])
+        grant_toolset = Mock()
+        grant_toolset.build_tools.return_value = []
+        grant_toolset_factory = Mock(return_value=grant_toolset)
+        service = _make_service(
+            provider=provider,
+            grant_toolset_factory=grant_toolset_factory,
+        )
+
+        # Act
+        result = service.run_turn(execution.id)
+
+        # Assert
+        self.assertEqual(result["final_text"], "Done.")
+        grant_toolset_factory.assert_called_once_with(user=self.user)
+        grant_toolset.build_tools.assert_called_once_with()
+
     def test_run_turn_honors_the_recorded_iteration_limit(self):
         # Arrange: the turn was submitted with a one-iteration budget; the
         # provider wants two turns.
