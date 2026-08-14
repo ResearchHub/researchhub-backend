@@ -24,6 +24,13 @@ class Note(DefaultModel):
     organization = models.ForeignKey(
         Organization, null=True, related_name="created_notes", on_delete=models.SET_NULL
     )
+    selected_grant = models.ForeignKey(
+        "purchase.Grant",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="draft_notes",
+    )
     title = models.TextField(blank=True, default="")
     unified_document = models.OneToOneField(
         ResearchhubUnifiedDocument, related_name="note", on_delete=models.CASCADE

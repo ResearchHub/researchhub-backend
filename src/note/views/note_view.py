@@ -26,6 +26,7 @@ from note.serializers import (
     NoteContentSerializer,
     NoteSerializer,
 )
+from note.services.note_grant_service import resolve_selected_grant
 from researchhub.pagination import MediumPageLimitPagination
 from researchhub.settings import TESTING
 from researchhub_access_group.constants import (
@@ -173,12 +174,19 @@ class NoteViewSet(ModelViewSet):
             created_by = user
             organization = user.organization
 
+        selected_grant = None
+        if "selected_grant" in data:
+            selected_grant = resolve_selected_grant(
+                data.get("selected_grant"), document_type, user
+            )
+
         unified_doc = self._create_unified_doc(request)
         self._create_permission(created_by, organization, unified_doc, grouping)
 
         note_kwargs = {
             "created_by": created_by,
             "organization": organization,
+            "selected_grant": selected_grant,
             "unified_document": unified_doc,
             "title": title,
         }
@@ -248,6 +256,7 @@ class NoteViewSet(ModelViewSet):
     def update(self, request, *args, **kwargs):
         user = request.user
         partial = kwargs.pop("partial", False)
+        data = request.data.copy()
         note = self.get_object()
         permissions = note.unified_document.permissions
         is_admin = permissions.has_admin_user(user)
@@ -256,9 +265,25 @@ class NoteViewSet(ModelViewSet):
         if not (is_admin or is_editor):
             return Response({"data": "Invalid permissions"}, status=403)
 
-        serializer = self.get_serializer(note, data=request.data, partial=partial)
+        selection_requested = "selected_grant" in data
+        if selection_requested:
+            if hasattr(note, "post"):
+                return Response(
+                    {"detail": "Published notes cannot change grants."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            selected_grant_id = data.get("selected_grant")
+            data.pop("selected_grant")
+            selected_grant = resolve_selected_grant(
+                selected_grant_id, note.document_type, user
+            )
+
+        serializer = self.get_serializer(note, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
+        if selection_requested:
+            serializer.save(selected_grant=selected_grant)
+        else:
+            self.perform_update(serializer)
 
         if getattr(note, "_prefetched_objects_cache", None):
             # If 'prefetch_related' has been applied to a queryset, we need to
