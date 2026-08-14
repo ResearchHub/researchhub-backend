@@ -28,7 +28,7 @@ from research_ai.services.notebook_chat.events import (
     ConversationEventPublisher,
 )
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
-from research_ai.services.notebook_chat.streaming import StreamGuardUnavailableError
+from research_ai.services.notebook_chat.streaming import StreamCacheUnavailableError
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -937,11 +937,11 @@ class NotebookChatEventEmissionTests(TestCase):
             (self.conversation.id, execution.id, TURN_CANCELLED),
         )
 
-    def test_cancel_active_turn_survives_stream_guard_failure(self):
+    def test_cancel_active_turn_survives_stream_cache_unavailability(self):
         # Arrange
         execution = self._submit()
         self.service.streams = Mock()
-        self.service.streams.guard.side_effect = StreamGuardUnavailableError(
+        self.service.streams.guard.side_effect = StreamCacheUnavailableError(
             "redis down"
         )
 
@@ -972,8 +972,9 @@ class NotebookChatEventEmissionTests(TestCase):
         publisher = Mock()
 
         @contextmanager
-        def guard(execution_id):
+        def guard(execution_id, *, wait_seconds):
             order.append(("guard_enter", execution_id))
+            self.assertIsNone(wait_seconds)
             yield
             order.append(("guard_exit", execution_id))
 

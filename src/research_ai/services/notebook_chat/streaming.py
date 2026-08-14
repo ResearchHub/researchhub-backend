@@ -44,8 +44,12 @@ def _lock_cache_key(execution_id: int) -> str:
     return f"research_ai:notebook_chat:stream_lock:{execution_id}"
 
 
-class StreamGuardUnavailableError(RuntimeError):
-    """The optional stream cache could not serialize an operation in time."""
+class StreamCacheUnavailableError(RuntimeError):
+    """The optional stream cache could not be reached."""
+
+
+class StreamGuardTimeoutError(RuntimeError):
+    """A bounded stream operation could not obtain its execution guard."""
 
 
 class ExecutionStreamStore:
@@ -63,11 +67,11 @@ class ExecutionStreamStore:
         self._sleep = sleep
 
     @contextmanager
-    def guard(self, execution_id: int):
+    def guard(self, execution_id: int, *, wait_seconds=STREAM_LOCK_WAIT_SECONDS):
         """Serialize stream publication and cancellation across processes."""
         key = _lock_cache_key(execution_id)
         token = uuid.uuid4().hex
-        deadline = self._clock() + STREAM_LOCK_WAIT_SECONDS
+        deadline = None if wait_seconds is None else self._clock() + wait_seconds
         while True:
             try:
                 acquired = self._cache.add(
@@ -76,11 +80,11 @@ class ExecutionStreamStore:
                     timeout=STREAM_LOCK_TTL_SECONDS,
                 )
             except Exception as exc:
-                raise StreamGuardUnavailableError from exc
+                raise StreamCacheUnavailableError from exc
             if acquired:
                 break
-            if self._clock() >= deadline:
-                raise StreamGuardUnavailableError(
+            if deadline is not None and self._clock() >= deadline:
+                raise StreamGuardTimeoutError(
                     f"timed out serializing stream {execution_id}"
                 )
             self._sleep(STREAM_LOCK_POLL_SECONDS)

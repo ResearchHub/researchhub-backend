@@ -81,7 +81,7 @@ from research_ai.services.notebook_chat.grant_tools import (
 )
 from research_ai.services.notebook_chat.streaming import (
     ExecutionStreamStore,
-    StreamGuardUnavailableError,
+    StreamCacheUnavailableError,
 )
 from research_ai.services.notebook_chat.toolset import (
     NotebookWebSearchToolset,
@@ -449,9 +449,10 @@ class NotebookChatService:
         """Stop the conversation's in-flight turn; ``None`` if none was running.
 
         Cancellation is cooperative: the worker is not interrupted here, it
-        notices at its next durable write and unwinds. So this returns as soon
-        as the intent is recorded, and the turn's status is ``CANCELLED`` from
-        that moment even though a model call may still be in flight. Nothing
+        notices at its next durable write and unwinds. This may first wait for
+        one in-flight stream publication so no older delta can follow the
+        cancellation event. Once the intent is recorded, the turn's status is
+        ``CANCELLED`` even though a model call may still be in flight. Nothing
         the worker does afterwards can revive the row -- every terminal
         transition in the recorder is guarded on ``RUNNING``.
         """
@@ -468,9 +469,12 @@ class NotebookChatService:
         if execution is None:
             return None
         try:
-            with self.streams.guard(execution.id):
+            # Cancellation cannot time out into an unserialized fallback: it
+            # waits for any older stream publication to finish, then seals the
+            # stream and announces cancellation while holding the same guard.
+            with self.streams.guard(execution.id, wait_seconds=None):
                 return self._cancel_execution(conversation, execution)
-        except StreamGuardUnavailableError:
+        except StreamCacheUnavailableError:
             # Cache failure must not prevent the durable cancellation. Stream
             # writes also fail closed while the same cache is unavailable.
             logger.warning(

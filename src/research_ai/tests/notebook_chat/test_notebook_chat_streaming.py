@@ -8,6 +8,7 @@ from research_ai.services.notebook_chat.streaming import (
     MAX_STREAM_THINKING_CHARS,
     ExecutionStreamStore,
     NotebookStreamBuffer,
+    StreamGuardTimeoutError,
 )
 
 
@@ -125,6 +126,15 @@ class NotebookStreamBufferTests(SimpleTestCase):
 
         # Assert
         self.assertIsNone(self.store.get(9))
+
+    def test_bounded_stream_guard_times_out_under_contention(self):
+        # Arrange, Act & Assert
+        with (
+            self.store.guard(9),
+            self.assertRaises(StreamGuardTimeoutError),
+            self.store.guard(9, wait_seconds=0),
+        ):
+            self.fail("contended guard should not be entered")
 
     def test_cancellation_marker_stops_deltas_while_activity_checks_are_throttled(self):
         # Arrange
