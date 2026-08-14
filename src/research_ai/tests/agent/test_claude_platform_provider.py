@@ -130,13 +130,21 @@ def _build_provider(responses=None, **kwargs):
     )
 
 
-def _complete(provider, *, messages=None, rendered_tools=None, temperature=0.0):
+def _complete(
+    provider,
+    *,
+    messages=None,
+    rendered_tools=None,
+    temperature=0.0,
+    before_retry=None,
+):
     return provider.complete(
         system_prompt="sys",
         messages=messages or [Message(role="user", content=[TextBlock(text="hi")])],
         rendered_tools=rendered_tools if rendered_tools is not None else [],
         max_tokens=100,
         temperature=temperature,
+        before_retry=before_retry,
     )
 
 
@@ -828,6 +836,78 @@ class ServerSideToolTests(SimpleTestCase):
         with self.assertRaisesMessage(ProviderError, "no container id"):
             _complete(provider, messages=messages)
         self.assertEqual(provider._client.messages.calls, [])
+
+    def test_response_without_required_container_is_retried_before_recording(self):
+        # Arrange: Platform occasionally leaves dynamic-filtering code open but
+        # omits the container required to replay it. The second response is a
+        # clean rerun of the identical request.
+        unresolved = ServerToolUseBlock(
+            id="srvtoolu_code",
+            name="code_execution",
+            input={"code": "await web_search(...)"},
+            type="server_tool_use",
+        )
+        provider = _build_provider(
+            [
+                _build_response([unresolved], stop_reason="pause_turn"),
+                _build_response([AnthropicTextBlock(type="text", text="recovered")]),
+            ]
+        )
+
+        # Act
+        turn = _complete(provider)
+
+        # Assert: the poisoned response never leaves the adapter; the retry's
+        # answer does, with spend from both requests accounted for.
+        self.assertEqual(turn.text, "recovered")
+        self.assertEqual(len(provider._client.messages.calls), 2)
+        self.assertEqual(turn.usage.input_tokens, 20)
+        self.assertEqual(turn.usage.output_tokens, 6)
+
+    def test_repeated_missing_container_fails_without_returning_poisoned_turn(self):
+        # Arrange
+        unresolved = ServerToolUseBlock(
+            id="srvtoolu_code",
+            name="code_execution",
+            input={"code": "await web_search(...)"},
+            type="server_tool_use",
+        )
+        provider = _build_provider(
+            [
+                _build_response([unresolved], stop_reason="pause_turn"),
+                _build_response([unresolved], stop_reason="pause_turn"),
+            ]
+        )
+
+        # Act / Assert: the provider fails before returning an AssistantTurn,
+        # so the agent recorder cannot append either unreplayable response.
+        with self.assertRaisesMessage(ProviderError, "unreplayable response"):
+            _complete(provider)
+        self.assertEqual(len(provider._client.messages.calls), 2)
+
+    def test_cancellation_probe_stops_missing_container_retry(self):
+        # Arrange
+        unresolved = ServerToolUseBlock(
+            id="srvtoolu_code",
+            name="code_execution",
+            input={"code": "await web_search(...)"},
+            type="server_tool_use",
+        )
+        provider = _build_provider(
+            [
+                _build_response([unresolved], stop_reason="pause_turn"),
+                _build_response([AnthropicTextBlock(type="text", text="unreached")]),
+            ]
+        )
+
+        def cancelled():
+            raise InterruptedError("agent execution is no longer running")
+
+        # Act / Assert: cancellation lands after the first response but before
+        # the provider can issue its hidden second request.
+        with self.assertRaises(InterruptedError):
+            _complete(provider, before_retry=cancelled)
+        self.assertEqual(len(provider._client.messages.calls), 1)
 
     def test_open_web_search_span_needs_no_container(self):
         # Arrange: a paused plain web search is resumable without any
