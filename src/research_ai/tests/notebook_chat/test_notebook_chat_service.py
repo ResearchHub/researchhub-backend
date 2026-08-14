@@ -1,5 +1,4 @@
 import json
-from decimal import Decimal
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
@@ -7,7 +6,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, TransactionTestCase
 
 from note.tests.helpers import create_note
-from purchase.models import Grant
 from research_ai.models import (
     AgentConversation,
     AgentExecution,
@@ -37,12 +35,7 @@ from research_ai.tests.agent.persistence_test_helpers import (
 from research_ai.tests.notebook_chat.test_notebook_chat_events import FakeChannelLayer
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
-from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import (
-    GRANT,
-    PREREGISTRATION,
-)
 
 EDITED_DOC = {
     "type": "doc",
@@ -103,34 +96,9 @@ class NotebookChatServiceTests(TestCase):
             execution = self.service.submit_message(self.note, conversation, text)
         return execution, delay
 
-    def test_submit_message_prepares_turn_and_schedules_task(self) -> None:
-        """Submitting a turn snapshots its note and selected grant context."""
-        # Arrange
-        grant_post = create_post(
-            title="Notebook chat grant",
-            created_by=self.user,
-            document_type=GRANT,
-        )
-        grant = Grant.objects.create(
-            created_by=self.user,
-            unified_document=grant_post.unified_document,
-            amount=Decimal("25000.00"),
-            currency="USD",
-            organization="Prompt Foundation",
-            description="Notebook chat grant requirements",
-            status=Grant.OPEN,
-        )
-        self.note.document_type = PREREGISTRATION
-        self.note.selected_grant = grant
-        self.note.save(update_fields=["document_type", "selected_grant"])
-
+    def test_submit_message_prepares_turn_and_schedules_task(self):
         # Act
-        with patch.object(
-            Grant,
-            "get_llm_context_text",
-            return_value="Unique notebook chat RFP text.",
-        ):
-            execution, delay = self._submit()
+        execution, delay = self._submit()
 
         # Assert
         conversation = execution.conversation
@@ -141,8 +109,6 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.PENDING)
         self.assertIn(str(self.note.id), execution.system_prompt)
         self.assertIn(self.note.title, execution.system_prompt)
-        self.assertIn(f"Grant ID: {grant.id}", execution.system_prompt)
-        self.assertIn("Unique notebook chat RFP text.", execution.system_prompt)
         self.assertEqual(execution.configuration["note_id"], self.note.id)
         self.assertEqual(execution.trigger_message.content, "Please add a summary.")
         delay.assert_called_once_with(execution.id)
@@ -294,26 +260,6 @@ class NotebookChatServiceTests(TestCase):
             "bedrock:pinned-model", native_tools=frozenset({"web_search"})
         )
         self.assertEqual(result["final_text"], "Done.")
-
-    def test_run_turn_uses_injected_grant_toolset_factory(self):
-        # Arrange
-        execution, _delay = self._submit()
-        provider = FakeProvider([text_turn("Done.")])
-        grant_toolset = Mock()
-        grant_toolset.build_tools.return_value = []
-        grant_toolset_factory = Mock(return_value=grant_toolset)
-        service = _make_service(
-            provider=provider,
-            grant_toolset_factory=grant_toolset_factory,
-        )
-
-        # Act
-        result = service.run_turn(execution.id)
-
-        # Assert
-        self.assertEqual(result["final_text"], "Done.")
-        grant_toolset_factory.assert_called_once_with(user=self.user)
-        grant_toolset.build_tools.assert_called_once_with()
 
     def test_run_turn_honors_the_recorded_iteration_limit(self):
         # Arrange: the turn was submitted with a one-iteration budget; the
