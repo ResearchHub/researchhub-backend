@@ -4,6 +4,8 @@ import time
 from datetime import UTC, datetime, timedelta
 from unittest import mock
 
+from dj_rest_auth.mfa.totp import TOTP, generate_totp_secret
+import pyotp
 import requests_mock
 from django.contrib.admin.models import LogEntry
 from django.utils import timezone
@@ -66,6 +68,14 @@ class ReputationViewsTests(APITestCase):
         self.mocker.stop()
         self.hotwallet_patcher.stop()  # Stop the hotwallet mock
 
+    def _enable_mfa(self, user) -> str:
+        """
+        Enable MFA for given user and return a valid OTP.
+        """
+        secret = generate_totp_secret()
+        TOTP.activate(user, secret)
+        return pyotp.TOTP(secret).now()
+
     def test_deposit_user_can_list_deposits(self):
         user = create_random_authenticated_user("deposit_user")
 
@@ -127,6 +137,7 @@ class ReputationViewsTests(APITestCase):
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
+        mfa_code = self._enable_mfa(user)
 
         create_deposit(user)
         self.client.force_authenticate(user)
@@ -141,6 +152,7 @@ class ReputationViewsTests(APITestCase):
                     "amount": "550",
                     "to_address": VALID_TEST_TO_ADDRESS,
                     "transaction_fee": 15,
+                    "mfa_code": mfa_code,
                 },
             )
             self.assertEqual(response.status_code, 201)
@@ -188,6 +200,7 @@ class ReputationViewsTests(APITestCase):
 
     def test_verified_user_can_rewithdraw_rsc_after_24_hours(self):
         user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        mfa_code = self._enable_mfa(user)
         UserVerification.objects.create(
             user=user, status=UserVerification.Status.APPROVED
         )
@@ -222,6 +235,7 @@ class ReputationViewsTests(APITestCase):
                     "amount": "550",
                     "to_address": VALID_TEST_TO_ADDRESS,
                     "transaction_fee": 15,
+                    "mfa_code": mfa_code,
                 },
             )
             self.assertEqual(response.status_code, 201)
@@ -313,6 +327,7 @@ class ReputationViewsTests(APITestCase):
     def test_verified_address_can_rewithdraw_rsc_after_24_hours(self):
         other_user = create_random_authenticated_user("other_user")
         user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        mfa_code = self._enable_mfa(user)
         UserVerification.objects.create(
             user=user, status=UserVerification.Status.APPROVED
         )
@@ -347,6 +362,7 @@ class ReputationViewsTests(APITestCase):
                     "amount": "550",
                     "to_address": VALID_TEST_TO_ADDRESS_SHARED,
                     "transaction_fee": 15,
+                    "mfa_code": mfa_code,
                 },
             )
 
@@ -354,6 +370,7 @@ class ReputationViewsTests(APITestCase):
 
     def test_new_verified_user_can_withdraw_rsc_immediately(self):
         user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        mfa_code = self._enable_mfa(user)
         UserVerification.objects.create(
             user=user, status=UserVerification.Status.APPROVED
         )
@@ -388,6 +405,7 @@ class ReputationViewsTests(APITestCase):
                     "amount": "550",
                     "to_address": VALID_TEST_TO_ADDRESS_SHARED,
                     "transaction_fee": 15,
+                    "mfa_code": mfa_code,
                 },
             )
 
@@ -526,6 +544,7 @@ class ReputationViewsTests(APITestCase):
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
+        mfa_code = self._enable_mfa(user)
 
         create_deposit(user)
         self.client.force_authenticate(user)
@@ -542,6 +561,7 @@ class ReputationViewsTests(APITestCase):
                     "amount": "550",
                     "to_address": VALID_TEST_TO_ADDRESS,
                     "transaction_fee": 15,
+                    "mfa_code": mfa_code,
                 },
             )
 
@@ -555,6 +575,7 @@ class ReputationViewsTests(APITestCase):
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
+        mfa_code = self._enable_mfa(user)
 
         create_deposit(user)
         self.client.force_authenticate(user)
@@ -570,6 +591,7 @@ class ReputationViewsTests(APITestCase):
                     "to_address": VALID_TEST_TO_ADDRESS,
                     "transaction_fee": 15,
                     "network": "BASE",
+                    "mfa_code": mfa_code,
                 },
             )
             self.assertEqual(response.status_code, 201)
@@ -581,6 +603,7 @@ class ReputationViewsTests(APITestCase):
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
+        mfa_code = self._enable_mfa(user)
 
         create_deposit(user)
         self.client.force_authenticate(user)
@@ -593,6 +616,7 @@ class ReputationViewsTests(APITestCase):
                 "to_address": VALID_TEST_TO_ADDRESS,
                 "transaction_fee": 15,
                 "network": "INVALID",
+                "mfa_code": mfa_code,
             },
         )
         self.assertEqual(response.status_code, 400)
@@ -605,6 +629,7 @@ class ReputationViewsTests(APITestCase):
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
+        mfa_code = self._enable_mfa(user)
 
         create_deposit(user)
         self.client.force_authenticate(user)
@@ -622,6 +647,7 @@ class ReputationViewsTests(APITestCase):
                     "to_address": VALID_TEST_TO_ADDRESS,
                     "transaction_fee": 15,
                     "network": "BASE",
+                    "mfa_code": mfa_code,
                 },
             )
 
