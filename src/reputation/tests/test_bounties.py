@@ -760,9 +760,7 @@ class BountyViewTests(APITestCase):
         self.assertEqual(
             [
                 author["id"]
-                for author in post_bounty["unified_document"]["documents"][0][
-                    "authors"
-                ]
+                for author in post_bounty["unified_document"]["documents"][0]["authors"]
             ],
             [author.id for author in authors],
         )

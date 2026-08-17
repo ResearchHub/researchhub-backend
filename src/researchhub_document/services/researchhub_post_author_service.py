@@ -19,9 +19,7 @@ def resolve_authors(author_ids: list[int]) -> list[Author]:
 
     authors_by_id = Author.objects.in_bulk(author_ids)
     if len(authors_by_id) != len(author_ids):
-        raise ResearchhubPostAuthorValidationError(
-            "One or more authors do not exist."
-        )
+        raise ResearchhubPostAuthorValidationError("One or more authors do not exist.")
     return [authors_by_id[author_id] for author_id in author_ids]
 
 
@@ -30,8 +28,8 @@ def list_authors(post: ResearchhubPost) -> list[Author]:
     links = getattr(post, _ORDERED_AUTHOR_LINKS, None)
     if links is None:
         database = post._state.db or DEFAULT_DB_ALIAS
-        links = _get_ordered_author_links().using(database).filter(
-            researchhub_post=post
+        links = (
+            _get_ordered_author_links().using(database).filter(researchhub_post=post)
         )
     return [link.author for link in links]
 

@@ -63,9 +63,7 @@ from utils.permissions import PostOnly
 
 logger = logging.getLogger(__name__)
 
-_BOUNTY_POST_AUTHOR_LOOKUP = (
-    "unified_document__posts__researchhubpostauthor_set"
-)
+_BOUNTY_POST_AUTHOR_LOOKUP = "unified_document__posts__researchhubpostauthor_set"
 
 
 def _open_bounty_exists_on_item(item_content_type, item_object_id):

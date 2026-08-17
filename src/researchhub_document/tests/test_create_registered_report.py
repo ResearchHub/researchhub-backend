@@ -514,10 +514,7 @@ class CreateRegisteredReportTests(APITestCase):
         self.assertEqual(response.data["content_object"]["id"], report.id)
         self.assertEqual(response.data["content_object"]["doi"], report.doi)
         self.assertEqual(
-            [
-                author["id"]
-                for author in response.data["content_object"]["authors"]
-            ],
+            [author["id"] for author in response.data["content_object"]["authors"]],
             [author.id for author in report_authors],
         )
         self.assertEqual(response.data["work"]["id"], report.id)
