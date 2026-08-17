@@ -182,12 +182,25 @@ class NoteViewSet(ModelViewSet):
             created_by = user
             organization = user.organization
 
+        selected_grant = None
+        if "selected_grant" in data:
+            selection_serializer = self.get_serializer(
+                data={
+                    "document_type": document_type,
+                    "selected_grant": data.get("selected_grant"),
+                },
+                partial=True,
+            )
+            selection_serializer.is_valid(raise_exception=True)
+            selected_grant = selection_serializer.validated_data["selected_grant"]
+
         unified_doc = self._create_unified_doc(request)
         self._create_permission(created_by, organization, unified_doc, grouping)
 
         note_kwargs = {
             "created_by": created_by,
             "organization": organization,
+            "selected_grant": selected_grant,
             "unified_document": unified_doc,
             "title": title,
         }
@@ -264,6 +277,12 @@ class NoteViewSet(ModelViewSet):
 
         if not (is_admin or is_editor):
             return Response({"data": "Invalid permissions"}, status=403)
+
+        if "selected_grant" in request.data and hasattr(note, "post"):
+            return Response(
+                {"detail": "Published notes cannot change grants."},
+                status=status.HTTP_409_CONFLICT,
+            )
 
         serializer = self.get_serializer(note, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)

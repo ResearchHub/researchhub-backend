@@ -166,6 +166,41 @@ class ServerResultSummaryTests(SimpleTestCase):
 
 
 class AgentLoopTests(SimpleTestCase):
+    def test_provider_retry_rechecks_execution_activity(self):
+        # Arrange: the run is active before its first provider request, then is
+        # cancelled while that request is in flight.
+        class CancellingRecorder(RecordingRecorder):
+            def __init__(self):
+                super().__init__()
+                self.activity_checks = 0
+
+            def is_active(self):
+                self.activity_checks += 1
+                return self.activity_checks == 1
+
+        class InternallyRetryingProvider(FakeProvider):
+            def __init__(self):
+                super().__init__([_build_text_turn("unreached")])
+                self.requests = 0
+
+            def complete(self, *, before_retry, **kwargs):
+                self.requests += 1
+                before_retry()
+                self.requests += 1
+                return super().complete(**kwargs)
+
+        recorder = CancellingRecorder()
+        provider = InternallyRetryingProvider()
+        agent = _build_agent(provider, _build_toolset(), recorder=recorder)
+
+        # Act
+        with self.assertRaises(InterruptedError):
+            agent.run("research")
+
+        # Assert
+        self.assertEqual(provider.requests, 1)
+        self.assertEqual(recorder.activity_checks, 2)
+
     def test_dispatches_tools_then_stops_on_terminal_tool(self):
         # Arrange
         provider = FakeProvider(

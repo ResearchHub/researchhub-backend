@@ -2,10 +2,16 @@ from datetime import UTC, datetime
 
 from django.core.files.storage import default_storage
 from django.db.models import Q
-from rest_framework.serializers import ModelSerializer, SerializerMethodField
+from rest_framework.serializers import (
+    ModelSerializer,
+    PrimaryKeyRelatedField,
+    SerializerMethodField,
+    ValidationError,
+)
 
 from hub.serializers import SimpleHubSerializer
 from note.models import Note, NoteContent
+from purchase.models import Grant
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
     ADMIN,
@@ -66,12 +72,59 @@ class NoteSerializer(ModelSerializer):
     organization = OrganizationSerializer()
     post = SerializerMethodField()
     registered_report_prefill = SerializerMethodField()
+    selected_grant = PrimaryKeyRelatedField(
+        allow_null=True,
+        queryset=Grant.objects.none(),
+        required=False,
+    )
     unified_document = SerializerMethodField()
 
     class Meta:
         model = Note
         fields = "__all__"
         read_only_fields = ["unified_document"]
+
+    def get_fields(self) -> dict:
+        """Return fields with writable grants restricted to the requester."""
+        fields = super().get_fields()
+        request = self.context.get("request")
+        if request is not None and hasattr(self, "initial_data"):
+            visible_document_ids = ResearchhubPost.objects.visible_to(
+                request.user
+            ).values("unified_document_id")
+            fields["selected_grant"].queryset = Grant.objects.filter(
+                unified_document_id__in=visible_document_ids,
+                unified_document__is_removed=False,
+            )
+        return fields
+
+    def validate(self, attrs: dict) -> dict:
+        """Validate a selected grant against the note's resulting state."""
+        document_type = attrs.get(
+            "document_type", getattr(self.instance, "document_type", None)
+        )
+        selection_requires_validation = "selected_grant" in attrs or (
+            self.instance is not None
+            and self.instance.selected_grant_id is not None
+            and document_type != self.instance.document_type
+        )
+        if not selection_requires_validation:
+            return attrs
+
+        selected_grant = attrs.get(
+            "selected_grant", getattr(self.instance, "selected_grant", None)
+        )
+        if selected_grant is None:
+            return attrs
+        if document_type != PREREGISTRATION:
+            raise ValidationError(
+                {"selected_grant": "Only preregistration notes can select a grant."}
+            )
+        if not selected_grant.is_active():
+            raise ValidationError(
+                {"selected_grant": "Grant is no longer accepting applications."}
+            )
+        return attrs
 
     def get_access(self, note):
         permissions = note.permissions

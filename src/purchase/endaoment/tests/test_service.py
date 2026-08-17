@@ -21,7 +21,7 @@ User = get_user_model()
     ENDAOMENT_CLIENT_ID="test_client_id",
     ENDAOMENT_CLIENT_SECRET="test_client_secret",
     ENDAOMENT_REDIRECT_URL="https://researchhub.com/callback",
-    CORS_ORIGIN_WHITELIST=["https://test.com", "https://researchhub.com"],
+    CORS_ALLOWED_ORIGINS=["https://test.com", "https://researchhub.com"],
     BASE_FRONTEND_URL="https://researchhub.com",
     SALT_KEY="test-salt-key",
 )

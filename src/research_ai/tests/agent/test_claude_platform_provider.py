@@ -8,6 +8,7 @@ from anthropic.types import (
     CodeExecutionToolResultBlock,
     Container,
     EncryptedCodeExecutionResultBlock,
+    RawMessageDeltaEvent,
     RedactedThinkingBlock,
     ServerToolUseBlock,
     Usage,
@@ -46,14 +47,18 @@ from research_ai.services.agent.types import (
 class _FakeStream:
     """Stands in for the SDK's ``MessageStreamManager`` context manager."""
 
-    def __init__(self, response):
+    def __init__(self, response, events=()):
         self._response = response
+        self._events = list(events)
 
     def __enter__(self):
         return self
 
     def __exit__(self, *exc_info):
         return False
+
+    def __iter__(self):
+        return iter(self._events)
 
     def get_final_message(self):
         return self._response
@@ -68,7 +73,15 @@ class FakeMessages:
 
     def stream(self, **kwargs):
         self.calls.append(deepcopy(kwargs))
-        return _FakeStream(self._responses.pop(0))
+        response = self._responses.pop(0)
+        if getattr(response, "container", None) is None:
+            return _FakeStream(response)
+        # Faithful to the SDK: the container arrives on ``message_delta`` and
+        # is never accumulated onto the final message.
+        return _FakeStream(
+            response.model_copy(update={"container": None}),
+            [_build_container_delta(response.container, response.stop_reason)],
+        )
 
 
 class FakeAnthropicClient:
@@ -94,6 +107,25 @@ def _build_response(
         stop_reason=stop_reason,
         stop_details=stop_details,
         usage=usage or Usage(input_tokens=10, output_tokens=3),
+    )
+
+
+def _build_container_delta(container, stop_reason="tool_use"):
+    """The ``message_delta`` disclosing a container, in the SDK's wire shape.
+
+    Deserialized rather than constructed: the container is a field of the
+    event's ``delta``, and the SDK's models accept undeclared top-level keys.
+    """
+    return RawMessageDeltaEvent.model_validate(
+        {
+            "type": "message_delta",
+            "delta": {
+                "container": container.model_dump(mode="json"),
+                "stop_reason": stop_reason,
+                "stop_sequence": None,
+            },
+            "usage": {"output_tokens": 3},
+        }
     )
 
 
@@ -130,13 +162,21 @@ def _build_provider(responses=None, **kwargs):
     )
 
 
-def _complete(provider, *, messages=None, rendered_tools=None, temperature=0.0):
+def _complete(
+    provider,
+    *,
+    messages=None,
+    rendered_tools=None,
+    temperature=0.0,
+    before_retry=None,
+):
     return provider.complete(
         system_prompt="sys",
         messages=messages or [Message(role="user", content=[TextBlock(text="hi")])],
         rendered_tools=rendered_tools if rendered_tools is not None else [],
         max_tokens=100,
         temperature=temperature,
+        before_retry=before_retry,
     )
 
 
@@ -321,7 +361,7 @@ class CompleteAndParseTests(SimpleTestCase):
         self.assertEqual(
             call["thinking"], {"type": "adaptive", "display": "summarized"}
         )
-        self.assertEqual(call["output_config"], {"effort": "high"})
+        self.assertEqual(call["output_config"], {"effort": "low"})
         self.assertNotIn("temperature", call)
 
     def test_prompt_caching_marks_system_and_the_last_message_block(self):
@@ -466,6 +506,9 @@ class CompleteAndParseTests(SimpleTestCase):
 
             def __exit__(self, *exc_info):
                 return False
+
+            def __iter__(self):
+                raise ValueError("connection reset")
 
             def get_final_message(self):
                 raise ValueError("connection reset")
@@ -675,6 +718,36 @@ class ServerSideToolTests(SimpleTestCase):
             "enc-stdout",
         )
 
+    def test_container_disclosed_only_by_a_stream_event_is_recorded(self):
+        # Arrange: Anthropic reports the container on ``message_delta``, which
+        # the SDK never accumulates onto the final message -- reading the final
+        # message alone loses the id every later request needs.
+        container = Container(
+            id="container_123",
+            expires_at=datetime(2099, 1, 1, tzinfo=UTC),
+        )
+        delta = _build_container_delta(container)
+
+        class DeltaOnlyMessages:
+            def stream(self, **kwargs):
+                return _FakeStream(_build_response([], stop_reason="tool_use"), [delta])
+
+        class DeltaOnlyClient:
+            messages = DeltaOnlyMessages()
+
+        provider = ClaudePlatformProvider(
+            client=DeltaOnlyClient(), model_id="claude-opus-5"
+        )
+
+        # Act
+        turn = _complete(provider)
+
+        # Assert
+        self.assertEqual(
+            turn.provider_state["anthropic"]["container"]["id"],
+            "container_123",
+        )
+
     def test_code_execution_container_and_tool_caller_replay_on_followup(self):
         # Arrange: code execution paused while a client tool runs. Anthropic
         # requires both its top-level container id and the tool call's caller
@@ -828,6 +901,78 @@ class ServerSideToolTests(SimpleTestCase):
         with self.assertRaisesMessage(ProviderError, "no container id"):
             _complete(provider, messages=messages)
         self.assertEqual(provider._client.messages.calls, [])
+
+    def test_response_without_required_container_is_retried_before_recording(self):
+        # Arrange: Platform occasionally leaves dynamic-filtering code open but
+        # omits the container required to replay it. The second response is a
+        # clean rerun of the identical request.
+        unresolved = ServerToolUseBlock(
+            id="srvtoolu_code",
+            name="code_execution",
+            input={"code": "await web_search(...)"},
+            type="server_tool_use",
+        )
+        provider = _build_provider(
+            [
+                _build_response([unresolved], stop_reason="pause_turn"),
+                _build_response([AnthropicTextBlock(type="text", text="recovered")]),
+            ]
+        )
+
+        # Act
+        turn = _complete(provider)
+
+        # Assert: the poisoned response never leaves the adapter; the retry's
+        # answer does, with spend from both requests accounted for.
+        self.assertEqual(turn.text, "recovered")
+        self.assertEqual(len(provider._client.messages.calls), 2)
+        self.assertEqual(turn.usage.input_tokens, 20)
+        self.assertEqual(turn.usage.output_tokens, 6)
+
+    def test_repeated_missing_container_fails_without_returning_poisoned_turn(self):
+        # Arrange
+        unresolved = ServerToolUseBlock(
+            id="srvtoolu_code",
+            name="code_execution",
+            input={"code": "await web_search(...)"},
+            type="server_tool_use",
+        )
+        provider = _build_provider(
+            [
+                _build_response([unresolved], stop_reason="pause_turn"),
+                _build_response([unresolved], stop_reason="pause_turn"),
+            ]
+        )
+
+        # Act / Assert: the provider fails before returning an AssistantTurn,
+        # so the agent recorder cannot append either unreplayable response.
+        with self.assertRaisesMessage(ProviderError, "unreplayable response"):
+            _complete(provider)
+        self.assertEqual(len(provider._client.messages.calls), 2)
+
+    def test_cancellation_probe_stops_missing_container_retry(self):
+        # Arrange
+        unresolved = ServerToolUseBlock(
+            id="srvtoolu_code",
+            name="code_execution",
+            input={"code": "await web_search(...)"},
+            type="server_tool_use",
+        )
+        provider = _build_provider(
+            [
+                _build_response([unresolved], stop_reason="pause_turn"),
+                _build_response([AnthropicTextBlock(type="text", text="unreached")]),
+            ]
+        )
+
+        def cancelled():
+            raise InterruptedError("agent execution is no longer running")
+
+        # Act / Assert: cancellation lands after the first response but before
+        # the provider can issue its hidden second request.
+        with self.assertRaises(InterruptedError):
+            _complete(provider, before_retry=cancelled)
+        self.assertEqual(len(provider._client.messages.calls), 1)
 
     def test_open_web_search_span_needs_no_container(self):
         # Arrange: a paused plain web search is resumable without any
