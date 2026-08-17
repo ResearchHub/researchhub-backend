@@ -26,6 +26,7 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
+from reputation.models import Bounty, Escrow
 from researchhub_comment.constants.rh_comment_thread_types import (
     COMMUNITY_REVIEW,
     GENERIC_COMMENT,
@@ -1094,7 +1095,8 @@ def _make_comment_feed_entry(user, unified_document, target, comment_type):
 
 
 class ActivityFeedContentExclusionTests(AWSMockTestCase):
-    """Paper activity is excluded; peer reviews are proposal-only."""
+    """Paper activity is excluded except REVIEW bounty opportunities;
+    peer reviews are proposal-only."""
 
     def setUp(self):
         super().setUp()
@@ -1143,8 +1145,32 @@ class ActivityFeedContentExclusionTests(AWSMockTestCase):
         _, self.proposal_comment_entry = _make_comment_feed_entry(
             self.user, self.prereg_doc, self.prereg_post, GENERIC_COMMENT
         )
-        _, self.paper_comment_entry = _make_comment_feed_entry(
+        self.paper_comment, self.paper_comment_entry = _make_comment_feed_entry(
             self.user, self.paper_doc, self.paper, GENERIC_COMMENT
+        )
+        (
+            self.paper_review_bounty_comment,
+            self.paper_review_bounty_entry,
+        ) = _make_comment_feed_entry(
+            self.user, self.paper_doc, self.paper, GENERIC_COMMENT
+        )
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            amount_holding=100,
+            content_type=comment_ct,
+            object_id=self.paper_review_bounty_comment.id,
+        )
+        Bounty.objects.create(
+            amount=100,
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.REVIEW,
+            unified_document=self.paper_doc,
+            item_content_type=comment_ct,
+            item_object_id=self.paper_review_bounty_comment.id,
+            escrow=escrow,
+            created_by=self.user,
         )
 
         self.proposal_bounty_fa = FundingActivity.objects.create(
@@ -1202,7 +1228,7 @@ class ActivityFeedContentExclusionTests(AWSMockTestCase):
         self.assertNotIn(self.discussion_review_entry.id, ids)
         self.assertNotIn(self.paper_review_entry.id, ids)
 
-    def test_unscoped_excludes_paper_comments_and_bounties(self):
+    def test_unscoped_excludes_paper_comments_and_payouts_keeps_review_bounties(self):
         # Act
         ids = self._ids()
 
@@ -1210,6 +1236,7 @@ class ActivityFeedContentExclusionTests(AWSMockTestCase):
         self.assertIn(self.proposal_comment_entry.id, ids)
         self.assertIn(self.proposal_bounty_entry.id, ids)
         self.assertIn(self.discussion_post_entry.id, ids)
+        self.assertIn(self.paper_review_bounty_entry.id, ids)
         self.assertNotIn(self.paper_comment_entry.id, ids)
         self.assertNotIn(self.paper_bounty_entry.id, ids)
 
@@ -1222,6 +1249,7 @@ class ActivityFeedContentExclusionTests(AWSMockTestCase):
         self.assertNotIn(self.discussion_review_entry.id, ids)
         self.assertNotIn(self.paper_review_entry.id, ids)
         self.assertNotIn(self.proposal_comment_entry.id, ids)
+        self.assertNotIn(self.paper_review_bounty_entry.id, ids)
 
     def test_financial_scope_excludes_paper_bounty_payouts(self):
         # Act
@@ -1230,6 +1258,7 @@ class ActivityFeedContentExclusionTests(AWSMockTestCase):
         # Assert
         self.assertIn(self.proposal_bounty_entry.id, ids)
         self.assertNotIn(self.paper_bounty_entry.id, ids)
+        self.assertNotIn(self.paper_review_bounty_entry.id, ids)
 
 
 class ActivityFeedFinancialScopeTests(AWSMockTestCase):

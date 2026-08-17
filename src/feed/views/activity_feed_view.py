@@ -27,6 +27,7 @@ from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
+from reputation.related_models.bounty import Bounty
 from researchhub_comment.constants.rh_comment_thread_types import (
     COMMUNITY_REVIEW,
     PEER_REVIEW,
@@ -48,8 +49,9 @@ from user.related_models.user_model import AI_EXPERT_EMAIL
 class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     """
     Feed of activity on documents, excluding paper/preprint-associated
-    entries. Peer reviews are limited to proposals (PREREGISTRATION).
-    These filters apply to every request.
+    entries except peer-review bounty opportunities. Peer reviews are
+    limited to proposals (PREREGISTRATION). These filters apply to every
+    request.
 
     Supports filtering by:
       - scope: "grants" returns all activity across every grant and
@@ -347,8 +349,25 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
 
     @staticmethod
     def _exclude_paper_documents(queryset):
-        """Drop entries whose parent document is a paper/preprint."""
-        return queryset.exclude(unified_document__document_type=PAPER)
+        """
+        Drop paper/preprint activity except peer-review bounty opportunities
+        (comments that have a parent REVIEW bounty).
+        """
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        review_bounty_comment_ids = Bounty.objects.filter(
+            parent__isnull=True,
+            bounty_type=Bounty.Type.REVIEW,
+            item_content_type=comment_ct,
+        ).values("item_object_id")
+
+        paper_entries = Q(unified_document__document_type=PAPER)
+        review_bounty_on_paper = Q(
+            content_type=comment_ct,
+            object_id__in=review_bounty_comment_ids,
+            unified_document__document_type=PAPER,
+        )
+
+        return queryset.exclude(paper_entries & ~review_bounty_on_paper)
 
     @staticmethod
     def _exclude_non_proposal_peer_reviews(queryset):
