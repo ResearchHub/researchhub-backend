@@ -289,6 +289,39 @@ class ViewTests(APITestCase):
             [self.member_author.id, self.admin_author.id],
         )
 
+    def test_rejects_duplicate_post_authors(self) -> None:
+        """Return a DRF field error when post authors are duplicated."""
+        # Arrange
+        note = create_note(self.admin_user, self.organization)
+        self.client.force_authenticate(self.admin_user)
+
+        # Act
+        response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "authors": [self.admin_author.id, self.admin_author.id],
+                "created_by": self.admin_user.id,
+                "document_type": "DISCUSSION",
+                "full_src": "body",
+                "hubs": [self.hub.id],
+                "is_public": True,
+                "note_id": note[0].id,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data,
+            {"authors": ["Authors must be unique."]},
+        )
+
     def test_user_can_create_post_with_non_members(self):
         note = create_note(self.admin_user, self.organization)
 
@@ -315,7 +348,8 @@ class ViewTests(APITestCase):
 
         self.assertEqual(doc_response.status_code, 200)
 
-    def test_user_cannot_create_post_without_self_in_authors(self):
+    def test_rejects_post_authors_without_requester(self) -> None:
+        """Reject a post author list that excludes the requester."""
         # Arrange
         note = create_note(self.admin_user, self.organization)
         self.client.force_authenticate(self.admin_user)
@@ -342,15 +376,21 @@ class ViewTests(APITestCase):
 
         # Assert
         self.assertEqual(doc_response.status_code, 400)
+        self.assertEqual(
+            doc_response.data,
+            {"authors": ["You must include yourself in the authors list."]},
+        )
 
-    def test_author_can_update_post(self):
+    def test_preserves_post_authors_when_update_omits_them(self) -> None:
+        """Preserve existing authors when an update omits the author field."""
+        # Arrange
         note = create_note(self.admin_user, self.organization)
-
         self.client.force_authenticate(self.admin_user)
-
+        authors = [self.admin_author, self.non_member_author]
         doc_response = self.client.post(
             "/api/researchhubpost/",
             {
+                "authors": [author.id for author in authors],
                 "document_type": "DISCUSSION",
                 "created_by": self.admin_user.id,
                 "full_src": "body",
@@ -366,9 +406,9 @@ class ViewTests(APITestCase):
                 "hubs": [self.hub.id],
             },
         )
-
         self.assertEqual(doc_response.status_code, 200)
 
+        # Act
         updated_response = self.client.post(
             "/api/researchhubpost/",
             {
@@ -388,11 +428,23 @@ class ViewTests(APITestCase):
             },
         )
 
+        # Assert
+        self.assertEqual(updated_response.status_code, 200)
         self.assertEqual(
             updated_response.data["title"],
             "updated title. updated title. updated title.",
         )
         self.assertEqual(updated_response.data["image_url"], "/updatedImagePath1")
+        self.assertEqual(
+            list(
+                ResearchhubPostAuthor.objects.filter(
+                    researchhub_post_id=doc_response.data["id"]
+                )
+                .order_by("position")
+                .values_list("author_id", flat=True)
+            ),
+            [author.id for author in authors],
+        )
 
     def test_updates_post_authors_in_submitted_order(self) -> None:
         """Replace existing post authors in their newly submitted order."""
@@ -456,7 +508,8 @@ class ViewTests(APITestCase):
             ],
         )
 
-    def test_author_cannot_update_post_without_self_in_authors(self):
+    def test_rejects_updated_post_authors_without_requester(self) -> None:
+        """Reject an updated author list that excludes the requester."""
         # Arrange
         note = create_note(self.admin_user, self.organization)
         self.client.force_authenticate(self.admin_user)
@@ -501,6 +554,10 @@ class ViewTests(APITestCase):
 
         # Assert
         self.assertEqual(updated_response.status_code, 400)
+        self.assertEqual(
+            updated_response.data,
+            {"authors": ["You must include yourself in the authors list."]},
+        )
 
     def test_non_author_cannot_update_post(self):
         hub = create_hub()

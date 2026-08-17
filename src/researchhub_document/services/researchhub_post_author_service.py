@@ -12,17 +12,8 @@ class ResearchhubPostAuthorValidationError(ValueError):
     """Raised when a post author list is invalid."""
 
 
-def resolve_authors(author_ids: object) -> list[Author]:
-    """Validate author IDs and return their authors in the submitted order."""
-    if not isinstance(author_ids, list):
-        raise ResearchhubPostAuthorValidationError("Authors must be a list.")
-    if any(
-        not isinstance(author_id, int) or isinstance(author_id, bool)
-        for author_id in author_ids
-    ):
-        raise ResearchhubPostAuthorValidationError(
-            "Author IDs must be integers."
-        )
+def resolve_authors(author_ids: list[int]) -> list[Author]:
+    """Return existing unique authors in the submitted order."""
     if len(author_ids) != len(set(author_ids)):
         raise ResearchhubPostAuthorValidationError("Authors must be unique.")
 
@@ -59,7 +50,7 @@ def build_author_prefetch(
 def replace_authors(
     post: ResearchhubPost,
     authors: list[Author],
-) -> list[Author]:
+) -> None:
     """Atomically replace a saved post's authors in the supplied order."""
     if post.pk is None:
         raise ValueError("Post must be saved before replacing authors.")
@@ -83,6 +74,9 @@ def replace_authors(
         if hasattr(post, _ORDERED_AUTHOR_LINKS):
             delattr(post, _ORDERED_AUTHOR_LINKS)
         getattr(post, "_prefetched_objects_cache", {}).pop("authors", None)
+        # bulk_create bypasses Django's M2M signal. Emit only the final event so
+        # listeners refresh from the completed replacement instead of observing
+        # the transient empty relation created by the delete above.
         m2m_changed.send(
             sender=ResearchhubPost.authors.through,
             instance=post,
@@ -92,7 +86,6 @@ def replace_authors(
             pk_set={author.id for author in authors},
             using=database,
         )
-    return authors
 
 
 def _get_ordered_author_links() -> QuerySet[ResearchhubPostAuthor]:

@@ -46,6 +46,7 @@ from researchhub_document.serializers.registered_report_work_serializer import (
 )
 from researchhub_document.serializers.researchhub_post_serializer import (
     RegisteredReportPublishSerializer,
+    ResearchhubPostAuthorsSerializer,
     ResearchhubPostSerializer,
 )
 from researchhub_document.services.journal_entry_service import (
@@ -60,10 +61,8 @@ from researchhub_document.services.registered_report_work_service import (
     RegisteredReportWorkService,
 )
 from researchhub_document.services.researchhub_post_author_service import (
-    ResearchhubPostAuthorValidationError,
     build_author_prefetch,
     replace_authors,
-    resolve_authors,
 )
 from researchhub_document.services.unified_document_share_link_service import (
     get_shared_unified_document_id,
@@ -284,23 +283,20 @@ class ResearchhubPostViewSet(
                 "Only moderators or hub editors can publish registered reports."
             )
 
-        try:
-            authors = resolve_authors(data.get("authors", []))
-        except ResearchhubPostAuthorValidationError as error:
-            return Response(
-                {"error": str(error)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if (
-            document_type != REGISTERED_REPORT
-            and authors
-            and request.user.author_profile not in authors
-        ):
-            return Response(
-                {"msg": "You must include yourself in the authors list"},
-                status=400,
-            )
+        request_serializer_class = (
+            RegisteredReportPublishSerializer
+            if document_type == REGISTERED_REPORT
+            else ResearchhubPostAuthorsSerializer
+        )
+        request_serializer = request_serializer_class(
+            data=data,
+            context={
+                "request": request,
+                "require_requester_as_author": document_type != REGISTERED_REPORT,
+            },
+        )
+        request_serializer.is_valid(raise_exception=True)
+        authors = request_serializer.validated_data.get("authors", [])
 
         validation_response = self.validate_post_content(title, renderable_text)
         if validation_response is not None:
@@ -313,32 +309,30 @@ class ResearchhubPostViewSet(
                 registered_report_proposal = None
                 journal_entry_service = None
                 if document_type == REGISTERED_REPORT:
-                    serializer = RegisteredReportPublishSerializer(data=data)
-                    serializer.is_valid(raise_exception=True)
                     journal_entry_service = JournalEntryService(
                         journey_service=journey_service
                     )
                     registered_report_proposal = (
                         journal_entry_service.get_registered_report_proposal(
-                            serializer.validated_data["proposal_id"],
+                            request_serializer.validated_data["proposal_id"],
                         )
                     )
                     registered_report_note = (
                         journal_entry_service.get_registered_report_note(
                             created_by,
-                            serializer.validated_data["note_id"],
+                            request_serializer.validated_data["note_id"],
                             registered_report_proposal,
                         )
                     )
-                    note_id = serializer.validated_data["note_id"]
+                    note_id = request_serializer.validated_data["note_id"]
                     if not authors:
                         authors = journal_entry_service.get_registered_report_authors(
                             registered_report_proposal
                         )
                     journal_entry_service.persist_registered_report_content(
                         registered_report_note,
-                        serializer.validated_data["renderable_text"],
-                        serializer.validated_data["full_json"],
+                        request_serializer.validated_data["renderable_text"],
+                        request_serializer.validated_data["full_json"],
                         created_by=created_by,
                     )
                     if image is None:
@@ -405,7 +399,7 @@ class ResearchhubPostViewSet(
                 )
                 file_name = f"RH-POST-{document_type}-USER-{created_by.id}.txt"
                 full_src_file = ContentFile(data["full_src"].encode())
-                authors = replace_authors(rh_post, authors)
+                replace_authors(rh_post, authors)
                 self.add_upvote(created_by, rh_post)
                 if registered_report_proposal is not None:
                     journey_service.attach_stage(
@@ -612,19 +606,13 @@ class ResearchhubPostViewSet(
                     status=status.HTTP_409_CONFLICT,
                 )
 
-            try:
-                authors = resolve_authors(data.get("authors", []))
-            except ResearchhubPostAuthorValidationError as error:
-                return Response(
-                    {"error": str(error)},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            if authors and request.user.author_profile not in authors:
-                return Response(
-                    {"msg": "You must include yourself in the authors list"},
-                    status=400,
-                )
+            author_serializer = ResearchhubPostAuthorsSerializer(
+                data=data,
+                context={"request": request},
+                partial=True,
+            )
+            author_serializer.is_valid(raise_exception=True)
+            authors = author_serializer.validated_data.get("authors")
 
             hubs = data.get("hubs", None)
             renderable_text = data.get("renderable_text", "")
@@ -654,7 +642,8 @@ class ResearchhubPostViewSet(
                     post_id=post.id,
                 )
 
-            replace_authors(rh_post, authors)
+            if authors is not None:
+                replace_authors(rh_post, authors)
 
             if type(hubs) is list:
                 unified_doc = post.unified_document

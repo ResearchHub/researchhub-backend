@@ -1141,8 +1141,8 @@ class NoteTests(APITestCase):
         # Verify that post is None
         self.assertIsNone(note["post"])
 
-    def test_lists_note_with_ordered_post_authors(self) -> None:
-        """List a note with its post authors in canonical order."""
+    def test_keeps_creator_note_after_reordering_post_authors(self) -> None:
+        """Keep a creator's note visible after its post authors are reordered."""
         # Arrange
         response = self.client.post(
             "/api/note/",
@@ -1155,39 +1155,54 @@ class NoteTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         note = response.data
         coauthor = create_random_default_user("note_post_coauthor")
-        author_ids = [coauthor.author_profile.id, self.user.author_profile.id]
-
-        post_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "authors": author_ids,
-                "document_type": "DISCUSSION",
-                "created_by": self.user.id,
-                "full_src": "Test post content",
-                "is_public": True,
-                "note_id": note["id"],
-                "renderable_text": (
-                    "Test post content that is sufficiently long for validation"
-                ),
-                "title": "Test post title that is sufficiently long",
-                "hubs": [],
-            },
-        )
+        post_payload = {
+            "authors": [self.user.author_profile.id, coauthor.author_profile.id],
+            "document_type": "DISCUSSION",
+            "full_src": "Test post content",
+            "is_public": True,
+            "note_id": note["id"],
+            "renderable_text": (
+                "Test post content that is sufficiently long for validation"
+            ),
+            "title": "Test post title that is sufficiently long",
+            "hubs": [],
+        }
+        post_response = self.client.post("/api/researchhubpost/", post_payload)
         self.assertEqual(post_response.status_code, 200)
+        author_ids = [coauthor.author_profile.id, self.user.author_profile.id]
+        update_payload = {
+            **post_payload,
+            "authors": author_ids,
+            "post_id": post_response.data["id"],
+        }
 
         # Act
-        response = self.client.get("/api/note/")
+        update_response = self.client.post(
+            "/api/researchhubpost/",
+            update_payload,
+        )
+        note_response = self.client.get(f"/api/note/{note['id']}/")
+        notebook_response = self.client.get(
+            "/api/organization/me/get_organization_notes/"
+        )
 
         # Assert
-        self.assertEqual(response.status_code, 200)
-        note = response.data["results"][0]
-        self.assertIsNotNone(note["post"])
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(note_response.status_code, 200)
+        self.assertEqual(notebook_response.status_code, 200)
+        saved_note = Note.objects.select_related("post").get(id=note["id"])
+        self.assertEqual(saved_note.created_by_id, self.user.id)
+        self.assertEqual(saved_note.post.created_by_id, self.user.id)
         self.assertEqual(
-            [author["id"] for author in note["post"]["authors"]],
+            [author["id"] for author in note_response.data["post"]["authors"]],
             author_ids,
         )
-        self.assertIn("hubs", note["post"])
-        self.assertIn("unified_document", note["post"])
+        self.assertIn(
+            note["id"],
+            [item["id"] for item in notebook_response.data["results"]],
+        )
+        self.assertIn("hubs", note_response.data["post"])
+        self.assertIn("unified_document", note_response.data["post"])
 
     def test_note_with_preregistration_post_fundraise(self):
         # Create a note first

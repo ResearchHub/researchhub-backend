@@ -32,11 +32,16 @@ from researchhub_document.related_models.constants.document_type import (
     REGISTERED_REPORT,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
-from researchhub_document.services.researchhub_post_author_service import list_authors
+from researchhub_document.services.researchhub_post_author_service import (
+    ResearchhubPostAuthorValidationError,
+    list_authors,
+    resolve_authors,
+)
 from researchhub_document.services.unified_document_share_link_service import (
     get_shared_unified_document_id,
 )
 from review.serializers.review_serializer import DynamicReviewSerializer
+from user.models import Author
 from user.serializers import (
     AuthorSerializer,
     DynamicAuthorSerializer,
@@ -48,7 +53,34 @@ from utils.http import get_user_from_request
 logger = logging.getLogger(__name__)
 
 
-class RegisteredReportPublishSerializer(Serializer):
+class ResearchhubPostAuthorsSerializer(Serializer):
+    """Validate and resolve ordered post author IDs."""
+
+    authors = ListField(
+        child=IntegerField(min_value=1),
+        required=False,
+    )
+
+    def validate_authors(self, author_ids: list[int]) -> list[Author]:
+        """Return authors in submitted order or raise a field error."""
+        try:
+            authors = resolve_authors(author_ids)
+        except ResearchhubPostAuthorValidationError as error:
+            raise ValidationError(str(error)) from error
+
+        request = self.context.get("request")
+        requires_requester = self.context.get("require_requester_as_author", True)
+        if (
+            authors
+            and requires_requester
+            and request is not None
+            and request.user.author_profile not in authors
+        ):
+            raise ValidationError("You must include yourself in the authors list.")
+        return authors
+
+
+class RegisteredReportPublishSerializer(ResearchhubPostAuthorsSerializer):
     """Validate a registered report publish request."""
 
     note_id = IntegerField()
@@ -57,7 +89,6 @@ class RegisteredReportPublishSerializer(Serializer):
     renderable_text = CharField()
     full_src = CharField()
     full_json = JSONField()
-    authors = ListField(child=IntegerField(), required=False)
     editor_type = CharField(required=False, allow_blank=True, allow_null=True)
     image = CharField(required=False, allow_blank=True, allow_null=True)
     preview_img = CharField(required=False, allow_blank=True, allow_null=True)
