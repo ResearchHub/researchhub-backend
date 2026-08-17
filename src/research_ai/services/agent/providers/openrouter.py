@@ -10,6 +10,7 @@ agent types to/from the Chat Completions shape.
 import json
 import logging
 import time
+from collections.abc import Callable
 from typing import Any
 
 from django.conf import settings
@@ -140,6 +141,7 @@ class OpenRouterProvider(LLMProvider):
         rendered_tools: Any,
         max_tokens: int | None,
         temperature: float,
+        before_retry: Callable[[], None] | None = None,
     ) -> AssistantTurn:
         if self._client is None:
             raise ProviderError(

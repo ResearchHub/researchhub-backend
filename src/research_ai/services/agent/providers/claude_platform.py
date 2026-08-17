@@ -22,7 +22,8 @@ plus its Claude workspace id (``ANTHROPIC_AWS_WORKSPACE_ID``).
 import json
 import logging
 import time
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from typing import Any
 
 from anthropic import AnthropicAWS
@@ -57,11 +58,10 @@ MODEL_ID = "claude-opus-5"
 MAX_OUTPUT_TOKENS = 128_000
 
 # How much the model may deliberate and spend per turn: low | medium | high |
-# xhigh | max. ``high`` is the API default and the closest match to the prior
-# Bedrock behaviour; ``xhigh`` trades tokens for depth on agentic work, and
-# medium/low are the cost lever. "" omits the parameter entirely (models older
+# xhigh | max. ``low`` keeps routine agent workflows economical; higher levels
+# trade more tokens for depth. "" omits the parameter entirely (models older
 # than 4.5 reject it).
-EFFORT = "high"
+EFFORT = "low"
 
 # Adaptive thinking lets the model choose its own reasoning depth per turn; it
 # is the only supported on-mode from Opus 4.6 onward and is already the default
@@ -388,6 +388,7 @@ class ClaudePlatformProvider(LLMProvider):
         rendered_tools: Any,
         max_tokens: int | None,
         temperature: float,
+        before_retry: Callable[[], None] | None = None,
     ) -> AssistantTurn:
         if self._client is None:
             raise ProviderError(
@@ -468,22 +469,73 @@ class ClaudePlatformProvider(LLMProvider):
             )
 
         started = time.perf_counter()
-        try:
-            # Streamed so a turn's wall clock is bounded by chunk gaps, not
-            # the whole emission -- a full-budget turn legitimately outlives
-            # any sane whole-request timeout.
-            with self._client.messages.stream(**kwargs) as stream:
-                response = stream.get_final_message()
-        except Exception as e:
-            logger.exception("Claude Platform complete failed")
-            raise ProviderError(f"Claude Platform complete failed: {e}") from e
+        responses = []
+        for attempt in range(2):
+            try:
+                # Streamed so a turn's wall clock is bounded by chunk gaps,
+                # not the whole emission -- a full-budget turn legitimately
+                # outlives any sane whole-request timeout.
+                response = self._stream_turn(kwargs)
+            except Exception as e:
+                logger.exception("Claude Platform complete failed")
+                raise ProviderError(f"Claude Platform complete failed: {e}") from e
+            responses.append(response)
+            self._log_usage(response)
+            self._log_continuation_state(response)
+            if not self._response_missing_required_container(
+                response, request_container_id=container_id
+            ):
+                break
+            if attempt == 0:
+                if before_retry is not None:
+                    before_retry()
+                # Do not persist a response the next request cannot replay.
+                # Repeating the identical stateless request gives Platform one
+                # chance to finish the server-side loop or disclose its
+                # container, without re-running any client-side tools.
+                logger.warning(
+                    "claude platform: retrying response that left code "
+                    "execution open without a container"
+                )
+        else:
+            raise ProviderError(
+                "Claude Platform repeatedly returned an unfinished code "
+                "execution span without the container id required to resume "
+                "it; the unreplayable response was not added to the "
+                "conversation."
+            )
         latency_ms = int((time.perf_counter() - started) * 1000)
 
-        self._log_usage(response)
-        self._log_continuation_state(response)
-        return self._parse_turn(response, latency_ms=latency_ms)
+        turn = self._parse_turn(response, latency_ms=latency_ms)
+        if len(responses) > 1:
+            turn = replace(turn, usage=self._combined_usage(responses))
+        return turn
 
     # -- private helpers --------------------------------------------------
+
+    def _stream_turn(self, kwargs: dict) -> Any:
+        """Stream one turn, restoring the container the SDK accumulator drops.
+
+        Anthropic discloses the code-execution container on ``message_delta``,
+        and the accumulator behind ``get_final_message`` copies only stop and
+        usage fields off that event -- so the id every later request needs to
+        resume the container reaches this process only through the events.
+        """
+        container = None
+        with self._client.messages.stream(**kwargs) as stream:
+            for event in stream:
+                # The SDK declares it on the event's ``delta``; an id the API
+                # sends elsewhere lands on the event itself as a model extra.
+                delta = getattr(event, "delta", None)
+                disclosed = getattr(delta, "container", None) or getattr(
+                    event, "container", None
+                )
+                if disclosed is not None:
+                    container = disclosed
+            response = stream.get_final_message()
+        if container is not None:
+            response.container = container
+        return response
 
     def _render_messages(
         self, messages: list[Message], *, cache_last: bool = False
@@ -612,6 +664,36 @@ class ClaudePlatformProvider(LLMProvider):
                 diagnostics.programmatic_calls,
                 diagnostics.open_code_execution_spans,
             )
+
+    @staticmethod
+    def _response_missing_required_container(
+        response: Any, *, request_container_id: str | None
+    ) -> bool:
+        content = getattr(response, "content", None)
+        blocks = content if isinstance(content, list) else []
+        return (
+            _continuation_diagnostics(blocks).needs_container
+            and request_container_id is None
+            and getattr(response, "container", None) is None
+        )
+
+    def _combined_usage(self, responses: list[Any]) -> TurnUsage | None:
+        usages = [self._parse_usage(response) for response in responses]
+        present = [usage for usage in usages if usage is not None]
+        if not present:
+            return None
+
+        def total(field: str) -> int | None:
+            values = [getattr(usage, field) for usage in present]
+            reported = [value for value in values if value is not None]
+            return sum(reported) if reported else None
+
+        return TurnUsage(
+            input_tokens=total("input_tokens"),
+            output_tokens=total("output_tokens"),
+            cache_read_tokens=total("cache_read_tokens"),
+            cache_write_tokens=total("cache_write_tokens"),
+        )
 
     def _parse_turn(self, response: Any, *, latency_ms: int | None = None):
         content = getattr(response, "content", None)
