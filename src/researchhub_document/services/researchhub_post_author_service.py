@@ -27,10 +27,7 @@ def list_authors(post: ResearchhubPost) -> list[Author]:
     """Return a post's authors in canonical order."""
     links = getattr(post, _ORDERED_AUTHOR_LINKS, None)
     if links is None:
-        database = post._state.db or DEFAULT_DB_ALIAS
-        links = (
-            _get_ordered_author_links().using(database).filter(researchhub_post=post)
-        )
+        links = _get_ordered_author_links().filter(researchhub_post=post)
     return [link.author for link in links]
 
 
@@ -53,15 +50,10 @@ def replace_authors(
     if post.pk is None:
         raise ValueError("Post must be saved before replacing authors.")
 
-    database = post._state.db or DEFAULT_DB_ALIAS
-    with transaction.atomic(using=database):
-        ResearchhubPost.objects.using(database).select_for_update().only("id").get(
-            pk=post.pk
-        )
-        ResearchhubPostAuthor.objects.using(database).filter(
-            researchhub_post_id=post.pk
-        ).delete()
-        ResearchhubPostAuthor.objects.using(database).bulk_create(
+    with transaction.atomic():
+        ResearchhubPost.objects.select_for_update().only("id").get(pk=post.pk)
+        ResearchhubPostAuthor.objects.filter(researchhub_post_id=post.pk).delete()
+        ResearchhubPostAuthor.objects.bulk_create(
             ResearchhubPostAuthor(
                 researchhub_post_id=post.pk,
                 author_id=author.id,
@@ -82,7 +74,7 @@ def replace_authors(
             reverse=False,
             model=Author,
             pk_set={author.id for author in authors},
-            using=database,
+            using=DEFAULT_DB_ALIAS,
         )
 
 
