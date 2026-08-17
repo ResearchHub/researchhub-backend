@@ -301,7 +301,10 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
     def test_returns_related_work_post_authors_in_order(self) -> None:
         """Return related-work post authors in canonical order."""
         # Arrange
-        coauthor = create_test_user("activity_coauthor")
+        coauthor = create_test_user(
+            "activity_coauthor",
+            email="activity_coauthor@example.com",
+        )
         authors = [coauthor.author_profile, self.user.author_profile]
         replace_authors(self.grant_post, authors)
 
