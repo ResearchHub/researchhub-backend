@@ -30,7 +30,7 @@ class CoinbaseService:
 
     @staticmethod
     def _get_approved_web_origins() -> list[str]:
-        return getattr(settings, "CORS_ORIGIN_WHITELIST", [])
+        return getattr(settings, "CORS_ALLOWED_ORIGINS", [])
 
     @staticmethod
     def _is_origin_allowed_by_regex(origin: str) -> bool:

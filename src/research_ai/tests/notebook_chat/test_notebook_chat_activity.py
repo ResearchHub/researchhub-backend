@@ -8,6 +8,8 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from note.tests.helpers import create_note
+from purchase.models import Grant
+from purchase.services.grant_search_service import GrantSearchService
 from research_ai.models import (
     AgentConversation,
     AgentExecution,
@@ -237,6 +239,56 @@ class NotebookChatActivityTests(TestCase):
             event["sources"],
             [{"title": "Perovskite review", "url": "https://example.org/review"}],
         )
+
+    def test_grant_search_reports_query_and_grant_sources(self):
+        # Arrange
+        post = Mock(
+            id=42,
+            slug="neural-biomarkers",
+            title="Neural Biomarkers",
+            renderable_text="Post body must not enter activity.",
+        )
+        grant = Mock(
+            id=7,
+            short_title="Neural Biomarkers",
+            organization="Research Foundation",
+            description="Private result details must not enter activity.",
+            amount="50000.00",
+            currency="USD",
+            end_date=None,
+            application_visibility=Grant.APPLICATION_VISIBILITY_OPTIONAL,
+        )
+        grant.unified_document.posts.all.return_value = [post]
+        with patch.object(GrantSearchService, "search", return_value=[grant]):
+            execution = self._run_turn(
+                [
+                    tool_turn(
+                        "t1",
+                        "search_grants",
+                        {"query": "neural biomarkers"},
+                    ),
+                    text_turn("Here is a possible grant."),
+                ]
+            )
+
+        # Act
+        activity = self._activity(execution)
+
+        # Assert
+        (event,) = _tool_calls(activity)
+        self.assertEqual(event["label"], "Searched grants")
+        self.assertEqual(event["detail"], "neural biomarkers")
+        self.assertEqual(
+            event["sources"],
+            [
+                {
+                    "title": "Neural Biomarkers",
+                    "url": ("http://localhost:3000/grant/42/neural-biomarkers"),
+                }
+            ],
+        )
+        self.assertNotIn("Private result details", json.dumps(activity, default=str))
+        self.assertNotIn("Post body must not enter", json.dumps(activity, default=str))
 
     def test_scholarly_tools_report_names_and_citation_sources(self):
         # Arrange: a resolved author whose works ground the turn's citations.

@@ -7,6 +7,7 @@ split into the provider-agnostic ``LLMProvider`` shape.
 """
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from research_ai.services.agent.errors import ProviderError
@@ -109,6 +110,7 @@ class BedrockProvider(LLMProvider):
         rendered_tools: Any,
         max_tokens: int | None,
         temperature: float,
+        before_retry: Callable[[], None] | None = None,
     ) -> AssistantTurn:
         inference_config: dict = {
             "maxTokens": MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens

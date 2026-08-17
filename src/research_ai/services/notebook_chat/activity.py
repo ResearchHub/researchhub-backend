@@ -30,6 +30,7 @@ from research_ai.services.agent_persistence.activity import (
     ToolCallEvent,
 )
 from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE
+from research_ai.services.notebook_chat.grant_tools import SEARCH_GRANTS
 from research_ai.services.researcher_profile.openalex_tools import GET_WORK_FULLTEXT
 
 WEB_SEARCH = "web_search"
@@ -42,6 +43,7 @@ _LABELS = {
     READ_NOTE: "Read the note",
     EDIT_NOTE: "Edited the note",
     WEB_SEARCH: "Searched the web",
+    SEARCH_GRANTS: "Searched grants",
     SEARCH_INSTITUTIONS: "Searched institutions",
     SEARCH_AUTHORS: "Searched scholarly authors",
     GET_AUTHOR: "Looked up an author",
@@ -54,6 +56,7 @@ _ACTIVE_LABELS = {
     READ_NOTE: "Reading the note",
     EDIT_NOTE: "Editing the note",
     WEB_SEARCH: "Searching the web",
+    SEARCH_GRANTS: "Searching grants",
     SEARCH_INSTITUTIONS: "Searching institutions",
     SEARCH_AUTHORS: "Searching scholarly authors",
     GET_AUTHOR: "Looking up an author",
@@ -64,6 +67,7 @@ _ACTIVE_LABELS = {
 # and meaningful to echo as the event detail.
 _DETAIL_INPUT_FIELDS = {
     WEB_SEARCH: "query",
+    SEARCH_GRANTS: "query",
     SEARCH_INSTITUTIONS: "query",
     SEARCH_AUTHORS: "name",
 }
@@ -253,6 +257,9 @@ def _sources(event: ToolCallEvent) -> list[dict]:
     result = event.result or {}
     if event.tool == WEB_SEARCH:
         items = result.get("content") if event.server_side else result.get("results")
+        url_field = "url"
+    elif event.tool == SEARCH_GRANTS:
+        items = result.get("grants")
         url_field = "url"
     elif event.tool == GET_AUTHOR_WORKS:
         items = result.get("works")

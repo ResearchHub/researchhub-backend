@@ -93,6 +93,11 @@ jobs:
         run: |
           uv export --frozen --no-dev > src/requirements.txt
 
+      - name: Collect static files
+        working-directory: ./src
+        run: |
+          uv run --frozen --no-dev python manage.py collectstatic --noinput
+
       - name: Generate Beanstalk deployment package
         run: |
           mkdir -p target
