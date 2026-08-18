@@ -112,6 +112,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
     authors = models.ManyToManyField(
         Author,
         related_name="authored_posts",
+        through="ResearchhubPostAuthor",
     )
     created_by = models.ForeignKey(
         User,
@@ -278,3 +279,22 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     def get_discussion_count(self):
         return self.rh_threads.get_discussion_count()
+
+
+class ResearchhubPostAuthor(models.Model):
+    """An author credited on a post and the order they appear in."""
+
+    researchhub_post = models.ForeignKey(
+        ResearchhubPost,
+        db_column="researchhubpost_id",
+        on_delete=models.CASCADE,
+    )
+    author = models.ForeignKey(
+        Author,
+        on_delete=models.CASCADE,
+    )
+    position = models.IntegerField(null=True)
+
+    class Meta:
+        db_table = "researchhub_document_researchhubpost_authors"
+        unique_together = ("researchhub_post", "author")
