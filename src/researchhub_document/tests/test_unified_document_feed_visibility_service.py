@@ -44,9 +44,7 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
         self.activity_feed_cache_warmer.reset_mock()
 
         # Act
-        result = self.service.include_in_feed(
-            self.unified_document.id, self.moderator
-        )
+        result = self.service.include_in_feed(self.unified_document.id, self.moderator)
 
         # Assert
         self.assertFalse(result.document_filter.is_excluded_in_feed)
@@ -54,9 +52,7 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
 
     def test_exclude_and_include_are_idempotent(self):
         # Act
-        first = self.service.exclude_from_feed(
-            self.unified_document.id, self.moderator
-        )
+        first = self.service.exclude_from_feed(self.unified_document.id, self.moderator)
         second = self.service.exclude_from_feed(
             self.unified_document.id, self.moderator
         )
