@@ -4,7 +4,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from feed.models import FeedEntry
+from paper.tests.helpers import create_paper
 from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -124,3 +126,77 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
 
         # Assert
         self.assertTrue(FeedEntry.objects.filter(pk=entry.pk).exists())
+
+    def test_list_excluded_returns_only_hidden_newest_first(self):
+        # Arrange
+        visible = create_post(created_by=self.author, title="Still visible")
+        older = create_post(created_by=self.author, title="Older hidden")
+        newer = create_post(created_by=self.author, title="Newer hidden")
+        self.service.exclude_from_feed(older.unified_document.id, self.moderator)
+        self.service.exclude_from_feed(newer.unified_document.id, self.moderator)
+
+        # Act
+        ids = list(self.service.list_excluded_from_feed().values_list("id", flat=True))
+
+        # Assert
+        self.assertEqual(ids, [newer.unified_document.id, older.unified_document.id])
+        self.assertNotIn(visible.unified_document.id, ids)
+        self.assertNotIn(self.unified_document.id, ids)
+
+    def test_list_excluded_filters_by_title_query(self):
+        # Arrange
+        matching = create_post(created_by=self.author, title="UniqueAlpha hidden")
+        other = create_post(created_by=self.author, title="Beta hidden")
+        self.service.exclude_from_feed(matching.unified_document.id, self.moderator)
+        self.service.exclude_from_feed(other.unified_document.id, self.moderator)
+
+        # Act
+        matching_ids = list(
+            self.service.list_excluded_from_feed("uniquealpha").values_list(
+                "id", flat=True
+            )
+        )
+        by_id = list(
+            self.service.list_excluded_from_feed(
+                str(other.unified_document.id)
+            ).values_list("id", flat=True)
+        )
+
+        # Assert
+        self.assertEqual(matching_ids, [matching.unified_document.id])
+        self.assertEqual(by_id, [])
+
+    def test_include_in_feed_drops_document_from_excluded_list(self):
+        # Arrange
+        self.service.exclude_from_feed(self.unified_document.id, self.moderator)
+        self.assertIn(
+            self.unified_document.id,
+            self.service.list_excluded_from_feed().values_list("id", flat=True),
+        )
+
+        # Act
+        self.service.include_in_feed(self.unified_document.id, self.moderator)
+
+        # Assert
+        self.assertNotIn(
+            self.unified_document.id,
+            self.service.list_excluded_from_feed().values_list("id", flat=True),
+        )
+
+    def test_list_excluded_omits_hidden_papers(self):
+        # Arrange: hide still works for preprints; the dashboard list does not.
+        paper = create_paper(title="Hidden preprint", uploaded_by=self.author)
+        grant = create_post(
+            created_by=self.author, title="Hidden grant", document_type=GRANT
+        )
+        self.service.exclude_from_feed(paper.unified_document.id, self.moderator)
+        self.service.exclude_from_feed(grant.unified_document.id, self.moderator)
+
+        # Act
+        ids = list(self.service.list_excluded_from_feed().values_list("id", flat=True))
+
+        # Assert
+        self.assertIn(grant.unified_document.id, ids)
+        self.assertNotIn(paper.unified_document.id, ids)
+        paper.unified_document.document_filter.refresh_from_db()
+        self.assertTrue(paper.unified_document.document_filter.is_excluded_in_feed)

@@ -1,12 +1,22 @@
 from collections.abc import Callable
 
 from django.db import transaction
+from django.db.models import Prefetch, QuerySet
 
+from researchhub_document.related_models.constants.document_type import (
+    DISCUSSION,
+    GRANT,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.document_filter_model import DocumentFilter
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from user.models import User
+
+# Dashboard list is grants, posts, and proposals for now — not papers/preprints.
+_EXCLUDED_LIST_DOCUMENT_TYPES = (DISCUSSION, GRANT, PREREGISTRATION)
 
 
 class UnifiedDocumentFeedVisibilityService:
@@ -41,6 +51,32 @@ class UnifiedDocumentFeedVisibilityService:
         """Restore a document to public feeds. Idempotent."""
         return self._set_excluded(unified_document_id, user, excluded=False)
 
+    def list_excluded_from_feed(self, query: str | None = None) -> QuerySet:
+        """Currently hidden documents, newest first."""
+        queryset = (
+            ResearchhubUnifiedDocument.objects.filter(
+                document_filter__is_excluded_in_feed=True,
+                document_type__in=_EXCLUDED_LIST_DOCUMENT_TYPES,
+            )
+            .select_related("document_filter")
+            .prefetch_related(
+                Prefetch(
+                    "posts",
+                    queryset=ResearchhubPost.objects.select_related(
+                        "created_by",
+                        "created_by__author_profile",
+                    ).prefetch_related("authors"),
+                ),
+                "grants",
+                "fundraises",
+            )
+            .order_by("-id")
+        )
+        term = (query or "").strip()
+        if term:
+            queryset = queryset.filter(posts__title__icontains=term).distinct()
+        return queryset
+
     def _set_excluded(
         self, unified_document_id: int, user: User, excluded: bool
     ) -> ResearchhubUnifiedDocument:
@@ -49,9 +85,9 @@ class UnifiedDocumentFeedVisibilityService:
 
         with transaction.atomic():
             unified_document = (
-                ResearchhubUnifiedDocument.objects.select_for_update()
-                .select_related("document_filter")
-                .get(pk=unified_document_id)
+                ResearchhubUnifiedDocument.objects.select_for_update().get(
+                    pk=unified_document_id
+                )
             )
             document_filter = unified_document.document_filter
             if document_filter is None:
