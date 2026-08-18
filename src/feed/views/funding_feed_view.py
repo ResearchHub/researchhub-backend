@@ -132,7 +132,6 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
                 "unified_document",
             )
             .prefetch_related(
-                "authors",
                 "author_links",
                 "unified_document__hubs",
                 "unified_document__fundraises",

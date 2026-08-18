@@ -163,7 +163,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
                     "unified_document__posts",
                     queryset=ResearchhubPost.objects.select_related(
                         "created_by__author_profile"
-                    ).prefetch_related("authors", "author_links"),
+                    ).prefetch_related("author_links"),
                 ),
                 Prefetch(
                     "unified_document__grants",

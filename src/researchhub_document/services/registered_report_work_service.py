@@ -3,9 +3,12 @@ from dataclasses import dataclass
 from django.db.models import Prefetch
 
 from researchhub_document.models import ResearchhubPost
+from researchhub_document.related_models.researchhub_post_model import (
+    ResearchhubPostAuthor,
+)
 from researchhub_document.services.journey_service import JourneyService
 from review.models import Review
-from user.models import Author, User
+from user.models import User
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,7 @@ class RegisteredReportWorkService:
         self, post_id: int, user: User | None
     ) -> RegisteredReportWorkPayload:
         """Return a visible report and the stages visible to the requester."""
+        author_links = ResearchhubPostAuthor.objects.select_related("author__user")
         report = (
             ResearchhubPost.objects.visible_to(user)
             .select_related(
@@ -47,14 +51,12 @@ class RegisteredReportWorkService:
                 "unified_document",
             )
             .prefetch_related(
-                Prefetch("authors", queryset=Author.objects.select_related("user")),
-                "author_links",
+                Prefetch("author_links", queryset=author_links),
                 "unified_document__hubs",
                 Prefetch(
-                    "journey__preregistration_post__authors",
-                    queryset=Author.objects.select_related("user"),
+                    "journey__preregistration_post__author_links",
+                    queryset=author_links,
                 ),
-                "journey__preregistration_post__author_links",
                 "journey__preregistration_post__unified_document__hubs",
                 Prefetch(
                     "journey__preregistration_post__unified_document__reviews",
