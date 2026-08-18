@@ -4,6 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -17,6 +18,9 @@ from researchhub_document.serializers import (
     ResearchhubUnifiedDocumentSerializer,
     UnifiedDocumentShareLinkSerializer,
 )
+from researchhub_document.serializers.excluded_from_feed_serializer import (
+    ExcludedFromFeedWorkSerializer,
+)
 from researchhub_document.services.unified_document_feed_visibility_service import (
     UnifiedDocumentFeedVisibilityService,
 )
@@ -26,6 +30,12 @@ from researchhub_document.services.unified_document_share_link_service import (
 )
 from user.permissions import IsModerator
 from utils.permissions import ReadOnly
+
+
+class ExcludedFromFeedPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 def _share_link_errors_to_responses(handler):
@@ -285,6 +295,24 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
                 ),
             }
         )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[IsAuthenticated, IsModerator],
+        url_path="excluded_from_feed",
+    )
+    def excluded_from_feed(self, request):
+        """Paginated Work payloads for documents currently hidden from feeds."""
+        queryset = UnifiedDocumentFeedVisibilityService().list_excluded_from_feed(
+            query=request.query_params.get("query")
+        )
+        paginator = ExcludedFromFeedPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        serializer = ExcludedFromFeedWorkSerializer(
+            page, many=True, context={"request": request}
+        )
+        return paginator.get_paginated_response(serializer.data)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def check_user_vote(self, request):
