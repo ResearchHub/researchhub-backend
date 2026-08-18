@@ -1,8 +1,6 @@
 import cloudscraper
 from bs4 import BeautifulSoup
-from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
-from django.core.validators import URLValidator
 from django.db.models import Count, Q
 
 from discussion.models import Vote
@@ -14,17 +12,6 @@ PAPER_SCORE_Q_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) -
 )
 SIMILARITY_THRESHOLD = 0.9
 MAX_TITLE_PAGES = 5
-
-
-def check_file_is_url(file):
-    if type(file) is str:
-        try:
-            URLValidator()(file)
-        except (ValidationError, Exception):
-            return False
-        else:
-            return True
-    return False
 
 
 def clean_abstract(abstract):
