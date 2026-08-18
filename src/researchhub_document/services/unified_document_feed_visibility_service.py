@@ -49,7 +49,7 @@ class UnifiedDocumentFeedVisibilityService:
 
         with transaction.atomic():
             unified_document = (
-                ResearchhubUnifiedDocument.objects.select_for_update()
+                ResearchhubUnifiedDocument.objects.select_for_update(of=("self",))
                 .select_related("document_filter")
                 .get(pk=unified_document_id)
             )
