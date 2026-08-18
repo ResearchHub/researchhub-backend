@@ -323,11 +323,10 @@ class ResearchhubPostViewSet(
                         serializer.validated_data["full_json"],
                         created_by=created_by,
                     )
-                    authors = (
-                        serializer.validated_data.get("authors")
-                        or journal_entry_service.get_registered_report_author_ids(
-                            registered_report_proposal
-                        )
+                    authors = serializer.validated_data.get(
+                        "authors"
+                    ) or journal_entry_service.get_registered_report_author_ids(
+                        registered_report_proposal
                     )
                     if image is None:
                         image = registered_report_proposal.image
