@@ -12,7 +12,7 @@ class UnifiedDocumentFeedVisibilityViewTests(APITestCase):
         cache.clear()
         self.warm_patcher = patch(
             "researchhub_document.services.unified_document_feed_visibility_service."
-            "UnifiedDocumentFeedVisibilityService._warm_activity_feed_cache"
+            "UnifiedDocumentFeedVisibilityService._queue_activity_feed_cache_warm"
         )
         self.mock_warm = self.warm_patcher.start()
         self.addCleanup(self.warm_patcher.stop)

@@ -1,4 +1,4 @@
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
@@ -28,9 +28,10 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
 
     def test_moderator_can_exclude_document_from_feed(self):
         # Act
-        result = self.service.exclude_from_feed(
-            self.unified_document.id, self.moderator
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            result = self.service.exclude_from_feed(
+                self.unified_document.id, self.moderator
+            )
 
         # Assert
         self.unified_document.document_filter.refresh_from_db()
@@ -40,11 +41,15 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
 
     def test_moderator_can_include_document_in_feed(self):
         # Arrange
-        self.service.exclude_from_feed(self.unified_document.id, self.moderator)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.service.exclude_from_feed(self.unified_document.id, self.moderator)
         self.activity_feed_cache_warmer.reset_mock()
 
         # Act
-        result = self.service.include_in_feed(self.unified_document.id, self.moderator)
+        with self.captureOnCommitCallbacks(execute=True):
+            result = self.service.include_in_feed(
+                self.unified_document.id, self.moderator
+            )
 
         # Assert
         self.assertFalse(result.document_filter.is_excluded_in_feed)
@@ -52,16 +57,19 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
 
     def test_exclude_and_include_are_idempotent(self):
         # Act
-        first = self.service.exclude_from_feed(self.unified_document.id, self.moderator)
-        second = self.service.exclude_from_feed(
-            self.unified_document.id, self.moderator
-        )
-        included_once = self.service.include_in_feed(
-            self.unified_document.id, self.moderator
-        )
-        included_twice = self.service.include_in_feed(
-            self.unified_document.id, self.moderator
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            first = self.service.exclude_from_feed(
+                self.unified_document.id, self.moderator
+            )
+            second = self.service.exclude_from_feed(
+                self.unified_document.id, self.moderator
+            )
+            included_once = self.service.include_in_feed(
+                self.unified_document.id, self.moderator
+            )
+            included_twice = self.service.include_in_feed(
+                self.unified_document.id, self.moderator
+            )
 
         # Assert
         self.assertTrue(first.document_filter.is_excluded_in_feed)
@@ -124,3 +132,25 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
 
         # Assert
         self.assertTrue(FeedEntry.objects.filter(pk=entry.pk).exists())
+
+    @patch("feed.views.activity_feed_view.ActivityFeedViewSet.warm_public_cache")
+    @patch("feed.tasks.warm_activity_feed_cache.delay")
+    def test_queues_celery_cache_warm_after_commit(self, mock_delay, mock_warm):
+        # Arrange
+        service = UnifiedDocumentFeedVisibilityService()
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            service.exclude_from_feed(self.unified_document.id, self.moderator)
+
+        # Assert: the request does not rebuild cache pages inline
+        mock_delay.assert_not_called()
+        mock_warm.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+
+        # Act: after the hide is committed, enqueue the existing Celery task
+        callbacks[0]()
+
+        # Assert
+        mock_delay.assert_called_once_with()
+        mock_warm.assert_not_called()
