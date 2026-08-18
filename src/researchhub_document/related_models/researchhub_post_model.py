@@ -113,7 +113,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
         Author,
         related_name="authored_posts",
         through="ResearchhubPostAuthor",
-        through_fields=("researchhub_post", "author"),
     )
     created_by = models.ForeignKey(
         User,
@@ -283,12 +282,17 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
 
 class ResearchhubPostAuthor(models.Model):
+    """An author credited on a post and the order they appear in."""
+
     researchhub_post = models.ForeignKey(
         ResearchhubPost,
         db_column="researchhubpost_id",
         on_delete=models.CASCADE,
     )
-    author = models.ForeignKey(Author, on_delete=models.CASCADE)
+    author = models.ForeignKey(
+        Author,
+        on_delete=models.CASCADE,
+    )
     position = models.IntegerField(null=True)
 
     class Meta:
