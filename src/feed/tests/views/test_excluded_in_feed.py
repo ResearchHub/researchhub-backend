@@ -40,11 +40,23 @@ from utils.test_helpers import AWSMockTestCase
 
 
 def _unified_document_ids(response):
-    return {
-        item["unified_document_id"]
-        for item in response.data["results"]
-        if item.get("unified_document_id") is not None
-    }
+    """Collect unified document ids from feed rows.
+
+    Main/journal feeds nest the id on ``content_object``; activity feed uses
+    ``related_work``. Older list DTOs may still expose it at the top level.
+    """
+    ids = set()
+    for item in response.data["results"]:
+        doc_id = item.get("unified_document_id")
+        if doc_id is None:
+            content_object = item.get("content_object") or {}
+            doc_id = content_object.get("unified_document_id")
+        if doc_id is None:
+            related_work = item.get("related_work") or {}
+            doc_id = related_work.get("unified_document_id")
+        if doc_id is not None:
+            ids.add(doc_id)
+    return ids
 
 
 def _content_object_ids(response):
@@ -113,8 +125,12 @@ class ExcludedInFeedVisibilityTests(AWSMockTestCase):
 
     def _set_excluded(self, unified_document, excluded):
         document_filter = unified_document.document_filter
+        if document_filter is None:
+            unified_document.refresh_from_db()
+            document_filter = unified_document.document_filter
         document_filter.is_excluded_in_feed = excluded
         document_filter.save(update_fields=["is_excluded_in_feed"])
+        cache.clear()
 
     def test_hidden_paper_is_omitted_from_popular_latest_and_following_feeds(self):
         # Arrange
