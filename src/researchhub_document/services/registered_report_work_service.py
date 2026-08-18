@@ -48,11 +48,13 @@ class RegisteredReportWorkService:
             )
             .prefetch_related(
                 Prefetch("authors", queryset=Author.objects.select_related("user")),
+                "author_links",
                 "unified_document__hubs",
                 Prefetch(
                     "journey__preregistration_post__authors",
                     queryset=Author.objects.select_related("user"),
                 ),
+                "journey__preregistration_post__author_links",
                 "journey__preregistration_post__unified_document__hubs",
                 Prefetch(
                     "journey__preregistration_post__unified_document__reviews",

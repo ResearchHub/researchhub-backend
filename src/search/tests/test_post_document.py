@@ -74,6 +74,23 @@ class PostDocumentTests(TestCase):
 
         self.assertEqual(result, 0)
 
+    def test_prepare_authors_returns_byline_order(self):
+        """Verify indexed authors follow the post's stored byline order."""
+        # Arrange
+        post = self._create_post("Authored Post")
+        first = create_random_authenticated_user("first_author").author_profile
+        second = create_random_authenticated_user("second_author").author_profile
+        post.replace_authors([second.id, first.id])
+
+        # Act
+        result = self.document.prepare_authors(post)
+
+        # Assert
+        self.assertEqual(
+            [author["full_name"] for author in result],
+            [second.full_name, first.full_name],
+        )
+
     def test_should_index_object_excludes_private_unified_document(self):
         post = self._create_post("Private Post")
         post.unified_document.is_public = False

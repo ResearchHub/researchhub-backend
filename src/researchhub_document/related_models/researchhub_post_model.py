@@ -259,10 +259,12 @@ class ResearchhubPost(AbstractGenericReactionModel):
     @property
     def ordered_authors(self) -> list[Author]:
         """Credited authors in byline order, excluding removed ones."""
-        links = self.author_links.filter(author__is_removed=False).select_related(
-            "author"
-        )
-        return [link.author for link in links]
+        authors_by_id = {author.id: author for author in self.authors.all()}
+        return [
+            authors_by_id[link.author_id]
+            for link in self.author_links.all()
+            if link.author_id in authors_by_id
+        ]
 
     @property
     def is_removed(self):

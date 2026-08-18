@@ -151,13 +151,8 @@ class ResearchhubPostSerializer(
     unified_document_id = SerializerMethodField(method_name="get_unified_document_id")
 
     def get_authors(self, post):
-        # Probably legacy scenario, before ELN release
-        authors = list(post.authors.all())
-        if len(authors) == 0:
-            authors.append(post.created_by.author_profile)
-        else:
-            authors = post.authors
-
+        # Posts created before the ELN release have no credited authors.
+        authors = post.ordered_authors or [post.created_by.author_profile]
         serializer = AuthorSerializer(
             authors,
             context=self.context,
@@ -453,7 +448,7 @@ class DynamicPostSerializer(
             ]
         }
         serializer = DynamicAuthorSerializer(
-            post.authors, context=context, many=True, **_context_fields
+            post.ordered_authors, context=context, many=True, **_context_fields
         )
         return serializer.data
 

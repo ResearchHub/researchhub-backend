@@ -146,6 +146,7 @@ class JournalV2FeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
             )
             .prefetch_related(
                 Prefetch("authors", queryset=Author.objects.select_related("user")),
+                "author_links",
                 *source_proposal_prefetches,
             )
             .annotate(
