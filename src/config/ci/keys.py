@@ -12,8 +12,6 @@ AWS_S3_CUSTOM_DOMAIN = os.environ.get(
 
 EMAIL_WHITELIST = os.environ.get("EMAIL_WHITELIST", "no-one@researchhub.com")
 
-GHOSTSCRIPT_LAMBDA_ARN = os.environ.get("GHOSTSCRIPT_LAMBDA_ARN", "NOT_REAL")
-
 HEALTH_CHECK_TOKEN = os.environ.get("HEALTH_CHECK_TOKEN", "")
 
 PERSONA_WEBHOOK_SECRET = os.environ.get("PERSONA_WEBHOOK_SECRET", "")
