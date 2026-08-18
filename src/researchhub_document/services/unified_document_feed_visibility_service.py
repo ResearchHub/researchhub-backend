@@ -27,8 +27,9 @@ class UnifiedDocumentFeedVisibilityService:
     visibility without rebuilding feed data.
 
     Other public feeds keep serving cached pages until TTL. The unscoped
-    activity feed is the exception: its 20 cached pages are replaced so a
-    hide/unhide is visible immediately.
+    activity feed is the exception: after commit, a Celery task replaces
+    its 20 cached pages so a hide/unhide becomes visible without waiting
+    for TTL.
     """
 
     def __init__(
@@ -36,7 +37,7 @@ class UnifiedDocumentFeedVisibilityService:
         activity_feed_cache_warmer: Callable[[], None] | None = None,
     ) -> None:
         self.activity_feed_cache_warmer = (
-            activity_feed_cache_warmer or self._warm_activity_feed_cache
+            activity_feed_cache_warmer or self._queue_activity_feed_cache_warm
         )
 
     def exclude_from_feed(
@@ -102,15 +103,15 @@ class UnifiedDocumentFeedVisibilityService:
                 document_filter.save(update_fields=["is_excluded_in_feed"])
                 changed = True
 
-        if changed:
-            self.activity_feed_cache_warmer()
+            if changed:
+                transaction.on_commit(self.activity_feed_cache_warmer)
         return unified_document
 
     @staticmethod
-    def _warm_activity_feed_cache() -> None:
-        from feed.views.activity_feed_view import ActivityFeedViewSet
+    def _queue_activity_feed_cache_warm() -> None:
+        from feed.tasks import warm_activity_feed_cache
 
-        ActivityFeedViewSet.warm_public_cache()
+        warm_activity_feed_cache.delay()
 
     @staticmethod
     def _assert_moderator(user: User) -> None:

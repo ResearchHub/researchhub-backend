@@ -11,7 +11,6 @@ from rest_framework.test import APIClient
 from feed.models import FeedEntry
 from hub.models import Hub
 from paper.models import Paper
-from paper.related_models.paper_version import PaperVersion
 from purchase.models import Fundraise, Grant
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO

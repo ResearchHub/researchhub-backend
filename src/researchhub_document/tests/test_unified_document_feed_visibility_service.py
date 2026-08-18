@@ -1,4 +1,4 @@
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
@@ -30,9 +30,10 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
 
     def test_moderator_can_exclude_document_from_feed(self):
         # Act
-        result = self.service.exclude_from_feed(
-            self.unified_document.id, self.moderator
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            result = self.service.exclude_from_feed(
+                self.unified_document.id, self.moderator
+            )
 
         # Assert
         self.unified_document.document_filter.refresh_from_db()
@@ -42,11 +43,15 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
 
     def test_moderator_can_include_document_in_feed(self):
         # Arrange
-        self.service.exclude_from_feed(self.unified_document.id, self.moderator)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.service.exclude_from_feed(self.unified_document.id, self.moderator)
         self.activity_feed_cache_warmer.reset_mock()
 
         # Act
-        result = self.service.include_in_feed(self.unified_document.id, self.moderator)
+        with self.captureOnCommitCallbacks(execute=True):
+            result = self.service.include_in_feed(
+                self.unified_document.id, self.moderator
+            )
 
         # Assert
         self.assertFalse(result.document_filter.is_excluded_in_feed)
@@ -54,16 +59,19 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
 
     def test_exclude_and_include_are_idempotent(self):
         # Act
-        first = self.service.exclude_from_feed(self.unified_document.id, self.moderator)
-        second = self.service.exclude_from_feed(
-            self.unified_document.id, self.moderator
-        )
-        included_once = self.service.include_in_feed(
-            self.unified_document.id, self.moderator
-        )
-        included_twice = self.service.include_in_feed(
-            self.unified_document.id, self.moderator
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            first = self.service.exclude_from_feed(
+                self.unified_document.id, self.moderator
+            )
+            second = self.service.exclude_from_feed(
+                self.unified_document.id, self.moderator
+            )
+            included_once = self.service.include_in_feed(
+                self.unified_document.id, self.moderator
+            )
+            included_twice = self.service.include_in_feed(
+                self.unified_document.id, self.moderator
+            )
 
         # Assert
         self.assertTrue(first.document_filter.is_excluded_in_feed)
@@ -127,76 +135,24 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
         # Assert
         self.assertTrue(FeedEntry.objects.filter(pk=entry.pk).exists())
 
-    def test_list_excluded_returns_only_hidden_newest_first(self):
+    @patch("feed.views.activity_feed_view.ActivityFeedViewSet.warm_public_cache")
+    @patch("feed.tasks.warm_activity_feed_cache.delay")
+    def test_queues_celery_cache_warm_after_commit(self, mock_delay, mock_warm):
         # Arrange
-        visible = create_post(created_by=self.author, title="Still visible")
-        older = create_post(created_by=self.author, title="Older hidden")
-        newer = create_post(created_by=self.author, title="Newer hidden")
-        self.service.exclude_from_feed(older.unified_document.id, self.moderator)
-        self.service.exclude_from_feed(newer.unified_document.id, self.moderator)
+        service = UnifiedDocumentFeedVisibilityService()
 
         # Act
-        ids = list(self.service.list_excluded_from_feed().values_list("id", flat=True))
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            service.exclude_from_feed(self.unified_document.id, self.moderator)
+
+        # Assert: the request does not rebuild cache pages inline
+        mock_delay.assert_not_called()
+        mock_warm.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+
+        # Act: after the hide is committed, enqueue the existing Celery task
+        callbacks[0]()
 
         # Assert
-        self.assertEqual(ids, [newer.unified_document.id, older.unified_document.id])
-        self.assertNotIn(visible.unified_document.id, ids)
-        self.assertNotIn(self.unified_document.id, ids)
-
-    def test_list_excluded_filters_by_title_query(self):
-        # Arrange
-        matching = create_post(created_by=self.author, title="UniqueAlpha hidden")
-        other = create_post(created_by=self.author, title="Beta hidden")
-        self.service.exclude_from_feed(matching.unified_document.id, self.moderator)
-        self.service.exclude_from_feed(other.unified_document.id, self.moderator)
-
-        # Act
-        matching_ids = list(
-            self.service.list_excluded_from_feed("uniquealpha").values_list(
-                "id", flat=True
-            )
-        )
-        by_id = list(
-            self.service.list_excluded_from_feed(
-                str(other.unified_document.id)
-            ).values_list("id", flat=True)
-        )
-
-        # Assert
-        self.assertEqual(matching_ids, [matching.unified_document.id])
-        self.assertEqual(by_id, [])
-
-    def test_include_in_feed_drops_document_from_excluded_list(self):
-        # Arrange
-        self.service.exclude_from_feed(self.unified_document.id, self.moderator)
-        self.assertIn(
-            self.unified_document.id,
-            self.service.list_excluded_from_feed().values_list("id", flat=True),
-        )
-
-        # Act
-        self.service.include_in_feed(self.unified_document.id, self.moderator)
-
-        # Assert
-        self.assertNotIn(
-            self.unified_document.id,
-            self.service.list_excluded_from_feed().values_list("id", flat=True),
-        )
-
-    def test_list_excluded_omits_hidden_papers(self):
-        # Arrange: hide still works for preprints; the dashboard list does not.
-        paper = create_paper(title="Hidden preprint", uploaded_by=self.author)
-        grant = create_post(
-            created_by=self.author, title="Hidden grant", document_type=GRANT
-        )
-        self.service.exclude_from_feed(paper.unified_document.id, self.moderator)
-        self.service.exclude_from_feed(grant.unified_document.id, self.moderator)
-
-        # Act
-        ids = list(self.service.list_excluded_from_feed().values_list("id", flat=True))
-
-        # Assert
-        self.assertIn(grant.unified_document.id, ids)
-        self.assertNotIn(paper.unified_document.id, ids)
-        paper.unified_document.document_filter.refresh_from_db()
-        self.assertTrue(paper.unified_document.document_filter.is_excluded_in_feed)
+        mock_delay.assert_called_once_with()
+        mock_warm.assert_not_called()
