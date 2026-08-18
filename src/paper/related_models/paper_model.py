@@ -18,7 +18,6 @@ from reputation.models import Score, ScoreChange
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.user_model import User
-from utils.aws import lambda_compress_and_linearize_pdf
 from utils.models import ModeratedDocumentMixin
 
 HOT_SCORE_WEIGHT = 5
@@ -365,15 +364,6 @@ class Paper(AbstractGenericReactionModel):
                 pass
 
         return None
-
-    def compress_and_linearize_file(self):
-        file = self.file
-        if not file:
-            return
-
-        key = file.name
-        file_name = key.split("/")[-1]
-        return lambda_compress_and_linearize_pdf(key, file_name)
 
     def update_scores_citations(self, author):
         hub = self.unified_document.get_primary_hub()

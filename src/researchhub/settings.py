@@ -570,13 +570,6 @@ if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:
     # Set AWS profile for local development
     os.environ["AWS_PROFILE"] = keys.AWS_PROFILE
 
-# AWS Lambda
-
-GHOSTSCRIPT_LAMBDA_ARN = os.environ.get(
-    "GHOSTSCRIPT_LAMBDA_ARN",
-    keys.GHOSTSCRIPT_LAMBDA_ARN,
-)
-
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 7
 ACCOUNT_EMAIL_SUBJECT_PREFIX = "ResearchHub | "
 ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
