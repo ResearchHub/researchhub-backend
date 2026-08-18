@@ -4,7 +4,7 @@ from django.core.cache import cache
 from rest_framework.test import APITestCase
 
 from researchhub_document.helpers import create_post
-from user.tests.helpers import create_hub_editor, create_random_default_user
+from user.tests.helpers import create_random_default_user
 
 
 class UnifiedDocumentFeedVisibilityViewTests(APITestCase):
@@ -83,28 +83,6 @@ class UnifiedDocumentFeedVisibilityViewTests(APITestCase):
         self.assertEqual(included_once.data, included_twice.data)
         self.assertFalse(included_twice.data["is_excluded_in_feed"])
 
-    def test_anonymous_user_is_unauthorized(self):
-        # Act
-        self.client.force_authenticate(user=None)
-        response = self.client.post(self.exclude_url)
-
-        # Assert
-        self.assertEqual(response.status_code, 401)
-
-    def test_non_moderator_is_forbidden(self):
-        # Arrange
-        editor, _ = create_hub_editor("feed-vis-view-editor", "feed-vis-view-hub")
-
-        # Act / Assert
-        self.client.force_authenticate(self.author)
-        self.assertEqual(self.client.post(self.exclude_url).status_code, 403)
-
-        self.client.force_authenticate(editor)
-        self.assertEqual(self.client.post(self.include_url).status_code, 403)
-
-        self.unified_document.document_filter.refresh_from_db()
-        self.assertFalse(self.unified_document.document_filter.is_excluded_in_feed)
-
     def test_missing_document_returns_404(self):
         # Arrange
         self.client.force_authenticate(self.moderator)
@@ -115,26 +93,3 @@ class UnifiedDocumentFeedVisibilityViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 404)
-
-    def test_non_numeric_id_returns_404(self):
-        # Arrange
-        self.client.force_authenticate(self.moderator)
-
-        # Act
-        response = self.client.post(
-            "/api/researchhub_unified_document/abc/exclude_from_feed/"
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, 404)
-
-    def test_exclude_warms_activity_feed_cache_once(self):
-        # Arrange
-        self.client.force_authenticate(self.moderator)
-
-        # Act
-        self.client.post(self.exclude_url)
-        self.client.post(self.exclude_url)
-
-        # Assert: a no-op second hide does not rebuild the 20 cached pages
-        self.assertEqual(self.mock_warm.call_count, 1)

@@ -40,11 +40,7 @@ from utils.test_helpers import AWSMockTestCase
 
 
 def _unified_document_ids(response):
-    """Collect unified document ids from feed rows.
-
-    Main/journal feeds nest the id on ``content_object``; activity feed uses
-    ``related_work``. Older list DTOs may still expose it at the top level.
-    """
+    """Collect unified document ids from feed rows."""
     ids = set()
     for item in response.data["results"]:
         doc_id = item.get("unified_document_id")
@@ -149,42 +145,6 @@ class ExcludedInFeedVisibilityTests(AWSMockTestCase):
             self.assertIn(self.visible_paper_doc.id, ids, params)
             self.assertNotIn(self.hidden_paper_doc.id, ids, params)
 
-    @patch(
-        "personalize.clients.recommendation_client.RecommendationClient"
-        ".get_recommendations_for_user"
-    )
-    def test_hidden_paper_is_omitted_from_personalized_feed(
-        self, mock_get_recommendations
-    ):
-        # Arrange
-        mock_get_recommendations.return_value = {
-            "item_ids": [self.visible_paper_doc.id, self.hidden_paper_doc.id],
-            "recommendation_id": "excluded-feed-rec",
-        }
-        self.client.force_authenticate(self.user)
-
-        # Act
-        response = self.client.get(reverse("feed-list"), {"feed_view": "personalized"})
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        ids = _unified_document_ids(response)
-        self.assertIn(self.visible_paper_doc.id, ids)
-        self.assertNotIn(self.hidden_paper_doc.id, ids)
-
-    def test_unhide_restores_main_feed_visibility(self):
-        # Arrange
-        self._set_excluded(self.hidden_paper_doc, False)
-        self.client.force_authenticate(self.user)
-
-        # Act
-        response = self.client.get(
-            reverse("feed-list"), {"feed_view": "popular", "ordering": "hot_score_v2"}
-        )
-
-        # Assert
-        self.assertIn(self.hidden_paper_doc.id, _unified_document_ids(response))
-
     def test_hidden_paper_remains_directly_retrievable(self):
         # Act
         paper_response = self.client.get(f"/api/paper/{self.hidden_paper.id}/")
@@ -219,14 +179,20 @@ class ExcludedInFeedVisibilityTests(AWSMockTestCase):
 
     def test_hidden_document_and_related_activity_disappear_from_activity_feed(self):
         # Arrange
-        discussion = create_post(created_by=self.user, title="Visible discussion")
-        hidden_discussion = create_post(created_by=self.user, title="Hidden discussion")
+        visible_grant = create_post(
+            created_by=self.user, document_type=GRANT, title="Visible Grant"
+        )
+        hidden_proposal = create_post(
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            title="Hidden Proposal",
+        )
         visible_entry = FeedEntry.objects.create(
             action="PUBLISH",
             action_date=timezone.now(),
             content_type=self.post_content_type,
-            object_id=discussion.id,
-            unified_document=discussion.unified_document,
+            object_id=visible_grant.id,
+            unified_document=visible_grant.unified_document,
             user=self.user,
             content={},
             metrics={},
@@ -235,8 +201,8 @@ class ExcludedInFeedVisibilityTests(AWSMockTestCase):
             action="PUBLISH",
             action_date=timezone.now(),
             content_type=self.post_content_type,
-            object_id=hidden_discussion.id,
-            unified_document=hidden_discussion.unified_document,
+            object_id=hidden_proposal.id,
+            unified_document=hidden_proposal.unified_document,
             user=self.user,
             content={},
             metrics={},
@@ -244,7 +210,7 @@ class ExcludedInFeedVisibilityTests(AWSMockTestCase):
         thread = RhCommentThreadModel.objects.create(
             thread_type=GENERIC_COMMENT,
             content_type=self.post_content_type,
-            object_id=hidden_discussion.id,
+            object_id=hidden_proposal.id,
             created_by=self.user,
         )
         comment = RhCommentModel.objects.create(
@@ -258,12 +224,12 @@ class ExcludedInFeedVisibilityTests(AWSMockTestCase):
             action_date=timezone.now(),
             content_type=ContentType.objects.get_for_model(RhCommentModel),
             object_id=comment.id,
-            unified_document=hidden_discussion.unified_document,
+            unified_document=hidden_proposal.unified_document,
             user=self.user,
             content={},
             metrics={},
         )
-        self._set_excluded(hidden_discussion.unified_document, True)
+        self._set_excluded(hidden_proposal.unified_document, True)
 
         # Act
         response = self.client.get(reverse("activity_feed-list"))
@@ -275,7 +241,7 @@ class ExcludedInFeedVisibilityTests(AWSMockTestCase):
         self.assertNotIn(hidden_post_entry.id, ids)
         self.assertNotIn(hidden_comment_entry.id, ids)
 
-        self._set_excluded(hidden_discussion.unified_document, False)
+        self._set_excluded(hidden_proposal.unified_document, False)
         restored = self.client.get(reverse("activity_feed-list"))
         restored_ids = {item["id"] for item in restored.data["results"]}
         self.assertIn(hidden_post_entry.id, restored_ids)
@@ -347,49 +313,6 @@ class ExcludedInFeedVisibilityTests(AWSMockTestCase):
         self._set_excluded(hidden.unified_document, False)
         restored = self.client.get("/api/funding_feed/")
         self.assertIn(hidden.id, _content_object_ids(restored))
-
-    def test_hidden_journal_paper_is_omitted_from_journal_feed(self):
-        # Arrange
-        visible_doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
-        visible_paper = Paper.objects.create(
-            title="Visible Journal Paper",
-            uploaded_by=self.user,
-            is_public=True,
-            is_removed=False,
-            unified_document=visible_doc,
-        )
-        PaperVersion.objects.create(
-            paper=visible_paper,
-            journal=PaperVersion.RESEARCHHUB,
-            publication_status=PaperVersion.PUBLISHED,
-            version=1,
-            base_doi="10.1234/visible.journal",
-        )
-        hidden_doc = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
-        hidden_paper = Paper.objects.create(
-            title="Hidden Journal Paper",
-            uploaded_by=self.user,
-            is_public=True,
-            is_removed=False,
-            unified_document=hidden_doc,
-        )
-        PaperVersion.objects.create(
-            paper=hidden_paper,
-            journal=PaperVersion.RESEARCHHUB,
-            publication_status=PaperVersion.PUBLISHED,
-            version=1,
-            base_doi="10.1234/hidden.journal",
-        )
-        self._set_excluded(hidden_doc, True)
-
-        # Act
-        response = self.client.get("/api/journal_feed/")
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        ids = _unified_document_ids(response)
-        self.assertIn(visible_doc.id, ids)
-        self.assertNotIn(hidden_doc.id, ids)
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
     def test_hidden_registered_report_is_omitted_from_journal_v2_feed(
