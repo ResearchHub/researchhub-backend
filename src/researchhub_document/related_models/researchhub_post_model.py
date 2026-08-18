@@ -3,7 +3,7 @@ import logging
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Exists, OuterRef, Q
 from django.utils.functional import cached_property
 
@@ -257,6 +257,14 @@ class ResearchhubPost(AbstractGenericReactionModel):
         return self.unified_document.hubs
 
     @property
+    def ordered_authors(self) -> list[Author]:
+        """Credited authors in byline order, excluding removed ones."""
+        links = self.author_links.filter(author__is_removed=False).select_related(
+            "author"
+        )
+        return [link.author for link in links]
+
+    @property
     def is_removed(self):
         return self.unified_document.is_removed
 
@@ -280,6 +288,20 @@ class ResearchhubPost(AbstractGenericReactionModel):
     def get_discussion_count(self):
         return self.rh_threads.get_discussion_count()
 
+    def replace_authors(self, author_ids: list[int]) -> None:
+        """Credit the given authors to this post in the order received."""
+        unique_author_ids = list(dict.fromkeys(author_ids))
+        with transaction.atomic():
+            self.author_links.all().delete()
+            ResearchhubPostAuthor.objects.bulk_create(
+                ResearchhubPostAuthor(
+                    researchhub_post=self,
+                    author_id=author_id,
+                    position=position,
+                )
+                for position, author_id in enumerate(unique_author_ids, start=1)
+            )
+
 
 class ResearchhubPostAuthor(models.Model):
     """An author credited on a post and the order they appear in."""
@@ -288,6 +310,7 @@ class ResearchhubPostAuthor(models.Model):
         ResearchhubPost,
         db_column="researchhubpost_id",
         on_delete=models.CASCADE,
+        related_name="author_links",
     )
     author = models.ForeignKey(
         Author,
@@ -297,4 +320,6 @@ class ResearchhubPostAuthor(models.Model):
 
     class Meta:
         db_table = "researchhub_document_researchhubpost_authors"
+        # Legacy links have no position, which Postgres sorts last.
+        ordering = ["position", "id"]
         unique_together = ("researchhub_post", "author")

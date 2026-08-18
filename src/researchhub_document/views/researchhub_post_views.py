@@ -323,10 +323,12 @@ class ResearchhubPostViewSet(
                         serializer.validated_data["full_json"],
                         created_by=created_by,
                     )
-                    if not authors:
-                        authors = journal_entry_service.get_registered_report_authors(
+                    authors = (
+                        serializer.validated_data.get("authors")
+                        or journal_entry_service.get_registered_report_author_ids(
                             registered_report_proposal
                         )
+                    )
                     if image is None:
                         image = registered_report_proposal.image
                     if preview_img is None:
@@ -391,7 +393,7 @@ class ResearchhubPostViewSet(
                 )
                 file_name = f"RH-POST-{document_type}-USER-{created_by.id}.txt"
                 full_src_file = ContentFile(data["full_src"].encode())
-                rh_post.authors.set(authors)
+                rh_post.replace_authors(authors)
                 self.add_upvote(created_by, rh_post)
                 if registered_report_proposal is not None:
                     journey_service.attach_stage(
@@ -630,7 +632,7 @@ class ResearchhubPostViewSet(
                 )
 
             if type(authors) is list:
-                rh_post.authors.set(authors)
+                rh_post.replace_authors(authors)
 
             if type(hubs) is list:
                 unified_doc = post.unified_document

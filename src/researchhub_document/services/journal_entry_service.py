@@ -31,7 +31,7 @@ from researchhub_document.related_models.constants.document_type import (
     REGISTERED_REPORT,
 )
 from researchhub_document.services.journey_service import JourneyService
-from user.models import Author, User
+from user.models import User
 from utils.doi import DOI
 
 
@@ -103,13 +103,13 @@ class JournalEntryService:
             unified_document__status=ResearchhubUnifiedDocument.APPROVED,
         ).filter(Exists(funded_fundraises), ~Exists(registered_reports))
 
-    def get_registered_report_authors(self, proposal: ResearchhubPost) -> list[Author]:
-        """Return proposal authors or its creator for a registered report."""
-        authors = list(proposal.authors.all())
-        if authors:
-            return authors
+    def get_registered_report_author_ids(self, proposal: ResearchhubPost) -> list[int]:
+        """Return proposal author ids in byline order, or its creator's."""
+        author_ids = [author.id for author in proposal.ordered_authors]
+        if author_ids:
+            return author_ids
         if proposal.created_by is not None:
-            return [proposal.created_by.author_profile]
+            return [proposal.created_by.author_profile.id]
         return []
 
     def register_registered_report_doi(self, report: ResearchhubPost) -> None:
@@ -120,7 +120,7 @@ class JournalEntryService:
         )
         try:
             response = doi.register_doi_for_post(
-                list(report.authors.all()),
+                report.ordered_authors,
                 report.title,
                 report,
             )
@@ -280,10 +280,8 @@ class JournalEntryService:
         self, proposal: ResearchhubPost
     ) -> dict[str, object]:
         """Build registered report metadata to persist on a draft note."""
-        authors = self.get_registered_report_authors(proposal)
-        author_ids = [author.id for author in authors]
         return {
-            "author_ids": author_ids,
+            "author_ids": self.get_registered_report_author_ids(proposal),
             "image": proposal.image,
             "preview_img": proposal.preview_img,
             "proposal_id": proposal.id,
