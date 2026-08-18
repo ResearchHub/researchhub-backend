@@ -24,7 +24,7 @@ class PaperPatchTest(APITestCase):
         form = {
             "title": updated_title,
         }
-        user = create_random_authenticated_user("paper_patch")
+        user = create_random_authenticated_user("paper_patch", moderator=True)
         url = f"{self.base_url}{paper.id}/?make_public=true"
         self.client.force_authenticate(user)
         response = self.client.patch(url, form, format="json")

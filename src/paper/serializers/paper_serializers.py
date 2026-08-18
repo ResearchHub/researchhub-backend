@@ -21,9 +21,7 @@ from paper.models import (
     PaperVersion,
 )
 from paper.related_models.authorship_model import Authorship
-from paper.tasks import download_pdf
 from paper.utils import (
-    check_file_is_url,
     clean_abstract,
     pdf_copyright_allows_display,
 )
@@ -32,7 +30,6 @@ from researchhub.serializers import (
     DynamicModelFieldSerializer,
     ModeratedDocumentStatusSerializerMixin,
 )
-from researchhub.settings import TESTING
 from review.serializers.review_serializer import DynamicReviewSerializer
 from user.models import Author
 from user.serializers import (
@@ -359,7 +356,9 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
                     validated_data.pop(field, None)
 
         validated_data.pop("authors", [None])
-        file = validated_data.pop("file", None)
+        # Discard any `file` key so it cannot reach the FileField
+        # (`to_internal_value` skips DRF validation).
+        validated_data.pop("file", None)
         hubs = validated_data.pop("hubs", None)
         pdf_license = validated_data.get("pdf_license", None)
         validated_data.pop("raw_authors", [])
@@ -367,15 +366,12 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
         try:
             with transaction.atomic():
                 # Temporary fix for updating read only fields
-                # Not including file, pdf_url, and url because
-                # those fields are processed
                 read_only_fields = (
                     self.Meta.read_only_fields + self.Meta.patch_read_only_fields
                 )
                 for read_only_field in read_only_fields:
                     if read_only_field in validated_data:
                         validated_data.pop(read_only_field, None)
-                self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
 
                 paper = super().update(instance, validated_data)
@@ -407,36 +403,11 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
                     paper.pdf_license = pdf_license
                     paper.save(update_fields=["pdf_license"])
 
-                if file:
-                    self._add_file(paper, file)
-
                 return paper
         except Exception as e:
             error = PaperSerializerError(e, "Failed to update paper")
             logger.exception("Failed to update paper")
             raise error
-
-    def _add_file(self, paper, file):
-        paper_id = paper.id
-        if type(file) is not str:
-            paper.file = file
-            paper.save(update_fields=["file"])
-            paper.compress_and_linearize_file()
-            paper.extract_pdf_preview()
-            return
-
-        if paper.url is not None:
-            if not TESTING:
-                download_pdf.apply_async((paper_id,), priority=3, countdown=7)
-            else:
-                download_pdf(paper_id)
-
-    def _add_url(self, file, validated_data):
-        # `file` accepts a URL string.
-        # Keep it out of the FileField and store it as the paper's URL instead.
-        if check_file_is_url(file):
-            validated_data["file"] = None
-            validated_data["url"] = file
 
     def _clean_abstract(self, data):
         abstract = data.get("abstract")
