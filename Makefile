@@ -32,6 +32,10 @@ help: ## Show this help
 test: ## Run the Django test suite
 	cd src && uv run manage.py test --keepdb
 
+.PHONY: format
+format: ## Format Python with ruff
+	uv run ruff format src
+
 .PHONY: docker-build
 docker-build: ## Build the Docker image
 	docker buildx build \

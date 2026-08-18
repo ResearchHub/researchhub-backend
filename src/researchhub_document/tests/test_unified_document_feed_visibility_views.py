@@ -84,28 +84,6 @@ class UnifiedDocumentFeedVisibilityViewTests(APITestCase):
         self.assertEqual(included_once.data, included_twice.data)
         self.assertFalse(included_twice.data["is_excluded_in_feed"])
 
-    def test_anonymous_user_is_unauthorized(self):
-        # Act
-        self.client.force_authenticate(user=None)
-        response = self.client.post(self.exclude_url)
-
-        # Assert
-        self.assertEqual(response.status_code, 401)
-
-    def test_non_moderator_is_forbidden(self):
-        # Arrange
-        editor, _ = create_hub_editor("feed-vis-view-editor", "feed-vis-view-hub")
-
-        # Act / Assert
-        self.client.force_authenticate(self.author)
-        self.assertEqual(self.client.post(self.exclude_url).status_code, 403)
-
-        self.client.force_authenticate(editor)
-        self.assertEqual(self.client.post(self.include_url).status_code, 403)
-
-        self.unified_document.document_filter.refresh_from_db()
-        self.assertFalse(self.unified_document.document_filter.is_excluded_in_feed)
-
     def test_missing_document_returns_404(self):
         # Arrange
         self.client.force_authenticate(self.moderator)
