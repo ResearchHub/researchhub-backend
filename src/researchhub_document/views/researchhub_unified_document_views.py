@@ -17,10 +17,14 @@ from researchhub_document.serializers import (
     ResearchhubUnifiedDocumentSerializer,
     UnifiedDocumentShareLinkSerializer,
 )
+from researchhub_document.services.unified_document_feed_visibility_service import (
+    UnifiedDocumentFeedVisibilityService,
+)
 from researchhub_document.services.unified_document_share_link_service import (
     UnifiedDocumentShareLinkService,
     get_shared_unified_document_id,
 )
+from user.permissions import IsModerator
 from utils.permissions import ReadOnly
 
 
@@ -237,6 +241,50 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
         """
         UnifiedDocumentShareLinkService().disable(pk, request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, IsModerator],
+        url_path="exclude_from_feed",
+    )
+    def exclude_from_feed(self, request, pk=None):
+        """Hide this document from public feeds. Idempotent and feed-only."""
+        return self._set_feed_visibility(request, pk, excluded=True)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, IsModerator],
+        url_path="include_in_feed",
+    )
+    def include_in_feed(self, request, pk=None):
+        """Restore this document to public feeds. Idempotent and feed-only."""
+        return self._set_feed_visibility(request, pk, excluded=False)
+
+    def _set_feed_visibility(self, request, pk, excluded: bool):
+        if pk is None or not str(pk).isdigit():
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        service = UnifiedDocumentFeedVisibilityService()
+        try:
+            if excluded:
+                unified_document = service.exclude_from_feed(int(pk), request.user)
+            else:
+                unified_document = service.include_in_feed(int(pk), request.user)
+        except ResearchhubUnifiedDocument.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        except PermissionError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_403_FORBIDDEN)
+
+        return Response(
+            {
+                "id": unified_document.id,
+                "is_excluded_in_feed": (
+                    unified_document.document_filter.is_excluded_in_feed
+                ),
+            }
+        )
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def check_user_vote(self, request):
