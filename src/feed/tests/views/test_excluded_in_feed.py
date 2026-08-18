@@ -148,9 +148,7 @@ class ExcludedInFeedVisibilityTests(AWSMockTestCase):
         self.client.force_authenticate(self.user)
 
         # Act
-        response = self.client.get(
-            reverse("feed-list"), {"feed_view": "personalized"}
-        )
+        response = self.client.get(reverse("feed-list"), {"feed_view": "personalized"})
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -206,9 +204,7 @@ class ExcludedInFeedVisibilityTests(AWSMockTestCase):
     def test_hidden_document_and_related_activity_disappear_from_activity_feed(self):
         # Arrange
         discussion = create_post(created_by=self.user, title="Visible discussion")
-        hidden_discussion = create_post(
-            created_by=self.user, title="Hidden discussion"
-        )
+        hidden_discussion = create_post(created_by=self.user, title="Hidden discussion")
         visible_entry = FeedEntry.objects.create(
             action="PUBLISH",
             action_date=timezone.now(),
