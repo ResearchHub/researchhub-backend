@@ -749,6 +749,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cssselect"
+version = "1.5.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8e/5a/6d6fcf922709391fac986f0a03ad4546f4f45b94d10aeb6c1ee041599993/cssselect-1.5.0.tar.gz", hash = "sha256:3cbe82dd7acbee9ba9e5723b5f9e4749826912f1fb31cd7f92aabed5fde15b15", size = 47598, upload-time = "2026-07-27T09:17:34.189Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/60/e9/6734502f67533a752ea8b1c8f7f227c94eecf300252ba8bf23e3e59d8a36/cssselect-1.5.0-py3-none-any.whl", hash = "sha256:1d1aded98e82bdde447ded990a191fd6916177c4f0c914fb62eccd58e2ffcdcc", size = 20797, upload-time = "2026-07-27T09:17:33.04Z" },
+]
+
+[[package]]
 name = "cssutils"
 version = "2.11.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2022,6 +2031,20 @@ wheels = [
 ]
 
 [[package]]
+name = "prosemirror"
+version = "0.6.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cssselect" },
+    { name = "lxml" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d6/8a/36cd9224f70441fd66d428f7cad650923d949d0d9395cbae82aab6b78df5/prosemirror-0.6.1.tar.gz", hash = "sha256:eec45a4f35d03ddb58700199292646c34b334bbad385a21679fc7a8d181cd272", size = 76262, upload-time = "2026-02-21T15:43:01.272Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8c/6b/ff4f2362320c53ea989ef32e4ac978233b65ffb2e6e3131aea7860c740cb/prosemirror-0.6.1-py3-none-any.whl", hash = "sha256:f9d38313a72af1c579cbb87beac3a765f399416afc4567cb016aca53ec4cdae6", size = 67868, upload-time = "2026-02-21T15:43:00.3Z" },
+]
+
+[[package]]
 name = "psycopg"
 version = "3.3.2"
 source = { registry = "https://pypi.org/simple" }
@@ -2588,6 +2611,7 @@ dependencies = [
     { name = "openai" },
     { name = "opensearch-py" },
     { name = "pillow" },
+    { name = "prosemirror" },
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "pyjwt" },
     { name = "pymupdf" },
@@ -2655,6 +2679,7 @@ requires-dist = [
     { name = "openai", specifier = ">=1.45.0" },
     { name = "opensearch-py", specifier = "==3.0.0" },
     { name = "pillow", specifier = ">=12.3.0" },
+    { name = "prosemirror", specifier = ">=0.6.1,<0.7" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.3,<4.0.0" },
     { name = "pyjwt", specifier = ">=2.12.0" },
     { name = "pymupdf", specifier = ">=1.24.13,<2.0.0" },

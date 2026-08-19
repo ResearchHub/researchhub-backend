@@ -1,0 +1,202 @@
+{
+  "topNode": "doc",
+  "nodes": {
+    "paragraph": {
+      "content": "inline*",
+      "group": "block"
+    },
+    "mention": {
+      "group": "inline",
+      "inline": true,
+      "atom": true,
+      "selectable": false,
+      "attrs": {
+        "id": {
+          "default": null
+        },
+        "label": {
+          "default": null
+        },
+        "mentionSuggestionChar": {
+          "default": "@"
+        },
+        "entityType": {
+          "default": null
+        },
+        "displayName": {
+          "default": null
+        },
+        "userId": {
+          "default": null
+        },
+        "authorProfileId": {
+          "default": null
+        },
+        "doi": {
+          "default": null
+        }
+      }
+    },
+    "blockquote": {
+      "content": "block+",
+      "group": "block",
+      "defining": true
+    },
+    "bulletList": {
+      "content": "listItem+",
+      "group": "block list"
+    },
+    "doc": {
+      "content": "block+"
+    },
+    "hardBreak": {
+      "group": "inline",
+      "inline": true,
+      "selectable": false,
+      "linebreakReplacement": true
+    },
+    "heading": {
+      "content": "inline*",
+      "group": "block",
+      "defining": true,
+      "attrs": {
+        "level": {
+          "default": 1
+        }
+      }
+    },
+    "horizontalRule": {
+      "group": "block"
+    },
+    "listItem": {
+      "content": "paragraph block*",
+      "defining": true
+    },
+    "orderedList": {
+      "content": "listItem+",
+      "group": "block list",
+      "attrs": {
+        "start": {
+          "default": 1
+        },
+        "type": {
+          "default": null
+        }
+      }
+    },
+    "text": {
+      "group": "inline"
+    },
+    "richLink": {
+      "group": "inline",
+      "inline": true,
+      "atom": true,
+      "selectable": true,
+      "draggable": false,
+      "attrs": {
+        "url": {
+          "default": null
+        },
+        "kind": {
+          "default": null
+        },
+        "videoId": {
+          "default": null
+        },
+        "tweetId": {
+          "default": null
+        },
+        "linkedinUrn": {
+          "default": null
+        }
+      }
+    },
+    "image": {
+      "group": "block",
+      "inline": false,
+      "draggable": true,
+      "attrs": {
+        "src": {
+          "default": null
+        },
+        "alt": {
+          "default": null
+        },
+        "title": {
+          "default": null
+        },
+        "width": {
+          "default": null
+        },
+        "height": {
+          "default": null
+        }
+      }
+    },
+    "codeBlock": {
+      "content": "text*",
+      "marks": "",
+      "group": "block",
+      "code": true,
+      "defining": true,
+      "attrs": {
+        "language": {
+          "default": "javascript"
+        }
+      }
+    },
+    "sectionHeader": {
+      "group": "block",
+      "atom": true,
+      "selectable": false,
+      "draggable": false,
+      "attrs": {
+        "sectionId": {
+          "default": null
+        },
+        "title": {
+          "default": null
+        },
+        "description": {
+          "default": null
+        },
+        "rating": {
+          "default": 0
+        }
+      }
+    }
+  },
+  "marks": {
+    "link": {
+      "inclusive": true,
+      "attrs": {
+        "href": {
+          "default": null
+        },
+        "target": {
+          "default": "_blank"
+        },
+        "rel": {
+          "default": "noopener noreferrer nofollow"
+        },
+        "class": {
+          "default": "text-blue-600 hover:text-blue-800 cursor-pointer relative group"
+        },
+        "title": {
+          "default": null
+        },
+        "noRichPreview": {
+          "default": false
+        }
+      }
+    },
+    "bold": {},
+    "code": {
+      "excludes": "_",
+      "code": true
+    },
+    "italic": {},
+    "strike": {},
+    "underline": {}
+  }
+}
