@@ -52,6 +52,8 @@ def parse_document(schema_name: str, doc: dict) -> Node:
 _NODE_KEYS = frozenset(("type", "attrs", "content", "marks"))
 _TEXT_NODE_KEYS = frozenset(("type", "text", "marks"))
 _MARK_KEYS = frozenset(("type", "attrs"))
+# The container type each of those keys must hold when present.
+_CONTAINER_TYPES = {"attrs": dict, "marks": list, "content": list}
 
 
 def _reject_unknown_keys(schema: Schema, node_json: dict) -> None:
@@ -59,22 +61,24 @@ def _reject_unknown_keys(schema: Schema, node_json: dict) -> None:
     # recognize ("contents", "usrId"), so a misspelling would otherwise pass
     # validation and silently drop the data under it.
     node_type = schema.nodes[node_json["type"]]
+    what = f"node {node_type.name!r}"
     node_keys = _TEXT_NODE_KEYS if node_type.is_text else _NODE_KEYS
-    _reject_unknown(node_json, node_keys, f"keys on node {node_type.name!r}")
+    _reject_unknown(node_json, node_keys, f"keys on {what}")
     _reject_unknown(
-        node_json.get("attrs"),
+        _get_container(node_json, "attrs", what),
         node_type.attrs,
-        f"attributes on node {node_type.name!r}",
+        f"attributes on {what}",
     )
-    for mark_json in node_json.get("marks") or ():
+    for mark_json in _get_container(node_json, "marks", what) or ():
         mark_type = schema.marks[mark_json["type"]]
-        _reject_unknown(mark_json, _MARK_KEYS, f"keys on mark {mark_type.name!r}")
+        mark_what = f"mark {mark_type.name!r}"
+        _reject_unknown(mark_json, _MARK_KEYS, f"keys on {mark_what}")
         _reject_unknown(
-            mark_json.get("attrs"),
+            _get_container(mark_json, "attrs", mark_what),
             mark_type.attrs,
-            f"attributes on mark {mark_type.name!r}",
+            f"attributes on {mark_what}",
         )
-    for child in node_json.get("content") or ():
+    for child in _get_container(node_json, "content", what) or ():
         _reject_unknown_keys(schema, child)
 
 
@@ -82,3 +86,16 @@ def _reject_unknown(found: dict | None, allowed: Iterable[str], what: str) -> No
     unknown = set(found or ()) - set(allowed)
     if unknown:
         raise ValueError(f"unknown {what}: " + ", ".join(sorted(unknown)))
+
+
+def _get_container(json_obj: dict, key: str, what: str) -> dict | list | None:
+    # Falsy wrong-typed containers ([], "", false) would read as absent both
+    # here and in Node.from_json(); require the proper type. None stays
+    # allowed as the JSON convention for an absent optional field.
+    value = json_obj.get(key)
+    if value is not None and not isinstance(value, _CONTAINER_TYPES[key]):
+        raise ValueError(
+            f"malformed {key} on {what}: expected "
+            f"{_CONTAINER_TYPES[key].__name__}, got {type(value).__name__}"
+        )
+    return value

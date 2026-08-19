@@ -240,6 +240,54 @@ class ProseMirrorSchemaTests(unittest.TestCase):
             ):
                 parse_document(COMMENT_EDITOR, doc)
 
+    def test_falsy_non_container_values_rejected(self):
+        # Arrange
+        # Falsy wrong-typed containers would otherwise read as absent and
+        # normalize instead of failing.
+        def wrap(inner):
+            return {
+                "type": "doc",
+                "content": [{"type": "paragraph", "content": [inner]}],
+            }
+
+        malformed = {
+            "attrs as list": wrap({"type": "mention", "attrs": []}),
+            "attrs as string": wrap({"type": "mention", "attrs": ""}),
+            "attrs as bool": wrap({"type": "mention", "attrs": False}),
+            "marks as bool": wrap({"type": "text", "text": "x", "marks": False}),
+            "content as bool": {
+                "type": "doc",
+                "content": [{"type": "paragraph", "content": False}],
+            },
+        }
+
+        # Act & Assert
+        for name, doc in malformed.items():
+            with (
+                self.subTest(name),
+                self.assertRaisesRegex(ValueError, "malformed"),
+            ):
+                parse_document(COMMENT_EDITOR, doc)
+
+    def test_null_containers_treated_as_absent(self):
+        # Arrange
+        doc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "attrs": None,
+                    "content": [{"type": "text", "text": "x", "marks": None}],
+                }
+            ],
+        }
+
+        # Act
+        node = parse_document(COMMENT_EDITOR, doc)
+
+        # Assert
+        self.assertEqual(node.child(0).child(0).text, "x")
+
     def test_unknown_node_type_rejected(self):
         # Arrange
         # imageBlock exists in the block schema but not the comment schema.
