@@ -207,7 +207,6 @@ class Topic(DefaultModel):
                 hub, created = Hub.objects.create(
                     name=subfield.display_name,
                     subfield=subfield,
-                    is_used_for_rep=True,
                 )
 
             if created:
@@ -218,7 +217,6 @@ class Topic(DefaultModel):
                 )
             else:
                 hub.subfield = subfield
-                hub.is_used_for_rep = True
                 hub.save()
         except Exception:
             logger.exception(
