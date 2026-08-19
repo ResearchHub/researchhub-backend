@@ -289,18 +289,23 @@ class ResearchhubPost(AbstractGenericReactionModel):
     def get_discussion_count(self):
         return self.rh_threads.get_discussion_count()
 
-    def replace_authors(self, author_ids: list[int]) -> None:
-        """Credit the given authors to this post in the order received."""
+    def reset_post_authors(self, author_ids: list[int]) -> None:
+        """Credit the given authors in the order received, dropping any others."""
         unique_author_ids = list(dict.fromkeys(author_ids))
         with transaction.atomic():
-            self.author_links.all().delete()
+            self.author_links.exclude(author_id__in=unique_author_ids).delete()
             ResearchhubPostAuthor.objects.bulk_create(
-                ResearchhubPostAuthor(
-                    researchhub_post=self,
-                    author_id=author_id,
-                    position=position,
-                )
-                for position, author_id in enumerate(unique_author_ids, start=1)
+                [
+                    ResearchhubPostAuthor(
+                        researchhub_post=self,
+                        author_id=author_id,
+                        position=position,
+                    )
+                    for position, author_id in enumerate(unique_author_ids, start=1)
+                ],
+                update_conflicts=True,
+                unique_fields=["researchhub_post", "author"],
+                update_fields=["position"],
             )
 
 
