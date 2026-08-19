@@ -25,16 +25,11 @@ from researchhub_access_group.constants import (
 from researchhub_access_group.models import Permission
 from user.models import User
 from user.views.follow_view_mixins import FollowViewActionMixin
-from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
 from .filters import HubFilter
 from .models import Hub
-from .permissions import (
-    CreateHub,
-    IsModeratorOrSuperEditor,
-    UpdateHub,
-)
+from .permissions import IsModeratorOrSuperEditor
 from .serializers import HubSerializer
 
 
@@ -44,7 +39,7 @@ class CustomPageLimitPagination(PageNumberPagination):
     page_size = 40
 
 
-class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
+class HubViewSet(viewsets.ReadOnlyModelViewSet, FollowViewActionMixin):
     queryset = Hub.objects.filter(is_removed=False)
     serializer_class = HubSerializer
     filter_backends = (
@@ -52,9 +47,7 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         DjangoFilterBackend,
         OrderingFilter,
     )
-    permission_classes = [
-        IsAuthenticatedOrReadOnly & CreateHub & CreateOrUpdateIfAllowed & UpdateHub
-    ]
+    permission_classes = [IsAuthenticatedOrReadOnly]
     pagination_class = CustomPageLimitPagination
     throttle_classes = THROTTLE_CLASSES
     filterset_class = HubFilter
@@ -101,12 +94,6 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                 return Response(data)
         else:
             return super().list(request)
-
-    def create(self, request):
-        response = super().create(request)
-        cache_key = get_cache_key("hubs", "trending")
-        cache.delete(cache_key)
-        return response
 
     @action(
         detail=False,
