@@ -274,7 +274,7 @@ class ViewTests(APITestCase):
         """Verify the post detail response lists authors in byline order."""
         # Arrange
         post = create_post(created_by=self.admin_user)
-        post.replace_authors([self.member_author.id, self.admin_author.id])
+        post.reset_post_authors([self.member_author.id, self.admin_author.id])
 
         # Act
         response = self.client.get(f"/api/researchhubpost/{post.id}/")

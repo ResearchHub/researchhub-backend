@@ -80,7 +80,7 @@ class PostDocumentTests(TestCase):
         post = self._create_post("Authored Post")
         first = create_random_authenticated_user("first_author").author_profile
         second = create_random_authenticated_user("second_author").author_profile
-        post.replace_authors([second.id, first.id])
+        post.reset_post_authors([second.id, first.id])
 
         # Act
         result = self.document.prepare_authors(post)

@@ -312,7 +312,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
 class ResearchhubPostAuthorManager(models.Manager):
     """Load author links with their author, so bylines cost a single query."""
 
-    def get_queryset(self) -> models.QuerySet:
+    def get_queryset(self) -> "models.QuerySet[ResearchhubPostAuthor]":
         """Return links with the credited author already loaded."""
         return super().get_queryset().select_related("author")
 
