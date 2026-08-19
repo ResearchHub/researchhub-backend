@@ -84,8 +84,6 @@ class Hub(models.Model):
         blank=True,
     )
 
-    is_used_for_rep = models.BooleanField(default=False)
-
     namespace = models.TextField(
         choices=Namespace.choices,
         default=None,
