@@ -2,6 +2,7 @@ from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from django.utils import timezone
 
 from feed.models import FeedEntry
 from researchhub_document.helpers import create_post
@@ -120,6 +121,7 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
         # Arrange
         entry = FeedEntry.objects.create(
             action="PUBLISH",
+            action_date=timezone.now(),
             content_type=ContentType.objects.get_for_model(ResearchhubPost),
             object_id=self.post.id,
             unified_document=self.unified_document,
