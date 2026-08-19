@@ -79,6 +79,27 @@ class ProseMirrorSchemaTests(unittest.TestCase):
         doc.check()
         self.assertIsNone(doc.child(2).attrs["alt"])
 
+    def test_unknown_attributes_stripped_not_rejected(self):
+        doc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "mention",
+                            "attrs": {"id": "1", "label": "x", "bogus": "dropped"},
+                        }
+                    ],
+                }
+            ],
+        }
+        node = parse_document(COMMENT_EDITOR, doc)
+
+        mention_json = node.to_json()["content"][0]["content"][0]
+        self.assertNotIn("bogus", mention_json["attrs"])
+        self.assertEqual(mention_json["attrs"]["id"], "1")
+
     def test_unknown_node_type_rejected(self):
         # imageBlock exists in the block schema but not the comment schema.
         bad_doc = {"type": "doc", "content": [{"type": "imageBlock"}]}

@@ -14,8 +14,9 @@ Usage::
     node = parse_document(COMMENT_EDITOR, comment_json)  # raises ValueError
 
 Schema validity is structural only: it guarantees known node/mark types,
-known attributes, and legal nesting — not that a mention's user id exists or
-that a link is safe. That remains application-level validation.
+required attributes, and legal nesting — not that a mention's user id exists
+or that a link is safe. That remains application-level validation. Note that
+unrecognized attributes are silently stripped rather than rejected.
 """
 
 import json
@@ -42,9 +43,11 @@ def get_schema(name: str) -> Schema:
 def parse_document(schema_name: str, doc: dict) -> Node:
     """Parse and validate a TipTap/ProseMirror document in JSON form.
 
-    Returns the parsed ``Node`` with attribute defaults filled in. Raises
-    ``ValueError`` if the document references unknown node/mark types or
-    attributes, or violates the schema's nesting rules.
+    Returns the parsed ``Node`` with attribute defaults filled in and any
+    unrecognized attributes silently stripped (prosemirror-py ignores them
+    rather than rejecting). Raises ``ValueError`` if the document references
+    unknown node/mark types, omits a required attribute, or violates the
+    schema's nesting rules.
     """
     node = Node.from_json(get_schema(schema_name), doc)
     node.check()
