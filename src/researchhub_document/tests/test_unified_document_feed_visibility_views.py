@@ -112,10 +112,11 @@ class UnifiedDocumentFeedVisibilityViewTests(APITestCase):
         self.client.force_authenticate(self.moderator)
 
         # Act
-        self.client.post(self.exclude_url)
-        self.client.post(self.exclude_url)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(self.exclude_url)
+            self.client.post(self.exclude_url)
 
-        # Assert: a no-op second hide does not rebuild the 20 cached pages
+        # Assert: a no-op second hide does not enqueue another cache warm
         self.assertEqual(self.mock_warm.call_count, 1)
 
     def test_list_returns_work_payload_with_remapped_ids(self):
