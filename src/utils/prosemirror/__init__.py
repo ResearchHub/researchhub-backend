@@ -13,10 +13,10 @@ Usage::
 
     node = parse_document(COMMENT_EDITOR, comment_json)  # raises ValueError
 
-Schema validity is structural only: it guarantees known node/mark types,
-required attributes, and legal nesting — not that a mention's user id exists
-or that a link is safe. That remains application-level validation. Note that
-unrecognized attributes are silently stripped rather than rejected.
+Schema validity is structural only: it guarantees a top-level ``doc`` node,
+known node/mark types and attributes, and legal nesting — not that a
+mention's user id exists or that a link is safe. That remains
+application-level validation.
 """
 
 from utils.prosemirror.loader import (

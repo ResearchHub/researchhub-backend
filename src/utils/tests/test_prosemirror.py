@@ -79,7 +79,21 @@ class ProseMirrorSchemaTests(unittest.TestCase):
         doc.check()
         self.assertIsNone(doc.child(2).attrs["alt"])
 
-    def test_unknown_attributes_stripped_not_rejected(self):
+    def test_non_document_root_rejected(self):
+        # Arrange
+        fragment = {
+            "type": "paragraph",
+            "content": [{"type": "text", "text": "not a doc"}],
+        }
+
+        # Act & Assert
+        with self.assertRaisesRegex(ValueError, "expected top-level 'doc'"):
+            parse_document(COMMENT_EDITOR, fragment)
+
+    def test_unknown_node_attribute_rejected(self):
+        # Arrange
+        # prosemirror-py would silently drop the misspelled key, leaving a
+        # mention whose real id attribute is None.
         doc = {
             "type": "doc",
             "content": [
@@ -88,17 +102,46 @@ class ProseMirrorSchemaTests(unittest.TestCase):
                     "content": [
                         {
                             "type": "mention",
-                            "attrs": {"id": "1", "label": "x", "bogus": "dropped"},
+                            "attrs": {"usrId": "1", "label": "x"},
                         }
                     ],
                 }
             ],
         }
-        node = parse_document(COMMENT_EDITOR, doc)
 
-        mention_json = node.to_json()["content"][0]["content"][0]
-        self.assertNotIn("bogus", mention_json["attrs"])
-        self.assertEqual(mention_json["attrs"]["id"], "1")
+        # Act & Assert
+        with self.assertRaisesRegex(ValueError, "usrId"):
+            parse_document(COMMENT_EDITOR, doc)
+
+    def test_unknown_mark_attribute_rejected(self):
+        # Arrange
+        doc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "see docs",
+                            "marks": [
+                                {
+                                    "type": "link",
+                                    "attrs": {
+                                        "href": "https://example.com",
+                                        "bogus": 1,
+                                    },
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Act & Assert
+        with self.assertRaisesRegex(ValueError, "bogus"):
+            parse_document(COMMENT_EDITOR, doc)
 
     def test_unknown_node_type_rejected(self):
         # imageBlock exists in the block schema but not the comment schema.

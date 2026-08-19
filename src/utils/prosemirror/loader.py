@@ -24,12 +24,42 @@ def get_schema(name: str) -> Schema:
 def parse_document(schema_name: str, doc: dict) -> Node:
     """Parse and validate a TipTap/ProseMirror document in JSON form.
 
-    Returns the parsed ``Node`` with attribute defaults filled in and any
-    unrecognized attributes silently stripped (prosemirror-py ignores them
-    rather than rejecting). Raises ``ValueError`` if the document references
-    unknown node/mark types, omits a required attribute, or violates the
-    schema's nesting rules.
+    Returns the parsed ``Node`` with attribute defaults filled in. Raises
+    ``ValueError`` if the root is not the schema's top-level ``doc`` node, if
+    the document references unknown node/mark types or attributes, omits a
+    required attribute, or violates the schema's nesting rules.
     """
-    node = Node.from_json(get_schema(schema_name), doc)
+    schema = get_schema(schema_name)
+    node = Node.from_json(schema, doc)
+    if node.type is not schema.top_node_type:
+        raise ValueError(
+            f"expected top-level {schema.top_node_type.name!r} node,"
+            f" got {node.type.name!r}"
+        )
+    _reject_unknown_attrs(schema, doc)
     node.check()
     return node
+
+
+def _reject_unknown_attrs(schema: Schema, node_json: dict) -> None:
+    # Node.from_json() drops attribute keys the schema doesn't declare, so a
+    # misspelled key would otherwise pass validation and lose its data.
+    unknown = set(node_json.get("attrs") or ()) - set(
+        schema.nodes[node_json["type"]].attrs
+    )
+    if unknown:
+        raise ValueError(
+            f"unknown attributes on node {node_json['type']!r}: "
+            + ", ".join(sorted(unknown))
+        )
+    for mark_json in node_json.get("marks") or ():
+        unknown = set(mark_json.get("attrs") or ()) - set(
+            schema.marks[mark_json["type"]].attrs
+        )
+        if unknown:
+            raise ValueError(
+                f"unknown attributes on mark {mark_json['type']!r}: "
+                + ", ".join(sorted(unknown))
+            )
+    for child in node_json.get("content") or ():
+        _reject_unknown_attrs(schema, child)
