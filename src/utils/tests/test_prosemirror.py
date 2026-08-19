@@ -156,6 +156,65 @@ class ProseMirrorSchemaTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "bogus"):
             parse_document(COMMENT_EDITOR, doc)
 
+    def test_misspelled_content_key_rejected(self):
+        # Arrange
+        # from_json would ignore "contents" and build an empty paragraph.
+        doc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "contents": [{"type": "text", "text": "lost"}],
+                }
+            ],
+        }
+
+        # Act & Assert
+        with self.assertRaisesRegex(ValueError, "keys on node 'paragraph': contents"):
+            parse_document(COMMENT_EDITOR, doc)
+
+    def test_misspelled_marks_key_rejected(self):
+        # Arrange
+        doc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "x", "mark": [{"type": "bold"}]}
+                    ],
+                }
+            ],
+        }
+
+        # Act & Assert
+        with self.assertRaisesRegex(ValueError, "keys on node 'text': mark"):
+            parse_document(COMMENT_EDITOR, doc)
+
+    def test_misspelled_mark_attrs_key_rejected(self):
+        # Arrange
+        doc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "x",
+                            "marks": [
+                                {"type": "link", "attr": {"href": "https://a.b"}}
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        # Act & Assert
+        with self.assertRaisesRegex(ValueError, "keys on mark 'link': attr"):
+            parse_document(COMMENT_EDITOR, doc)
+
     def test_unknown_node_type_rejected(self):
         # Arrange
         # imageBlock exists in the block schema but not the comment schema.

@@ -1,6 +1,7 @@
 """Loader for the vendored ProseMirror schemas; see the package docstring."""
 
 import json
+from collections.abc import Iterable
 from functools import cache
 from pathlib import Path
 
@@ -26,8 +27,9 @@ def parse_document(schema_name: str, doc: dict) -> Node:
 
     Returns the parsed ``Node`` with attribute defaults filled in. Raises
     ``ValueError`` if the root is not the schema's top-level ``doc`` node, if
-    the document references unknown node/mark types or attributes, omits a
-    required attribute, or violates the schema's nesting rules.
+    the document references unknown node/mark types, JSON keys, or
+    attributes, omits a required attribute, or violates the schema's nesting
+    rules.
     """
     schema = get_schema(schema_name)
     node = Node.from_json(schema, doc)
@@ -36,30 +38,42 @@ def parse_document(schema_name: str, doc: dict) -> Node:
             f"expected top-level {schema.top_node_type.name!r} node,"
             f" got {node.type.name!r}"
         )
-    _reject_unknown_attrs(schema, doc)
+    _reject_unknown_keys(schema, doc)
     node.check()
     return node
 
 
-def _reject_unknown_attrs(schema: Schema, node_json: dict) -> None:
-    # Node.from_json() drops attribute keys the schema doesn't declare, so a
-    # misspelled key would otherwise pass validation and lose its data.
-    unknown = set(node_json.get("attrs") or ()) - set(
-        schema.nodes[node_json["type"]].attrs
+# The JSON object keys Node.from_json() reads for each node kind.
+_NODE_KEYS = frozenset(("type", "attrs", "content", "marks"))
+_TEXT_NODE_KEYS = frozenset(("type", "text", "marks"))
+_MARK_KEYS = frozenset(("type", "attrs"))
+
+
+def _reject_unknown_keys(schema: Schema, node_json: dict) -> None:
+    # Node.from_json() ignores JSON keys and attribute names it doesn't
+    # recognize ("contents", "usrId"), so a misspelling would otherwise pass
+    # validation and silently drop the data under it.
+    node_type = schema.nodes[node_json["type"]]
+    node_keys = _TEXT_NODE_KEYS if node_type.is_text else _NODE_KEYS
+    _reject_unknown(node_json, node_keys, f"keys on node {node_type.name!r}")
+    _reject_unknown(
+        node_json.get("attrs"),
+        node_type.attrs,
+        f"attributes on node {node_type.name!r}",
     )
-    if unknown:
-        raise ValueError(
-            f"unknown attributes on node {node_json['type']!r}: "
-            + ", ".join(sorted(unknown))
-        )
     for mark_json in node_json.get("marks") or ():
-        unknown = set(mark_json.get("attrs") or ()) - set(
-            schema.marks[mark_json["type"]].attrs
+        mark_type = schema.marks[mark_json["type"]]
+        _reject_unknown(mark_json, _MARK_KEYS, f"keys on mark {mark_type.name!r}")
+        _reject_unknown(
+            mark_json.get("attrs"),
+            mark_type.attrs,
+            f"attributes on mark {mark_type.name!r}",
         )
-        if unknown:
-            raise ValueError(
-                f"unknown attributes on mark {mark_json['type']!r}: "
-                + ", ".join(sorted(unknown))
-            )
     for child in node_json.get("content") or ():
-        _reject_unknown_attrs(schema, child)
+        _reject_unknown_keys(schema, child)
+
+
+def _reject_unknown(found: dict | None, allowed: Iterable[str], what: str) -> None:
+    unknown = set(found or ()) - set(allowed)
+    if unknown:
+        raise ValueError(f"unknown {what}: " + ", ".join(sorted(unknown)))
