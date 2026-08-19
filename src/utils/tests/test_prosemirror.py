@@ -38,9 +38,11 @@ COMMENT_DOC = {
 
 class ProseMirrorSchemaTests(unittest.TestCase):
     def test_schemas_load_with_expected_types(self):
+        # Act
         block = get_schema(BLOCK_EDITOR)
         comment = get_schema(COMMENT_EDITOR)
 
+        # Assert
         for node_name in ("doc", "paragraph", "text", "imageBlock", "blockMath"):
             self.assertIn(node_name, block.nodes)
         for node_name in ("doc", "mention", "richLink", "sectionHeader"):
@@ -50,23 +52,32 @@ class ProseMirrorSchemaTests(unittest.TestCase):
             self.assertIn(mark_name, comment.marks)
 
     def test_get_schema_caches_instances(self):
-        self.assertIs(get_schema(COMMENT_EDITOR), get_schema(COMMENT_EDITOR))
+        # Act
+        first = get_schema(COMMENT_EDITOR)
+        second = get_schema(COMMENT_EDITOR)
+
+        # Assert
+        self.assertIs(first, second)
 
     def test_parse_document_round_trips_and_fills_defaults(self):
+        # Act
         node = parse_document(COMMENT_EDITOR, COMMENT_DOC)
+        round_tripped = node.to_json()
 
+        # Assert
         mention = node.child(1).child(1)
         self.assertEqual(mention.attrs["id"], "123")
         # Defaults the input omitted are filled in from the schema.
         self.assertEqual(mention.attrs["mentionSuggestionChar"], "@")
         self.assertEqual(node.child(2).attrs["language"], "javascript")
-
-        round_tripped = node.to_json()
         self.assertEqual(round_tripped["type"], "doc")
         self.assertEqual(len(round_tripped["content"]), 3)
 
     def test_programmatic_document_construction(self):
+        # Arrange
         block = get_schema(BLOCK_EDITOR)
+
+        # Act
         doc = block.node(
             "doc",
             None,
@@ -77,6 +88,8 @@ class ProseMirrorSchemaTests(unittest.TestCase):
             ],
         )
         doc.check()
+
+        # Assert
         self.assertIsNone(doc.child(2).attrs["alt"])
 
     def test_non_document_root_rejected(self):
@@ -144,15 +157,21 @@ class ProseMirrorSchemaTests(unittest.TestCase):
             parse_document(COMMENT_EDITOR, doc)
 
     def test_unknown_node_type_rejected(self):
+        # Arrange
         # imageBlock exists in the block schema but not the comment schema.
         bad_doc = {"type": "doc", "content": [{"type": "imageBlock"}]}
+
+        # Act & Assert
         with self.assertRaises(ValueError):
             parse_document(COMMENT_EDITOR, bad_doc)
 
     def test_invalid_nesting_rejected(self):
+        # Arrange
         bad_doc = {
             "type": "doc",
             "content": [{"type": "paragraph", "content": [{"type": "paragraph"}]}],
         }
+
+        # Act & Assert
         with self.assertRaises(ValueError):
             parse_document(COMMENT_EDITOR, bad_doc)
