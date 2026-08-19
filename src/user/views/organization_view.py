@@ -346,16 +346,22 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 unified_document__is_removed=False
             )
 
-        notes = notes.filter(
-            (
-                Q(unified_document__permissions__user=user)
-                & ~Q(unified_document__permissions__access_type=NO_ACCESS)
+        notes = (
+            notes.filter(
+                (
+                    Q(unified_document__permissions__user=user)
+                    & ~Q(unified_document__permissions__access_type=NO_ACCESS)
+                )
+                | (
+                    ~Q(unified_document__permissions__access_type=NO_ACCESS)
+                    & Q(
+                        unified_document__permissions__organization__permissions__user=user
+                    )
+                )
             )
-            | (
-                ~Q(unified_document__permissions__access_type=NO_ACCESS)
-                & Q(unified_document__permissions__organization__permissions__user=user)
-            )
-        ).distinct().order_by("-created_date")
+            .distinct()
+            .order_by("-created_date")
+        )
 
         status = request.query_params.get("status", "").upper()
         if status == "DRAFT":
