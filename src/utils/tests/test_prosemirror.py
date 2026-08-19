@@ -215,6 +215,31 @@ class ProseMirrorSchemaTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "keys on mark 'link': attr"):
             parse_document(COMMENT_EDITOR, doc)
 
+    def test_malformed_json_rejected_with_value_error(self):
+        # Arrange
+        # Shapes where prosemirror-py itself raises KeyError/AttributeError,
+        # which parse_document must translate to the advertised ValueError.
+        def wrap(inner):
+            return {
+                "type": "doc",
+                "content": [{"type": "paragraph", "content": [inner]}],
+            }
+
+        malformed = {
+            "node missing type": wrap({"text": "no type"}),
+            "text node missing text": wrap({"type": "text"}),
+            "non-dict content item": wrap(5),
+            "non-dict attrs": wrap({"type": "mention", "attrs": 5}),
+        }
+
+        # Act & Assert
+        for name, doc in malformed.items():
+            with (
+                self.subTest(name),
+                self.assertRaisesRegex(ValueError, "malformed document JSON"),
+            ):
+                parse_document(COMMENT_EDITOR, doc)
+
     def test_unknown_node_type_rejected(self):
         # Arrange
         # imageBlock exists in the block schema but not the comment schema.

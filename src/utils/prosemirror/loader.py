@@ -26,19 +26,24 @@ def parse_document(schema_name: str, doc: dict) -> Node:
     """Parse and validate a TipTap/ProseMirror document in JSON form.
 
     Returns the parsed ``Node`` with attribute defaults filled in. Raises
-    ``ValueError`` if the root is not the schema's top-level ``doc`` node, if
-    the document references unknown node/mark types, JSON keys, or
-    attributes, omits a required attribute, or violates the schema's nesting
-    rules.
+    ``ValueError`` if the document JSON is structurally malformed, if the
+    root is not the schema's top-level ``doc`` node, if the document
+    references unknown node/mark types, JSON keys, or attributes, omits a
+    required attribute, or violates the schema's nesting rules.
     """
     schema = get_schema(schema_name)
-    node = Node.from_json(schema, doc)
+    try:
+        node = Node.from_json(schema, doc)
+        _reject_unknown_keys(schema, doc)
+    except (AttributeError, KeyError, TypeError) as e:
+        # prosemirror-py leaks these for malformed shapes (a node missing
+        # "type", non-dict nodes or attrs); keep the ValueError contract.
+        raise ValueError(f"malformed document JSON: {e!r}") from e
     if node.type is not schema.top_node_type:
         raise ValueError(
             f"expected top-level {schema.top_node_type.name!r} node,"
             f" got {node.type.name!r}"
         )
-    _reject_unknown_keys(schema, doc)
     node.check()
     return node
 
