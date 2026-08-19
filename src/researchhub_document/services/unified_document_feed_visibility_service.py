@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 
 from django.db import transaction
@@ -15,8 +16,8 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from user.models import User
 
-# Dashboard list is grants, posts, and proposals for now — not papers/preprints.
 _EXCLUDED_LIST_DOCUMENT_TYPES = (DISCUSSION, GRANT, PREREGISTRATION)
+logger = logging.getLogger(__name__)
 
 
 class UnifiedDocumentFeedVisibilityService:
@@ -104,14 +105,17 @@ class UnifiedDocumentFeedVisibilityService:
                 changed = True
 
             if changed:
-                transaction.on_commit(self.activity_feed_cache_warmer)
+                transaction.on_commit(self.activity_feed_cache_warmer, robust=True)
         return unified_document
 
     @staticmethod
     def _queue_activity_feed_cache_warm() -> None:
         from feed.tasks import warm_activity_feed_cache
 
-        warm_activity_feed_cache.delay()
+        try:
+            warm_activity_feed_cache.delay()
+        except Exception:
+            logger.exception("Failed to enqueue activity feed cache warm")
 
     @staticmethod
     def _assert_moderator(user: User) -> None:

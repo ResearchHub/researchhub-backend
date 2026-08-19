@@ -2,30 +2,6 @@ from rest_framework.permissions import BasePermission
 
 from user.constants.gatekeeper_constants import PERMISSIONS_DASH
 from user.related_models.gatekeeper_model import Gatekeeper
-from utils.permissions import RuleBasedPermission
-
-
-class CreateHub(RuleBasedPermission):
-    message = "Not enough reputation to create hub."
-
-    def satisfies_rule(self, request):
-        return request.user.reputation >= 100
-
-
-class UpdateHub(RuleBasedPermission):
-    message = "Must be moderator to edit hub"
-
-    def has_permission(self, request, view):
-        if view.action == "update" and (
-            request.method == "PUT" or request.method == "PATCH"
-        ):
-            return (
-                request.user.is_anonymous is False
-                and request.user.is_authenticated
-                and request.user.moderator
-            )
-        else:
-            return True
 
 
 class IsModerator(BasePermission):
