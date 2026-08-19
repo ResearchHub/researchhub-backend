@@ -64,7 +64,7 @@ class CreateRegisteredReportTests(APITestCase):
         proposal = self._create_completed_proposal(self.user)
         coauthor = create_random_default_user("rr_coauthor")
         proposal_authors = [coauthor.author_profile, self.user.author_profile]
-        proposal.replace_authors([author.id for author in proposal_authors])
+        proposal.reset_post_authors([author.id for author in proposal_authors])
         note = self._create_registered_report_note(proposal)
         payload = self._build_payload(proposal, note_id=note.id)
 

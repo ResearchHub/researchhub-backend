@@ -63,7 +63,7 @@ from researchhub_document.services.unified_document_share_link_service import (
     get_shared_unified_document_id,
 )
 from user.content_moderation_mixin import ContentModerationActionsMixin
-from user.models import User
+from user.models import Author, User
 from user.services.risk_score_service import RiskScoreService
 from utils.throttles import THROTTLE_CLASSES
 
@@ -190,6 +190,14 @@ class ResearchhubPostViewSet(
                 400,
             )
         return None
+
+    def _validate_author_ids(self, author_ids: list[int]) -> None:
+        """Reject author identifiers that do not belong to an existing author."""
+        known_ids = Author.objects.filter(id__in=author_ids).values_list(
+            "id", flat=True
+        )
+        if missing_ids := sorted(set(author_ids) - set(known_ids)):
+            raise serializers.ValidationError(f"Unknown author IDs: {missing_ids}")
 
     def get_queryset(self):
         request = self.request
@@ -392,7 +400,8 @@ class ResearchhubPostViewSet(
                 )
                 file_name = f"RH-POST-{document_type}-USER-{created_by.id}.txt"
                 full_src_file = ContentFile(data["full_src"].encode())
-                rh_post.replace_authors(authors)
+                self._validate_author_ids(authors)
+                rh_post.reset_post_authors(authors)
                 self.add_upvote(created_by, rh_post)
                 if registered_report_proposal is not None:
                     journey_service.attach_stage(
@@ -587,7 +596,7 @@ class ResearchhubPostViewSet(
         try:
             data = request.data
 
-            authors = data.get("authors", [])
+            authors = data.get("authors")
             rh_post_id = data.get("post_id", None)
             rh_post = ResearchhubPost.objects.get(id=rh_post_id)
             if rh_post.document_type == REGISTERED_REPORT:
@@ -630,8 +639,9 @@ class ResearchhubPostViewSet(
                     post_id=post.id,
                 )
 
-            if type(authors) is list:
-                rh_post.replace_authors(authors)
+            if isinstance(authors, list):
+                self._validate_author_ids(authors)
+                rh_post.reset_post_authors(authors)
 
             if type(hubs) is list:
                 unified_doc = post.unified_document
