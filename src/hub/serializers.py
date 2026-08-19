@@ -26,7 +26,6 @@ class SimpleHubSerializer(ModelSerializer):
             "name",
             "slug",
             "namespace",
-            "is_used_for_rep",
         ]
         read_only_fields = ["editor_permission_groups"]
         model = Hub
@@ -70,7 +69,6 @@ class HubSerializer(ModelSerializer):
             "slug",
             "subscriber_count",
             "namespace",
-            "is_used_for_rep",
         ]
         read_only_fields = ["editor_permission_groups", "category"]
         model = Hub

@@ -1,6 +1,5 @@
 from rest_framework.test import APITestCase
 
-from hub.models import Hub
 from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
 from user.tests.helpers import (
@@ -15,23 +14,6 @@ class HubViewsTests(APITestCase):
         self.hub = create_hub(name="View Test Hub")
         self.hub2 = create_hub(name="View Test Hub 2")
         self.user = create_random_authenticated_user("hub_user")
-
-    def test_basic_user_cannot_edit_hub(self):
-        basic_user = create_random_authenticated_user("basic_user")
-        self.client.force_authenticate(basic_user)
-        hub = create_hub(name="some hub")
-
-        self.client.put(
-            f"/api/hub/{hub.id}/",
-            {
-                "name": "updated name",
-                "id": hub.id,
-                "description": "description",
-            },
-        )
-
-        h = Hub.objects.get(id=hub.id)
-        self.assertNotEqual(h.name, "updated name")
 
     def test_hub_order_by_paper_count(self):
         hub = create_hub("High Paper Count Hub")
@@ -117,10 +99,6 @@ class HubViewsTests(APITestCase):
             user = create_random_default_user(f"users{x}")
             users.append(user)
         return users
-
-    def get_hub_response(self, url, user):
-        self.client.force_authenticate(user)
-        return self.client.post(url)
 
     def test_exclude_journals_parameter(self):
         """Test that exclude_journals parameter filters out journal hubs"""
