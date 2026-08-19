@@ -5,9 +5,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from feed.models import FeedEntry
-from paper.tests.helpers import create_paper
 from researchhub_document.helpers import create_post
-from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
