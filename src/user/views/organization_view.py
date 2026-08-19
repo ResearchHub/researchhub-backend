@@ -355,7 +355,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 ~Q(unified_document__permissions__access_type=NO_ACCESS)
                 & Q(unified_document__permissions__organization__permissions__user=user)
             )
-        ).distinct()
+        ).distinct().order_by("-created_date")
 
         status = request.query_params.get("status", "").upper()
         if status == "DRAFT":
