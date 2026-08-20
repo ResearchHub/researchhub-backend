@@ -41,15 +41,9 @@ from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 
-EDITED_DOC = {
-    "type": "doc",
-    "content": [
-        {
-            "type": "paragraph",
-            "content": [{"type": "text", "text": "Edited by the assistant"}],
-        }
-    ],
-}
+# edit_note input: block operations in the compact dialect (a bare string
+# block is a paragraph).
+EDIT_NOTE_EDITS = [{"op": "insert", "at": 0, "blocks": ["Edited by the assistant"]}]
 
 
 def _make_service(provider=None, **kwargs):
@@ -197,7 +191,7 @@ class NotebookChatServiceTests(TestCase):
                     {
                         "note_id": self.note.id,
                         "expected_version_id": self.content.id,
-                        "content": EDITED_DOC,
+                        "edits": EDIT_NOTE_EDITS,
                     },
                 ),
                 text_turn("I replaced the note body."),
@@ -214,7 +208,9 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
         self.assertEqual(result["final_text"], "I replaced the note body.")
         # Stored as a JSON-encoded string, the shape the frontend editor loads.
-        self.assertEqual(json.loads(self.note.latest_version.json), EDITED_DOC)
+        stored = json.loads(self.note.latest_version.json)
+        self.assertEqual(stored["type"], "doc")
+        self.assertEqual(self.note.latest_version.plain_text, "Edited by the assistant")
         reply = execution.generated_chat_message
         self.assertIsNotNone(reply)
         self.assertEqual(reply.content, "I replaced the note body.")
@@ -442,7 +438,13 @@ class NotebookChatServiceTests(TestCase):
         invalid_edit = {
             "note_id": self.note.id,
             "expected_version_id": self.content.id,
-            "content": {"type": "paragraph"},
+            "edits": [
+                {
+                    "op": "insert",
+                    "at": 0,
+                    "blocks": [{"type": "bogusNode"}],
+                }
+            ],
         }
         provider = FakeProvider(
             [tool_turn(f"t{i}", "edit_note", invalid_edit) for i in range(6)]

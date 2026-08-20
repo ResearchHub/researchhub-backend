@@ -55,15 +55,9 @@ def _thinkings(activity):
     return [event for event in activity if event["type"] == "thinking"]
 
 
-EDITED_DOC = {
-    "type": "doc",
-    "content": [
-        {
-            "type": "paragraph",
-            "content": [{"type": "text", "text": "Edited by the assistant"}],
-        }
-    ],
-}
+# edit_note input: block operations in the compact dialect (a bare string
+# block is a paragraph).
+EDIT_NOTE_EDITS = [{"op": "insert", "at": 0, "blocks": ["Edited by the assistant"]}]
 
 
 def _make_service(
@@ -143,7 +137,7 @@ class NotebookChatActivityTests(TestCase):
                     {
                         "note_id": self.note.id,
                         "expected_version_id": self.content.id,
-                        "content": EDITED_DOC,
+                        "edits": EDIT_NOTE_EDITS,
                     },
                 ),
                 text_turn("Done."),
@@ -190,7 +184,7 @@ class NotebookChatActivityTests(TestCase):
                     {
                         "note_id": self.note.id,
                         "expected_version_id": self.content.id,
-                        "content": EDITED_DOC,
+                        "edits": EDIT_NOTE_EDITS,
                     },
                 ),
                 text_turn("Done."),
