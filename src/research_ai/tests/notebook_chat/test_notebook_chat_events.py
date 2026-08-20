@@ -1,6 +1,5 @@
 import asyncio
 import unittest
-from contextlib import nullcontext
 from unittest.mock import Mock, patch
 
 from django.test import TestCase
@@ -125,7 +124,7 @@ class ConversationEventPublisherTests(TestCase):
             },
         )
 
-    def test_stream_publication_is_bounded_below_the_guard_lease_interval(self):
+    def test_stream_publication_timeout_is_best_effort(self):
         # Arrange
         publisher = ConversationEventPublisher(channel_layer=StalledChannelLayer())
 
@@ -154,8 +153,6 @@ class PublishingRecorderTests(unittest.TestCase):
         self.wrapped.is_active.return_value = True
         self.publisher = Mock()
         self.stream_store = Mock()
-        self.stream_store.guard.return_value = nullcontext(Mock())
-        self.stream_store.is_cancelled.return_value = False
         self.recorder = PublishingRecorder(
             self.wrapped,
             self.publisher,
@@ -194,7 +191,7 @@ class PublishingRecorderTests(unittest.TestCase):
             [(7, 9, TURN_FINISHED), (7, 9, TURN_FAILED)],
         )
 
-    def test_stream_event_is_checkpointed_and_published(self):
+    def test_stream_event_is_snapshotted_and_published(self):
         # Arrange
         event = TextStreamDelta(block_index=0, text="hello")
 
@@ -210,7 +207,7 @@ class PublishingRecorderTests(unittest.TestCase):
         )
 
     def test_stream_cache_failures_do_not_interrupt_durable_recording(self):
-        # Arrange: the first failed checkpoint disables this turn's preview.
+        # Arrange: the first failed snapshot disables this turn's preview.
         self.stream_store.set.side_effect = RuntimeError("redis down")
         self.stream_store.clear.side_effect = RuntimeError("redis down")
         message, turn = object(), object()

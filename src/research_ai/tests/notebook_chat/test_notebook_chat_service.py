@@ -1,5 +1,4 @@
 import json
-from contextlib import contextmanager, nullcontext
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
@@ -19,7 +18,6 @@ from research_ai.services.agent_persistence import (
 )
 from research_ai.services.notebook_chat import (
     WORKFLOW,
-    NotebookChatCancellationTimeoutError,
     NotebookChatService,
 )
 from research_ai.services.notebook_chat.config import NotebookChatConfig
@@ -32,11 +30,6 @@ from research_ai.services.notebook_chat.events import (
     ConversationEventPublisher,
 )
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
-from research_ai.services.notebook_chat.streaming import (
-    STREAM_LOCK_WAIT_SECONDS,
-    StreamCacheUnavailableError,
-    StreamGuardTimeoutError,
-)
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -908,7 +901,6 @@ class NotebookChatEventEmissionTests(TestCase):
         execution = self._submit()
         self.publisher.reset_mock()
         self.service.streams = Mock()
-        self.service.streams.guard.return_value = nullcontext()
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
@@ -920,42 +912,33 @@ class NotebookChatEventEmissionTests(TestCase):
             self.publisher.publish.call_args.args,
             (self.conversation.id, execution.id, TURN_CANCELLED),
         )
-        self.service.streams.cancel.assert_called_once_with(execution.id)
+        self.service.streams.clear.assert_called_once_with(execution.id)
 
-    def test_cancel_active_turn_retries_when_cancellation_marker_fails(self):
+    def test_cancel_active_turn_survives_stream_cache_cleanup_failure(self):
         # Arrange
         execution = self._submit()
         self.publisher.reset_mock()
         self.service.streams = Mock()
-        self.service.streams.guard.return_value = nullcontext()
-        self.service.streams.cancel.side_effect = RuntimeError("redis down")
+        self.service.streams.clear.side_effect = RuntimeError("redis down")
 
-        # Act / Assert: no durable cancellation is recorded without the marker
-        # that prevents the worker from reviving output after Redis recovers.
-        with self.assertRaises(NotebookChatCancellationTimeoutError):
-            self.service.cancel_active_turn(self.conversation)
+        # Act
+        with (
+            self.assertLogs(
+                "research_ai.services.notebook_chat.service", level="WARNING"
+            ),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            cancelled = self.service.cancel_active_turn(self.conversation)
+
+        # Assert: optional preview cleanup cannot block durable cancellation.
+        self.assertEqual(cancelled, execution)
         execution.refresh_from_db()
-        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
-        self.publisher.publish.assert_not_called()
-
-    def test_cancel_active_turn_retries_when_stream_cache_is_unavailable(self):
-        # Arrange
-        execution = self._submit()
-        self.publisher.reset_mock()
-        self.service.streams = Mock()
-        self.service.streams.guard.side_effect = StreamCacheUnavailableError(
-            "redis down"
+        self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+        self.publisher.publish.assert_called_once_with(
+            self.conversation.id, execution.id, TURN_CANCELLED
         )
 
-        # Act / Assert
-        with self.assertRaises(NotebookChatCancellationTimeoutError):
-            self.service.cancel_active_turn(self.conversation)
-        execution.refresh_from_db()
-        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
-        self.service.streams.cancel.assert_not_called()
-        self.publisher.publish.assert_not_called()
-
-    def test_cancel_serializes_state_change_cleanup_and_event(self):
+    def test_cancel_orders_state_change_cleanup_and_event(self):
         # Arrange
         execution = self._submit()
         order = []
@@ -963,16 +946,8 @@ class NotebookChatEventEmissionTests(TestCase):
         cancels = Mock()
         publisher = Mock()
 
-        @contextmanager
-        def guard(execution_id, *, wait_seconds):
-            order.append(("guard_enter", execution_id))
-            self.assertEqual(wait_seconds, STREAM_LOCK_WAIT_SECONDS)
-            yield
-            order.append(("guard_exit", execution_id))
-
-        streams.guard.side_effect = guard
-        streams.cancel.side_effect = lambda execution_id: order.append(
-            ("stream_cancel", execution_id)
+        streams.clear.side_effect = lambda execution_id: order.append(
+            ("stream_clear", execution_id)
         )
         cancels.cancel.side_effect = lambda candidate: (
             order.append(("durable_cancel", candidate.id)) or True
@@ -994,37 +969,11 @@ class NotebookChatEventEmissionTests(TestCase):
         self.assertEqual(
             order,
             [
-                ("guard_enter", execution.id),
-                ("stream_cancel", execution.id),
                 ("durable_cancel", execution.id),
+                ("stream_clear", execution.id),
                 ("turn_cancelled", execution.id),
-                ("guard_exit", execution.id),
             ],
         )
-
-    def test_cancel_guard_timeout_does_not_cancel_without_serialization(self):
-        # Arrange
-        execution = self._submit()
-        streams = Mock()
-        streams.guard.side_effect = StreamGuardTimeoutError("publisher stalled")
-        cancels = Mock()
-        publisher = Mock()
-        service = _make_service(
-            stream_store=streams,
-            cancel_service=cancels,
-            event_publisher=publisher,
-        )
-
-        # Act / Assert
-        with self.assertRaises(NotebookChatCancellationTimeoutError):
-            service.cancel_active_turn(self.conversation)
-        streams.guard.assert_called_once_with(
-            execution.id,
-            wait_seconds=STREAM_LOCK_WAIT_SECONDS,
-        )
-        cancels.cancel.assert_not_called()
-        streams.cancel.assert_not_called()
-        publisher.publish.assert_not_called()
 
     def test_cancel_that_lost_the_race_publishes_nothing(self):
         # Arrange: the turn goes terminal between the scan and the

@@ -35,7 +35,6 @@ from research_ai.services.agent_persistence import AgentConversationBusyError
 from research_ai.services.notebook_chat import (
     ACTIVITY_ALL,
     ACTIVITY_LIVE,
-    NotebookChatCancellationTimeoutError,
     NotebookChatService,
 )
 from user.permissions import IsModerator, UserIsEditor
@@ -186,14 +185,7 @@ class NotebookChatCancelView(APIView):
         conversation = _get_conversation_or_404(
             service, note, request.user, conversation_id
         )
-        try:
-            execution = service.cancel_active_turn(conversation)
-        except NotebookChatCancellationTimeoutError:
-            return Response(
-                {"detail": "Cancellation is temporarily busy. Please retry."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-                headers={"Retry-After": "2"},
-            )
+        execution = service.cancel_active_turn(conversation)
         if execution is None:
             return Response({"cancelled": False, "execution_id": None})
         return Response({"cancelled": True, "execution_id": execution.id})

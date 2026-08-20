@@ -79,12 +79,7 @@ from research_ai.services.notebook_chat.grant_tools import (
     GrantSearchToolset,
     SelectedRFPToolset,
 )
-from research_ai.services.notebook_chat.streaming import (
-    STREAM_LOCK_WAIT_SECONDS,
-    ExecutionStreamStore,
-    StreamCacheUnavailableError,
-    StreamGuardTimeoutError,
-)
+from research_ai.services.notebook_chat.streaming import ExecutionStreamStore
 from research_ai.services.notebook_chat.toolset import (
     NotebookWebSearchToolset,
     compose_notebook_toolset,
@@ -120,10 +115,6 @@ TITLE_MAX_CHARS = 120
 # How much of a chat's newest message the listing carries as a preview,
 # truncated in the database so a 20k-character turn never rides along.
 LIST_PREVIEW_CHARS = 160
-
-
-class NotebookChatCancellationTimeoutError(RuntimeError):
-    """Cancellation could not safely overtake an in-flight stream publish."""
 
 
 def _derive_title(text: str) -> str:
@@ -455,13 +446,12 @@ class NotebookChatService:
         """Stop the conversation's in-flight turn; ``None`` if none was running.
 
         Cancellation is cooperative: the worker is not interrupted here, it
-        notices at its next durable write and unwinds. This first waits briefly
-        for one in-flight stream publication so no older delta can follow the
-        cancellation event. If that wait times out, no cancellation is
-        recorded and the caller can safely retry. Once the intent is recorded,
-        the turn's status is ``CANCELLED`` even though a model call may still
-        be in flight. Nothing the worker does afterwards can revive the row --
-        every terminal transition in the recorder is guarded on ``RUNNING``.
+        notices at its next durable write and unwinds. The turn's status is
+        ``CANCELLED`` immediately even though a model call may still be in
+        flight. Nothing the worker does afterwards can revive the row -- every
+        terminal transition in the recorder is guarded on ``RUNNING``. Clients
+        likewise treat terminal status as authoritative and ignore any
+        best-effort preview delta already in flight.
         """
         execution = (
             conversation.executions.filter(
@@ -475,41 +465,19 @@ class NotebookChatService:
         )
         if execution is None:
             return None
-        try:
-            # A timeout must never become an unserialized fallback. Let the
-            # request retry instead of either blocking a web worker forever or
-            # allowing an older stream delta to follow turn_cancelled.
-            with self.streams.guard(
-                execution.id,
-                wait_seconds=STREAM_LOCK_WAIT_SECONDS,
-            ):
-                return self._cancel_execution(conversation, execution)
-        except StreamGuardTimeoutError as exc:
-            raise NotebookChatCancellationTimeoutError from exc
-        except StreamCacheUnavailableError as exc:
-            # Without the guard/marker, a worker that did not observe the same
-            # outage could publish after Redis recovers. Report a retryable
-            # failure instead of claiming an unserialized cancellation landed.
-            raise NotebookChatCancellationTimeoutError from exc
-
-    def _cancel_execution(
-        self,
-        conversation: AgentConversation,
-        execution: AgentExecution,
-    ) -> AgentExecution | None:
-        """Cancel and announce one execution while its stream guard is held."""
-        try:
-            # Establish the worker-visible stop signal before the durable
-            # transition. If this fails, leave the execution active so the
-            # caller can safely retry rather than create a cancelled row whose
-            # in-flight worker has no way to observe the cancellation.
-            self.streams.cancel(execution.id)
-        except Exception as exc:  # noqa: BLE001 - normalize cache backends
-            raise NotebookChatCancellationTimeoutError from exc
         if not self.cancels.cancel(execution):
             return None
-        # The worker's own writes stop publishing once the row is terminal
-        # (a refused write emits nothing), so the cancel is announced here.
+        try:
+            self.streams.clear(execution.id)
+        except Exception:  # noqa: BLE001 - preview cleanup is optional
+            logger.warning(
+                "notebook chat stream clear failed during cancellation (execution=%s)",
+                execution.id,
+                exc_info=True,
+            )
+        # The worker's durable writes stop once the row is terminal. A preview
+        # delta already in flight is harmless because clients give this
+        # terminal transition precedence for the execution.
         self.events.publish(conversation.id, execution.id, TURN_CANCELLED)
         return execution
 

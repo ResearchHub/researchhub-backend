@@ -4,14 +4,15 @@ The polling projection (``?activity=live``) is the source of truth for durable
 chat state; its weakness is latency, not correctness. This module closes that
 gap with two kinds of per-conversation event: identifiers that nudge a refetch
 after a durable change, and bounded transient model-output deltas for text and
-readable thinking. A cache checkpoint plus bounded delta journal lets the REST
-projection repair a dropped or reordered transient frame.
+readable thinking. A bounded cache snapshot lets the REST projection repair a
+dropped or reordered transient frame.
 
 Two properties keep this layer simple and safe to lose:
 
 - **Durable events carry identifiers, never state.** A client refetches for
   lifecycle events. Stream events carry only append deltas plus a monotonic
-  sequence; any sequence gap is repaired from the REST snapshot.
+  sequence; any sequence gap is repaired from the REST snapshot. A terminal
+  execution status always wins over a late transient delta.
 - **Emission is best-effort.** Durable events are deferred with
   ``transaction.on_commit(robust=True)``. Stream recovery state advances
   before its corresponding delta is sent. A failing channel layer therefore
@@ -54,7 +55,7 @@ TURN_CANCELLED = "turn_cancelled"
 
 
 async def _group_send_with_timeout(layer, group: str, message: dict) -> None:
-    """Bound a channel send below the stream guard's renewal interval."""
+    """Bound a best-effort channel send so it cannot stall a worker."""
     async with asyncio.timeout(STREAM_PUBLISH_TIMEOUT_SECONDS):
         await layer.group_send(group, message)
 
@@ -108,9 +109,8 @@ class ConversationEventPublisher:
     ) -> None:
         """Publish one transient stream batch immediately.
 
-        Recovery checkpoints and their delta journals are cache-backed, so no
-        database transaction needs to commit before the frame is safe to
-        observe.
+        The recovery snapshot is cache-backed, so no database transaction
+        needs to commit before the frame is safe to observe.
         """
         self._send_data(
             conversation_id,
@@ -186,10 +186,8 @@ class PublishingRecorder:
         try:
             callback(*args)
         except Exception:  # noqa: BLE001 - previews must never break a turn
-            # A failed cache/guard operation leaves its batch pending and may
-            # no longer be serialized with cancellation. Stop retrying it on
-            # every provider chunk; a durable turn transition can re-enable a
-            # fresh preview only after cache cleanup succeeds.
+            # Stop retrying a failed optional cache operation for every
+            # provider chunk. Durable recording remains independent.
             self._stream.disable()
             logger.warning(
                 "notebook chat stream %s failed (execution=%s)",
