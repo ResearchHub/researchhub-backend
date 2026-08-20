@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 
 from django.contrib.contenttypes.models import ContentType
@@ -45,11 +46,15 @@ from researchhub_access_group.permissions import (
 )
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.registered_report_note_metadata import parse_note_json
 from researchhub_document.related_models.constants.document_type import (
     NOTE,
     REGISTERED_REPORT,
 )
 from user.models import Organization, User
+from utils.prosemirror import BLOCK_EDITOR, parse_document
+
+logger = logging.getLogger(__name__)
 
 
 class NoteViewSet(ModelViewSet):
@@ -629,6 +634,8 @@ class NoteContentViewSet(
             created_via=NoteContent.CREATED_VIA_EDITOR,
             parent_version=parent_version,
         )
+        if full_json is not None:
+            self._warn_on_schema_mismatch(note_content)
 
         # Only save src if full_json is not provided
         if not full_json and full_src:
@@ -641,6 +648,29 @@ class NoteContentViewSet(
         serializer = self.serializer_class(note_content)
         data = serializer.data
         return Response(data, status=200)
+
+    def _warn_on_schema_mismatch(self, version: NoteContent) -> None:
+        """Log stored content the editor schema rejects; never block the save.
+
+        Detection only: rejecting here would turn backend schema lag into
+        failed editor saves. The agent note tools require conforming content,
+        so this is the early tripwire for drift or API misuse. Root keys
+        besides ``content`` are system-owned and stay out of the check.
+        """
+        document = parse_note_json(version.json)
+        try:
+            if document is None:
+                raise ValueError("content is not a JSON object")
+            parse_document(
+                BLOCK_EDITOR, {"type": "doc", "content": document.get("content")}
+            )
+        except ValueError as exc:
+            logger.warning(
+                "note %s version %s content does not match the editor schema: %s",
+                version.note_id,
+                version.id,
+                exc,
+            )
 
     def _get_parent_version(self, note, parent_version_id):
         """The referenced version, or ``None`` when it is not one of ``note``'s."""

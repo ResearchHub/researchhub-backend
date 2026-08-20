@@ -110,15 +110,16 @@ class NoteToolsetTests(TestCase):
         )
         self.assertNotIn("plain_text", result)
 
-    def test_read_note_falls_back_to_plain_text_without_structured_content(self):
-        # Act: the seeded note from create_note has plain_text but no json.
+    def test_read_note_without_content_returns_null_blocks(self):
+        # Act: the seeded note from create_note has no content JSON.
         result, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
 
-        # Assert
+        # Assert: note content lives in version JSON only; there is no
+        # plain-text fallback.
         self.assertEqual(result["version_id"], self.content.id)
         self.assertIsNone(result["blocks"])
         self.assertEqual(result["block_count"], 0)
-        self.assertEqual(result["plain_text"], "some text")
+        self.assertNotIn("plain_text", result)
 
     def test_read_note_reports_content_outside_the_schema_as_error(self):
         # Arrange: stored content is expected to parse (pre-schema notes were

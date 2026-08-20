@@ -79,6 +79,33 @@ class NoteContentApiTests(APITestCase):
         self.assertEqual(response.data["created_by"], self.author.id)
         self.assertIsNone(response.data["parent_version"])
 
+    def test_create_warns_on_content_outside_the_editor_schema(self):
+        # Arrange: schema-invalid content must still save (rejecting would
+        # turn backend schema lag into failed editor saves) but leave a
+        # warning as the tripwire.
+        self.client.force_authenticate(self.author)
+
+        # Act
+        with self.assertLogs("note.views.note_view", level="WARNING") as logs:
+            response = self._post_version(
+                full_json=json.dumps({"type": "doc", "content": []})
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.note.refresh_from_db()
+        self.assertEqual(response.data["id"], self.note.latest_version_id)
+        self.assertIn("does not match the editor schema", logs.output[0])
+
+    def test_create_does_not_warn_on_conforming_content(self):
+        # Arrange
+        self.client.force_authenticate(self.author)
+
+        # Act & Assert
+        with self.assertNoLogs("note.views.note_view", level="WARNING"):
+            response = self._post_version()
+        self.assertEqual(response.status_code, 200)
+
     def test_create_records_the_reported_parent_version(self):
         # Arrange
         self.client.force_authenticate(self.author)

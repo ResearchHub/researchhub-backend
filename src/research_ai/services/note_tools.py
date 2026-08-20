@@ -13,9 +13,8 @@ mutating in place, so any agent edit is recoverable from history.
 
 Stored note content parses against the vendored schema (pre-schema content
 has been cleaned up), so a note that somehow does not is reported to the
-model as an error rather than served in a degraded form. Notes with no
-structured content at all (plain text only, or no version yet) read as
-``blocks: null`` and are populated by a first insert.
+model as an error rather than served in a degraded form. A note with no
+version yet reads as ``blocks: null`` and is populated by a first insert.
 
 Permission checks mirror the HTTP layer on the note's unified document:
 reads use the ``HasAccessPermission`` predicate (any non-NO_ACCESS
@@ -86,9 +85,8 @@ class NoteToolset:
                     "title, the version_id that edit_note requires, "
                     "block_count, and the note body as `blocks`: a map from "
                     'top-level block index ("0", "1", ...) to that block. '
-                    f"{_BLOCK_FORMAT} Some legacy notes have no structured "
-                    "content: `blocks` is null then and a read-only "
-                    "`plain_text` is included."
+                    f"{_BLOCK_FORMAT} A note with no content yet reads as "
+                    "`blocks` null; populate it with an insert."
                 ),
                 input_schema={
                     "type": "object",
@@ -221,8 +219,6 @@ class NoteToolset:
                 else {str(index): block for index, block in enumerate(blocks)}
             ),
         }
-        if latest and not blocks:
-            result["plain_text"] = latest.plain_text
         return result
 
     def _edit_note(self, input: dict) -> dict:
