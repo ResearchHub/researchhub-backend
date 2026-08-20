@@ -189,7 +189,7 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
 
     def serialize_authors(self, post: ResearchhubPost) -> list[dict[str, Any]]:
         """Serialize registered report authors."""
-        authors = list(post.authors.all())
+        authors = post.ordered_authors
         if not authors and post.created_by is not None:
             authors = [post.created_by.author_profile]
         return SimpleAuthorSerializer(authors, context=self.context, many=True).data
