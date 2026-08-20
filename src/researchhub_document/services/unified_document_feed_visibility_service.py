@@ -7,7 +7,6 @@ from researchhub_document.related_models.document_filter_model import DocumentFi
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
-from user.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -18,11 +17,6 @@ class UnifiedDocumentFeedVisibilityService:
     Hiding is feed-only: detail pages and other direct access are unchanged,
     and persisted feed entries are left in place so unhiding restores
     visibility without rebuilding feed data.
-
-    Other public feeds keep serving cached pages until TTL. The unscoped
-    activity feed is the exception: after commit, a Celery task replaces
-    its 20 cached pages so a hide/unhide becomes visible without waiting
-    for TTL.
     """
 
     def __init__(
@@ -33,22 +27,17 @@ class UnifiedDocumentFeedVisibilityService:
             activity_feed_cache_warmer or self._queue_activity_feed_cache_warm
         )
 
-    def exclude_from_feed(
-        self, unified_document_id: int, user: User
-    ) -> ResearchhubUnifiedDocument:
+    def exclude_from_feed(self, unified_document_id: int) -> ResearchhubUnifiedDocument:
         """Hide a document from public feeds. Idempotent."""
-        return self._set_excluded(unified_document_id, user, excluded=True)
+        return self._set_excluded(unified_document_id, excluded=True)
 
-    def include_in_feed(
-        self, unified_document_id: int, user: User
-    ) -> ResearchhubUnifiedDocument:
+    def include_in_feed(self, unified_document_id: int) -> ResearchhubUnifiedDocument:
         """Restore a document to public feeds. Idempotent."""
-        return self._set_excluded(unified_document_id, user, excluded=False)
+        return self._set_excluded(unified_document_id, excluded=False)
 
     def _set_excluded(
-        self, unified_document_id: int, user: User, excluded: bool
+        self, unified_document_id: int, excluded: bool
     ) -> ResearchhubUnifiedDocument:
-        self._assert_moderator(user)
         changed = False
 
         with transaction.atomic():
@@ -82,12 +71,3 @@ class UnifiedDocumentFeedVisibilityService:
             warm_activity_feed_cache.delay()
         except Exception:
             logger.exception("Failed to enqueue activity feed cache warm")
-
-    @staticmethod
-    def _assert_moderator(user: User) -> None:
-        if (
-            user is None
-            or not getattr(user, "is_authenticated", False)
-            or not user.moderator
-        ):
-            raise PermissionError("Need to be a moderator.")

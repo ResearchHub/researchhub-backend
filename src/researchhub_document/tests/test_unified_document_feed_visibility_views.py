@@ -93,3 +93,18 @@ class UnifiedDocumentFeedVisibilityViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 404)
+
+    def test_non_moderator_cannot_toggle_visibility(self):
+        # Arrange
+        self.client.force_authenticate(self.author)
+
+        # Act
+        exclude_response = self.client.post(self.exclude_url)
+        include_response = self.client.post(self.include_url)
+
+        # Assert
+        self.assertEqual(exclude_response.status_code, 403)
+        self.assertEqual(include_response.status_code, 403)
+        self.unified_document.document_filter.refresh_from_db()
+        self.assertFalse(self.unified_document.document_filter.is_excluded_in_feed)
+        self.mock_warm.assert_not_called()

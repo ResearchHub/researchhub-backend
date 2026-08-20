@@ -13,7 +13,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from researchhub_document.services.unified_document_feed_visibility_service import (
     UnifiedDocumentFeedVisibilityService,
 )
-from user.tests.helpers import create_hub_editor, create_random_default_user
+from user.tests.helpers import create_random_default_user
 
 
 class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
@@ -22,17 +22,14 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
         self.service = UnifiedDocumentFeedVisibilityService(
             activity_feed_cache_warmer=self.activity_feed_cache_warmer
         )
-        self.moderator = create_random_default_user("feed-vis-mod", moderator=True)
         self.author = create_random_default_user("feed-vis-author")
         self.post = create_post(created_by=self.author, title="Visible post")
         self.unified_document = self.post.unified_document
 
-    def test_moderator_can_exclude_document_from_feed(self):
+    def test_exclude_document_from_feed(self):
         # Act
         with self.captureOnCommitCallbacks(execute=True):
-            result = self.service.exclude_from_feed(
-                self.unified_document.id, self.moderator
-            )
+            result = self.service.exclude_from_feed(self.unified_document.id)
 
         # Assert
         self.unified_document.document_filter.refresh_from_db()
@@ -40,17 +37,15 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
         self.assertTrue(self.unified_document.document_filter.is_excluded_in_feed)
         self.activity_feed_cache_warmer.assert_called_once()
 
-    def test_moderator_can_include_document_in_feed(self):
+    def test_include_document_in_feed(self):
         # Arrange
         with self.captureOnCommitCallbacks(execute=True):
-            self.service.exclude_from_feed(self.unified_document.id, self.moderator)
+            self.service.exclude_from_feed(self.unified_document.id)
         self.activity_feed_cache_warmer.reset_mock()
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
-            result = self.service.include_in_feed(
-                self.unified_document.id, self.moderator
-            )
+            result = self.service.include_in_feed(self.unified_document.id)
 
         # Assert
         self.assertFalse(result.document_filter.is_excluded_in_feed)
@@ -59,18 +54,10 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
     def test_exclude_and_include_are_idempotent(self):
         # Act
         with self.captureOnCommitCallbacks(execute=True):
-            first = self.service.exclude_from_feed(
-                self.unified_document.id, self.moderator
-            )
-            second = self.service.exclude_from_feed(
-                self.unified_document.id, self.moderator
-            )
-            included_once = self.service.include_in_feed(
-                self.unified_document.id, self.moderator
-            )
-            included_twice = self.service.include_in_feed(
-                self.unified_document.id, self.moderator
-            )
+            first = self.service.exclude_from_feed(self.unified_document.id)
+            second = self.service.exclude_from_feed(self.unified_document.id)
+            included_once = self.service.include_in_feed(self.unified_document.id)
+            included_twice = self.service.include_in_feed(self.unified_document.id)
 
         # Assert
         self.assertTrue(first.document_filter.is_excluded_in_feed)
@@ -79,24 +66,10 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
         self.assertFalse(included_twice.document_filter.is_excluded_in_feed)
         self.assertEqual(self.activity_feed_cache_warmer.call_count, 2)
 
-    def test_non_moderator_cannot_toggle_visibility(self):
-        # Arrange
-        editor, _ = create_hub_editor("feed-vis-editor", "feed-vis-hub")
-
-        # Act / Assert
-        with self.assertRaises(PermissionError):
-            self.service.exclude_from_feed(self.unified_document.id, self.author)
-        with self.assertRaises(PermissionError):
-            self.service.include_in_feed(self.unified_document.id, editor)
-
-        self.unified_document.document_filter.refresh_from_db()
-        self.assertFalse(self.unified_document.document_filter.is_excluded_in_feed)
-        self.activity_feed_cache_warmer.assert_not_called()
-
     def test_missing_document_raises_does_not_exist(self):
         # Act / Assert
         with self.assertRaises(ResearchhubUnifiedDocument.DoesNotExist):
-            self.service.exclude_from_feed(999999999, self.moderator)
+            self.service.exclude_from_feed(999999999)
         self.activity_feed_cache_warmer.assert_not_called()
 
     def test_creates_document_filter_when_missing(self):
@@ -108,9 +81,7 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
         self.assertIsNone(self.unified_document.document_filter_id)
 
         # Act
-        result = self.service.exclude_from_feed(
-            self.unified_document.id, self.moderator
-        )
+        result = self.service.exclude_from_feed(self.unified_document.id)
 
         # Assert
         result.refresh_from_db()
@@ -130,7 +101,7 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
         )
 
         # Act
-        self.service.exclude_from_feed(self.unified_document.id, self.moderator)
+        self.service.exclude_from_feed(self.unified_document.id)
 
         # Assert
         self.assertTrue(FeedEntry.objects.filter(pk=entry.pk).exists())
@@ -143,7 +114,7 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
 
         # Act
         with self.captureOnCommitCallbacks(execute=False) as callbacks:
-            service.exclude_from_feed(self.unified_document.id, self.moderator)
+            service.exclude_from_feed(self.unified_document.id)
 
         # Assert: the request does not rebuild cache pages inline
         mock_delay.assert_not_called()

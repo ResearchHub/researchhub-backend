@@ -249,7 +249,7 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
     )
     def exclude_from_feed(self, request, pk=None):
         """Hide this document from public feeds. Idempotent and feed-only."""
-        return self._set_feed_visibility(request, pk, excluded=True)
+        return self._set_feed_visibility(pk, excluded=True)
 
     @action(
         detail=True,
@@ -259,22 +259,20 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
     )
     def include_in_feed(self, request, pk=None):
         """Restore this document to public feeds. Idempotent and feed-only."""
-        return self._set_feed_visibility(request, pk, excluded=False)
+        return self._set_feed_visibility(pk, excluded=False)
 
-    def _set_feed_visibility(self, request, pk, excluded: bool):
+    def _set_feed_visibility(self, pk, excluded: bool):
         if pk is None or not str(pk).isdigit():
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         service = UnifiedDocumentFeedVisibilityService()
         try:
             if excluded:
-                unified_document = service.exclude_from_feed(int(pk), request.user)
+                unified_document = service.exclude_from_feed(int(pk))
             else:
-                unified_document = service.include_in_feed(int(pk), request.user)
+                unified_document = service.include_in_feed(int(pk))
         except ResearchhubUnifiedDocument.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        except PermissionError as error:
-            return Response({"detail": str(error)}, status=status.HTTP_403_FORBIDDEN)
 
         return Response(
             {
