@@ -277,9 +277,11 @@ class NoteToolset:
                             "a note needs at least one block"
                         )
                     }
-                # Carry the stored root over (its system-owned attrs with it);
-                # the edit surface only ever rewrites `content`.
-                document = dict(stored) if stored else {"type": "doc"}
+                # Carry the stored root over (its system-owned attrs with it),
+                # rewriting only `content` -- and the root type: reads ignore
+                # it, so a malformed one must not make the note uneditable.
+                document = dict(stored) if stored else {}
+                document["type"] = "doc"
                 document["content"] = content
                 version = self._service.create_version(
                     locked,

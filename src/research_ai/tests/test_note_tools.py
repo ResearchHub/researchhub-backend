@@ -225,6 +225,30 @@ class NoteToolsetTests(TestCase):
             self.note.latest_version.plain_text, "Title\nNew body\nFootnote"
         )
 
+    def test_edit_note_normalizes_a_malformed_root_type(self):
+        # Arrange: the API write path can store a root without the doc type;
+        # reads ignore the root, so edits must repair rather than reject it.
+        seeded = self._seed_version(
+            {"content": EDITOR_DOC["content"], "attrs": {"kept": 1}}
+        )
+
+        # Act
+        result, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": seeded.id,
+                "edits": [{"op": "replace", "from": 1, "to": 1, "blocks": ["Fixed"]}],
+            },
+        )
+
+        # Assert: the type is normalized, other root keys survive.
+        self.assertTrue(result.get("saved"))
+        self.note.refresh_from_db()
+        stored = json.loads(self.note.latest_version.json)
+        self.assertEqual(stored["type"], "doc")
+        self.assertEqual(stored["attrs"], {"kept": 1})
+
     def test_edit_note_rejects_blocks_outside_the_schema(self):
         # Arrange
         seeded = self._seed_version(EDITOR_DOC)
