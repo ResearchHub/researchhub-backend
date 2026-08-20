@@ -96,7 +96,6 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
                     "slug",
                     "is_removed",
                     "hub_image",
-                    "is_used_for_rep",
                 ],
             },
             "pap_dps_get_authorships": {
@@ -328,7 +327,6 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
                     "namespace",
                     "slug",
                     "created_date",
-                    "is_used_for_rep",
                 ]
             },
             "doc_duds_get_fundraise": {

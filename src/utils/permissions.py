@@ -28,15 +28,6 @@ class PostOnly(BasePermission):
         return request.method == "POST"
 
 
-class CreateOrUpdateOrReadOnly(BasePermission):
-    def has_permission(self, request, view):
-        return (
-            (request.method in SAFE_METHODS)
-            or (request.method == "POST")
-            or (request.method == "PATCH")
-        )
-
-
 class AuthorizationBasedPermission(BasePermission):
     class Meta:
         abstract = True
@@ -50,20 +41,4 @@ class AuthorizationBasedPermission(BasePermission):
         return request.method in SAFE_METHODS
 
     def is_authorized(self, request, view, obj):
-        raise NotImplementedError
-
-
-class RuleBasedPermission(BasePermission):
-    class Meta:
-        abstract = True
-
-    def has_permission(self, request, view):
-        if self.is_read_only_request(request):
-            return True
-        return self.satisfies_rule(request)
-
-    def is_read_only_request(self, request):
-        return request.method in SAFE_METHODS
-
-    def satisfies_rule(self, request):
         raise NotImplementedError
