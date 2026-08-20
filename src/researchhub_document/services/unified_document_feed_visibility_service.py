@@ -2,20 +2,16 @@ import logging
 from collections.abc import Callable
 
 from django.db import transaction
-from django.db.models import Prefetch, QuerySet
+from django.db.models import Count, Prefetch, Q, QuerySet, Sum
+from django.db.models.functions import Coalesce
 
-from researchhub_document.related_models.constants.document_type import (
-    DISCUSSION,
-    GRANT,
-    PREREGISTRATION,
-)
+from purchase.models import Fundraise, Grant
 from researchhub_document.related_models.document_filter_model import DocumentFilter
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 
-_EXCLUDED_LIST_DOCUMENT_TYPES = (DISCUSSION, GRANT, PREREGISTRATION)
 logger = logging.getLogger(__name__)
 
 
@@ -44,29 +40,54 @@ class UnifiedDocumentFeedVisibilityService:
         return self._set_excluded(unified_document_id, excluded=False)
 
     def list_excluded_from_feed(self, query: str | None = None) -> QuerySet:
-        """Currently hidden documents, newest first."""
+        """Currently hidden documents of any type, newest first."""
         queryset = (
             ResearchhubUnifiedDocument.objects.filter(
                 document_filter__is_excluded_in_feed=True,
-                document_type__in=_EXCLUDED_LIST_DOCUMENT_TYPES,
             )
-            .select_related("document_filter")
+            .select_related(
+                "document_filter",
+                "paper",
+                "paper__uploaded_by",
+                "paper__uploaded_by__author_profile",
+            )
             .prefetch_related(
                 Prefetch(
                     "posts",
                     queryset=ResearchhubPost.objects.select_related(
                         "created_by",
                         "created_by__author_profile",
-                    ).prefetch_related("authors"),
+                    ).prefetch_related("author_links__author"),
                 ),
-                "grants",
-                "fundraises",
+                "paper__authors",
+                Prefetch(
+                    "grants",
+                    queryset=Grant.objects.annotate(
+                        num_applicants=Count("applications", distinct=True),
+                    ),
+                ),
+                Prefetch(
+                    "fundraises",
+                    queryset=Fundraise.objects.select_related("escrow").annotate(
+                        annotated_usd_contributions_cents=Coalesce(
+                            Sum(
+                                "usd_contributions__amount_cents",
+                                filter=Q(usd_contributions__is_refunded=False),
+                            ),
+                            0,
+                        ),
+                    ),
+                ),
             )
             .order_by("-id")
         )
         term = (query or "").strip()
         if term:
-            queryset = queryset.filter(posts__title__icontains=term).distinct()
+            queryset = queryset.filter(
+                Q(posts__title__icontains=term)
+                | Q(paper__title__icontains=term)
+                | Q(paper__paper_title__icontains=term)
+            ).distinct()
         return queryset
 
     def _set_excluded(

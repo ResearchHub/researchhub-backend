@@ -3,8 +3,9 @@ from unittest.mock import patch
 from django.core.cache import cache
 from rest_framework.test import APITestCase
 
+from paper.tests.helpers import create_paper
 from researchhub_document.helpers import create_post
-from user.tests.helpers import create_hub_editor, create_random_default_user
+from user.tests.helpers import create_random_default_user
 
 
 class UnifiedDocumentFeedVisibilityViewTests(APITestCase):
@@ -109,3 +110,28 @@ class UnifiedDocumentFeedVisibilityViewTests(APITestCase):
         self.unified_document.document_filter.refresh_from_db()
         self.assertFalse(self.unified_document.document_filter.is_excluded_in_feed)
         self.mock_warm.assert_not_called()
+
+    def test_excluded_list_includes_hidden_papers(self):
+        # Arrange
+        paper = create_paper(uploaded_by=self.author, title="Moderator hidden paper")
+        paper_doc = paper.unified_document
+        self.client.force_authenticate(self.moderator)
+        self.client.post(
+            f"/api/researchhub_unified_document/{paper_doc.id}/exclude_from_feed/"
+        )
+        self.client.post(self.exclude_url)
+
+        # Act
+        response = self.client.get(self.list_url)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        listed_ids = [row["id"] for row in response.data["results"]]
+        self.assertIn(paper_doc.id, listed_ids)
+        self.assertIn(self.unified_document.id, listed_ids)
+        paper_row = next(
+            row for row in response.data["results"] if row["id"] == paper_doc.id
+        )
+        self.assertEqual(paper_row["document_type"], "PAPER")
+        self.assertEqual(paper_row["title"], "Moderator hidden paper")
+        self.assertEqual(paper_row["document_id"], paper.id)
