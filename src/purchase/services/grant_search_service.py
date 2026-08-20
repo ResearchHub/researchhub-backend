@@ -10,14 +10,22 @@ from researchhub_document.models import ResearchhubPost
 class GrantSearchService:
     """Search active grants that are visible to the acting user."""
 
+    @staticmethod
+    def _active_visible(user):
+        visible_document_ids = ResearchhubPost.objects.visible_to(user).values(
+            "unified_document_id"
+        )
+        return Grant.objects.filter(
+            status=Grant.OPEN,
+            unified_document_id__in=visible_document_ids,
+            unified_document__is_removed=False,
+        ).filter(Q(end_date__isnull=True) | Q(end_date__gte=timezone.now()))
+
     def search(self, *, user, query: str, limit: int = 5) -> list[Grant]:
         query = " ".join((query or "").split())
         if not query or limit <= 0:
             return []
 
-        visible_document_ids = ResearchhubPost.objects.visible_to(user).values(
-            "unified_document_id"
-        )
         grant_fields = ("short_title", "organization", "description")
         post_fields = ("title", "renderable_text")
 
@@ -44,12 +52,7 @@ class GrantSearchService:
         )
 
         grants = (
-            Grant.objects.filter(
-                status=Grant.OPEN,
-                unified_document_id__in=visible_document_ids,
-                unified_document__is_removed=False,
-            )
-            .filter(Q(end_date__isnull=True) | Q(end_date__gte=timezone.now()))
+            self._active_visible(user)
             .annotate(
                 keyword_in_post=Exists(posts.filter(post_keyword_match)),
                 phrase_in_post=Exists(posts.filter(post_phrase_match)),
@@ -70,3 +73,13 @@ class GrantSearchService:
             .order_by("phrase_rank", "end_date", "-created_date")
         )
         return list(grants[:limit])
+
+    def get_active_visible(self, *, user, grant_id: int) -> Grant | None:
+        """One application-ready grant, subject to the same visibility rules."""
+        return (
+            self._active_visible(user)
+            .filter(id=grant_id)
+            .select_related("unified_document")
+            .prefetch_related("unified_document__posts")
+            .first()
+        )

@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, TransactionTestCase
 
+from note.models import NoteContent
 from note.tests.helpers import create_note
 from research_ai.models import (
     AgentConversation,
@@ -27,6 +28,7 @@ from research_ai.services.notebook_chat.events import (
     ConversationEventPublisher,
 )
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
+from research_ai.services.notebook_chat.toolset import TOOLSET_VERSION
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -43,6 +45,16 @@ EDITED_DOC = {
         {
             "type": "paragraph",
             "content": [{"type": "text", "text": "Edited by the assistant"}],
+        }
+    ],
+}
+
+ORIGINAL_DOC = {
+    "type": "doc",
+    "content": [
+        {
+            "type": "paragraph",
+            "content": [{"type": "text", "text": "Original note"}],
         }
     ],
 }
@@ -67,6 +79,12 @@ class CapturingProvider(FakeProvider):
     def complete(self, **kwargs):
         self.max_tokens_seen.append(kwargs["max_tokens"])
         return super().complete(**kwargs)
+
+
+class NativeWebProvider(FakeProvider):
+    @property
+    def native_tool_names(self) -> frozenset[str]:
+        return frozenset({"web_search"})
 
 
 class NotebookChatServiceTests(TestCase):
@@ -109,9 +127,38 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.PENDING)
         self.assertIn(str(self.note.id), execution.system_prompt)
         self.assertIn(self.note.title, execution.system_prompt)
+        self.assertIn("get_note_outline", execution.system_prompt)
+        self.assertIn("read_note_section", execution.system_prompt)
+        self.assertIn("replace_note_section", execution.system_prompt)
+        self.assertNotIn("read_note first", execution.system_prompt)
+        self.assertNotIn("edit_note", execution.system_prompt)
+        self.assertIn("get_work_abstract", execution.system_prompt)
+        self.assertIn("get_grant_details", execution.system_prompt)
         self.assertEqual(execution.configuration["note_id"], self.note.id)
+        self.assertEqual(
+            execution.configuration["toolset_version"], TOOLSET_VERSION
+        )
         self.assertEqual(execution.trigger_message.content, "Please add a summary.")
         delay.assert_called_once_with(execution.id)
+
+    def test_submit_message_uses_only_section_workflow_for_structured_note(self):
+        # Arrange
+        NoteContent.objects.create(
+            note=self.note,
+            json=json.dumps(EDITED_DOC),
+            plain_text="Edited by the assistant",
+        )
+        self.note.refresh_from_db()
+
+        # Act
+        execution, _delay = self._submit()
+
+        # Assert
+        self.assertIn("get_note_outline", execution.system_prompt)
+        self.assertIn("read_note_section", execution.system_prompt)
+        self.assertIn("replace_note_section", execution.system_prompt)
+        self.assertNotIn("read_note first", execution.system_prompt)
+        self.assertNotIn("edit_note", execution.system_prompt)
 
     def test_second_message_continues_the_same_conversation(self):
         # Arrange
@@ -171,17 +218,28 @@ class NotebookChatServiceTests(TestCase):
 
     def test_run_turn_edits_note_and_publishes_reply(self):
         # Arrange
+        version = NoteContent.objects.create(
+            note=self.note,
+            json=json.dumps(ORIGINAL_DOC),
+            plain_text="Original note",
+        )
         execution, _delay = self._submit("Replace the note body.")
         provider = FakeProvider(
             [
-                tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                tool_turn("t1", "get_note_outline", {"note_id": self.note.id}),
                 tool_turn(
                     "t2",
-                    "edit_note",
+                    "read_note_section",
+                    {"note_id": self.note.id, "section_id": "body"},
+                ),
+                tool_turn(
+                    "t3",
+                    "replace_note_section",
                     {
                         "note_id": self.note.id,
-                        "expected_version_id": self.content.id,
-                        "content": EDITED_DOC,
+                        "section_id": "body",
+                        "expected_version_id": version.id,
+                        "content": EDITED_DOC["content"],
                     },
                 ),
                 text_turn("I replaced the note body."),
@@ -219,7 +277,7 @@ class NotebookChatServiceTests(TestCase):
         execution, _delay = self._submit("Summarize my other note.")
         provider = FakeProvider(
             [
-                tool_turn("t1", "read_note", {"note_id": other_note.id}),
+                tool_turn("t1", "get_note_outline", {"note_id": other_note.id}),
                 text_turn("Done."),
             ]
         )
@@ -281,6 +339,44 @@ class NotebookChatServiceTests(TestCase):
         grant_toolset_factory.assert_called_once_with(user=self.user)
         grant_toolset.build_tools.assert_called_once_with()
 
+    def test_worker_records_the_effective_tool_contract(self):
+        # Arrange
+        execution, _delay = self._submit()
+        NoteContent.objects.create(
+            note=self.note,
+            json=json.dumps(EDITED_DOC),
+            plain_text="Edited by the assistant",
+        )
+        provider = NativeWebProvider(
+            [
+                tool_turn("t1", "get_note_outline", {"note_id": self.note.id}),
+                text_turn("Done."),
+            ]
+        )
+        service = _make_service(provider=provider)
+
+        # Act
+        result = service.run_turn(execution.id)
+
+        # Assert
+        self.assertEqual(result["final_text"], "Done.")
+        execution.refresh_from_db()
+        registered = execution.configuration["registered_tool_names"]
+        self.assertEqual(
+            execution.configuration["toolset_version"], TOOLSET_VERSION
+        )
+        self.assertIn("get_note_outline", registered)
+        self.assertIn("read_note_section", registered)
+        self.assertIn("replace_note_section", registered)
+        self.assertIn("get_work_abstract", registered)
+        self.assertIn("search_work_fulltext", registered)
+        self.assertIn("web_search", registered)
+        self.assertNotIn("read_note", registered)
+        self.assertNotIn("edit_note", registered)
+        self.assertNotIn("get_work_fulltext", registered)
+        self.assertIn("get_note_outline", execution.system_prompt)
+        self.assertNotIn("edit_note", execution.system_prompt)
+
     def test_run_turn_honors_the_recorded_iteration_limit(self):
         # Arrange: the turn was submitted with a one-iteration budget; the
         # provider wants two turns.
@@ -290,7 +386,7 @@ class NotebookChatServiceTests(TestCase):
         AgentExecution.objects.filter(id=execution.id).update(configuration=stored)
         provider = FakeProvider(
             [
-                tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                tool_turn("t1", "get_note_outline", {"note_id": self.note.id}),
                 text_turn("Too late."),
             ]
         )
@@ -340,9 +436,9 @@ class NotebookChatServiceTests(TestCase):
         # Assert
         self.assertEqual(provider.max_tokens_seen, [12345])
 
-    def test_truncated_edit_note_call_is_not_dispatched(self):
-        # Arrange: the incident shape -- the model's edit_note turn was cut
-        # off at the output token limit, so its content never fully arrived.
+    def test_truncated_section_edit_call_is_not_dispatched(self):
+        # Arrange: the model's section edit was cut off at the output token
+        # limit, so its content never fully arrived.
         execution, _delay = self._submit("Replace the note body.")
         self.note.refresh_from_db()
         original_version_id = self.note.latest_version_id
@@ -350,7 +446,7 @@ class NotebookChatServiceTests(TestCase):
             [
                 tool_turn(
                     "t1",
-                    "edit_note",
+                    "replace_note_section",
                     {"note_id": self.note.id},
                     stop_reason=StopReason.MAX_TOKENS,
                 ),
@@ -391,11 +487,15 @@ class NotebookChatServiceTests(TestCase):
         AgentExecution.objects.filter(id=execution.id).update(configuration=stored)
         invalid_edit = {
             "note_id": self.note.id,
+            "section_id": "body",
             "expected_version_id": self.content.id,
             "content": {"type": "paragraph"},
         }
         provider = FakeProvider(
-            [tool_turn(f"t{i}", "edit_note", invalid_edit) for i in range(6)]
+            [
+                tool_turn(f"t{i}", "replace_note_section", invalid_edit)
+                for i in range(6)
+            ]
         )
         service = _make_service(provider=provider)
 

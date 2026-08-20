@@ -77,6 +77,7 @@ from research_ai.services.notebook_chat.events import (
 )
 from research_ai.services.notebook_chat.grant_tools import GrantSearchToolset
 from research_ai.services.notebook_chat.toolset import (
+    TOOLSET_VERSION,
     NotebookWebSearchToolset,
     compose_notebook_toolset,
 )
@@ -398,6 +399,7 @@ class NotebookChatService:
                 "max_tokens": config.max_tokens,
                 "temperature": config.temperature,
                 "note_id": note.id,
+                "toolset_version": TOOLSET_VERSION,
             },
             system_prompt=build_notebook_chat_system_prompt(note),
         )
@@ -529,10 +531,19 @@ class NotebookChatService:
             native_tools=frozenset({"web_search"}),
         )
         toolset = compose_notebook_toolset(
-            note_toolset=NoteToolset(user=conversation.user, note_ids={note.id}),
+            note_toolset=NoteToolset(
+                user=conversation.user,
+                note_ids={note.id},
+            ),
             grant_toolset=self._grant_toolset_factory(user=conversation.user),
             openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),
             web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
+            native_tool_names=provider.native_tool_names,
+        )
+        self._record_tool_registry(
+            execution,
+            note=note,
+            local_tool_names=toolset.names,
             native_tool_names=provider.native_tool_names,
         )
         config = self._turn_config(execution)
@@ -564,6 +575,34 @@ class NotebookChatService:
             "iterations": result.iterations,
             "final_text": result.final_text,
         }
+
+    @staticmethod
+    def _record_tool_registry(
+        execution: AgentExecution,
+        *,
+        note: Note,
+        local_tool_names: list[str],
+        native_tool_names: frozenset[str],
+    ) -> None:
+        """Persist the exact prompt/tool contract used by this worker run."""
+        registered_tool_names = list(local_tool_names)
+        registered_tool_names.extend(
+            name
+            for name in sorted(native_tool_names)
+            if name not in registered_tool_names
+        )
+        configuration = {
+            **(execution.configuration or {}),
+            "toolset_version": TOOLSET_VERSION,
+            "registered_tool_names": registered_tool_names,
+        }
+        system_prompt = build_notebook_chat_system_prompt(note)
+        AgentExecution.objects.filter(id=execution.id).update(
+            configuration=configuration,
+            system_prompt=system_prompt,
+        )
+        execution.configuration = configuration
+        execution.system_prompt = system_prompt
 
     def _publishing_recorder(
         self, recorder, execution: AgentExecution

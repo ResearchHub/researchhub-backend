@@ -16,6 +16,7 @@ final profile from these records so a hallucinated citation cannot survive.
 """
 
 import logging
+import re
 from collections.abc import Callable
 
 from research_ai.services.agent import Tool, Toolset
@@ -30,18 +31,105 @@ logger = logging.getLogger(__name__)
 # Terminal tool the model calls once to hand back the finished profile.
 SUBMIT_PROFILE = "submit_profile"
 
-# The profile builder's full-text reader. The proposal agent ships a tool of
-# the same name scoped to the researcher profile's works, so composers that
-# reuse this toolset skip this one by name instead of shadowing it silently.
+# Name retained for the proposal agent's separate profile-scoped reader.
 GET_WORK_FULLTEXT = "get_work_fulltext"
+GET_WORK_ABSTRACT = "get_work_abstract"
+SEARCH_WORK_FULLTEXT = "search_work_fulltext"
 
 _MAX_AUTHOR_CANDIDATES = 10  # author search results surfaced to the model
 _MAX_ALTERNATIVES = 5
 _MAX_INSTITUTIONS = 5
 _MAX_TOPICS = 8
-_MAX_WORKS_PER_CALL = 50  # ceiling on a single get_author_works fetch
-_MAX_FULLTEXT_FETCHES = 6  # per-run ceiling on full-text reads
-_MAX_FULLTEXT_CHARS = 24000  # per-read character ceiling (~6k tokens)
+_DEFAULT_WORKS_PER_CALL = 10
+_MAX_WORKS_PER_CALL = 10  # compact metadata rows surfaced per call
+_MAX_FULLTEXT_FETCHES = 4  # per-run ceiling on full-text searches
+_MAX_PDF_SEARCH_CHARS = 120000  # searchable locally, never returned wholesale
+_MAX_ABSTRACT_CHARS = 4000
+_MAX_PASSAGES = 4
+_MAX_PASSAGE_CHARS = 1500
+_PASSAGE_OVERLAP_CHARS = 250
+_QUERY_STOPWORDS = {
+    "and",
+    "for",
+    "from",
+    "into",
+    "methods",
+    "paper",
+    "that",
+    "the",
+    "this",
+    "using",
+    "with",
+}
+
+
+def _work_metadata(work: dict) -> dict:
+    """Compact list-row projection; abstracts are fetched separately."""
+    return {
+        key: work.get(key)
+        for key in (
+            "title",
+            "publication_date",
+            "publication_year",
+            "source_url",
+            "author_position",
+            "pdf_url",
+            "is_oa",
+        )
+    }
+
+
+def _text_chunks(text: str) -> list[tuple[int, str]]:
+    """Overlapping, word-aligned chunks suitable for local relevance ranking."""
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = min(len(text), start + _MAX_PASSAGE_CHARS)
+        if end < len(text):
+            boundary = text.rfind(" ", start, end)
+            if boundary > start:
+                end = boundary
+        chunk = " ".join(text[start:end].split())
+        if chunk:
+            chunks.append((start, chunk))
+        if end >= len(text):
+            break
+        start = max(start + 1, end - _PASSAGE_OVERLAP_CHARS)
+    return chunks
+
+
+def _relevant_passages(text: str, query: str) -> list[dict]:
+    terms = {
+        term.lower()
+        for term in re.findall(r"[\w-]{3,}", query)
+        if term.lower() not in _QUERY_STOPWORDS
+    }
+    if not terms:
+        terms = {term.lower() for term in re.findall(r"[\w-]{3,}", query)}
+    phrase = " ".join(query.lower().split())
+    ranked = []
+    for start, chunk in _text_chunks(text):
+        lowered = chunk.lower()
+        matched_terms = sum(term in lowered for term in terms)
+        occurrences = sum(lowered.count(term) for term in terms)
+        score = (matched_terms * 10) + occurrences
+        if phrase and phrase in lowered:
+            score += 25
+        if score:
+            ranked.append((score, start, chunk))
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+    selected = []
+    for _score, start, chunk in ranked:
+        if any(
+            abs(start - item["start_char"])
+            < (_MAX_PASSAGE_CHARS - _PASSAGE_OVERLAP_CHARS)
+            for item in selected
+        ):
+            continue
+        selected.append({"text": chunk, "start_char": start})
+        if len(selected) >= _MAX_PASSAGES:
+            break
+    return selected
 
 
 def _institution_names(record: dict) -> list[str]:
@@ -179,7 +267,9 @@ class OpenAlexToolset:
             Tool(
                 name="get_author_works",
                 description=(
-                    "List a resolved author's papers, most recent first. Only "
+                    "List up to 10 compact paper metadata rows for a resolved "
+                    "author, most recent first. Abstracts are intentionally "
+                    "omitted; fetch one with get_work_abstract. Only "
                     "works whose source_url/pdf_url appear here may be cited in "
                     "the profile."
                 ),
@@ -198,7 +288,9 @@ class OpenAlexToolset:
                         },
                         "max_results": {
                             "type": "integer",
-                            "description": "Max works to return (default 25).",
+                            "minimum": 1,
+                            "maximum": _MAX_WORKS_PER_CALL,
+                            "description": "Max works to return (default 10, max 10).",
                         },
                     },
                     "required": ["openalex_author_id"],
@@ -206,15 +298,11 @@ class OpenAlexToolset:
                 handler=self._get_author_works,
             ),
             Tool(
-                name=GET_WORK_FULLTEXT,
+                name=GET_WORK_ABSTRACT,
                 description=(
-                    "Read the full text of a work returned by get_author_works "
-                    "(pass its source_url exactly). Use it to inspect Methods "
-                    "sections for the lab's actual techniques, instruments, "
-                    "model systems, and datasets. Falls back to the abstract "
-                    "when no readable PDF exists. Limited to "
-                    f"{self._max_fulltext_fetches} reads per run -- spend them "
-                    "on the works that best evidence what the lab can do."
+                    "Fetch the abstract for one work returned by "
+                    "get_author_works. Use for quick relevance checks before "
+                    "spending a full-text search."
                 ),
                 input_schema={
                     "type": "object",
@@ -229,7 +317,41 @@ class OpenAlexToolset:
                     },
                     "required": ["source_url"],
                 },
-                handler=self._get_work_fulltext,
+                handler=self._get_work_abstract,
+            ),
+            Tool(
+                name=SEARCH_WORK_FULLTEXT,
+                description=(
+                    "Search one returned work's full text for a focused query "
+                    "and return only the most relevant passages, not the whole "
+                    "paper. Use for Methods, instruments, model systems, or "
+                    "datasets after choosing a work from metadata/abstract. "
+                    "Falls back to searching the abstract when no PDF is readable. "
+                    "Limited to "
+                    f"{self._max_fulltext_fetches} reads per run -- spend them "
+                    "on the works that best evidence what the lab can do."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "source_url": {
+                            "type": "string",
+                            "description": (
+                                "The work's source_url, exactly as returned by "
+                                "get_author_works."
+                            ),
+                        },
+                        "query": {
+                            "type": "string",
+                            "description": (
+                                "Focused terms to find, e.g. 'single-cell RNA-seq "
+                                "methods and instruments'."
+                            ),
+                        },
+                    },
+                    "required": ["source_url", "query"],
+                },
+                handler=self._search_work_fulltext,
             ),
             Tool(
                 name=SUBMIT_PROFILE,
@@ -303,8 +425,15 @@ class OpenAlexToolset:
         author_id = str(args.get("openalex_author_id") or "").strip()
         if not author_id:
             return {"error": "openalex_author_id is required"}
-        max_results = int(args.get("max_results") or 25)
-        batch_size = max(1, min(max_results, _MAX_WORKS_PER_CALL))
+        try:
+            raw_max_results = args.get("max_results")
+            requested = int(
+                _DEFAULT_WORKS_PER_CALL if raw_max_results is None else raw_max_results
+            )
+        except (TypeError, ValueError):
+            return {"error": "max_results must be an integer"}
+        max_results = max(1, min(requested, _MAX_WORKS_PER_CALL))
+        batch_size = max_results
         open_access_only = args.get("open_access_only", True)
         works = self._oa.get_works_typed(
             openalex_author_id=author_id,
@@ -317,21 +446,52 @@ class OpenAlexToolset:
             data = work.as_dict()
             if data["source_url"]:
                 self.returned_works[data["source_url"]] = data
-            payload.append(data)
+            payload.append(_work_metadata(data))
         return {"works": payload}
 
-    def _get_work_fulltext(self, args: dict) -> dict:
+    def _returned_work(self, args: dict) -> tuple[str, dict | None, dict | None]:
         source_url = str((args or {}).get("source_url") or "").strip()
         if not source_url:
-            return {"error": "source_url is required"}
+            return source_url, None, {"error": "source_url is required"}
         work = self.returned_works.get(source_url)
         if work is None:
+            return (
+                source_url,
+                None,
+                {
+                    "error": (
+                        "Unknown source_url -- it must match a work returned by "
+                        "get_author_works."
+                    )
+                },
+            )
+        return source_url, work, None
+
+    def _get_work_abstract(self, args: dict) -> dict:
+        source_url, work, error = self._returned_work(args)
+        if error:
+            return error
+        abstract = str(work.get("abstract") or "").strip()
+        if not abstract:
             return {
-                "error": (
-                    "Unknown source_url -- it must match a work returned by "
-                    "get_author_works."
-                )
+                "source_url": source_url,
+                "title": str(work.get("title") or "").strip(),
+                "error": "No abstract is available for this work.",
             }
+        return {
+            "source_url": source_url,
+            "title": str(work.get("title") or "").strip(),
+            "abstract": abstract[:_MAX_ABSTRACT_CHARS],
+            "truncated": len(abstract) > _MAX_ABSTRACT_CHARS,
+        }
+
+    def _search_work_fulltext(self, args: dict) -> dict:
+        source_url, work, error = self._returned_work(args)
+        if error:
+            return error
+        query = " ".join(str((args or {}).get("query") or "").split())
+        if not query:
+            return {"error": "query is required"}
         if self._fulltext_fetches_used >= self._max_fulltext_fetches:
             return {
                 "error": (
@@ -353,13 +513,15 @@ class OpenAlexToolset:
                 "content_type": "none",
                 "error": "No readable full text or abstract available for this work.",
             }
-        truncated = len(text) > _MAX_FULLTEXT_CHARS
+        passages = _relevant_passages(text, query)
         return {
             "source_url": source_url,
             "title": str(work.get("title") or "").strip(),
             "content_type": content_type,
-            "truncated": truncated,
-            "text": text[:_MAX_FULLTEXT_CHARS] if truncated else text,
+            "query": query,
+            "passages": passages,
+            "searched_chars": len(text),
+            "message": None if passages else "No passages matched the query.",
         }
 
     @staticmethod
@@ -369,10 +531,12 @@ class OpenAlexToolset:
             pdf_bytes = get_pdf_bytes_from_url(pdf_url)
             if not pdf_bytes:
                 return ""
-            return extract_text_from_pdf_bytes(pdf_bytes, max_chars=_MAX_FULLTEXT_CHARS)
+            return extract_text_from_pdf_bytes(
+                pdf_bytes, max_chars=_MAX_PDF_SEARCH_CHARS
+            )
         except Exception as exc:  # noqa: BLE001 - a bad PDF must not break the loop
             logger.warning(
-                "get_work_fulltext: PDF read failed for %s: %s", pdf_url, exc
+                "search_work_fulltext: PDF read failed for %s: %s", pdf_url, exc
             )
             return ""
 

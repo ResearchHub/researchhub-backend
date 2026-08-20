@@ -48,14 +48,17 @@ How to work:
   Compare candidates' institutions, topics, and citation counts before choosing.
 - Prefer missing over wrong: if no candidate is a confident match, submit with
   openalex_author_id = null and a low confidence.
-- Once resolved, call get_author_works and select five papers. Strongly prefer
+- Once resolved, call get_author_works for compact metadata and select five
+  candidates. Fetch individual abstracts with get_work_abstract only when you
+  need them to judge relevance. Strongly prefer
   ones where this author is first or last author; fall back to a middle-author
   paper only to reach five when there are not enough first/last ones. Among
   eligible papers, favor recent and relevant work. Only keep papers with a
   pdf_url (readable full text); aim for five, but return fewer rather than
   padding with papers that lack one.
-- Then map the lab's capabilities. Call get_work_fulltext on the most relevant
-  works (prefer first/last-author ones) and read their Methods for the concrete
+- Then map the lab's capabilities. Call search_work_fulltext with focused
+  Methods queries on the most relevant works (prefer first/last-author ones)
+  and use the returned passages for the concrete
   techniques, instruments/platforms, model systems, and datasets the lab
   actually works with -- the real bounds of what a proposal for this researcher
   could credibly do. Submit these as `capabilities`. A capability that appears

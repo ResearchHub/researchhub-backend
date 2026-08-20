@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from purchase.models import Grant
 from research_ai.services.notebook_chat.grant_tools import (
+    GET_GRANT_DETAILS,
     SEARCH_GRANTS,
     GrantSearchToolset,
 )
@@ -94,6 +95,11 @@ class GrantSearchToolsetTests(TestCase):
         self.assertEqual(item["title"], "Neural Biomarker Discovery")
         self.assertEqual(item["amount"], "50000.00")
         self.assertEqual(item["currency"], "USD")
+        self.assertEqual(
+            item["summary"], "Funding for neuroscience biomarker validation."
+        )
+        self.assertNotIn("description", item)
+        self.assertNotIn("post_content", item)
         post_id = matching.unified_document.posts.first().id
         self.assertIn(f"/grant/{post_id}/", item["url"])
 
@@ -113,7 +119,23 @@ class GrantSearchToolsetTests(TestCase):
         self.assertEqual([item["id"] for item in owner_result["grants"]], [private.id])
         self.assertEqual(other_result["grants"], [])
 
-    def test_search_returns_content_when_only_the_backing_post_matches(self):
+    def test_search_caps_results_at_five_compact_cards(self):
+        # Arrange
+        for index in range(6):
+            self._grant(
+                title=f"Neural Methods Award {index}",
+                description="Funding for neural methods research.",
+            )
+
+        # Act
+        result = self._search(self.user, "neural methods")
+
+        # Assert
+        self.assertEqual(len(result["grants"]), 5)
+        self.assertTrue(all("summary" in item for item in result["grants"]))
+        self.assertTrue(all("post_content" not in item for item in result["grants"]))
+
+    def test_search_returns_compact_summary_when_only_backing_post_matches(self):
         # Arrange
         post_content = "Supports single-cell proteomics in rare diseases. " + (
             "x" * 4000
@@ -132,7 +154,44 @@ class GrantSearchToolsetTests(TestCase):
         self.assertEqual([item["id"] for item in result["grants"]], [matching.id])
         item = result["grants"][0]
         self.assertEqual(item["title"], "Emerging Methods Award")
-        self.assertEqual(item["post_content"], post_content[:3000])
+        self.assertEqual(
+            item["summary"], "Funding for reproducible experimental research."
+        )
+        self.assertNotIn("post_content", item)
+
+    def test_get_grant_details_returns_one_visible_grant(self):
+        # Arrange
+        post_content = "Detailed eligibility and application instructions."
+        grant = self._grant(
+            title="Neural Methods Award",
+            description="Detailed grant description.",
+            post_content=post_content,
+        )
+        toolset = GrantSearchToolset(user=self.user).as_toolset()
+
+        # Act
+        result, stop = toolset.dispatch(GET_GRANT_DETAILS, {"grant_id": grant.id})
+
+        # Assert
+        self.assertFalse(stop)
+        self.assertEqual(result["grant"]["id"], grant.id)
+        self.assertEqual(result["grant"]["description"], "Detailed grant description.")
+        self.assertEqual(result["grant"]["post_content"], post_content)
+
+    def test_get_grant_details_rechecks_visibility(self):
+        # Arrange
+        private = self._grant(
+            title="Private Neural Methods Award",
+            description="Private details.",
+            is_public=False,
+        )
+        toolset = GrantSearchToolset(user=self.user).as_toolset()
+
+        # Act
+        result, _ = toolset.dispatch(GET_GRANT_DETAILS, {"grant_id": private.id})
+
+        # Assert
+        self.assertIn("not found or not accessible", result["error"])
 
     def test_search_requires_a_bounded_query(self):
         # Arrange
