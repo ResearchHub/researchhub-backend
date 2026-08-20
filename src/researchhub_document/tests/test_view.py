@@ -270,6 +270,22 @@ class ViewTests(APITestCase):
         post = ResearchhubPost.objects.get(id=doc_response.data["id"])
         self.assertEqual(post.ordered_authors, [self.member_author, self.admin_author])
 
+    def test_returns_post_authors_in_byline_order(self):
+        """Verify the post detail response lists authors in byline order."""
+        # Arrange
+        post = create_post(created_by=self.admin_user)
+        post.reset_post_authors([self.member_author.id, self.admin_author.id])
+
+        # Act
+        response = self.client.get(f"/api/researchhubpost/{post.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [author["id"] for author in response.data["authors"]],
+            [self.member_author.id, self.admin_author.id],
+        )
+
     def test_user_can_create_post_with_non_members(self):
         note = create_note(self.admin_user, self.organization)
 

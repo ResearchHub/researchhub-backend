@@ -259,10 +259,11 @@ class ResearchhubPost(AbstractGenericReactionModel):
     @property
     def ordered_authors(self) -> list[Author]:
         """Credited authors in byline order, excluding removed ones."""
-        links = self.author_links.filter(author__is_removed=False).select_related(
-            "author"
-        )
-        return [link.author for link in links]
+        return [
+            link.author
+            for link in self.author_links.all()
+            if not link.author.is_removed
+        ]
 
     @property
     def is_removed(self):
@@ -308,6 +309,14 @@ class ResearchhubPost(AbstractGenericReactionModel):
             )
 
 
+class ResearchhubPostAuthorManager(models.Manager):
+    """Load author links with their author, so bylines cost a single query."""
+
+    def get_queryset(self) -> "models.QuerySet[ResearchhubPostAuthor]":
+        """Return links with the credited author already loaded."""
+        return super().get_queryset().select_related("author")
+
+
 class ResearchhubPostAuthor(models.Model):
     """An author credited on a post and the order they appear in."""
 
@@ -322,6 +331,8 @@ class ResearchhubPostAuthor(models.Model):
         on_delete=models.CASCADE,
     )
     position = models.IntegerField(null=True)
+
+    objects = ResearchhubPostAuthorManager()
 
     class Meta:
         db_table = "researchhub_document_researchhubpost_authors"

@@ -27,12 +27,14 @@ from reputation.related_models.bounty import Bounty
 from researchhub_document.related_models.constants.document_type import (
     REGISTERED_REPORT,
 )
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_post_model import (
+    ResearchhubPost,
+    ResearchhubPostAuthor,
+)
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from review.models import Review
-from user.models import Author
 
 from .common import FeedPagination
 
@@ -145,7 +147,12 @@ class JournalV2FeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 "unified_document",
             )
             .prefetch_related(
-                Prefetch("authors", queryset=Author.objects.select_related("user")),
+                Prefetch(
+                    "author_links",
+                    queryset=ResearchhubPostAuthor.objects.select_related(
+                        "author__user"
+                    ),
+                ),
                 *source_proposal_prefetches,
             )
             .annotate(

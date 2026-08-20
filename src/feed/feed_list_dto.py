@@ -344,10 +344,8 @@ class FundingFeedPostSerializer(serializers.Serializer):
             "bounties": _serialize_slim_bounties(post),
         }
 
-        if hasattr(post, "authors"):
-            authors = post.authors.all()
-            if authors:
-                data["authors"] = SimpleAuthorSerializer(authors, many=True).data
+        if authors := post.ordered_authors:
+            data["authors"] = SimpleAuthorSerializer(authors, many=True).data
 
         if post.unified_document and hasattr(post.unified_document, "reviews"):
             reviews = post.unified_document.reviews.all()
@@ -399,7 +397,7 @@ class JournalFeedPostSerializer(serializers.Serializer):
 
     def serialize_authors(self, post: ResearchhubPost) -> list[dict[str, Any]]:
         """Serialize the registered report's authors."""
-        return SimpleAuthorSerializer(post.authors.all(), many=True).data
+        return SimpleAuthorSerializer(post.ordered_authors, many=True).data
 
     @staticmethod
     def _get_image_url(post: ResearchhubPost) -> str | None:

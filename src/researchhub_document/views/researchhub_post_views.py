@@ -222,6 +222,7 @@ class ResearchhubPostViewSet(
                 )
                 .select_related("unified_document")
                 .prefetch_related(
+                    "author_links",
                     Prefetch(
                         "grant_applications",
                         queryset=GrantApplication.objects.select_related("grant"),
