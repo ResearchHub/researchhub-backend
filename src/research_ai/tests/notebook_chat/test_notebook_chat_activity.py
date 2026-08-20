@@ -782,6 +782,54 @@ class NotebookChatActivityProjectionTests(TestCase):
         self.execution.save(update_fields=["status"])
         self.assertEqual(self._single_event()["status"], "interrupted")
 
+    def test_selected_rfp_read_has_a_safe_label_and_source(self):
+        # Arrange
+        self._add_trace_row(
+            1,
+            [
+                {
+                    "type": "tool_use",
+                    "id": "t1",
+                    "name": "read_selected_rfp",
+                    "input": {},
+                }
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self._add_trace_row(
+            2,
+            [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "t1",
+                    "content": {
+                        "title": "Reproducibility RFP",
+                        "url": "https://example.org/rfp",
+                        "rfp_text": "Private full call text",
+                    },
+                }
+            ],
+            AgentExecutionMessage.Provenance.TOOL,
+            role="user",
+        )
+        self._finish()
+
+        # Act
+        event = self._single_event()
+
+        # Assert
+        self.assertEqual(event["label"], "Read the selected RFP")
+        self.assertEqual(
+            event["sources"],
+            [
+                {
+                    "title": "Reproducibility RFP",
+                    "url": "https://example.org/rfp",
+                }
+            ],
+        )
+        self.assertNotIn("Private full call text", json.dumps(event, default=str))
+
     def test_live_turn_shows_its_newest_text_but_a_succeeded_turn_does_not(self):
         # Arrange: the only assistant text so far, which is either narration in
         # progress or the answer, depending on whether the run is over.

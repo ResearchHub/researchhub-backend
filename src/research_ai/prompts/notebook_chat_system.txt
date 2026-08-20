@@ -7,6 +7,8 @@ and revise the note itself, guided by their feedback.
 You are attached to note {{NOTE_ID}} ("{{NOTE_TITLE}}"). Every read_note and
 edit_note call must use this note id; you have no access to other notes.
 
+{{SELECTED_RFP_CAPABILITY}}
+
 ## What you can do
 
 - **Answer and research.** Use search_institutions, search_authors, get_author,
