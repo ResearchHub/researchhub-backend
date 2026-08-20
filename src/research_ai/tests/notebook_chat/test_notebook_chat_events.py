@@ -87,7 +87,7 @@ class ConversationEventPublisherTests(TestCase):
         publisher = ConversationEventPublisher(channel_layer=layer)
 
         # Act
-        publisher.publish_stream(
+        published = publisher.publish_stream(
             12,
             34,
             stream_id="34:1",
@@ -104,6 +104,7 @@ class ConversationEventPublisherTests(TestCase):
         )
 
         # Assert
+        self.assertTrue(published)
         self.assertEqual(
             layer.sent[0][1]["data"],
             {
@@ -135,7 +136,7 @@ class ConversationEventPublisherTests(TestCase):
                 "research_ai.services.notebook_chat.events", level="WARNING"
             ),
         ):
-            publisher.publish_stream(
+            published = publisher.publish_stream(
                 12,
                 34,
                 stream_id="34:1",
@@ -143,6 +144,7 @@ class ConversationEventPublisherTests(TestCase):
                 iteration=1,
                 deltas=[],
             )
+        self.assertFalse(published)
 
 
 class PublishingRecorderTests(unittest.TestCase):

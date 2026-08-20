@@ -158,7 +158,7 @@ class NotebookStreamBuffer:
                 "items": [dict(item) for item in self.items.values()],
             },
         )
-        self.publisher.publish_stream(
+        published = self.publisher.publish_stream(
             self.conversation_id,
             self.execution_id,
             stream_id=stream_id,
@@ -170,6 +170,11 @@ class NotebookStreamBuffer:
         self.pending.clear()
         self.pending_chars = 0
         self.last_flush_at = now
+        if published is False:
+            # Channel delivery is optional, but retrying a stalled send for
+            # every provider chunk can block consumption of the model stream.
+            # Keep the last recovery snapshot and stop preview work this turn.
+            self.disable()
 
     def restart(self, iteration: int) -> None:
         """Replace a discarded provider attempt with a new empty preview."""
@@ -187,7 +192,7 @@ class NotebookStreamBuffer:
                 "items": [],
             },
         )
-        self.publisher.publish_stream(
+        published = self.publisher.publish_stream(
             self.conversation_id,
             self.execution_id,
             stream_id=stream_id,
@@ -196,6 +201,8 @@ class NotebookStreamBuffer:
             deltas=[],
         )
         self.last_flush_at = self.clock()
+        if published is False:
+            self.disable()
 
     def disable(self) -> None:
         """Drop local state and stop preview work for this provider turn."""

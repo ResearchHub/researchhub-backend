@@ -33,9 +33,11 @@ class FakeCache:
 class FakePublisher:
     def __init__(self):
         self.calls = []
+        self.succeeds = True
 
     def publish_stream(self, *args, **kwargs):
         self.calls.append((args, kwargs))
+        return self.succeeds
 
 
 class NotebookStreamBufferTests(SimpleTestCase):
@@ -169,6 +171,22 @@ class NotebookStreamBufferTests(SimpleTestCase):
         self.assertIsNone(self.store.get(9))
         self.assertEqual(len(self.publisher.calls), 1)
         self.assertEqual(is_active.call_count, 2)
+
+    def test_publish_failure_disables_preview_for_the_rest_of_the_turn(self):
+        # Arrange
+        self.publisher.succeeds = False
+
+        # Act
+        self.buffer.append(1, TextStreamDelta(block_index=0, text="before"))
+        self.now += 1
+        self.buffer.append(1, TextStreamDelta(block_index=0, text="after"))
+
+        # Assert: the recoverable snapshot that preceded the failed send stays,
+        # but later model chunks perform no more optional cache/socket work.
+        self.assertTrue(self.buffer.stopped)
+        self.assertEqual(self.store.get(9)["items"][0]["text"], "before")
+        self.assertEqual(len(self.cache.set_calls), 1)
+        self.assertEqual(len(self.publisher.calls), 1)
 
     def test_store_ignores_non_snapshot_cache_values(self):
         # Arrange

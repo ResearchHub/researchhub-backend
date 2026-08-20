@@ -106,13 +106,14 @@ class ConversationEventPublisher:
         sequence: int,
         iteration: int,
         deltas: list[dict],
-    ) -> None:
+    ) -> bool:
         """Publish one transient stream batch immediately.
 
         The recovery snapshot is cache-backed, so no database transaction
-        needs to commit before the frame is safe to observe.
+        needs to commit before the frame is safe to observe. ``False`` tells
+        the producer to stop optional preview work after a channel failure.
         """
-        self._send_data(
+        return self._send_data(
             conversation_id,
             {
                 "conversation_id": conversation_id,
@@ -125,7 +126,7 @@ class ConversationEventPublisher:
             },
         )
 
-    def _send_data(self, conversation_id: int, data: dict) -> None:
+    def _send_data(self, conversation_id: int, data: dict) -> bool:
         try:
             layer = self._channel_layer or get_channel_layer()
             async_to_sync(_group_send_with_timeout)(
@@ -136,6 +137,7 @@ class ConversationEventPublisher:
                     "data": data,
                 },
             )
+            return True
         except Exception:  # noqa: BLE001 - push is best-effort by contract
             logger.warning(
                 "notebook chat event publish failed (conversation=%s kind=%s)",
@@ -143,6 +145,7 @@ class ConversationEventPublisher:
                 data.get("kind"),
                 exc_info=True,
             )
+            return False
 
 
 class PublishingRecorder:
