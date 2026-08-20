@@ -16,6 +16,7 @@ _MAX_QUERY_CHARS = 500
 _MAX_DESCRIPTION_CHARS = 3000
 _MAX_POST_CONTENT_CHARS = 3000
 _EMPTY_INPUT_SCHEMA = {"type": "object", "properties": {}}
+_SELECTED_RFP_NOT_ACCESSIBLE = "selected RFP not found or not accessible"
 
 
 def _grant_url(grant, post=None) -> str | None:
@@ -140,7 +141,7 @@ class SelectedRFPToolset:
 
     def _read_selected_rfp(self, _args: dict) -> dict:
         if self._user is None or not getattr(self._user, "is_authenticated", False):
-            return {"error": "selected RFP not found or not accessible"}
+            return {"error": _SELECTED_RFP_NOT_ACCESSIBLE}
 
         try:
             note = (
@@ -155,7 +156,7 @@ class SelectedRFPToolset:
                 )
             )
             if not note.permissions.has_user(self._user):
-                return {"error": "selected RFP not found or not accessible"}
+                return {"error": _SELECTED_RFP_NOT_ACCESSIBLE}
 
             grant = note.selected_grant
             if grant is None:
@@ -163,7 +164,7 @@ class SelectedRFPToolset:
             if grant.unified_document.is_removed or not (
                 grant.unified_document.is_visible_to_user(self._user)
             ):
-                return {"error": "selected RFP not found or not accessible"}
+                return {"error": _SELECTED_RFP_NOT_ACCESSIBLE}
 
             post = grant.unified_document.posts.first()
             title = (grant.short_title or "").strip()
@@ -181,7 +182,7 @@ class SelectedRFPToolset:
                 "url": _grant_url(grant, post),
             }
         except Note.DoesNotExist:
-            return {"error": "selected RFP not found or not accessible"}
+            return {"error": _SELECTED_RFP_NOT_ACCESSIBLE}
         except Exception:  # noqa: BLE001 - tool failures are model-readable
             logger.exception("selected RFP read failed for note %s", self._note_id)
             return {"error": "selected RFP is temporarily unavailable"}

@@ -165,7 +165,7 @@ class SelectedRFPToolsetTests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("selected_rfp_user")
         self.owner = create_random_authenticated_user("selected_rfp_owner")
-        self.note, _content = create_note(self.user, organization=None)
+        self.note, _ = create_note(self.user, organization=None)
         self.note.document_type = PREREGISTRATION
         self.note.save(update_fields=["document_type"])
         Permission.objects.create(
