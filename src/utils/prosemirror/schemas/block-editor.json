@@ -1,0 +1,402 @@
+{
+  "topNode": "doc",
+  "nodes": {
+    "paragraph": {
+      "content": "inline*",
+      "group": "block",
+      "attrs": {
+        "id": {
+          "default": null
+        },
+        "class": {
+          "default": null
+        },
+        "textAlign": {
+          "default": null
+        }
+      }
+    },
+    "doc": {
+      "content": "(block|columns)+"
+    },
+    "columns": {
+      "content": "column column",
+      "group": "columns",
+      "defining": true,
+      "isolating": true,
+      "attrs": {
+        "layout": {
+          "default": "two-column"
+        }
+      }
+    },
+    "taskList": {
+      "content": "taskItem+",
+      "group": "block list"
+    },
+    "taskItem": {
+      "content": "paragraph block*",
+      "defining": true,
+      "attrs": {
+        "checked": {
+          "default": false
+        }
+      }
+    },
+    "column": {
+      "content": "block+",
+      "isolating": true,
+      "attrs": {
+        "position": {
+          "default": ""
+        }
+      }
+    },
+    "heading": {
+      "content": "inline*",
+      "group": "block",
+      "defining": true,
+      "attrs": {
+        "id": {
+          "default": null
+        },
+        "data-toc-id": {
+          "default": null
+        },
+        "textAlign": {
+          "default": null
+        },
+        "level": {
+          "default": 1
+        }
+      }
+    },
+    "horizontalRule": {
+      "group": "block"
+    },
+    "bulletList": {
+      "content": "listItem+",
+      "group": "block list"
+    },
+    "hardBreak": {
+      "group": "inline",
+      "inline": true,
+      "selectable": false,
+      "linebreakReplacement": true
+    },
+    "listItem": {
+      "content": "paragraph block*",
+      "defining": true
+    },
+    "orderedList": {
+      "content": "listItem+",
+      "group": "block list",
+      "attrs": {
+        "start": {
+          "default": 1
+        },
+        "type": {
+          "default": null
+        }
+      }
+    },
+    "text": {
+      "group": "inline"
+    },
+    "details": {
+      "allowGapCursor": false,
+      "content": "detailsSummary detailsContent",
+      "group": "block",
+      "defining": true,
+      "isolating": true,
+      "attrs": {
+        "open": {
+          "default": false
+        }
+      }
+    },
+    "detailsContent": {
+      "content": "block+",
+      "selectable": false,
+      "defining": true
+    },
+    "detailsSummary": {
+      "content": "text*",
+      "selectable": false,
+      "defining": true,
+      "isolating": true
+    },
+    "codeBlock": {
+      "content": "text*",
+      "marks": "",
+      "group": "block",
+      "code": true,
+      "defining": true,
+      "attrs": {
+        "id": {
+          "default": null
+        },
+        "language": {
+          "default": "javascript"
+        }
+      }
+    },
+    "tableOfContentsNode": {
+      "group": "block",
+      "inline": false,
+      "atom": true,
+      "selectable": true,
+      "draggable": true
+    },
+    "imageUpload": {
+      "group": "block",
+      "inline": false,
+      "selectable": true,
+      "draggable": true,
+      "defining": true,
+      "isolating": true
+    },
+    "imageBlock": {
+      "group": "block",
+      "inline": false,
+      "draggable": true,
+      "defining": true,
+      "isolating": true,
+      "attrs": {
+        "src": {
+          "default": ""
+        },
+        "width": {
+          "default": "100%"
+        },
+        "align": {
+          "default": "center"
+        },
+        "alt": {
+          "default": null
+        }
+      }
+    },
+    "emoji": {
+      "group": "inline",
+      "inline": true,
+      "selectable": false,
+      "attrs": {
+        "name": {
+          "default": null
+        }
+      }
+    },
+    "blockMath": {
+      "group": "block",
+      "atom": true,
+      "attrs": {
+        "latex": {
+          "default": ""
+        }
+      }
+    },
+    "inlineMath": {
+      "group": "inline",
+      "inline": true,
+      "atom": true,
+      "attrs": {
+        "latex": {
+          "default": ""
+        }
+      }
+    },
+    "table": {
+      "tableRole": "table",
+      "content": "tableRow+",
+      "group": "block",
+      "isolating": true,
+      "attrs": {
+        "id": {
+          "default": null
+        }
+      }
+    },
+    "tableCell": {
+      "tableRole": "cell",
+      "content": "block+",
+      "isolating": true,
+      "attrs": {
+        "colspan": {
+          "default": 1
+        },
+        "rowspan": {
+          "default": 1
+        },
+        "colwidth": {
+          "default": null
+        },
+        "style": {
+          "default": null
+        }
+      }
+    },
+    "tableHeader": {
+      "tableRole": "header_cell",
+      "content": "block+",
+      "isolating": true,
+      "attrs": {
+        "colspan": {
+          "default": 1
+        },
+        "rowspan": {
+          "default": 1
+        },
+        "colwidth": {
+          "default": null
+        },
+        "style": {
+          "default": null
+        }
+      }
+    },
+    "tableRow": {
+      "allowGapCursor": false,
+      "tableRole": "row",
+      "content": "tableCell*"
+    },
+    "figcaption": {
+      "content": "inline*",
+      "marks": "link",
+      "selectable": false,
+      "draggable": false
+    },
+    "blockquoteFigure": {
+      "content": "quote quoteCaption",
+      "group": "block",
+      "selectable": true,
+      "draggable": true,
+      "defining": true,
+      "isolating": true
+    },
+    "quote": {
+      "content": "paragraph+",
+      "marks": "",
+      "defining": true
+    },
+    "quoteCaption": {
+      "content": "text*",
+      "group": "block",
+      "defining": true,
+      "isolating": true
+    },
+    "youtube": {
+      "group": "block",
+      "inline": false,
+      "draggable": true,
+      "attrs": {
+        "src": {
+          "default": null
+        },
+        "start": {
+          "default": 0
+        },
+        "width": {
+          "default": 640
+        },
+        "height": {
+          "default": 480
+        }
+      }
+    },
+    "figure": {
+      "content": "block*",
+      "group": "block",
+      "attrs": {
+        "originalContent": {
+          "default": ""
+        },
+        "class": {
+          "default": ""
+        }
+      }
+    },
+    "aiWriter": {
+      "group": "block",
+      "draggable": true,
+      "attrs": {
+        "id": {
+          "default": null
+        },
+        "authorId": {
+          "default": null
+        },
+        "authorName": {
+          "default": null
+        }
+      }
+    },
+    "aiImage": {
+      "group": "block",
+      "draggable": true,
+      "attrs": {
+        "id": {
+          "default": null
+        },
+        "authorId": {
+          "default": null
+        },
+        "authorName": {
+          "default": null
+        }
+      }
+    }
+  },
+  "marks": {
+    "link": {
+      "inclusive": false,
+      "attrs": {
+        "href": {
+          "default": null
+        },
+        "target": {
+          "default": "_blank"
+        },
+        "rel": {
+          "default": "noopener noreferrer nofollow"
+        },
+        "class": {
+          "default": "link"
+        },
+        "title": {
+          "default": null
+        }
+      }
+    },
+    "textStyle": {
+      "attrs": {
+        "fontSize": {
+          "default": null
+        },
+        "fontFamily": {
+          "default": null
+        },
+        "color": {
+          "default": null
+        }
+      }
+    },
+    "bold": {},
+    "code": {
+      "excludes": "_",
+      "code": true
+    },
+    "italic": {},
+    "strike": {},
+    "highlight": {
+      "attrs": {
+        "color": {
+          "default": null
+        }
+      }
+    },
+    "underline": {},
+    "subscript": {},
+    "superscript": {}
+  }
+}
