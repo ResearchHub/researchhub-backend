@@ -75,12 +75,16 @@ from research_ai.services.notebook_chat.events import (
     ConversationEventPublisher,
     PublishingRecorder,
 )
-from research_ai.services.notebook_chat.grant_tools import GrantSearchToolset
+from research_ai.services.notebook_chat.grant_tools import (
+    GrantSearchToolset,
+    SelectedRFPToolset,
+)
 from research_ai.services.notebook_chat.toolset import (
     NotebookWebSearchToolset,
     compose_notebook_toolset,
 )
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
@@ -531,6 +535,11 @@ class NotebookChatService:
         toolset = compose_notebook_toolset(
             note_toolset=NoteToolset(user=conversation.user, note_ids={note.id}),
             grant_toolset=self._grant_toolset_factory(user=conversation.user),
+            selected_rfp_toolset=(
+                SelectedRFPToolset(note=note, user=conversation.user)
+                if note.document_type == PREREGISTRATION
+                else None
+            ),
             openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),
             web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
             native_tool_names=provider.native_tool_names,

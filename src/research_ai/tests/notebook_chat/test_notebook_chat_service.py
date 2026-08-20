@@ -36,6 +36,7 @@ from research_ai.tests.notebook_chat.test_notebook_chat_events import FakeChanne
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 
 EDITED_DOC = {
     "type": "doc",
@@ -109,9 +110,21 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.PENDING)
         self.assertIn(str(self.note.id), execution.system_prompt)
         self.assertIn(self.note.title, execution.system_prompt)
+        self.assertNotIn("read_selected_rfp", execution.system_prompt)
         self.assertEqual(execution.configuration["note_id"], self.note.id)
         self.assertEqual(execution.trigger_message.content, "Please add a summary.")
         delay.assert_called_once_with(execution.id)
+
+    def test_submit_message_mentions_selected_rfp_tool_for_preregistration(self):
+        # Arrange
+        self.note.document_type = PREREGISTRATION
+        self.note.save(update_fields=["document_type"])
+
+        # Act
+        execution, _delay = self._submit()
+
+        # Assert
+        self.assertIn("read_selected_rfp", execution.system_prompt)
 
     def test_second_message_continues_the_same_conversation(self):
         # Arrange
@@ -280,6 +293,40 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(result["final_text"], "Done.")
         grant_toolset_factory.assert_called_once_with(user=self.user)
         grant_toolset.build_tools.assert_called_once_with()
+
+    def test_run_turn_passes_selected_rfp_toolset_for_preregistration(self):
+        # Arrange
+        self.note.document_type = PREREGISTRATION
+        self.note.save(update_fields=["document_type"])
+        execution, _delay = self._submit()
+        provider = FakeProvider([text_turn("Done.")])
+
+        # Act
+        with patch(
+            "research_ai.services.notebook_chat.service.SelectedRFPToolset"
+        ) as selected_rfp_toolset:
+            selected_rfp_toolset.return_value.build_tools.return_value = []
+            result = _make_service(provider=provider).run_turn(execution.id)
+
+        # Assert
+        self.assertEqual(result["final_text"], "Done.")
+        selected_rfp_toolset.assert_called_once_with(note=self.note, user=self.user)
+        selected_rfp_toolset.return_value.build_tools.assert_called_once_with()
+
+    def test_run_turn_omits_selected_rfp_toolset_for_other_notes(self):
+        # Arrange
+        execution, _delay = self._submit()
+        provider = FakeProvider([text_turn("Done.")])
+
+        # Act
+        with patch(
+            "research_ai.services.notebook_chat.service.SelectedRFPToolset"
+        ) as selected_rfp_toolset:
+            result = _make_service(provider=provider).run_turn(execution.id)
+
+        # Assert
+        self.assertEqual(result["final_text"], "Done.")
+        selected_rfp_toolset.assert_not_called()
 
     def test_run_turn_honors_the_recorded_iteration_limit(self):
         # Arrange: the turn was submitted with a one-iteration budget; the
