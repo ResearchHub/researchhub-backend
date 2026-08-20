@@ -16,7 +16,11 @@ from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
-from researchhub_document.models import ResearchhubUnifiedDocument, ResearchJourney
+from researchhub_document.models import (
+    ResearchhubPost,
+    ResearchhubUnifiedDocument,
+    ResearchJourney,
+)
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
@@ -236,14 +240,16 @@ class ViewTests(APITestCase):
         self.assertEqual(doc_response.status_code, 400)
 
     def test_user_can_create_post_with_multiple_authors(self):
+        """Verify creating a post credits its authors in the submitted order."""
+        # Arrange
         note = create_note(self.admin_user, self.organization)
-
         self.client.force_authenticate(self.admin_user)
 
+        # Act
         doc_response = self.client.post(
             "/api/researchhubpost/",
             {
-                "authors": [self.admin_author.id, self.member_author.id],
+                "authors": [self.member_author.id, self.admin_author.id],
                 "created_by": self.admin_user.id,
                 "document_type": "DISCUSSION",
                 "full_src": "body",
@@ -259,7 +265,26 @@ class ViewTests(APITestCase):
             },
         )
 
+        # Assert
         self.assertEqual(doc_response.status_code, 200)
+        post = ResearchhubPost.objects.get(id=doc_response.data["id"])
+        self.assertEqual(post.ordered_authors, [self.member_author, self.admin_author])
+
+    def test_returns_post_authors_in_byline_order(self):
+        """Verify the post detail response lists authors in byline order."""
+        # Arrange
+        post = create_post(created_by=self.admin_user)
+        post.reset_post_authors([self.member_author.id, self.admin_author.id])
+
+        # Act
+        response = self.client.get(f"/api/researchhubpost/{post.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [author["id"] for author in response.data["authors"]],
+            [self.member_author.id, self.admin_author.id],
+        )
 
     def test_user_can_create_post_with_non_members(self):
         note = create_note(self.admin_user, self.organization)
@@ -367,13 +392,14 @@ class ViewTests(APITestCase):
         self.assertEqual(updated_response.data["image_url"], "/updatedImagePath1")
 
     def test_author_can_update_post_with_non_members(self):
+        """Verify updating a post recredits its authors in the submitted order."""
+        # Arrange
         note = create_note(self.admin_user, self.organization)
-
         self.client.force_authenticate(self.admin_user)
-
         doc_response = self.client.post(
             "/api/researchhubpost/",
             {
+                "authors": [self.admin_author.id, self.non_member_author.id],
                 "document_type": "DISCUSSION",
                 "created_by": self.admin_user.id,
                 "full_src": "body",
@@ -391,10 +417,11 @@ class ViewTests(APITestCase):
 
         self.assertEqual(doc_response.status_code, 200)
 
+        # Act
         updated_response = self.client.post(
             "/api/researchhubpost/",
             {
-                "authors": [self.admin_author.id, self.non_member_author.id],
+                "authors": [self.non_member_author.id, self.admin_author.id],
                 "post_id": doc_response.data["id"],
                 "document_type": "DISCUSSION",
                 "created_by": self.admin_user.id,
@@ -410,7 +437,12 @@ class ViewTests(APITestCase):
             },
         )
 
+        # Assert
         self.assertEqual(updated_response.status_code, 200)
+        post = ResearchhubPost.objects.get(id=doc_response.data["id"])
+        self.assertEqual(
+            post.ordered_authors, [self.non_member_author, self.admin_author]
+        )
 
     def test_author_cannot_update_post_without_self_in_authors(self):
         # Arrange

@@ -3,7 +3,7 @@ import logging
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Exists, OuterRef, Q
 from django.utils.functional import cached_property
 
@@ -257,6 +257,15 @@ class ResearchhubPost(AbstractGenericReactionModel):
         return self.unified_document.hubs
 
     @property
+    def ordered_authors(self) -> list[Author]:
+        """Credited authors in byline order, excluding removed ones."""
+        return [
+            link.author
+            for link in self.author_links.all()
+            if not link.author.is_removed
+        ]
+
+    @property
     def is_removed(self):
         return self.unified_document.is_removed
 
@@ -280,6 +289,33 @@ class ResearchhubPost(AbstractGenericReactionModel):
     def get_discussion_count(self):
         return self.rh_threads.get_discussion_count()
 
+    def reset_post_authors(self, author_ids: list[int]) -> None:
+        """Credit the given authors in the order received, dropping any others."""
+        unique_author_ids = list(dict.fromkeys(author_ids))
+        with transaction.atomic():
+            self.author_links.exclude(author_id__in=unique_author_ids).delete()
+            ResearchhubPostAuthor.objects.bulk_create(
+                [
+                    ResearchhubPostAuthor(
+                        researchhub_post=self,
+                        author_id=author_id,
+                        position=position,
+                    )
+                    for position, author_id in enumerate(unique_author_ids, start=1)
+                ],
+                update_conflicts=True,
+                unique_fields=["researchhub_post", "author"],
+                update_fields=["position"],
+            )
+
+
+class ResearchhubPostAuthorManager(models.Manager):
+    """Load author links with their author, so bylines cost a single query."""
+
+    def get_queryset(self) -> "models.QuerySet[ResearchhubPostAuthor]":
+        """Return links with the credited author already loaded."""
+        return super().get_queryset().select_related("author")
+
 
 class ResearchhubPostAuthor(models.Model):
     """An author credited on a post and the order they appear in."""
@@ -288,6 +324,7 @@ class ResearchhubPostAuthor(models.Model):
         ResearchhubPost,
         db_column="researchhubpost_id",
         on_delete=models.CASCADE,
+        related_name="author_links",
     )
     author = models.ForeignKey(
         Author,
@@ -295,6 +332,10 @@ class ResearchhubPostAuthor(models.Model):
     )
     position = models.IntegerField(null=True)
 
+    objects = ResearchhubPostAuthorManager()
+
     class Meta:
         db_table = "researchhub_document_researchhubpost_authors"
+        # Legacy links have no position, which Postgres sorts last.
+        ordering = ["position", "id"]
         unique_together = ("researchhub_post", "author")

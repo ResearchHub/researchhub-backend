@@ -62,6 +62,9 @@ class CreateRegisteredReportTests(APITestCase):
         """Verify a moderator can publish a report for an eligible proposal."""
         # Arrange
         proposal = self._create_completed_proposal(self.user)
+        coauthor = create_random_default_user("rr_coauthor")
+        proposal_authors = [coauthor.author_profile, self.user.author_profile]
+        proposal.reset_post_authors([author.id for author in proposal_authors])
         note = self._create_registered_report_note(proposal)
         payload = self._build_payload(proposal, note_id=note.id)
 
@@ -82,7 +85,7 @@ class CreateRegisteredReportTests(APITestCase):
             ResearchhubUnifiedDocument.APPROVED,
         )
         self.assertTrue(report.unified_document.is_public)
-        self.assertCountEqual(report.authors.all(), proposal.authors.all())
+        self.assertEqual(report.ordered_authors, proposal_authors)
         self.assertCountEqual(
             report.unified_document.hubs.all(),
             proposal.unified_document.hubs.all(),
@@ -96,7 +99,7 @@ class CreateRegisteredReportTests(APITestCase):
             version=report.version_number,
         )
         self.mock_doi.register_doi_for_post.assert_called_once_with(
-            list(report.authors.all()),
+            proposal_authors,
             report.title,
             report,
         )

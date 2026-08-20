@@ -1084,10 +1084,14 @@ class RelatedWorkSerializer(serializers.Serializer):
 
     def get_authors(self, unified_document):
         content = self._get_content(unified_document)
-        if not content or not hasattr(content, "authors"):
+        if not content:
             return None
 
-        authors = content.authors.all()
+        authors = (
+            content.authors.all()
+            if unified_document.document_type == PAPER
+            else content.ordered_authors
+        )
         if not authors:
             return None
 
