@@ -1467,7 +1467,7 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
 
 class ActivityFeedFunderFilterTests(APITestCase):
     """Test ?funder_id= filtering across grants created by or
-    contacted by a funder."""
+    contacted by a funder, plus opt-in funded proposals."""
 
     def setUp(self):
         super().setUp()
@@ -1820,6 +1820,63 @@ class ActivityFeedFunderFilterTests(APITestCase):
         resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
         ids = [e["id"] for e in resp.data["results"]]
         self.assertEqual(len(ids), len(set(ids)))
+
+    def _fund_lone_prereg_as(self, backer: User) -> None:
+        """Record an RSC fundraise contribution from the backer on the lone prereg."""
+        fundraise = Fundraise.objects.create(
+            unified_document=self.lone_prereg_doc,
+            created_by=self.applicant,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        Purchase.objects.create(
+            user=backer,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="100",
+        )
+
+    def test_funder_filter_includes_funded_proposal_when_opted_in(self):
+        """Verify a funder with no grants sees activity on a proposal they funded."""
+        # Arrange
+        backer = create_test_user("backer", email="backer@example.com")
+        self._fund_lone_prereg_as(backer)
+        comment_entry = _make_feed_entry(
+            RhCommentModel,
+            object_id=44444,
+            unified_document=self.lone_prereg_doc,
+            user=self.applicant,
+        )
+
+        # Act
+        resp = self.client.get(
+            ACTIVITY_LIST_URL,
+            {"funder_id": backer.id, "include_funded_proposals": "true"},
+        )
+
+        # Assert
+        self.assertIn(comment_entry.id, {e["id"] for e in resp.data["results"]})
+
+    def test_funder_filter_excludes_funded_proposal_by_default(self):
+        """Verify funded proposals stay out of the feed when the flag is absent."""
+        # Arrange
+        backer = create_test_user("backer", email="backer@example.com")
+        self._fund_lone_prereg_as(backer)
+        comment_entry = _make_feed_entry(
+            RhCommentModel,
+            object_id=55555,
+            unified_document=self.lone_prereg_doc,
+            user=self.applicant,
+        )
+
+        # Act
+        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": backer.id})
+
+        # Assert
+        self.assertNotIn(comment_entry.id, {e["id"] for e in resp.data["results"]})
 
 
 class ActivityFeedCacheTests(ActivityFeedBaseTests):

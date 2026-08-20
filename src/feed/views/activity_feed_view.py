@@ -27,6 +27,7 @@ from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
+from purchase.utils import get_funded_fundraise_ids
 from researchhub_comment.constants.rh_comment_thread_types import (
     COMMUNITY_REVIEW,
     PEER_REVIEW,
@@ -63,6 +64,9 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
       - funder_id: all activity on OPEN/COMPLETED grants where this user is
         the creator or a contact, plus every preregistration applied to
         those grants.
+      - include_funded_proposals: "true" additionally returns every proposal
+        this user has funded. Only meaningful alongside funder_id, and
+        defaults to false so existing funder_id callers are unaffected.
       - content_type: RHCOMMENTMODEL, RESEARCHHUBPOST, PAPER, etc.
 
     Filters can be combined: e.g. ?scope=grants&content_type=RHCOMMENTMODEL
@@ -203,6 +207,10 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
         funder_id = self.request.query_params.get("funder_id")
+        include_funded_proposals = (
+            self.request.query_params.get("include_funded_proposals", "").lower()
+            == "true"
+        )
 
         if not grant_id and not funder_id and not scope:
             queryset = queryset.filter(
@@ -213,7 +221,9 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         if grant_id:
             queryset = self._filter_by_grant(queryset, grant_id)
         elif funder_id:
-            queryset = self._filter_by_funder(queryset, funder_id)
+            queryset = self._filter_by_funder(
+                queryset, funder_id, include_funded_proposals
+            )
 
         if scope == "grants" and not grant_id and not funder_id:
             queryset = self._filter_all_grants(queryset)
@@ -319,12 +329,14 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         return queryset.filter(unified_document_id__in=all_ud_ids)
 
     @staticmethod
-    def _filter_by_funder(queryset, funder_id):
+    def _filter_by_funder(queryset, funder_id, include_funded_proposals):
         """
         Return feed entries for every OPEN or COMPLETED grant where
         `funder_id` is the creator OR a contact, plus every
         preregistration that has applied to those grants. Excludes
-        PENDING, CLOSED, and DECLINED grants.
+        PENDING, CLOSED, and DECLINED grants. When
+        `include_funded_proposals` is set, also returns every proposal
+        this user has funded.
         """
         funder_grants = Grant.objects.filter(
             Q(created_by_id=funder_id) | Q(contacts__id=funder_id),
@@ -341,6 +353,13 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         )
 
         ud_ids = set(grant_ud_ids) | set(prereg_ud_ids)
+        if include_funded_proposals:
+            ud_ids |= set(
+                Fundraise.objects.filter(
+                    id__in=get_funded_fundraise_ids(funder_id),
+                ).values_list("unified_document_id", flat=True)
+            )
+
         if not ud_ids:
             return queryset.none()
         return queryset.filter(unified_document_id__in=ud_ids)
