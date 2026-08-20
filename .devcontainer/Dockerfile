@@ -1,6 +1,6 @@
 FROM mcr.microsoft.com/devcontainers/python:3.13-trixie
 
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONUNBUFFERED=1
 
 # Remove Yarn apt source since the base image's signing key is stale.
 RUN rm -f /etc/apt/sources.list.d/yarn.list \
