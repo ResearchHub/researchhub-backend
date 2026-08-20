@@ -79,6 +79,7 @@ from research_ai.services.notebook_chat.grant_tools import (
     GrantSearchToolset,
     SelectedRFPToolset,
 )
+from research_ai.services.notebook_chat.streaming import ExecutionStreamStore
 from research_ai.services.notebook_chat.toolset import (
     NotebookWebSearchToolset,
     compose_notebook_toolset,
@@ -145,6 +146,7 @@ class NotebookChatService:
         cancel_service: AgentExecutionCancelService | None = None,
         config: NotebookChatConfig | None = None,
         event_publisher: ConversationEventPublisher | None = None,
+        stream_store: ExecutionStreamStore | None = None,
     ):
         self._provider = provider
         self._oa_client = oa_client
@@ -174,6 +176,7 @@ class NotebookChatService:
         self.events = (
             ConversationEventPublisher() if event_publisher is None else event_publisher
         )
+        self.streams = ExecutionStreamStore() if stream_store is None else stream_store
         self._config = config
 
     @property
@@ -285,6 +288,12 @@ class NotebookChatService:
         for execution in executions:
             execution_active = execution["status"] in active
             execution_events = events.get(execution["id"], [])
+            stream = None
+            if execution_active:
+                # Present even when empty so reconnecting clients can replace
+                # a stale transient preview with the current snapshot.
+                stream = self._stream_snapshot(execution["id"])
+                execution["stream"] = stream
             if scoped_ids is None or execution["id"] in scoped_ids:
                 execution["activity"] = public_activity(
                     execution_events,
@@ -314,6 +323,21 @@ class NotebookChatService:
                     execution["status"] == AgentExecution.Status.RUNNING
                 ),
             )
+            # A live provider delta is newer than the last durable trace row.
+            # It can therefore refine the coarse phase without becoming
+            # durable state itself.
+            if stream and stream.get("items"):
+                last_item = stream["items"][-1]
+                if last_item.get("type") == "narration":
+                    execution["phase"] = {
+                        "state": "responding",
+                        "label": "Writing a response",
+                    }
+                elif last_item.get("type") == "thinking":
+                    execution["phase"] = {
+                        "state": "thinking",
+                        "label": "Thinking",
+                    }
         return data
 
     @staticmethod
@@ -422,11 +446,12 @@ class NotebookChatService:
         """Stop the conversation's in-flight turn; ``None`` if none was running.
 
         Cancellation is cooperative: the worker is not interrupted here, it
-        notices at its next durable write and unwinds. So this returns as soon
-        as the intent is recorded, and the turn's status is ``CANCELLED`` from
-        that moment even though a model call may still be in flight. Nothing
-        the worker does afterwards can revive the row -- every terminal
-        transition in the recorder is guarded on ``RUNNING``.
+        notices at its next durable write and unwinds. The turn's status is
+        ``CANCELLED`` immediately even though a model call may still be in
+        flight. Nothing the worker does afterwards can revive the row -- every
+        terminal transition in the recorder is guarded on ``RUNNING``. Clients
+        likewise treat terminal status as authoritative and ignore any
+        best-effort preview delta already in flight.
         """
         execution = (
             conversation.executions.filter(
@@ -442,8 +467,17 @@ class NotebookChatService:
             return None
         if not self.cancels.cancel(execution):
             return None
-        # The worker's own writes stop publishing once the row is terminal
-        # (a refused write emits nothing), so the cancel is announced here.
+        try:
+            self.streams.clear(execution.id)
+        except Exception:  # noqa: BLE001 - preview cleanup is optional
+            logger.warning(
+                "notebook chat stream clear failed during cancellation (execution=%s)",
+                execution.id,
+                exc_info=True,
+            )
+        # The worker's durable writes stop once the row is terminal. A preview
+        # delta already in flight is harmless because clients give this
+        # terminal transition precedence for the execution.
         self.events.publish(conversation.id, execution.id, TURN_CANCELLED)
         return execution
 
@@ -583,7 +617,20 @@ class NotebookChatService:
             self.events,
             conversation_id=execution.conversation_id,
             execution_id=execution.id,
+            stream_store=self.streams,
         )
+
+    def _stream_snapshot(self, execution_id: int) -> dict | None:
+        """Read an optional transient preview without breaking durable chat reads."""
+        try:
+            return self.streams.get(execution_id)
+        except Exception:  # noqa: BLE001 - stream recovery is best-effort
+            logger.warning(
+                "notebook chat stream read failed (execution=%s)",
+                execution_id,
+                exc_info=True,
+            )
+            return None
 
     def _turn_config(self, execution: AgentExecution) -> NotebookChatConfig:
         """The knobs this turn was submitted with, not today's settings.

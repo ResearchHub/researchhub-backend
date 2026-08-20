@@ -16,7 +16,10 @@ from research_ai.services.agent_persistence import (
     AgentConversationBusyError,
     DatabaseAgentRecorder,
 )
-from research_ai.services.notebook_chat import WORKFLOW, NotebookChatService
+from research_ai.services.notebook_chat import (
+    WORKFLOW,
+    NotebookChatService,
+)
 from research_ai.services.notebook_chat.config import NotebookChatConfig
 from research_ai.services.notebook_chat.events import (
     TURN_CANCELLED,
@@ -896,6 +899,8 @@ class NotebookChatEventEmissionTests(TestCase):
     def test_cancel_active_turn_publishes_turn_cancelled(self):
         # Arrange
         execution = self._submit()
+        self.publisher.reset_mock()
+        self.service.streams = Mock()
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
@@ -906,6 +911,68 @@ class NotebookChatEventEmissionTests(TestCase):
         self.assertEqual(
             self.publisher.publish.call_args.args,
             (self.conversation.id, execution.id, TURN_CANCELLED),
+        )
+        self.service.streams.clear.assert_called_once_with(execution.id)
+
+    def test_cancel_active_turn_survives_stream_cache_cleanup_failure(self):
+        # Arrange
+        execution = self._submit()
+        self.publisher.reset_mock()
+        self.service.streams = Mock()
+        self.service.streams.clear.side_effect = RuntimeError("redis down")
+
+        # Act
+        with (
+            self.assertLogs(
+                "research_ai.services.notebook_chat.service", level="WARNING"
+            ),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            cancelled = self.service.cancel_active_turn(self.conversation)
+
+        # Assert: optional preview cleanup cannot block durable cancellation.
+        self.assertEqual(cancelled, execution)
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+        self.publisher.publish.assert_called_once_with(
+            self.conversation.id, execution.id, TURN_CANCELLED
+        )
+
+    def test_cancel_orders_state_change_cleanup_and_event(self):
+        # Arrange
+        execution = self._submit()
+        order = []
+        streams = Mock()
+        cancels = Mock()
+        publisher = Mock()
+
+        streams.clear.side_effect = lambda execution_id: order.append(
+            ("stream_clear", execution_id)
+        )
+        cancels.cancel.side_effect = lambda candidate: (
+            order.append(("durable_cancel", candidate.id)) or True
+        )
+        publisher.publish.side_effect = lambda _, execution_id, __: order.append(
+            ("turn_cancelled", execution_id)
+        )
+        service = _make_service(
+            stream_store=streams,
+            cancel_service=cancels,
+            event_publisher=publisher,
+        )
+
+        # Act
+        cancelled = service.cancel_active_turn(self.conversation)
+
+        # Assert
+        self.assertEqual(cancelled, execution)
+        self.assertEqual(
+            order,
+            [
+                ("durable_cancel", execution.id),
+                ("stream_clear", execution.id),
+                ("turn_cancelled", execution.id),
+            ],
         )
 
     def test_cancel_that_lost_the_race_publishes_nothing(self):

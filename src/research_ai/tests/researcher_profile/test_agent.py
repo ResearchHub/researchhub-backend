@@ -364,8 +364,8 @@ class RunProfileAgentTests(SimpleTestCase):
 
     def test_agent_failure_is_recorded_not_raised(self):
         # Arrange: the provider blows up mid-run.
-        provider = MagicMock()
-        provider.complete.side_effect = RuntimeError("bedrock exploded")
+        provider = MagicMock(spec=LLMProvider)
+        provider.complete_with_events.side_effect = RuntimeError("bedrock exploded")
         # Act
         profile = run_profile_agent(
             make_expert(), provider=provider, oa_client=MagicMock()
