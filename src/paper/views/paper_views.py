@@ -129,9 +129,6 @@ class PaperViewSet(
                     "is_verified",
                 ]
             },
-            "doc_duds_get_concepts": {
-                "_include_fields": ["openalex_id", "display_name", "description"]
-            },
             "pap_dps_get_hubs": {
                 "_exclude_fields": [
                     "editor_permission_groups",

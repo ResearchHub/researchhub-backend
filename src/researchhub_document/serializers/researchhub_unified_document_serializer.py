@@ -14,7 +14,6 @@ from researchhub_document.serializers import (
     DynamicPostSerializer,
     ResearchhubPostSerializer,
 )
-from tag.serializers import DynamicConceptSerializer, SimpleConceptSerializer
 from user.serializers import DynamicUserSerializer, UserSerializer
 
 logger = logging.getLogger(__name__)
@@ -53,7 +52,6 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
     hubs = SimpleHubSerializer(
         many=True, required=False, context={"no_subscriber_info": True}
     ).data
-    concepts = SimpleConceptSerializer(many=True, required=False).data
 
     def get_access_group(self, instance):
         # TODO: calvinhlee - access_group is for ELN. Work on this later
@@ -81,14 +79,13 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     access_group = SerializerMethodField()
     hubs = SerializerMethodField()
     reviews = SerializerMethodField()
-    concepts = SerializerMethodField()
     fundraise = SerializerMethodField()
     grant = SerializerMethodField()
     recommendation_metadata = SerializerMethodField()
 
     class Meta:
         model = ResearchhubUnifiedDocument
-        fields = "__all__"
+        exclude = ["concepts"]
 
     def get_recommendation_metadata(self, unified_doc):
         if hasattr(unified_doc, "recommendation_metadata"):
@@ -170,18 +167,6 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         if not unified_doc.reviews.exists():
             return {"avg": 0.0, "count": 0}
         return unified_doc.get_review_details()
-
-    def get_concepts(self, unified_doc):
-        context = self.context
-        _context_fields = context.get("doc_duds_get_concepts", {})
-        serializer = DynamicConceptSerializer(
-            unified_doc.concepts,
-            many=True,
-            required=False,
-            context=context,
-            **_context_fields,
-        )
-        return serializer.data
 
     def get_fundraise(self, unified_doc):
         if not unified_doc.fundraises.exists():
