@@ -227,6 +227,9 @@ class ParseBlocksTests(unittest.TestCase):
                 {"type": "paragraph", "content": [{"type": "paragraph"}]}
             ],
             "empty inline text": [{"type": "paragraph", "content": [""]}],
+            "non-string text": [
+                {"type": "paragraph", "content": [{"type": "text", "text": {"a": 1}}]}
+            ],
         }
 
         # Act & Assert
