@@ -94,7 +94,6 @@ class HubSerializer(ModelSerializer):
 
 class DynamicHubSerializer(DynamicModelFieldSerializer):
     editor_permission_groups = SerializerMethodField()
-    relevancy_score = SerializerMethodField()
 
     class Meta:
         model = Hub
@@ -110,17 +109,3 @@ class DynamicHubSerializer(DynamicModelFieldSerializer):
             context=context,
             many=True,
         ).data
-
-    def get_relevancy_score(self, hub_instance):
-        concept = hub_instance.concept
-
-        if not concept:
-            return 0
-
-        unified_document = self.context.get("unified_document", None)
-        related_concept_membership = concept.through_unified_document.filter(
-            unified_document=unified_document
-        )
-
-        if related_concept_membership.exists():
-            return related_concept_membership.first().relevancy_score
