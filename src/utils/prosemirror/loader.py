@@ -29,7 +29,8 @@ def parse_document(schema_name: str, doc: dict) -> Node:
     ``ValueError`` if the document JSON is structurally malformed, if the
     root is not the schema's top-level ``doc`` node, if the document
     references unknown node/mark types, JSON keys, or attributes, omits a
-    required attribute, or violates the schema's nesting rules.
+    required attribute, holds a non-string text value, or violates the
+    schema's nesting rules.
     """
     schema = get_schema(schema_name)
     try:
@@ -64,6 +65,14 @@ def _reject_unknown_keys(schema: Schema, node_json: dict) -> None:
     what = f"node {node_type.name!r}"
     node_keys = _TEXT_NODE_KEYS if node_type.is_text else _NODE_KEYS
     _reject_unknown(node_json, node_keys, f"keys on {what}")
+    if node_type.is_text:
+        # Node.from_json() coerces any text value with str(), so a non-string
+        # would silently persist as its Python repr.
+        text = node_json.get("text")
+        if not isinstance(text, str):
+            raise ValueError(
+                f"malformed text on {what}: expected str, got {type(text).__name__}"
+            )
     _reject_unknown(
         _get_container(node_json, "attrs", what),
         node_type.attrs,

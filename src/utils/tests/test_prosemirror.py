@@ -269,6 +269,34 @@ class ProseMirrorSchemaTests(unittest.TestCase):
             ):
                 parse_document(COMMENT_EDITOR, doc)
 
+    def test_non_string_text_rejected(self):
+        # Arrange
+        # Node.from_json() coerces any text value with str(), so these would
+        # otherwise persist as Python reprs ("{'oops': 1}", "None").
+        def wrap(text):
+            return {
+                "type": "doc",
+                "content": [
+                    {"type": "paragraph", "content": [{"type": "text", "text": text}]}
+                ],
+            }
+
+        malformed = {
+            "dict": wrap({"oops": 1}),
+            "int": wrap(123),
+            "list": wrap(["a"]),
+            "null": wrap(None),
+            "bool": wrap(True),
+        }
+
+        # Act & Assert
+        for name, doc in malformed.items():
+            with (
+                self.subTest(name),
+                self.assertRaisesRegex(ValueError, "malformed text"),
+            ):
+                parse_document(COMMENT_EDITOR, doc)
+
     def test_null_containers_treated_as_absent(self):
         # Arrange
         doc = {

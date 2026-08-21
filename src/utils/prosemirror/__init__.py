@@ -17,8 +17,16 @@ Schema validity is structural only: it guarantees a top-level ``doc`` node,
 known node/mark types and attributes, and legal nesting — not that a
 mention's user id exists or that a link is safe. That remains
 application-level validation.
+
+``compact_blocks``/``parse_blocks`` (see ``compact``) additionally convert
+documents to and from a token-lean dialect for model-facing tools.
 """
 
+from utils.prosemirror.compact import (
+    compact_blocks,
+    expand_blocks,
+    parse_blocks,
+)
 from utils.prosemirror.loader import (
     BLOCK_EDITOR,
     COMMENT_EDITOR,
@@ -29,6 +37,9 @@ from utils.prosemirror.loader import (
 __all__ = [
     "BLOCK_EDITOR",
     "COMMENT_EDITOR",
+    "compact_blocks",
+    "expand_blocks",
     "get_schema",
+    "parse_blocks",
     "parse_document",
 ]
