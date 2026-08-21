@@ -7,7 +7,7 @@ from django.db import transaction
 from django.db.models import Exists, F, OuterRef, QuerySet
 from requests.exceptions import RequestException
 
-from note.models import Note, NoteContent
+from note.models import Note, NoteContent, parse_note_json
 from paper.related_models.paper_version import PaperVersion
 from purchase.models import Fundraise
 from purchase.services.fundraise_eligibility_service import (
@@ -23,7 +23,6 @@ from researchhub_document.models import (
 from researchhub_document.registered_report_note_metadata import (
     add_registered_report_prefill_metadata,
     get_registered_report_prefill_metadata,
-    parse_note_json,
 )
 from researchhub_document.related_models.constants.document_type import (
     NOTE,

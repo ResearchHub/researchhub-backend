@@ -29,7 +29,7 @@ from collections.abc import Collection
 
 from django.db import transaction
 
-from note.related_models.note_model import Note, NoteContent
+from note.related_models.note_model import Note, NoteContent, parse_note_json
 from note.services.note_content_service import NoteContentService
 from research_ai.services.agent import Tool, Toolset
 from research_ai.services.note_block_edits import (
@@ -37,7 +37,6 @@ from research_ai.services.note_block_edits import (
     check_block_edits,
     parse_block_edits,
 )
-from researchhub_document.registered_report_note_metadata import parse_note_json
 from utils.prosemirror import BLOCK_EDITOR, compact_blocks, parse_blocks
 
 logger = logging.getLogger(__name__)

@@ -21,7 +21,7 @@ from hub.models import Hub
 from invite.models import NoteInvitation
 from invite.serializers import DynamicNoteInvitationSerializer
 from invite.services import NoteInvitationExpiredError, NoteInvitationService
-from note.models import Note, NoteContent
+from note.models import Note, NoteContent, parse_note_json
 from note.serializers import (
     DynamicNoteSerializer,
     NoteContentSerializer,
@@ -46,7 +46,6 @@ from researchhub_access_group.permissions import (
 )
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.registered_report_note_metadata import parse_note_json
 from researchhub_document.related_models.constants.document_type import (
     NOTE,
     REGISTERED_REPORT,
