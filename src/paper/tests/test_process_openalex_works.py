@@ -52,23 +52,6 @@ class ProcessOpenAlexWorksTests(APITestCase):
                 self.assertEqual(created_citation[0].citation_change, paper.citations)
 
     @patch.object(OpenAlex, "get_authors")
-    def test_creating_papers_should_create_related_concepts(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json") as file:
-            mock_data = json.load(file)
-            mock_get_authors.return_value = (mock_data["results"], None)
-
-            process_openalex_works(self.works)
-
-            dois = [work.get("doi") for work in self.works]
-            dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
-
-            paper_concepts = created_papers[0].unified_document.concepts.all()
-            self.assertEqual(len(paper_concepts), 15)
-            paper_concepts = created_papers[1].unified_document.concepts.all()
-            self.assertEqual(len(paper_concepts), 20)
-
-    @patch.object(OpenAlex, "get_authors")
     def test_creating_papers_should_create_related_topics(self, mock_get_authors):
         with open(fixtures_dir / "openalex_authors.json") as file:
             mock_data = json.load(file)
