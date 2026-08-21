@@ -68,14 +68,6 @@ class Hub(models.Model):
 
     is_removed = models.BooleanField(default=False, help_text=HELP_TEXT_IS_REMOVED)
 
-    concept = models.OneToOneField(
-        "tag.concept",
-        related_name="hub",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-    )
-
     subfield = models.OneToOneField(
         "topic.subfield",
         related_name="hub",
