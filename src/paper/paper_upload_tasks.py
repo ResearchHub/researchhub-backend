@@ -1,10 +1,8 @@
 from celery.utils.log import get_task_logger
-from django.db.utils import IntegrityError
 
 from hub.models import Hub
 from paper.openalex_util import OPENALEX_SOURCES_TO_JOURNAL_HUBS
 from researchhub.celery import QUEUE_PAPER_METADATA, app
-from tag.models import Concept
 from topic.models import Topic, UnifiedDocumentTopics
 
 logger = get_task_logger(__name__)
@@ -23,12 +21,10 @@ PREPRINT_SOURCES_TO_HUB_SLUGS = {
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)
-def create_paper_related_tags(paper, openalex_concepts=None, openalex_topics=None):
+def create_paper_related_tags(paper, openalex_topics=None):
     # Process topics
     if openalex_topics is None:
         openalex_topics = []
-    if openalex_concepts is None:
-        openalex_concepts = []
     sorted_topics = sorted(openalex_topics, key=lambda x: x["score"], reverse=True)
     topic_ids = []
     topic_relevancy = {}
@@ -61,27 +57,6 @@ def create_paper_related_tags(paper, openalex_concepts=None, openalex_topics=Non
         ],
         ignore_conflicts=True,
     )
-
-    # Process concepts
-    for openalex_concept in openalex_concepts:
-        try:
-            concept = Concept.upsert_from_openalex(openalex_concept)
-            paper.unified_document.concepts.add(
-                concept,
-                through_defaults={
-                    "relevancy_score": openalex_concept["score"],
-                    "level": openalex_concept["level"],
-                },
-            )
-        except IntegrityError:
-            pass
-        except Exception:
-            logger.exception("Failed to process concept for paper %s", paper.id)
-
-    # Bulk add concept hubs
-    concept_ids = paper.unified_document.concepts.values_list("id", flat=True)
-    concept_hubs = Hub.objects.filter(concept__id__in=concept_ids)
-    paper.unified_document.hubs.add(*concept_hubs)
 
     if paper.external_source:
         journal = _get_or_create_journal_hub(paper.external_source)
