@@ -91,7 +91,6 @@ def create_all_paper_tags(papers_to_openalex_data):
     for paper_data in papers_to_openalex_data.values():
         create_paper_related_tags(
             paper_data["paper"],
-            paper_data["openalex_concepts"],
             paper_data["openalex_topics"],
         )
 
