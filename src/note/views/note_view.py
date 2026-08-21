@@ -654,16 +654,13 @@ class NoteContentViewSet(
 
         Detection only: rejecting here would turn backend schema lag into
         failed editor saves. The agent note tools require conforming content,
-        so this is the early tripwire for drift or API misuse. Root keys
-        besides ``content`` are system-owned and stay out of the check.
+        so this is the early tripwire for drift or API misuse.
         """
         document = parse_note_json(version.json)
         try:
             if document is None:
                 raise ValueError("content is not a JSON object")
-            parse_document(
-                BLOCK_EDITOR, {"type": "doc", "content": document.get("content")}
-            )
+            parse_document(BLOCK_EDITOR, document)
         except ValueError as exc:
             logger.warning(
                 "note %s version %s content does not match the editor schema: %s",

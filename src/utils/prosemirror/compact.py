@@ -16,8 +16,7 @@ module converts between canonical documents and a compact, loss-free dialect:
 ``compact_blocks`` validates a document against a schema and returns its
 top-level blocks in compact form; ``parse_blocks`` accepts blocks in the same
 dialect (canonical form is a subset of it) and returns validated canonical
-block dicts. Compaction reads only the document's ``content``: root-level
-attributes are system-owned metadata, not part of the model-facing surface.
+block dicts.
 """
 
 from prosemirror.model import Mark, Node
@@ -30,12 +29,10 @@ __all__ = ["compact_blocks", "expand_blocks", "parse_blocks"]
 def compact_blocks(schema_name: str, doc: dict) -> list[dict | str]:
     """Validate ``doc`` and return its top-level blocks in compact form.
 
-    Raises ``ValueError`` (from ``parse_document``) when the document's
-    content does not satisfy the schema. Root keys other than ``content``
-    are ignored rather than validated, so system-owned root attributes do
-    not make a document unreadable.
+    Raises ``ValueError`` (from ``parse_document``) when the document does
+    not satisfy the schema.
     """
-    node = parse_document(schema_name, {"type": "doc", "content": doc.get("content")})
+    node = parse_document(schema_name, doc)
     return [_compact_block(child) for child in node.children]
 
 

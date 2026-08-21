@@ -149,12 +149,12 @@ class CompactBlocksTests(unittest.TestCase):
             [{"type": "link", "attrs": {"href": "https://example.com"}}],
         )
 
-    def test_ignores_system_owned_root_attrs(self):
-        # Arrange: registered-report drafts carry publish metadata in root
-        # attrs the schema does not know; it must not make the note unreadable.
+    def test_rejects_root_metadata_outside_the_schema(self):
+        # Arrange: the doc node carries no attributes in the schema, so root
+        # metadata is a violation like any other.
         doc = {
             "type": "doc",
-            "attrs": {"registered_report_prefill": {"proposal_id": 42}},
+            "attrs": {"stray": 1},
             "content": [
                 {
                     "type": "paragraph",
@@ -163,11 +163,9 @@ class CompactBlocksTests(unittest.TestCase):
             ],
         }
 
-        # Act
-        blocks = compact_blocks(BLOCK_EDITOR, doc)
-
-        # Assert: content read fine; the root attr is simply not surfaced.
-        self.assertEqual(blocks, ["Body"])
+        # Act & Assert
+        with self.assertRaisesRegex(ValueError, "stray"):
+            compact_blocks(BLOCK_EDITOR, doc)
 
     def test_rejects_content_outside_the_schema(self):
         # Arrange

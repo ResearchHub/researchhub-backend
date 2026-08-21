@@ -10,12 +10,6 @@ from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE, NoteToolset
 from researchhub_access_group.constants import ADMIN, VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.registered_report_note_metadata import (
-    add_registered_report_prefill_metadata,
-)
-from researchhub_document.related_models.constants.document_type import (
-    REGISTERED_REPORT,
-)
 
 # A two-block document the way the frontend editor stores it (defaults spelled
 # out), used to seed notes with structured content.
@@ -225,11 +219,11 @@ class NoteToolsetTests(TestCase):
             self.note.latest_version.plain_text, "Title\nNew body\nFootnote"
         )
 
-    def test_edit_note_normalizes_a_malformed_root_type(self):
-        # Arrange: the API write path can store a root without the doc type;
-        # reads ignore the root, so edits must repair rather than reject it.
+    def test_edit_note_stores_a_clean_document_root(self):
+        # Arrange: root metadata is not part of the agent surface; whatever
+        # the stored root held, agent versions carry type and content only.
         seeded = self._seed_version(
-            {"content": EDITOR_DOC["content"], "attrs": {"kept": 1}}
+            {"content": EDITOR_DOC["content"], "attrs": {"stray": 1}}
         )
 
         # Act
@@ -242,12 +236,12 @@ class NoteToolsetTests(TestCase):
             },
         )
 
-        # Assert: the type is normalized, other root keys survive.
+        # Assert
         self.assertTrue(result.get("saved"))
         self.note.refresh_from_db()
         stored = json.loads(self.note.latest_version.json)
+        self.assertEqual(sorted(stored), ["content", "type"])
         self.assertEqual(stored["type"], "doc")
-        self.assertEqual(stored["attrs"], {"kept": 1})
 
     def test_edit_note_rejects_blocks_outside_the_schema(self):
         # Arrange
@@ -370,35 +364,6 @@ class NoteToolsetTests(TestCase):
         self.assertIn("no edit permission", result["error"])
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, self.content.id)
-
-    def test_edit_note_preserves_registered_report_prefill(self):
-        # Arrange: a registered-report draft whose latest version carries
-        # publish metadata in root attrs the agent never sees.
-        prefill = {"proposal_id": 42}
-        self.note.document_type = REGISTERED_REPORT
-        self.note.save()
-        seeded = self._seed_version(
-            add_registered_report_prefill_metadata(EDITOR_DOC, prefill)
-        )
-
-        # Act
-        result, _ = self.toolset.dispatch(
-            EDIT_NOTE,
-            {
-                "note_id": self.note.id,
-                "expected_version_id": seeded.id,
-                "edits": [{"op": "replace", "from": 1, "to": 1, "blocks": ["Revised"]}],
-            },
-        )
-
-        # Assert
-        self.assertTrue(result.get("saved"))
-        self.note.refresh_from_db()
-        stored = json.loads(self.note.latest_version.json)
-        self.assertEqual(stored["attrs"]["registered_report_prefill"], prefill)
-        self.assertEqual(
-            stored["content"][1]["content"], [{"type": "text", "text": "Revised"}]
-        )
 
     # -- scoping ------------------------------------------------------------
 
