@@ -5,7 +5,12 @@ from django.test import TestCase
 from django.utils import timezone
 
 from feed.models import FeedEntry
+from paper.tests.helpers import create_paper
 from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import (
+    PAPER,
+    QUESTION,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -127,3 +132,54 @@ class UnifiedDocumentFeedVisibilityServiceTests(TestCase):
         # Assert
         mock_delay.assert_called_once_with()
         mock_warm.assert_not_called()
+
+    def test_list_excluded_includes_papers_and_other_hideable_types(self):
+        # Arrange
+        paper = create_paper(uploaded_by=self.author, title="Hidden paper title")
+        paper_doc = paper.unified_document
+        question = create_post(
+            created_by=self.author,
+            title="Hidden question title",
+            document_type=QUESTION,
+        )
+        question_doc = question.unified_document
+        self.assertEqual(paper_doc.document_type, PAPER)
+
+        self.service.exclude_from_feed(paper_doc.id)
+        self.service.exclude_from_feed(question_doc.id)
+        self.service.exclude_from_feed(self.unified_document.id)
+
+        # Act
+        excluded_ids = list(
+            self.service.list_excluded_from_feed().values_list("id", flat=True)
+        )
+
+        # Assert
+        self.assertIn(paper_doc.id, excluded_ids)
+        self.assertIn(question_doc.id, excluded_ids)
+        self.assertIn(self.unified_document.id, excluded_ids)
+
+    def test_list_excluded_searches_paper_and_post_titles(self):
+        # Arrange
+        paper = create_paper(uploaded_by=self.author, title="Quantum lattice methods")
+        paper_doc = paper.unified_document
+        other_post = create_post(created_by=self.author, title="Unrelated discussion")
+        self.service.exclude_from_feed(paper_doc.id)
+        self.service.exclude_from_feed(other_post.unified_document.id)
+        self.service.exclude_from_feed(self.unified_document.id)
+
+        # Act
+        paper_matches = list(
+            self.service.list_excluded_from_feed(query="lattice").values_list(
+                "id", flat=True
+            )
+        )
+        post_matches = list(
+            self.service.list_excluded_from_feed(query="Visible").values_list(
+                "id", flat=True
+            )
+        )
+
+        # Assert
+        self.assertEqual(paper_matches, [paper_doc.id])
+        self.assertEqual(post_matches, [self.unified_document.id])

@@ -1,6 +1,10 @@
 from unittest.mock import patch
 
+from django.db import connection
+from django.db.models import Q, Sum
+from django.db.models.functions import Coalesce
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from purchase.models import Fundraise
@@ -192,6 +196,44 @@ class GetAmountRaisedTests(TestCase):
 
         # Should be 0 after all contributions are refunded
         self.assertEqual(amount_after, 0.0)
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
+    def test_get_amount_raised_uses_annotated_usd_contributions(
+        self, mock_exchange_rate
+    ):
+        # Arrange
+        mock_exchange_rate.return_value = 0.01
+        self._create_usd_contribution(self.fundraise, self.contributor, 10000)
+        self.fundraise.escrow.amount_holding = 200
+        self.fundraise.escrow.save()
+
+        annotated = (
+            Fundraise.objects.select_related("escrow")
+            .annotate(
+                annotated_usd_contributions_cents=Coalesce(
+                    Sum(
+                        "usd_contributions__amount_cents",
+                        filter=Q(usd_contributions__is_refunded=False),
+                    ),
+                    0,
+                ),
+            )
+            .get(pk=self.fundraise.pk)
+        )
+
+        # Act / Assert: matches live calculation without contribution queries
+        with CaptureQueriesContext(connection) as ctx:
+            amount_usd = annotated.get_amount_raised(currency=USD)
+            amount_rsc = annotated.get_amount_raised(currency=RSC)
+
+        self.assertEqual(amount_usd, 102.0)  # $100 USD + 200 RSC * $0.01
+        self.assertEqual(amount_rsc, 10200.0)  # 200 RSC + ($100 / $0.01)
+        self.assertFalse(
+            any(
+                "usd_fundraise_contribution" in q["sql"].lower()
+                for q in ctx.captured_queries
+            )
+        )
 
 
 class FundraiseNonprofitOrgTests(TestCase):
