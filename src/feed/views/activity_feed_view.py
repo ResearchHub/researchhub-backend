@@ -15,6 +15,7 @@ from feed.activity_feed_cache import (
     activity_feed_cache_key,
     should_cache_activity_feed,
 )
+from feed.feed_visibility import exclude_hidden_from_feed
 from feed.models import FeedEntry
 from feed.serializers import ActivityFeedEntrySerializer
 from feed.views.common import FeedPagination
@@ -182,6 +183,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
             )
             .order_by("-action_date")
         )
+        queryset = exclude_hidden_from_feed(queryset)
 
         # Exclude paper publications
         paper_ct = ContentType.objects.get_for_model(Paper)
