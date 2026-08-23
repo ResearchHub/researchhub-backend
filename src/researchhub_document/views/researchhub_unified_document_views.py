@@ -4,6 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -17,11 +18,24 @@ from researchhub_document.serializers import (
     ResearchhubUnifiedDocumentSerializer,
     UnifiedDocumentShareLinkSerializer,
 )
+from researchhub_document.serializers.excluded_from_feed_serializer import (
+    ExcludedFromFeedWorkSerializer,
+)
+from researchhub_document.services.unified_document_feed_visibility_service import (
+    UnifiedDocumentFeedVisibilityService,
+)
 from researchhub_document.services.unified_document_share_link_service import (
     UnifiedDocumentShareLinkService,
     get_shared_unified_document_id,
 )
+from user.permissions import IsModerator
 from utils.permissions import ReadOnly
+
+
+class ExcludedFromFeedPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 def _share_link_errors_to_responses(handler):
@@ -236,6 +250,66 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
         """
         UnifiedDocumentShareLinkService().disable(pk, request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, IsModerator],
+        url_path="exclude_from_feed",
+    )
+    def exclude_from_feed(self, request, pk=None):
+        """Hide this document from public feeds. Idempotent and feed-only."""
+        return self._set_feed_visibility(pk, excluded=True)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, IsModerator],
+        url_path="include_in_feed",
+    )
+    def include_in_feed(self, request, pk=None):
+        """Restore this document to public feeds. Idempotent and feed-only."""
+        return self._set_feed_visibility(pk, excluded=False)
+
+    def _set_feed_visibility(self, pk, excluded: bool):
+        if pk is None or not str(pk).isdigit():
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        service = UnifiedDocumentFeedVisibilityService()
+        try:
+            if excluded:
+                unified_document = service.exclude_from_feed(int(pk))
+            else:
+                unified_document = service.include_in_feed(int(pk))
+        except ResearchhubUnifiedDocument.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        return Response(
+            {
+                "id": unified_document.id,
+                "is_excluded_in_feed": (
+                    unified_document.document_filter.is_excluded_in_feed
+                ),
+            }
+        )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[IsAuthenticated, IsModerator],
+        url_path="excluded_from_feed",
+    )
+    def excluded_from_feed(self, request):
+        """Paginated Work payloads for documents currently hidden from feeds."""
+        queryset = UnifiedDocumentFeedVisibilityService().list_excluded_from_feed(
+            query=request.query_params.get("query")
+        )
+        paginator = ExcludedFromFeedPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        serializer = ExcludedFromFeedWorkSerializer(
+            page, many=True, context={"request": request}
+        )
+        return paginator.get_paginated_response(serializer.data)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def check_user_vote(self, request):

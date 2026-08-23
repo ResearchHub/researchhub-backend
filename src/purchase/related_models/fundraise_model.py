@@ -252,9 +252,13 @@ class Fundraise(DefaultModel):
             rsc_amount = float(self.escrow.amount_holding + self.escrow.amount_paid)
 
         # Calculate USD amount from contributions (in cents), excluding refunded ones
-        usd_cents = self.usd_contributions.filter(is_refunded=False).aggregate(
-            total=Coalesce(Sum("amount_cents"), 0)
-        )["total"]
+        annotated_usd_cents = getattr(self, "annotated_usd_contributions_cents", None)
+        if annotated_usd_cents is not None:
+            usd_cents = annotated_usd_cents
+        else:
+            usd_cents = self.usd_contributions.filter(is_refunded=False).aggregate(
+                total=Coalesce(Sum("amount_cents"), 0)
+            )["total"]
         usd_from_contributions = usd_cents / 100.0
 
         if currency == USD:
