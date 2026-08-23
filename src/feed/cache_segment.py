@@ -13,6 +13,9 @@ def get_feed_cache_segment(request: Request) -> tuple[str | None, bool]:
     if not user.is_authenticated:
         return ":public", True
 
+    if user.is_moderator_or_editor():
+        return ":public", True
+
     has_private_visibility = (
         ResearchhubPost.objects.visible_to(user)
         .filter(

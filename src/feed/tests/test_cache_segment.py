@@ -110,7 +110,7 @@ class FeedCacheSegmentTests(AWSMockTestCase):
         self.assertEqual(suffix, f":viewer-{owner.id}")
         self.assertTrue(should_cache)
 
-    def test_moderator_with_private_posts_uses_viewer_segment(self):
+    def test_moderator_with_private_posts_uses_public_segment(self):
         # Arrange
         moderator = create_random_authenticated_user("cache_seg_mod", moderator=True)
         private_doc = ResearchhubUnifiedDocument.objects.create(
@@ -130,5 +130,18 @@ class FeedCacheSegmentTests(AWSMockTestCase):
         suffix, should_cache = get_feed_cache_segment(self._request(moderator))
 
         # Assert
-        self.assertEqual(suffix, f":viewer-{moderator.id}")
+        self.assertEqual(suffix, ":public")
+        self.assertTrue(should_cache)
+
+    def test_hub_editor_uses_public_segment(self):
+        # Arrange
+        from user.tests.helpers import create_hub_editor
+
+        editor, _ = create_hub_editor("cache_seg_editor", "Cache Seg Hub")
+
+        # Act
+        suffix, should_cache = get_feed_cache_segment(self._request(editor))
+
+        # Assert
+        self.assertEqual(suffix, ":public")
         self.assertTrue(should_cache)
