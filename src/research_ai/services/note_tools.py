@@ -1,10 +1,20 @@
 """Notebook note tools for the agent core.
 
 ``NoteToolset`` lets an agent read and edit Tiptap notes on behalf of a
-specific user. Reads hand the model the raw Tiptap/ProseMirror document JSON
-plus a version id; edits are full-document replaces guarded by that version id
-(optimistic concurrency), and each edit appends a new ``NoteContent`` version
-rather than mutating in place, so any agent edit is recoverable from history.
+specific user. Reads hand the model the note's top-level blocks in the
+compact dialect of ``utils.prosemirror``, indexed by position, plus a version
+id. Edits are block-level operations (insert/replace/delete) against those
+indices, guarded by that version id (optimistic concurrency), with the new
+blocks validated against the vendored editor schema before anything is
+stored. Tool traffic thus stays proportional to the change, not to the note:
+the model never receives or regenerates the parts of the document it is not
+touching. Each edit appends a new ``NoteContent`` version rather than
+mutating in place, so any agent edit is recoverable from history.
+
+Stored note content parses against the vendored schema (pre-schema content
+has been cleaned up), so a note that somehow does not is reported to the
+model as an error rather than served in a degraded form. A note with no
+version yet reads as ``blocks: null`` and is populated by a first insert.
 
 Permission checks mirror the HTTP layer on the note's unified document:
 reads use the ``HasAccessPermission`` predicate (any non-NO_ACCESS
@@ -19,15 +29,26 @@ from collections.abc import Collection
 
 from django.db import transaction
 
-from note.related_models.note_model import Note, NoteContent
+from note.related_models.note_model import Note, NoteContent, parse_note_json
 from note.services.note_content_service import NoteContentService
 from research_ai.services.agent import Tool, Toolset
-from researchhub_document.registered_report_note_metadata import parse_note_json
+from research_ai.services.note_block_edits import (
+    apply_block_edits,
+    check_block_edits,
+    parse_block_edits,
+)
+from utils.prosemirror import BLOCK_EDITOR, compact_blocks, parse_blocks
 
 logger = logging.getLogger(__name__)
 
 READ_NOTE = "read_note"
 EDIT_NOTE = "edit_note"
+
+_BLOCK_FORMAT = (
+    "Blocks use a compact Tiptap form: a bare string at block level is a "
+    "plain paragraph; inside a block's `content`, a bare string is unmarked "
+    "text; attributes equal to the editor default are omitted."
+)
 
 
 class NoteToolset:
@@ -59,11 +80,12 @@ class NoteToolset:
             Tool(
                 name=READ_NOTE,
                 description=(
-                    "Read a ResearchHub notebook note. Returns the note title, "
-                    "the current Tiptap/ProseMirror document JSON as `content`, "
-                    "and the `version_id` that edit_note requires. For legacy "
-                    "notes `content` may be null; `plain_text` is included then "
-                    "as a read-only fallback."
+                    "Read a ResearchHub notebook note. Returns the note "
+                    "title, the version_id that edit_note requires, "
+                    "block_count, and the note body as `blocks`: a map from "
+                    'top-level block index ("0", "1", ...) to that block. '
+                    f"{_BLOCK_FORMAT} A note with no content yet reads as "
+                    "`blocks` null; populate it with an insert."
                 ),
                 input_schema={
                     "type": "object",
@@ -80,12 +102,20 @@ class NoteToolset:
             Tool(
                 name=EDIT_NOTE,
                 description=(
-                    "Replace a note's content with a complete Tiptap document "
-                    '(a JSON object like {"type": "doc", "content": [...]}). '
-                    "Always call read_note first and pass the version_id you "
-                    "read as expected_version_id; the edit is rejected if the "
-                    "note changed since. Each edit is saved as a new version, "
-                    "so prior content is kept as history."
+                    "Edit a note with block operations: insert new blocks at "
+                    "a position, replace an inclusive range of blocks, or "
+                    "delete one. Indices refer to the `blocks` map from "
+                    "read_note; all edits in one call apply together against "
+                    "that same numbering, so they never shift each other. "
+                    "Pass the version_id from your latest read_note or "
+                    "edit_note result as expected_version_id; the edit is "
+                    "rejected as stale if the note changed since. "
+                    "Send only the blocks you are changing -- "
+                    "untouched blocks stay exactly as stored. "
+                    f"{_BLOCK_FORMAT} New blocks are validated against the "
+                    "editor schema; invalid ones reject the whole edit. Each "
+                    "edit is saved as a new version, so prior content is "
+                    "kept as history."
                 ),
                 input_schema={
                     "type": "object",
@@ -101,15 +131,54 @@ class NoteToolset:
                                 "read_note reported no version."
                             ),
                         },
-                        "content": {
-                            "type": "object",
+                        "edits": {
+                            "type": "array",
+                            "minItems": 1,
                             "description": (
-                                "Complete replacement Tiptap document, including "
-                                "unchanged parts."
+                                "Operations on the block indices you read, "
+                                "applied as one batch."
                             ),
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "op": {
+                                        "type": "string",
+                                        "enum": ["insert", "replace", "delete"],
+                                    },
+                                    "at": {
+                                        "type": "integer",
+                                        "description": (
+                                            "insert: position to insert before "
+                                            "(0 = start, block_count = end)."
+                                        ),
+                                    },
+                                    "from": {
+                                        "type": "integer",
+                                        "description": (
+                                            "replace/delete: first block index."
+                                        ),
+                                    },
+                                    "to": {
+                                        "type": "integer",
+                                        "description": (
+                                            "replace/delete: last block index, "
+                                            "inclusive."
+                                        ),
+                                    },
+                                    "blocks": {
+                                        "type": "array",
+                                        "items": {"type": ["object", "string"]},
+                                        "description": (
+                                            "insert/replace: new blocks in the "
+                                            "compact form read_note returns."
+                                        ),
+                                    },
+                                },
+                                "required": ["op"],
+                            },
                         },
                     },
-                    "required": ["note_id", "expected_version_id", "content"],
+                    "required": ["note_id", "expected_version_id", "edits"],
                 },
                 handler=self._edit_note,
             ),
@@ -126,16 +195,29 @@ class NoteToolset:
             return {"error": f"note {input.get('note_id')} not found or not accessible"}
         latest = note.latest_version
         # Stored JSON may be a JSON-encoded string rather than a dict;
-        # normalize so `content` always matches the shape edit_note accepts.
-        content = parse_note_json(latest.json) if latest else None
+        # normalize before block extraction.
+        doc = parse_note_json(latest.json) if latest else None
+        if doc is None:
+            blocks = None
+        else:
+            try:
+                blocks = compact_blocks(BLOCK_EDITOR, doc)
+            except ValueError as exc:
+                # Stored content is expected to parse (pre-schema notes were
+                # cleaned up), so surface the mismatch instead of hiding it.
+                logger.warning("note %s content fails the editor schema", note.id)
+                return {"error": f"note {note.id} content could not be read: {exc}"}
         result = {
             "note_id": note.id,
             "title": note.title,
             "version_id": latest.id if latest else None,
-            "content": content,
+            "block_count": 0 if blocks is None else len(blocks),
+            "blocks": (
+                None
+                if blocks is None
+                else {str(index): block for index, block in enumerate(blocks)}
+            ),
         }
-        if latest and content is None:
-            result["plain_text"] = latest.plain_text
         return result
 
     def _edit_note(self, input: dict) -> dict:
@@ -149,6 +231,19 @@ class NoteToolset:
             or permissions.has_editor_user(self._user)
         ):
             return {"error": f"no edit permission on note {note.id}"}
+
+        # Parse the operations and schema-validate their payload blocks
+        # before taking any lock; neither depends on the stored document.
+        try:
+            edits = parse_block_edits(input.get("edits"))
+            for index, edit in enumerate(edits):
+                if edit.blocks is not None:
+                    try:
+                        edit.blocks = parse_blocks(BLOCK_EDITOR, edit.blocks)
+                    except ValueError as exc:
+                        raise ValueError(f"edits[{index}]: {exc}") from exc
+        except ValueError as exc:
+            return {"error": str(exc)}
 
         expected = input.get("expected_version_id")
         try:
@@ -165,9 +260,26 @@ class NoteToolset:
                             "call read_note again and re-apply your edit"
                         )
                     }
+                stored = (
+                    parse_note_json(locked.latest_version.json)
+                    if locked.latest_version
+                    else None
+                )
+                base = stored.get("content") if stored else None
+                base = base if isinstance(base, list) else []
+                check_block_edits(edits, len(base))
+                content = apply_block_edits(base, edits)
+                if not content:
+                    return {
+                        "error": (
+                            "these edits would leave the note empty; "
+                            "a note needs at least one block"
+                        )
+                    }
+                document = {"type": "doc", "content": content}
                 version = self._service.create_version(
                     locked,
-                    input.get("content"),
+                    document,
                     created_by=self._user,
                     created_via=NoteContent.CREATED_VIA_AGENT,
                     # The verified expected version is the base this edit was
@@ -176,7 +288,12 @@ class NoteToolset:
                 )
         except (ValueError, Note.DoesNotExist) as exc:
             return {"error": str(exc)}
-        return {"note_id": note.id, "version_id": version.id, "saved": True}
+        return {
+            "note_id": note.id,
+            "version_id": version.id,
+            "saved": True,
+            "block_count": len(content),
+        }
 
     def _get_readable_note(self, note_id) -> Note | None:
         """The note, or None when it does not exist or ``user`` cannot view it."""

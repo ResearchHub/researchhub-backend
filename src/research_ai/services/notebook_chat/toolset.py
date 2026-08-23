@@ -93,6 +93,7 @@ def compose_notebook_toolset(
     *,
     note_toolset,
     grant_toolset,
+    selected_rfp_toolset=None,
     openalex_toolset,
     web_search_toolset,
     native_tool_names: frozenset[str] = frozenset(),
@@ -109,6 +110,8 @@ def compose_notebook_toolset(
     ]
     candidates.extend(web_search_toolset.build_tools())
     candidates.extend(grant_toolset.build_tools())
+    if selected_rfp_toolset is not None:
+        candidates.extend(selected_rfp_toolset.build_tools())
     candidates.extend(note_toolset.build_tools())
 
     toolset = Toolset()

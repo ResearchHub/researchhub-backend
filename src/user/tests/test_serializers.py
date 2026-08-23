@@ -6,7 +6,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.utils import timezone
 
-from discussion.models import Vote
 from hub.models import Hub
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
@@ -53,12 +52,7 @@ class UserSerializersTests(TestCase):
 
         self.user_without_papers = create_user(email="email1@researchhub.com")
 
-        for i in range(50):
-            Distribution.objects.create(
-                recipient=self.user,
-                proof_item_content_type=ContentType.objects.get_for_model(Vote),
-                reputation_amount=1,
-            )
+        for _ in range(50):
             thread = RhCommentThreadModel.objects.create(
                 object_id=paper1.id,
                 content_type=ContentType.objects.get_for_model(Paper),
@@ -166,7 +160,6 @@ class UserSerializersTests(TestCase):
                 "citation_count": 30,
                 "peer_review_count": 50,
                 "two_year_mean_citedness": 0,
-                "upvote_count": 50,
                 "works_count": 2,
                 "open_access_pct": 0.0,
             },
@@ -186,7 +179,6 @@ class UserSerializersTests(TestCase):
                 "citation_count": 0,
                 "peer_review_count": 0,
                 "two_year_mean_citedness": 0,
-                "upvote_count": 0,
                 "works_count": 0,
                 "open_access_pct": 0.0,
             },

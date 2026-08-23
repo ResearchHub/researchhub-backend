@@ -1,6 +1,6 @@
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
-from django.db.models import Q, Sum
+from django.db.models import Q
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 
@@ -117,9 +117,6 @@ class Hub(models.Model):
         self.slugify()
         return super().save(*args, **kwargs)
 
-    def get_subscriber_count(self):
-        return self.subscriber_count
-
     def slugify(self):
         if not self.slug:
             self.slug = slugify(self.name.lower())
@@ -136,20 +133,6 @@ class Hub(models.Model):
                     self.slug_index = last_slug.slug_index + 1
                 self.slug = self.slug + "-" + str(self.slug_index)
         return self.slug
-
-    def get_discussion_count(self):
-        return (
-            self.papers.filter(is_removed=False).aggregate(
-                disc=Sum("discussion_count")
-            )["disc"]
-            or 0
-        )
-
-    def get_doc_count(self):
-        return self.papers.filter(is_removed=False).count()
-
-    def get_subscribers_count(self):
-        return self.subscribers.filter(is_suspended=False).count()
 
     def get_editor_permission_groups(self):
         return self.permissions.filter(

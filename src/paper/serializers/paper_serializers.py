@@ -660,7 +660,6 @@ class DynamicPaperSerializer(
 
     def get_hubs(self, paper):
         context = self.context
-        context["unified_document"] = paper.unified_document
         _context_fields = context.get("pap_dps_get_hubs", {})
 
         serializer = DynamicHubSerializer(

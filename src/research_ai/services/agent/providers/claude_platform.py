@@ -36,10 +36,14 @@ from research_ai.services.agent.types import (
     AssistantTurn,
     Block,
     Message,
+    ProviderStreamEvent,
     ServerToolBlock,
     StopReason,
+    StreamReset,
     TextBlock,
+    TextStreamDelta,
     ThinkingBlock,
+    ThinkingStreamDelta,
     ToolResultBlock,
     ToolUseBlock,
     TurnUsage,
@@ -390,6 +394,26 @@ class ClaudePlatformProvider(LLMProvider):
         temperature: float,
         before_retry: Callable[[], None] | None = None,
     ) -> AssistantTurn:
+        return self.complete_with_events(
+            system_prompt=system_prompt,
+            messages=messages,
+            rendered_tools=rendered_tools,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            before_retry=before_retry,
+        )
+
+    def complete_with_events(
+        self,
+        *,
+        system_prompt: str,
+        messages: list[Message],
+        rendered_tools: Any,
+        max_tokens: int | None,
+        temperature: float,
+        on_event: Callable[[ProviderStreamEvent], None] | None = None,
+        before_retry: Callable[[], None] | None = None,
+    ) -> AssistantTurn:
         if self._client is None:
             raise ProviderError(
                 "Claude Platform on AWS is not configured "
@@ -397,39 +421,13 @@ class ClaudePlatformProvider(LLMProvider):
                 "cannot complete a turn."
             )
 
-        system: dict = {"type": "text", "text": system_prompt}
-        if self.prompt_caching:
-            # Render order is tools -> system -> messages, so one breakpoint on
-            # the system block caches the whole tools+system prefix -- the
-            # bytes that repeat unchanged on every turn.
-            system["cache_control"] = {"type": "ephemeral"}
-        kwargs: dict = {
-            "model": self.model_id,
-            "max_tokens": MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens,
-            "system": [system],
-            "messages": self._render_messages(messages, cache_last=self.prompt_caching),
-        }
-        if rendered_tools:
-            kwargs["tools"] = rendered_tools
-        container_id = _container_id(messages)
-        if container_id:
-            # Required when code execution paused on a tool call, and useful
-            # for ordinary container reuse. The identifier is response-level
-            # state, separate from the content blocks replayed above.
-            kwargs["container"] = container_id
-            logger.info("claude platform: reusing code execution container")
-        if self.thinking:
-            thinking: dict = {"type": self.thinking}
-            if self.thinking == "adaptive" and THINKING_DISPLAY:
-                thinking["display"] = THINKING_DISPLAY
-            kwargs["thinking"] = thinking
-        if self.effort:
-            kwargs["output_config"] = {"effort": self.effort}
-        # Thinking pins temperature to its default, so forwarding the loop's
-        # value is at best a no-op and at worst a 400 -- omit it whenever the
-        # model or the thinking config rules it out.
-        if not self.thinking and _accepts_sampling_params(self.model_id):
-            kwargs["temperature"] = temperature
+        kwargs = self._request_kwargs(
+            system_prompt=system_prompt,
+            messages=messages,
+            rendered_tools=rendered_tools,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
 
         diagnostics = _continuation_diagnostics(
             _latest_assistant_content(kwargs["messages"]),
@@ -475,7 +473,7 @@ class ClaudePlatformProvider(LLMProvider):
                 # Streamed so a turn's wall clock is bounded by chunk gaps,
                 # not the whole emission -- a full-budget turn legitimately
                 # outlives any sane whole-request timeout.
-                response = self._stream_turn(kwargs)
+                response = self._stream_turn(kwargs, on_event=on_event)
             except Exception as e:
                 logger.exception("Claude Platform complete failed")
                 raise ProviderError(f"Claude Platform complete failed: {e}") from e
@@ -483,12 +481,17 @@ class ClaudePlatformProvider(LLMProvider):
             self._log_usage(response)
             self._log_continuation_state(response)
             if not self._response_missing_required_container(
-                response, request_container_id=container_id
+                response, request_container_id=kwargs.get("container")
             ):
                 break
             if attempt == 0:
                 if before_retry is not None:
                     before_retry()
+                if on_event is not None:
+                    # The first response is intentionally discarded. Replace
+                    # its transient preview before streaming the retry so the
+                    # two attempts cannot be presented as one answer.
+                    on_event(StreamReset())
                 # Do not persist a response the next request cannot replay.
                 # Repeating the identical stateless request gives Platform one
                 # chance to finish the server-side loop or disclose its
@@ -513,7 +516,7 @@ class ClaudePlatformProvider(LLMProvider):
 
     # -- private helpers --------------------------------------------------
 
-    def _stream_turn(self, kwargs: dict) -> Any:
+    def _stream_turn(self, kwargs: dict, *, on_event=None) -> Any:
         """Stream one turn, restoring the container the SDK accumulator drops.
 
         Anthropic discloses the code-execution container on ``message_delta``,
@@ -524,6 +527,7 @@ class ClaudePlatformProvider(LLMProvider):
         container = None
         with self._client.messages.stream(**kwargs) as stream:
             for event in stream:
+                self._report_stream_event(event, on_event)
                 # The SDK declares it on the event's ``delta``; an id the API
                 # sends elsewhere lands on the event itself as a model extra.
                 delta = getattr(event, "delta", None)
@@ -536,6 +540,70 @@ class ClaudePlatformProvider(LLMProvider):
         if container is not None:
             response.container = container
         return response
+
+    def _request_kwargs(
+        self,
+        *,
+        system_prompt: str,
+        messages: list[Message],
+        rendered_tools: Any,
+        max_tokens: int | None,
+        temperature: float,
+    ) -> dict:
+        """Build optional and required Messages API request fields."""
+        system: dict = {"type": "text", "text": system_prompt}
+        if self.prompt_caching:
+            # Render order is tools -> system -> messages, so one breakpoint on
+            # the system block caches the whole tools+system prefix -- the
+            # bytes that repeat unchanged on every turn.
+            system["cache_control"] = {"type": "ephemeral"}
+        kwargs: dict = {
+            "model": self.model_id,
+            "max_tokens": MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens,
+            "system": [system],
+            "messages": self._render_messages(messages, cache_last=self.prompt_caching),
+        }
+        if rendered_tools:
+            kwargs["tools"] = rendered_tools
+        container_id = _container_id(messages)
+        if container_id:
+            # Required when code execution paused on a tool call, and useful
+            # for ordinary container reuse. The identifier is response-level
+            # state, separate from the content blocks replayed above.
+            kwargs["container"] = container_id
+            logger.info("claude platform: reusing code execution container")
+        if self.thinking:
+            thinking: dict = {"type": self.thinking}
+            if self.thinking == "adaptive" and THINKING_DISPLAY:
+                thinking["display"] = THINKING_DISPLAY
+            kwargs["thinking"] = thinking
+        if self.effort:
+            kwargs["output_config"] = {"effort": self.effort}
+        # Thinking pins temperature to its default, so forwarding the loop's
+        # value is at best a no-op and at worst a 400 -- omit it whenever the
+        # model or the thinking config rules it out.
+        if not self.thinking and _accepts_sampling_params(self.model_id):
+            kwargs["temperature"] = temperature
+        return kwargs
+
+    @staticmethod
+    def _report_stream_event(event: Any, on_event) -> None:
+        """Translate SDK deltas into the provider-neutral streaming surface."""
+        if on_event is None or getattr(event, "type", None) != "content_block_delta":
+            return
+        index = getattr(event, "index", None)
+        delta = getattr(event, "delta", None)
+        if not isinstance(index, int) or delta is None:
+            return
+        delta_type = getattr(delta, "type", None)
+        if delta_type == "text_delta":
+            text = getattr(delta, "text", None)
+            if isinstance(text, str) and text:
+                on_event(TextStreamDelta(block_index=index, text=text))
+        elif delta_type == "thinking_delta":
+            thinking = getattr(delta, "thinking", None)
+            if isinstance(thinking, str) and thinking:
+                on_event(ThinkingStreamDelta(block_index=index, text=thinking))
 
     def _render_messages(
         self, messages: list[Message], *, cache_last: bool = False

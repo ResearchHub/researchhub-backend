@@ -1,34 +1,41 @@
 """Turn-lifecycle push events for notebook chat WebSocket clients.
 
-The polling projection (``?activity=live``) is the source of truth for a
-chat's state; its weakness is latency, not correctness -- a client learns of
-progress only at its next poll. This module closes that gap by publishing a
-small event to a per-conversation channel-layer group at every point a turn's
-durable state changes, so a subscribed client can refetch immediately instead
-of waiting out its interval.
+The polling projection (``?activity=live``) is the source of truth for durable
+chat state; its weakness is latency, not correctness. This module closes that
+gap with two kinds of per-conversation event: identifiers that nudge a refetch
+after a durable change, and bounded transient model-output deltas for text and
+readable thinking. A bounded cache snapshot lets the REST projection repair a
+dropped or reordered transient frame.
 
 Two properties keep this layer simple and safe to lose:
 
-- **Events carry identifiers, never state.** A client reacts to any event the
-  same way -- refetch the conversation -- so a dropped, duplicated, or
-  reordered event can never show wrong data, only later data. Polling remains
-  the repair path; the socket is purely a latency optimization.
-- **Emission is post-commit and best-effort.** Every publish is deferred with
-  ``transaction.on_commit(robust=True)``, so an event can never describe a
-  write the triggered refetch cannot yet see, and a failing channel layer can
-  never break the write it narrates (or starve later commit callbacks, such
-  as the one that queues the worker task).
+- **Durable events carry identifiers, never state.** A client refetches for
+  lifecycle events. Stream events carry only append deltas plus a monotonic
+  sequence; any sequence gap is repaired from the REST snapshot. A terminal
+  execution status always wins over a late transient delta.
+- **Emission is best-effort.** Durable events are deferred with
+  ``transaction.on_commit(robust=True)``. Stream recovery state advances
+  before its corresponding delta is sent. A failing channel layer therefore
+  never breaks the turn, and REST remains a recovery path.
 
 The group is scoped to one conversation because chats are private to their
 creator: the consumer admits only the owner, so events never reach an
 org-wide room the way note notifications do.
 """
 
+import asyncio
 import logging
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db import transaction
+
+from research_ai.services.notebook_chat.streaming import (
+    STREAM_DELTA,
+    STREAM_PUBLISH_TIMEOUT_SECONDS,
+    ExecutionStreamStore,
+    NotebookStreamBuffer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +52,12 @@ TURN_PROGRESS = "turn_progress"
 TURN_FINISHED = "turn_finished"
 TURN_FAILED = "turn_failed"
 TURN_CANCELLED = "turn_cancelled"
+
+
+async def _group_send_with_timeout(layer, group: str, message: dict) -> None:
+    """Bound a best-effort channel send so it cannot stall a worker."""
+    async with asyncio.timeout(STREAM_PUBLISH_TIMEOUT_SECONDS):
+        await layer.group_send(group, message)
 
 
 def conversation_group(conversation_id: int | str) -> str:
@@ -75,26 +88,64 @@ class ConversationEventPublisher:
         )
 
     def _send(self, conversation_id: int, execution_id: int, kind: str) -> None:
+        self._send_data(
+            conversation_id,
+            {
+                "conversation_id": conversation_id,
+                "execution_id": execution_id,
+                "kind": kind,
+            },
+        )
+
+    def publish_stream(
+        self,
+        conversation_id: int,
+        execution_id: int,
+        *,
+        stream_id: str,
+        sequence: int,
+        iteration: int,
+        deltas: list[dict],
+    ) -> bool:
+        """Publish one transient stream batch immediately.
+
+        The recovery snapshot is cache-backed, so no database transaction
+        needs to commit before the frame is safe to observe. ``False`` tells
+        the producer to stop optional preview work after a channel failure.
+        """
+        return self._send_data(
+            conversation_id,
+            {
+                "conversation_id": conversation_id,
+                "execution_id": execution_id,
+                "kind": STREAM_DELTA,
+                "stream_id": stream_id,
+                "sequence": sequence,
+                "iteration": iteration,
+                "deltas": deltas,
+            },
+        )
+
+    def _send_data(self, conversation_id: int, data: dict) -> bool:
         try:
             layer = self._channel_layer or get_channel_layer()
-            async_to_sync(layer.group_send)(
+            async_to_sync(_group_send_with_timeout)(
+                layer,
                 conversation_group(conversation_id),
                 {
                     "type": EVENT_TYPE,
-                    "data": {
-                        "conversation_id": conversation_id,
-                        "execution_id": execution_id,
-                        "kind": kind,
-                    },
+                    "data": data,
                 },
             )
+            return True
         except Exception:  # noqa: BLE001 - push is best-effort by contract
             logger.warning(
                 "notebook chat event publish failed (conversation=%s kind=%s)",
                 conversation_id,
-                kind,
+                data.get("kind"),
                 exc_info=True,
             )
+            return False
 
 
 class PublishingRecorder:
@@ -114,11 +165,19 @@ class PublishingRecorder:
         *,
         conversation_id: int,
         execution_id: int,
+        stream_store: ExecutionStreamStore | None = None,
     ):
         self._recorder = recorder
         self._publisher = publisher
         self._conversation_id = conversation_id
         self._execution_id = execution_id
+        self._stream = NotebookStreamBuffer(
+            conversation_id=conversation_id,
+            execution_id=execution_id,
+            store=(ExecutionStreamStore() if stream_store is None else stream_store),
+            publisher=publisher,
+            is_active=getattr(recorder, "is_active", None),
+        )
 
     def __getattr__(self, name):
         return getattr(self._recorder, name)
@@ -126,18 +185,50 @@ class PublishingRecorder:
     def _publish(self, kind: str) -> None:
         self._publisher.publish(self._conversation_id, self._execution_id, kind)
 
+    def _stream_best_effort(self, operation: str, callback, *args) -> None:
+        try:
+            callback(*args)
+        except Exception:  # noqa: BLE001 - previews must never break a turn
+            # Stop retrying a failed optional cache operation for every
+            # provider chunk. Durable recording remains independent.
+            self._stream.disable()
+            logger.warning(
+                "notebook chat stream %s failed (execution=%s)",
+                operation,
+                self._execution_id,
+                exc_info=True,
+            )
+
     def record_message(self, message, *, turn=None) -> None:
+        self._stream_best_effort("flush", self._stream.flush)
         self._recorder.record_message(message, turn=turn)
+        if turn is not None:
+            # The complete provider turn is now durable and the REST activity
+            # projection supersedes its transient preview.
+            self._stream_best_effort("clear", self._stream.clear)
         self._publish(TURN_PROGRESS)
+
+    def record_stream_event(self, iteration, event) -> None:
+        self._stream_best_effort("append", self._stream.append, iteration, event)
+
+    def flush_stream_events(self) -> None:
+        self._stream_best_effort("flush", self._stream.flush)
+
+    def _clear_stream(self) -> None:
+        self._stream_best_effort("clear", self._stream.clear)
 
     def on_run_finished(self, result) -> None:
         # Only an explicit False suppresses; None (a recorder that does not
         # track transitions) keeps the event.
         if self._recorder.on_run_finished(result) is False:
+            self._clear_stream()
             return
+        self._clear_stream()
         self._publish(TURN_FINISHED)
 
     def on_run_failed(self, error: Exception) -> None:
         if self._recorder.on_run_failed(error) is False:
+            self._clear_stream()
             return
+        self._clear_stream()
         self._publish(TURN_FAILED)
