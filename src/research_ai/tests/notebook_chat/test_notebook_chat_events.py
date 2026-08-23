@@ -1,8 +1,11 @@
+import asyncio
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from django.test import TestCase
 
+from research_ai.services.agent.types import TextStreamDelta
+from research_ai.services.notebook_chat import events
 from research_ai.services.notebook_chat.events import (
     EVENT_TYPE,
     TURN_FAILED,
@@ -12,6 +15,7 @@ from research_ai.services.notebook_chat.events import (
     PublishingRecorder,
     conversation_group,
 )
+from research_ai.services.notebook_chat.streaming import STREAM_DELTA
 
 
 class FakeChannelLayer:
@@ -25,6 +29,11 @@ class FakeChannelLayer:
         if self._error is not None:
             raise self._error
         self.sent.append((group, message))
+
+
+class StalledChannelLayer:
+    async def group_send(self, group, message):
+        await asyncio.sleep(1)
 
 
 class ConversationEventPublisherTests(TestCase):
@@ -72,15 +81,86 @@ class ConversationEventPublisherTests(TestCase):
         ):
             publisher.publish(12, 34, TURN_FINISHED)
 
+    def test_publish_stream_forwards_delta_payload_immediately(self):
+        # Arrange
+        layer = FakeChannelLayer()
+        publisher = ConversationEventPublisher(channel_layer=layer)
+
+        # Act
+        published = publisher.publish_stream(
+            12,
+            34,
+            stream_id="34:1",
+            sequence=2,
+            iteration=1,
+            deltas=[
+                {
+                    "id": "block",
+                    "type": "narration",
+                    "delta": "hi",
+                    "at": "2026-08-13T12:00:00Z",
+                }
+            ],
+        )
+
+        # Assert
+        self.assertTrue(published)
+        self.assertEqual(
+            layer.sent[0][1]["data"],
+            {
+                "conversation_id": 12,
+                "execution_id": 34,
+                "kind": STREAM_DELTA,
+                "stream_id": "34:1",
+                "sequence": 2,
+                "iteration": 1,
+                "deltas": [
+                    {
+                        "id": "block",
+                        "type": "narration",
+                        "delta": "hi",
+                        "at": "2026-08-13T12:00:00Z",
+                    }
+                ],
+            },
+        )
+
+    def test_stream_publication_timeout_is_best_effort(self):
+        # Arrange
+        publisher = ConversationEventPublisher(channel_layer=StalledChannelLayer())
+
+        # Act / Assert: timeout is best-effort and does not escape the publisher.
+        with (
+            patch.object(events, "STREAM_PUBLISH_TIMEOUT_SECONDS", 0.001),
+            self.assertLogs(
+                "research_ai.services.notebook_chat.events", level="WARNING"
+            ),
+        ):
+            published = publisher.publish_stream(
+                12,
+                34,
+                stream_id="34:1",
+                sequence=1,
+                iteration=1,
+                deltas=[],
+            )
+        self.assertFalse(published)
+
 
 class PublishingRecorderTests(unittest.TestCase):
     """Pure delegation tests; no Django machinery involved."""
 
     def setUp(self):
         self.wrapped = Mock()
+        self.wrapped.is_active.return_value = True
         self.publisher = Mock()
+        self.stream_store = Mock()
         self.recorder = PublishingRecorder(
-            self.wrapped, self.publisher, conversation_id=7, execution_id=9
+            self.wrapped,
+            self.publisher,
+            conversation_id=7,
+            execution_id=9,
+            stream_store=self.stream_store,
         )
 
     def test_record_message_forwards_then_publishes_progress(self):
@@ -112,6 +192,59 @@ class PublishingRecorderTests(unittest.TestCase):
             [call.args for call in self.publisher.publish.call_args_list],
             [(7, 9, TURN_FINISHED), (7, 9, TURN_FAILED)],
         )
+
+    def test_stream_event_is_snapshotted_and_published(self):
+        # Arrange
+        event = TextStreamDelta(block_index=0, text="hello")
+
+        # Act
+        self.recorder.record_stream_event(1, event)
+
+        # Assert
+        self.stream_store.set.assert_called_once()
+        self.publisher.publish_stream.assert_called_once()
+        self.assertEqual(
+            self.publisher.publish_stream.call_args.kwargs["deltas"][0]["delta"],
+            "hello",
+        )
+
+    def test_stream_cache_failures_do_not_interrupt_durable_recording(self):
+        # Arrange: the first failed snapshot disables this turn's preview.
+        self.stream_store.set.side_effect = RuntimeError("redis down")
+        self.stream_store.clear.side_effect = RuntimeError("redis down")
+        message, turn = object(), object()
+
+        # Act
+        with self.assertLogs(
+            "research_ai.services.notebook_chat.events", level="WARNING"
+        ):
+            self.recorder.record_stream_event(
+                1, TextStreamDelta(block_index=0, text="hello")
+            )
+            self.recorder.record_stream_event(
+                1, TextStreamDelta(block_index=0, text="do not retry")
+            )
+            self.recorder.record_message(message, turn=turn)
+
+        # Assert: only the transient preview was lost. The authoritative
+        # message and its durable progress notification still landed.
+        self.wrapped.record_message.assert_called_once_with(message, turn=turn)
+        self.publisher.publish.assert_called_once_with(7, 9, TURN_PROGRESS)
+        self.stream_store.set.assert_called_once()
+        self.publisher.publish_stream.assert_not_called()
+
+    def test_inactive_execution_drops_stream_events(self):
+        # Arrange
+        self.wrapped.is_active.return_value = False
+
+        # Act
+        self.recorder.record_stream_event(
+            1, TextStreamDelta(block_index=0, text="too late")
+        )
+
+        # Assert
+        self.stream_store.set.assert_not_called()
+        self.publisher.publish_stream.assert_not_called()
 
     def test_terminal_hooks_that_did_not_transition_publish_nothing(self):
         # Arrange: each hook finds the execution already sealed from outside

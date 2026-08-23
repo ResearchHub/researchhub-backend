@@ -10,22 +10,28 @@ from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE, NoteToolset
 from researchhub_access_group.constants import ADMIN, VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.registered_report_note_metadata import (
-    add_registered_report_prefill_metadata,
-)
-from researchhub_document.related_models.constants.document_type import (
-    REGISTERED_REPORT,
-)
 
-TIPTAP_DOC = {
+# A two-block document the way the frontend editor stores it (defaults spelled
+# out), used to seed notes with structured content.
+EDITOR_DOC = {
     "type": "doc",
     "content": [
         {
+            "type": "heading",
+            "attrs": {"id": None, "data-toc-id": None, "textAlign": None, "level": 2},
+            "content": [{"type": "text", "text": "Title"}],
+        },
+        {
             "type": "paragraph",
-            "content": [{"type": "text", "text": "Updated by the agent"}],
-        }
+            "attrs": {"id": None, "class": None, "textAlign": None},
+            "content": [{"type": "text", "text": "Original body"}],
+        },
     ],
 }
+
+
+def _insert(blocks, at=0):
+    return [{"op": "insert", "at": at, "blocks": blocks}]
 
 
 class NoteToolsetTests(TestCase):
@@ -64,18 +70,61 @@ class NoteToolsetTests(TestCase):
 
         self.toolset = NoteToolset(user=self.owner).as_toolset()
 
-    def test_read_note_returns_content_and_version(self):
+    def _seed_version(self, document) -> NoteContent:
+        version = NoteContent.objects.create(
+            note=self.note,
+            json=json.dumps(document),
+            plain_text="seeded",
+        )
+        self.note.refresh_from_db()
+        return version
+
+    # -- read ---------------------------------------------------------------
+
+    def test_read_note_returns_compact_indexed_blocks(self):
+        # Arrange
+        seeded = self._seed_version(EDITOR_DOC)
+
         # Act
         result, stop = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
 
-        # Assert
+        # Assert: blocks come back compact -- defaults dropped, plain
+        # paragraphs as bare strings -- keyed by their index.
         self.assertFalse(stop)
         self.assertEqual(result["note_id"], self.note.id)
         self.assertEqual(result["title"], self.note.title)
+        self.assertEqual(result["version_id"], seeded.id)
+        self.assertEqual(result["block_count"], 2)
+        self.assertEqual(
+            result["blocks"],
+            {
+                "0": {"type": "heading", "attrs": {"level": 2}, "content": ["Title"]},
+                "1": "Original body",
+            },
+        )
+        self.assertNotIn("plain_text", result)
+
+    def test_read_note_without_content_returns_null_blocks(self):
+        # Act: the seeded note from create_note has no content JSON.
+        result, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+
+        # Assert: note content lives in version JSON only; there is no
+        # plain-text fallback.
         self.assertEqual(result["version_id"], self.content.id)
-        # The seeded note has plain_text only, so the fallback is included.
-        self.assertIsNone(result["content"])
-        self.assertEqual(result["plain_text"], "some text")
+        self.assertIsNone(result["blocks"])
+        self.assertEqual(result["block_count"], 0)
+        self.assertNotIn("plain_text", result)
+
+    def test_read_note_reports_content_outside_the_schema_as_error(self):
+        # Arrange: stored content is expected to parse (pre-schema notes were
+        # cleaned up); a note that does not must fail loudly, not degrade.
+        self._seed_version({"type": "doc", "content": [{"type": "legacyWidget"}]})
+
+        # Act
+        result, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+
+        # Assert
+        self.assertIn("could not be read", result["error"])
 
     def test_read_note_denied_for_user_without_access(self):
         # Arrange
@@ -94,26 +143,35 @@ class NoteToolsetTests(TestCase):
         # Assert
         self.assertIn("error", result)
 
-    def test_edit_note_creates_new_version(self):
-        # Act
+    # -- edit ---------------------------------------------------------------
+
+    def test_edit_note_inserts_into_a_note_without_structured_content(self):
+        # Act: compact dialect -- a bare string is a paragraph.
         result, _ = self.toolset.dispatch(
             EDIT_NOTE,
             {
                 "note_id": self.note.id,
                 "expected_version_id": self.content.id,
-                "content": TIPTAP_DOC,
+                "edits": _insert(["Written by the agent"]),
             },
         )
 
         # Assert
         self.assertTrue(result.get("saved"))
+        self.assertEqual(result["block_count"], 1)
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, result["version_id"])
         # Stored as a JSON-encoded string (the shape the frontend editor
-        # loads), while read_note hands the model back the parsed document.
+        # loads) holding the canonical document, defaults filled in.
         self.assertIsInstance(self.note.latest_version.json, str)
-        self.assertEqual(json.loads(self.note.latest_version.json), TIPTAP_DOC)
-        self.assertEqual(self.note.latest_version.plain_text, "Updated by the agent")
+        stored = json.loads(self.note.latest_version.json)
+        self.assertEqual(stored["type"], "doc")
+        self.assertEqual(
+            stored["content"][0]["content"],
+            [{"type": "text", "text": "Written by the agent"}],
+        )
+        self.assertIn("attrs", stored["content"][0])
+        self.assertEqual(self.note.latest_version.plain_text, "Written by the agent")
         # The prior version is kept as history.
         self.assertEqual(self.note.notes.count(), 2)
         # Attribution for version events and history: who wrote it, through
@@ -125,8 +183,142 @@ class NoteToolsetTests(TestCase):
         self.assertEqual(self.note.latest_version.parent_version_id, self.content.id)
 
         read, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
-        self.assertEqual(read["content"], TIPTAP_DOC)
+        self.assertEqual(read["blocks"], {"0": "Written by the agent"})
         self.assertEqual(read["version_id"], result["version_id"])
+
+    def test_edit_note_touches_only_the_addressed_blocks(self):
+        # Arrange
+        seeded = self._seed_version(EDITOR_DOC)
+
+        # Act: replace the body, keep the heading, append a footnote -- all
+        # against the indices from the read.
+        result, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": seeded.id,
+                "edits": [
+                    {"op": "replace", "from": 1, "to": 1, "blocks": ["New body"]},
+                    {"op": "insert", "at": 2, "blocks": ["Footnote"]},
+                ],
+            },
+        )
+
+        # Assert
+        self.assertTrue(result.get("saved"))
+        self.assertEqual(result["block_count"], 3)
+        self.note.refresh_from_db()
+        stored = json.loads(self.note.latest_version.json)
+        # The untouched heading is spliced through byte-identical.
+        self.assertEqual(stored["content"][0], EDITOR_DOC["content"][0])
+        self.assertEqual(
+            [block["type"] for block in stored["content"]],
+            ["heading", "paragraph", "paragraph"],
+        )
+        self.assertEqual(
+            self.note.latest_version.plain_text, "Title\nNew body\nFootnote"
+        )
+
+    def test_edit_note_stores_a_clean_document_root(self):
+        # Arrange: root metadata is not part of the agent surface; whatever
+        # the stored root held, agent versions carry type and content only.
+        seeded = self._seed_version(
+            {"content": EDITOR_DOC["content"], "attrs": {"stray": 1}}
+        )
+
+        # Act
+        result, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": seeded.id,
+                "edits": [{"op": "replace", "from": 1, "to": 1, "blocks": ["Fixed"]}],
+            },
+        )
+
+        # Assert
+        self.assertTrue(result.get("saved"))
+        self.note.refresh_from_db()
+        stored = json.loads(self.note.latest_version.json)
+        self.assertEqual(sorted(stored), ["content", "type"])
+        self.assertEqual(stored["type"], "doc")
+
+    def test_edit_note_rejects_blocks_outside_the_schema(self):
+        # Arrange
+        seeded = self._seed_version(EDITOR_DOC)
+
+        # Act: a misspelled attribute the editor would silently drop.
+        result, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": seeded.id,
+                "edits": [
+                    {
+                        "op": "replace",
+                        "from": 1,
+                        "to": 1,
+                        "blocks": [{"type": "paragraph", "attrs": {"idd": "x"}}],
+                    }
+                ],
+            },
+        )
+
+        # Assert: the error names the edit and the attribute; nothing saved.
+        self.assertIn("edits[0]", result["error"])
+        self.assertIn("idd", result["error"])
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.latest_version_id, seeded.id)
+
+    def test_edit_note_rejects_out_of_range_indices(self):
+        # Arrange
+        seeded = self._seed_version(EDITOR_DOC)
+
+        # Act
+        result, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": seeded.id,
+                "edits": [{"op": "delete", "from": 5, "to": 5}],
+            },
+        )
+
+        # Assert
+        self.assertIn("block indices run 0..1", result["error"])
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.latest_version_id, seeded.id)
+
+    def test_edit_note_rejects_emptying_the_note(self):
+        # Arrange
+        seeded = self._seed_version(EDITOR_DOC)
+
+        # Act
+        result, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": seeded.id,
+                "edits": [{"op": "delete", "from": 0, "to": 1}],
+            },
+        )
+
+        # Assert
+        self.assertIn("empty", result["error"])
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.latest_version_id, seeded.id)
+
+    def test_edit_note_rejects_missing_edits(self):
+        # Act
+        result, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {"note_id": self.note.id, "expected_version_id": self.content.id},
+        )
+
+        # Assert
+        self.assertIn("edits must be a non-empty array", result["error"])
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.latest_version_id, self.content.id)
 
     def test_edit_note_rejects_stale_version(self):
         # Arrange: another writer saved a version after our read.
@@ -135,7 +327,7 @@ class NoteToolsetTests(TestCase):
             {
                 "note_id": self.note.id,
                 "expected_version_id": self.content.id,
-                "content": TIPTAP_DOC,
+                "edits": _insert(["First edit"]),
             },
         )
 
@@ -145,7 +337,7 @@ class NoteToolsetTests(TestCase):
             {
                 "note_id": self.note.id,
                 "expected_version_id": self.content.id,
-                "content": TIPTAP_DOC,
+                "edits": _insert(["Second edit"]),
             },
         )
 
@@ -164,7 +356,7 @@ class NoteToolsetTests(TestCase):
             {
                 "note_id": self.note.id,
                 "expected_version_id": self.content.id,
-                "content": TIPTAP_DOC,
+                "edits": _insert(["Not allowed"]),
             },
         )
 
@@ -173,51 +365,7 @@ class NoteToolsetTests(TestCase):
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, self.content.id)
 
-    def test_edit_note_preserves_registered_report_prefill(self):
-        # Arrange: a registered-report draft whose latest version carries
-        # publish metadata that the agent's replacement document omits.
-        prefill = {"proposal_id": 42}
-        self.note.document_type = REGISTERED_REPORT
-        self.note.save()
-        seeded = NoteContent.objects.create(
-            note=self.note,
-            json=json.dumps(
-                add_registered_report_prefill_metadata(TIPTAP_DOC, prefill)
-            ),
-            plain_text="seeded",
-        )
-
-        # Act
-        result, _ = self.toolset.dispatch(
-            EDIT_NOTE,
-            {
-                "note_id": self.note.id,
-                "expected_version_id": seeded.id,
-                "content": TIPTAP_DOC,
-            },
-        )
-
-        # Assert
-        self.assertTrue(result.get("saved"))
-        self.note.refresh_from_db()
-        stored = json.loads(self.note.latest_version.json)
-        self.assertEqual(stored["attrs"]["registered_report_prefill"], prefill)
-
-    def test_edit_note_rejects_invalid_content(self):
-        # Act
-        result, _ = self.toolset.dispatch(
-            EDIT_NOTE,
-            {
-                "note_id": self.note.id,
-                "expected_version_id": self.content.id,
-                "content": {"type": "paragraph"},
-            },
-        )
-
-        # Assert
-        self.assertIn("error", result)
-        self.note.refresh_from_db()
-        self.assertEqual(self.note.latest_version_id, self.content.id)
+    # -- scoping ------------------------------------------------------------
 
     def test_scoped_toolset_allows_the_scoped_note(self):
         # Arrange
@@ -248,7 +396,7 @@ class NoteToolsetTests(TestCase):
             {
                 "note_id": other_note.id,
                 "expected_version_id": other_content.id,
-                "content": TIPTAP_DOC,
+                "edits": _insert(["Out of scope"]),
             },
         )
 

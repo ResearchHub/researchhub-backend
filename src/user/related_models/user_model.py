@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from hub.models import Hub
 from purchase.related_models.balance_model import Balance
-from reputation.models import Distribution, PaidStatusModelMixin, Withdrawal
+from reputation.models import PaidStatusModelMixin, Withdrawal
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
@@ -500,21 +500,6 @@ class User(SoftDeletableModel, AbstractUser):
         author = self.author_profile
 
         author.calculate_hub_scores()
-
-    @property
-    def upvote_count(self):
-        from discussion.models import Vote
-
-        upvote_count = (
-            Distribution.objects.filter(
-                recipient=self,
-                proof_item_content_type=ContentType.objects.get_for_model(Vote),
-                reputation_amount=1,
-            ).aggregate(count=Count("id"))["count"]
-            or 0
-        )
-
-        return upvote_count
 
     @property
     def amount_funded(self):

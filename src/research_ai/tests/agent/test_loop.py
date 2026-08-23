@@ -16,6 +16,7 @@ from research_ai.services.agent.types import (
     ServerToolBlock,
     StopReason,
     TextBlock,
+    TextStreamDelta,
     ThinkingBlock,
     ToolUseBlock,
 )
@@ -95,6 +96,8 @@ class RecordingRecorder:
         self.messages = []  # (message, turn) pairs, in recording order
         self.finished = []
         self.failed = []
+        self.stream_events = []
+        self.stream_flushes = 0
 
     def record_message(self, message, *, turn=None):
         self.messages.append((message, turn))
@@ -104,6 +107,12 @@ class RecordingRecorder:
 
     def on_run_failed(self, error):
         self.failed.append(error)
+
+    def record_stream_event(self, iteration, event):
+        self.stream_events.append((iteration, event))
+
+    def flush_stream_events(self):
+        self.stream_flushes += 1
 
 
 class RaisingRecorder:
@@ -356,6 +365,29 @@ class AgentLoopTests(SimpleTestCase):
         )
         self.assertEqual(recorder.finished, [result])
         self.assertEqual(recorder.failed, [])
+
+    def test_provider_stream_events_reach_recorder_and_flush_before_turn(self):
+        # Arrange
+        delta = TextStreamDelta(block_index=0, text="hel")
+
+        class StreamingProvider(FakeProvider):
+            def complete_with_events(self, *, on_event, **kwargs):
+                on_event(delta)
+                return self.complete(**kwargs)
+
+        recorder = RecordingRecorder()
+        agent = _build_agent(
+            StreamingProvider([_build_text_turn("hello")]),
+            _build_toolset(),
+            recorder=recorder,
+        )
+
+        # Act
+        agent.run("hi")
+
+        # Assert
+        self.assertEqual(recorder.stream_events, [(1, delta)])
+        self.assertEqual(recorder.stream_flushes, 1)
 
     def test_recorder_sees_failure_with_all_prior_messages(self):
         # Arrange: one good tool turn, then the provider dies.

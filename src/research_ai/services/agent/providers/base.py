@@ -5,8 +5,9 @@ agent loop and toolset speak exclusively in the neutral types from
 ``agent.types``; each adapter renders those to its provider's request shape and
 parses the response back into an ``AssistantTurn``.
 
-Adapters expose exactly two public methods -- ``render_tools`` and ``complete``.
-``render_messages`` / ``parse_turn`` are private helpers per adapter.
+Adapters expose ``render_tools`` and ``complete`` plus the optional streaming
+surface ``complete_with_events``. ``render_messages`` / ``parse_turn`` are
+private helpers per adapter.
 
 Id-correlation invariant (every adapter must preserve it): the ``id`` of a
 ``ToolUseBlock`` the model emits is echoed back as the ``tool_use_id`` of the
@@ -19,7 +20,7 @@ from collections.abc import Callable
 from typing import Any
 
 from research_ai.services.agent.tools import Tool
-from research_ai.services.agent.types import AssistantTurn, Message
+from research_ai.services.agent.types import AssistantTurn, Message, ProviderStreamEvent
 
 
 class LLMProvider(ABC):
@@ -62,3 +63,29 @@ class LLMProvider(ABC):
         another request, when supplied.
         """
         raise NotImplementedError
+
+    def complete_with_events(
+        self,
+        *,
+        system_prompt: str,
+        messages: list[Message],
+        rendered_tools: Any,
+        max_tokens: int | None,
+        temperature: float,
+        on_event: Callable[[ProviderStreamEvent], None] | None = None,
+        before_retry: Callable[[], None] | None = None,
+    ) -> AssistantTurn:
+        """Run one turn, optionally reporting normalized incremental output.
+
+        Non-streaming providers inherit this compatibility path. Streaming
+        providers override it while returning the same authoritative completed
+        ``AssistantTurn``.
+        """
+        return self.complete(
+            system_prompt=system_prompt,
+            messages=messages,
+            rendered_tools=rendered_tools,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            before_retry=before_retry,
+        )

@@ -239,13 +239,14 @@ class Agent:
 
     def _complete_turn(self, messages, rendered_tools, iteration):
         try:
-            return self.provider.complete(
+            return self.provider.complete_with_events(
                 system_prompt=self.system_prompt,
                 messages=messages,
                 rendered_tools=rendered_tools,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
                 before_retry=self._ensure_active,
+                on_event=lambda event: self._record_stream_event(iteration, event),
             )
         except AgentRunError as exc:
             # Attach the transcript so the failure is inspectable and the
@@ -265,6 +266,27 @@ class Agent:
                 messages=messages,
                 iterations=iteration - 1,
             ) from exc
+        finally:
+            self._flush_stream_events()
+
+    def _record_stream_event(self, iteration: int, event) -> None:
+        """Best-effort delivery of transient model output to an observer."""
+        callback = getattr(self.recorder, "record_stream_event", None)
+        if callback is None:
+            return
+        try:
+            callback(iteration, event)
+        except Exception:  # noqa: BLE001 - previews must never break a turn
+            logger.warning("agent recorder record_stream_event failed", exc_info=True)
+
+    def _flush_stream_events(self) -> None:
+        callback = getattr(self.recorder, "flush_stream_events", None)
+        if callback is None:
+            return
+        try:
+            callback()
+        except Exception:  # noqa: BLE001 - previews must never break a turn
+            logger.warning("agent recorder flush_stream_events failed", exc_info=True)
 
     def _log_server_tools(self, turn, iteration: int) -> None:
         """Trace the tools the provider ran inside the turn.

@@ -20,13 +20,13 @@ from discussion.serializers import (
     GenericReactionSerializerMixin,
 )
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
+from note.models import parse_note_json
 from purchase.models import GrantApplication, Purchase
 from researchhub.serializers import (
     DynamicModelFieldSerializer,
     ModeratedDocumentStatusSerializerMixin,
 )
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.registered_report_note_metadata import parse_note_json
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
     REGISTERED_REPORT,

@@ -16,7 +16,10 @@ from research_ai.services.agent_persistence import (
     AgentConversationBusyError,
     DatabaseAgentRecorder,
 )
-from research_ai.services.notebook_chat import WORKFLOW, NotebookChatService
+from research_ai.services.notebook_chat import (
+    WORKFLOW,
+    NotebookChatService,
+)
 from research_ai.services.notebook_chat.config import NotebookChatConfig
 from research_ai.services.notebook_chat.events import (
     TURN_CANCELLED,
@@ -36,16 +39,11 @@ from research_ai.tests.notebook_chat.test_notebook_chat_events import FakeChanne
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 
-EDITED_DOC = {
-    "type": "doc",
-    "content": [
-        {
-            "type": "paragraph",
-            "content": [{"type": "text", "text": "Edited by the assistant"}],
-        }
-    ],
-}
+# edit_note input: block operations in the compact dialect (a bare string
+# block is a paragraph).
+EDIT_NOTE_EDITS = [{"op": "insert", "at": 0, "blocks": ["Edited by the assistant"]}]
 
 
 def _make_service(provider=None, **kwargs):
@@ -109,9 +107,21 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.PENDING)
         self.assertIn(str(self.note.id), execution.system_prompt)
         self.assertIn(self.note.title, execution.system_prompt)
+        self.assertNotIn("read_selected_rfp", execution.system_prompt)
         self.assertEqual(execution.configuration["note_id"], self.note.id)
         self.assertEqual(execution.trigger_message.content, "Please add a summary.")
         delay.assert_called_once_with(execution.id)
+
+    def test_submit_message_mentions_selected_rfp_tool_for_preregistration(self):
+        # Arrange
+        self.note.document_type = PREREGISTRATION
+        self.note.save(update_fields=["document_type"])
+
+        # Act
+        execution, _delay = self._submit()
+
+        # Assert
+        self.assertIn("read_selected_rfp", execution.system_prompt)
 
     def test_second_message_continues_the_same_conversation(self):
         # Arrange
@@ -181,7 +191,7 @@ class NotebookChatServiceTests(TestCase):
                     {
                         "note_id": self.note.id,
                         "expected_version_id": self.content.id,
-                        "content": EDITED_DOC,
+                        "edits": EDIT_NOTE_EDITS,
                     },
                 ),
                 text_turn("I replaced the note body."),
@@ -198,7 +208,9 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
         self.assertEqual(result["final_text"], "I replaced the note body.")
         # Stored as a JSON-encoded string, the shape the frontend editor loads.
-        self.assertEqual(json.loads(self.note.latest_version.json), EDITED_DOC)
+        stored = json.loads(self.note.latest_version.json)
+        self.assertEqual(stored["type"], "doc")
+        self.assertEqual(self.note.latest_version.plain_text, "Edited by the assistant")
         reply = execution.generated_chat_message
         self.assertIsNotNone(reply)
         self.assertEqual(reply.content, "I replaced the note body.")
@@ -280,6 +292,40 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(result["final_text"], "Done.")
         grant_toolset_factory.assert_called_once_with(user=self.user)
         grant_toolset.build_tools.assert_called_once_with()
+
+    def test_run_turn_passes_selected_rfp_toolset_for_preregistration(self):
+        # Arrange
+        self.note.document_type = PREREGISTRATION
+        self.note.save(update_fields=["document_type"])
+        execution, _delay = self._submit()
+        provider = FakeProvider([text_turn("Done.")])
+
+        # Act
+        with patch(
+            "research_ai.services.notebook_chat.service.SelectedRFPToolset"
+        ) as selected_rfp_toolset:
+            selected_rfp_toolset.return_value.build_tools.return_value = []
+            result = _make_service(provider=provider).run_turn(execution.id)
+
+        # Assert
+        self.assertEqual(result["final_text"], "Done.")
+        selected_rfp_toolset.assert_called_once_with(note=self.note, user=self.user)
+        selected_rfp_toolset.return_value.build_tools.assert_called_once_with()
+
+    def test_run_turn_omits_selected_rfp_toolset_for_other_notes(self):
+        # Arrange
+        execution, _delay = self._submit()
+        provider = FakeProvider([text_turn("Done.")])
+
+        # Act
+        with patch(
+            "research_ai.services.notebook_chat.service.SelectedRFPToolset"
+        ) as selected_rfp_toolset:
+            result = _make_service(provider=provider).run_turn(execution.id)
+
+        # Assert
+        self.assertEqual(result["final_text"], "Done.")
+        selected_rfp_toolset.assert_not_called()
 
     def test_run_turn_honors_the_recorded_iteration_limit(self):
         # Arrange: the turn was submitted with a one-iteration budget; the
@@ -392,7 +438,13 @@ class NotebookChatServiceTests(TestCase):
         invalid_edit = {
             "note_id": self.note.id,
             "expected_version_id": self.content.id,
-            "content": {"type": "paragraph"},
+            "edits": [
+                {
+                    "op": "insert",
+                    "at": 0,
+                    "blocks": [{"type": "bogusNode"}],
+                }
+            ],
         }
         provider = FakeProvider(
             [tool_turn(f"t{i}", "edit_note", invalid_edit) for i in range(6)]
@@ -849,6 +901,8 @@ class NotebookChatEventEmissionTests(TestCase):
     def test_cancel_active_turn_publishes_turn_cancelled(self):
         # Arrange
         execution = self._submit()
+        self.publisher.reset_mock()
+        self.service.streams = Mock()
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
@@ -859,6 +913,68 @@ class NotebookChatEventEmissionTests(TestCase):
         self.assertEqual(
             self.publisher.publish.call_args.args,
             (self.conversation.id, execution.id, TURN_CANCELLED),
+        )
+        self.service.streams.clear.assert_called_once_with(execution.id)
+
+    def test_cancel_active_turn_survives_stream_cache_cleanup_failure(self):
+        # Arrange
+        execution = self._submit()
+        self.publisher.reset_mock()
+        self.service.streams = Mock()
+        self.service.streams.clear.side_effect = RuntimeError("redis down")
+
+        # Act
+        with (
+            self.assertLogs(
+                "research_ai.services.notebook_chat.service", level="WARNING"
+            ),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            cancelled = self.service.cancel_active_turn(self.conversation)
+
+        # Assert: optional preview cleanup cannot block durable cancellation.
+        self.assertEqual(cancelled, execution)
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+        self.publisher.publish.assert_called_once_with(
+            self.conversation.id, execution.id, TURN_CANCELLED
+        )
+
+    def test_cancel_orders_state_change_cleanup_and_event(self):
+        # Arrange
+        execution = self._submit()
+        order = []
+        streams = Mock()
+        cancels = Mock()
+        publisher = Mock()
+
+        streams.clear.side_effect = lambda execution_id: order.append(
+            ("stream_clear", execution_id)
+        )
+        cancels.cancel.side_effect = lambda candidate: (
+            order.append(("durable_cancel", candidate.id)) or True
+        )
+        publisher.publish.side_effect = lambda _, execution_id, __: order.append(
+            ("turn_cancelled", execution_id)
+        )
+        service = _make_service(
+            stream_store=streams,
+            cancel_service=cancels,
+            event_publisher=publisher,
+        )
+
+        # Act
+        cancelled = service.cancel_active_turn(self.conversation)
+
+        # Assert
+        self.assertEqual(cancelled, execution)
+        self.assertEqual(
+            order,
+            [
+                ("durable_cancel", execution.id),
+                ("stream_clear", execution.id),
+                ("turn_cancelled", execution.id),
+            ],
         )
 
     def test_cancel_that_lost_the_race_publishes_nothing(self):

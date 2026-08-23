@@ -15,7 +15,6 @@ from paper.related_models.citation_model import Citation
 from paper.storage.figure_storage import FigureStorage
 from paper.utils import get_csl_item
 from reputation.models import Score, ScoreChange
-from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.user_model import User
 from utils.models import ModeratedDocumentMixin
@@ -281,21 +280,6 @@ class Paper(AbstractGenericReactionModel):
 
         # Default behavior: only count threads from this paper
         return self.rh_threads.get_discussion_count()
-
-    def extract_pdf_preview(self, use_celery=True):
-        if TESTING:
-            return
-
-        from paper.tasks import celery_extract_pdf_preview
-
-        if use_celery:
-            celery_extract_pdf_preview.apply_async(
-                (self.id,),
-                priority=2,
-                countdown=10,
-            )
-        else:
-            celery_extract_pdf_preview(self.id)
 
     def get_license(self, save=True):
         pdf_license = self.pdf_license

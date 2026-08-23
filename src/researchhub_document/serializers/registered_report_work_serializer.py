@@ -7,8 +7,8 @@ from feed.hot_score_utils import calculate_adjusted_score
 from feed.models import FeedEntry
 from feed.serializers import SimpleAuthorSerializer, SimpleUserSerializer
 from hub.serializers import SimpleHubSerializer
+from note.models import parse_note_json
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.registered_report_note_metadata import parse_note_json
 from researchhub_document.related_models.constants.journey_stage import (
     JOURNEY_STAGE_GRANT,
     JOURNEY_STAGE_PROPOSAL,

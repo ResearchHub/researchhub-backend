@@ -1,3 +1,5 @@
+import json
+
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db import models
@@ -118,6 +120,21 @@ class Note(DefaultModel):
                 "requester_id": requester.id,
             },
         )
+
+
+def parse_note_json(value: object) -> dict[str, object] | None:
+    """Parse a ``NoteContent.json``-style value (dict or JSON-encoded string)."""
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    return parsed
 
 
 class NoteContent(models.Model):

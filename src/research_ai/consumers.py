@@ -1,12 +1,12 @@
 """WebSocket consumers for research AI features.
 
 ``NotebookChatConsumer`` subscribes one client to one chat's turn events
-(``ws/notebook/notes/<note_id>/chats/<conversation_id>/``). Events are the
-small refetch nudges published by ``notebook_chat.events``; the payload the
-client receives is the event's ``data`` object verbatim (``conversation_id``,
-``execution_id``, ``kind``). The socket is a latency optimization over the
-``?activity=live`` polling projection, which remains the source of truth --
-a client should refetch on any event and treat the socket as droppable.
+(``ws/notebook/notes/<note_id>/chats/<conversation_id>/``). Lifecycle events
+are small refetch nudges; ``stream_delta`` events append transient text or
+readable thinking to the matching active execution. The payload is forwarded
+verbatim. The ``?activity=live`` projection remains the recovery path: it
+carries the newest bounded stream snapshot while a turn is active. Clients
+must ignore transient deltas once that execution has settled.
 
 Admission mirrors the REST contract in ``notebook_chat_views`` and must be
 kept in sync with ``NOTEBOOK_CHAT_PERMISSIONS`` there: authentication

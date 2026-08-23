@@ -272,7 +272,6 @@ class Author(SoftDeletableModel):
 
     @property
     def achievements(self):
-        upvote_count = getattr(self.user, "upvote_count", 0)
         peer_review_count = getattr(self.user, "peer_review_count", 0)
         amount_funded = getattr(self.user, "amount_funded", 0)
         return {
@@ -287,14 +286,6 @@ class Author(SoftDeletableModel):
             "OPEN_SCIENCE_SUPPORTER": {
                 "value": amount_funded,
                 "milestones": [10, 1000, 10000],
-            },
-            "HIGHLY_UPVOTED": {
-                "value": upvote_count,
-                "milestones": [
-                    10,
-                    100,
-                    1000,
-                ],
             },
             "EXPERT_PEER_REVIEWER": {
                 "value": peer_review_count,

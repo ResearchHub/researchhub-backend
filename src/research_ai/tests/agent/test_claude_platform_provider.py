@@ -36,8 +36,11 @@ from research_ai.services.agent.types import (
     Message,
     ServerToolBlock,
     StopReason,
+    StreamReset,
     TextBlock,
+    TextStreamDelta,
     ThinkingBlock,
+    ThinkingStreamDelta,
     ToolResultBlock,
     ToolUseBlock,
     TurnUsage,
@@ -297,6 +300,57 @@ class RenderMessagesTests(SimpleTestCase):
 
 
 class CompleteAndParseTests(SimpleTestCase):
+    def test_reports_text_and_readable_thinking_deltas_in_order(self):
+        # Arrange
+        response = _build_response([AnthropicTextBlock(type="text", text="answer")])
+        sdk_events = [
+            SimpleNamespace(
+                type="content_block_delta",
+                index=0,
+                delta=SimpleNamespace(type="thinking_delta", thinking="plan "),
+            ),
+            SimpleNamespace(
+                type="content_block_delta",
+                index=1,
+                delta=SimpleNamespace(type="text_delta", text="answer"),
+            ),
+            # Signatures are replay state, not user-visible stream content.
+            SimpleNamespace(
+                type="content_block_delta",
+                index=0,
+                delta=SimpleNamespace(type="signature_delta", signature="secret"),
+            ),
+        ]
+
+        class Messages:
+            def stream(self, **_kwargs):
+                return _FakeStream(response, sdk_events)
+
+        provider = ClaudePlatformProvider(
+            client=SimpleNamespace(messages=Messages()), model_id="claude-opus-5"
+        )
+        observed = []
+
+        # Act
+        turn = provider.complete_with_events(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools=[],
+            max_tokens=100,
+            temperature=0.0,
+            on_event=observed.append,
+        )
+
+        # Assert
+        self.assertEqual(turn.text, "answer")
+        self.assertEqual(
+            observed,
+            [
+                ThinkingStreamDelta(block_index=0, text="plan "),
+                TextStreamDelta(block_index=1, text="answer"),
+            ],
+        )
+
     def test_complete_parses_text_tool_use_and_stop_reason(self):
         # Arrange
         response = _build_response(
@@ -928,6 +982,67 @@ class ServerSideToolTests(SimpleTestCase):
         self.assertEqual(len(provider._client.messages.calls), 2)
         self.assertEqual(turn.usage.input_tokens, 20)
         self.assertEqual(turn.usage.output_tokens, 6)
+
+    def test_missing_container_retry_resets_discarded_stream_output(self):
+        # Arrange
+        unresolved = ServerToolUseBlock(
+            id="srvtoolu_code",
+            name="code_execution",
+            input={"code": "await web_search(...)"},
+            type="server_tool_use",
+        )
+        responses = [
+            (
+                _build_response([unresolved], stop_reason="pause_turn"),
+                [
+                    SimpleNamespace(
+                        type="content_block_delta",
+                        index=0,
+                        delta=SimpleNamespace(type="text_delta", text="discarded"),
+                    )
+                ],
+            ),
+            (
+                _build_response([AnthropicTextBlock(type="text", text="accepted")]),
+                [
+                    SimpleNamespace(
+                        type="content_block_delta",
+                        index=0,
+                        delta=SimpleNamespace(type="text_delta", text="accepted"),
+                    )
+                ],
+            ),
+        ]
+
+        class Messages:
+            def stream(self, **_kwargs):
+                response, events = responses.pop(0)
+                return _FakeStream(response, events)
+
+        provider = ClaudePlatformProvider(
+            client=SimpleNamespace(messages=Messages()), model_id="claude-opus-5"
+        )
+        observed = []
+
+        # Act
+        provider.complete_with_events(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools=[],
+            max_tokens=100,
+            temperature=0.0,
+            on_event=observed.append,
+        )
+
+        # Assert
+        self.assertEqual(
+            observed,
+            [
+                TextStreamDelta(block_index=0, text="discarded"),
+                StreamReset(),
+                TextStreamDelta(block_index=0, text="accepted"),
+            ],
+        )
 
     def test_repeated_missing_container_fails_without_returning_poisoned_turn(self):
         # Arrange

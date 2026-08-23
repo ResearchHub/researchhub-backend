@@ -1,5 +1,6 @@
-import json
 from copy import deepcopy
+
+from note.models import parse_note_json
 
 REGISTERED_REPORT_PREFILL_ATTR = "registered_report_prefill"
 
@@ -29,18 +30,3 @@ def get_registered_report_prefill_metadata(value: object) -> dict[str, object]:
     if not isinstance(metadata, dict):
         return {}
     return metadata
-
-
-def parse_note_json(value: object) -> dict[str, object] | None:
-    """Parse notebook JSON from a JSONField value."""
-    if isinstance(value, dict):
-        return value
-    if not isinstance(value, str) or not value:
-        return None
-    try:
-        parsed = json.loads(value)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(parsed, dict):
-        return None
-    return parsed

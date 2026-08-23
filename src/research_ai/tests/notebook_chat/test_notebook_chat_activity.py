@@ -55,24 +55,21 @@ def _thinkings(activity):
     return [event for event in activity if event["type"] == "thinking"]
 
 
-EDITED_DOC = {
-    "type": "doc",
-    "content": [
-        {
-            "type": "paragraph",
-            "content": [{"type": "text", "text": "Edited by the assistant"}],
-        }
-    ],
-}
+# edit_note input: block operations in the compact dialect (a bare string
+# block is a paragraph).
+EDIT_NOTE_EDITS = [{"op": "insert", "at": 0, "blocks": ["Edited by the assistant"]}]
 
 
-def _make_service(provider=None, web_search_client=None, oa_client=None):
+def _make_service(
+    provider=None, web_search_client=None, oa_client=None, stream_store=None
+):
     return NotebookChatService(
         provider=provider,
         oa_client=Mock() if oa_client is None else oa_client,
         web_search_client=(
             Mock(configured=False) if web_search_client is None else web_search_client
         ),
+        stream_store=stream_store,
     )
 
 
@@ -140,7 +137,7 @@ class NotebookChatActivityTests(TestCase):
                     {
                         "note_id": self.note.id,
                         "expected_version_id": self.content.id,
-                        "content": EDITED_DOC,
+                        "edits": EDIT_NOTE_EDITS,
                     },
                 ),
                 text_turn("Done."),
@@ -187,7 +184,7 @@ class NotebookChatActivityTests(TestCase):
                     {
                         "note_id": self.note.id,
                         "expected_version_id": self.content.id,
-                        "content": EDITED_DOC,
+                        "edits": EDIT_NOTE_EDITS,
                     },
                 ),
                 text_turn("Done."),
@@ -571,6 +568,67 @@ class NotebookChatActivityProjectionTests(TestCase):
         )
         self.assertNotIn("sig-opaque", json.dumps(activity, default=str))
 
+    def test_active_turn_includes_reconnectable_stream_snapshot(self):
+        # Arrange
+        snapshot = {
+            "id": f"{self.execution.id}:1",
+            "sequence": 3,
+            "iteration": 1,
+            "items": [
+                {
+                    "id": "iteration-1:block-0:narration",
+                    "type": "narration",
+                    "text": "Partial answer",
+                    "at": timezone.now().isoformat(),
+                }
+            ],
+        }
+        stream_store = Mock()
+        stream_store.get.return_value = snapshot
+        service = _make_service(stream_store=stream_store)
+
+        # Act
+        data = service.representation(self.conversation)
+        (execution,) = data["executions"]
+
+        # Assert
+        self.assertEqual(execution["stream"], snapshot)
+        self.assertEqual(
+            execution["phase"],
+            {"state": "responding", "label": "Writing a response"},
+        )
+
+    def test_stream_cache_failure_is_treated_as_a_missing_snapshot(self):
+        # Arrange
+        stream_store = Mock()
+        stream_store.get.side_effect = RuntimeError("redis down")
+        service = _make_service(stream_store=stream_store)
+
+        # Act
+        with self.assertLogs(
+            "research_ai.services.notebook_chat.service", level="WARNING"
+        ):
+            data = service.representation(self.conversation)
+        (execution,) = data["executions"]
+
+        # Assert: durable chat state remains available without a preview.
+        self.assertIsNone(execution["stream"])
+        stream_store.get.assert_called_once_with(self.execution.id)
+
+    def test_terminal_turn_omits_transient_stream_state(self):
+        # Arrange
+        self._finish()
+        stream_store = Mock()
+        service = _make_service(stream_store=stream_store)
+
+        # Act
+        data = service.representation(self.conversation)
+        (execution,) = data["executions"]
+
+        # Assert
+        self.assertNotIn("stream", execution)
+        stream_store.get.assert_not_called()
+
     def test_bedrock_and_openrouter_thinking_shapes_extract_their_text(self):
         shapes = (
             (
@@ -781,6 +839,54 @@ class NotebookChatActivityProjectionTests(TestCase):
         self.execution.status = AgentExecution.Status.FAILED
         self.execution.save(update_fields=["status"])
         self.assertEqual(self._single_event()["status"], "interrupted")
+
+    def test_selected_rfp_read_has_a_safe_label_and_source(self):
+        # Arrange
+        self._add_trace_row(
+            1,
+            [
+                {
+                    "type": "tool_use",
+                    "id": "t1",
+                    "name": "read_selected_rfp",
+                    "input": {},
+                }
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self._add_trace_row(
+            2,
+            [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "t1",
+                    "content": {
+                        "title": "Reproducibility RFP",
+                        "url": "https://example.org/rfp",
+                        "rfp_text": "Private full call text",
+                    },
+                }
+            ],
+            AgentExecutionMessage.Provenance.TOOL,
+            role="user",
+        )
+        self._finish()
+
+        # Act
+        event = self._single_event()
+
+        # Assert
+        self.assertEqual(event["label"], "Read the selected RFP")
+        self.assertEqual(
+            event["sources"],
+            [
+                {
+                    "title": "Reproducibility RFP",
+                    "url": "https://example.org/rfp",
+                }
+            ],
+        )
+        self.assertNotIn("Private full call text", json.dumps(event, default=str))
 
     def test_live_turn_shows_its_newest_text_but_a_succeeded_turn_does_not(self):
         # Arrange: the only assistant text so far, which is either narration in
