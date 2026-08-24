@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 
 from django.test import SimpleTestCase
@@ -57,6 +58,54 @@ class UserProfileToolsetTests(SimpleTestCase):
         self.assertIn("/user/42/overview", result["links"]["researchhub"])
         self.assertEqual(result["profile"]["affiliation"]["city"], "London")
         self.assertNotIn("private@example.com", str(result))
+
+    def test_bounds_each_education_entry_before_dispatch(self):
+        # Arrange
+        author = SimpleNamespace(
+            id=42,
+            first_name="Ada",
+            last_name="Lovelace",
+            headline=None,
+            description=None,
+            university=None,
+            country_code=None,
+            education=[
+                {
+                    "institution": "Huge University",
+                    "details": "🔬" * (128 * 1024),
+                },
+                {"institution": "Small College"},
+            ],
+            h_index=0,
+            i10_index=0,
+            two_year_mean_citedness=0,
+            orcid_id=None,
+            openalex_ids=[],
+            linkedin=None,
+            google_scholar=None,
+            twitter=None,
+            facebook=None,
+        )
+        user = SimpleNamespace(
+            first_name="Ada",
+            last_name="Lovelace",
+            author_profile=author,
+        )
+
+        # Act
+        result, stop = (
+            UserProfileToolset(user=user).as_toolset().dispatch(GET_USER_PROFILE, {})
+        )
+
+        # Assert
+        self.assertFalse(stop)
+        self.assertNotIn("error", result)
+        education = result["profile"]["education"]
+        self.assertTrue(education[0]["truncated"])
+        self.assertGreater(education[0]["original_size_bytes"], 128 * 1024)
+        self.assertLessEqual(len(json.dumps(education[0]).encode("utf-8")), 2048)
+        self.assertEqual(education[1], {"institution": "Small College"})
+        self.assertLess(len(json.dumps(result).encode("utf-8")), 128 * 1024)
 
     def test_returns_account_name_when_author_profile_is_missing(self):
         # Arrange

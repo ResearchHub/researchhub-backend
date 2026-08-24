@@ -6,6 +6,8 @@ only return the profile belonging to the user on whose behalf the agent is
 already running.
 """
 
+import json
+
 from orcid.identifiers import normalize_orcid
 from research_ai.constants import BASE_FRONTEND_URL
 from research_ai.services.agent.tools import Tool, Toolset
@@ -17,7 +19,10 @@ _EMPTY_INPUT_SCHEMA = {"type": "object", "properties": {}}
 _MAX_DESCRIPTION_CHARS = 4000
 _MAX_HEADLINE_CHARS = 1000
 _MAX_EDUCATION_ENTRIES = 20
+_MAX_EDUCATION_ENTRY_BYTES = 2048
+_MAX_EDUCATION_PREVIEW_CHARS = 512
 _MAX_OPENALEX_IDS = 10
+_MAX_ORCID_CHARS = 100
 
 
 def _text(value, *, max_chars: int | None = None) -> str | None:
@@ -30,6 +35,25 @@ def _text(value, *, max_chars: int | None = None) -> str | None:
 def _openalex_url(value) -> str | None:
     identifier = normalize_openalex_id(value)
     return f"https://openalex.org/{identifier}" if identifier else None
+
+
+def _bounded_education(entries) -> list:
+    """Keep education useful without letting arbitrary JSON flood a tool result."""
+    bounded = []
+    for entry in list(entries or [])[:_MAX_EDUCATION_ENTRIES]:
+        serialized = json.dumps(entry, allow_nan=False)
+        encoded = serialized.encode("utf-8")
+        if len(encoded) <= _MAX_EDUCATION_ENTRY_BYTES:
+            bounded.append(entry)
+            continue
+        bounded.append(
+            {
+                "truncated": True,
+                "original_size_bytes": len(encoded),
+                "preview": serialized[:_MAX_EDUCATION_PREVIEW_CHARS] + "…",
+            }
+        )
+    return bounded
 
 
 class UserProfileToolset:
@@ -93,7 +117,10 @@ class UserProfileToolset:
             if part
         )
         university = getattr(author, "university", None)
-        orcid_url, orcid = normalize_orcid(getattr(author, "orcid_id", None))
+        orcid_value = _text(
+            getattr(author, "orcid_id", None), max_chars=_MAX_ORCID_CHARS
+        )
+        orcid_url, orcid = normalize_orcid(orcid_value)
         openalex_ids = list(getattr(author, "openalex_ids", None) or [])[
             :_MAX_OPENALEX_IDS
         ]
@@ -135,9 +162,7 @@ class UserProfileToolset:
                     else None
                 ),
                 "country_code": _text(getattr(author, "country_code", None)),
-                "education": list(getattr(author, "education", None) or [])[
-                    :_MAX_EDUCATION_ENTRIES
-                ],
+                "education": _bounded_education(getattr(author, "education", None)),
                 "research_metrics": {
                     "h_index": getattr(author, "h_index", None),
                     "i10_index": getattr(author, "i10_index", None),
