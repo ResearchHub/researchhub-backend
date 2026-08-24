@@ -467,7 +467,8 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
 
     @staticmethod
     def _filter_by_comment_type(
-        queryset: QuerySet[FeedEntry], comment_types: list[str]
+        queryset: QuerySet[FeedEntry],
+        comment_types: "list[str]",  # quoted: `list` action shadows the builtin
     ) -> QuerySet[FeedEntry]:
         """Return feed entries for comments of the given comment types."""
         comment_ct = ContentType.objects.get_for_model(RhCommentModel)
