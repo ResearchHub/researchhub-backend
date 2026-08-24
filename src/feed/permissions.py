@@ -1,6 +1,8 @@
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 
+from feed.serializers import UserActivityQuerySerializer
+
 
 class CanViewUserActivity(BasePermission):
     """
@@ -11,13 +13,14 @@ class CanViewUserActivity(BasePermission):
 
     def has_permission(self, request: Request, view) -> bool:
         """Return whether the requester may read the requested user's activity."""
-        # An omitted user_id is a validation error, so let the query serializer
-        # answer with 400 rather than masking it as 403 here.
-        requested_user_id = request.query_params.get("user_id")
-        if requested_user_id is None:
+        # Parse with the view's serializer so the ownership check compares the
+        # same integer the view will, and invalid input reaches the view's 400
+        # rather than being masked as a 403 here.
+        query = UserActivityQuerySerializer(data=request.query_params)
+        if not query.is_valid():
             return True
 
         return (
-            requested_user_id == str(request.user.id)
+            query.validated_data["user_id"] == request.user.id
             or request.user.is_moderator_or_editor()
         )

@@ -21,6 +21,7 @@ from feed.feed_visibility import exclude_hidden_from_feed
 from feed.models import FeedEntry
 from feed.permissions import CanViewUserActivity
 from feed.serializers import ActivityFeedEntrySerializer, UserActivityQuerySerializer
+from feed.services.user_activity_service import UserActivityService
 from feed.views.common import FeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
 from paper.related_models.paper_model import Paper
@@ -31,7 +32,6 @@ from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
-from purchase.utils import get_funded_fundraise_ids
 from researchhub_comment.constants.rh_comment_thread_types import (
     COMMUNITY_REVIEW,
     PEER_REVIEW,
@@ -174,8 +174,9 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         query_serializer.is_valid(raise_exception=True)
         user_id = query_serializer.validated_data["user_id"]
 
-        queryset = self._filter_by_user_involvement(
-            self.filter_queryset(self.get_queryset()), user_id
+        document_ids = UserActivityService().get_involved_document_ids(user_id)
+        queryset = self.filter_queryset(self.get_queryset()).filter(
+            unified_document_id__in=document_ids
         )
         page = self.paginate_queryset(queryset)
         serializer = self.get_serializer(page, many=True)
@@ -355,37 +356,6 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         )
         all_ud_ids = set(grant_ud_ids) | set(prereg_ud_ids)
         return queryset.filter(unified_document_id__in=all_ud_ids)
-
-    @staticmethod
-    def _filter_by_user_involvement(
-        queryset: QuerySet[FeedEntry], user_id: int
-    ) -> QuerySet[FeedEntry]:
-        """Return feed entries for every document the user is involved with."""
-        involved_grants = Grant.objects.filter(
-            Q(created_by_id=user_id)
-            | Q(contacts__id=user_id)
-            | Q(applications__applicant_id=user_id),
-            status__in=[Grant.OPEN, Grant.COMPLETED],
-            unified_document__is_public=True,
-        )
-        applied_document_ids = GrantApplication.objects.filter(
-            grant__in=involved_grants,
-        ).values_list("preregistration_post__unified_document_id", flat=True)
-        created_document_ids = ResearchhubPost.objects.filter(
-            created_by_id=user_id,
-            document_type=PREREGISTRATION,
-        ).values_list("unified_document_id", flat=True)
-        funded_document_ids = Fundraise.objects.filter(
-            id__in=get_funded_fundraise_ids(user_id),
-        ).values_list("unified_document_id", flat=True)
-
-        document_ids = (
-            set(involved_grants.values_list("unified_document_id", flat=True))
-            | set(applied_document_ids)
-            | set(created_document_ids)
-            | set(funded_document_ids)
-        )
-        return queryset.filter(unified_document_id__in=document_ids)
 
     @staticmethod
     def _exclude_paper_documents(queryset):
