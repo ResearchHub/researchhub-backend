@@ -54,7 +54,11 @@ class DynamicFundraiseSerializer(DynamicModelFieldSerializer):
     def get_goal_amount(self, fundraise):
         usd_goal = fundraise.goal_amount
         usd_goal = float(usd_goal)
-        rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
+        try:
+            rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
+        except AttributeError:
+            # No exchange rate on record yet.
+            rsc_goal = None
         return {
             "usd": usd_goal,
             "rsc": rsc_goal,

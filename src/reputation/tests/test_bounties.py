@@ -15,6 +15,7 @@ from hub.tests.helpers import create_hub
 from mailing_list.services import EmailService
 from notification.models import Notification
 from paper.tests.helpers import create_paper
+from purchase.models import Fundraise
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
@@ -1727,6 +1728,79 @@ class BountyViewTests(APITestCase):
             distribution_type="BOUNTY_DAO_FEE"
         ).latest("created_date")
         self.assertEqual(dao_fee_distribution.recipient, community_revenue_user)
+
+    def _create_proposal_bounty_with_fundraise(self):
+        """Open a REVIEW bounty on a proposal that is raising funds."""
+        prereg_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        prereg_post = ResearchhubPost.objects.create(
+            title="Proposal Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=prereg_doc,
+        )
+        fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=prereg_doc,
+            goal_amount=1000,
+            status=Fundraise.OPEN,
+        )
+        prereg_comment = create_rh_comment(post=prereg_post, created_by=self.recipient)
+        res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": prereg_comment._meta.model_name,
+                "item_object_id": prereg_comment.id,
+                "bounty_type": Bounty.Type.REVIEW,
+            },
+        )
+        self.assertEqual(res.status_code, 201)
+        return prereg_post, fundraise, res.data["id"]
+
+    def test_list_includes_document_data_for_proposal_bounty(self):
+        """Bounty payloads carry the document data needed to render a card."""
+        # Arrange
+        self._authenticate_bounty_manager()
+        prereg_post, fundraise, bounty_id = (
+            self._create_proposal_bounty_with_fundraise()
+        )
+
+        # Act
+        res = self.client.get("/api/bounty/", {"only_parent_bounties": "true"})
+
+        # Assert
+        self.assertEqual(res.status_code, 200)
+        bounty = next(b for b in res.data["results"] if b["id"] == bounty_id)
+        document = bounty["unified_document"]["documents"][0]
+        self.assertEqual(document["id"], prereg_post.id)
+        self.assertEqual(document["title"], "Proposal Post")
+        self.assertIn("image_url", document)
+        self.assertIn("authors", document)
+        self.assertIsNotNone(document["created_by"])
+
+        fundraise_data = bounty["unified_document"]["fundraise"]
+        self.assertEqual(fundraise_data["id"], fundraise.id)
+        self.assertEqual(fundraise_data["status"], Fundraise.OPEN)
+        self.assertEqual(fundraise_data["goal_amount"]["usd"], 1000.0)
+        self.assertIn("amount_raised", fundraise_data)
+        self.assertIn("contributors", fundraise_data)
+
+    def test_get_bounties_omits_document_data(self):
+        """The extra document data is scoped to the list endpoint."""
+        # Arrange
+        self._authenticate_bounty_manager()
+        _, _, bounty_id = self._create_proposal_bounty_with_fundraise()
+
+        # Act
+        res = self.client.get("/api/bounty/get_bounties/")
+
+        # Assert
+        self.assertEqual(res.status_code, 200)
+        bounty = next(b for b in res.data if b["id"] == bounty_id)
+        self.assertNotIn("fundraise", bounty["unified_document"])
+        self.assertNotIn("image_url", bounty["unified_document"]["documents"][0])
 
     def test_proposal_review_bounties_appear_first(self):
         """REVIEW bounties on PREREGISTRATION docs should sort before others."""
