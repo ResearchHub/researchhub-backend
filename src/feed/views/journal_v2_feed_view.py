@@ -16,7 +16,7 @@ from feed.feed_list_dto import (
     JournalFeedPostSerializer,
     serialize_journal_feed_metrics,
 )
-from feed.feed_visibility import exclude_hidden_from_feed
+
 from feed.filters import JournalFeedOrderingFilter
 from feed.views.feed_view_mixin import FeedViewMixin
 from organizations.models import NonprofitFundraiseLink
@@ -173,4 +173,4 @@ class JournalV2FeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 ),
             )
         )
-        return exclude_hidden_from_feed(queryset)
+        return queryset

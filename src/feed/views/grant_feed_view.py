@@ -14,7 +14,6 @@ from rest_framework.viewsets import ReadOnlyModelViewSet
 from ai_peer_review.models import ProposalReview
 from feed.cache_segment import get_feed_cache_segment
 from feed.feed_list_dto import GrantFeedListEntrySerializer
-from feed.feed_visibility import exclude_hidden_from_feed
 from feed.filters import FundOrderingFilter
 from feed.views.feed_view_mixin import FeedViewMixin
 from feed.views.grant_cache_mixin import GRANT_FEED_MAX_CACHED_PAGE, GrantCacheMixin
@@ -129,8 +128,6 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ReadOnlyModelViewSet):
             .prefetch_related(*prefetch_related)
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )
-        queryset = exclude_hidden_from_feed(queryset)
-
         queryset = queryset.exclude(
             unified_document__grants__status__in=[Grant.PENDING, Grant.DECLINED]
         )
