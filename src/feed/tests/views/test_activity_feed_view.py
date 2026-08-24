@@ -1467,7 +1467,7 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
 
 
 class UserActivityFeedTests(APITestCase):
-    """Test the activity feed for grants a user created or is a contact for."""
+    """Test the activity feed for documents a user is involved with."""
 
     def setUp(self):
         super().setUp()
@@ -1476,6 +1476,13 @@ class UserActivityFeedTests(APITestCase):
         self.applicant = create_test_user("applicant", email="applicant@example.com")
         self.client = APIClient()
         self.client.force_authenticate(user=self.funder)
+
+        RscExchangeRate.objects.create(
+            price_source=COIN_GECKO,
+            rate=3.0,
+            real_rate=3.0,
+            target_currency=USD,
+        )
 
         # OPEN grant created by funder, with an applied preregistration
         self.funder_open_grant_doc = ResearchhubUnifiedDocument.objects.create(
