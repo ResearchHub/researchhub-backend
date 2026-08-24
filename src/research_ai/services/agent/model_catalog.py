@@ -47,9 +47,16 @@ class ModelOption:
 
 _CATALOG: tuple[ModelOption, ...] = (
     ModelOption(
+        ref=f"{CLAUDE_PLATFORM}:claude-fable-5",
+        label="Claude Fable 5",
+        description="Anthropic's most capable model for complex research and drafting.",
+    ),
+    ModelOption(
         ref=f"{CLAUDE_PLATFORM}:claude-opus-5",
         label="Claude Opus 5",
-        description="Anthropic's flagship; strongest on agentic research and drafting.",
+        description=(
+            "Anthropic's high-capability model for agentic research and drafting."
+        ),
     ),
     ModelOption(
         ref=f"{CLAUDE_PLATFORM}:claude-sonnet-5",
@@ -67,22 +74,32 @@ _CATALOG: tuple[ModelOption, ...] = (
         description="OpenAI's flagship generalist.",
     ),
     ModelOption(
+        ref=f"{OPENROUTER}:openai/gpt-5.6-terra",
+        label="GPT-5.6 Terra",
+        description="OpenAI's balanced model for everyday research and drafting.",
+    ),
+    ModelOption(
+        ref=f"{OPENROUTER}:openai/gpt-5.6-luna",
+        label="GPT-5.6 Luna",
+        description="OpenAI's fast, cost-efficient model.",
+    ),
+    ModelOption(
         ref=f"{OPENROUTER}:google/gemini-3.1-pro-preview",
         label="Gemini 3.1 Pro",
         description="Google's frontier reasoning model.",
     ),
     ModelOption(
-        ref=f"{OPENROUTER}:google/gemini-3.6-flash",
-        label="Gemini 3.6 Flash",
+        ref=f"{OPENROUTER}:google/gemini-3.7-flash",
+        label="Gemini 3.7 Flash",
         description="Google's fast, low-cost model.",
     ),
     ModelOption(
-        ref=f"{OPENROUTER}:x-ai/grok-4.5",
-        label="Grok 4.5",
+        ref=f"{OPENROUTER}:x-ai/grok-4.6",
+        label="Grok 4.6",
         description="xAI's frontier model.",
     ),
     ModelOption(
-        ref=f"{OPENROUTER}:deepseek/deepseek-v4-pro",
+        ref=f"{OPENROUTER}:deepseek/deepseek-v4-pro-0813",
         label="DeepSeek V4 Pro",
         description="DeepSeek's frontier open-weight model.",
     ),
