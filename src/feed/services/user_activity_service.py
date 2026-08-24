@@ -16,34 +16,39 @@ class UserActivityService:
     Only OPEN and COMPLETED grants count as involvement; PENDING, CLOSED, and
     DECLINED grants are moderation or archival states that stay out of feeds.
 
-    Involvement is not permission: whether the requester may see a document is
-    decided by the feed's own visibility gate, which applies
+    Involvement is not permission. The feed applies
     ``ResearchhubPost.objects.visible_to`` to every entry it returns.
     """
 
     def get_involved_document_ids(self, user_id: int) -> set[int]:
         """Return the unified document IDs the user is involved with."""
-        involved_grants = Grant.objects.filter(
-            Q(created_by_id=user_id)
-            | Q(contacts__id=user_id)
-            | Q(applications__applicant_id=user_id),
-            status__in=[Grant.OPEN, Grant.COMPLETED],
-            unified_document__is_public=True,
+        grants = list(
+            Grant.objects.filter(
+                Q(created_by_id=user_id)
+                | Q(contacts__id=user_id)
+                | Q(applications__applicant_id=user_id),
+                status__in=[Grant.OPEN, Grant.COMPLETED],
+            )
+            .distinct()
+            .values_list("id", "unified_document_id")
         )
-        applied_document_ids = GrantApplication.objects.filter(
-            grant__in=involved_grants,
-        ).values_list("preregistration_post__unified_document_id", flat=True)
-        created_document_ids = ResearchhubPost.objects.filter(
-            created_by_id=user_id,
-            document_type=PREREGISTRATION,
-        ).values_list("unified_document_id", flat=True)
-        funded_document_ids = Fundraise.objects.filter(
-            id__in=get_funded_fundraise_ids(user_id),
-        ).values_list("unified_document_id", flat=True)
-
-        return (
-            set(involved_grants.values_list("unified_document_id", flat=True))
-            | set(applied_document_ids)
-            | set(created_document_ids)
-            | set(funded_document_ids)
+        grant_ids = [grant_id for grant_id, _ in grants]
+        document_ids = {document_id for _, document_id in grants}
+        document_ids.update(
+            GrantApplication.objects.filter(grant_id__in=grant_ids).values_list(
+                "preregistration_post__unified_document_id",
+                flat=True,
+            )
         )
+        document_ids.update(
+            ResearchhubPost.objects.filter(
+                created_by_id=user_id,
+                document_type=PREREGISTRATION,
+            ).values_list("unified_document_id", flat=True)
+        )
+        document_ids.update(
+            Fundraise.objects.filter(
+                id__in=get_funded_fundraise_ids(user_id),
+            ).values_list("unified_document_id", flat=True)
+        )
+        return document_ids

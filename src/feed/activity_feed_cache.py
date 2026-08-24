@@ -12,12 +12,13 @@ ACTIVITY_FEED_CACHE_PAGE_SIZE = 20
 ACTIVITY_FEED_MAX_CACHED_PAGE = 20
 ACTIVITY_FEED_CACHE_TIMEOUT = 60 * 10
 # Bump when unscoped public feed filtering or serialization changes.
-ACTIVITY_FEED_CACHE_VERSION = 2
+ACTIVITY_FEED_CACHE_VERSION = 3
 
 
 def activity_feed_cache_key(
     page: int, page_size: int = ACTIVITY_FEED_CACHE_PAGE_SIZE
 ) -> str:
+    """Return the cache key for an unscoped public activity-feed page."""
     return (
         f"activity_feed:public:v{ACTIVITY_FEED_CACHE_VERSION}:"
         f"page-{page}:size-{page_size}"
@@ -27,9 +28,7 @@ def activity_feed_cache_key(
 def should_cache_activity_feed(request: Request) -> bool:
     """Return whether this request may use the shared public activity-feed cache."""
     user = request.user
-    if user.is_authenticated and (
-        getattr(user, "moderator", False) or user.is_hub_editor()
-    ):
+    if user.is_authenticated and user.is_moderator_or_editor():
         return False
 
     params = request.query_params

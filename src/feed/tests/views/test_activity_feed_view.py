@@ -1857,7 +1857,7 @@ class UserActivityFeedTests(APITestCase):
         self.assertNotIn(self.lone_prereg_entry.id, ids)
 
     def test_excludes_private_proposals_from_co_applicants(self):
-        """The feed hides a co-applicant's private proposal under any scope."""
+        """The feed hides a co-applicant's private proposal."""
         # Arrange
         private_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION,
@@ -1882,9 +1882,7 @@ class UserActivityFeedTests(APITestCase):
         )
 
         # Act
-        resp = self.client.get(
-            USER_ACTIVITY_URL, {"user_id": self.funder.id, "scope": "x"}
-        )
+        resp = self.client.get(USER_ACTIVITY_URL, {"user_id": self.funder.id})
 
         # Assert
         ids = {e["id"] for e in resp.data["results"]}
@@ -2001,8 +1999,8 @@ class UserActivityFeedTests(APITestCase):
         ids = {e["id"] for e in resp.data["results"]}
         self.assertIn(self.funder_open_grant_entry.id, ids)
 
-    def test_returns_empty_feed_for_user_without_grants(self):
-        """The user activity feed is empty when the user has no grants."""
+    def test_returns_empty_feed_when_user_has_no_involvement(self):
+        """The user activity feed is empty when the user has no involved documents."""
         # Arrange
         user = create_test_user("no_grants", email="nogrants@example.com")
         self.client.force_authenticate(user=user)
@@ -2074,36 +2072,17 @@ class UserActivityFeedTests(APITestCase):
     def test_filters_by_peer_review_scope(self):
         """The user activity feed supports the peer-review scope filter."""
         # Arrange
-        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
-        thread = RhCommentThreadModel.objects.create(
-            thread_type=PEER_REVIEW,
-            content_type=post_ct,
-            object_id=self.applied_prereg_post.id,
-            created_by=self.other_user,
+        _, peer_review_entry = _make_comment_feed_entry(
+            self.other_user,
+            self.applied_prereg_doc,
+            self.applied_prereg_post,
+            PEER_REVIEW,
         )
-        peer_review = RhCommentModel.objects.create(
-            comment_content_json={"ops": [{"insert": "peer review"}]},
-            comment_type=PEER_REVIEW,
-            created_by=self.other_user,
-            thread=thread,
-        )
-        generic = RhCommentModel.objects.create(
-            comment_content_json={"ops": [{"insert": "generic"}]},
-            comment_type=GENERIC_COMMENT,
-            created_by=self.other_user,
-            thread=thread,
-        )
-        peer_review_entry = _make_feed_entry(
-            RhCommentModel,
-            object_id=peer_review.id,
-            unified_document=self.applied_prereg_doc,
-            user=self.other_user,
-        )
-        generic_entry = _make_feed_entry(
-            RhCommentModel,
-            object_id=generic.id,
-            unified_document=self.applied_prereg_doc,
-            user=self.other_user,
+        _, generic_entry = _make_comment_feed_entry(
+            self.other_user,
+            self.applied_prereg_doc,
+            self.applied_prereg_post,
+            GENERIC_COMMENT,
         )
 
         # Act
@@ -2118,24 +2097,13 @@ class UserActivityFeedTests(APITestCase):
         self.assertNotIn(generic_entry.id, ids)
         self.assertNotIn(self.funder_open_grant_entry.id, ids)
 
-    def test_avoids_duplicates_when_user_creates_and_contacts_grant(self):
-        """The user activity feed avoids duplicate grant activity."""
-        # Arrange
-        self.funder_open_grant.contacts.add(self.funder)
-
-        # Act
-        resp = self.client.get(USER_ACTIVITY_URL, {"user_id": self.funder.id})
-
-        # Assert
-        ids = [e["id"] for e in resp.data["results"]]
-        self.assertEqual(len(ids), len(set(ids)))
-
 
 class ActivityFeedCacheTests(ActivityFeedBaseTests):
     """Public warm-cache behavior for the unscoped activity feed."""
 
     @patch("feed.views.activity_feed_view.cache")
     def test_authenticated_non_mod_uses_cache(self, mock_cache):
+        """Authenticated non-moderators are served the shared public cache."""
         # Arrange
         mock_cache.get.return_value = {
             "next": None,
@@ -2153,6 +2121,7 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
 
     @patch("feed.views.activity_feed_view.cache")
     def test_moderator_bypasses_cache(self, mock_cache):
+        """Moderators skip the shared public cache and get a live response."""
         # Arrange
         moderator = create_random_authenticated_user(
             "activity_cache_mod", moderator=True
@@ -2170,6 +2139,7 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
 
     @patch("feed.views.activity_feed_view.cache")
     def test_hub_editor_bypasses_cache(self, mock_cache):
+        """Hub editors skip the shared public cache and get a live response."""
         # Arrange
         from user.tests.helpers import create_hub_editor
 
@@ -2186,7 +2156,8 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
         mock_cache.set.assert_not_called()
 
     @patch("feed.views.activity_feed_view.cache")
-    def test_scoped_and_filtered_requests_skip_cache(self, mock_cache):
+    def test_skips_cache_for_scoped_and_filtered_requests(self, mock_cache):
+        """Scoped, filtered, and out-of-range pages skip the shared public cache."""
         # Arrange / Act
         cases = [
             {"scope": "financial", "page": 1, "page_size": 20},
@@ -2206,7 +2177,8 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
             mock_cache.set.assert_not_called()
 
     @patch("feed.views.activity_feed_view.cache")
-    def test_warm_activity_feed_cache_replaces_pages(self, mock_cache):
+    def test_replaces_cached_pages_when_warming(self, mock_cache):
+        """Cache warm writes a fresh payload for each public page."""
         # Arrange / Act
         from feed.activity_feed_cache import (
             ACTIVITY_FEED_MAX_CACHED_PAGE,

@@ -1,8 +1,11 @@
+from collections.abc import Sequence
+
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db.models import Count, Exists, OuterRef, Prefetch, Q, QuerySet
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -19,7 +22,6 @@ from feed.activity_feed_cache import (
 )
 from feed.feed_visibility import exclude_hidden_from_feed
 from feed.models import FeedEntry
-from feed.permissions import CanViewUserActivity
 from feed.serializers import ActivityFeedEntrySerializer, UserActivityQuerySerializer
 from feed.services.user_activity_service import UserActivityService
 from feed.views.common import FeedPagination
@@ -158,16 +160,15 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         methods=["get"],
         url_path="user_activity",
         url_name="user-activity",
-        permission_classes=[IsAuthenticated, CanViewUserActivity],
+        permission_classes=[IsAuthenticated],
     )
     def list_user_activity(self, request: Request) -> Response:
-        """
-        Return activity on the documents the requested user is involved with:
-        the OPEN or COMPLETED grants they created, are a contact for, or applied
-        to, every preregistration applied to those grants, the preregistrations
-        they created, and the ones they have funded. Entries are limited to what
-        the requester may see, so private work stays with its author, its grant
-        owner, and moderators.
+        """Return activity on documents the requested user is involved with.
+
+        Covers OPEN or COMPLETED grants they created, are a contact for, or
+        applied to; preregistrations applied to those grants; preregistrations
+        they created; and preregistrations they funded. Entries are limited to
+        what the requester may see.
 
         Requires ``user_id``. Only that user, a moderator, or a hub editor may
         read it. ``scope``, ``content_type``, and ``comment_type`` narrow the
@@ -176,6 +177,8 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         query_serializer = UserActivityQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
         user_id = query_serializer.validated_data["user_id"]
+        if user_id != request.user.id and not request.user.is_moderator_or_editor():
+            raise PermissionDenied("Cannot view another user's activity.")
 
         document_ids = UserActivityService().get_involved_document_ids(user_id)
         queryset = self.filter_queryset(self.get_queryset()).filter(
@@ -185,7 +188,6 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         serializer = self.get_serializer(page, many=True)
         response = self.get_paginated_response(serializer.data)
         self.add_user_votes_to_response(request.user, response.data)
-
         return response
 
     def get_queryset(self):
@@ -244,12 +246,9 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
 
-        # Papers are excluded above, so every remaining entry hangs off a post
-        # and post visibility gates the whole feed. Discovery listings are shared
-        # across viewers (the unscoped page is cached for everyone), so they stay
-        # strictly public; drill-in surfaces are per-request and can be
-        # viewer-aware, which is what lets a grant owner see private
-        # applications to their grant.
+        # Unscoped list is a shared cached public page. Scoped, grant, and
+        # non-list requests are per-requester so grant owners can see
+        # private applications.
         is_discovery = self.action == "list" and not scope and not grant_id
         visible_posts = (
             ResearchhubPost.objects.publicly_visible()
@@ -452,7 +451,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     @staticmethod
     def _filter_by_comment_type(
         queryset: QuerySet[FeedEntry],
-        comment_types: "list[str]",  # quoted: `list` action shadows the builtin
+        comment_types: Sequence[str],
     ) -> QuerySet[FeedEntry]:
         """Return feed entries for comments of the given comment types."""
         comment_ct = ContentType.objects.get_for_model(RhCommentModel)
