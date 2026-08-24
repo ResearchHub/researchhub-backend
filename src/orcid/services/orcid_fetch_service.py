@@ -9,6 +9,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from orcid.clients import OrcidClient
+from orcid.identifiers import normalize_orcid
 from orcid.services.orcid_email_service import OrcidEmailService
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
@@ -34,14 +35,6 @@ class OrcidFetchService:
         self.openalex = openalex or OpenAlex()
         self.email_service = email_service or OrcidEmailService(client=self.client)
         self.process_works_fn = process_works_fn or process_openalex_works
-
-    @staticmethod
-    def _normalize_orcid(orcid: str | None) -> tuple[str | None, str | None]:
-        """Normalize ORCID to (full_url, bare_id) format."""
-        if not orcid:
-            return None, None
-        bare = orcid.replace("https://orcid.org/", "")
-        return f"https://orcid.org/{bare}", bare
 
     def sync_orcid(self, author_id: int) -> dict:
         """Sync an author's ORCID papers and edu emails to their ResearchHub profile."""
@@ -113,7 +106,7 @@ class OrcidFetchService:
 
     def _extract_orcid_id(self, orcid_url: str | None) -> str:
         """Extract bare ORCID ID from full URL (e.g., '0000-0001-2345-6789')."""
-        _, bare = self._normalize_orcid(orcid_url)
+        _, bare = normalize_orcid(orcid_url)
         return bare or ""
 
     def _fetch_dois_from_orcid(self, orcid_id: str) -> list[str]:
@@ -348,7 +341,7 @@ class OrcidFetchService:
                 continue
 
             # Normalize ORCID to handle both full URL and bare ID formats
-            full_orcid, bare_orcid = self._normalize_orcid(orcid_url)
+            full_orcid, bare_orcid = normalize_orcid(orcid_url)
 
             # Find user's author by ORCID (must be OAuth-connected)
             user_author = Author.objects.filter(
