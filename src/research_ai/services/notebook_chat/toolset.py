@@ -1,10 +1,11 @@
 """Tool composition for the notebook chat agent.
 
 Assembles the toolset one chat turn runs with: the note read/edit tools
-(scoped to the acting user's permissions), ResearchHub grant discovery, the
-OpenAlex literature tools, and web search. The OpenAlex toolset is reused minus
-``submit_profile`` -- a chat turn ends when the model answers in plain text, so
-a terminal submit tool from another flow must not ride along.
+(scoped to the acting user's permissions), the acting user's public profile,
+ResearchHub grant discovery, the OpenAlex literature tools, and web search. The
+OpenAlex toolset is reused minus ``submit_profile`` -- a chat turn ends when
+the model answers in plain text, so a terminal submit tool from another flow
+must not ride along.
 """
 
 import logging
@@ -92,13 +93,14 @@ class NotebookWebSearchToolset:
 def compose_notebook_toolset(
     *,
     note_toolset,
+    user_profile_toolset,
     grant_toolset,
     selected_rfp_toolset=None,
     openalex_toolset,
     web_search_toolset,
     native_tool_names: frozenset[str] = frozenset(),
 ) -> Toolset:
-    """Note read/edit + grants + OpenAlex literature + web search.
+    """Note read/edit + user profile + grants + literature + web search.
 
     ``native_tool_names`` are the names the provider runs server-side (on
     Claude Platform, ``web_search``). A local tool by that name is left out:
@@ -109,6 +111,7 @@ def compose_notebook_toolset(
         tool for tool in openalex_toolset.build_tools() if tool.name != SUBMIT_PROFILE
     ]
     candidates.extend(web_search_toolset.build_tools())
+    candidates.extend(user_profile_toolset.build_tools())
     candidates.extend(grant_toolset.build_tools())
     if selected_rfp_toolset is not None:
         candidates.extend(selected_rfp_toolset.build_tools())
