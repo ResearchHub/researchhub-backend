@@ -66,6 +66,8 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
       - document_type: PREREGISTRATION, GRANT, etc.
       - grant_id: all activity on a grant and its applied preregistrations
       - content_type: RHCOMMENTMODEL, RESEARCHHUBPOST, PAPER, etc.
+      - comment_type: AUTHOR_UPDATE, REVIEW, PEER_REVIEW, etc. Repeat the param
+        to allow several, e.g. ?comment_type=AUTHOR_UPDATE&comment_type=REVIEW
 
     Filters can be combined: e.g. ?scope=grants&content_type=RHCOMMENTMODEL
     returns only comments across all grant-related documents.
@@ -165,7 +167,8 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         preregistrations they created, and the ones they have funded.
 
         Requires ``user_id``. Only that user, a moderator, or a hub editor may
-        read it. ``scope`` and ``content_type`` narrow the results further.
+        read it. ``scope``, ``content_type``, and ``comment_type`` narrow the
+        results further.
         """
         query_serializer = UserActivityQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
@@ -262,6 +265,10 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         content_type = self.request.query_params.get("content_type")
         if content_type:
             queryset = self._filter_by_content_type(queryset, content_type)
+
+        comment_types = self.request.query_params.getlist("comment_type")
+        if comment_types:
+            queryset = self._filter_by_comment_type(queryset, comment_types)
 
         return queryset
 
@@ -457,3 +464,15 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         except ContentType.DoesNotExist:
             return queryset.none()
         return queryset.filter(content_type=ct)
+
+    @staticmethod
+    def _filter_by_comment_type(
+        queryset: QuerySet[FeedEntry], comment_types: list[str]
+    ) -> QuerySet[FeedEntry]:
+        """Return feed entries for comments of the given comment types."""
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        comment_ids = RhCommentModel.objects.filter(
+            comment_type__in=[value.upper() for value in comment_types],
+        ).values("id")
+
+        return queryset.filter(content_type=comment_ct, object_id__in=comment_ids)

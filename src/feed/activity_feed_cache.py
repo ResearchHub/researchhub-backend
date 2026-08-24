@@ -38,6 +38,7 @@ def should_cache_activity_feed(request: Request) -> bool:
         or params.get("grant_id")
         or params.get("document_type")
         or params.get("content_type")
+        or params.get("comment_type")
     ):
         return False
 

@@ -27,6 +27,7 @@ from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
 from researchhub_comment.constants.rh_comment_thread_types import (
+    AUTHOR_UPDATE,
     COMMUNITY_REVIEW,
     GENERIC_COMMENT,
     PEER_REVIEW,
@@ -1969,6 +1970,41 @@ class UserActivityFeedTests(APITestCase):
         self.assertNotIn(self.funder_open_grant_entry.id, ids)
         self.assertNotIn(self.applied_prereg_entry.id, ids)
 
+    def test_filters_by_comment_type(self):
+        """The user activity feed narrows to the requested comment types."""
+        # Arrange
+        _, author_update_entry = _make_comment_feed_entry(
+            self.applicant,
+            self.applied_prereg_doc,
+            self.applied_prereg_post,
+            AUTHOR_UPDATE,
+        )
+        _, review_entry = _make_comment_feed_entry(
+            self.applicant,
+            self.applied_prereg_doc,
+            self.applied_prereg_post,
+            COMMUNITY_REVIEW,
+        )
+        _make_comment_feed_entry(
+            self.applicant,
+            self.applied_prereg_doc,
+            self.applied_prereg_post,
+            GENERIC_COMMENT,
+        )
+
+        # Act
+        resp = self.client.get(
+            USER_ACTIVITY_URL,
+            {
+                "user_id": self.funder.id,
+                "comment_type": [AUTHOR_UPDATE, COMMUNITY_REVIEW],
+            },
+        )
+
+        # Assert
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertEqual(ids, {author_update_entry.id, review_entry.id})
+
     def test_filters_by_peer_review_scope(self):
         """The user activity feed supports the peer-review scope filter."""
         # Arrange
@@ -2090,6 +2126,7 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
             {"scope": "financial", "page": 1, "page_size": 20},
             {"grant_id": 1, "page": 1, "page_size": 20},
             {"document_type": "PREREGISTRATION", "page": 1, "page_size": 20},
+            {"comment_type": AUTHOR_UPDATE, "page": 1, "page_size": 20},
             {"page": 21, "page_size": 20},
             {"page": 1, "page_size": 10},
         ]
