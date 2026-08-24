@@ -1890,6 +1890,38 @@ class UserActivityFeedTests(APITestCase):
         ids = {e["id"] for e in resp.data["results"]}
         self.assertNotIn(private_entry.id, ids)
 
+    def test_excludes_comments_on_proposals_awaiting_moderation(self):
+        """The feed hides comments on a proposal that has not cleared moderation."""
+        # Arrange
+        pending_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+            status=ResearchhubUnifiedDocument.PENDING,
+        )
+        pending_post = ResearchhubPost.objects.create(
+            title="Pending Co-applicant Proposal",
+            created_by=self.applicant,
+            document_type=PREREGISTRATION,
+            unified_document=pending_doc,
+        )
+        GrantApplication.objects.create(
+            grant=self.applied_grant,
+            preregistration_post=pending_post,
+            applicant=self.applicant,
+        )
+        comment_entry = _make_feed_entry(
+            RhCommentModel,
+            object_id=33333,
+            unified_document=pending_doc,
+            user=self.applicant,
+        )
+
+        # Act
+        resp = self.client.get(USER_ACTIVITY_URL, {"user_id": self.funder.id})
+
+        # Assert
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertNotIn(comment_entry.id, ids)
+
     def test_includes_comments_on_user_grants(self):
         """The user activity feed includes comments on the user's grant."""
         # Arrange

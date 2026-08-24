@@ -8,9 +8,6 @@ from purchase.related_models.grant_model import Grant
 from purchase.utils import get_funded_fundraise_ids
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from researchhub_document.related_models.researchhub_unified_document_model import (
-    ResearchhubUnifiedDocument,
-)
 
 
 class UserActivityService:
@@ -18,6 +15,10 @@ class UserActivityService:
 
     Only OPEN and COMPLETED grants count as involvement; PENDING, CLOSED, and
     DECLINED grants are moderation or archival states that stay out of feeds.
+
+    Involvement is not permission: whether the requester may see a document is
+    decided by the feed's own visibility gate, which applies
+    ``ResearchhubPost.objects.visible_to`` to every entry it returns.
     """
 
     def get_involved_document_ids(self, user_id: int) -> set[int]:
@@ -40,20 +41,9 @@ class UserActivityService:
             id__in=get_funded_fundraise_ids(user_id),
         ).values_list("unified_document_id", flat=True)
 
-        document_ids = (
+        return (
             set(involved_grants.values_list("unified_document_id", flat=True))
             | set(applied_document_ids)
             | set(created_document_ids)
             | set(funded_document_ids)
-        )
-
-        # Feed visibility filters are conditional on the request's own filters,
-        # so every source above is gated here instead. Without this, a
-        # co-applicant could read a private proposal on a grant they applied to.
-        return set(
-            ResearchhubUnifiedDocument.objects.filter(
-                id__in=document_ids,
-                is_public=True,
-                is_removed=False,
-            ).values_list("id", flat=True)
         )

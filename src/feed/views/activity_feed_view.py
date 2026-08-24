@@ -54,6 +54,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     """
     Feed of activity on documents, excluding paper/preprint-associated
     entries. Peer reviews are limited to proposals (PREREGISTRATION).
+    Entries are limited to documents the requester is allowed to see.
     These filters apply to every request.
 
     Supports filtering by:
@@ -161,10 +162,12 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     )
     def list_user_activity(self, request: Request) -> Response:
         """
-        Return activity on every public document the requested user is involved
-        with: the OPEN or COMPLETED grants they created, are a contact for, or
-        applied to, every preregistration applied to those grants, the
-        preregistrations they created, and the ones they have funded.
+        Return activity on the documents the requested user is involved with:
+        the OPEN or COMPLETED grants they created, are a contact for, or applied
+        to, every preregistration applied to those grants, the preregistrations
+        they created, and the ones they have funded. Entries are limited to what
+        the requester may see, so private work stays with its author, its grant
+        owner, and moderators.
 
         Requires ``user_id``. Only that user, a moderator, or a hub editor may
         read it. ``scope``, ``content_type``, and ``comment_type`` narrow the
@@ -241,11 +244,22 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
 
-        if not grant_id and not scope:
-            queryset = queryset.filter(
-                unified_document__is_public=True,
-                unified_document__is_removed=False,
-            )
+        # Papers are excluded above, so every remaining entry hangs off a post
+        # and post visibility gates the whole feed. Discovery listings are shared
+        # across viewers (the unscoped page is cached for everyone), so they stay
+        # strictly public; drill-in surfaces are per-request and can be
+        # viewer-aware, which is what lets a grant owner see private
+        # applications to their grant.
+        is_discovery = self.action == "list" and not scope and not grant_id
+        visible_posts = (
+            ResearchhubPost.objects.publicly_visible()
+            if is_discovery
+            else ResearchhubPost.objects.visible_to(self.request.user)
+        )
+        queryset = queryset.filter(
+            unified_document_id__in=visible_posts.values("unified_document_id"),
+            unified_document__is_removed=False,
+        )
 
         if grant_id:
             queryset = self._filter_by_grant(queryset, grant_id)
