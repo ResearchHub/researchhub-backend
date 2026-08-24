@@ -1043,7 +1043,8 @@ class NotebookChatMessageCreateSerializer(serializers.Serializer):
 
     The service enforces the configurable ceiling; the max_length here is a
     request-size backstop matching the config default. ``model`` optionally
-    selects the model for this turn from the selectable catalog.
+    selects the model for the first turn from the selectable catalog; the
+    conversation keeps that model for all later turns.
     """
 
     message = serializers.CharField(max_length=20000)

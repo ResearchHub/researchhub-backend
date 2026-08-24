@@ -193,6 +193,42 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(second.conversation_id, first.conversation_id)
         self.assertEqual(second.context_parent_id, first.id)
 
+    @override_settings(
+        ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
+    )
+    def test_later_messages_keep_the_conversation_model(self):
+        # Arrange
+        first, _delay = self._submit(model_ref="claude_platform:claude-sonnet-5")
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["status"])
+
+        # Act
+        second, _delay = self._submit("Another request")
+
+        # Assert
+        self.assertEqual(second.model, "claude_platform:claude-sonnet-5")
+        self.assertEqual(second.provider, "claude_platform")
+
+    @override_settings(
+        ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
+    )
+    def test_later_messages_cannot_switch_the_conversation_model(self):
+        # Arrange
+        first, _delay = self._submit(model_ref="claude_platform:claude-sonnet-5")
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["status"])
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "model cannot be changed"):
+            self.service.submit_message(
+                self.note,
+                self.conversation,
+                "Another request",
+                model_ref="claude_platform:claude-opus-5",
+            )
+        self.assertEqual(self.conversation.executions.count(), 1)
+        self.assertEqual(self.conversation.chat_messages.count(), 1)
+
     def test_submit_message_rejects_empty_and_oversized_messages(self):
         # Arrange
         service = _make_service(config=NotebookChatConfig(max_message_chars=10))

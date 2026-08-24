@@ -409,8 +409,9 @@ class NotebookChatService:
 
         ``conversation`` must have been resolved through ``get_conversation``
         so it is known to belong to ``note``. A chat still untitled takes its
-        name from this message. ``model_ref`` is the user's model selection
-        for this turn; ``None`` runs the configured generator default.
+        name from this message. ``model_ref`` selects the model for the first
+        turn. Later turns reuse that model; requesting a different provider or
+        model raises ``ValueError``.
         Raises ``ValueError`` on an empty or oversized message or a model not
         in the selectable catalog, and lets ``AgentConversationBusyError``
         propagate when a turn is already running on this conversation (the
@@ -424,25 +425,47 @@ class NotebookChatService:
             raise ValueError(f"message exceeds {config.max_message_chars} characters")
         # Validated here, not only at the API boundary, so an execution can
         # never be prepared against a model the catalog does not offer. The
-        # selection is snapshotted on the execution row; the worker resolves
-        # its provider from that snapshot, so a catalog change while the turn
-        # sits queued does not reroute it.
-        model = validate_model_ref(model_ref) or generator_model_ref()
+        # first execution pins the conversation's model; subsequent turns
+        # inherit that snapshot even if the configured default or catalog
+        # changes, and an explicit attempt to switch is rejected.
+        selected_model = validate_model_ref(model_ref)
+        with transaction.atomic():
+            # Keep model resolution in the same conversation lock as turn
+            # preparation. Two first-message requests with different models
+            # must not both observe an unpinned conversation.
+            locked_conversation = AgentConversation.objects.select_for_update().get(
+                id=conversation.id
+            )
+            conversation_model = (
+                locked_conversation.executions.exclude(model="")
+                .order_by("attempt")
+                .values_list("model", flat=True)
+                .first()
+            )
+            if (
+                conversation_model is not None
+                and selected_model is not None
+                and selected_model != conversation_model
+            ):
+                raise ValueError(
+                    "model cannot be changed after a conversation has started"
+                )
+            model = conversation_model or selected_model or generator_model_ref()
 
-        prepared = self.chat.prepare_turn(
-            conversation,
-            text,
-            pending=True,
-            provider=split_model_ref(model)[0],
-            model=model,
-            configuration={
-                "max_iterations": config.max_iterations,
-                "max_tokens": config.max_tokens,
-                "temperature": config.temperature,
-                "note_id": note.id,
-            },
-            system_prompt=build_notebook_chat_system_prompt(note),
-        )
+            prepared = self.chat.prepare_turn(
+                locked_conversation,
+                text,
+                pending=True,
+                provider=split_model_ref(model)[0],
+                model=model,
+                configuration={
+                    "max_iterations": config.max_iterations,
+                    "max_tokens": config.max_tokens,
+                    "temperature": config.temperature,
+                    "note_id": note.id,
+                },
+                system_prompt=build_notebook_chat_system_prompt(note),
+            )
         execution = prepared.execution
         # After prepare_turn so a refused turn (busy, for instance) names
         # nothing; the filtered update keeps a concurrent rename authoritative.

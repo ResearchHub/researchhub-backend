@@ -186,6 +186,32 @@ class NotebookChatViewTests(APITestCase):
         self.assertIn("model", response.data)
         self.assertFalse(AgentExecution.objects.exists())
 
+    @override_settings(
+        ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
+    )
+    def test_post_message_cannot_switch_the_conversation_model(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+        first_response, _delay = self._post_message(
+            chat_id, model="claude_platform:claude-sonnet-5"
+        )
+        first = AgentExecution.objects.get(id=first_response.data["execution_id"])
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["status"])
+
+        # Act
+        response, _delay = self._post_message(
+            chat_id,
+            text="Use another model",
+            model="claude_platform:claude-opus-5",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("model cannot be changed", response.data["detail"])
+        self.assertEqual(AgentExecution.objects.count(), 1)
+
     def test_post_message_as_viewer_is_allowed(self):
         # Arrange: viewers can chat; the edit tool refuses writes for them.
         self.client.force_authenticate(self.viewer)
