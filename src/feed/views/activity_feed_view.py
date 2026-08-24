@@ -165,14 +165,8 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     def list_user_activity(self, request: Request) -> Response:
         """Return activity on documents the requested user is involved with.
 
-        Covers OPEN or COMPLETED grants they created, are a contact for, or
-        applied to; preregistrations applied to those grants; preregistrations
-        they created; and preregistrations they funded. Entries are limited to
-        what the requester may see.
-
         Requires ``user_id``. Only that user, a moderator, or a hub editor may
-        read it. ``scope``, ``content_type``, and ``comment_type`` narrow the
-        results further.
+        read it.
         """
         query_serializer = UserActivityQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)

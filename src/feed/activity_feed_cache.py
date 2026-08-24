@@ -18,7 +18,6 @@ ACTIVITY_FEED_CACHE_VERSION = 3
 def activity_feed_cache_key(
     page: int, page_size: int = ACTIVITY_FEED_CACHE_PAGE_SIZE
 ) -> str:
-    """Return the cache key for an unscoped public activity-feed page."""
     return (
         f"activity_feed:public:v{ACTIVITY_FEED_CACHE_VERSION}:"
         f"page-{page}:size-{page_size}"

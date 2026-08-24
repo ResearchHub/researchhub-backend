@@ -13,16 +13,12 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 class UserActivityService:
     """Resolve which documents a user is involved with.
 
-    Only OPEN and COMPLETED grants count as involvement; PENDING, CLOSED, and
-    DECLINED grants are moderation or archival states that stay out of feeds.
-
-    Involvement is not permission. The feed applies
-    ``ResearchhubPost.objects.visible_to`` to every entry it returns.
+    Only OPEN and COMPLETED grants count. Visibility is applied by the feed.
     """
 
     def get_involved_document_ids(self, user_id: int) -> set[int]:
         """Return the unified document IDs the user is involved with."""
-        grants = list(
+        grant_documents = dict(
             Grant.objects.filter(
                 Q(created_by_id=user_id)
                 | Q(contacts__id=user_id)
@@ -32,10 +28,9 @@ class UserActivityService:
             .distinct()
             .values_list("id", "unified_document_id")
         )
-        grant_ids = [grant_id for grant_id, _ in grants]
-        document_ids = {document_id for _, document_id in grants}
+        document_ids = set(grant_documents.values())
         document_ids.update(
-            GrantApplication.objects.filter(grant_id__in=grant_ids).values_list(
+            GrantApplication.objects.filter(grant_id__in=grant_documents).values_list(
                 "preregistration_post__unified_document_id",
                 flat=True,
             )
