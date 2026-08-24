@@ -107,6 +107,7 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.PENDING)
         self.assertIn(str(self.note.id), execution.system_prompt)
         self.assertIn(self.note.title, execution.system_prompt)
+        self.assertIn("get_user_profile", execution.system_prompt)
         self.assertNotIn("read_selected_rfp", execution.system_prompt)
         self.assertEqual(execution.configuration["note_id"], self.note.id)
         self.assertEqual(execution.trigger_message.content, "Please add a summary.")
@@ -217,6 +218,47 @@ class NotebookChatServiceTests(TestCase):
         # The user prompt the model saw is the chat message, not a wrapper.
         first_call = provider.calls[0]
         self.assertEqual(first_call[0].content[0].text, "Replace the note body.")
+
+    def test_run_turn_can_read_the_conversation_owners_public_profile(self):
+        # Arrange
+        author = self.user.author_profile
+        author.first_name = "Ada"
+        author.last_name = "Lovelace"
+        author.orcid_id = "0000-0001-2345-6789"
+        author.linkedin = "https://www.linkedin.com/in/ada"
+        author.twitter = "https://x.com/ada"
+        author.save(
+            update_fields=[
+                "first_name",
+                "last_name",
+                "orcid_id",
+                "linkedin",
+                "twitter",
+            ]
+        )
+        execution, _delay = self._submit("Use my background to improve the note.")
+        provider = FakeProvider(
+            [
+                tool_turn("profile-1", "get_user_profile", {}),
+                text_turn("I used your public research profile."),
+            ]
+        )
+
+        # Act
+        result = _make_service(provider=provider).run_turn(execution.id)
+
+        # Assert
+        self.assertEqual(result["final_text"], "I used your public research profile.")
+        tool_result = provider.calls[1][-1].content[0]
+        self.assertEqual(tool_result.tool_use_id, "profile-1")
+        self.assertEqual(tool_result.content["name"], "Ada Lovelace")
+        self.assertEqual(
+            tool_result.content["identifiers"]["orcid"], "0000-0001-2345-6789"
+        )
+        self.assertEqual(
+            tool_result.content["links"]["linkedin"],
+            "https://www.linkedin.com/in/ada",
+        )
 
     def test_run_turn_refuses_notes_outside_the_conversation(self):
         # Arrange: a second note the same user administers; the model tries

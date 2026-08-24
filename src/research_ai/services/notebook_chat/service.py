@@ -85,6 +85,7 @@ from research_ai.services.notebook_chat.toolset import (
     compose_notebook_toolset,
 )
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
+from research_ai.services.user_profile_tools import UserProfileToolset
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from utils.openalex import OpenAlex
 
@@ -568,6 +569,7 @@ class NotebookChatService:
         )
         toolset = compose_notebook_toolset(
             note_toolset=NoteToolset(user=conversation.user, note_ids={note.id}),
+            user_profile_toolset=UserProfileToolset(user=conversation.user),
             grant_toolset=self._grant_toolset_factory(user=conversation.user),
             selected_rfp_toolset=(
                 SelectedRFPToolset(note=note, user=conversation.user)
