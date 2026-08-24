@@ -1856,6 +1856,40 @@ class UserActivityFeedTests(APITestCase):
         ids = {e["id"] for e in resp.data["results"]}
         self.assertNotIn(self.lone_prereg_entry.id, ids)
 
+    def test_excludes_private_proposals_from_co_applicants(self):
+        """The feed hides a co-applicant's private proposal under any scope."""
+        # Arrange
+        private_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+            is_public=False,
+        )
+        private_post = ResearchhubPost.objects.create(
+            title="Private Co-applicant Proposal",
+            created_by=self.applicant,
+            document_type=PREREGISTRATION,
+            unified_document=private_doc,
+        )
+        GrantApplication.objects.create(
+            grant=self.applied_grant,
+            preregistration_post=private_post,
+            applicant=self.applicant,
+        )
+        private_entry = _make_feed_entry(
+            ResearchhubPost,
+            private_post.id,
+            private_doc,
+            user=self.applicant,
+        )
+
+        # Act
+        resp = self.client.get(
+            USER_ACTIVITY_URL, {"user_id": self.funder.id, "scope": "x"}
+        )
+
+        # Assert
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertNotIn(private_entry.id, ids)
+
     def test_includes_comments_on_user_grants(self):
         """The user activity feed includes comments on the user's grant."""
         # Arrange
