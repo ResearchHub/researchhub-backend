@@ -3,7 +3,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db.models import Count, Exists, OuterRef, Prefetch, Q, QuerySet
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -20,6 +19,7 @@ from feed.activity_feed_cache import (
 )
 from feed.feed_visibility import exclude_hidden_from_feed
 from feed.models import FeedEntry
+from feed.permissions import CanViewUserActivity
 from feed.serializers import ActivityFeedEntrySerializer, UserActivityQuerySerializer
 from feed.views.common import FeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
@@ -69,13 +69,6 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
 
     Filters can be combined: e.g. ?scope=grants&content_type=RHCOMMENTMODEL
     returns only comments across all grant-related documents.
-
-    ``GET user_activity/?user_id=`` returns activity on every public document the
-    user is involved with: the OPEN or COMPLETED grants they created, are a
-    contact for, or applied to, every preregistration applied to those grants,
-    the preregistrations they created, and the ones they have funded. Only that
-    user, a moderator, or a hub editor may read it. ``scope`` and
-    ``content_type`` narrow it further.
 
     The unscoped public discovery feed (pages 1–20, page_size=20) may be served
     from a shared warm cache. Moderators and hub editors always get a live
@@ -162,16 +155,21 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         methods=["get"],
         url_path="user_activity",
         url_name="user-activity",
-        permission_classes=[IsAuthenticated],
+        permission_classes=[IsAuthenticated, CanViewUserActivity],
     )
     def list_user_activity(self, request: Request) -> Response:
-        """Return activity on every document the user is involved with."""
+        """
+        Return activity on every public document the requested user is involved
+        with: the OPEN or COMPLETED grants they created, are a contact for, or
+        applied to, every preregistration applied to those grants, the
+        preregistrations they created, and the ones they have funded.
+
+        Requires ``user_id``. Only that user, a moderator, or a hub editor may
+        read it. ``scope`` and ``content_type`` narrow the results further.
+        """
         query_serializer = UserActivityQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
         user_id = query_serializer.validated_data["user_id"]
-
-        if user_id != request.user.id and not request.user.is_moderator_or_editor():
-            raise PermissionDenied("Cannot view another user's activity.")
 
         queryset = self._filter_by_user_involvement(
             self.filter_queryset(self.get_queryset()), user_id
@@ -355,13 +353,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     def _filter_by_user_involvement(
         queryset: QuerySet[FeedEntry], user_id: int
     ) -> QuerySet[FeedEntry]:
-        """
-        Return feed entries for every document the user is involved with: the
-        OPEN or COMPLETED grants they created, are a contact for, or applied to,
-        every preregistration applied to those grants, the preregistrations they
-        created, and the ones they have funded. Excludes PENDING, CLOSED, and
-        DECLINED grants.
-        """
+        """Return feed entries for every document the user is involved with."""
         involved_grants = Grant.objects.filter(
             Q(created_by_id=user_id)
             | Q(contacts__id=user_id)

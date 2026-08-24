@@ -46,6 +46,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
+from user.tests.helpers import create_random_authenticated_user
 from utils.test_helpers import AWSMockTestCase, create_test_user
 
 User = get_user_model()
@@ -1897,6 +1898,42 @@ class UserActivityFeedTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("user_id", resp.data)
 
+    def test_requires_authentication(self):
+        """The user activity feed rejects anonymous requests."""
+        # Arrange
+        self.client.force_authenticate(user=None)
+
+        # Act
+        resp = self.client.get(USER_ACTIVITY_URL, {"user_id": self.funder.id})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_rejects_request_for_another_user(self):
+        """The user activity feed rejects reading another user's activity."""
+        # Arrange
+        self.client.force_authenticate(user=self.other_user)
+
+        # Act
+        resp = self.client.get(USER_ACTIVITY_URL, {"user_id": self.funder.id})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_allows_moderator_to_view_another_user(self):
+        """A moderator may read another user's activity."""
+        # Arrange
+        moderator = create_random_authenticated_user("activity_mod", moderator=True)
+        self.client.force_authenticate(user=moderator)
+
+        # Act
+        resp = self.client.get(USER_ACTIVITY_URL, {"user_id": self.funder.id})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertIn(self.funder_open_grant_entry.id, ids)
+
     def test_returns_empty_feed_for_user_without_grants(self):
         """The user activity feed is empty when the user has no grants."""
         # Arrange
@@ -2015,8 +2052,6 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
     @patch("feed.views.activity_feed_view.cache")
     def test_moderator_bypasses_cache(self, mock_cache):
         # Arrange
-        from user.tests.helpers import create_random_authenticated_user
-
         moderator = create_random_authenticated_user(
             "activity_cache_mod", moderator=True
         )
