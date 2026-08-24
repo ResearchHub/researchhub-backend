@@ -47,16 +47,9 @@ class ModelOption:
 
 _CATALOG: tuple[ModelOption, ...] = (
     ModelOption(
-        ref=f"{CLAUDE_PLATFORM}:claude-fable-5",
-        label="Claude Fable 5",
-        description="Anthropic's most capable model for complex research and drafting.",
-    ),
-    ModelOption(
         ref=f"{CLAUDE_PLATFORM}:claude-opus-5",
         label="Claude Opus 5",
-        description=(
-            "Anthropic's high-capability model for agentic research and drafting."
-        ),
+        description="Anthropic's flagship; strongest on agentic research and drafting.",
     ),
     ModelOption(
         ref=f"{CLAUDE_PLATFORM}:claude-sonnet-5",

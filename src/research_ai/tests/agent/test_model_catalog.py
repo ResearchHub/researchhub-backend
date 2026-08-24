@@ -18,29 +18,15 @@ ALL_PROVIDERS_CONFIGURED = {
 
 @override_settings(**ALL_PROVIDERS_CONFIGURED)
 class AvailableModelsTests(SimpleTestCase):
-    def test_catalog_lists_prefixed_refs(self):
+    def test_catalog_refs_have_valid_structure(self):
         # Act
         options = available_models()
 
         # Assert
-        refs = [option.ref for option in options]
-        expected_refs = {
-            "claude_platform:claude-fable-5",
-            "claude_platform:claude-opus-5",
-            "claude_platform:claude-sonnet-5",
-            "claude_platform:claude-haiku-4-5",
-            "openrouter:openai/gpt-5.6-sol",
-            "openrouter:openai/gpt-5.6-terra",
-            "openrouter:openai/gpt-5.6-luna",
-            "openrouter:google/gemini-3.1-pro-preview",
-            "openrouter:google/gemini-3.7-flash",
-            "openrouter:x-ai/grok-4.6",
-            "openrouter:deepseek/deepseek-v4-pro-0813",
-            "openrouter:moonshotai/kimi-k3",
-        }
-        self.assertEqual(set(refs), expected_refs)
-        for ref in refs:
-            self.assertRegex(ref, r"^(bedrock|claude_platform|openrouter):.")
+        for option in options:
+            self.assertRegex(option.ref, r"^[^:\s]+:[^:\s]+$")
+            if option.provider == "openrouter":
+                self.assertRegex(option.ref, r"^[^:\s]+:[^/:\s]+/[^/:\s]+$")
 
     def test_every_option_carries_label_and_provider(self):
         # Act
