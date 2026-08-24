@@ -65,6 +65,10 @@ from research_ai.services.agent_persistence.activity import (
 )
 from research_ai.services.note_tools import NoteToolset
 from research_ai.services.notebook_chat.activity import (
+    PHASE_RESPONDING,
+    PHASE_THINKING,
+    PHASE_USING_TOOL,
+    drafting_label,
     execution_phase,
     public_activity,
 )
@@ -330,13 +334,20 @@ class NotebookChatService:
                 last_item = stream["items"][-1]
                 if last_item.get("type") == "narration":
                     execution["phase"] = {
-                        "state": "responding",
+                        "state": PHASE_RESPONDING,
                         "label": "Writing a response",
                     }
                 elif last_item.get("type") == "thinking":
                     execution["phase"] = {
-                        "state": "thinking",
+                        "state": PHASE_THINKING,
                         "label": "Thinking",
+                    }
+                elif last_item.get("type") == "tool_draft":
+                    tool = last_item.get("tool") or ""
+                    execution["phase"] = {
+                        "state": PHASE_USING_TOOL,
+                        "label": last_item.get("label") or drafting_label(tool),
+                        "tool": tool or None,
                     }
         return data
 

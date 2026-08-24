@@ -44,8 +44,10 @@ from research_ai.services.agent.types import (
     TextStreamDelta,
     ThinkingBlock,
     ThinkingStreamDelta,
+    ToolInputStreamDelta,
     ToolResultBlock,
     ToolUseBlock,
+    ToolUseStreamStart,
     TurnUsage,
 )
 
@@ -586,14 +588,31 @@ class ClaudePlatformProvider(LLMProvider):
             kwargs["temperature"] = temperature
         return kwargs
 
-    @staticmethod
-    def _report_stream_event(event: Any, on_event) -> None:
-        """Translate SDK deltas into the provider-neutral streaming surface."""
-        if on_event is None or getattr(event, "type", None) != "content_block_delta":
+    # Content block types whose opening marks the model composing a tool call:
+    # our own tools and the ones Anthropic runs server-side (web search, code
+    # execution). Their arguments then arrive as ``input_json_delta`` chunks.
+    _TOOL_USE_BLOCK_TYPES = frozenset({"tool_use", "server_tool_use"})
+
+    @classmethod
+    def _report_stream_event(cls, event: Any, on_event) -> None:
+        """Translate SDK events into the provider-neutral streaming surface."""
+        if on_event is None:
             return
         index = getattr(event, "index", None)
+        if not isinstance(index, int):
+            return
+        event_type = getattr(event, "type", None)
+        if event_type == "content_block_start":
+            block = getattr(event, "content_block", None)
+            if getattr(block, "type", None) in cls._TOOL_USE_BLOCK_TYPES:
+                name = getattr(block, "name", None)
+                if isinstance(name, str) and name:
+                    on_event(ToolUseStreamStart(block_index=index, name=name))
+            return
+        if event_type != "content_block_delta":
+            return
         delta = getattr(event, "delta", None)
-        if not isinstance(index, int) or delta is None:
+        if delta is None:
             return
         delta_type = getattr(delta, "type", None)
         if delta_type == "text_delta":
@@ -604,6 +623,12 @@ class ClaudePlatformProvider(LLMProvider):
             thinking = getattr(delta, "thinking", None)
             if isinstance(thinking, str) and thinking:
                 on_event(ThinkingStreamDelta(block_index=index, text=thinking))
+        elif delta_type == "input_json_delta":
+            partial_json = getattr(delta, "partial_json", None)
+            if isinstance(partial_json, str) and partial_json:
+                on_event(
+                    ToolInputStreamDelta(block_index=index, partial_json=partial_json)
+                )
 
     def _render_messages(
         self, messages: list[Message], *, cache_last: bool = False

@@ -41,8 +41,10 @@ from research_ai.services.agent.types import (
     TextStreamDelta,
     ThinkingBlock,
     ThinkingStreamDelta,
+    ToolInputStreamDelta,
     ToolResultBlock,
     ToolUseBlock,
+    ToolUseStreamStart,
     TurnUsage,
 )
 
@@ -348,6 +350,65 @@ class CompleteAndParseTests(SimpleTestCase):
             [
                 ThinkingStreamDelta(block_index=0, text="plan "),
                 TextStreamDelta(block_index=1, text="answer"),
+            ],
+        )
+
+    def test_reports_tool_use_starts_and_argument_deltas(self):
+        # Arrange
+        response = _build_response([AnthropicTextBlock(type="text", text="done")])
+        sdk_events = [
+            SimpleNamespace(
+                type="content_block_start",
+                index=0,
+                content_block=SimpleNamespace(type="tool_use", name="edit_note"),
+            ),
+            SimpleNamespace(
+                type="content_block_delta",
+                index=0,
+                delta=SimpleNamespace(type="input_json_delta", partial_json='{"no'),
+            ),
+            # Server-side tools announce themselves the same way.
+            SimpleNamespace(
+                type="content_block_start",
+                index=1,
+                content_block=SimpleNamespace(
+                    type="server_tool_use", name="web_search"
+                ),
+            ),
+            # Text blocks opening is not a tool event.
+            SimpleNamespace(
+                type="content_block_start",
+                index=2,
+                content_block=SimpleNamespace(type="text"),
+            ),
+        ]
+
+        class Messages:
+            def stream(self, **_kwargs):
+                return _FakeStream(response, sdk_events)
+
+        provider = ClaudePlatformProvider(
+            client=SimpleNamespace(messages=Messages()), model_id="claude-opus-5"
+        )
+        observed = []
+
+        # Act
+        provider.complete_with_events(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools=[],
+            max_tokens=100,
+            temperature=0.0,
+            on_event=observed.append,
+        )
+
+        # Assert
+        self.assertEqual(
+            observed,
+            [
+                ToolUseStreamStart(block_index=0, name="edit_note"),
+                ToolInputStreamDelta(block_index=0, partial_json='{"no'),
+                ToolUseStreamStart(block_index=1, name="web_search"),
             ],
         )
 
