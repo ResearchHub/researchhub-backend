@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase, TransactionTestCase
+from django.test import TestCase, TransactionTestCase, override_settings
 
 from note.tests.helpers import create_note
 from research_ai.models import (
@@ -85,13 +85,15 @@ class NotebookChatServiceTests(TestCase):
         self.service = _make_service()
         self.conversation = self.service.create_conversation(self.note, self.user)
 
-    def _submit(self, text="Please add a summary.", conversation=None):
+    def _submit(self, text="Please add a summary.", conversation=None, **kwargs):
         conversation = self.conversation if conversation is None else conversation
         with (
             patch("research_ai.tasks.run_notebook_chat_turn_task.delay") as delay,
             self.captureOnCommitCallbacks(execute=True),
         ):
-            execution = self.service.submit_message(self.note, conversation, text)
+            execution = self.service.submit_message(
+                self.note, conversation, text, **kwargs
+            )
         return execution, delay
 
     def test_submit_message_prepares_turn_and_schedules_task(self):
@@ -122,6 +124,61 @@ class NotebookChatServiceTests(TestCase):
 
         # Assert
         self.assertIn("read_selected_rfp", execution.system_prompt)
+
+    def test_submit_message_stamps_the_generator_default_model(self):
+        # Act
+        execution, _delay = self._submit()
+
+        # Assert: no selection runs the configured generator, recorded as a
+        # provider-prefixed ref the worker resolves from.
+        self.assertEqual(execution.model, "claude_platform:claude-opus-5")
+        self.assertEqual(execution.provider, "claude_platform")
+
+    @override_settings(
+        ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
+    )
+    def test_submit_message_records_the_selected_model(self):
+        # Act
+        execution, _delay = self._submit(model_ref="claude_platform:claude-sonnet-5")
+
+        # Assert
+        self.assertEqual(execution.model, "claude_platform:claude-sonnet-5")
+        self.assertEqual(execution.provider, "claude_platform")
+
+    def test_submit_message_rejects_a_model_outside_the_catalog(self):
+        # Act & Assert
+        with self.assertRaises(ValueError):
+            self.service.submit_message(
+                self.note,
+                self.conversation,
+                "hi",
+                model_ref="openrouter:acme/not-a-model",
+            )
+        self.assertFalse(AgentExecution.objects.exists())
+
+    @override_settings(
+        ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
+    )
+    def test_run_turn_resolves_provider_from_the_recorded_model(self):
+        # Arrange: a turn submitted with a selected model, run by a service
+        # with no injected provider.
+        execution, _delay = self._submit(model_ref="claude_platform:claude-sonnet-5")
+        service = _make_service()
+        provider = FakeProvider([text_turn("Answer")])
+
+        # Act
+        with patch(
+            "research_ai.services.notebook_chat.service.resolve_provider",
+            return_value=provider,
+        ) as resolve:
+            service.run_turn(execution.id)
+
+        # Assert: the worker runs the model the turn was submitted with, not
+        # today's generator default.
+        resolve.assert_called_once_with(
+            "claude_platform:claude-sonnet-5",
+            native_tools=frozenset({"web_search"}),
+        )
 
     def test_second_message_continues_the_same_conversation(self):
         # Arrange

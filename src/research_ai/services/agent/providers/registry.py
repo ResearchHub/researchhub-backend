@@ -64,7 +64,7 @@ def resolve_provider(
     """
     if model_ref is None:
         model_ref = generator_model_ref()
-    provider_name, model_id = _split(model_ref)
+    provider_name, model_id = split_model_ref(model_ref)
     if provider_name == BEDROCK:
         return BedrockProvider(model_id=model_id)
     if provider_name == OPENROUTER:
@@ -75,7 +75,7 @@ def resolve_provider(
     )
 
 
-def _split(model_ref: str) -> tuple[str, str | None]:
+def split_model_ref(model_ref: str) -> tuple[str, str | None]:
     """Split ``[<provider>:]<model id>``; bare refs use the generator provider."""
     for prefix in _PREFIXES:
         if model_ref.startswith(prefix):

@@ -72,6 +72,16 @@ class ProposalDraft(DefaultModel):
         default=Status.PENDING,
         db_index=True,
     )
+    model_ref = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        db_comment=(
+            "User-selected generator model as a provider-prefixed model ref; "
+            "empty runs the configured default. What actually ran is "
+            "snapshotted in run_config."
+        ),
+    )
     step = models.CharField(
         max_length=32,
         choices=Step.choices,
