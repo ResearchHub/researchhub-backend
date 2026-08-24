@@ -36,7 +36,6 @@ def should_cache_activity_feed(request: Request) -> bool:
     if (
         params.get("scope")
         or params.get("grant_id")
-        or params.get("funder_id")
         or params.get("document_type")
         or params.get("content_type")
     ):
