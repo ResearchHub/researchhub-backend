@@ -9,6 +9,7 @@ from django.db.models import (
     F,
     IntegerField,
     OuterRef,
+    Prefetch,
     Q,
     Subquery,
     Sum,
@@ -51,6 +52,7 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -59,6 +61,62 @@ from user.permissions import IsModerator
 from utils.permissions import PostOnly
 
 logger = logging.getLogger(__name__)
+
+# Fields of the paper/post behind a bounty, used to render the bounty card.
+# `image_url` only exists on posts; paper cards fall back to the bounty's
+# `journal.image`.
+BOUNTY_DOCUMENT_FIELDS = (
+    "id",
+    "slug",
+    "title",
+    "abstract",
+    "renderable_text",
+    "authors",
+    "created_by",
+    "created_date",
+    "image_url",
+    "uploaded_by",
+)
+
+# Fundraise payload mirrors the activity feed's, so both surfaces render
+# proposal funding progress from the same shape.
+BOUNTY_DOCUMENT_FUNDRAISE_FIELDS = (
+    "id",
+    "status",
+    "goal_amount",
+    "goal_currency",
+    "amount_raised",
+    "start_date",
+    "end_date",
+    "contributors",
+    "created_by",
+)
+
+# `applications` is deliberately omitted: it walks every application's
+# fundraise, contributors and reviews, which is far too heavy for a list.
+BOUNTY_DOCUMENT_GRANT_FIELDS = (
+    "id",
+    "status",
+    "amount",
+    "currency",
+    "organization",
+    "short_title",
+    "description",
+    "start_date",
+    "end_date",
+    "is_expired",
+    "is_active",
+    "created_by",
+    "contacts",
+)
+
+BOUNTY_DOCUMENT_USER_FIELDS = (
+    "id",
+    "first_name",
+    "last_name",
+    "profile_image",
+    "author_profile",
+)
 
 
 def _open_bounty_exists_on_item(item_content_type, item_object_id):
@@ -212,6 +270,23 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         return [permission() for permission in permission_classes]
 
+    def get_queryset(self):
+        """Preload the document data that bounty payloads embed."""
+        return Bounty.objects.select_related(
+            "created_by__author_profile",
+            "item_content_type",
+            "unified_document",
+            "unified_document__paper",
+            "unified_document__paper__uploaded_by__author_profile",
+        ).prefetch_related(
+            Prefetch(
+                "unified_document__posts",
+                queryset=ResearchhubPost.objects.select_related(
+                    "created_by__author_profile"
+                ).prefetch_related("author_links__author__user"),
+            ),
+        )
+
     def _get_create_context(self):
         context = {
             "rep_dbs_get_created_by": {"_include_fields": ("author_profile", "id")},
@@ -259,6 +334,32 @@ class BountyViewSet(viewsets.ModelViewSet):
         }
         context["rhc_dcs_get_created_by"] = {"_include_fields": ("author_profile",)}
         return context
+
+    def _get_document_data_context(self):
+        """Overrides that add document data to the bounty list payload."""
+        document_user_fields = {"_include_fields": BOUNTY_DOCUMENT_USER_FIELDS}
+        return {
+            "rep_dbs_get_unified_document": {
+                "_include_fields": (
+                    "documents",
+                    "id",
+                    "document_type",
+                    "fundraise",
+                    "grant",
+                )
+            },
+            "doc_duds_get_documents": {"_include_fields": BOUNTY_DOCUMENT_FIELDS},
+            "doc_duds_get_fundraise": {
+                "_include_fields": BOUNTY_DOCUMENT_FUNDRAISE_FIELDS
+            },
+            "doc_duds_get_grant": {"_include_fields": BOUNTY_DOCUMENT_GRANT_FIELDS},
+            "doc_dps_get_created_by": document_user_fields,
+            "pap_dps_get_uploaded_by": document_user_fields,
+            "pch_dfs_get_created_by": document_user_fields,
+            "pch_dfs_get_contributors": document_user_fields,
+            "pch_dgs_get_created_by": document_user_fields,
+            "pch_dgs_get_contacts": document_user_fields,
+        }
 
     @track_event
     def create(self, request, *args, **kwargs):
@@ -735,7 +836,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 include_unrelated=True,
             )
 
-            queryset = Bounty.objects.filter(id__in=[b.id for b in bounties])
+            queryset = self.get_queryset().filter(id__in=[b.id for b in bounties])
             queryset = self.filter_queryset(queryset)
             queryset = self._prioritize_preregistration_bounties(queryset)
             queryset = queryset.order_by("preregistration_first", self.DEFAULT_SORT)
@@ -779,7 +880,10 @@ class BountyViewSet(viewsets.ModelViewSet):
                 queryset = queryset.order_by(sort)
 
         page = self.paginate_queryset(queryset)
-        context = self._get_retrieve_context()
+        context = {
+            **self._get_retrieve_context(),
+            **self._get_document_data_context(),
+        }
         serializer = DynamicBountySerializer(
             page,
             many=True,
