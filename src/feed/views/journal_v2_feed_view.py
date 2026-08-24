@@ -16,7 +16,6 @@ from feed.feed_list_dto import (
     JournalFeedPostSerializer,
     serialize_journal_feed_metrics,
 )
-
 from feed.filters import JournalFeedOrderingFilter
 from feed.views.feed_view_mixin import FeedViewMixin
 from organizations.models import NonprofitFundraiseLink

@@ -17,7 +17,6 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
 )
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
-    GRANT,
     PAPER,
     PREREGISTRATION,
 )

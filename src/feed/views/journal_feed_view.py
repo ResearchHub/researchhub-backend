@@ -10,7 +10,6 @@ from django.db.models import OuterRef, Subquery
 from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
-
 from feed.serializers import FeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
 from paper.related_models.paper_model import Paper
