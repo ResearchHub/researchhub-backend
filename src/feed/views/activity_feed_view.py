@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from discussion.serializers import VoteSerializer
 from feed.activity_feed_cache import (
@@ -58,7 +58,7 @@ class ExcludedFromFeedPagination(PageNumberPagination):
     max_page_size = 100
 
 
-class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
+class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     """
     Feed of activity on documents, excluding paper/preprint-associated
     entries. Peer reviews are limited to proposals (PREREGISTRATION).
@@ -89,7 +89,6 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     serializer_class = ActivityFeedEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
-    http_method_names = ["get", "head", "options", "post"]
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
