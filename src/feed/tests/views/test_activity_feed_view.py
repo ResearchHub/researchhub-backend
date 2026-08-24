@@ -1895,6 +1895,7 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
             {"scope": "financial", "page": 1, "page_size": 20},
             {"grant_id": 1, "page": 1, "page_size": 20},
             {"document_type": "PREREGISTRATION", "page": 1, "page_size": 20},
+            {"include_hot_score_breakdown": "true", "page": 1, "page_size": 20},
             {"page": 21, "page_size": 20},
             {"page": 1, "page_size": 10},
         ]

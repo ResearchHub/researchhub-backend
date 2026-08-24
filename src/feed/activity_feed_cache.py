@@ -33,6 +33,7 @@ def should_cache_activity_feed(request: Request) -> bool:
         or params.get("funder_id")
         or params.get("document_type")
         or params.get("content_type")
+        or params.get("include_hot_score_breakdown", "").lower() == "true"
     ):
         return False
 
