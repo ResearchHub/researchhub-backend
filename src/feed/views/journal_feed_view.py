@@ -10,7 +10,6 @@ from django.db.models import OuterRef, Subquery
 from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
-from feed.feed_visibility import exclude_hidden_from_feed
 from feed.serializers import FeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
 from paper.related_models.paper_model import Paper
@@ -115,7 +114,6 @@ class JournalFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 unified_document__status=ResearchhubUnifiedDocument.APPROVED,
             )
         )
-        queryset = exclude_hidden_from_feed(queryset)
 
         # Apply journal status filter
         if journal_status.upper() == "IN_JOURNAL":

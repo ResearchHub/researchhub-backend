@@ -4,13 +4,15 @@ from django.contrib.auth.models import AnonymousUser
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db.models import Count, Exists, OuterRef, Prefetch, Q, QuerySet
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from discussion.serializers import VoteSerializer
 from feed.activity_feed_cache import (
@@ -20,9 +22,10 @@ from feed.activity_feed_cache import (
     activity_feed_cache_key,
     should_cache_activity_feed,
 )
-from feed.feed_visibility import exclude_hidden_from_feed
+from feed.feed_visibility import exclude_hidden_feed_entries
 from feed.models import FeedEntry
 from feed.serializers import ActivityFeedEntrySerializer, UserActivityQuerySerializer
+from feed.services.feed_entry_visibility_service import FeedEntryVisibilityService
 from feed.services.user_activity_service import UserActivityService
 from feed.views.common import FeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
@@ -48,11 +51,18 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.permissions import IsModerator
 from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
 
 
-class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
+class ExcludedFromFeedPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
+class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     """
     Feed of activity on documents, excluding paper/preprint-associated
     entries. Peer reviews are limited to proposals (PREREGISTRATION).
@@ -83,7 +93,6 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     serializer_class = ActivityFeedEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
-    http_method_names = ["get", "head", "options"]
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -156,6 +165,59 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         return Response(response_data)
 
     @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, IsModerator],
+        url_path="exclude_from_feed",
+    )
+    def exclude_from_feed(self, request, pk=None):
+        """Hide this feed entry from public feeds. Idempotent and feed-only."""
+        return self._set_feed_visibility(request, pk, excluded=True)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, IsModerator],
+        url_path="include_in_feed",
+    )
+    def include_in_feed(self, request, pk=None):
+        """Restore this feed entry to public feeds. Idempotent and feed-only."""
+        return self._set_feed_visibility(request, pk, excluded=False)
+
+    def _set_feed_visibility(self, request, pk, excluded: bool):
+        if pk is None or not str(pk).isdigit():
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        service = FeedEntryVisibilityService()
+        try:
+            if excluded:
+                feed_entry = service.exclude_from_feed(int(pk), request.user)
+            else:
+                feed_entry = service.include_in_feed(int(pk))
+        except FeedEntry.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        return Response({"id": feed_entry.id, "is_excluded_in_feed": excluded})
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[IsAuthenticated, IsModerator],
+        url_path="excluded_from_feed",
+    )
+    def excluded_from_feed(self, request):
+        """Paginated feed entries currently hidden from public feeds."""
+        queryset = FeedEntryVisibilityService().list_excluded_from_feed(
+            query=request.query_params.get("query")
+        )
+        paginator = ExcludedFromFeedPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        serializer = ActivityFeedEntrySerializer(
+            page, many=True, context=self.get_serializer_context()
+        )
+        return paginator.get_paginated_response(serializer.data)
+
+    @action(
         detail=False,
         methods=["get"],
         url_path="user_activity",
@@ -218,7 +280,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
             )
             .order_by("-action_date")
         )
-        queryset = exclude_hidden_from_feed(queryset)
+        queryset = exclude_hidden_feed_entries(queryset)
 
         # Exclude paper publications
         paper_ct = ContentType.objects.get_for_model(Paper)
