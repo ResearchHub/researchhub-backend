@@ -6,6 +6,7 @@ from django.core.cache import cache
 from django.db.models import Count, Exists, OuterRef, Prefetch, Q, QuerySet
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -50,6 +51,14 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
+
+
+class UserActivityPagination(PageNumberPagination):
+    """Feed pagination that reports the total number of matching entries."""
+
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
@@ -161,6 +170,7 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
         url_path="user_activity",
         url_name="user-activity",
         permission_classes=[IsAuthenticated],
+        pagination_class=UserActivityPagination,
     )
     def list_user_activity(self, request: Request) -> Response:
         """Return activity on documents the requested user is involved with.

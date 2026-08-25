@@ -1682,6 +1682,7 @@ class UserActivityFeedTests(APITestCase):
                 self.funded_prereg_entry.id,
             },
         )
+        self.assertEqual(resp.data["count"], len(ids))
 
     def test_hides_private_proposals_from_co_applicants(self):
         """The feed hides a co-applicant's private proposal."""
@@ -1778,6 +1779,7 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
             {"grant_id": 1, "page": 1, "page_size": 20},
             {"document_type": "PREREGISTRATION", "page": 1, "page_size": 20},
             {"comment_type": AUTHOR_UPDATE, "page": 1, "page_size": 20},
+            {"comment_type": [AUTHOR_UPDATE, ""], "page": 1, "page_size": 20},
             {"include_hot_score_breakdown": "true", "page": 1, "page_size": 20},
             {"page": 21, "page_size": 20},
             {"page": 1, "page_size": 10},
