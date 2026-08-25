@@ -1041,6 +1041,91 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
         self.assertNotIn(private_post.id, post_ids)
 
+    @patch("feed.views.funding_feed_view.cache")
+    def test_include_private_shows_private_for_moderator(self, mock_cache):
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+        moderator = User.objects.create_user(
+            username="funding_include_private_mod",
+            password=uuid.uuid4().hex,
+            moderator=True,
+        )
+        mod_client = APIClient()
+        mod_client.force_authenticate(user=moderator)
+
+        # Act
+        response = mod_client.get(
+            reverse("funding_feed-list"),
+            {"include_private": "true", "page": 1},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertIn(private_post.id, post_ids)
+        mock_cache.get.assert_not_called()
+        mock_cache.set.assert_not_called()
+
+    @patch("feed.views.funding_feed_view.cache")
+    def test_include_private_shows_private_for_hub_editor(self, mock_cache):
+        # Arrange
+        from user.tests.helpers import create_hub_editor
+
+        private_post = self._create_private_preregistration(self.user)
+        editor = create_hub_editor(
+            "funding_include_private_editor", "Funding Include Private Hub"
+        )[0]
+        editor_client = APIClient()
+        editor_client.force_authenticate(user=editor)
+        mock_cache.get.return_value = None
+
+        # Act
+        response = editor_client.get(
+            reverse("funding_feed-list"),
+            {"include_private": "true", "page": 1},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertIn(private_post.id, post_ids)
+        mock_cache.get.assert_not_called()
+        mock_cache.set.assert_not_called()
+
+    def test_include_private_ignored_for_non_mod(self):
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+
+        # Act
+        response = self.client.get(
+            reverse("funding_feed-list"),
+            {"include_private": "true"},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
+
+    def test_moderator_discovery_without_include_private_excludes_private(self):
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+        moderator = User.objects.create_user(
+            username="funding_mod_no_param",
+            password=uuid.uuid4().hex,
+            moderator=True,
+        )
+        mod_client = APIClient()
+        mod_client.force_authenticate(user=moderator)
+
+        # Act
+        response = mod_client.get(reverse("funding_feed-list"))
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
+
     def test_created_by_filter_disables_caching(self):
         """Test that created_by filter disables caching"""
         # Clear cache before test
