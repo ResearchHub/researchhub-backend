@@ -4,7 +4,7 @@ from django.core.cache import cache
 from rest_framework.filters import BaseFilterBackend
 
 from feed.feed_config import FEED_CONFIG
-from feed.feed_visibility import exclude_hidden_from_feed
+from feed.feed_visibility import exclude_hidden_feed_entries
 from feed.models import FeedEntry
 from feed.views.feed_view_mixin import get_moderator_view_as_user_id
 from hub.models import Hub
@@ -39,7 +39,7 @@ def _get_allowed_preprint_hub_ids() -> tuple[int, ...]:
 
 class FeedFilteringBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-        queryset = exclude_hidden_from_feed(queryset)
+        queryset = exclude_hidden_feed_entries(queryset)
 
         # Exclude entries that don't allow PDF display
         queryset = queryset.exclude(pdf_copyright_allows_display=False)

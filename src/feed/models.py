@@ -233,3 +233,22 @@ class FeedEntry(DefaultModel):
             # Fallback: calculate score directly
             score = calculate_hot_score_for_item(self)
             return score
+
+
+class HiddenFeedEntry(DefaultModel):
+    """Marks a single feed entry as hidden from public feeds by a moderator."""
+
+    feed_entry = models.OneToOneField(
+        FeedEntry,
+        on_delete=models.CASCADE,
+        related_name="feed_hide",
+    )
+    hidden_by = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["-created_date"], name="feed_hide_created_date_idx"),
+        ]
+
+    def __str__(self):
+        return f"HiddenFeedEntry feed_entry={self.feed_entry_id}"
