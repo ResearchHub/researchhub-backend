@@ -1,9 +1,12 @@
+from collections.abc import Sequence
+
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db.models import Count, Exists, OuterRef, Prefetch, Q
+from django.db.models import Count, Exists, OuterRef, Prefetch, Q, QuerySet
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -21,8 +24,9 @@ from feed.activity_feed_cache import (
 )
 from feed.feed_visibility import exclude_hidden_feed_entries
 from feed.models import FeedEntry
-from feed.serializers import ActivityFeedEntrySerializer
+from feed.serializers import ActivityFeedEntrySerializer, UserActivityQuerySerializer
 from feed.services.feed_entry_visibility_service import FeedEntryVisibilityService
+from feed.services.user_activity_service import UserActivityService
 from feed.views.common import FeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
 from paper.related_models.paper_model import Paper
@@ -62,6 +66,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     """
     Feed of activity on documents, excluding paper/preprint-associated
     entries. Peer reviews are limited to proposals (PREREGISTRATION).
+    Entries are limited to documents the requester is allowed to see.
     These filters apply to every request.
 
     Supports filtering by:
@@ -73,17 +78,16 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         feed entries, bounty payouts, and review tips.
       - document_type: PREREGISTRATION, GRANT, etc.
       - grant_id: all activity on a grant and its applied preregistrations
-      - funder_id: all activity on OPEN/COMPLETED grants where this user is
-        the creator or a contact, plus every preregistration applied to
-        those grants.
       - content_type: RHCOMMENTMODEL, RESEARCHHUBPOST, PAPER, etc.
+      - comment_type: AUTHOR_UPDATE, REVIEW, PEER_REVIEW, etc. Repeat the param
+        to allow several, e.g. ?comment_type=AUTHOR_UPDATE&comment_type=REVIEW
 
     Filters can be combined: e.g. ?scope=grants&content_type=RHCOMMENTMODEL
     returns only comments across all grant-related documents.
 
     The unscoped public discovery feed (pages 1–20, page_size=20) may be served
-    from a shared warm cache. Moderators and hub editors always get a live
-    response. Votes are attached after the cache read for authenticated users.
+    from a shared warm cache. Votes are attached after the cache read for
+    authenticated users.
     """
 
     serializer_class = ActivityFeedEntrySerializer
@@ -213,6 +217,35 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         )
         return paginator.get_paginated_response(serializer.data)
 
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="user_activity",
+        url_name="user-activity",
+        permission_classes=[IsAuthenticated],
+    )
+    def list_user_activity(self, request: Request) -> Response:
+        """Return activity on documents the requested user is involved with.
+
+        Requires ``user_id``. Only that user, a moderator, or a hub editor may
+        read it.
+        """
+        query_serializer = UserActivityQuerySerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+        user_id = query_serializer.validated_data["user_id"]
+        if user_id != request.user.id and not request.user.is_moderator_or_editor():
+            raise PermissionDenied("Cannot view another user's activity.")
+
+        document_ids = UserActivityService().get_involved_document_ids(user_id)
+        queryset = self.filter_queryset(self.get_queryset()).filter(
+            unified_document_id__in=document_ids
+        )
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page, many=True)
+        response = self.get_paginated_response(serializer.data)
+        self.add_user_votes_to_response(request.user, response.data)
+        return response
+
     def get_queryset(self):
         queryset = (
             FeedEntry.objects.select_related(
@@ -268,26 +301,31 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
 
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
-        funder_id = self.request.query_params.get("funder_id")
 
-        if not grant_id and not funder_id and not scope:
-            queryset = queryset.filter(
-                unified_document__is_public=True,
-                unified_document__is_removed=False,
-            )
+        # Unscoped list is a shared cached public page. Scoped, grant, and
+        # non-list requests are per-requester so grant owners can see
+        # private applications.
+        is_discovery = self.action == "list" and not scope and not grant_id
+        visible_posts = (
+            ResearchhubPost.objects.publicly_visible()
+            if is_discovery
+            else ResearchhubPost.objects.visible_to(self.request.user)
+        )
+        queryset = queryset.filter(
+            unified_document_id__in=visible_posts.values("unified_document_id"),
+            unified_document__is_removed=False,
+        )
 
         if grant_id:
             queryset = self._filter_by_grant(queryset, grant_id)
-        elif funder_id:
-            queryset = self._filter_by_funder(queryset, funder_id)
 
-        if scope == "grants" and not grant_id and not funder_id:
+        if scope == "grants" and not grant_id:
             queryset = self._filter_all_grants(queryset)
         elif scope == "peer_reviews":
             queryset = self._filter_peer_reviews(queryset)
         elif scope == "financial":
             queryset = self._filter_financial_activities(queryset)
-        elif not grant_id and not funder_id:
+        elif not grant_id:
             document_type = self.request.query_params.get("document_type")
             if document_type:
                 queryset = queryset.filter(
@@ -297,6 +335,10 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         content_type = self.request.query_params.get("content_type")
         if content_type:
             queryset = self._filter_by_content_type(queryset, content_type)
+
+        comment_types = self.request.query_params.getlist("comment_type")
+        if comment_types:
+            queryset = self._filter_by_comment_type(queryset, comment_types)
 
         return queryset
 
@@ -385,33 +427,6 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         return queryset.filter(unified_document_id__in=all_ud_ids)
 
     @staticmethod
-    def _filter_by_funder(queryset, funder_id):
-        """
-        Return feed entries for every OPEN or COMPLETED grant where
-        `funder_id` is the creator OR a contact, plus every
-        preregistration that has applied to those grants. Excludes
-        PENDING, CLOSED, and DECLINED grants.
-        """
-        funder_grants = Grant.objects.filter(
-            Q(created_by_id=funder_id) | Q(contacts__id=funder_id),
-            status__in=[Grant.OPEN, Grant.COMPLETED],
-            unified_document__is_public=True,
-        ).distinct()
-
-        grant_ud_ids = funder_grants.values_list("unified_document_id", flat=True)
-        prereg_ud_ids = GrantApplication.objects.filter(
-            grant__in=funder_grants,
-        ).values_list(
-            "preregistration_post__unified_document_id",
-            flat=True,
-        )
-
-        ud_ids = set(grant_ud_ids) | set(prereg_ud_ids)
-        if not ud_ids:
-            return queryset.none()
-        return queryset.filter(unified_document_id__in=ud_ids)
-
-    @staticmethod
     def _exclude_paper_documents(queryset):
         """Drop entries whose parent document is a paper/preprint."""
         return queryset.exclude(unified_document__document_type=PAPER)
@@ -488,3 +503,16 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         except ContentType.DoesNotExist:
             return queryset.none()
         return queryset.filter(content_type=ct)
+
+    @staticmethod
+    def _filter_by_comment_type(
+        queryset: QuerySet[FeedEntry],
+        comment_types: Sequence[str],
+    ) -> QuerySet[FeedEntry]:
+        """Return feed entries for comments of the given comment types."""
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        comment_ids = RhCommentModel.objects.filter(
+            comment_type__in=[value.upper() for value in comment_types],
+        ).values("id")
+
+        return queryset.filter(content_type=comment_ct, object_id__in=comment_ids)

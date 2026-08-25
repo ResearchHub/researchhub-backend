@@ -169,13 +169,46 @@ class ThinkingStreamDelta:
 
 
 @dataclass(frozen=True)
+class ToolUseStreamStart:
+    """A tool-use block opened in an in-flight provider turn.
+
+    Emitted when the model begins composing a tool call -- client-side or
+    server-side -- so an observer can show what the model is about to do
+    while the (often long) arguments stream in.
+    """
+
+    block_index: int
+    name: str
+    type: str = "tool_use_start"
+
+
+@dataclass(frozen=True)
+class ToolInputStreamDelta:
+    """One fragment of a tool call's JSON arguments from an in-flight turn.
+
+    ``partial_json`` is a raw slice of the arguments document; fragments
+    concatenate into valid JSON only once the block completes.
+    """
+
+    block_index: int
+    partial_json: str
+    type: str = "input_json_delta"
+
+
+@dataclass(frozen=True)
 class StreamReset:
     """Discard the current preview before a provider replaces an attempt."""
 
     type: str = "stream_reset"
 
 
-ProviderStreamEvent = TextStreamDelta | ThinkingStreamDelta | StreamReset
+ProviderStreamEvent = (
+    TextStreamDelta
+    | ThinkingStreamDelta
+    | ToolUseStreamStart
+    | ToolInputStreamDelta
+    | StreamReset
+)
 
 
 @dataclass(frozen=True)

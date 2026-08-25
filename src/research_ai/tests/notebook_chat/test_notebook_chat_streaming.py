@@ -6,9 +6,12 @@ from research_ai.services.agent.types import (
     StreamReset,
     TextStreamDelta,
     ThinkingStreamDelta,
+    ToolInputStreamDelta,
+    ToolUseStreamStart,
 )
 from research_ai.services.notebook_chat.streaming import (
     MAX_STREAM_THINKING_CHARS,
+    MAX_STREAM_TOOL_DRAFT_CHARS,
     ExecutionStreamStore,
     NotebookStreamBuffer,
 )
@@ -116,6 +119,92 @@ class NotebookStreamBufferTests(SimpleTestCase):
         self.assertEqual(item["type"], "thinking")
         self.assertEqual(len(item["text"]), MAX_STREAM_THINKING_CHARS)
         self.assertEqual(len(self.publisher.calls), 1)
+
+    def test_tool_use_start_publishes_a_labeled_draft_immediately(self):
+        # Arrange: a flush just happened, so the coalescing window is open.
+        self.buffer.append(1, TextStreamDelta(block_index=0, text="I'll edit."))
+        self.now += 0.01
+
+        # Act
+        self.buffer.append(1, ToolUseStreamStart(block_index=1, name="edit_note"))
+
+        # Assert: the announcement does not wait out the flush interval.
+        self.assertEqual(len(self.publisher.calls), 2)
+        draft_delta = self.publisher.calls[-1][1]["deltas"][-1]
+        self.assertEqual(
+            draft_delta,
+            {
+                "id": "iteration-1:block-1:tool_draft",
+                "type": "tool_draft",
+                "delta": "",
+                "at": draft_delta["at"],
+                "tool": "edit_note",
+                "label": "Drafting an edit",
+            },
+        )
+        draft_item = self.store.get(9)["items"][-1]
+        self.assertEqual(draft_item["type"], "tool_draft")
+        self.assertEqual(draft_item["tool"], "edit_note")
+        self.assertEqual(draft_item["label"], "Drafting an edit")
+        self.assertEqual(draft_item["text"], "")
+
+    def test_edit_note_argument_json_streams_as_prose(self):
+        # Arrange
+        self.buffer.append(1, ToolUseStreamStart(block_index=0, name="edit_note"))
+        payload = '{"edits": [{"op": "replace", "blocks": ["One.", "Two."]}]}'
+
+        # Act: fragments split mid-string; time passes so each delta flushes.
+        for offset in range(0, len(payload), 7):
+            self.now += 0.1
+            self.buffer.append(
+                1,
+                ToolInputStreamDelta(
+                    block_index=0, partial_json=payload[offset : offset + 7]
+                ),
+            )
+        self.buffer.flush()
+
+        # Assert: the snapshot carries the drafted prose, never raw JSON.
+        item = self.store.get(9)["items"][0]
+        self.assertEqual(item["text"], "One.\n\nTwo.")
+        deltas = [
+            delta["delta"]
+            for call in self.publisher.calls
+            for delta in call[1]["deltas"]
+        ]
+        self.assertEqual("".join(deltas), "One.\n\nTwo.")
+
+    def test_other_tools_announce_but_surface_no_argument_text(self):
+        # Arrange
+        self.buffer.append(1, ToolUseStreamStart(block_index=0, name="web_search"))
+
+        # Act
+        self.now += 1
+        self.buffer.append(
+            1,
+            ToolInputStreamDelta(block_index=0, partial_json='{"query": ["secret"]}'),
+        )
+
+        # Assert: one announcement, and the argument text never leaves it.
+        item = self.store.get(9)["items"][0]
+        self.assertEqual(item["label"], "Searching the web")
+        self.assertEqual(item["text"], "")
+        self.assertEqual(len(self.publisher.calls), 1)
+
+    def test_tool_draft_text_is_bounded(self):
+        # Arrange
+        self.buffer.append(1, ToolUseStreamStart(block_index=0, name="edit_note"))
+        oversized = "x" * (MAX_STREAM_TOOL_DRAFT_CHARS + 10)
+
+        # Act
+        self.buffer.append(
+            1,
+            ToolInputStreamDelta(block_index=0, partial_json=f'["{oversized}"]'),
+        )
+
+        # Assert
+        item = self.store.get(9)["items"][0]
+        self.assertEqual(len(item["text"]), MAX_STREAM_TOOL_DRAFT_CHARS)
 
     def test_clear_removes_the_reconnect_snapshot(self):
         # Arrange

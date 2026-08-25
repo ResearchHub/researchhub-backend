@@ -47,6 +47,7 @@ class GrantCacheMixin:
                                 f"{created_by}:{include_key_insights}"
                             )
                             cache.delete(cache_key + ":public")
+                            cache.delete(cache_key + ":admin")
 
     @staticmethod
     def invalidate_if_grant_linked(unified_document):

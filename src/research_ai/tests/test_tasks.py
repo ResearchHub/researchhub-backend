@@ -349,10 +349,32 @@ class RunProposalDraftTaskTests(TestCase):
         result = run_proposal_draft_task.apply(args=[self.draft.id]).get()
 
         # Assert
-        mock_run.assert_called_once_with(self.search_expert.id, draft_id=self.draft.id)
+        mock_run.assert_called_once_with(
+            self.search_expert.id, draft_id=self.draft.id, model_ref=None
+        )
         self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
         self.draft.refresh_from_db()
         self.assertIsNotNone(self.draft.processing_time)
+
+    @patch("research_ai.tasks.run_proposal_draft")
+    def test_forwards_the_drafts_selected_model(self, mock_run):
+        # Arrange
+        self.draft.model_ref = "claude_platform:claude-sonnet-5"
+        self.draft.save(update_fields=["model_ref"])
+        mock_run.return_value = {
+            "status": ProposalDraft.Status.COMPLETED,
+            "proposal_draft_id": self.draft.id,
+        }
+
+        # Act
+        run_proposal_draft_task.apply(args=[self.draft.id]).get()
+
+        # Assert
+        mock_run.assert_called_once_with(
+            self.search_expert.id,
+            draft_id=self.draft.id,
+            model_ref="claude_platform:claude-sonnet-5",
+        )
 
     @patch("research_ai.tasks.run_proposal_draft")
     def test_unexpected_error_marks_draft_failed(self, mock_run):

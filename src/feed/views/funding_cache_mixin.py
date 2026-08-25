@@ -42,7 +42,7 @@ class FundingCacheMixin:
         Delete cached funding-feed list responses
         (pages 1-``FUNDING_FEED_MAX_CACHED_PAGE``).
 
-        Only ``:public`` segment keys that can be written when
+        Only ``:public`` and ``:admin`` segment keys that can be written when
         ``FundingFeedViewSet.list`` uses the cache branch are targeted.
         Per-viewer ``:viewer-{user_id}`` entries are left to TTL.
         Hub-specific ``?hub_slug=`` keys (other than default) are not enumerated;
@@ -79,7 +79,7 @@ class FundingCacheMixin:
                                     if include_ended != "true":
                                         params["include_ended"] = include_ended
                                     req = _funding_invalidation_request(params)
-                                    keys.append(
-                                        view.get_cache_key(req, "funding") + ":public"
-                                    )
+                                    base = view.get_cache_key(req, "funding")
+                                    keys.append(base + ":public")
+                                    keys.append(base + ":admin")
         cache.delete_many(list(dict.fromkeys(keys)))

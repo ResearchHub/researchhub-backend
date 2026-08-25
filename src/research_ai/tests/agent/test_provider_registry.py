@@ -10,6 +10,7 @@ from research_ai.services.agent.providers.openrouter import OpenRouterProvider
 from research_ai.services.agent.providers.registry import (
     generator_model_ref,
     resolve_provider,
+    split_model_ref,
 )
 
 
@@ -42,6 +43,25 @@ class GeneratorModelRefTests(SimpleTestCase):
         # Arrange / Act / Assert
         with self.assertRaises(ValueError):
             generator_model_ref()
+
+
+class SplitModelRefTests(SimpleTestCase):
+    def test_prefixed_ref_splits_on_its_provider(self):
+        # Act / Assert
+        self.assertEqual(
+            split_model_ref("openrouter:openai/gpt-5.6-sol"),
+            ("openrouter", "openai/gpt-5.6-sol"),
+        )
+
+    def test_bare_ref_falls_back_to_the_generator_provider(self):
+        # Act / Assert
+        self.assertEqual(
+            split_model_ref("claude-sonnet-5"), ("claude_platform", "claude-sonnet-5")
+        )
+
+    def test_prefix_alone_yields_no_model_id(self):
+        # Act / Assert
+        self.assertEqual(split_model_ref("bedrock:"), ("bedrock", None))
 
 
 @patch.object(registry, "BedrockProvider")

@@ -68,6 +68,13 @@ _ACTIVE_LABELS = {
     GET_AUTHOR_WORKS: "Fetching an author's publications",
     GET_WORK_FULLTEXT: "Reading a paper",
 }
+# What the model is doing while it is still writing a tool call's arguments.
+# Only tools whose arguments are substantial work in themselves need copy
+# distinct from the active label: an edit is drafted for seconds before the
+# call runs, whereas a search query is written in an instant.
+_DRAFTING_LABELS = {
+    EDIT_NOTE: "Drafting an edit",
+}
 # The input field per tool whose value is the user's own kind of text -- safe
 # and meaningful to echo as the event detail.
 _DETAIL_INPUT_FIELDS = {
@@ -227,6 +234,15 @@ def _active_label(tool: str) -> str:
     if tool in _ACTIVE_LABELS:
         return _ACTIVE_LABELS[tool]
     return f"Running {tool}" if tool else "Running a tool"
+
+
+def drafting_label(tool: str) -> str:
+    """Live copy for a tool call the model is composing but has not sent."""
+    if tool in _DRAFTING_LABELS:
+        return _DRAFTING_LABELS[tool]
+    if tool in _ACTIVE_LABELS:
+        return _ACTIVE_LABELS[tool]
+    return f"Preparing {tool}" if tool else "Preparing a tool call"
 
 
 def _status(event: ToolCallEvent, execution_active: bool) -> str:
