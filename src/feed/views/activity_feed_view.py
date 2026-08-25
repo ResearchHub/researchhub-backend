@@ -56,7 +56,9 @@ from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
 
 
-class ExcludedFromFeedPagination(PageNumberPagination):
+class CountedFeedPagination(PageNumberPagination):
+    """Feed pagination that reports the total number of matching entries."""
+
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
@@ -210,7 +212,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         queryset = FeedEntryVisibilityService().list_excluded_from_feed(
             query=request.query_params.get("query")
         )
-        paginator = ExcludedFromFeedPagination()
+        paginator = CountedFeedPagination()
         page = paginator.paginate_queryset(queryset, request, view=self)
         serializer = ActivityFeedEntrySerializer(
             page, many=True, context=self.get_serializer_context()
@@ -223,6 +225,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         url_path="user_activity",
         url_name="user-activity",
         permission_classes=[IsAuthenticated],
+        pagination_class=CountedFeedPagination,
     )
     def list_user_activity(self, request: Request) -> Response:
         """Return activity on documents the requested user is involved with.
