@@ -368,6 +368,56 @@ class ProposalDraftServiceTests(TestCase):
             draft.agent_conversation_id,
         )
 
+    def test_selected_model_resolves_provider_and_lands_in_run_config(self):
+        # Arrange: a user-selected model ref and no injected provider, so the
+        # runner must resolve the ref itself.
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        with patch(
+            "research_ai.services.proposal_draft.runner.resolve_provider",
+            return_value=provider,
+        ) as resolve:
+            result = run_proposal_draft(
+                self.search_expert.id,
+                model_ref="openrouter:openai/gpt-5.6-sol",
+                panel=_FakePanel(overall=5),
+                oa_client=_FakeOpenAlex(),
+            )
+
+        # Assert: the selection is what gets resolved, recorded on the draft,
+        # and snapshotted as the run's generator.
+        resolve.assert_called_once_with(
+            "openrouter:openai/gpt-5.6-sol",
+            native_tools=frozenset({"web_search"}),
+        )
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(draft.model_ref, "openrouter:openai/gpt-5.6-sol")
+        self.assertEqual(
+            draft.run_config["generator_model_id"], "openrouter:openai/gpt-5.6-sol"
+        )
+
+    def test_default_judge_roster_follows_the_selected_model(self):
+        # Arrange: no injected panel, so the default single-judge roster is
+        # built from the selected model. The provider never submits, so no
+        # judge is ever actually called (roster ids resolve without clients).
+        provider = _ScriptedProvider([])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            model_ref="openrouter:openai/gpt-5.6-sol",
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(
+            draft.run_config["judge_roster"], ["openrouter:openai/gpt-5.6-sol"]
+        )
+
     def test_note_attachment_failure_does_not_break_proposal(self):
         # Arrange
         provider = _ScriptedProvider([_submit_turn(_clean_payload())])

@@ -150,7 +150,10 @@ class NotebookChatMessageView(APIView):
         )
         try:
             execution = service.submit_message(
-                note, conversation, serializer.validated_data["message"]
+                note,
+                conversation,
+                serializer.validated_data["message"],
+                model_ref=serializer.validated_data["model"] or None,
             )
         except AgentConversationBusyError:
             return Response(

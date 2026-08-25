@@ -51,8 +51,9 @@ from research_ai.services.agent import (
     AgentService,
     generator_model_ref,
     resolve_provider,
+    split_model_ref,
+    validate_model_ref,
 )
-from research_ai.services.agent.providers.registry import generator_provider_name
 from research_ai.services.agent_persistence import (
     AgentChatService,
     AgentContextService,
@@ -398,16 +399,24 @@ class NotebookChatService:
         return conversation
 
     def submit_message(
-        self, note: Note, conversation: AgentConversation, text: str
+        self,
+        note: Note,
+        conversation: AgentConversation,
+        text: str,
+        *,
+        model_ref: str | None = None,
     ) -> AgentExecution:
         """Record the user's message on ``conversation`` and schedule the turn.
 
         ``conversation`` must have been resolved through ``get_conversation``
         so it is known to belong to ``note``. A chat still untitled takes its
-        name from this message. Raises ``ValueError`` on an empty or oversized
-        message and lets ``AgentConversationBusyError`` propagate when a turn
-        is already running on this conversation (the API maps it to a 409);
-        other chats on the note are unaffected.
+        name from this message. ``model_ref`` selects the model for the first
+        turn. Later turns reuse that model; requesting a different provider or
+        model raises ``ValueError``.
+        Raises ``ValueError`` on an empty or oversized message or a model not
+        in the selectable catalog, and lets ``AgentConversationBusyError``
+        propagate when a turn is already running on this conversation (the
+        API maps it to a 409); other chats on the note are unaffected.
         """
         text = (text or "").strip()
         if not text:
@@ -415,21 +424,49 @@ class NotebookChatService:
         config = self.config
         if len(text) > config.max_message_chars:
             raise ValueError(f"message exceeds {config.max_message_chars} characters")
+        # Validated here, not only at the API boundary, so an execution can
+        # never be prepared against a model the catalog does not offer. The
+        # first execution pins the conversation's model; subsequent turns
+        # inherit that snapshot even if the configured default or catalog
+        # changes, and an explicit attempt to switch is rejected.
+        selected_model = validate_model_ref(model_ref)
+        with transaction.atomic():
+            # Keep model resolution in the same conversation lock as turn
+            # preparation. Two first-message requests with different models
+            # must not both observe an unpinned conversation.
+            locked_conversation = AgentConversation.objects.select_for_update().get(
+                id=conversation.id
+            )
+            conversation_model = (
+                locked_conversation.executions.exclude(model="")
+                .order_by("attempt")
+                .values_list("model", flat=True)
+                .first()
+            )
+            if (
+                conversation_model is not None
+                and selected_model is not None
+                and selected_model != conversation_model
+            ):
+                raise ValueError(
+                    "model cannot be changed after a conversation has started"
+                )
+            model = conversation_model or selected_model or generator_model_ref()
 
-        prepared = self.chat.prepare_turn(
-            conversation,
-            text,
-            pending=True,
-            provider=generator_provider_name(),
-            model=generator_model_ref(),
-            configuration={
-                "max_iterations": config.max_iterations,
-                "max_tokens": config.max_tokens,
-                "temperature": config.temperature,
-                "note_id": note.id,
-            },
-            system_prompt=build_notebook_chat_system_prompt(note),
-        )
+            prepared = self.chat.prepare_turn(
+                locked_conversation,
+                text,
+                pending=True,
+                provider=split_model_ref(model)[0],
+                model=model,
+                configuration={
+                    "max_iterations": config.max_iterations,
+                    "max_tokens": config.max_tokens,
+                    "temperature": config.temperature,
+                    "note_id": note.id,
+                },
+                system_prompt=build_notebook_chat_system_prompt(note),
+            )
         execution = prepared.execution
         # After prepare_turn so a refused turn (busy, for instance) names
         # nothing; the filtered update keeps a concurrent rename authoritative.

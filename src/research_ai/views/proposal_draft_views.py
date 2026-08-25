@@ -76,6 +76,7 @@ class ProposalDraftCreateView(APIView):
                     created_by=request.user,
                     status=ProposalDraft.Status.PENDING,
                     step=ProposalDraft.Step.QUEUED,
+                    model_ref=serializer.validated_data["model"],
                 )
         except IntegrityError:
             active = _active_draft_for(search_expert)

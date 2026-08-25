@@ -20,6 +20,7 @@ from research_ai.models import (
     ProposalDraft,
     SearchExpert,
 )
+from research_ai.services.agent import validate_model_ref
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.outreach.invited_experts import (
     EDITOR_SORT_FIELDS,
@@ -1013,15 +1014,41 @@ class EmailTemplateUpdateSerializer(serializers.Serializer):
     email_body = serializers.CharField(required=False, allow_blank=True)
 
 
+class ModelSelectionField(serializers.CharField):
+    """Optional model selection, validated against the selectable catalog.
+
+    Blank/absent normalizes to ``""`` (run the configured default); anything
+    else must name a catalog model and normalizes to its canonical
+    provider-prefixed ref.
+    """
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("max_length", 255)
+        kwargs.setdefault("required", False)
+        kwargs.setdefault("allow_blank", True)
+        kwargs.setdefault("default", "")
+        super().__init__(**kwargs)
+
+    def to_internal_value(self, data):
+        value = super().to_internal_value(data)
+        try:
+            return validate_model_ref(value) or ""
+        except ValueError as error:
+            raise serializers.ValidationError(str(error))
+
+
 class NotebookChatMessageCreateSerializer(serializers.Serializer):
     """
     Request body for sending a message to the notebook chat assistant.
 
     The service enforces the configurable ceiling; the max_length here is a
-    request-size backstop matching the config default.
+    request-size backstop matching the config default. ``model`` optionally
+    selects the model for the first turn from the selectable catalog; the
+    conversation keeps that model for all later turns.
     """
 
     message = serializers.CharField(max_length=20000)
+    model = ModelSelectionField()
 
 
 class NotebookChatCreateSerializer(serializers.Serializer):
@@ -1047,10 +1074,12 @@ class NotebookChatUpdateSerializer(serializers.Serializer):
 
 class ProposalDraftCreateSerializer(serializers.Serializer):
     """
-    Request body for enqueueing a proposal-drafting job.
+    Request body for enqueueing a proposal-drafting job. ``model`` optionally
+    selects the generator model for the run from the selectable catalog.
     """
 
     search_expert_id = serializers.IntegerField(min_value=1)
+    model = ModelSelectionField()
 
 
 class ProposalDraftSerializer(serializers.ModelSerializer):
@@ -1067,6 +1096,7 @@ class ProposalDraftSerializer(serializers.ModelSerializer):
             "note",
             "status",
             "step",
+            "model_ref",
             "rounds_used",
             "final_scores",
             "gate_report",
