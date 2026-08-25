@@ -27,6 +27,16 @@ def activity_feed_cache_key(
 def should_cache_activity_feed(request: Request) -> bool:
     """Return whether this request may use the shared public activity-feed cache."""
     params = request.query_params
+    disable = params.get("disable_cache", "").lower()
+    if disable in ("true", "1"):
+        user = getattr(request, "user", None)
+        if (
+            user
+            and getattr(user, "is_authenticated", False)
+            and user.is_moderator_or_editor()
+        ):
+            return False
+
     if (
         params.get("scope")
         or params.get("grant_id")
