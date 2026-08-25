@@ -126,6 +126,33 @@ def _derive_title(text: str) -> str:
     return " ".join(text.split())[:TITLE_MAX_CHARS].rstrip()
 
 
+def _stream_phase(stream: dict | None) -> dict | None:
+    """Return the live phase implied by the newest transient stream item."""
+    if not stream or not stream.get("items"):
+        return None
+
+    last_item = stream["items"][-1]
+    item_type = last_item.get("type")
+    if item_type == "narration":
+        return {
+            "state": PHASE_RESPONDING,
+            "label": "Writing a response",
+        }
+    if item_type == "thinking":
+        return {
+            "state": PHASE_THINKING,
+            "label": "Thinking",
+        }
+    if item_type == "tool_draft":
+        tool = last_item.get("tool") or ""
+        return {
+            "state": PHASE_USING_TOOL,
+            "label": last_item.get("label") or drafting_label(tool),
+            "tool": tool or None,
+        }
+    return None
+
+
 class NotebookChatService:
     """Prepare and run notebook chat turns.
 
@@ -330,25 +357,9 @@ class NotebookChatService:
             # A live provider delta is newer than the last durable trace row.
             # It can therefore refine the coarse phase without becoming
             # durable state itself.
-            if stream and stream.get("items"):
-                last_item = stream["items"][-1]
-                if last_item.get("type") == "narration":
-                    execution["phase"] = {
-                        "state": PHASE_RESPONDING,
-                        "label": "Writing a response",
-                    }
-                elif last_item.get("type") == "thinking":
-                    execution["phase"] = {
-                        "state": PHASE_THINKING,
-                        "label": "Thinking",
-                    }
-                elif last_item.get("type") == "tool_draft":
-                    tool = last_item.get("tool") or ""
-                    execution["phase"] = {
-                        "state": PHASE_USING_TOOL,
-                        "label": last_item.get("label") or drafting_label(tool),
-                        "tool": tool or None,
-                    }
+            stream_phase = _stream_phase(stream)
+            if stream_phase is not None:
+                execution["phase"] = stream_phase
         return data
 
     @staticmethod

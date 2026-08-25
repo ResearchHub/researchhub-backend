@@ -598,37 +598,56 @@ class ClaudePlatformProvider(LLMProvider):
         """Translate SDK events into the provider-neutral streaming surface."""
         if on_event is None:
             return
+        stream_event = cls._stream_event(event)
+        if stream_event is not None:
+            on_event(stream_event)
+
+    @classmethod
+    def _stream_event(cls, event: Any) -> ProviderStreamEvent | None:
+        """Return the provider-neutral event represented by one SDK event."""
         index = getattr(event, "index", None)
         if not isinstance(index, int):
-            return
+            return None
         event_type = getattr(event, "type", None)
         if event_type == "content_block_start":
-            block = getattr(event, "content_block", None)
-            if getattr(block, "type", None) in cls._TOOL_USE_BLOCK_TYPES:
-                name = getattr(block, "name", None)
-                if isinstance(name, str) and name:
-                    on_event(ToolUseStreamStart(block_index=index, name=name))
-            return
-        if event_type != "content_block_delta":
-            return
+            return cls._tool_use_stream_start(event, index)
+        if event_type == "content_block_delta":
+            return cls._stream_delta(event, index)
+        return None
+
+    @classmethod
+    def _tool_use_stream_start(
+        cls, event: Any, index: int
+    ) -> ToolUseStreamStart | None:
+        block = getattr(event, "content_block", None)
+        if getattr(block, "type", None) not in cls._TOOL_USE_BLOCK_TYPES:
+            return None
+        name = getattr(block, "name", None)
+        if not isinstance(name, str) or not name:
+            return None
+        return ToolUseStreamStart(block_index=index, name=name)
+
+    @staticmethod
+    def _stream_delta(event: Any, index: int) -> ProviderStreamEvent | None:
         delta = getattr(event, "delta", None)
         if delta is None:
-            return
+            return None
         delta_type = getattr(delta, "type", None)
         if delta_type == "text_delta":
             text = getattr(delta, "text", None)
             if isinstance(text, str) and text:
-                on_event(TextStreamDelta(block_index=index, text=text))
-        elif delta_type == "thinking_delta":
+                return TextStreamDelta(block_index=index, text=text)
+        if delta_type == "thinking_delta":
             thinking = getattr(delta, "thinking", None)
             if isinstance(thinking, str) and thinking:
-                on_event(ThinkingStreamDelta(block_index=index, text=thinking))
-        elif delta_type == "input_json_delta":
+                return ThinkingStreamDelta(block_index=index, text=thinking)
+        if delta_type == "input_json_delta":
             partial_json = getattr(delta, "partial_json", None)
             if isinstance(partial_json, str) and partial_json:
-                on_event(
-                    ToolInputStreamDelta(block_index=index, partial_json=partial_json)
+                return ToolInputStreamDelta(
+                    block_index=index, partial_json=partial_json
                 )
+        return None
 
     def _render_messages(
         self, messages: list[Message], *, cache_last: bool = False

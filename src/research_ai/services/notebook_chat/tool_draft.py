@@ -153,10 +153,9 @@ class ToolDraftTextExtractor:
         elif char == ":":
             if top is not None and top[0] == "object":
                 top[1] = False
-        elif char == ",":
-            if top is not None and top[0] == "object":
-                top[1] = True
-                self._current_key = None
+        elif char == "," and top is not None and top[0] == "object":
+            top[1] = True
+            self._current_key = None
 
     def _string_role(self, top: list | None) -> str:
         """What the string opening now is: a key, prose, or ignorable."""
