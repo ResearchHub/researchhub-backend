@@ -44,6 +44,12 @@ MODEL_ID = "anthropic/claude-opus-5"
 # the client read timeout and die whole. Raise only after moving to streaming.
 MAX_OUTPUT_TOKENS = 32_768
 
+# How much the model may deliberate and spend per turn. OpenRouter normalizes
+# this across supported model families through ``reasoning.effort``. Keep the
+# default aligned with the Claude Platform adapter so switching providers does
+# not silently change the workflow's reasoning depth. ``""`` omits the option.
+EFFORT = "low"
+
 # Same guard as the Bedrock adapter: Opus 4.7+ and Fable reject sampling params
 # (temperature/top_p) with a 400. OpenRouter forwards params to the upstream
 # provider verbatim, so omit them for those models here too.
@@ -107,6 +113,7 @@ class OpenRouterProvider(LLMProvider):
 
     def __init__(self, *, client: Any = None, model_id: str | None = None):
         self.model_id = model_id or MODEL_ID
+        self.effort = EFFORT
         if client is not None:
             self._client = client
         else:
@@ -156,6 +163,11 @@ class OpenRouterProvider(LLMProvider):
             kwargs["temperature"] = temperature
         if rendered_tools:
             kwargs["tools"] = rendered_tools
+        if self.effort:
+            # ``reasoning`` is an OpenRouter extension rather than an OpenAI
+            # Chat Completions argument, so the OpenAI client forwards it via
+            # ``extra_body``.
+            kwargs["extra_body"] = {"reasoning": {"effort": self.effort}}
 
         started = time.perf_counter()
         try:

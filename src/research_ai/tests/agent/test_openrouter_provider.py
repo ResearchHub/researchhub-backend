@@ -203,6 +203,18 @@ class CompleteRequestTests(SimpleTestCase):
         self.assertEqual(kwargs["max_tokens"], 100)
         self.assertEqual(kwargs["temperature"], 0.5)
         self.assertEqual(kwargs["tools"], rendered_tools)
+        self.assertEqual(kwargs["extra_body"], {"reasoning": {"effort": "low"}})
+
+    def test_effort_can_be_omitted_for_incompatible_models(self):
+        # Arrange
+        provider = _build_provider([_response(content="ok")])
+        provider.effort = ""
+
+        # Act
+        _complete(provider)
+
+        # Assert
+        self.assertNotIn("extra_body", provider._client.calls[0])
 
     def test_none_max_tokens_resolves_to_the_adapter_output_ceiling(self):
         # Arrange
