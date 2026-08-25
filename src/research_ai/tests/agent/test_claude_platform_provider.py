@@ -479,6 +479,19 @@ class CompleteAndParseTests(SimpleTestCase):
         self.assertEqual(call["output_config"], {"effort": "low"})
         self.assertNotIn("temperature", call)
 
+    def test_haiku_4_5_omits_unsupported_effort_and_adaptive_thinking(self):
+        # Arrange
+        provider = _build_provider([_build_response([])], model_id="claude-haiku-4-5")
+
+        # Act
+        _complete(provider, temperature=0.7)
+
+        # Assert
+        call = provider._client.messages.calls[0]
+        self.assertNotIn("output_config", call)
+        self.assertNotIn("thinking", call)
+        self.assertEqual(call["temperature"], 0.7)
+
     def test_prompt_caching_marks_system_and_the_last_message_block(self):
         # Arrange
         provider = _build_provider([_build_response([])])

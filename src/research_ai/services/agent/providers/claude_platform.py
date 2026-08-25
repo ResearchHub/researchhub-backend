@@ -119,6 +119,11 @@ _NO_SAMPLING_PARAMS = (
     "mythos",
 )
 
+# Haiku 4.5 supports manual extended thinking, but not adaptive thinking or
+# ``output_config.effort``. This adapter does not configure a manual thinking
+# budget, so Haiku runs without thinking configuration and keeps temperature.
+_HAIKU_4_5_TAGS = ("haiku-4-5", "haiku-4.5")
+
 # Messages API ``stop_reason`` -> neutral ``StopReason``. ``refusal`` is a
 # successful HTTP 200 whose content is empty or partial (Opus 5 ships elevated
 # safety classifiers), so it maps onto the same "the turn did not complete"
@@ -165,6 +170,11 @@ _PROVIDER_STATE_KEY = "anthropic"
 def _accepts_sampling_params(model_id: str) -> bool:
     mid = model_id.lower()
     return not any(tag in mid for tag in _NO_SAMPLING_PARAMS)
+
+
+def _is_haiku_4_5(model_id: str) -> bool:
+    mid = model_id.lower()
+    return any(tag in mid for tag in _HAIKU_4_5_TAGS)
 
 
 def _build_client() -> AnthropicAWS | None:
@@ -574,17 +584,21 @@ class ClaudePlatformProvider(LLMProvider):
             # state, separate from the content blocks replayed above.
             kwargs["container"] = container_id
             logger.info("claude platform: reusing code execution container")
-        if self.thinking:
-            thinking: dict = {"type": self.thinking}
-            if self.thinking == "adaptive" and THINKING_DISPLAY:
+        # Haiku 4.5 rejects adaptive thinking and effort. Resolve those model
+        # capabilities at request time so even a caller overriding the public
+        # provider knobs cannot accidentally build an invalid Haiku request.
+        thinking_mode = "" if _is_haiku_4_5(self.model_id) else self.thinking
+        if thinking_mode:
+            thinking: dict = {"type": thinking_mode}
+            if thinking_mode == "adaptive" and THINKING_DISPLAY:
                 thinking["display"] = THINKING_DISPLAY
             kwargs["thinking"] = thinking
-        if self.effort:
+        if self.effort and not _is_haiku_4_5(self.model_id):
             kwargs["output_config"] = {"effort": self.effort}
         # Thinking pins temperature to its default, so forwarding the loop's
         # value is at best a no-op and at worst a 400 -- omit it whenever the
         # model or the thinking config rules it out.
-        if not self.thinking and _accepts_sampling_params(self.model_id):
+        if not thinking_mode and _accepts_sampling_params(self.model_id):
             kwargs["temperature"] = temperature
         return kwargs
 
