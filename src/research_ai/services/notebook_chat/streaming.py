@@ -5,6 +5,13 @@ authoritative message. This module holds only a bounded user-visible preview:
 small coalesced WebSocket deltas for the fast path and one cache snapshot for
 reconnect and polling recovery.
 
+Three item kinds share the preview: ``narration`` (answer text), ``thinking``
+(readable reasoning) and ``tool_draft`` -- a tool call the model is composing.
+Draft items carry the tool name and a label from the moment the block opens,
+so the client can say what the model is doing during the long stretches where
+every output token is a tool argument; for tools whose arguments are note
+prose (``edit_note``) the text being written streams into the item as well.
+
 The preview is deliberately best-effort. Execution status is durable and
 authoritative, so clients must discard preview events after an execution has
 settled. That rule keeps cancellation independent from Redis availability and
@@ -21,6 +28,13 @@ from research_ai.services.agent.types import (
     StreamReset,
     TextStreamDelta,
     ThinkingStreamDelta,
+    ToolInputStreamDelta,
+    ToolUseStreamStart,
+)
+from research_ai.services.notebook_chat.activity import drafting_label
+from research_ai.services.notebook_chat.tool_draft import (
+    TOOL_DRAFT_PROSE_TOOLS,
+    ToolDraftTextExtractor,
 )
 
 STREAM_DELTA = "stream_delta"
@@ -31,6 +45,14 @@ STREAM_ACTIVE_CHECK_INTERVAL_SECONDS = 1.0
 STREAM_PUBLISH_TIMEOUT_SECONDS = 5.0
 MAX_STREAM_TEXT_CHARS = 100_000
 MAX_STREAM_THINKING_CHARS = 4_000
+# A drafted edit is the prose of the blocks being rewritten -- a few
+# paragraphs in practice; the bound only stops a runaway call from growing
+# the per-flush snapshot without limit.
+MAX_STREAM_TOOL_DRAFT_CHARS = 20_000
+
+ITEM_NARRATION = "narration"
+ITEM_THINKING = "thinking"
+ITEM_TOOL_DRAFT = "tool_draft"
 
 
 def _cache_key(execution_id: int) -> str:
@@ -82,6 +104,8 @@ class NotebookStreamBuffer:
         self.items: OrderedDict[str, dict] = OrderedDict()
         self.pending: OrderedDict[str, dict] = OrderedDict()
         self.pending_chars = 0
+        # Per draft item, the scanner turning argument JSON into prose.
+        self.drafts: dict[str, ToolDraftTextExtractor] = {}
         self.last_flush_at: float | None = None
         self.last_active_check_at: float | None = None
         self.stream_revision = 0
@@ -102,18 +126,17 @@ class NotebookStreamBuffer:
 
         item_id = f"iteration-{iteration}:block-{event.block_index}:{item_type}"
         item = self.items.get(item_id)
+        opened = item is None
         if item is None:
-            item = {
-                "id": item_id,
-                "type": item_type,
-                "text": "",
-                "at": timezone.now().isoformat(),
-            }
+            item = self._new_item(item_id, item_type, event)
             self.items[item_id] = item
 
         room = maximum - len(item["text"])
-        fragment = event.text[: max(0, room)]
-        if not fragment:
+        fragment = self._fragment(item, event)[: max(0, room)]
+        # A tool-use start carries no text but must still announce its item;
+        # anything else with nothing to show is a no-op.
+        announces = opened and isinstance(event, ToolUseStreamStart)
+        if not fragment and not announces:
             return
         item["text"] += fragment
 
@@ -125,17 +148,49 @@ class NotebookStreamBuffer:
                 "delta": "",
                 "at": item["at"],
             }
+            if item_type == ITEM_TOOL_DRAFT:
+                pending["tool"] = item["tool"]
+                pending["label"] = item["label"]
             self.pending[item_id] = pending
         pending["delta"] += fragment
         self.pending_chars += len(fragment)
 
         now = self.clock()
         if (
-            self.last_flush_at is None
+            # A draft announcement must not wait out the coalescing window:
+            # a server-side tool can follow it with seconds of silence.
+            announces
+            or self.last_flush_at is None
             or now - self.last_flush_at >= STREAM_FLUSH_INTERVAL_SECONDS
             or self.pending_chars >= STREAM_FLUSH_CHARS
         ):
             self.flush(now=now)
+
+    def _new_item(self, item_id: str, item_type: str, event) -> dict:
+        item = {
+            "id": item_id,
+            "type": item_type,
+            "text": "",
+            "at": timezone.now().isoformat(),
+        }
+        if item_type == ITEM_TOOL_DRAFT:
+            # An argument delta without its start event (not expected from
+            # the provider) still gets an item, just an unnamed one.
+            tool = event.name if isinstance(event, ToolUseStreamStart) else ""
+            item["tool"] = tool
+            item["label"] = drafting_label(tool)
+            if tool in TOOL_DRAFT_PROSE_TOOLS:
+                self.drafts[item_id] = ToolDraftTextExtractor()
+        return item
+
+    def _fragment(self, item: dict, event) -> str:
+        """The user-visible text ``event`` adds to ``item``."""
+        if isinstance(event, ToolUseStreamStart):
+            return ""
+        if isinstance(event, ToolInputStreamDelta):
+            extractor = self.drafts.get(item["id"])
+            return extractor.feed(event.partial_json) if extractor else ""
+        return event.text
 
     def flush(self, *, now: float | None = None) -> None:
         if not self.pending or self.iteration is None:
@@ -218,6 +273,7 @@ class NotebookStreamBuffer:
         self.items.clear()
         self.pending.clear()
         self.pending_chars = 0
+        self.drafts.clear()
         self.iteration = iteration
         self.sequence = 0
         self.last_flush_at = None
@@ -245,7 +301,9 @@ class NotebookStreamBuffer:
     @staticmethod
     def _event_shape(event) -> tuple[str | None, int]:
         if isinstance(event, TextStreamDelta):
-            return "narration", MAX_STREAM_TEXT_CHARS
+            return ITEM_NARRATION, MAX_STREAM_TEXT_CHARS
         if isinstance(event, ThinkingStreamDelta):
-            return "thinking", MAX_STREAM_THINKING_CHARS
+            return ITEM_THINKING, MAX_STREAM_THINKING_CHARS
+        if isinstance(event, ToolUseStreamStart | ToolInputStreamDelta):
+            return ITEM_TOOL_DRAFT, MAX_STREAM_TOOL_DRAFT_CHARS
         return None, 0

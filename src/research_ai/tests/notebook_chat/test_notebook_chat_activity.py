@@ -598,6 +598,41 @@ class NotebookChatActivityProjectionTests(TestCase):
             {"state": "responding", "label": "Writing a response"},
         )
 
+    def test_live_tool_draft_refines_the_phase_to_the_drafting_label(self):
+        # Arrange
+        snapshot = {
+            "id": f"{self.execution.id}:1",
+            "sequence": 2,
+            "iteration": 1,
+            "items": [
+                {
+                    "id": "iteration-1:block-2:tool_draft",
+                    "type": "tool_draft",
+                    "tool": "edit_note",
+                    "label": "Drafting an edit",
+                    "text": "New opening paragraph.",
+                    "at": timezone.now().isoformat(),
+                }
+            ],
+        }
+        stream_store = Mock()
+        stream_store.get.return_value = snapshot
+        service = _make_service(stream_store=stream_store)
+
+        # Act
+        data = service.representation(self.conversation)
+        (execution,) = data["executions"]
+
+        # Assert
+        self.assertEqual(
+            execution["phase"],
+            {
+                "state": "using_tool",
+                "label": "Drafting an edit",
+                "tool": "edit_note",
+            },
+        )
+
     def test_stream_cache_failure_is_treated_as_a_missing_snapshot(self):
         # Arrange
         stream_store = Mock()
