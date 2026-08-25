@@ -76,8 +76,8 @@ class ActivityFeedViewSet(FeedViewMixin, ModelViewSet):
     returns only comments across all grant-related documents.
 
     The unscoped public discovery feed (pages 1–20, page_size=20) may be served
-    from a shared warm cache. Moderators and hub editors always get a live
-    response. Votes are attached after the cache read for authenticated users.
+    from a shared warm cache. Votes are attached after the cache read for
+    authenticated users.
     """
 
     serializer_class = ActivityFeedEntrySerializer

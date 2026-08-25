@@ -282,7 +282,11 @@ def run_proposal_draft_task(draft_id: int):
     logger.info("Starting proposal draft", extra={"draft_id": draft_id})
     start_time = timezone.now()
     try:
-        result = run_proposal_draft(draft.search_expert_id, draft_id=draft.id)
+        result = run_proposal_draft(
+            draft.search_expert_id,
+            draft_id=draft.id,
+            model_ref=draft.model_ref or None,
+        )
     except Exception as e:
         logger.exception("Proposal draft task failed", extra={"draft_id": draft_id})
         # Conditional on the draft still being active, like every write the

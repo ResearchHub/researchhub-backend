@@ -20,6 +20,7 @@ from research_ai.views.expert_finder_views import (
     InvitedExpertEditorsOverviewView,
     InvitedExpertOverviewView,
 )
+from research_ai.views.model_views import AvailableModelsView
 from research_ai.views.notebook_chat_views import (
     NotebookChatCancelView,
     NotebookChatDetailView,
@@ -34,6 +35,7 @@ from research_ai.views.proposal_draft_views import (
 from research_ai.views.template_views import TemplateDetailView, TemplateListView
 
 urlpatterns = [
+    path("models/", AvailableModelsView.as_view()),
     path("expert-finder/searches/", ExpertSearchListCreateView.as_view()),
     path(
         "expert-finder/searches/<int:search_id>/",

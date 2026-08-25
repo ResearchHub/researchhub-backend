@@ -275,6 +275,9 @@ class AgentChatService:
                 "id": execution.id,
                 "attempt": execution.attempt,
                 "status": execution.status,
+                # The model ref this turn was submitted with, so a client can
+                # label which model produced each answer.
+                "model": execution.model,
                 "trigger_message_id": execution.trigger_message_id,
                 "retry_of_id": execution.retry_of_id,
                 "context_parent_id": execution.context_parent_id,

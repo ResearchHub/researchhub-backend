@@ -6,18 +6,15 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 def get_feed_cache_segment(request: Request) -> tuple[str | None, bool]:
     """Return (suffix, should_cache) for grant/funding feed page caching.
 
-    suffix is ``:public``, ``:viewer-{user_id}``, or ``None`` when caching is
-    disabled (moderators and hub editors always get a fresh response).
+    suffix is ``:public``, ``:admin``, or ``:viewer-{user_id}``.
     """
     user = request.user
 
-    if user.is_authenticated and (
-        getattr(user, "moderator", False) or user.is_hub_editor()
-    ):
-        return None, False
-
     if not user.is_authenticated:
         return ":public", True
+
+    if user.is_moderator_or_editor():
+        return ":admin", True
 
     has_private_visibility = (
         ResearchhubPost.objects.visible_to(user)

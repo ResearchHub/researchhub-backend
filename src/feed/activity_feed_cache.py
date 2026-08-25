@@ -26,10 +26,6 @@ def activity_feed_cache_key(
 
 def should_cache_activity_feed(request: Request) -> bool:
     """Return whether this request may use the shared public activity-feed cache."""
-    user = request.user
-    if user.is_authenticated and user.is_moderator_or_editor():
-        return False
-
     params = request.query_params
     if (
         params.get("scope")
@@ -37,6 +33,7 @@ def should_cache_activity_feed(request: Request) -> bool:
         or params.get("document_type")
         or params.get("content_type")
         or params.get("comment_type")
+        or params.get("include_hot_score_breakdown", "").lower() == "true"
     ):
         return False
 
