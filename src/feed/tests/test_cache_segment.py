@@ -110,7 +110,7 @@ class FeedCacheSegmentTests(AWSMockTestCase):
         self.assertEqual(suffix, f":viewer-{owner.id}")
         self.assertTrue(should_cache)
 
-    def test_moderator_disables_caching_even_with_private_posts(self):
+    def test_moderator_with_private_posts_uses_admin_segment(self):
         # Arrange
         moderator = create_random_authenticated_user("cache_seg_mod", moderator=True)
         private_doc = ResearchhubUnifiedDocument.objects.create(
@@ -130,5 +130,51 @@ class FeedCacheSegmentTests(AWSMockTestCase):
         suffix, should_cache = get_feed_cache_segment(self._request(moderator))
 
         # Assert
-        self.assertIsNone(suffix)
-        self.assertFalse(should_cache)
+        self.assertEqual(suffix, ":admin")
+        self.assertTrue(should_cache)
+
+    def test_hub_editor_uses_admin_segment(self):
+        # Arrange
+        from user.tests.helpers import create_hub_editor
+
+        editor, _ = create_hub_editor("cache_seg_editor", "Cache Seg Hub")
+
+        # Act
+        suffix, should_cache = get_feed_cache_segment(self._request(editor))
+
+        # Assert
+        self.assertEqual(suffix, ":admin")
+        self.assertTrue(should_cache)
+
+    def test_moderator_grant_owner_uses_admin_segment(self):
+        # Arrange
+        moderator = create_random_authenticated_user(
+            "cache_seg_mod_owner", moderator=True
+        )
+        applicant = create_random_authenticated_user("cache_seg_mod_app")
+        grant_post = create_post(created_by=moderator, document_type=GRANT)
+        Grant.objects.create(
+            created_by=moderator,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("1000.00"),
+            currency=USD,
+            organization="Org",
+            description="desc",
+        )
+        private_post = create_post(
+            created_by=applicant, document_type=PREREGISTRATION, title="Private"
+        )
+        private_post.unified_document.is_public = False
+        private_post.unified_document.save()
+        GrantApplication.objects.create(
+            grant=Grant.objects.get(unified_document=grant_post.unified_document),
+            preregistration_post=private_post,
+            applicant=applicant,
+        )
+
+        # Act
+        suffix, should_cache = get_feed_cache_segment(self._request(moderator))
+
+        # Assert
+        self.assertEqual(suffix, ":admin")
+        self.assertTrue(should_cache)

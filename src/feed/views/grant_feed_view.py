@@ -55,8 +55,11 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ReadOnlyModelViewSet):
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
         page_num = int(page)
+        organization = request.query_params.get("organization")
         suffix, should_cache = get_feed_cache_segment(request)
-        use_cache = should_cache and page_num <= GRANT_FEED_MAX_CACHED_PAGE
+        use_cache = (
+            should_cache and page_num <= GRANT_FEED_MAX_CACHED_PAGE and not organization
+        )
         cache_key = (
             (self.get_cache_key(request, "grants") + suffix) if use_cache else None
         )

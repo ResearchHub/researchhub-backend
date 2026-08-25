@@ -471,6 +471,25 @@ class GrantFeedViewTests(APITestCase):
             response.data["results"][0]["content_object"]["title"], "Open Grant"
         )
 
+    def test_organization_filter_bypasses_cache(self):
+        """organization-filtered responses must not populate discovery cache keys."""
+        # Arrange
+        cache.clear()
+        self.client.force_authenticate(self.user)
+        public_key = (
+            GrantFeedViewSet().get_cache_key(
+                Request(APIRequestFactory().get("/api/grant_feed/")), "grants"
+            )
+            + ":public"
+        )
+
+        # Act
+        response = self.client.get("/api/grant_feed/?organization=NSF")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(cache.get(public_key))
+
     def test_grant_feed_filter_by_organization_partial_match(self):
         """Test grant feed filtering by organization with partial match"""
         self.client.force_authenticate(self.user)

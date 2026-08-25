@@ -1843,10 +1843,15 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
         self.assertFalse(mock_cache.set.called)
 
     @patch("feed.views.activity_feed_view.cache")
-    def test_moderator_bypasses_cache(self, mock_cache):
+    def test_moderator_uses_cache(self, mock_cache):
         # Arrange
         from user.tests.helpers import create_random_authenticated_user
 
+        mock_cache.get.return_value = {
+            "next": None,
+            "previous": None,
+            "results": [{"id": self.prereg_entry.id, "content_object": {"id": 1}}],
+        }
         moderator = create_random_authenticated_user(
             "activity_cache_mod", moderator=True
         )
@@ -1858,14 +1863,19 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_cache.get.assert_not_called()
-        mock_cache.set.assert_not_called()
+        self.assertTrue(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
 
     @patch("feed.views.activity_feed_view.cache")
-    def test_hub_editor_bypasses_cache(self, mock_cache):
+    def test_hub_editor_uses_cache(self, mock_cache):
         # Arrange
         from user.tests.helpers import create_hub_editor
 
+        mock_cache.get.return_value = {
+            "next": None,
+            "previous": None,
+            "results": [{"id": self.prereg_entry.id, "content_object": {"id": 1}}],
+        }
         editor = create_hub_editor("activity_cache_editor", "Activity Cache Hub")[0]
         editor_client = APIClient()
         editor_client.force_authenticate(user=editor)
@@ -1875,8 +1885,8 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_cache.get.assert_not_called()
-        mock_cache.set.assert_not_called()
+        self.assertTrue(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
 
     @patch("feed.views.activity_feed_view.cache")
     def test_scoped_and_filtered_requests_skip_cache(self, mock_cache):
@@ -1885,6 +1895,7 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
             {"scope": "financial", "page": 1, "page_size": 20},
             {"grant_id": 1, "page": 1, "page_size": 20},
             {"document_type": "PREREGISTRATION", "page": 1, "page_size": 20},
+            {"include_hot_score_breakdown": "true", "page": 1, "page_size": 20},
             {"page": 21, "page_size": 20},
             {"page": 1, "page_size": 10},
         ]

@@ -204,11 +204,19 @@ def _serialize_application_key_insight(application, review_by_ud):
 def serialize_slim_grant_applications(grant, context):
     request = context.get("request")
     viewer = getattr(request, "user", None) if request else None
-    is_grant_reviewer = (
-        viewer is not None
-        and getattr(viewer, "is_authenticated", False)
-        and grant.created_by_id == viewer.id
-    )
+    viewer_authed = viewer is not None and getattr(viewer, "is_authenticated", False)
+    is_grant_reviewer = viewer_authed and grant.created_by_id == viewer.id
+
+    # Match DynamicGrantSerializer.get_applications: moderators and hub editors
+    # may view private applications on any grant, not only ones they created.
+    privileged = context.get("_grant_private_app_viewer")
+    if privileged is None:
+        privileged = viewer_authed and (
+            getattr(viewer, "moderator", False) or viewer.is_hub_editor()
+        )
+        context["_grant_private_app_viewer"] = privileged
+
+    can_view_private = privileged or is_grant_reviewer
     include_key_insights = context.get("include_key_insights", False)
 
     review_by_ud = {}
@@ -225,8 +233,8 @@ def serialize_slim_grant_applications(grant, context):
             continue
 
         proposal_document = application.preregistration_post.unified_document
-        if not proposal_document.is_public and not is_grant_reviewer:
-            if not viewer or not getattr(viewer, "is_authenticated", False):
+        if not proposal_document.is_public and not can_view_private:
+            if not viewer_authed:
                 continue
             if application.applicant_id != viewer.id:
                 continue
