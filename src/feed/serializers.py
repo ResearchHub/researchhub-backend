@@ -1004,6 +1004,12 @@ class FeedEntrySerializer(serializers.ModelSerializer):
         return self.context.get("recommendation_id")
 
 
+class UserActivityQuerySerializer(serializers.Serializer):
+    """Validate query parameters for the user activity feed."""
+
+    user_id = serializers.IntegerField(min_value=1)
+
+
 class RelatedWorkSerializer(serializers.Serializer):
     """Slim unified-document payload for activity feed related_work."""
 

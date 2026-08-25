@@ -12,7 +12,7 @@ ACTIVITY_FEED_CACHE_PAGE_SIZE = 20
 ACTIVITY_FEED_MAX_CACHED_PAGE = 20
 ACTIVITY_FEED_CACHE_TIMEOUT = 60 * 10
 # Bump when unscoped public feed filtering or serialization changes.
-ACTIVITY_FEED_CACHE_VERSION = 2
+ACTIVITY_FEED_CACHE_VERSION = 3
 
 
 def activity_feed_cache_key(
@@ -30,9 +30,9 @@ def should_cache_activity_feed(request: Request) -> bool:
     if (
         params.get("scope")
         or params.get("grant_id")
-        or params.get("funder_id")
         or params.get("document_type")
         or params.get("content_type")
+        or params.get("comment_type")
         or params.get("include_hot_score_breakdown", "").lower() == "true"
     ):
         return False
