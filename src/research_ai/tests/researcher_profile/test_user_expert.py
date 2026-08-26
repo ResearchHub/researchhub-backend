@@ -51,6 +51,18 @@ class ExpertForUserTests(TestCase):
         # Act & Assert
         self.assertEqual(expert_for_user(user), invited)
 
+    def test_resolves_the_invited_identity_despite_a_retargeted_email(self):
+        # Arrange: the outreach row's editable expert_email is changed after
+        # the invite was claimed; the invitation's addressee must still win.
+        user = _make_user(email="jane.personal@researchhub_test.com")
+        invited = Expert.objects.create(email="jane@stanford.edu", first_name="Invited")
+        Expert.objects.create(email="bob@mit.edu", first_name="Retargeted")
+        generated = _invite(user, "jane@stanford.edu")
+        generated.expert_email = "bob@mit.edu"
+        generated.save(update_fields=["expert_email"])
+        # Act & Assert
+        self.assertEqual(expert_for_user(user), invited)
+
     def test_invitation_chain_outranks_account_email(self):
         # Arrange
         user = _make_user()

@@ -32,12 +32,17 @@ def expert_for_user(user: User) -> Expert | None:
 
 
 def _invited_expert(user: User) -> Expert | None:
-    """The expert identity behind an invitation this user holds, newest first."""
+    """The expert identity behind an invitation this user holds, newest first.
+
+    Resolved from the invitation's own ``recipient_email`` -- stamped at
+    creation and never editable -- not from ``GeneratedEmail.expert_email``,
+    which editors can retarget after the invitation was claimed.
+    """
     emails = (
         GeneratedEmail.objects.filter(note_invitation__recipient=user)
-        .exclude(expert_email="")
+        .exclude(note_invitation__recipient_email="")
         .order_by("-created_date")
-        .values_list("expert_email", flat=True)
+        .values_list("note_invitation__recipient_email", flat=True)
     )
     seen: set[str] = set()
     for email in emails:
