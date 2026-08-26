@@ -84,6 +84,9 @@ from research_ai.services.notebook_chat.grant_tools import (
     GrantSearchToolset,
     SelectedRFPToolset,
 )
+from research_ai.services.notebook_chat.researcher_profile_tools import (
+    ResearcherProfileToolset,
+)
 from research_ai.services.notebook_chat.streaming import ExecutionStreamStore
 from research_ai.services.notebook_chat.toolset import (
     NotebookWebSearchToolset,
@@ -172,6 +175,7 @@ class NotebookChatService:
         oa_client: OpenAlex | None = None,
         web_search_client=None,
         grant_toolset_factory=None,
+        researcher_profile_toolset_factory=None,
         chat_service: AgentChatService | None = None,
         conversation_service: AgentConversationService | None = None,
         note_conversation_service: NoteAgentConversationService | None = None,
@@ -188,6 +192,11 @@ class NotebookChatService:
             GrantSearchToolset
             if grant_toolset_factory is None
             else grant_toolset_factory
+        )
+        self._researcher_profile_toolset_factory = (
+            ResearcherProfileToolset
+            if researcher_profile_toolset_factory is None
+            else researcher_profile_toolset_factory
         )
         self.chat = AgentChatService() if chat_service is None else chat_service
         self.conversations = (
@@ -629,6 +638,9 @@ class NotebookChatService:
         toolset = compose_notebook_toolset(
             note_toolset=NoteToolset(user=conversation.user, note_ids={note.id}),
             user_profile_toolset=UserProfileToolset(user=conversation.user),
+            researcher_profile_toolset=self._researcher_profile_toolset_factory(
+                user=conversation.user
+            ),
             grant_toolset=self._grant_toolset_factory(user=conversation.user),
             selected_rfp_toolset=(
                 SelectedRFPToolset(note=note, user=conversation.user)
