@@ -54,6 +54,7 @@ EFFORT = "low"
 # (temperature/top_p) with a 400. OpenRouter forwards params to the upstream
 # provider verbatim, so omit them for those models here too.
 _NO_SAMPLING_PARAMS = (
+    "openai/gpt-5",
     "opus-4-7",
     "opus-4-8",
     "opus-4.7",
