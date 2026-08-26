@@ -472,3 +472,28 @@ class SetSelectedRFPToolTests(TestCase):
 
         # Assert
         self.assertEqual(result["selected_rfp"]["title"], "Untitled Program RFP")
+
+    def test_rejects_grant_ids_that_are_not_whole_numbers(self):
+        # Arrange: int() would truncate 1.9 and coerce True to 1, selecting
+        # grant 1 -- an unrelated RFP the user never asked for.
+        grant = self._grant()
+        self._set(grant.id)
+
+        # Act
+        results = [self._set(value) for value in (1.9, True, "1.9", "  ")]
+        self.note.refresh_from_db()
+
+        # Assert
+        for result in results:
+            self.assertEqual(result, {"error": "grant_id must be a grant id or null"})
+        self.assertEqual(self.note.selected_grant_id, grant.id)
+
+    def test_accepts_a_grant_id_sent_as_a_digit_string(self):
+        # Arrange
+        grant = self._grant()
+
+        # Act
+        result = self._set(str(grant.id))
+
+        # Assert
+        self.assertEqual(result["selected_rfp"]["id"], grant.id)

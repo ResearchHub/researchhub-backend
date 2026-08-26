@@ -153,10 +153,17 @@ def _parse_grant_id(args: dict) -> tuple[int | None, dict | None]:
     raw_id = args["grant_id"]
     if raw_id is None:
         return None, None
-    try:
-        return int(raw_id), None
-    except (TypeError, ValueError):
-        return None, {"error": "grant_id must be a grant id or null"}
+    # Coercing with int() would truncate 1.9 to 1 and turn True into 1, quietly
+    # resolving a grant nobody asked for; dispatch does not enforce the
+    # declared integer type, so take a real integer or a digit string, nothing
+    # else.
+    if isinstance(raw_id, int) and not isinstance(raw_id, bool):
+        return raw_id, None
+    if isinstance(raw_id, str):
+        text = raw_id.strip()
+        if text.isascii() and text.isdigit():
+            return int(text), None
+    return None, {"error": "grant_id must be a grant id or null"}
 
 
 class SelectedRFPToolset:
