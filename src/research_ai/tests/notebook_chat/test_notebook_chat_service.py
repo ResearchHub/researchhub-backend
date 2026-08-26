@@ -146,6 +146,42 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.model, "claude_platform:claude-sonnet-5")
         self.assertEqual(execution.provider, "claude_platform")
 
+    def test_submit_message_snapshots_generation_options(self):
+        # Act
+        execution, _delay = self._submit(effort="high", thinking="disabled")
+
+        # Assert
+        self.assertEqual(execution.configuration["effort"], "high")
+        self.assertEqual(execution.configuration["thinking"], "disabled")
+
+    @override_settings(
+        ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
+    )
+    def test_submit_message_accepts_temperature_for_haiku(self):
+        # Act
+        execution, _delay = self._submit(
+            model_ref="claude_platform:claude-haiku-4-5",
+            temperature=0.4,
+        )
+
+        # Assert
+        self.assertEqual(execution.configuration["temperature"], 0.4)
+
+    @override_settings(
+        ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
+    )
+    def test_submit_message_rejects_effort_for_haiku(self):
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "does not support effort"):
+            self.service.submit_message(
+                self.note,
+                self.conversation,
+                "hi",
+                model_ref="claude_platform:claude-haiku-4-5",
+                effort="high",
+            )
+        self.assertFalse(AgentExecution.objects.exists())
+
     def test_submit_message_rejects_a_model_outside_the_catalog(self):
         # Act & Assert
         with self.assertRaises(ValueError):

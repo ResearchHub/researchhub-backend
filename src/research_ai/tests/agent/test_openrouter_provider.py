@@ -216,6 +216,43 @@ class CompleteRequestTests(SimpleTestCase):
         # Assert
         self.assertNotIn("extra_body", provider._client.calls[0])
 
+    def test_frontend_generation_options_are_sent_as_reasoning(self):
+        # Arrange
+        client = FakeChatCompletionsClient([_response(content="ok")])
+        provider = OpenRouterProvider(
+            client=client,
+            model_id="openai/gpt-5.6-sol",
+            effort="high",
+            thinking="adaptive",
+        )
+
+        # Act
+        _complete(provider)
+
+        # Assert
+        self.assertEqual(
+            client.calls[0]["extra_body"],
+            {"reasoning": {"enabled": True, "effort": "high"}},
+        )
+
+    def test_disabled_thinking_suppresses_effort(self):
+        # Arrange
+        client = FakeChatCompletionsClient([_response(content="ok")])
+        provider = OpenRouterProvider(
+            client=client,
+            model_id="openai/gpt-5.6-sol",
+            effort="high",
+            thinking="disabled",
+        )
+
+        # Act
+        _complete(provider)
+
+        # Assert
+        self.assertEqual(
+            client.calls[0]["extra_body"], {"reasoning": {"enabled": False}}
+        )
+
     def test_none_max_tokens_resolves_to_the_adapter_output_ceiling(self):
         # Arrange
         provider = _build_provider([_response(content="ok")])

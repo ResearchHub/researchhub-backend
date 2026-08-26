@@ -112,9 +112,17 @@ def _plain_dict(value: Any) -> dict:
 class OpenRouterProvider(LLMProvider):
     """Adapts the neutral agent types to OpenRouter's Chat Completions API."""
 
-    def __init__(self, *, client: Any = None, model_id: str | None = None):
+    def __init__(
+        self,
+        *,
+        client: Any = None,
+        model_id: str | None = None,
+        effort: str | None = None,
+        thinking: str | None = None,
+    ):
         self.model_id = model_id or MODEL_ID
-        self.effort = EFFORT
+        self.effort = EFFORT if effort is None else effort
+        self.thinking = thinking
         if client is not None:
             self._client = client
         else:
@@ -164,11 +172,16 @@ class OpenRouterProvider(LLMProvider):
             kwargs["temperature"] = temperature
         if rendered_tools:
             kwargs["tools"] = rendered_tools
-        if self.effort:
+        reasoning: dict = {}
+        if self.thinking is not None:
+            reasoning["enabled"] = self.thinking == "adaptive"
+        if self.effort and self.thinking != "disabled":
+            reasoning["effort"] = self.effort
+        if reasoning:
             # ``reasoning`` is an OpenRouter extension rather than an OpenAI
             # Chat Completions argument, so the OpenAI client forwards it via
             # ``extra_body``.
-            kwargs["extra_body"] = {"reasoning": {"effort": self.effort}}
+            kwargs["extra_body"] = {"reasoning": reasoning}
 
         started = time.perf_counter()
         try:

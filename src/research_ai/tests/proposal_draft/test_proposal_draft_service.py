@@ -381,6 +381,8 @@ class ProposalDraftServiceTests(TestCase):
             result = run_proposal_draft(
                 self.search_expert.id,
                 model_ref="openrouter:openai/gpt-5.6-sol",
+                effort="high",
+                thinking="adaptive",
                 panel=_FakePanel(overall=5),
                 oa_client=_FakeOpenAlex(),
             )
@@ -390,6 +392,8 @@ class ProposalDraftServiceTests(TestCase):
         resolve.assert_called_once_with(
             "openrouter:openai/gpt-5.6-sol",
             native_tools=frozenset({"web_search"}),
+            effort="high",
+            thinking="adaptive",
         )
         self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
@@ -397,6 +401,8 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(
             draft.run_config["generator_model_id"], "openrouter:openai/gpt-5.6-sol"
         )
+        self.assertEqual(draft.run_config["effort"], "high")
+        self.assertEqual(draft.run_config["thinking"], "adaptive")
 
     def test_default_judge_roster_follows_the_selected_model(self):
         # Arrange: no injected panel, so the default single-judge roster is

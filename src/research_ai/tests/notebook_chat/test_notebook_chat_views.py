@@ -173,6 +173,24 @@ class NotebookChatViewTests(APITestCase):
         execution = AgentExecution.objects.get(id=response.data["execution_id"])
         self.assertEqual(execution.model, "claude_platform:claude-sonnet-5")
 
+    def test_post_message_records_effort_and_thinking(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+
+        # Act
+        response, _delay = self._post_message(
+            chat_id,
+            effort="high",
+            thinking="disabled",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 202)
+        execution = AgentExecution.objects.get(id=response.data["execution_id"])
+        self.assertEqual(execution.configuration["effort"], "high")
+        self.assertEqual(execution.configuration["thinking"], "disabled")
+
     def test_post_message_with_unknown_model_is_rejected(self):
         # Arrange
         self.client.force_authenticate(self.owner)

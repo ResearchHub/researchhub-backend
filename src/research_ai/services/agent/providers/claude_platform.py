@@ -30,6 +30,7 @@ from anthropic import AnthropicAWS
 from django.conf import settings
 
 from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
@@ -108,62 +109,6 @@ WEB_SEARCH_TOOL_NAME = "web_search"
 WEB_SEARCH_MAX_USES = 6
 
 
-@dataclass(frozen=True)
-class ClaudeModelCapabilities:
-    """Optional request features one Claude model accepts."""
-
-    supports_effort: bool = False
-    supports_adaptive_thinking: bool = False
-    supports_temperature: bool = False
-
-
-_TEMPERATURE_CAPABILITIES = ClaudeModelCapabilities(supports_temperature=True)
-_EFFORT_TEMPERATURE_CAPABILITIES = ClaudeModelCapabilities(
-    supports_effort=True,
-    supports_temperature=True,
-)
-_ADAPTIVE_TEMPERATURE_CAPABILITIES = ClaudeModelCapabilities(
-    supports_effort=True,
-    supports_adaptive_thinking=True,
-    supports_temperature=True,
-)
-_ADAPTIVE_CAPABILITIES = ClaudeModelCapabilities(
-    supports_effort=True,
-    supports_adaptive_thinking=True,
-)
-
-# Rules are model-family tags rather than exact aliases so dated first-party ids
-# resolve to the same profile. Unknown models get the conservative empty profile:
-# omitting optional controls is safer than turning a newly introduced model into
-# a 400 until its capabilities are reviewed here.
-_MODEL_CAPABILITY_RULES = (
-    (
-        ("haiku-4-5", "haiku-4.5", "sonnet-4-5", "sonnet-4.5"),
-        _TEMPERATURE_CAPABILITIES,
-    ),
-    (
-        ("opus-4-5", "opus-4.5"),
-        _EFFORT_TEMPERATURE_CAPABILITIES,
-    ),
-    (
-        ("opus-4-6", "opus-4.6", "sonnet-4-6", "sonnet-4.6"),
-        _ADAPTIVE_TEMPERATURE_CAPABILITIES,
-    ),
-    (
-        (
-            "opus-4-7",
-            "opus-4.7",
-            "opus-4-8",
-            "opus-4.8",
-            "opus-5",
-            "sonnet-5",
-            "fable",
-            "mythos",
-        ),
-        _ADAPTIVE_CAPABILITIES,
-    ),
-)
-
 # Messages API ``stop_reason`` -> neutral ``StopReason``. ``refusal`` is a
 # successful HTTP 200 whose content is empty or partial (Opus 5 ships elevated
 # safety classifiers), so it maps onto the same "the turn did not complete"
@@ -205,15 +150,6 @@ _SERVER_TOOL_BLOCK_TYPES = (
 _CACHEABLE_BLOCK_TYPES = ("text", "tool_result")
 
 _PROVIDER_STATE_KEY = "anthropic"
-
-
-def _model_capabilities(model_id: str) -> ClaudeModelCapabilities:
-    """Return the reviewed optional-feature profile for ``model_id``."""
-    mid = model_id.lower()
-    for tags, capabilities in _MODEL_CAPABILITY_RULES:
-        if any(tag in mid for tag in tags):
-            return capabilities
-    return ClaudeModelCapabilities()
 
 
 def _build_client() -> AnthropicAWS | None:
@@ -394,12 +330,14 @@ class ClaudePlatformProvider(LLMProvider):
         client: Any = None,
         model_id: str | None = None,
         web_search: bool = False,
+        effort: str | None = None,
+        thinking: str | None = None,
     ):
         self.model_id = model_id or MODEL_ID
         self._client = client if client is not None else _build_client()
         self.prompt_caching = PROMPT_CACHING
-        self.effort = EFFORT
-        self.thinking = THINKING
+        self.effort = EFFORT if effort is None else effort
+        self.thinking = THINKING if thinking is None else thinking
         self.web_search = web_search and WEB_SEARCH
         self.web_search_max_uses = WEB_SEARCH_MAX_USES
 
@@ -623,19 +561,19 @@ class ClaudePlatformProvider(LLMProvider):
             # state, separate from the content blocks replayed above.
             kwargs["container"] = container_id
             logger.info("claude platform: reusing code execution container")
-        capabilities = _model_capabilities(self.model_id)
-        thinking_mode = self.thinking if capabilities.supports_adaptive_thinking else ""
+        capabilities = model_capabilities("claude_platform", self.model_id)
+        thinking_mode = self.thinking if self.thinking in capabilities.thinking else ""
         if thinking_mode:
             thinking: dict = {"type": thinking_mode}
             if thinking_mode == "adaptive" and THINKING_DISPLAY:
                 thinking["display"] = THINKING_DISPLAY
             kwargs["thinking"] = thinking
-        if self.effort and capabilities.supports_effort:
+        if self.effort and self.effort in capabilities.effort:
             kwargs["output_config"] = {"effort": self.effort}
         # Thinking pins temperature to its default, so forwarding the loop's
         # value is at best a no-op and at worst a 400 -- omit it whenever the
         # model or the thinking config rules it out.
-        if not thinking_mode and capabilities.supports_temperature:
+        if thinking_mode != "adaptive" and capabilities.temperature:
             kwargs["temperature"] = temperature
         return kwargs
 

@@ -1037,7 +1037,25 @@ class ModelSelectionField(serializers.CharField):
             raise serializers.ValidationError(str(error))
 
 
-class NotebookChatMessageCreateSerializer(serializers.Serializer):
+class GenerationOptionsSerializer(serializers.Serializer):
+    """Optional model controls shared by agent-generation requests."""
+
+    effort = serializers.ChoiceField(
+        choices=("none", "minimal", "low", "medium", "high", "xhigh", "max"),
+        required=False,
+    )
+    thinking = serializers.ChoiceField(
+        choices=("adaptive", "disabled"),
+        required=False,
+    )
+    temperature = serializers.FloatField(
+        min_value=0.0,
+        max_value=2.0,
+        required=False,
+    )
+
+
+class NotebookChatMessageCreateSerializer(GenerationOptionsSerializer):
     """
     Request body for sending a message to the notebook chat assistant.
 
@@ -1072,7 +1090,7 @@ class NotebookChatUpdateSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=255)
 
 
-class ProposalDraftCreateSerializer(serializers.Serializer):
+class ProposalDraftCreateSerializer(GenerationOptionsSerializer):
     """
     Request body for enqueueing a proposal-drafting job. ``model`` optionally
     selects the generator model for the run from the selectable catalog.
