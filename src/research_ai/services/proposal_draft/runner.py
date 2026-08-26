@@ -574,7 +574,9 @@ class _ProposalDraftRunner:
         # separate, a run called off at this instant would still publish.
         with transaction.atomic():
             note = write_proposal_note(
-                submission, created_by=self.recorder.draft.created_by
+                submission,
+                created_by=self.recorder.draft.created_by,
+                selected_grant=self.context_toolset.get_grant(),
             )
             result = self.recorder.complete(note)
         self._attach_conversation_to_note(note)

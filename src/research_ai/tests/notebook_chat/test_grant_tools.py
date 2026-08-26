@@ -1,20 +1,23 @@
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.test import TestCase
 from django.utils import timezone
 
+from note.models import Note
 from note.tests.helpers import create_note
 from purchase.models import Grant
 from research_ai.services.notebook_chat.grant_tools import (
     READ_SELECTED_RFP,
     SEARCH_GRANTS,
+    SET_SELECTED_RFP,
     GrantSearchToolset,
     SelectedRFPToolset,
 )
-from researchhub_access_group.constants import ADMIN
+from researchhub_access_group.constants import ADMIN, VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -255,3 +258,172 @@ class SelectedRFPToolsetTests(TestCase):
 
         # Assert
         self.assertEqual(result, {"error": "selected RFP not found or not accessible"})
+
+
+class SetSelectedRFPToolTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("set_rfp_user")
+        self.owner = create_random_authenticated_user("set_rfp_owner")
+        self.note, _ = create_note(self.user, organization=None)
+        self.note.document_type = PREREGISTRATION
+        self.note.save(update_fields=["document_type"])
+        self.permission = Permission.objects.create(
+            access_type=ADMIN,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=self.note.unified_document_id,
+            user=self.user,
+        )
+
+    def _grant(self, *, title="Reproducibility RFP", status=Grant.OPEN, is_public=True):
+        post = create_post(
+            created_by=self.owner,
+            document_type=GRANT,
+            title=title,
+        )
+        post.slug = title.lower().replace(" ", "-")
+        post.save(update_fields=["slug"])
+        post.unified_document.is_public = is_public
+        post.unified_document.save(update_fields=["is_public"])
+        return Grant.objects.create(
+            created_by=self.owner,
+            unified_document=post.unified_document,
+            short_title=title,
+            organization="Research Foundation",
+            description="Funding for reproducible research.",
+            amount=Decimal("75000.00"),
+            currency="USD",
+            status=status,
+            end_date=timezone.now() + timedelta(days=30),
+        )
+
+    def _set(self, grant_id, user=None):
+        toolset = SelectedRFPToolset(
+            note=self.note, user=self.user if user is None else user
+        ).as_toolset()
+        result, stop = toolset.dispatch(SET_SELECTED_RFP, {"grant_id": grant_id})
+        self.assertFalse(stop)
+        return result
+
+    def test_selects_replaces_and_clears_the_rfp(self):
+        # Arrange
+        first = self._grant(title="First RFP")
+        second = self._grant(title="Second RFP")
+
+        # Act
+        selected = self._set(first.id)
+        replaced = self._set(second.id)
+        self.note.refresh_from_db()
+        replaced_grant_id = self.note.selected_grant_id
+        cleared = self._set(None)
+        self.note.refresh_from_db()
+
+        # Assert
+        self.assertEqual(selected["selected_rfp"]["id"], first.id)
+        self.assertEqual(selected["selected_rfp"]["title"], "First RFP")
+        self.assertIn("/grant/", selected["selected_rfp"]["url"])
+        self.assertTrue(selected["saved"])
+        self.assertEqual(replaced["selected_rfp"]["id"], second.id)
+        self.assertEqual(replaced_grant_id, second.id)
+        self.assertIsNone(cleared["selected_rfp"])
+        self.assertIsNone(self.note.selected_grant_id)
+
+    def test_refuses_a_grant_that_stopped_accepting_applications(self):
+        # Arrange
+        closed = self._grant(status=Grant.CLOSED)
+
+        # Act
+        result = self._set(closed.id)
+        self.note.refresh_from_db()
+
+        # Assert
+        self.assertEqual(
+            result, {"error": "Grant is no longer accepting applications."}
+        )
+        self.assertIsNone(self.note.selected_grant_id)
+
+    def test_refuses_a_grant_the_user_cannot_view(self):
+        # Arrange
+        private = self._grant(is_public=False)
+
+        # Act
+        result = self._set(private.id)
+        self.note.refresh_from_db()
+
+        # Assert
+        self.assertEqual(
+            result, {"error": f"grant {private.id} not found or not accessible"}
+        )
+        self.assertIsNone(self.note.selected_grant_id)
+
+    def test_refuses_a_user_without_edit_permission(self):
+        # Arrange: a viewer can read the note but must not change its RFP.
+        grant = self._grant()
+        self.permission.access_type = VIEWER
+        self.permission.save(update_fields=["access_type"])
+
+        # Act
+        result = self._set(grant.id)
+        self.note.refresh_from_db()
+
+        # Assert
+        self.assertEqual(
+            result, {"error": "no permission to change this note's selected RFP"}
+        )
+        self.assertIsNone(self.note.selected_grant_id)
+
+    def test_refuses_a_published_note(self):
+        # Arrange
+        grant = self._grant()
+        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        post.note = self.note
+        post.save(update_fields=["note"])
+
+        # Act
+        result = self._set(grant.id)
+        self.note.refresh_from_db()
+
+        # Assert
+        self.assertEqual(result, {"error": "Published notes cannot change grants."})
+        self.assertIsNone(self.note.selected_grant_id)
+
+    def test_refuses_a_non_preregistration_note(self):
+        # Arrange
+        grant = self._grant()
+        self.note.document_type = "NOTE"
+        self.note.save(update_fields=["document_type"])
+
+        # Act
+        result = self._set(grant.id)
+        self.note.refresh_from_db()
+
+        # Assert
+        self.assertEqual(result, {"error": "this preregistration is not accessible"})
+        self.assertIsNone(self.note.selected_grant_id)
+
+    def test_rejects_a_malformed_grant_id_rather_than_clearing(self):
+        # Arrange
+        grant = self._grant()
+        self._set(grant.id)
+
+        # Act
+        result = self._set("not-an-id")
+        self.note.refresh_from_db()
+
+        # Assert
+        self.assertEqual(result, {"error": "grant_id must be a grant id or null"})
+        self.assertEqual(self.note.selected_grant_id, grant.id)
+
+    def test_notifies_the_notebook_that_the_note_changed(self):
+        # Arrange: a selection writes no NoteContent, so the org room push is
+        # all that tells an open notebook the RFP changed.
+        self.note.organization = self.user.organization
+        self.note.save(update_fields=["organization"])
+        grant = self._grant()
+
+        # Act
+        with patch.object(Note, "notify_note_updated_title") as notify:
+            result = self._set(grant.id)
+
+        # Assert
+        self.assertTrue(result["saved"])
+        notify.assert_called_once_with()

@@ -7,6 +7,7 @@ from research_ai.services.notebook_chat.events import (
 )
 from research_ai.services.notebook_chat.grant_tools import (
     READ_SELECTED_RFP,
+    SET_SELECTED_RFP,
     GrantSearchToolset,
     SelectedRFPToolset,
 )
@@ -25,6 +26,7 @@ __all__ = [
     "ACTIVITY_ALL",
     "ACTIVITY_LIVE",
     "READ_SELECTED_RFP",
+    "SET_SELECTED_RFP",
     "WORKFLOW",
     "ConversationEventPublisher",
     "GrantSearchToolset",
