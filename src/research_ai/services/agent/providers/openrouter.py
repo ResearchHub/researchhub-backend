@@ -17,6 +17,7 @@ from django.conf import settings
 from openai import OpenAI
 
 from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
@@ -121,7 +122,10 @@ class OpenRouterProvider(LLMProvider):
         thinking: str | None = None,
     ):
         self.model_id = model_id or MODEL_ID
-        self.effort = EFFORT if effort is None else effort
+        capabilities = model_capabilities("openrouter", self.model_id)
+        self.effort = (
+            EFFORT if effort is None and EFFORT in capabilities.effort else effort or ""
+        )
         self.thinking = thinking
         if client is not None:
             self._client = client

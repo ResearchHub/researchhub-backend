@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, time
 
 from django.db.models import Prefetch
@@ -1037,6 +1038,16 @@ class ModelSelectionField(serializers.CharField):
             raise serializers.ValidationError(str(error))
 
 
+class FiniteFloatField(serializers.FloatField):
+    """A float that rejects NaN and infinities before JSON persistence."""
+
+    def to_internal_value(self, data):
+        value = super().to_internal_value(data)
+        if not math.isfinite(value):
+            raise serializers.ValidationError("A finite number is required.")
+        return value
+
+
 class GenerationOptionsSerializer(serializers.Serializer):
     """Optional model controls shared by agent-generation requests."""
 
@@ -1048,7 +1059,7 @@ class GenerationOptionsSerializer(serializers.Serializer):
         choices=("adaptive", "disabled"),
         required=False,
     )
-    temperature = serializers.FloatField(
+    temperature = FiniteFloatField(
         min_value=0.0,
         max_value=2.0,
         required=False,
