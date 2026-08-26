@@ -492,6 +492,32 @@ class CompleteAndParseTests(SimpleTestCase):
         self.assertNotIn("thinking", call)
         self.assertEqual(call["temperature"], 0.7)
 
+    def test_opus_4_5_sends_effort_without_adaptive_thinking(self):
+        # Arrange
+        provider = _build_provider([_build_response([])], model_id="claude-opus-4-5")
+
+        # Act
+        _complete(provider, temperature=0.7)
+
+        # Assert
+        call = provider._client.messages.calls[0]
+        self.assertEqual(call["output_config"], {"effort": "low"})
+        self.assertNotIn("thinking", call)
+        self.assertEqual(call["temperature"], 0.7)
+
+    def test_unknown_model_omits_unreviewed_optional_controls(self):
+        # Arrange
+        provider = _build_provider([_build_response([])], model_id="claude-future")
+
+        # Act
+        _complete(provider, temperature=0.7)
+
+        # Assert
+        call = provider._client.messages.calls[0]
+        self.assertNotIn("output_config", call)
+        self.assertNotIn("thinking", call)
+        self.assertNotIn("temperature", call)
+
     def test_prompt_caching_marks_system_and_the_last_message_block(self):
         # Arrange
         provider = _build_provider([_build_response([])])

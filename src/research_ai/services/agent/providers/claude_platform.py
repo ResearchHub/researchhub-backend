@@ -107,22 +107,62 @@ WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
 WEB_SEARCH_TOOL_NAME = "web_search"
 WEB_SEARCH_MAX_USES = 6
 
-# Models that reject sampling params (temperature/top_p/top_k) with a 400.
-# Everything from Opus 4.7 on dropped them; the loop's temperature is simply
-# not forwarded for those.
-_NO_SAMPLING_PARAMS = (
-    "opus-4-7",
-    "opus-4-8",
-    "opus-5",
-    "sonnet-5",
-    "fable",
-    "mythos",
+
+@dataclass(frozen=True)
+class ClaudeModelCapabilities:
+    """Optional request features one Claude model accepts."""
+
+    supports_effort: bool = False
+    supports_adaptive_thinking: bool = False
+    supports_temperature: bool = False
+
+
+_TEMPERATURE_CAPABILITIES = ClaudeModelCapabilities(supports_temperature=True)
+_EFFORT_TEMPERATURE_CAPABILITIES = ClaudeModelCapabilities(
+    supports_effort=True,
+    supports_temperature=True,
+)
+_ADAPTIVE_TEMPERATURE_CAPABILITIES = ClaudeModelCapabilities(
+    supports_effort=True,
+    supports_adaptive_thinking=True,
+    supports_temperature=True,
+)
+_ADAPTIVE_CAPABILITIES = ClaudeModelCapabilities(
+    supports_effort=True,
+    supports_adaptive_thinking=True,
 )
 
-# Haiku 4.5 supports manual extended thinking, but not adaptive thinking or
-# ``output_config.effort``. This adapter does not configure a manual thinking
-# budget, so Haiku runs without thinking configuration and keeps temperature.
-_HAIKU_4_5_TAGS = ("haiku-4-5", "haiku-4.5")
+# Rules are model-family tags rather than exact aliases so dated first-party ids
+# resolve to the same profile. Unknown models get the conservative empty profile:
+# omitting optional controls is safer than turning a newly introduced model into
+# a 400 until its capabilities are reviewed here.
+_MODEL_CAPABILITY_RULES = (
+    (
+        ("haiku-4-5", "haiku-4.5", "sonnet-4-5", "sonnet-4.5"),
+        _TEMPERATURE_CAPABILITIES,
+    ),
+    (
+        ("opus-4-5", "opus-4.5"),
+        _EFFORT_TEMPERATURE_CAPABILITIES,
+    ),
+    (
+        ("opus-4-6", "opus-4.6", "sonnet-4-6", "sonnet-4.6"),
+        _ADAPTIVE_TEMPERATURE_CAPABILITIES,
+    ),
+    (
+        (
+            "opus-4-7",
+            "opus-4.7",
+            "opus-4-8",
+            "opus-4.8",
+            "opus-5",
+            "sonnet-5",
+            "fable",
+            "mythos",
+        ),
+        _ADAPTIVE_CAPABILITIES,
+    ),
+)
 
 # Messages API ``stop_reason`` -> neutral ``StopReason``. ``refusal`` is a
 # successful HTTP 200 whose content is empty or partial (Opus 5 ships elevated
@@ -167,14 +207,13 @@ _CACHEABLE_BLOCK_TYPES = ("text", "tool_result")
 _PROVIDER_STATE_KEY = "anthropic"
 
 
-def _accepts_sampling_params(model_id: str) -> bool:
+def _model_capabilities(model_id: str) -> ClaudeModelCapabilities:
+    """Return the reviewed optional-feature profile for ``model_id``."""
     mid = model_id.lower()
-    return not any(tag in mid for tag in _NO_SAMPLING_PARAMS)
-
-
-def _is_haiku_4_5(model_id: str) -> bool:
-    mid = model_id.lower()
-    return any(tag in mid for tag in _HAIKU_4_5_TAGS)
+    for tags, capabilities in _MODEL_CAPABILITY_RULES:
+        if any(tag in mid for tag in tags):
+            return capabilities
+    return ClaudeModelCapabilities()
 
 
 def _build_client() -> AnthropicAWS | None:
@@ -584,21 +623,19 @@ class ClaudePlatformProvider(LLMProvider):
             # state, separate from the content blocks replayed above.
             kwargs["container"] = container_id
             logger.info("claude platform: reusing code execution container")
-        # Haiku 4.5 rejects adaptive thinking and effort. Resolve those model
-        # capabilities at request time so even a caller overriding the public
-        # provider knobs cannot accidentally build an invalid Haiku request.
-        thinking_mode = "" if _is_haiku_4_5(self.model_id) else self.thinking
+        capabilities = _model_capabilities(self.model_id)
+        thinking_mode = self.thinking if capabilities.supports_adaptive_thinking else ""
         if thinking_mode:
             thinking: dict = {"type": thinking_mode}
             if thinking_mode == "adaptive" and THINKING_DISPLAY:
                 thinking["display"] = THINKING_DISPLAY
             kwargs["thinking"] = thinking
-        if self.effort and not _is_haiku_4_5(self.model_id):
+        if self.effort and capabilities.supports_effort:
             kwargs["output_config"] = {"effort": self.effort}
         # Thinking pins temperature to its default, so forwarding the loop's
         # value is at best a no-op and at worst a 400 -- omit it whenever the
         # model or the thinking config rules it out.
-        if not thinking_mode and _accepts_sampling_params(self.model_id):
+        if not thinking_mode and capabilities.supports_temperature:
             kwargs["temperature"] = temperature
         return kwargs
 
