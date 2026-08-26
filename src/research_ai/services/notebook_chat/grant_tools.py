@@ -218,16 +218,21 @@ class SelectedRFPToolset:
         if self._user is None or not getattr(self._user, "is_authenticated", False):
             return {"error": _NOTE_NOT_ACCESSIBLE}
 
-        raw_id = (args or {}).get("grant_id")
-        # Only an explicit null clears the selection; anything else must name a
-        # grant, so a malformed id is never read as "unset the RFP".
-        if raw_id is not None:
+        # Only an explicit null clears the selection. ``dispatch`` does not
+        # enforce the declared schema, so an argument object that omits
+        # grant_id arrives here intact and must not read as "unset the RFP" --
+        # nor must a malformed one.
+        args = args or {}
+        if "grant_id" not in args:
+            return {"error": "grant_id is required; pass null to clear the selection"}
+        raw_id = args["grant_id"]
+        if raw_id is None:
+            grant_id = None
+        else:
             try:
                 grant_id = int(raw_id)
             except (TypeError, ValueError):
                 return {"error": "grant_id must be a grant id or null"}
-        else:
-            grant_id = None
 
         try:
             note = self._readable_note()

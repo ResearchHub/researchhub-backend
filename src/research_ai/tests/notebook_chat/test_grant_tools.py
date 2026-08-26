@@ -413,6 +413,25 @@ class SetSelectedRFPToolTests(TestCase):
         self.assertEqual(result, {"error": "grant_id must be a grant id or null"})
         self.assertEqual(self.note.selected_grant_id, grant.id)
 
+    def test_rejects_an_omitted_grant_id_rather_than_clearing(self):
+        # Arrange: dispatch does not enforce the input schema, so an argument
+        # object with no grant_id reaches the handler; only an explicit null
+        # may clear a selection.
+        grant = self._grant()
+        self._set(grant.id)
+        toolset = SelectedRFPToolset(note=self.note, user=self.user).as_toolset()
+
+        # Act
+        result, _stop = toolset.dispatch(SET_SELECTED_RFP, {})
+        self.note.refresh_from_db()
+
+        # Assert
+        self.assertEqual(
+            result,
+            {"error": "grant_id is required; pass null to clear the selection"},
+        )
+        self.assertEqual(self.note.selected_grant_id, grant.id)
+
     def test_notifies_the_notebook_that_the_note_changed(self):
         # Arrange: a selection writes no NoteContent, so the org room push is
         # all that tells an open notebook the RFP changed.
