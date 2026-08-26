@@ -10,6 +10,10 @@ from research_ai.services.notebook_chat.grant_tools import (
     GrantSearchToolset,
     SelectedRFPToolset,
 )
+from research_ai.services.notebook_chat.researcher_profile_tools import (
+    GET_RESEARCHER_PROFILE,
+    ResearcherProfileToolset,
+)
 from research_ai.services.notebook_chat.service import (
     ACTIVITY_ALL,
     ACTIVITY_LIVE,
@@ -24,6 +28,7 @@ from research_ai.services.notebook_chat.toolset import (
 __all__ = [
     "ACTIVITY_ALL",
     "ACTIVITY_LIVE",
+    "GET_RESEARCHER_PROFILE",
     "READ_SELECTED_RFP",
     "WORKFLOW",
     "ConversationEventPublisher",
@@ -31,6 +36,7 @@ __all__ = [
     "NotebookChatConfig",
     "NotebookChatService",
     "NotebookWebSearchToolset",
+    "ResearcherProfileToolset",
     "SelectedRFPToolset",
     "compose_notebook_toolset",
     "conversation_group",

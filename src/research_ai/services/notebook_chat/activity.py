@@ -34,6 +34,9 @@ from research_ai.services.notebook_chat.grant_tools import (
     READ_SELECTED_RFP,
     SEARCH_GRANTS,
 )
+from research_ai.services.notebook_chat.researcher_profile_tools import (
+    GET_RESEARCHER_PROFILE,
+)
 from research_ai.services.researcher_profile.openalex_tools import GET_WORK_FULLTEXT
 
 WEB_SEARCH = "web_search"
@@ -53,6 +56,7 @@ _LABELS = {
     GET_AUTHOR: "Looked up an author",
     GET_AUTHOR_WORKS: "Fetched an author's publications",
     GET_WORK_FULLTEXT: "Read a paper",
+    GET_RESEARCHER_PROFILE: "Read your researcher profile",
 }
 # What each tool is doing while the call is still open, for the live phase.
 # Distinct from _LABELS, which reads as a completed step.
@@ -67,6 +71,7 @@ _ACTIVE_LABELS = {
     GET_AUTHOR: "Looking up an author",
     GET_AUTHOR_WORKS: "Fetching an author's publications",
     GET_WORK_FULLTEXT: "Reading a paper",
+    GET_RESEARCHER_PROFILE: "Reading your researcher profile",
 }
 # What the model is doing while it is still writing a tool call's arguments.
 # Only tools whose arguments are substantial work in themselves need copy

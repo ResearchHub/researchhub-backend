@@ -94,13 +94,14 @@ def compose_notebook_toolset(
     *,
     note_toolset,
     user_profile_toolset,
+    researcher_profile_toolset,
     grant_toolset,
     selected_rfp_toolset=None,
     openalex_toolset,
     web_search_toolset,
     native_tool_names: frozenset[str] = frozenset(),
 ) -> Toolset:
-    """Note read/edit + user profile + grants + literature + web search.
+    """Note read/edit + user/researcher profile + grants + literature + web search.
 
     ``native_tool_names`` are the names the provider runs server-side (on
     Claude Platform, ``web_search``). A local tool by that name is left out:
@@ -112,6 +113,7 @@ def compose_notebook_toolset(
     ]
     candidates.extend(web_search_toolset.build_tools())
     candidates.extend(user_profile_toolset.build_tools())
+    candidates.extend(researcher_profile_toolset.build_tools())
     candidates.extend(grant_toolset.build_tools())
     if selected_rfp_toolset is not None:
         candidates.extend(selected_rfp_toolset.build_tools())
