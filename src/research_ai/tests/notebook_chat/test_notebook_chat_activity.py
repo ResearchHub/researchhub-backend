@@ -875,6 +875,91 @@ class NotebookChatActivityProjectionTests(TestCase):
         self.execution.save(update_fields=["status"])
         self.assertEqual(self._single_event()["status"], "interrupted")
 
+    def test_selected_rfp_write_reports_the_rfp_it_selected_as_a_source(self):
+        # Arrange
+        self._add_trace_row(
+            1,
+            [
+                {
+                    "type": "tool_use",
+                    "id": "t1",
+                    "name": "set_selected_rfp",
+                    "input": {"grant_id": 7},
+                }
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self._add_trace_row(
+            2,
+            [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "t1",
+                    "content": {
+                        "note_id": 3,
+                        "saved": True,
+                        "selected_rfp": {
+                            "title": "Reproducibility RFP",
+                            "url": "https://example.org/rfp",
+                        },
+                    },
+                }
+            ],
+            AgentExecutionMessage.Provenance.TOOL,
+            role="user",
+        )
+        self._finish()
+
+        # Act
+        event = self._single_event()
+
+        # Assert
+        self.assertEqual(event["label"], "Selected an RFP")
+        self.assertEqual(
+            event["sources"],
+            [
+                {
+                    "title": "Reproducibility RFP",
+                    "url": "https://example.org/rfp",
+                }
+            ],
+        )
+
+    def test_selected_rfp_write_reports_no_source_when_it_cleared_the_rfp(self):
+        # Arrange: clearing returns selected_rfp null -- there is no RFP to cite.
+        self._add_trace_row(
+            1,
+            [
+                {
+                    "type": "tool_use",
+                    "id": "t1",
+                    "name": "set_selected_rfp",
+                    "input": {"grant_id": None},
+                }
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self._add_trace_row(
+            2,
+            [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "t1",
+                    "content": {"note_id": 3, "saved": True, "selected_rfp": None},
+                }
+            ],
+            AgentExecutionMessage.Provenance.TOOL,
+            role="user",
+        )
+        self._finish()
+
+        # Act
+        event = self._single_event()
+
+        # Assert
+        self.assertEqual(event["label"], "Selected an RFP")
+        self.assertNotIn("sources", event)
+
     def test_selected_rfp_read_has_a_safe_label_and_source(self):
         # Arrange
         self._add_trace_row(

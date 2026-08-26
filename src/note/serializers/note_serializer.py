@@ -11,6 +11,11 @@ from rest_framework.serializers import (
 
 from hub.serializers import SimpleHubSerializer
 from note.models import Note, NoteContent
+from note.services.grant_selection_service import (
+    GrantSelectionError,
+    selectable_grants,
+    validate_selection,
+)
 from purchase.models import Grant
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
@@ -89,13 +94,7 @@ class NoteSerializer(ModelSerializer):
         fields = super().get_fields()
         request = self.context.get("request")
         if request is not None and hasattr(self, "initial_data"):
-            visible_document_ids = ResearchhubPost.objects.visible_to(
-                request.user
-            ).values("unified_document_id")
-            fields["selected_grant"].queryset = Grant.objects.filter(
-                unified_document_id__in=visible_document_ids,
-                unified_document__is_removed=False,
-            )
+            fields["selected_grant"].queryset = selectable_grants(request.user)
         return fields
 
     def validate(self, attrs: dict) -> dict:
@@ -114,16 +113,10 @@ class NoteSerializer(ModelSerializer):
         selected_grant = attrs.get(
             "selected_grant", getattr(self.instance, "selected_grant", None)
         )
-        if selected_grant is None:
-            return attrs
-        if document_type != PREREGISTRATION:
-            raise ValidationError(
-                {"selected_grant": "Only preregistration notes can select a grant."}
-            )
-        if not selected_grant.is_active():
-            raise ValidationError(
-                {"selected_grant": "Grant is no longer accepting applications."}
-            )
+        try:
+            validate_selection(document_type=document_type, grant=selected_grant)
+        except GrantSelectionError as exc:
+            raise ValidationError({"selected_grant": str(exc)}) from exc
         return attrs
 
     def get_access(self, note):

@@ -33,6 +33,7 @@ from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE
 from research_ai.services.notebook_chat.grant_tools import (
     READ_SELECTED_RFP,
     SEARCH_GRANTS,
+    SET_SELECTED_RFP,
 )
 from research_ai.services.notebook_chat.researcher_profile_tools import (
     GET_RESEARCHER_PROFILE,
@@ -51,6 +52,7 @@ _LABELS = {
     WEB_SEARCH: "Searched the web",
     SEARCH_GRANTS: "Searched grants",
     READ_SELECTED_RFP: "Read the selected RFP",
+    SET_SELECTED_RFP: "Selected an RFP",
     SEARCH_INSTITUTIONS: "Searched institutions",
     SEARCH_AUTHORS: "Searched scholarly authors",
     GET_AUTHOR: "Looked up an author",
@@ -66,6 +68,7 @@ _ACTIVE_LABELS = {
     WEB_SEARCH: "Searching the web",
     SEARCH_GRANTS: "Searching grants",
     READ_SELECTED_RFP: "Reading the selected RFP",
+    SET_SELECTED_RFP: "Selecting an RFP",
     SEARCH_INSTITUTIONS: "Searching institutions",
     SEARCH_AUTHORS: "Searching scholarly authors",
     GET_AUTHOR: "Looking up an author",
@@ -289,6 +292,9 @@ def _sources(event: ToolCallEvent) -> list[dict]:
         url_field = "url"
     elif event.tool == READ_SELECTED_RFP:
         items = [result]
+        url_field = "url"
+    elif event.tool == SET_SELECTED_RFP:
+        items = [result.get("selected_rfp")]
         url_field = "url"
     elif event.tool == GET_AUTHOR_WORKS:
         items = result.get("works")

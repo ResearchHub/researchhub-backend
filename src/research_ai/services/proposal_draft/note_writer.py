@@ -9,11 +9,16 @@ from note.models import Note, NoteContent
 from researchhub_access_group.constants import ADMIN, NO_ACCESS
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import NOTE
+from researchhub_document.related_models.constants.document_type import (
+    NOTE,
+    PREREGISTRATION,
+)
 
 
 @transaction.atomic
-def write_proposal_note(submitted: dict, *, created_by=None) -> Note:
+def write_proposal_note(
+    submitted: dict, *, created_by=None, selected_grant=None
+) -> Note:
     """Create the Note directly (headless: no notifications).
 
     The view paths require an auth user + org and fire org-scoped websocket
@@ -22,13 +27,20 @@ def write_proposal_note(submitted: dict, *, created_by=None) -> Note:
     their notebook: owned by them, in their personal org, with user-admin /
     org-no-access permissions. For system/automatic runs it stays ownerless.
     The ``NoteContent`` post_save signal sets ``note.latest_version``.
+
+    The note is a PREREGISTRATION carrying ``selected_grant`` -- the RFP the
+    whole draft was written against. Both are what the notebook reads to treat
+    it as a funding proposal for that grant, and a draft that arrived with its
+    RFP already unset would have the user re-pick the one it answers.
     """
     sections = submitted.get("sections") or {}
     title = str(sections.get("title") or "").strip() or "Untitled proposal"
     unified_document = ResearchhubUnifiedDocument.objects.create(document_type=NOTE)
     note = Note.objects.create(
         created_by=created_by,
+        document_type=PREREGISTRATION,
         organization=created_by.organization if created_by else None,
+        selected_grant=selected_grant,
         title=title,
         unified_document=unified_document,
     )
