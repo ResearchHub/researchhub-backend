@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.contrib.auth.models import AnonymousUser
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.test import TestCase
@@ -446,3 +447,28 @@ class SetSelectedRFPToolTests(TestCase):
         # Assert
         self.assertTrue(result["saved"])
         notify.assert_called_once_with()
+
+    def test_refuses_an_unauthenticated_caller(self):
+        # Arrange
+        grant = self._grant()
+
+        # Act
+        result = self._set(grant.id, user=AnonymousUser())
+        self.note.refresh_from_db()
+
+        # Assert
+        self.assertEqual(result, {"error": "this preregistration is not accessible"})
+        self.assertIsNone(self.note.selected_grant_id)
+
+    def test_falls_back_to_the_post_title_when_the_grant_has_no_short_title(self):
+        # Arrange: the title reported back is what the model and the activity
+        # feed show for the selected RFP.
+        grant = self._grant(title="Untitled Program RFP")
+        grant.short_title = ""
+        grant.save(update_fields=["short_title"])
+
+        # Act
+        result = self._set(grant.id)
+
+        # Assert
+        self.assertEqual(result["selected_rfp"]["title"], "Untitled Program RFP")

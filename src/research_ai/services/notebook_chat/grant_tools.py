@@ -8,6 +8,7 @@ from note.services.grant_selection_service import (
     select_grant,
     selectable_grants,
 )
+from purchase.models import Grant
 from purchase.services.grant_search_service import GrantSearchService
 from research_ai.constants import BASE_FRONTEND_URL
 from research_ai.services.agent import Tool, Toolset
@@ -138,6 +139,26 @@ def _grant_terms(grant) -> dict:
     }
 
 
+def _parse_grant_id(args: dict) -> tuple[int | None, dict | None]:
+    """The requested grant id, or ``(None, error)``.
+
+    ``(None, None)`` means clear the selection. Only an explicit null does
+    that: ``dispatch`` does not enforce the declared schema, so an argument
+    object that omits grant_id arrives intact and must not read as "unset the
+    RFP" -- nor must a malformed one.
+    """
+    args = args or {}
+    if "grant_id" not in args:
+        return None, {"error": "grant_id is required; pass null to clear the selection"}
+    raw_id = args["grant_id"]
+    if raw_id is None:
+        return None, None
+    try:
+        return int(raw_id), None
+    except (TypeError, ValueError):
+        return None, {"error": "grant_id must be a grant id or null"}
+
+
 class SelectedRFPToolset:
     """Read and set the RFP one preregistration note applies to."""
 
@@ -215,66 +236,66 @@ class SelectedRFPToolset:
             return {"error": "selected RFP is temporarily unavailable"}
 
     def _set_selected_rfp(self, args: dict) -> dict:
-        if self._user is None or not getattr(self._user, "is_authenticated", False):
-            return {"error": _NOTE_NOT_ACCESSIBLE}
-
-        # Only an explicit null clears the selection. ``dispatch`` does not
-        # enforce the declared schema, so an argument object that omits
-        # grant_id arrives here intact and must not read as "unset the RFP" --
-        # nor must a malformed one.
-        args = args or {}
-        if "grant_id" not in args:
-            return {"error": "grant_id is required; pass null to clear the selection"}
-        raw_id = args["grant_id"]
-        if raw_id is None:
-            grant_id = None
-        else:
-            try:
-                grant_id = int(raw_id)
-            except (TypeError, ValueError):
-                return {"error": "grant_id must be a grant id or null"}
-
         try:
-            note = self._readable_note()
-            if note is None:
-                return {"error": _NOTE_NOT_ACCESSIBLE}
-            permissions = note.permissions
-            if not (
-                permissions.has_admin_user(self._user)
-                or permissions.has_editor_user(self._user)
-            ):
-                return {"error": "no permission to change this note's selected RFP"}
-
-            grant = None
-            if grant_id is not None:
-                # Same visibility rule the note API selects grants through: the
-                # user must be able to see the grant's post.
-                grant = (
-                    selectable_grants(self._user)
-                    .select_related("unified_document")
-                    .prefetch_related("unified_document__posts")
-                    .filter(id=grant_id)
-                    .first()
-                )
-                if grant is None:
-                    return {"error": f"grant {grant_id} not found or not accessible"}
+            # Access before arguments: an unreachable note is answered the same
+            # way whatever the model asked for.
+            note, error = self._editable_note()
+            if error is not None:
+                return error
+            grant_id, error = _parse_grant_id(args)
+            if error is not None:
+                return error
+            grant, error = self._resolve_grant(grant_id)
+            if error is not None:
+                return error
 
             try:
                 select_grant(note=note, grant=grant)
             except GrantSelectionError as exc:
                 return {"error": str(exc)}
             self._notify_note_updated(note)
-
-            if grant is None:
-                return {"note_id": note.id, "selected_rfp": None, "saved": True}
             return {
                 "note_id": note.id,
-                "selected_rfp": _grant_terms(grant),
+                "selected_rfp": _grant_terms(grant) if grant is not None else None,
                 "saved": True,
             }
         except Exception:  # noqa: BLE001 - tool failures are model-readable
             logger.exception("selected RFP write failed for note %s", self._note_id)
             return {"error": "selecting an RFP is temporarily unavailable"}
+
+    def _editable_note(self) -> tuple[Note | None, dict | None]:
+        """This toolset's note when the user may change its RFP."""
+        if self._user is None or not getattr(self._user, "is_authenticated", False):
+            return None, {"error": _NOTE_NOT_ACCESSIBLE}
+        note = self._readable_note()
+        if note is None:
+            return None, {"error": _NOTE_NOT_ACCESSIBLE}
+        permissions = note.permissions
+        if not (
+            permissions.has_admin_user(self._user)
+            or permissions.has_editor_user(self._user)
+        ):
+            return None, {"error": "no permission to change this note's selected RFP"}
+        return note, None
+
+    def _resolve_grant(self, grant_id: int | None) -> tuple[Grant | None, dict | None]:
+        """The grant to select; ``(None, None)`` clears the selection.
+
+        Same visibility rule the note API selects grants through: the user must
+        be able to see the grant's post.
+        """
+        if grant_id is None:
+            return None, None
+        grant = (
+            selectable_grants(self._user)
+            .select_related("unified_document")
+            .prefetch_related("unified_document__posts")
+            .filter(id=grant_id)
+            .first()
+        )
+        if grant is None:
+            return None, {"error": f"grant {grant_id} not found or not accessible"}
+        return grant, None
 
     @staticmethod
     def _notify_note_updated(note) -> None:
