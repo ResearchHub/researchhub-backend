@@ -13,6 +13,11 @@ from research_ai.models import (
     AgentExecution,
     AgentExecutionMessage,
 )
+from research_ai.services.agent.errors import (
+    IncompleteTurnError,
+    IterationLimitError,
+    ProviderError,
+)
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
     AssistantTurn,
@@ -26,6 +31,7 @@ from research_ai.services.agent_persistence import (
     AgentChatService,
     AgentConversationBusyError,
     AgentConversationService,
+    AgentExecutionCancelService,
     AgentExecutionService,
     AgentStaleRetryError,
     DatabaseAgentRecorder,
@@ -242,6 +248,7 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
             representation["executions"][0]["error"],
             {
                 "code": "agent_failed",
+                "retryable": True,
                 "message": "The agent could not complete this request.",
             },
         )
@@ -807,3 +814,112 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
             [message["content"] for message in representation["messages"]], ["Question"]
         )
         self.assertTrue(representation["executions"][0]["assistant_message_pending"])
+
+
+class PublicErrorTaxonomyTests(AgentPersistenceTestCase):
+    """The sanitized failure payload each failure class renders as."""
+
+    def _fail_with(self, error) -> dict:
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(self.conversation, "Question")
+        prepared.recorder.on_run_failed(error)
+        (entry,) = chat.representation(self.conversation)["executions"]
+        return entry["error"]
+
+    def test_transient_provider_failure_renders_provider_busy(self):
+        # Arrange / Act
+        error = self._fail_with(
+            ProviderError("upstream overloaded_error at 03:14", retryable=True)
+        )
+
+        # Assert: coarse code and retry hint, never the raw provider text.
+        self.assertEqual(error["code"], "provider_busy")
+        self.assertTrue(error["retryable"])
+        self.assertNotIn("overloaded_error", error["message"])
+
+    def test_permanent_provider_failure_renders_agent_failed(self):
+        # Arrange / Act
+        error = self._fail_with(
+            ProviderError("credentials rejected for workspace ws-1", retryable=False)
+        )
+
+        # Assert: the provider's explicit permanent verdict is honored -- an
+        # identical retry would fail the same way.
+        self.assertEqual(error["code"], "agent_failed")
+        self.assertFalse(error["retryable"])
+        self.assertNotIn("ws-1", error["message"])
+
+    def test_unclassified_failure_renders_agent_failed_and_retryable(self):
+        # Arrange / Act: an internal crash carries no provider verdict.
+        error = self._fail_with(RuntimeError("toolset bug"))
+
+        # Assert: no verdict means a retry is worth one.
+        self.assertEqual(error["code"], "agent_failed")
+        self.assertTrue(error["retryable"])
+
+    def test_unclassified_provider_failure_stays_retryable(self):
+        # Arrange / Act: a raise site that passed no verdict (e.g. Bedrock's
+        # catch-all) must not read as an explicit permanent verdict.
+        error = self._fail_with(ProviderError("Bedrock complete failed: boom"))
+
+        # Assert
+        self.assertEqual(error["code"], "agent_failed")
+        self.assertTrue(error["retryable"])
+
+    def test_iteration_limit_renders_turn_too_long(self):
+        # Arrange / Act
+        error = self._fail_with(
+            IterationLimitError("Agent exceeded 30 iterations", iterations=30)
+        )
+
+        # Assert
+        self.assertEqual(error["code"], "turn_too_long")
+        self.assertTrue(error["retryable"])
+
+    def test_truncated_answer_renders_turn_too_long(self):
+        # Arrange / Act: a no-tool turn that hit the output-token ceiling.
+        error = self._fail_with(
+            IncompleteTurnError(
+                "Provider stopped without completing the agent run: max_tokens",
+                stop_reason="max_tokens",
+            )
+        )
+
+        # Assert
+        self.assertEqual(error["code"], "turn_too_long")
+        self.assertTrue(error["retryable"])
+        self.assertIn("ran out of room", error["message"])
+
+    def test_refused_turn_renders_content_refused_and_not_retryable(self):
+        # Arrange / Act
+        error = self._fail_with(
+            IncompleteTurnError(
+                "Provider stopped without completing the agent run",
+                stop_reason="content_filtered",
+            )
+        )
+
+        # Assert: retrying the same prompt would be refused again.
+        self.assertEqual(error["code"], "content_refused")
+        self.assertFalse(error["retryable"])
+
+    def test_interrupted_execution_renders_agent_interrupted(self):
+        # Arrange / Act: the worker observed the user's own stop mid-run.
+        error = self._fail_with(InterruptedError("execution is no longer running"))
+
+        # Assert: named for the client, but not offered for retry.
+        self.assertEqual(error["code"], "agent_interrupted")
+        self.assertFalse(error["retryable"])
+        self.assertNotIn("execution", error["message"])
+
+    def test_cancelled_execution_renders_no_error(self):
+        # Arrange: a cancellation is the user's own stop, not a failure.
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(self.conversation, "Question")
+        AgentExecutionCancelService().cancel(prepared.execution)
+
+        # Act
+        (entry,) = chat.representation(self.conversation)["executions"]
+
+        # Assert
+        self.assertIsNone(entry["error"])
