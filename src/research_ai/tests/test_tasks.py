@@ -1,10 +1,16 @@
-"""Tests for research_ai.tasks: expert search, bulk email, send queued emails."""
+"""Tests for research_ai.tasks: expert search, bulk email, send queued emails,
+notebook chat turns, and the agent maintenance sweeps."""
 
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from research_ai.models import (
+    AgentConversation,
+    AgentExecution,
+    AgentExecutionMessage,
     Expert,
     ExpertSearch,
     GeneratedEmail,
@@ -12,8 +18,13 @@ from research_ai.models import (
     SearchExpert,
 )
 from research_ai.tasks import (
+    NOTEBOOK_CHAT_TURN_SOFT_TIME_LIMIT,
+    NOTEBOOK_CHAT_TURN_TIME_LIMIT,
     _update_search_progress,
     process_bulk_generate_emails_task,
+    prune_agent_execution_traces,
+    reap_stale_agent_executions,
+    run_notebook_chat_turn_task,
     run_proposal_draft_task,
     send_queued_emails_task,
 )
@@ -408,3 +419,149 @@ class RunProposalDraftTaskTests(TestCase):
         mock_run.assert_not_called()
         self.assertEqual(result["status"], ProposalDraft.Status.PROCESSING)
         self.assertEqual(result["skipped"], "already_claimed")
+
+
+# --- run_notebook_chat_turn_task ---
+
+
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+class RunNotebookChatTurnTaskTests(TestCase):
+    @patch("research_ai.tasks.NotebookChatService")
+    def test_runs_the_service_and_returns_its_result(self, service_class):
+        # Arrange
+        service_class.return_value.run_turn.return_value = {
+            "execution_id": 7,
+            "final_text": "Done.",
+        }
+
+        # Act
+        result = run_notebook_chat_turn_task.apply(args=[7]).get()
+
+        # Assert
+        service_class.return_value.run_turn.assert_called_once_with(7)
+        self.assertEqual(result["final_text"], "Done.")
+
+    @patch("research_ai.tasks.logger")
+    @patch("research_ai.tasks.NotebookChatService")
+    def test_error_outcome_is_logged(self, service_class, mock_logger):
+        # Arrange
+        service_class.return_value.run_turn.return_value = {
+            "execution_id": 7,
+            "error": "provider exploded",
+        }
+
+        # Act
+        result = run_notebook_chat_turn_task.apply(args=[7]).get()
+
+        # Assert: the task reports rather than raises -- the service already
+        # sealed the execution -- but the failure is visible in logs.
+        self.assertEqual(result["error"], "provider exploded")
+        mock_logger.warning.assert_called_once()
+
+    def test_turn_task_is_bounded_and_survives_worker_loss(self):
+        # Assert: acks_late hands a prefetched turn to another worker when
+        # this one dies before claiming it, and the time limits guarantee a
+        # live worker cannot hold an execution forever.
+        self.assertTrue(run_notebook_chat_turn_task.acks_late)
+        self.assertEqual(
+            run_notebook_chat_turn_task.soft_time_limit,
+            NOTEBOOK_CHAT_TURN_SOFT_TIME_LIMIT,
+        )
+        self.assertEqual(
+            run_notebook_chat_turn_task.time_limit, NOTEBOOK_CHAT_TURN_TIME_LIMIT
+        )
+        self.assertGreater(
+            NOTEBOOK_CHAT_TURN_TIME_LIMIT, NOTEBOOK_CHAT_TURN_SOFT_TIME_LIMIT
+        )
+
+
+# --- agent maintenance sweeps ---
+
+
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+class ReapStaleAgentExecutionsTaskTests(TestCase):
+    def test_reaps_and_notifies_stale_executions(self):
+        # Arrange: a RUNNING row whose worker died long ago, and a live one.
+        conversation = AgentConversation.objects.create(workflow="notebook_chat")
+        past = timezone.now() - timedelta(minutes=30)
+        stale = AgentExecution.objects.create(
+            conversation=conversation,
+            attempt=1,
+            status=AgentExecution.Status.RUNNING,
+            started_at=past,
+            last_activity_at=past,
+        )
+        live_conversation = AgentConversation.objects.create(workflow="notebook_chat")
+        live = AgentExecution.objects.create(
+            conversation=live_conversation,
+            attempt=1,
+            status=AgentExecution.Status.RUNNING,
+            started_at=timezone.now(),
+            last_activity_at=timezone.now(),
+        )
+
+        # Act
+        with patch("research_ai.tasks.NotebookChatService") as service_class:
+            result = reap_stale_agent_executions.apply().get()
+
+        # Assert
+        stale.refresh_from_db()
+        live.refresh_from_db()
+        self.assertEqual(result["reaped"], [stale.id])
+        self.assertEqual(stale.status, AgentExecution.Status.INTERRUPTED)
+        self.assertEqual(live.status, AgentExecution.Status.RUNNING)
+        notified = service_class.return_value.notify_turn_reaped
+        notified.assert_called_once()
+        self.assertEqual(notified.call_args.args[0].id, stale.id)
+
+    def test_quiet_sweep_reaps_nothing(self):
+        # Act
+        with patch("research_ai.tasks.NotebookChatService") as service_class:
+            result = reap_stale_agent_executions.apply().get()
+
+        # Assert
+        self.assertEqual(result["reaped"], [])
+        service_class.return_value.notify_turn_reaped.assert_not_called()
+
+
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+class PruneAgentExecutionTracesTaskTests(TestCase):
+    def test_prunes_only_traces_past_retention(self):
+        # Arrange
+        conversation = AgentConversation.objects.create(workflow="notebook_chat")
+        execution = AgentExecution.objects.create(
+            conversation=conversation,
+            attempt=1,
+            status=AgentExecution.Status.SUCCEEDED,
+        )
+        old_trace = AgentExecutionMessage.objects.create(
+            conversation=conversation,
+            execution=execution,
+            sequence=1,
+            execution_sequence=1,
+            role="user",
+            provenance=AgentExecutionMessage.Provenance.HUMAN,
+            content=[{"type": "text", "text": "old"}],
+        )
+        AgentExecutionMessage.objects.filter(id=old_trace.id).update(
+            created_date=timezone.now() - timedelta(days=45)
+        )
+        fresh_trace = AgentExecutionMessage.objects.create(
+            conversation=conversation,
+            execution=execution,
+            sequence=2,
+            execution_sequence=2,
+            role="assistant",
+            provenance=AgentExecutionMessage.Provenance.MODEL,
+            content=[{"type": "text", "text": "fresh"}],
+        )
+
+        # Act
+        result = prune_agent_execution_traces.apply().get()
+
+        # Assert
+        self.assertEqual(result["deleted"], 1)
+        self.assertFalse(AgentExecutionMessage.objects.filter(id=old_trace.id).exists())
+        self.assertTrue(
+            AgentExecutionMessage.objects.filter(id=fresh_trace.id).exists()
+        )

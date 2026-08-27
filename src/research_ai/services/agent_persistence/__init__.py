@@ -12,6 +12,7 @@ from .execution_service import (
     AgentExecutionService,
     AgentStaleRetryError,
 )
+from .reaper_service import AgentExecutionReaperService
 from .recorder import DatabaseAgentRecorder
 from .retention_service import AgentRetentionService
 from .run_details_service import (
@@ -25,6 +26,7 @@ __all__ = [
     "AgentConversationBusyError",
     "AgentConversationService",
     "AgentExecutionCancelService",
+    "AgentExecutionReaperService",
     "AgentExecutionService",
     "AgentRetentionService",
     "AgentRunDetails",

@@ -1,8 +1,10 @@
 """Conversation, context, run-detail, and retention service coverage."""
 
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from note.models import Note
 from research_ai.models import (
@@ -124,6 +126,47 @@ class AgentPersistenceServiceTests(AgentPersistenceTestCase):
         )
         self.assertEqual(AgentExecutionMessage.objects.count(), 0)
         self.assertEqual(AgentContextMessage.objects.count(), 2)
+
+    def test_stale_trace_sweep_deletes_only_old_trace_rows(self):
+        # Arrange: a finished turn whose trace has aged past retention, and a
+        # newer one that must survive.
+        human_message = AgentConversationService().add_human_message(
+            self.conversation, "Old question"
+        )
+        recorder = AgentExecutionService().start(
+            self.conversation,
+            trigger_message=human_message,
+            initial_prompt_provenance=AgentExecutionMessage.Provenance.HUMAN,
+            publish_assistant_message=True,
+        )
+        agent(FakeProvider([text_turn("Old answer")]), recorder).run("Old question")
+        old_execution = recorder.execution
+        AgentExecutionMessage.objects.filter(execution=old_execution).update(
+            created_date=timezone.now() - timedelta(days=45)
+        )
+        fresh_message = AgentConversationService().add_human_message(
+            self.conversation, "Fresh question"
+        )
+        fresh_recorder = AgentExecutionService().start(
+            self.conversation,
+            trigger_message=fresh_message,
+            initial_prompt_provenance=AgentExecutionMessage.Provenance.HUMAN,
+            publish_assistant_message=True,
+        )
+        agent(FakeProvider([text_turn("Fresh answer")]), fresh_recorder).run(
+            "Fresh question"
+        )
+
+        # Act
+        deleted = AgentRetentionService().delete_stale_traces()
+
+        # Assert: old trace rows gone; fresh trace, all context lineage, and
+        # the chat itself untouched.
+        self.assertEqual(deleted, 2)
+        self.assertEqual(old_execution.messages.count(), 0)
+        self.assertEqual(fresh_recorder.execution.messages.count(), 2)
+        self.assertEqual(old_execution.context_messages.count(), 2)
+        self.assertEqual(self.conversation.chat_messages.count(), 4)
 
     def test_context_reconstruction_orders_messages_across_executions(self):
         # Arrange

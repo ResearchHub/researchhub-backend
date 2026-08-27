@@ -1,11 +1,14 @@
-"""Cooperative cancellation for agent executions.
+"""Cooperative cancellation and interruption for agent executions.
 
 A conversation permits one active execution, so one that never reaches a
 terminal status refuses every later turn as busy -- what happens when a worker
 dies before recording an outcome, or the broker never delivers a queued attempt.
-Cancelling unsticks it, and is deliberately the only way: no timeout is guessed
-at here, because one provider call can retry inside the vendor SDK for over an
-hour, so silence says nothing about whether a run is alive.
+Cancelling unsticks it on request; the liveness sweep (``reaper_service``)
+interrupts it unasked once its durable heartbeat goes stale, and both sealing
+paths share the reconciliation below. No timeout is guessed at from wall-clock
+silence alone: the sweep reads the heartbeat the recorder stamps on every
+durable write, with the task's own time limits bounding how long a healthy run
+may go quiet.
 
 It does not reach into the worker. The run stops before its next tool call,
 where the loop checks it still owns the execution, or at its next durable write,
@@ -38,7 +41,7 @@ CANCELLED_STOP_REASON = "cancelled"
 
 
 class AgentExecutionCancelService:
-    """Cancels executions on request."""
+    """Seals active executions from outside the worker that runs them."""
 
     def cancel(self, execution: AgentExecution) -> bool:
         """Mark an active execution ``CANCELLED``; report whether it landed.
@@ -48,6 +51,47 @@ class AgentExecutionCancelService:
         execution already reached a terminal state, which is the ordinary race
         of cancelling a turn that was finishing anyway.
         """
+        return self._seal(
+            execution,
+            status=AgentExecution.Status.CANCELLED,
+            stop_reason=CANCELLED_STOP_REASON,
+        )
+
+    def interrupt(
+        self,
+        execution: AgentExecution,
+        *,
+        stop_reason: str,
+        error_type: str,
+        error_message: str,
+        error_details: dict | None = None,
+    ) -> bool:
+        """Mark an active execution ``INTERRUPTED``; report whether it landed.
+
+        The same reconciliation as :meth:`cancel` -- the run stopped without
+        recording its own outcome either way -- but with error fields, because
+        this transition reports a failure the user did not ask for, not a
+        decision they made.
+        """
+        return self._seal(
+            execution,
+            status=AgentExecution.Status.INTERRUPTED,
+            stop_reason=stop_reason,
+            error_type=error_type,
+            error_message=error_message,
+            error_details=error_details,
+        )
+
+    def _seal(
+        self,
+        execution: AgentExecution,
+        *,
+        status: str,
+        stop_reason: str,
+        error_type: str = "",
+        error_message: str = "",
+        error_details: dict | None = None,
+    ) -> bool:
         with transaction.atomic():
             locked = (
                 AgentExecution.objects.select_for_update()
@@ -63,24 +107,28 @@ class AgentExecutionCancelService:
             if locked is None:
                 return False
             now = timezone.now()
-            locked.status = AgentExecution.Status.CANCELLED
-            locked.stop_reason = CANCELLED_STOP_REASON
+            locked.status = status
+            locked.stop_reason = stop_reason
             locked.finished_at = now
             locked.last_activity_at = now
             if locked.started_at is not None:
                 locked.duration_ms = max(
                     0, round((now - locked.started_at).total_seconds() * 1000)
                 )
-            locked.save(
-                update_fields=[
-                    "status",
-                    "stop_reason",
-                    "finished_at",
-                    "last_activity_at",
-                    "duration_ms",
-                    "updated_date",
-                ]
-            )
+            update_fields = [
+                "status",
+                "stop_reason",
+                "finished_at",
+                "last_activity_at",
+                "duration_ms",
+                "updated_date",
+            ]
+            if error_type:
+                locked.error_type = error_type
+                locked.error_message = error_message
+                locked.error_details = error_details or {}
+                update_fields.extend(["error_type", "error_message", "error_details"])
+            locked.save(update_fields=update_fields)
             self._preserve_trigger_prompt(locked)
             self._drop_unpublished_answer(locked)
         execution.refresh_from_db()
@@ -120,7 +168,7 @@ class AgentExecutionCancelService:
             return
         last.delete()
         logger.info(
-            "dropped an unpublished answer from a cancelled turn",
+            "dropped an unpublished answer from a stopped turn",
             extra={"execution_id": execution.id},
         )
 

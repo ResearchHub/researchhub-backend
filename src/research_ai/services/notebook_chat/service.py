@@ -76,6 +76,7 @@ from research_ai.services.notebook_chat.activity import (
 from research_ai.services.notebook_chat.config import NotebookChatConfig
 from research_ai.services.notebook_chat.events import (
     TURN_CANCELLED,
+    TURN_FAILED,
     TURN_QUEUED,
     ConversationEventPublisher,
     PublishingRecorder,
@@ -549,6 +550,24 @@ class NotebookChatService:
         # terminal transition precedence for the execution.
         self.events.publish(conversation.id, execution.id, TURN_CANCELLED)
         return execution
+
+    def notify_turn_reaped(self, execution: AgentExecution) -> None:
+        """Push the terminal event for a turn the liveness sweep interrupted.
+
+        The sweep seals the row itself; this is only the client-facing tail
+        the worker would have produced -- clear any transient stream preview,
+        then nudge subscribers to refetch. Harmless for conversations no one
+        subscribes to (headless workflows share the execution models).
+        """
+        try:
+            self.streams.clear(execution.id)
+        except Exception:  # noqa: BLE001 - preview cleanup is optional
+            logger.warning(
+                "notebook chat stream clear failed for reaped execution %s",
+                execution.id,
+                exc_info=True,
+            )
+        self.events.publish(execution.conversation_id, execution.id, TURN_FAILED)
 
     def _schedule_turn(self, execution_id: int) -> None:
         """Queue the worker turn, failing the execution if the broker refuses.

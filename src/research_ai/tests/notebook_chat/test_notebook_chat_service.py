@@ -14,6 +14,7 @@ from research_ai.models import (
 from research_ai.services.agent.types import StopReason
 from research_ai.services.agent_persistence import (
     AgentConversationBusyError,
+    AgentExecutionCancelService,
     DatabaseAgentRecorder,
 )
 from research_ai.services.notebook_chat import (
@@ -1181,4 +1182,73 @@ class NotebookChatEventSendOrderTests(TransactionTestCase):
                 }
                 for kind in (TURN_QUEUED, TURN_FAILED)
             ],
+        )
+
+
+class NotifyTurnReapedTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            username="owner@researchhub_test.com",
+            password="password",
+            email="owner@researchhub_test.com",
+        )
+        self.note = create_note(self.user, organization=None)[0]
+        Permission.objects.create(
+            access_type=ADMIN,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=self.note.unified_document.id,
+            user=self.user,
+        )
+        self.publisher = Mock()
+        self.service = _make_service(event_publisher=self.publisher)
+        self.conversation = self.service.create_conversation(self.note, self.user)
+
+    def _reaped_execution(self):
+        with (
+            patch("research_ai.tasks.run_notebook_chat_turn_task.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            execution = self.service.submit_message(
+                self.note, self.conversation, "Hello"
+            )
+        AgentExecutionCancelService().interrupt(
+            execution,
+            stop_reason="stalled",
+            error_type="AgentExecutionStalled",
+            error_message="worker died",
+        )
+        return execution
+
+    def test_notify_clears_the_stream_and_publishes_turn_failed(self):
+        # Arrange
+        execution = self._reaped_execution()
+        self.publisher.reset_mock()
+        self.service.streams = Mock()
+
+        # Act
+        self.service.notify_turn_reaped(execution)
+
+        # Assert
+        self.service.streams.clear.assert_called_once_with(execution.id)
+        self.publisher.publish.assert_called_once_with(
+            self.conversation.id, execution.id, TURN_FAILED
+        )
+
+    def test_notify_survives_stream_cleanup_failure(self):
+        # Arrange
+        execution = self._reaped_execution()
+        self.publisher.reset_mock()
+        self.service.streams = Mock()
+        self.service.streams.clear.side_effect = RuntimeError("redis down")
+
+        # Act
+        with self.assertLogs(
+            "research_ai.services.notebook_chat.service", level="WARNING"
+        ):
+            self.service.notify_turn_reaped(execution)
+
+        # Assert: the refetch nudge still goes out.
+        self.publisher.publish.assert_called_once_with(
+            self.conversation.id, execution.id, TURN_FAILED
         )

@@ -202,6 +202,25 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PAPER_MISC,
         },
     },
+    # Research AI agents
+    "research-ai_reap-stale-agent-executions": {
+        "task": "research_ai.tasks.reap_stale_agent_executions",
+        # Every 5 minutes: with a 15-minute staleness threshold, a dead
+        # worker's conversation is unblocked within ~20 minutes.
+        "schedule": crontab(minute="*/5"),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_AGENTS,
+        },
+    },
+    "research-ai_prune-agent-execution-traces": {
+        "task": "research_ai.tasks.prune_agent_execution_traces",
+        "schedule": crontab(hour=3, minute=40),
+        "options": {
+            "priority": 5,
+            "queue": QUEUE_AGENTS,
+        },
+    },
     # Paper ingestion tasks
     "paper-fetch-all": {
         "task": "paper.ingestion.pipeline.fetch_all_papers",

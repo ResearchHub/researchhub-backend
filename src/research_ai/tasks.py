@@ -6,6 +6,10 @@ from django.utils import timezone
 
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft
+from research_ai.services.agent_persistence import (
+    AgentExecutionReaperService,
+    AgentRetentionService,
+)
 from research_ai.services.expert_finder import finder as expert_finder_mod
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
@@ -237,7 +241,23 @@ def run_expert_finder_search(
         raise
 
 
-@app.task(queue=QUEUE_AGENTS)
+# One notebook chat turn's wall-clock budget. The soft limit raises inside the
+# task so ``run_turn``'s safety net seals the execution FAILED; the hard limit
+# is the backstop when even that hangs, and the reaper's staleness threshold
+# must stay at or above these so it only ever collects truly dead runs.
+NOTEBOOK_CHAT_TURN_SOFT_TIME_LIMIT = 15 * 60
+NOTEBOOK_CHAT_TURN_TIME_LIMIT = NOTEBOOK_CHAT_TURN_SOFT_TIME_LIMIT + 60
+
+
+@app.task(
+    queue=QUEUE_AGENTS,
+    # Acknowledged after completion, so a worker that dies holding a prefetched,
+    # not-yet-claimed turn hands it to another worker instead of losing it.
+    # ``run_turn``'s atomic claim makes any duplicate delivery a no-op.
+    acks_late=True,
+    soft_time_limit=NOTEBOOK_CHAT_TURN_SOFT_TIME_LIMIT,
+    time_limit=NOTEBOOK_CHAT_TURN_TIME_LIMIT,
+)
 def run_notebook_chat_turn_task(execution_id: int):
     """
     Background task to run one prepared notebook chat turn.
@@ -250,6 +270,34 @@ def run_notebook_chat_turn_task(execution_id: int):
             extra={"execution_id": execution_id, "error": result["error"]},
         )
     return result
+
+
+@app.task(queue=QUEUE_AGENTS)
+def reap_stale_agent_executions():
+    """
+    Beat-scheduled liveness sweep: seal executions abandoned by dead workers.
+    """
+    service = NotebookChatService()
+    reaped = AgentExecutionReaperService().reap()
+    for execution in reaped:
+        service.notify_turn_reaped(execution)
+    if reaped:
+        logger.warning(
+            "Reaped stale agent executions",
+            extra={"execution_ids": [execution.id for execution in reaped]},
+        )
+    return {"reaped": [execution.id for execution in reaped]}
+
+
+@app.task(queue=QUEUE_AGENTS)
+def prune_agent_execution_traces():
+    """
+    Beat-scheduled retention sweep: drop observational trace rows past the
+    retention window. Chat messages and context lineage are kept.
+    """
+    deleted = AgentRetentionService().delete_stale_traces()
+    logger.info("Pruned agent execution traces", extra={"deleted": deleted})
+    return {"deleted": deleted}
 
 
 @app.task(queue=QUEUE_AGENTS)
