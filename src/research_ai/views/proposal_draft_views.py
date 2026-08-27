@@ -13,6 +13,8 @@ from research_ai.serializers import (
     ProposalDraftCreateSerializer,
     ProposalDraftSerializer,
 )
+from research_ai.services.agent import generator_model_ref, split_model_ref
+from research_ai.services.agent.model_capabilities import validate_generation_options
 from research_ai.services.proposal_draft.cancel_service import (
     ProposalDraftCancelService,
 )
@@ -62,6 +64,24 @@ class ProposalDraftCreateView(APIView):
         serializer = ProposalDraftCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         search_expert_id = serializer.validated_data["search_expert_id"]
+        model_ref = serializer.validated_data["model"] or generator_model_ref()
+        provider_name, model_id = split_model_ref(model_ref)
+        try:
+            validate_generation_options(
+                provider_name,
+                model_id or "",
+                effort=serializer.validated_data.get("effort"),
+                thinking=serializer.validated_data.get("thinking"),
+                temperature=serializer.validated_data.get("temperature"),
+            )
+        except ValueError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+        requested_options = {
+            key: serializer.validated_data[key]
+            for key in ("effort", "thinking", "temperature")
+            if key in serializer.validated_data
+        }
 
         search_expert = get_object_or_404(SearchExpert, id=search_expert_id)
 
@@ -77,6 +97,7 @@ class ProposalDraftCreateView(APIView):
                     status=ProposalDraft.Status.PENDING,
                     step=ProposalDraft.Step.QUEUED,
                     model_ref=serializer.validated_data["model"],
+                    run_config=requested_options,
                 )
         except IntegrityError:
             active = _active_draft_for(search_expert)

@@ -51,7 +51,19 @@ class AvailableModelsViewTests(APITestCase):
         self.assertIn("claude_platform:claude-opus-5", refs)
         self.assertIn("openrouter:openai/gpt-5.6-sol", refs)
         for model in data["models"]:
-            self.assertEqual(sorted(model), ["description", "label", "provider", "ref"])
+            self.assertEqual(
+                sorted(model),
+                ["capabilities", "description", "label", "provider", "ref"],
+            )
+
+        opus = next(
+            model
+            for model in data["models"]
+            if model["ref"] == "claude_platform:claude-opus-5"
+        )
+        self.assertIn("low", opus["capabilities"]["effort"])
+        self.assertEqual(opus["capabilities"]["thinking"], ["adaptive", "disabled"])
+        self.assertFalse(opus["capabilities"]["temperature"])
 
     @override_settings(OPENROUTER_API_KEY="")
     def test_hides_models_without_provider_credentials(self):

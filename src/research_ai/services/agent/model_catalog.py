@@ -24,6 +24,10 @@ from dataclasses import dataclass
 
 from django.conf import settings
 
+from research_ai.services.agent.model_capabilities import (
+    ModelCapabilities,
+    model_capabilities,
+)
 from research_ai.services.agent.providers.registry import (
     CLAUDE_PLATFORM,
     OPENROUTER,
@@ -43,6 +47,11 @@ class ModelOption:
     @property
     def provider(self) -> str:
         return split_model_ref(self.ref)[0]
+
+    @property
+    def capabilities(self) -> ModelCapabilities:
+        provider, model_id = split_model_ref(self.ref)
+        return model_capabilities(provider, model_id or "")
 
 
 _CATALOG: tuple[ModelOption, ...] = (

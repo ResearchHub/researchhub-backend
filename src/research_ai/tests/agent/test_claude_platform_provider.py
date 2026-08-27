@@ -164,6 +164,7 @@ def _build_provider(responses=None, **kwargs):
         client=FakeAnthropicClient(responses or []),
         model_id=kwargs.pop("model_id", "claude-opus-5"),
         web_search=kwargs.pop("web_search", False),
+        **kwargs,
     )
 
 
@@ -477,6 +478,77 @@ class CompleteAndParseTests(SimpleTestCase):
             call["thinking"], {"type": "adaptive", "display": "summarized"}
         )
         self.assertEqual(call["output_config"], {"effort": "low"})
+        self.assertNotIn("temperature", call)
+
+    def test_frontend_generation_options_override_provider_defaults(self):
+        # Arrange
+        provider = _build_provider(
+            [_build_response([])], effort="high", thinking="disabled"
+        )
+
+        # Act
+        _complete(provider, temperature=0.7)
+
+        # Assert
+        call = provider._client.messages.calls[0]
+        self.assertEqual(call["thinking"], {"type": "disabled"})
+        self.assertEqual(call["output_config"], {"effort": "high"})
+        self.assertNotIn("temperature", call)
+
+    def test_disabled_thinking_allows_temperature_when_model_supports_it(self):
+        # Arrange
+        provider = _build_provider(
+            [_build_response([])],
+            model_id="claude-opus-4-6",
+            effort="high",
+            thinking="disabled",
+        )
+
+        # Act
+        _complete(provider, temperature=0.7)
+
+        # Assert
+        call = provider._client.messages.calls[0]
+        self.assertEqual(call["thinking"], {"type": "disabled"})
+        self.assertEqual(call["temperature"], 0.7)
+
+    def test_haiku_4_5_omits_unsupported_effort_and_adaptive_thinking(self):
+        # Arrange
+        provider = _build_provider([_build_response([])], model_id="claude-haiku-4-5")
+
+        # Act
+        _complete(provider, temperature=0.7)
+
+        # Assert
+        call = provider._client.messages.calls[0]
+        self.assertNotIn("output_config", call)
+        self.assertNotIn("thinking", call)
+        self.assertEqual(call["temperature"], 0.7)
+
+    def test_opus_4_5_sends_effort_without_adaptive_thinking(self):
+        # Arrange
+        provider = _build_provider([_build_response([])], model_id="claude-opus-4-5")
+
+        # Act
+        _complete(provider, temperature=0.7)
+
+        # Assert
+        call = provider._client.messages.calls[0]
+        self.assertEqual(call["output_config"], {"effort": "low"})
+        self.assertNotIn("thinking", call)
+        self.assertEqual(call["temperature"], 0.7)
+
+    def test_unknown_model_omits_unreviewed_optional_controls(self):
+        # Arrange
+        provider = _build_provider([_build_response([])], model_id="claude-future")
+
+        # Act
+        _complete(provider, temperature=0.7)
+
+        # Assert
+        call = provider._client.messages.calls[0]
+        self.assertNotIn("output_config", call)
+        self.assertNotIn("thinking", call)
         self.assertNotIn("temperature", call)
 
     def test_prompt_caching_marks_system_and_the_last_message_block(self):

@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, time
 
 from django.db.models import Prefetch
@@ -1037,7 +1038,35 @@ class ModelSelectionField(serializers.CharField):
             raise serializers.ValidationError(str(error))
 
 
-class NotebookChatMessageCreateSerializer(serializers.Serializer):
+class FiniteFloatField(serializers.FloatField):
+    """A float that rejects NaN and infinities before JSON persistence."""
+
+    def to_internal_value(self, data):
+        value = super().to_internal_value(data)
+        if not math.isfinite(value):
+            raise serializers.ValidationError("A finite number is required.")
+        return value
+
+
+class GenerationOptionsSerializer(serializers.Serializer):
+    """Optional model controls shared by agent-generation requests."""
+
+    effort = serializers.ChoiceField(
+        choices=("none", "minimal", "low", "medium", "high", "xhigh", "max"),
+        required=False,
+    )
+    thinking = serializers.ChoiceField(
+        choices=("adaptive", "disabled"),
+        required=False,
+    )
+    temperature = FiniteFloatField(
+        min_value=0.0,
+        max_value=2.0,
+        required=False,
+    )
+
+
+class NotebookChatMessageCreateSerializer(GenerationOptionsSerializer):
     """
     Request body for sending a message to the notebook chat assistant.
 
@@ -1072,7 +1101,7 @@ class NotebookChatUpdateSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=255)
 
 
-class ProposalDraftCreateSerializer(serializers.Serializer):
+class ProposalDraftCreateSerializer(GenerationOptionsSerializer):
     """
     Request body for enqueueing a proposal-drafting job. ``model`` optionally
     selects the generator model for the run from the selectable catalog.

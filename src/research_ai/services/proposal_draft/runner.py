@@ -41,6 +41,7 @@ Judge-facing context compaction lives with the other tool code in
 """
 
 import logging
+from dataclasses import replace
 
 from django.db import transaction
 
@@ -60,7 +61,9 @@ from research_ai.services.agent import (
     Toolset,
     generator_model_ref,
     resolve_provider,
+    split_model_ref,
 )
+from research_ai.services.agent.model_capabilities import validate_generation_options
 from research_ai.services.agent_persistence import (
     AgentConversationService,
     AgentExecutionService,
@@ -115,6 +118,9 @@ class _ProposalDraftRunner:
         oa_client: OpenAlex | None = None,
         web_search_client=None,
         config: ProposalDraftConfig | None = None,
+        effort: str | None = None,
+        thinking: str | None = None,
+        temperature: float | None = None,
         conversation_service: AgentConversationService | None = None,
         execution_service: AgentExecutionService | None = None,
         note_conversation_service: NoteAgentConversationService | None = None,
@@ -125,10 +131,14 @@ class _ProposalDraftRunner:
         self.model_ref = model_ref
         self.oa_client = oa_client or OpenAlex()
         self.web_search_client = web_search_client
+        self.effort = effort
+        self.thinking = thinking
         # The default single-judge roster critiques on the generator model
         # itself, so a user-selected generator carries its judge along.
         self.panel = panel or ProposalJudgePanel(generator_model_id=model_ref)
         self.config = config or ProposalDraftConfig.from_settings()
+        if temperature is not None:
+            self.config = replace(self.config, temperature=temperature)
         self.conversations = (
             AgentConversationService()
             if conversation_service is None
@@ -273,6 +283,8 @@ class _ProposalDraftRunner:
             "max_iterations": self.config.max_iterations,
             "max_tokens": self.config.max_tokens,
             "temperature": self.config.temperature,
+            "effort": self.effort,
+            "thinking": self.thinking,
         }
 
     def _start_agent_recording(self, run_config: dict) -> None:
@@ -348,9 +360,18 @@ class _ProposalDraftRunner:
             logger.exception("proposal draft: profile build failed")
 
     def _build_agent(self, system_prompt: str):
+        provider_options = {
+            key: value
+            for key, value in {
+                "effort": self.effort,
+                "thinking": self.thinking,
+            }.items()
+            if value is not None
+        }
         provider = self.provider or resolve_provider(
             self.model_ref,
             native_tools=frozenset({"web_search"}),
+            **provider_options,
         )
         toolset = self._compose_toolset(provider)
         if self.agent_recorder is not None:
@@ -627,6 +648,9 @@ def run_proposal_draft(
     progress_callback=None,
     provider=None,
     model_ref: str | None = None,
+    effort: str | None = None,
+    thinking: str | None = None,
+    temperature: float | None = None,
     panel: ProposalJudgePanel | None = None,
     oa_client: OpenAlex | None = None,
     web_search_client=None,
@@ -653,6 +677,17 @@ def run_proposal_draft(
     ``RESEARCH_AI_GENERATOR_PROVIDER`` selects Bedrock or OpenRouter), judge panel,
     OpenAlex client, Brave web-search client, and database persistence services.
     """
+    if provider is None:
+        selected_model = model_ref or generator_model_ref()
+        provider_name, model_id = split_model_ref(selected_model)
+        validate_generation_options(
+            provider_name,
+            model_id or "",
+            effort=effort,
+            thinking=thinking,
+            temperature=temperature,
+        )
+
     search_expert = SearchExpert.objects.select_related(
         "expert", "expert_search", "expert_search__unified_document"
     ).get(id=search_expert_id)
@@ -664,6 +699,15 @@ def run_proposal_draft(
             status=ProposalDraft.Status.PENDING,
             step=ProposalDraft.Step.QUEUED,
             model_ref=model_ref or "",
+            run_config={
+                key: value
+                for key, value in {
+                    "effort": effort,
+                    "thinking": thinking,
+                    "temperature": temperature,
+                }.items()
+                if value is not None
+            },
         )
     runner = _ProposalDraftRunner(
         search_expert,
@@ -671,6 +715,9 @@ def run_proposal_draft(
         progress_callback=progress_callback,
         provider=provider,
         model_ref=model_ref,
+        effort=effort,
+        thinking=thinking,
+        temperature=temperature,
         panel=panel,
         oa_client=oa_client,
         web_search_client=web_search_client,

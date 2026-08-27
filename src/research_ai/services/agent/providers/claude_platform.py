@@ -30,6 +30,7 @@ from anthropic import AnthropicAWS
 from django.conf import settings
 
 from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
@@ -107,17 +108,6 @@ WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
 WEB_SEARCH_TOOL_NAME = "web_search"
 WEB_SEARCH_MAX_USES = 6
 
-# Models that reject sampling params (temperature/top_p/top_k) with a 400.
-# Everything from Opus 4.7 on dropped them; the loop's temperature is simply
-# not forwarded for those.
-_NO_SAMPLING_PARAMS = (
-    "opus-4-7",
-    "opus-4-8",
-    "opus-5",
-    "sonnet-5",
-    "fable",
-    "mythos",
-)
 
 # Messages API ``stop_reason`` -> neutral ``StopReason``. ``refusal`` is a
 # successful HTTP 200 whose content is empty or partial (Opus 5 ships elevated
@@ -160,11 +150,6 @@ _SERVER_TOOL_BLOCK_TYPES = (
 _CACHEABLE_BLOCK_TYPES = ("text", "tool_result")
 
 _PROVIDER_STATE_KEY = "anthropic"
-
-
-def _accepts_sampling_params(model_id: str) -> bool:
-    mid = model_id.lower()
-    return not any(tag in mid for tag in _NO_SAMPLING_PARAMS)
 
 
 def _build_client() -> AnthropicAWS | None:
@@ -345,12 +330,14 @@ class ClaudePlatformProvider(LLMProvider):
         client: Any = None,
         model_id: str | None = None,
         web_search: bool = False,
+        effort: str | None = None,
+        thinking: str | None = None,
     ):
         self.model_id = model_id or MODEL_ID
         self._client = client if client is not None else _build_client()
         self.prompt_caching = PROMPT_CACHING
-        self.effort = EFFORT
-        self.thinking = THINKING
+        self.effort = EFFORT if effort is None else effort
+        self.thinking = THINKING if thinking is None else thinking
         self.web_search = web_search and WEB_SEARCH
         self.web_search_max_uses = WEB_SEARCH_MAX_USES
 
@@ -574,17 +561,19 @@ class ClaudePlatformProvider(LLMProvider):
             # state, separate from the content blocks replayed above.
             kwargs["container"] = container_id
             logger.info("claude platform: reusing code execution container")
-        if self.thinking:
-            thinking: dict = {"type": self.thinking}
-            if self.thinking == "adaptive" and THINKING_DISPLAY:
+        capabilities = model_capabilities("claude_platform", self.model_id)
+        thinking_mode = self.thinking if self.thinking in capabilities.thinking else ""
+        if thinking_mode:
+            thinking: dict = {"type": thinking_mode}
+            if thinking_mode == "adaptive" and THINKING_DISPLAY:
                 thinking["display"] = THINKING_DISPLAY
             kwargs["thinking"] = thinking
-        if self.effort:
+        if self.effort and self.effort in capabilities.effort:
             kwargs["output_config"] = {"effort": self.effort}
         # Thinking pins temperature to its default, so forwarding the loop's
         # value is at best a no-op and at worst a 400 -- omit it whenever the
         # model or the thinking config rules it out.
-        if not self.thinking and _accepts_sampling_params(self.model_id):
+        if thinking_mode != "adaptive" and capabilities.temperature:
             kwargs["temperature"] = temperature
         return kwargs
 

@@ -377,6 +377,33 @@ class RunProposalDraftTaskTests(TestCase):
         )
 
     @patch("research_ai.tasks.run_proposal_draft")
+    def test_forwards_the_drafts_generation_options(self, mock_run):
+        # Arrange
+        self.draft.run_config = {
+            "effort": "high",
+            "thinking": "disabled",
+            "temperature": 0.4,
+        }
+        self.draft.save(update_fields=["run_config"])
+        mock_run.return_value = {
+            "status": ProposalDraft.Status.COMPLETED,
+            "proposal_draft_id": self.draft.id,
+        }
+
+        # Act
+        run_proposal_draft_task.apply(args=[self.draft.id]).get()
+
+        # Assert
+        mock_run.assert_called_once_with(
+            self.search_expert.id,
+            draft_id=self.draft.id,
+            model_ref=None,
+            effort="high",
+            thinking="disabled",
+            temperature=0.4,
+        )
+
+    @patch("research_ai.tasks.run_proposal_draft")
     def test_unexpected_error_marks_draft_failed(self, mock_run):
         # Arrange
         mock_run.side_effect = SearchExpert.DoesNotExist("SearchExpert gone")
