@@ -13,6 +13,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+import openai
 from django.conf import settings
 from openai import OpenAI
 
@@ -70,6 +71,22 @@ _NO_SAMPLING_PARAMS = (
 def _accepts_sampling_params(model_id: str) -> bool:
     mid = model_id.lower()
     return not any(tag in mid for tag in _NO_SAMPLING_PARAMS)
+
+
+# Statuses worth repeating unchanged: timeouts, races, rate limits, and every
+# server-side failure. Auth/config/invalid-request statuses fail identically
+# on every attempt.
+_RETRYABLE_STATUS_CODES = frozenset({408, 409, 429})
+
+
+def _is_retryable_error(error: Exception) -> bool:
+    """Whether this SDK failure is transient rather than a fault of the request."""
+    if isinstance(error, openai.APIConnectionError):
+        return True
+    if isinstance(error, openai.APIStatusError):
+        status = error.status_code
+        return status in _RETRYABLE_STATUS_CODES or status >= 500
+    return False
 
 
 # Chat Completions ``finish_reason`` -> neutral ``StopReason``.
@@ -192,7 +209,10 @@ class OpenRouterProvider(LLMProvider):
             response = self._client.chat.completions.create(**kwargs)
         except Exception as e:
             logger.exception("OpenRouter complete failed")
-            raise ProviderError(f"OpenRouter complete failed: {e}") from e
+            raise ProviderError(
+                f"OpenRouter complete failed: {e}",
+                retryable=_is_retryable_error(e),
+            ) from e
         latency_ms = int((time.perf_counter() - started) * 1000)
 
         self._log_usage(response)

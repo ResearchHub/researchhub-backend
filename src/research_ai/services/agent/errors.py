@@ -40,7 +40,24 @@ class ProviderError(AgentRunError):
 
     Providers raise this without a transcript; the loop attaches ``messages``
     and ``iterations`` as the error propagates through it.
+
+    ``retryable`` is ``True`` for transient conditions (overload, rate limit,
+    5xx, a dropped stream) where repeating the identical request may succeed,
+    ``False`` for failures of the request itself (auth, config, invalid
+    input), and ``None`` -- the default -- when the raise site classified
+    nothing, which downstream must not read as an explicit verdict.
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        messages: list[Message] | None = None,
+        iterations: int | None = None,
+        retryable: bool | None = None,
+    ):
+        super().__init__(message, messages=messages, iterations=iterations)
+        self.retryable = retryable
 
 
 class IncompleteTurnError(AgentRunError):
