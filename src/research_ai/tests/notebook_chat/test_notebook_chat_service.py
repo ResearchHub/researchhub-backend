@@ -11,6 +11,7 @@ from research_ai.models import (
     AgentExecution,
     NoteAgentConversation,
 )
+from research_ai.services.agent import ProviderError
 from research_ai.services.agent.types import StopReason
 from research_ai.services.agent_persistence import (
     AgentConversationBusyError,
@@ -1181,6 +1182,210 @@ class NotebookChatEventSendOrderTests(TransactionTestCase):
                     "kind": kind,
                 }
                 for kind in (TURN_QUEUED, TURN_FAILED)
+            ],
+        )
+
+
+class SealingProvider(FakeProvider):
+    """Seals the execution to a terminal status mid-call, then fails."""
+
+    def __init__(self, turns, execution_id, status):
+        super().__init__(turns)
+        self.execution_id = execution_id
+        self.sealed_status = status
+
+    def complete(self, **kwargs):
+        AgentExecution.objects.filter(id=self.execution_id).update(
+            status=self.sealed_status
+        )
+        return super().complete(**kwargs)
+
+
+class NotebookChatAutoRetryTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            username="owner@researchhub_test.com",
+            password="password",
+            email="owner@researchhub_test.com",
+        )
+        self.note = create_note(self.user, organization=None)[0]
+        Permission.objects.create(
+            access_type=ADMIN,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=self.note.unified_document.id,
+            user=self.user,
+        )
+        self.service = _make_service()
+        self.conversation = self.service.create_conversation(self.note, self.user)
+
+    def _submit(self, text="Please add a summary."):
+        with (
+            patch("research_ai.tasks.run_notebook_chat_turn_task.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            return self.service.submit_message(self.note, self.conversation, text)
+
+    def _run_failing(self, execution_id, error, **service_kwargs):
+        """Run the turn against a provider that raises ``error``."""
+        runner = _make_service(provider=FakeProvider([error]), **service_kwargs)
+        with patch(
+            "research_ai.tasks.run_notebook_chat_turn_task.apply_async"
+        ) as apply_async:
+            result = runner.run_turn(execution_id)
+        return result, apply_async
+
+    def test_transient_provider_failure_schedules_a_backoff_retry(self):
+        # Arrange
+        execution = self._submit()
+
+        # Act
+        result, apply_async = self._run_failing(
+            execution.id, ProviderError("overloaded", retryable=True)
+        )
+
+        # Assert: the failure sealed, its classification was stored, and a
+        # queued retry of the same trigger holds the conversation.
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.FAILED)
+        self.assertTrue(execution.error_details["retryable"])
+        retry = AgentExecution.objects.get(id=result["retry_execution_id"])
+        self.assertEqual(retry.status, AgentExecution.Status.PENDING)
+        self.assertEqual(retry.retry_of_id, execution.id)
+        self.assertEqual(retry.trigger_message_id, execution.trigger_message_id)
+        apply_async.assert_called_once_with(args=[retry.id], countdown=5)
+
+    def test_retry_of_a_retry_backs_off_longer_then_stops(self):
+        # Arrange
+        execution = self._submit()
+        overloaded = ProviderError("overloaded", retryable=True)
+        first_result, _ = self._run_failing(execution.id, overloaded)
+        first_retry_id = first_result["retry_execution_id"]
+
+        # Act: the first retry fails the same way; then the second one does.
+        second_result, second_schedule = self._run_failing(first_retry_id, overloaded)
+        second_retry_id = second_result["retry_execution_id"]
+        final_result, final_schedule = self._run_failing(second_retry_id, overloaded)
+
+        # Assert: backoff grew, and the third failure went terminal for the
+        # user to retry manually.
+        second_schedule.assert_called_once_with(args=[second_retry_id], countdown=30)
+        final_schedule.assert_not_called()
+        self.assertNotIn("retry_execution_id", final_result)
+        self.assertEqual(
+            AgentExecution.objects.filter(
+                conversation=self.conversation,
+                status=AgentExecution.Status.FAILED,
+            ).count(),
+            3,
+        )
+
+    def test_permanent_provider_failure_is_not_retried(self):
+        # Arrange
+        execution = self._submit()
+
+        # Act
+        result, apply_async = self._run_failing(
+            execution.id, ProviderError("invalid request", retryable=False)
+        )
+
+        # Assert
+        self.assertNotIn("retry_execution_id", result)
+        apply_async.assert_not_called()
+        self.assertEqual(self.conversation.executions.count(), 1)
+
+    def test_unexpected_crash_is_not_retried(self):
+        # Arrange
+        execution = self._submit()
+
+        # Act
+        result, apply_async = self._run_failing(
+            execution.id, RuntimeError("toolset bug")
+        )
+
+        # Assert
+        self.assertNotIn("retry_execution_id", result)
+        apply_async.assert_not_called()
+
+    def test_cancelled_turn_is_never_auto_retried(self):
+        # Arrange: the user cancels while the provider call is in flight, and
+        # the call then dies with a retryable error. The cancellation is the
+        # user's decision; no retry may override it.
+        execution = self._submit()
+        provider = SealingProvider(
+            [ProviderError("overloaded", retryable=True)],
+            execution.id,
+            AgentExecution.Status.CANCELLED,
+        )
+        runner = _make_service(provider=provider)
+
+        # Act
+        with patch(
+            "research_ai.tasks.run_notebook_chat_turn_task.apply_async"
+        ) as apply_async:
+            result = runner.run_turn(execution.id)
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+        self.assertNotIn("retry_execution_id", result)
+        apply_async.assert_not_called()
+
+    def test_lost_retry_race_is_quietly_abandoned(self):
+        # Arrange: by the time the retry is prepared, the conversation moved
+        # on (its busy check refuses the attempt).
+        execution = self._submit()
+        runner = _make_service(
+            provider=FakeProvider([ProviderError("overloaded", retryable=True)])
+        )
+
+        # Act
+        with (
+            patch.object(
+                runner.chat,
+                "prepare_retry",
+                side_effect=AgentConversationBusyError("busy"),
+            ),
+            patch(
+                "research_ai.tasks.run_notebook_chat_turn_task.apply_async"
+            ) as apply_async,
+        ):
+            result = runner.run_turn(execution.id)
+
+        # Assert
+        self.assertNotIn("retry_execution_id", result)
+        apply_async.assert_not_called()
+
+    def test_pending_auto_retry_keeps_the_conversation_busy(self):
+        # Arrange: an auto retry is waiting out its backoff window.
+        execution = self._submit()
+        self._run_failing(execution.id, ProviderError("overloaded", retryable=True))
+
+        # Act / Assert: a user message cannot interleave with the retry.
+        with self.assertRaises(AgentConversationBusyError):
+            self.service.submit_message(self.note, self.conversation, "hello?")
+
+    def test_auto_retry_announces_itself_as_a_queued_turn(self):
+        # Arrange
+        execution = self._submit()
+        run_publisher = Mock()
+        runner = _make_service(
+            provider=FakeProvider([ProviderError("overloaded", retryable=True)]),
+            event_publisher=run_publisher,
+        )
+
+        # Act
+        with patch("research_ai.tasks.run_notebook_chat_turn_task.apply_async"):
+            result = runner.run_turn(execution.id)
+
+        # Assert: subscribers see the failure, then the retry queued under its
+        # own execution id.
+        events = [call.args for call in run_publisher.publish.call_args_list]
+        self.assertEqual(
+            events[-2:],
+            [
+                (self.conversation.id, execution.id, TURN_FAILED),
+                (self.conversation.id, result["retry_execution_id"], TURN_QUEUED),
             ],
         )
 

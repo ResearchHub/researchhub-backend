@@ -4,6 +4,8 @@ import json
 from copy import deepcopy
 from types import SimpleNamespace
 
+import httpx
+import openai
 from django.test import SimpleTestCase, override_settings
 
 from research_ai.services.agent.errors import ProviderError
@@ -419,6 +421,64 @@ class ErrorTests(SimpleTestCase):
         # Act / Assert
         with self.assertRaises(ProviderError):
             _complete(provider)
+
+    def test_transient_sdk_failures_classify_as_retryable(self):
+        # Arrange
+        request = httpx.Request("POST", "https://openrouter.test/v1/chat")
+        transient = [
+            openai.APIConnectionError(request=request),
+            openai.APIStatusError(
+                "rate limited",
+                response=httpx.Response(429, request=request),
+                body=None,
+            ),
+            openai.APIStatusError(
+                "upstream down",
+                response=httpx.Response(502, request=request),
+                body=None,
+            ),
+        ]
+        permanent = [
+            openai.APIStatusError(
+                "bad request",
+                response=httpx.Response(400, request=request),
+                body=None,
+            ),
+            RuntimeError("adapter bug"),
+        ]
+
+        # Act / Assert
+        for error in transient:
+            self.assertTrue(openrouter._is_retryable_error(error), repr(error))
+        for error in permanent:
+            self.assertFalse(openrouter._is_retryable_error(error), repr(error))
+
+    def test_rate_limited_client_raises_a_retryable_provider_error(self):
+        # Arrange
+        request = httpx.Request("POST", "https://openrouter.test/v1/chat")
+        rate_limited = openai.APIStatusError(
+            "rate limited",
+            response=httpx.Response(429, request=request),
+            body=None,
+        )
+
+        class ExplodingClient:
+            def __init__(self):
+                self.chat = SimpleNamespace(
+                    completions=SimpleNamespace(create=self._create)
+                )
+
+            def _create(self, **kwargs):
+                raise rate_limited
+
+        provider = OpenRouterProvider(client=ExplodingClient(), model_id="test-model")
+
+        # Act
+        with self.assertRaises(ProviderError) as ctx:
+            _complete(provider)
+
+        # Assert
+        self.assertTrue(ctx.exception.retryable)
 
 
 class DefaultsTests(SimpleTestCase):

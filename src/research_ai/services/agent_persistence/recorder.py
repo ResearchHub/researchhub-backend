@@ -363,6 +363,10 @@ class DatabaseAgentRecorder:
             "iterations": getattr(error, "iterations", None),
             "cause_type": type(cause).__name__ if cause else None,
             "cause_message": _safe_exception_message(cause) if cause else None,
+            # The provider's transient-vs-permanent verdict, recorded because
+            # the exception dies with this worker and the public error taxonomy
+            # and retry policy both need the answer later.
+            "retryable": bool(getattr(error, "retryable", False)),
         }
         safe_details, _truncated, _size = bounded_payload(details)
         status = (

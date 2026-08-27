@@ -23,6 +23,11 @@ stale writes, never corrupt the note. A turn is split across two processes:
   ``Agent.continue_conversation``. The recorder persists the trace, marks the
   terminal status, and publishes the assistant's reply to the chat.
 
+A failed turn is not the end of it: a transient provider failure requeues
+itself with backoff (``_maybe_schedule_auto_retry``) through
+``AgentChatService.prepare_retry``, so the user's message is never retyped or
+renumbered.
+
 The agent acts strictly as the conversation's user and only on the
 conversation's note: ``NoteToolset`` enforces note view/edit permissions per
 call, so a viewer can chat and research but the edit tool refuses to write for
@@ -57,8 +62,10 @@ from research_ai.services.agent import (
 from research_ai.services.agent_persistence import (
     AgentChatService,
     AgentContextService,
+    AgentConversationBusyError,
     AgentConversationService,
     AgentExecutionCancelService,
+    AgentStaleRetryError,
     NoteAgentConversationService,
 )
 from research_ai.services.agent_persistence.activity import (
@@ -117,6 +124,15 @@ ACTIVITY_LIVE = "live"
 # full projection anyway. It also keeps a just-cancelled turn in scope while
 # its worker unwinds, when trace rows can genuinely still land.
 ACTIVITY_SETTLED_GRACE = timedelta(seconds=60)
+
+# Automatic retries for transient provider failures. A failed attempt whose
+# error the provider marked retryable is requeued with backoff, at most this
+# many times per trigger message -- counted by walking ``retry_of``. Each
+# retry is created ``PENDING`` immediately, which keeps the conversation's
+# busy check held across the backoff window: a user message cannot interleave
+# with an automatic retry.
+AUTO_RETRY_MAX_ATTEMPTS = 2
+AUTO_RETRY_DELAY_SECONDS = (5, 30)
 
 # Derived chat titles are list labels, not documents: one collapsed line,
 # well under the model field's 255-char bound.
@@ -569,7 +585,9 @@ class NotebookChatService:
             )
         self.events.publish(execution.conversation_id, execution.id, TURN_FAILED)
 
-    def _schedule_turn(self, execution_id: int) -> None:
+    def _schedule_turn(
+        self, execution_id: int, *, countdown: int | None = None
+    ) -> None:
         """Queue the worker turn, failing the execution if the broker refuses.
 
         A ``PENDING`` row with no task behind it would hold the
@@ -581,7 +599,12 @@ class NotebookChatService:
         from research_ai.tasks import run_notebook_chat_turn_task
 
         try:
-            run_notebook_chat_turn_task.delay(execution_id)
+            if countdown is None:
+                run_notebook_chat_turn_task.delay(execution_id)
+            else:
+                run_notebook_chat_turn_task.apply_async(
+                    args=[execution_id], countdown=countdown
+                )
         except Exception as exc:  # noqa: BLE001 - any enqueue failure
             logger.exception("could not queue notebook chat turn %s", execution_id)
             execution = AgentExecution.objects.filter(id=execution_id).first()
@@ -637,7 +660,11 @@ class NotebookChatService:
                         "could not finalize crashed notebook chat turn",
                         exc_info=True,
                     )
-            return {"execution_id": execution.id, "error": str(exc)}
+            result = {"execution_id": execution.id, "error": str(exc)}
+            retry_id = self._maybe_schedule_auto_retry(execution, exc)
+            if retry_id is not None:
+                result["retry_execution_id"] = retry_id
+            return result
 
     def _run_turn(self, execution: AgentExecution, recorder) -> dict:
         conversation = execution.conversation
@@ -692,13 +719,77 @@ class NotebookChatService:
             # The loop already recorded the failure (status, error fields,
             # partial trace) through the recorder; report, don't re-raise.
             logger.warning("notebook chat turn %s failed: %s", execution.id, exc)
-            return {"execution_id": execution.id, "error": str(exc)}
+            outcome = {"execution_id": execution.id, "error": str(exc)}
+            retry_id = self._maybe_schedule_auto_retry(execution, exc)
+            if retry_id is not None:
+                outcome["retry_execution_id"] = retry_id
+            return outcome
         return {
             "execution_id": execution.id,
             "stop_reason": result.stop_reason,
             "iterations": result.iterations,
             "final_text": result.final_text,
         }
+
+    def _maybe_schedule_auto_retry(
+        self, execution: AgentExecution, error: Exception
+    ) -> int | None:
+        """Requeue a transient failure with backoff; return the retry's id.
+
+        Only failures the provider marked retryable qualify, only while the
+        turn actually sealed ``FAILED`` -- a cancellation or an external seal
+        is someone else's decision -- and only within the per-trigger budget.
+        The retry is created ``PENDING`` before this returns, so the
+        conversation stays busy for the whole backoff window and a user
+        message cannot slip between the failure and its retry. Losing the
+        creation race to a concurrent turn simply means the user already
+        moved on.
+        """
+        if not getattr(error, "retryable", False):
+            return None
+        execution.refresh_from_db()
+        if execution.status != AgentExecution.Status.FAILED:
+            return None
+        prior_attempts = self._retry_chain_length(execution)
+        if prior_attempts >= AUTO_RETRY_MAX_ATTEMPTS:
+            logger.info(
+                "notebook chat turn %s exhausted its automatic retries",
+                execution.id,
+            )
+            return None
+        try:
+            prepared = self.chat.prepare_retry(execution, pending=True)
+        except (AgentConversationBusyError, AgentStaleRetryError):
+            return None
+        retry = prepared.execution
+        countdown = AUTO_RETRY_DELAY_SECONDS[
+            min(prior_attempts, len(AUTO_RETRY_DELAY_SECONDS) - 1)
+        ]
+        self.events.publish(retry.conversation_id, retry.id, TURN_QUEUED)
+        self._schedule_turn(retry.id, countdown=countdown)
+        logger.info(
+            "notebook chat turn %s scheduled automatic retry %s in %ss",
+            execution.id,
+            retry.id,
+            countdown,
+        )
+        return retry.id
+
+    @staticmethod
+    def _retry_chain_length(execution: AgentExecution) -> int:
+        """How many attempts precede this one on its ``retry_of`` chain."""
+        length = 0
+        seen = {execution.id}
+        current_id = execution.retry_of_id
+        while current_id is not None and current_id not in seen:
+            seen.add(current_id)
+            length += 1
+            current_id = (
+                AgentExecution.objects.filter(id=current_id)
+                .values_list("retry_of_id", flat=True)
+                .first()
+            )
+        return length
 
     def _publishing_recorder(
         self, recorder, execution: AgentExecution

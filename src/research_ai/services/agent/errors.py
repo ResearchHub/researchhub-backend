@@ -40,7 +40,22 @@ class ProviderError(AgentRunError):
 
     Providers raise this without a transcript; the loop attaches ``messages``
     and ``iterations`` as the error propagates through it.
+
+    ``retryable`` marks transient conditions (overload, rate limit, 5xx, a
+    dropped stream) where repeating the identical request may succeed, as
+    opposed to failures of the request itself (auth, config, invalid input).
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        messages: list[Message] | None = None,
+        iterations: int | None = None,
+        retryable: bool = False,
+    ):
+        super().__init__(message, messages=messages, iterations=iterations)
+        self.retryable = retryable
 
 
 class IncompleteTurnError(AgentRunError):

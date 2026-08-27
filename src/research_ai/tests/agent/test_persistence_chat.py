@@ -807,3 +807,63 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
             [message["content"] for message in representation["messages"]], ["Question"]
         )
         self.assertTrue(representation["executions"][0]["assistant_message_pending"])
+
+
+class PendingRetryPreparationTests(AgentPersistenceTestCase):
+    def _failed_pending_turn(self, text="Question"):
+        chat = AgentChatService()
+        prepared = chat.prepare_turn(self.conversation, text, pending=True)
+        recorder = AgentExecutionService().claim_pending(prepared.execution)
+        recorder.on_run_failed(RuntimeError("worker-side failure"))
+        prepared.execution.refresh_from_db()
+        return chat, prepared
+
+    def test_pending_retry_is_claimable_and_reuses_the_turn(self):
+        # Arrange
+        chat, prepared = self._failed_pending_turn()
+
+        # Act
+        retry = chat.prepare_retry(prepared.execution, pending=True)
+
+        # Assert: a queued attempt for a worker, carrying the original turn's
+        # message and lineage; the recorder is the claiming worker's to build.
+        execution = retry.execution
+        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
+        self.assertIsNone(retry.recorder)
+        self.assertEqual(retry.context, [])
+        self.assertEqual(execution.retry_of_id, prepared.execution.id)
+        self.assertEqual(
+            execution.trigger_message_id, prepared.execution.trigger_message_id
+        )
+        self.assertEqual(
+            execution.context_parent_id, prepared.execution.context_parent_id
+        )
+        self.assertTrue(execution.publish_output_to_chat)
+        self.assertIsNotNone(AgentExecutionService().claim_pending(execution))
+
+    def test_pending_retry_holds_the_conversations_busy_check(self):
+        # Arrange
+        chat, prepared = self._failed_pending_turn()
+        chat.prepare_retry(prepared.execution, pending=True)
+
+        # Act / Assert: no new turn can interleave while the retry is queued.
+        with self.assertRaises(AgentConversationBusyError):
+            chat.prepare_turn(self.conversation, "Impatient follow-up", pending=True)
+
+    def test_pending_retry_refuses_while_a_turn_is_active(self):
+        # Arrange
+        chat, prepared = self._failed_pending_turn()
+        chat.prepare_turn(self.conversation, "Newer question", pending=True)
+
+        # Act / Assert
+        with self.assertRaises(AgentConversationBusyError):
+            chat.prepare_retry(prepared.execution, pending=True)
+
+    def test_pending_retry_cannot_regenerate(self):
+        # Arrange
+        chat, prepared = self._failed_pending_turn()
+
+        # Act / Assert: regeneration replaces published output, which only a
+        # recorder-owning attempt may do.
+        with self.assertRaises(ValueError):
+            chat.prepare_retry(prepared.execution, pending=True, regenerate=True)

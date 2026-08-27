@@ -191,7 +191,34 @@ class AgentChatService:
         system_prompt: str | None = None,
         regenerate: bool = False,
         initial_prompt_provenance: str | None = None,
+        pending: bool = False,
     ) -> PreparedAgentExecution:
+        """Create a fresh attempt of ``execution``'s turn.
+
+        With ``pending=True`` the retry is created ``PENDING`` for a worker to
+        claim -- the same contract as ``prepare_turn`` -- and the returned
+        ``recorder`` and ``context`` are ``None``/empty, since the claiming
+        worker rebuilds both.
+        """
+        if pending:
+            if regenerate:
+                raise ValueError("a pending retry cannot replace published output")
+            retry = self.executions.create_pending(
+                execution.conversation,
+                provider=execution.provider,
+                model=execution.model,
+                configuration=(
+                    execution.configuration if configuration is None else configuration
+                ),
+                system_prompt=(
+                    execution.system_prompt if system_prompt is None else system_prompt
+                ),
+                trigger_message=execution.trigger_message,
+                context_parent=execution.context_parent,
+                retry_of=execution,
+                publish_assistant_message=True,
+            )
+            return PreparedAgentExecution(retry, None, execution.trigger_message, [])
         context = (
             self.contexts.reconstruct(execution.context_parent)
             if execution.context_parent

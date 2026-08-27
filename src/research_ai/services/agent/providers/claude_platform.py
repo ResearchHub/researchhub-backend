@@ -26,6 +26,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Any
 
+import anthropic
+import httpx
 from anthropic import AnthropicAWS
 from django.conf import settings
 
@@ -160,6 +162,28 @@ _SERVER_TOOL_BLOCK_TYPES = (
 _CACHEABLE_BLOCK_TYPES = ("text", "tool_result")
 
 _PROVIDER_STATE_KEY = "anthropic"
+
+# HTTP statuses worth repeating unchanged, matching the Anthropic SDK's own
+# retry set: timeouts, races, rate limits, and every server-side failure
+# (529 is the Messages API's overloaded_error).
+_RETRYABLE_STATUS_CODES = frozenset({408, 409, 429})
+
+
+def _is_retryable_error(error: Exception) -> bool:
+    """Whether this SDK failure is transient rather than a fault of the request.
+
+    Connection failures (including timeouts) and mid-stream transport drops
+    can only be answered by trying again; auth, config, and invalid-request
+    statuses fail identically on every attempt.
+    """
+    if isinstance(error, anthropic.APIConnectionError):
+        return True
+    if isinstance(error, anthropic.APIStatusError):
+        status = error.status_code
+        return status in _RETRYABLE_STATUS_CODES or status >= 500
+    # A stream the API accepted but dropped mid-emission surfaces as a raw
+    # transport error from the iteration, not as an SDK request error.
+    return isinstance(error, httpx.TransportError)
 
 
 def _accepts_sampling_params(model_id: str) -> bool:
@@ -478,7 +502,10 @@ class ClaudePlatformProvider(LLMProvider):
                 response = self._stream_turn(kwargs, on_event=on_event)
             except Exception as e:
                 logger.exception("Claude Platform complete failed")
-                raise ProviderError(f"Claude Platform complete failed: {e}") from e
+                raise ProviderError(
+                    f"Claude Platform complete failed: {e}",
+                    retryable=_is_retryable_error(e),
+                ) from e
             responses.append(response)
             self._log_usage(response)
             self._log_continuation_state(response)
