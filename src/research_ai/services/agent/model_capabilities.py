@@ -1,6 +1,6 @@
 """Reviewed generation controls supported by each model family."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 EFFORT_LEVELS = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 THINKING_MODES = ("adaptive", "disabled")
@@ -18,8 +18,12 @@ class ModelCapabilities:
     effort: tuple[str, ...] = ()
     thinking: tuple[str, ...] = ()
     temperature: bool = False
+    # The model's output ceiling: a ``max_tokens`` above it is rejected
+    # outright. ``None`` means unreviewed, not unlimited.
+    max_output_tokens: int | None = None
 
     def as_dict(self) -> dict:
+        # The model-picker payload: the controls a caller may choose.
         return {
             "effort": list(self.effort),
             "thinking": list(self.thinking),
@@ -27,6 +31,8 @@ class ModelCapabilities:
         }
 
 
+# Control sets, shared by every model that accepts the same knobs. An output
+# ceiling is never shared: each model states its own below.
 _TEMPERATURE = ModelCapabilities(temperature=True)
 _CLAUDE_EFFORT_TEMPERATURE = ModelCapabilities(
     effort=CLAUDE_EFFORT_LEVELS,
@@ -45,67 +51,66 @@ _CLAUDE_MANDATORY_THINKING = ModelCapabilities(
     effort=CLAUDE_EFFORT_LEVELS,
     thinking=("adaptive",),
 )
+_OPENROUTER_REASONING = ModelCapabilities(
+    effort=OPENROUTER_EFFORT_LEVELS,
+    thinking=THINKING_MODES,
+)
+_OPENROUTER_GEMINI = ModelCapabilities(
+    effort=("low", "medium", "high"),
+    thinking=("adaptive",),
+    temperature=True,
+)
+_OPENROUTER_GROK = ModelCapabilities(
+    effort=("low", "medium", "high", "xhigh"),
+    thinking=("adaptive",),
+    temperature=True,
+)
+_OPENROUTER_OPEN_WEIGHT = ModelCapabilities(
+    effort=("none", "low", "high", "max"),
+    thinking=THINKING_MODES,
+    temperature=True,
+)
 
+
+def _model(controls: ModelCapabilities, max_output_tokens: int) -> ModelCapabilities:
+    """One model: a shared control set plus that model's own output ceiling."""
+    return replace(controls, max_output_tokens=max_output_tokens)
+
+
+# One row per model -- id tags, controls, and the output ceiling its own docs
+# state. A model absent here is unreviewed and the adapters refuse to serve it.
 _CLAUDE_RULES = (
-    (("haiku-4-5", "haiku-4.5", "sonnet-4-5", "sonnet-4.5"), _TEMPERATURE),
-    (("opus-4-5", "opus-4.5"), _CLAUDE_EFFORT_TEMPERATURE),
-    (
-        ("opus-4-6", "opus-4.6", "sonnet-4-6", "sonnet-4.6"),
-        _CLAUDE_ADAPTIVE_TEMPERATURE,
-    ),
-    (("fable", "mythos"), _CLAUDE_MANDATORY_THINKING),
-    (
-        (
-            "opus-4-7",
-            "opus-4.7",
-            "opus-4-8",
-            "opus-4.8",
-            "opus-5",
-            "sonnet-5",
-        ),
-        _CLAUDE_ADAPTIVE,
-    ),
+    (("haiku-4-5", "haiku-4.5"), _model(_TEMPERATURE, 64_000)),
+    (("sonnet-4-5", "sonnet-4.5"), _model(_TEMPERATURE, 64_000)),
+    (("opus-4-5", "opus-4.5"), _model(_CLAUDE_EFFORT_TEMPERATURE, 64_000)),
+    (("opus-4-6", "opus-4.6"), _model(_CLAUDE_ADAPTIVE_TEMPERATURE, 128_000)),
+    (("sonnet-4-6", "sonnet-4.6"), _model(_CLAUDE_ADAPTIVE_TEMPERATURE, 128_000)),
+    (("fable",), _model(_CLAUDE_MANDATORY_THINKING, 128_000)),
+    (("mythos",), _model(_CLAUDE_MANDATORY_THINKING, 128_000)),
+    (("opus-4-7", "opus-4.7"), _model(_CLAUDE_ADAPTIVE, 128_000)),
+    (("opus-4-8", "opus-4.8"), _model(_CLAUDE_ADAPTIVE, 128_000)),
+    (("opus-5",), _model(_CLAUDE_ADAPTIVE, 128_000)),
+    (("sonnet-5",), _model(_CLAUDE_ADAPTIVE, 128_000)),
 )
 
 _OPENROUTER_RULES = (
-    (
-        ("anthropic/claude-opus-5", "anthropic/claude-sonnet-5"),
-        ModelCapabilities(
-            effort=("none", "low", "medium", "high", "xhigh", "max"),
-            thinking=THINKING_MODES,
-        ),
-    ),
-    (
-        ("openai/gpt-5.6-sol", "openai/gpt-5.6-terra", "openai/gpt-5.6-luna"),
-        ModelCapabilities(
-            effort=OPENROUTER_EFFORT_LEVELS,
-            thinking=THINKING_MODES,
-        ),
-    ),
-    (
-        ("google/gemini-3.1-pro-preview", "google/gemini-3.7-flash"),
-        ModelCapabilities(
-            effort=("low", "medium", "high"),
-            thinking=("adaptive",),
-            temperature=True,
-        ),
-    ),
-    (
-        ("x-ai/grok-4.6",),
-        ModelCapabilities(
-            effort=("low", "medium", "high", "xhigh"),
-            thinking=("adaptive",),
-            temperature=True,
-        ),
-    ),
-    (
-        ("deepseek/deepseek-v4-pro-0813", "moonshotai/kimi-k3"),
-        ModelCapabilities(
-            effort=("none", "low", "high", "max"),
-            thinking=THINKING_MODES,
-            temperature=True,
-        ),
-    ),
+    (("anthropic/claude-opus-5",), _model(_OPENROUTER_REASONING, 128_000)),
+    (("anthropic/claude-sonnet-5",), _model(_OPENROUTER_REASONING, 128_000)),
+    (("openai/gpt-5.6-sol",), _model(_OPENROUTER_REASONING, 128_000)),
+    (("openai/gpt-5.6-terra",), _model(_OPENROUTER_REASONING, 128_000)),
+    (("openai/gpt-5.6-luna",), _model(_OPENROUTER_REASONING, 128_000)),
+    (("google/gemini-3.1-pro-preview",), _model(_OPENROUTER_GEMINI, 65_536)),
+    (("google/gemini-3.7-flash",), _model(_OPENROUTER_GEMINI, 65_536)),
+    (("x-ai/grok-4.6",), _model(_OPENROUTER_GROK, 450_000)),
+    (("deepseek/deepseek-v4-pro-0813",), _model(_OPENROUTER_OPEN_WEIGHT, 384_000)),
+    (("moonshotai/kimi-k3",), _model(_OPENROUTER_OPEN_WEIGHT, 943_718)),
+)
+
+# The Converse adapter currently exposes sampling only; Claude-specific effort
+# and adaptive-thinking fields are implemented by Claude Platform.
+_BEDROCK_RULES = (
+    (("haiku-4-5", "haiku-4.5"), _model(_TEMPERATURE, 64_000)),
+    (("sonnet-4-5", "sonnet-4.5"), _model(_TEMPERATURE, 64_000)),
 )
 
 
@@ -117,14 +122,7 @@ def model_capabilities(provider: str, model_id: str) -> ModelCapabilities:
     elif provider == "claude_platform":
         rules = _CLAUDE_RULES
     elif provider == "bedrock":
-        # The Converse adapter currently exposes sampling only; Claude-specific
-        # effort and adaptive-thinking fields are implemented by Claude Platform.
-        rules = (
-            (
-                ("haiku-4-5", "haiku-4.5", "sonnet-4-5", "sonnet-4.5"),
-                _TEMPERATURE,
-            ),
-        )
+        rules = _BEDROCK_RULES
     else:
         return ModelCapabilities()
     for tags, capabilities in rules:

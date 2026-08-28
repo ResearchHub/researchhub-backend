@@ -38,6 +38,22 @@ class AvailableModelsTests(SimpleTestCase):
             self.assertTrue(option.label)
             self.assertIn(option.provider, ("bedrock", "claude_platform", "openrouter"))
 
+    def test_every_catalog_model_declares_an_output_ceiling(self):
+        # Arrange: both adapters refuse a model whose ceiling is unreviewed, so
+        # a catalog entry without one cannot run a turn.
+        options = available_models()
+
+        # Act
+        unreviewed = [
+            option.ref
+            for option in options
+            if option.capabilities.max_output_tokens is None
+        ]
+
+        # Assert
+        self.assertTrue(options)
+        self.assertEqual(unreviewed, [])
+
     def test_haiku_advertises_temperature_but_not_effort_or_thinking(self):
         # Arrange
         option = next(
