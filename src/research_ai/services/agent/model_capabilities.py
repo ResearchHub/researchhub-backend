@@ -1,6 +1,6 @@
 """Reviewed generation controls supported by each model family."""
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 EFFORT_LEVELS = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 THINKING_MODES = ("adaptive", "disabled")
@@ -74,7 +74,12 @@ _OPENROUTER_OPEN_WEIGHT = ModelCapabilities(
 
 def _model(controls: ModelCapabilities, max_output_tokens: int) -> ModelCapabilities:
     """One model: a shared control set plus that model's own output ceiling."""
-    return replace(controls, max_output_tokens=max_output_tokens)
+    return ModelCapabilities(
+        effort=controls.effort,
+        thinking=controls.thinking,
+        temperature=controls.temperature,
+        max_output_tokens=max_output_tokens,
+    )
 
 
 # One row per model -- id tags, controls, and the output ceiling its own docs

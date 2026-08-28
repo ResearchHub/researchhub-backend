@@ -2,7 +2,10 @@
 
 from django.test import SimpleTestCase, override_settings
 
-from research_ai.services.agent.model_capabilities import validate_generation_options
+from research_ai.services.agent.model_capabilities import (
+    model_capabilities,
+    validate_generation_options,
+)
 from research_ai.services.agent.model_catalog import (
     available_models,
     default_model_ref,
@@ -109,6 +112,20 @@ class AvailableModelsTests(SimpleTestCase):
         self.assertNotIn(
             "claude_platform:claude-sonnet-5", [option.ref for option in options]
         )
+
+
+class BedrockCapabilitiesTests(SimpleTestCase):
+    def test_bedrock_haiku_carries_sampling_and_its_own_ceiling(self):
+        # Act: the Converse adapter takes prefixed ids and exposes sampling only.
+        capabilities = model_capabilities(
+            "bedrock", "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+        )
+
+        # Assert
+        self.assertTrue(capabilities.temperature)
+        self.assertEqual(capabilities.effort, ())
+        self.assertEqual(capabilities.thinking, ())
+        self.assertEqual(capabilities.max_output_tokens, 64_000)
 
 
 @override_settings(**ALL_PROVIDERS_CONFIGURED)
