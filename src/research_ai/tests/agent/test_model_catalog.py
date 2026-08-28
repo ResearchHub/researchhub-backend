@@ -114,7 +114,7 @@ class AvailableModelsTests(SimpleTestCase):
         )
 
 
-class BedrockCapabilitiesTests(SimpleTestCase):
+class CapabilityLookupTests(SimpleTestCase):
     def test_bedrock_haiku_carries_sampling_and_its_own_ceiling(self):
         # Act: the Converse adapter takes prefixed ids and exposes sampling only.
         capabilities = model_capabilities(
@@ -126,6 +126,35 @@ class BedrockCapabilitiesTests(SimpleTestCase):
         self.assertEqual(capabilities.effort, ())
         self.assertEqual(capabilities.thinking, ())
         self.assertEqual(capabilities.max_output_tokens, 64_000)
+
+    def test_platform_decorations_resolve_to_the_same_model(self):
+        # Arrange: dated snapshots and OpenRouter variant tags name one model.
+        decorated = (
+            ("claude_platform", "claude-haiku-4-5-20251001", 64_000),
+            ("claude_platform", "claude-opus-4-5-20251101", 64_000),
+            ("openrouter", "deepseek/deepseek-v4-pro-0813:free", 384_000),
+        )
+
+        # Act / Assert
+        for provider, model_id, ceiling in decorated:
+            with self.subTest(model_id=model_id):
+                capabilities = model_capabilities(provider, model_id)
+                self.assertEqual(capabilities.max_output_tokens, ceiling)
+
+    def test_an_id_that_merely_contains_a_reviewed_id_is_unreviewed(self):
+        # Arrange: a longer id is a different model, not the one it contains.
+        near_misses = (
+            ("claude_platform", "claude-opus-50"),
+            ("claude_platform", "claude-haiku-4-50"),
+            ("openrouter", "openai/gpt-5.6-sol-next"),
+        )
+
+        # Act / Assert
+        for provider, model_id in near_misses:
+            with self.subTest(model_id=model_id):
+                self.assertIsNone(
+                    model_capabilities(provider, model_id).max_output_tokens
+                )
 
 
 @override_settings(**ALL_PROVIDERS_CONFIGURED)

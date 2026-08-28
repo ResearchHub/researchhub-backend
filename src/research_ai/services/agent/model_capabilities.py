@@ -1,5 +1,6 @@
 """Reviewed generation controls supported by each model family."""
 
+import re
 from dataclasses import dataclass
 
 EFFORT_LEVELS = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
@@ -82,58 +83,74 @@ def _model(controls: ModelCapabilities, max_output_tokens: int) -> ModelCapabili
     )
 
 
-# One row per model -- id tags, controls, and the output ceiling its own docs
-# state. A model absent here is unreviewed and the adapters refuse to serve it.
-_CLAUDE_RULES = (
-    (("haiku-4-5", "haiku-4.5"), _model(_TEMPERATURE, 64_000)),
-    (("sonnet-4-5", "sonnet-4.5"), _model(_TEMPERATURE, 64_000)),
-    (("opus-4-5", "opus-4.5"), _model(_CLAUDE_EFFORT_TEMPERATURE, 64_000)),
-    (("opus-4-6", "opus-4.6"), _model(_CLAUDE_ADAPTIVE_TEMPERATURE, 128_000)),
-    (("sonnet-4-6", "sonnet-4.6"), _model(_CLAUDE_ADAPTIVE_TEMPERATURE, 128_000)),
-    (("fable",), _model(_CLAUDE_MANDATORY_THINKING, 128_000)),
-    (("mythos",), _model(_CLAUDE_MANDATORY_THINKING, 128_000)),
-    (("opus-4-7", "opus-4.7"), _model(_CLAUDE_ADAPTIVE, 128_000)),
-    (("opus-4-8", "opus-4.8"), _model(_CLAUDE_ADAPTIVE, 128_000)),
-    (("opus-5",), _model(_CLAUDE_ADAPTIVE, 128_000)),
-    (("sonnet-5",), _model(_CLAUDE_ADAPTIVE, 128_000)),
-)
+# Ids arrive decorated: Bedrock inference-profile prefixes and ``-v1:0``
+# suffixes, dated snapshots, Vertex ``@date``, OpenRouter ``:variant`` tags.
+# Strip those, then a model resolves on its own id alone -- never on a longer
+# id that merely contains it (``claude-opus-50`` is not Claude Opus 5).
+_ID_PREFIXES = ("global.", "us.", "eu.", "apac.", "anthropic.")
+_ID_DECORATIONS = re.compile(r"(-v\d+:\d+|[-@]\d{8}|:[a-z][a-z-]*)$")
 
-_OPENROUTER_RULES = (
-    (("anthropic/claude-opus-5",), _model(_OPENROUTER_REASONING, 128_000)),
-    (("anthropic/claude-sonnet-5",), _model(_OPENROUTER_REASONING, 128_000)),
-    (("openai/gpt-5.6-sol",), _model(_OPENROUTER_REASONING, 128_000)),
-    (("openai/gpt-5.6-terra",), _model(_OPENROUTER_REASONING, 128_000)),
-    (("openai/gpt-5.6-luna",), _model(_OPENROUTER_REASONING, 128_000)),
-    (("google/gemini-3.1-pro-preview",), _model(_OPENROUTER_GEMINI, 65_536)),
-    (("google/gemini-3.7-flash",), _model(_OPENROUTER_GEMINI, 65_536)),
-    (("x-ai/grok-4.6",), _model(_OPENROUTER_GROK, 450_000)),
-    (("deepseek/deepseek-v4-pro-0813",), _model(_OPENROUTER_OPEN_WEIGHT, 384_000)),
-    (("moonshotai/kimi-k3",), _model(_OPENROUTER_OPEN_WEIGHT, 943_718)),
-)
+
+def _normalized(model_id: str) -> str:
+    """Reduce a platform-decorated id to the bare model id rules are keyed by."""
+    mid = model_id.lower().strip()
+    while True:
+        stripped = _ID_DECORATIONS.sub("", mid)
+        for prefix in _ID_PREFIXES:
+            stripped = stripped.removeprefix(prefix)
+        if stripped == mid:
+            return mid
+        mid = stripped
+
+
+# One entry per model: its bare id, its controls, and the output ceiling its
+# own docs state. A model absent here is unreviewed; adapters refuse to serve
+# it rather than borrow another model's numbers.
+_CLAUDE_MODELS = {
+    "claude-haiku-4-5": _model(_TEMPERATURE, 64_000),
+    "claude-sonnet-4-5": _model(_TEMPERATURE, 64_000),
+    "claude-opus-4-5": _model(_CLAUDE_EFFORT_TEMPERATURE, 64_000),
+    "claude-opus-4-6": _model(_CLAUDE_ADAPTIVE_TEMPERATURE, 128_000),
+    "claude-sonnet-4-6": _model(_CLAUDE_ADAPTIVE_TEMPERATURE, 128_000),
+    "claude-fable-5": _model(_CLAUDE_MANDATORY_THINKING, 128_000),
+    "claude-mythos-5": _model(_CLAUDE_MANDATORY_THINKING, 128_000),
+    "claude-opus-4-7": _model(_CLAUDE_ADAPTIVE, 128_000),
+    "claude-opus-4-8": _model(_CLAUDE_ADAPTIVE, 128_000),
+    "claude-opus-5": _model(_CLAUDE_ADAPTIVE, 128_000),
+    "claude-sonnet-5": _model(_CLAUDE_ADAPTIVE, 128_000),
+}
+
+_OPENROUTER_MODELS = {
+    "anthropic/claude-opus-5": _model(_OPENROUTER_REASONING, 128_000),
+    "anthropic/claude-sonnet-5": _model(_OPENROUTER_REASONING, 128_000),
+    "openai/gpt-5.6-sol": _model(_OPENROUTER_REASONING, 128_000),
+    "openai/gpt-5.6-terra": _model(_OPENROUTER_REASONING, 128_000),
+    "openai/gpt-5.6-luna": _model(_OPENROUTER_REASONING, 128_000),
+    "google/gemini-3.1-pro-preview": _model(_OPENROUTER_GEMINI, 65_536),
+    "google/gemini-3.7-flash": _model(_OPENROUTER_GEMINI, 65_536),
+    "x-ai/grok-4.6": _model(_OPENROUTER_GROK, 450_000),
+    "deepseek/deepseek-v4-pro-0813": _model(_OPENROUTER_OPEN_WEIGHT, 384_000),
+    "moonshotai/kimi-k3": _model(_OPENROUTER_OPEN_WEIGHT, 943_718),
+}
 
 # The Converse adapter currently exposes sampling only; Claude-specific effort
 # and adaptive-thinking fields are implemented by Claude Platform.
-_BEDROCK_RULES = (
-    (("haiku-4-5", "haiku-4.5"), _model(_TEMPERATURE, 64_000)),
-    (("sonnet-4-5", "sonnet-4.5"), _model(_TEMPERATURE, 64_000)),
-)
+_BEDROCK_MODELS = {
+    "claude-haiku-4-5": _model(_TEMPERATURE, 64_000),
+    "claude-sonnet-4-5": _model(_TEMPERATURE, 64_000),
+}
+
+_PROVIDER_MODELS = {
+    "claude_platform": _CLAUDE_MODELS,
+    "openrouter": _OPENROUTER_MODELS,
+    "bedrock": _BEDROCK_MODELS,
+}
 
 
 def model_capabilities(provider: str, model_id: str) -> ModelCapabilities:
     """Return the reviewed controls for a provider/model pair."""
-    mid = model_id.lower()
-    if provider == "openrouter":
-        rules = _OPENROUTER_RULES
-    elif provider == "claude_platform":
-        rules = _CLAUDE_RULES
-    elif provider == "bedrock":
-        rules = _BEDROCK_RULES
-    else:
-        return ModelCapabilities()
-    for tags, capabilities in rules:
-        if any(tag in mid for tag in tags):
-            return capabilities
-    return ModelCapabilities()
+    models = _PROVIDER_MODELS.get(provider, {})
+    return models.get(_normalized(model_id), ModelCapabilities())
 
 
 def validate_generation_options(
@@ -179,7 +196,7 @@ def validate_generation_options(
     if (
         thinking == "disabled"
         and effort in ("xhigh", "max")
-        and "opus-5" in model_id.lower()
+        and _normalized(model_id).endswith("claude-opus-5")
     ):
         raise ValueError(
             "Claude Opus 5 cannot use disabled thinking with xhigh or max effort"
