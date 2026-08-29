@@ -308,9 +308,9 @@ class SelectedRFPToolset:
     def _notify_note_updated(note) -> None:
         """Nudge the notebook so an open client sees the new selection.
 
-        The note API pushes this after every PATCH, and a selection writes no
-        NoteContent, so without it nothing tells an open notebook the RFP
-        changed. An ownerless note has no org room to push to, and a failing
+        The note API pushes this when a PATCH renames a note, and a selection
+        writes no NoteContent, so without it nothing tells an open notebook the
+        RFP changed. An ownerless note has no org room to push to, and a failing
         channel layer must not undo a write that already committed.
         """
         if note.organization_id is None:

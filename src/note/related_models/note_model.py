@@ -2,8 +2,9 @@ import json
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from django.db import models
+from django.db import models, transaction
 
+from note.related_models.note_author_model import NoteAuthor
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import DOCUMENT_TYPES
 from user.models import Author, Organization, User
@@ -67,6 +68,21 @@ class Note(DefaultModel):
             for link in self.author_links.all()
             if not link.author.is_removed
         ]
+
+    def reset_note_authors(self, author_ids: list[int]) -> None:
+        """Credit the given authors in the order received, dropping any others."""
+        unique_author_ids = list(dict.fromkeys(author_ids))
+        with transaction.atomic():
+            self.author_links.exclude(author_id__in=unique_author_ids).delete()
+            NoteAuthor.objects.bulk_create(
+                [
+                    NoteAuthor(note=self, author_id=author_id, position=position)
+                    for position, author_id in enumerate(unique_author_ids, start=1)
+                ],
+                update_conflicts=True,
+                unique_fields=["note", "author"],
+                update_fields=["position"],
+            )
 
     @property
     def permissions(self):

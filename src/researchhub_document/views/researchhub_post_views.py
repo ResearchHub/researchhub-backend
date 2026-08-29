@@ -220,9 +220,18 @@ class ResearchhubPostViewSet(
                 .annotate(
                     registered_report_id=Subquery(registered_reports.values("id")[:1])
                 )
-                .select_related("unified_document")
+                # ResearchhubPostSerializer embeds the note, so the draft
+                # relations it renders load here instead of once per post.
+                .select_related(
+                    "note__fundraise_details",
+                    "note__grant_details",
+                    "unified_document",
+                )
                 .prefetch_related(
                     "author_links",
+                    "note__author_links",
+                    "note__grant_details__contacts",
+                    "note__unified_document__hubs",
                     Prefetch(
                         "grant_applications",
                         queryset=GrantApplication.objects.select_related("grant"),

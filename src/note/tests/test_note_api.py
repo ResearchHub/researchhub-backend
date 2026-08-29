@@ -5,9 +5,11 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
+from hub.tests.helpers import create_hub
 from invite.related_models.note_invitation import NoteInvitation
-from note.models import Note, NoteTemplate
-from purchase.models import Grant
+from note.models import Note, NoteFundraise, NoteTemplate
+from organizations.models import NonprofitOrg
+from purchase.models import Fundraise, Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
@@ -17,7 +19,8 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
-from user.models import Organization
+from topic.models import Topic, UnifiedDocumentTopics
+from user.models import Author, Organization
 from user.tests.helpers import make_user_verified
 
 
@@ -1782,12 +1785,232 @@ class NoteTests(APITestCase):
             f"/api/note/{note.id}/",
             {"selected_grant": None},
         )
+        published_draft_response = self.client.patch(
+            f"/api/note/{note.id}/",
+            {"publication_is_public": True},
+        )
 
         # Assert
         self.assertEqual(wrong_type_response.status_code, 400)
         self.assertEqual(removed_response.status_code, 400)
         self.assertEqual(inactive_response.status_code, 400)
         self.assertEqual(published_response.status_code, 409)
+        self.assertEqual(published_draft_response.status_code, 409)
+
+    def test_creates_note_with_draft_details(self) -> None:
+        """A create request stores the cover, visibility, byline, and hubs."""
+        # Arrange
+        first_author = Author.objects.create(first_name="Ada", last_name="Lovelace")
+        second_author = Author.objects.create(first_name="Grace", last_name="Hopper")
+        hub = create_hub(name="Molecular Biology")
+
+        # Act
+        response = self.client.post(
+            "/api/note/",
+            {
+                "author_ids": [second_author.id, first_author.id],
+                "hub_ids": [hub.id],
+                "image": "notes/cover.png",
+                "preview_img": "https://www.researchhub.com/cover.png",
+                "publication_is_public": True,
+                "title": "Draft with details",
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["image"], "notes/cover.png")
+        self.assertEqual(
+            response.data["preview_img"], "https://www.researchhub.com/cover.png"
+        )
+        self.assertTrue(response.data["publication_is_public"])
+        self.assertEqual(
+            [author["id"] for author in response.data["authors"]],
+            [second_author.id, first_author.id],
+        )
+        self.assertEqual(
+            [hub_data["id"] for hub_data in response.data["hubs"]], [hub.id]
+        )
+
+    def test_creates_note_with_legacy_hub_input(self) -> None:
+        """A create request may still send its topics as the legacy hubs list."""
+        # Arrange
+        hub = create_hub(name="Neuroscience")
+
+        # Act
+        response = self.client.post(
+            "/api/note/", {"hubs": [hub.id], "title": "Legacy"}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [hub_data["id"] for hub_data in response.data["hubs"]], [hub.id]
+        )
+
+    def test_patches_draft_details_partially(self) -> None:
+        """A patch changes only what it sends and never touches real topics."""
+        # Arrange
+        author = Author.objects.create(first_name="Ada", last_name="Lovelace")
+        replacement_author = Author.objects.create(
+            first_name="Alan", last_name="Turing"
+        )
+        first_hub = create_hub(name="Genetics")
+        second_hub = create_hub(name="Immunology")
+        note_id = self.client.post(
+            "/api/note/",
+            {
+                "author_ids": [author.id],
+                "hub_ids": [first_hub.id],
+                "image": "notes/cover.png",
+                "publication_is_public": True,
+            },
+        ).data["id"]
+        topic = Topic.objects.create(openalex_id="T1", display_name="Genomics")
+        UnifiedDocumentTopics.objects.create(
+            unified_document=Note.objects.get(id=note_id).unified_document, topic=topic
+        )
+
+        # Act
+        replace_response = self.client.patch(
+            f"/api/note/{note_id}/",
+            {
+                "author_ids": [replacement_author.id],
+                "hub_ids": [second_hub.id],
+                "title": "Renamed",
+            },
+        )
+        clear_response = self.client.patch(
+            f"/api/note/{note_id}/",
+            {"author_ids": [], "image": None},
+        )
+
+        # Assert
+        self.assertEqual(replace_response.status_code, 200)
+        self.assertEqual(
+            [author_data["id"] for author_data in replace_response.data["authors"]],
+            [replacement_author.id],
+        )
+        self.assertEqual(
+            [hub_data["id"] for hub_data in replace_response.data["hubs"]],
+            [second_hub.id],
+        )
+        self.assertEqual(replace_response.data["image"], "notes/cover.png")
+        self.assertTrue(replace_response.data["publication_is_public"])
+        self.assertEqual(clear_response.status_code, 200)
+        self.assertEqual(clear_response.data["authors"], [])
+        self.assertIsNone(clear_response.data["image"])
+        self.assertEqual(clear_response.data["title"], "Renamed")
+        self.assertEqual(
+            list(Note.objects.get(id=note_id).unified_document.topics.all()), [topic]
+        )
+
+    def test_saves_grant_details_on_grant_note(self) -> None:
+        """Grant form values round-trip without creating a live grant."""
+        # Arrange
+        contact = get_user_model().objects.create_user(
+            username="contact@researchhub_test.com",
+            password=uuid.uuid4().hex,
+            email="contact@researchhub_test.com",
+        )
+        note_id = self.client.post(
+            "/api/note/", {"document_type": GRANT, "title": "RFP draft"}
+        ).data["id"]
+
+        # Act
+        save_response = self.client.patch(
+            f"/api/note/{note_id}/",
+            {
+                "grant": {
+                    "amount": "50000.00",
+                    "application_visibility": Grant.APPLICATION_VISIBILITY_PRIVATE,
+                    "contact_ids": [contact.id],
+                    "currency": "USD",
+                    "organization": "Kind Foundation",
+                }
+            },
+        )
+        clear_response = self.client.patch(
+            f"/api/note/{note_id}/",
+            {"grant": {"contact_ids": [], "organization": None}},
+        )
+
+        # Assert
+        self.assertEqual(save_response.status_code, 200)
+        self.assertEqual(save_response.data["grant"]["amount"], "50000.00")
+        self.assertEqual(save_response.data["grant"]["contact_ids"], [contact.id])
+        self.assertEqual(
+            save_response.data["grant"]["application_visibility"],
+            Grant.APPLICATION_VISIBILITY_PRIVATE,
+        )
+        self.assertEqual(clear_response.status_code, 200)
+        self.assertEqual(clear_response.data["grant"]["contact_ids"], [])
+        self.assertIsNone(clear_response.data["grant"]["organization"])
+        self.assertEqual(clear_response.data["grant"]["currency"], "USD")
+        self.assertFalse(Grant.objects.filter(created_by=self.user).exists())
+
+    def test_saves_fundraise_details_on_preregistration_note(self) -> None:
+        """Fundraise form values round-trip without creating a live fundraise."""
+        # Arrange
+        grant = self._create_grant()
+        nonprofit = NonprofitOrg.objects.create(
+            name="Hope Charity", endaoment_org_id="endaoment-1"
+        )
+        note_id = self.client.post(
+            "/api/note/",
+            {"document_type": PREREGISTRATION, "selected_grant": grant.id},
+        ).data["id"]
+
+        # Act
+        response = self.client.patch(
+            f"/api/note/{note_id}/",
+            {
+                "fundraise": {
+                    "duration_days": 30,
+                    "goal_amount": "2500.00",
+                    "goal_currency": "USD",
+                    "nonprofit_id": nonprofit.id,
+                }
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["fundraise"]["duration_days"], 30)
+        self.assertEqual(response.data["fundraise"]["goal_amount"], "2500.00")
+        self.assertEqual(response.data["fundraise"]["nonprofit_id"], nonprofit.id)
+        self.assertEqual(response.data["selected_grant"], grant.id)
+        self.assertFalse(Fundraise.objects.filter(created_by=self.user).exists())
+
+    def test_rejects_funding_details_the_document_type_does_not_use(self) -> None:
+        """A mismatched funding form is refused and never overwrites saved values."""
+        # Arrange
+        note_id = self.client.post(
+            "/api/note/", {"document_type": GRANT, "title": "RFP draft"}
+        ).data["id"]
+        self.client.patch(
+            f"/api/note/{note_id}/", {"grant": {"organization": "Kind Foundation"}}
+        )
+
+        # Act
+        rejected_response = self.client.patch(
+            f"/api/note/{note_id}/", {"fundraise": {"duration_days": 30}}
+        )
+        retyped_response = self.client.patch(
+            f"/api/note/{note_id}/", {"document_type": DISCUSSION}
+        )
+        restored_response = self.client.patch(
+            f"/api/note/{note_id}/", {"document_type": GRANT}
+        )
+
+        # Assert
+        self.assertEqual(rejected_response.status_code, 400)
+        self.assertIn("fundraise", rejected_response.data)
+        self.assertFalse(NoteFundraise.objects.exists())
+        self.assertIsNone(retyped_response.data["grant"])
+        self.assertEqual(
+            restored_response.data["grant"]["organization"], "Kind Foundation"
+        )
 
 
 class AccessibleNoteTests(APITestCase):
