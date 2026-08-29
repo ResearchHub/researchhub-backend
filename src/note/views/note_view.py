@@ -89,13 +89,17 @@ class NoteViewSet(ModelViewSet):
             )
             .select_related(
                 "fundraise_details",
+                "fundraise_details__nonprofit",
                 "grant_details",
                 "post",
+                "selected_grant",
                 "unified_document",
             )
             .prefetch_related(
                 "author_links",
                 "grant_details__contacts",
+                # The selected grant's image lives on its post.
+                "selected_grant__unified_document__posts",
                 "unified_document__hubs",
             )
             .distinct()

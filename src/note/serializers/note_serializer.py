@@ -20,7 +20,9 @@ from note.services.grant_selection_service import (
 )
 from note.services.note_draft_service import save_note_draft_details
 from organizations.models import NonprofitOrg
+from organizations.serializers import NonprofitOrgSerializer
 from purchase.models import Grant
+from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
     ADMIN,
@@ -86,6 +88,12 @@ class NoteGrantSerializer(ModelSerializer):
         required=False,
         source="contacts",
     )
+    # Contacts are picked by name, so the form cannot redraw them from ids alone.
+    contacts = DynamicUserSerializer(
+        many=True,
+        read_only=True,
+        _include_fields=["first_name", "id", "last_name"],
+    )
 
     class Meta:
         model = NoteGrant
@@ -93,6 +101,7 @@ class NoteGrantSerializer(ModelSerializer):
             "amount",
             "application_visibility",
             "contact_ids",
+            "contacts",
             "currency",
             "description",
             "end_date",
@@ -103,6 +112,9 @@ class NoteGrantSerializer(ModelSerializer):
 class NoteFundraiseSerializer(ModelSerializer):
     """Draft fundraise form values held by a notebook note."""
 
+    # The nonprofit is shown by name and EIN, so the form cannot redraw it from
+    # an id alone.
+    nonprofit_details = NonprofitOrgSerializer(read_only=True, source="nonprofit")
     nonprofit_id = PrimaryKeyRelatedField(
         allow_null=True,
         queryset=NonprofitOrg.objects.all(),
@@ -116,6 +128,7 @@ class NoteFundraiseSerializer(ModelSerializer):
             "duration_days",
             "goal_amount",
             "goal_currency",
+            "nonprofit_details",
             "nonprofit_id",
         ]
 
@@ -162,6 +175,20 @@ class NoteSerializer(ModelSerializer):
         allow_null=True,
         queryset=Grant.objects.none(),
         required=False,
+    )
+    # The RFP card shows the grant, not its id, and the funder's visibility rule
+    # decides whether the applicant may still choose a public proposal.
+    selected_grant_details = DynamicGrantSerializer(
+        read_only=True,
+        source="selected_grant",
+        _include_fields=[
+            "amount",
+            "application_visibility",
+            "id",
+            "image_url",
+            "organization",
+            "short_title",
+        ],
     )
     unified_document = SerializerMethodField()
 

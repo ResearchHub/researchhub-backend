@@ -58,6 +58,7 @@ class NoteTests(APITestCase):
             unified_document=post.unified_document,
             amount=Decimal("1000.00"),
             description="Grant requirements",
+            short_title="Kindness RFP",
             status=status,
         )
 
@@ -1735,6 +1736,9 @@ class NoteTests(APITestCase):
         self.assertEqual(add_response.status_code, 200)
         self.assertEqual(add_response.data["document_type"], PREREGISTRATION)
         self.assertEqual(add_response.data["selected_grant"], first_grant.id)
+        self.assertEqual(
+            add_response.data["selected_grant_details"]["short_title"], "Kindness RFP"
+        )
         self.assertEqual(replace_response.status_code, 200)
         self.assertEqual(replace_response.data["selected_grant"], second_grant.id)
         self.assertEqual(retain_response.status_code, 400)
@@ -1912,6 +1916,8 @@ class NoteTests(APITestCase):
             username="contact@researchhub_test.com",
             password=uuid.uuid4().hex,
             email="contact@researchhub_test.com",
+            first_name="Ada",
+            last_name="Lovelace",
         )
         note_id = self.client.post(
             "/api/note/", {"document_type": GRANT, "title": "RFP draft"}
@@ -1939,6 +1945,10 @@ class NoteTests(APITestCase):
         self.assertEqual(save_response.status_code, 200)
         self.assertEqual(save_response.data["grant"]["amount"], "50000.00")
         self.assertEqual(save_response.data["grant"]["contact_ids"], [contact.id])
+        self.assertEqual(
+            save_response.data["grant"]["contacts"],
+            [{"id": contact.id, "first_name": "Ada", "last_name": "Lovelace"}],
+        )
         self.assertEqual(
             save_response.data["grant"]["application_visibility"],
             Grant.APPLICATION_VISIBILITY_PRIVATE,
@@ -1979,6 +1989,9 @@ class NoteTests(APITestCase):
         self.assertEqual(response.data["fundraise"]["duration_days"], 30)
         self.assertEqual(response.data["fundraise"]["goal_amount"], "2500.00")
         self.assertEqual(response.data["fundraise"]["nonprofit_id"], nonprofit.id)
+        self.assertEqual(
+            response.data["fundraise"]["nonprofit_details"]["name"], "Hope Charity"
+        )
         self.assertEqual(response.data["selected_grant"], grant.id)
         self.assertFalse(Fundraise.objects.filter(created_by=self.user).exists())
 
