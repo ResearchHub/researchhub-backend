@@ -87,7 +87,12 @@ class NoteSerializer(ModelSerializer):
     class Meta:
         model = Note
         fields = "__all__"
-        read_only_fields = ["unified_document"]
+        read_only_fields = [
+            "image",
+            "preview_img",
+            "publication_is_public",
+            "unified_document",
+        ]
 
     def get_fields(self) -> dict:
         """Return fields with writable grants restricted to the requester."""
@@ -247,6 +252,11 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = Note
         fields = "__all__"
+        read_only_fields = [
+            "image",
+            "preview_img",
+            "publication_is_public",
+        ]
 
     def get_access(self, note):
         permissions = note.permissions

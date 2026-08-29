@@ -20,11 +20,24 @@ class Note(DefaultModel):
         null=True,
         blank=True,
     )
+    image = models.TextField(
+        blank=True,
+        null=True,
+    )
     latest_version = models.ForeignKey(
         "note.NoteContent", null=True, related_name="source", on_delete=models.CASCADE
     )
     organization = models.ForeignKey(
         Organization, null=True, related_name="created_notes", on_delete=models.SET_NULL
+    )
+    preview_img = models.URLField(
+        blank=True,
+        max_length=2048,
+        null=True,
+    )
+    publication_is_public = models.BooleanField(
+        blank=True,
+        null=True,
     )
     selected_grant = models.ForeignKey(
         "purchase.Grant",
