@@ -88,6 +88,7 @@ class NoteSerializer(ModelSerializer):
         model = Note
         fields = "__all__"
         read_only_fields = [
+            "authors",
             "image",
             "preview_img",
             "publication_is_public",
@@ -253,6 +254,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         model = Note
         fields = "__all__"
         read_only_fields = [
+            "authors",
             "image",
             "preview_img",
             "publication_is_public",

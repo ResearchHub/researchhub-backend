@@ -6,11 +6,16 @@ from django.db import models
 
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import DOCUMENT_TYPES
-from user.models import Organization, User
+from user.models import Author, Organization, User
 from utils.models import DefaultModel
 
 
 class Note(DefaultModel):
+    authors = models.ManyToManyField(
+        Author,
+        related_name="authored_notes",
+        through="NoteAuthor",
+    )
     created_by = models.ForeignKey(
         User, null=True, related_name="created_notes", on_delete=models.SET_NULL
     )
@@ -53,6 +58,15 @@ class Note(DefaultModel):
 
     def __str__(self):
         return f"Id: {self.id}, Title: {self.title}"
+
+    @property
+    def ordered_authors(self) -> list[Author]:
+        """Return credited authors in byline order, excluding removed ones."""
+        return [
+            link.author
+            for link in self.author_links.all()
+            if not link.author.is_removed
+        ]
 
     @property
     def permissions(self):
