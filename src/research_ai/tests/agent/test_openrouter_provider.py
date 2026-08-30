@@ -4,6 +4,8 @@ import json
 from copy import deepcopy
 from types import SimpleNamespace
 
+import httpx
+import openai
 from django.test import SimpleTestCase, override_settings
 
 from research_ai.services.agent.errors import ProviderError
@@ -54,10 +56,12 @@ def _tool_call(call_id="call-1", name="search", arguments='{"q": 1}'):
     )
 
 
-def _build_provider(responses=None, model_id="test-model"):
+def _build_provider(responses=None, model_id="test-model", **kwargs):
     """Build an OpenRouterProvider with a fake client so no HTTP client exists."""
     return OpenRouterProvider(
-        client=FakeChatCompletionsClient(responses or []), model_id=model_id
+        client=FakeChatCompletionsClient(responses or []),
+        model_id=model_id,
+        **kwargs,
     )
 
 
@@ -191,7 +195,7 @@ class RenderMessagesTests(SimpleTestCase):
 class CompleteRequestTests(SimpleTestCase):
     def test_tools_and_sampling_params_are_sent(self):
         # Arrange
-        provider = _build_provider([_response(content="ok")])
+        provider = _build_provider([_response(content="ok")], effort="low")
         rendered_tools = [{"type": "function", "function": {"name": "search"}}]
 
         # Act
@@ -203,6 +207,69 @@ class CompleteRequestTests(SimpleTestCase):
         self.assertEqual(kwargs["max_tokens"], 100)
         self.assertEqual(kwargs["temperature"], 0.5)
         self.assertEqual(kwargs["tools"], rendered_tools)
+        self.assertEqual(kwargs["extra_body"], {"reasoning": {"effort": "low"}})
+
+    def test_effort_can_be_omitted_for_incompatible_models(self):
+        # Arrange
+        provider = _build_provider([_response(content="ok")])
+
+        # Act
+        _complete(provider)
+
+        # Assert
+        self.assertNotIn("extra_body", provider._client.calls[0])
+
+    def test_default_effort_is_sent_for_a_capable_model(self):
+        # Arrange
+        provider = _build_provider(
+            [_response(content="ok")], model_id="google/gemini-3.1-pro-preview"
+        )
+
+        # Act
+        _complete(provider)
+
+        # Assert
+        self.assertEqual(
+            provider._client.calls[0]["extra_body"],
+            {"reasoning": {"effort": "low"}},
+        )
+
+    def test_frontend_generation_options_are_sent_as_reasoning(self):
+        # Arrange
+        client = FakeChatCompletionsClient([_response(content="ok")])
+        provider = OpenRouterProvider(
+            client=client,
+            model_id="openai/gpt-5.6-sol",
+            effort="high",
+            thinking="adaptive",
+        )
+
+        # Act
+        _complete(provider)
+
+        # Assert
+        self.assertEqual(
+            client.calls[0]["extra_body"],
+            {"reasoning": {"enabled": True, "effort": "high"}},
+        )
+
+    def test_disabled_thinking_suppresses_effort(self):
+        # Arrange
+        client = FakeChatCompletionsClient([_response(content="ok")])
+        provider = OpenRouterProvider(
+            client=client,
+            model_id="openai/gpt-5.6-sol",
+            effort="high",
+            thinking="disabled",
+        )
+
+        # Act
+        _complete(provider)
+
+        # Assert
+        self.assertEqual(
+            client.calls[0]["extra_body"], {"reasoning": {"enabled": False}}
+        )
 
     def test_none_max_tokens_resolves_to_the_adapter_output_ceiling(self):
         # Arrange
@@ -419,6 +486,64 @@ class ErrorTests(SimpleTestCase):
         # Act / Assert
         with self.assertRaises(ProviderError):
             _complete(provider)
+
+    def test_transient_sdk_failures_classify_as_retryable(self):
+        # Arrange
+        request = httpx.Request("POST", "https://openrouter.test/v1/chat")
+        transient = [
+            openai.APIConnectionError(request=request),
+            openai.APIStatusError(
+                "rate limited",
+                response=httpx.Response(429, request=request),
+                body=None,
+            ),
+            openai.APIStatusError(
+                "upstream down",
+                response=httpx.Response(502, request=request),
+                body=None,
+            ),
+        ]
+        permanent = [
+            openai.APIStatusError(
+                "bad request",
+                response=httpx.Response(400, request=request),
+                body=None,
+            ),
+            RuntimeError("adapter bug"),
+        ]
+
+        # Act / Assert
+        for error in transient:
+            self.assertTrue(openrouter._is_retryable_error(error), repr(error))
+        for error in permanent:
+            self.assertFalse(openrouter._is_retryable_error(error), repr(error))
+
+    def test_rate_limited_client_raises_a_retryable_provider_error(self):
+        # Arrange
+        request = httpx.Request("POST", "https://openrouter.test/v1/chat")
+        rate_limited = openai.APIStatusError(
+            "rate limited",
+            response=httpx.Response(429, request=request),
+            body=None,
+        )
+
+        class ExplodingClient:
+            def __init__(self):
+                self.chat = SimpleNamespace(
+                    completions=SimpleNamespace(create=self._create)
+                )
+
+            def _create(self, **kwargs):
+                raise rate_limited
+
+        provider = OpenRouterProvider(client=ExplodingClient(), model_id="test-model")
+
+        # Act
+        with self.assertRaises(ProviderError) as ctx:
+            _complete(provider)
+
+        # Assert
+        self.assertTrue(ctx.exception.retryable)
 
 
 class DefaultsTests(SimpleTestCase):

@@ -55,6 +55,8 @@ def resolve_provider(
     model_ref: str | None = None,
     *,
     native_tools: frozenset[str] = frozenset(),
+    effort: str | None = None,
+    thinking: str | None = None,
 ) -> LLMProvider:
     """Build the provider for ``model_ref``.
 
@@ -68,10 +70,16 @@ def resolve_provider(
     if provider_name == BEDROCK:
         return BedrockProvider(model_id=model_id)
     if provider_name == OPENROUTER:
-        return OpenRouterProvider(model_id=model_id)
+        return OpenRouterProvider(
+            model_id=model_id,
+            effort=effort,
+            thinking=thinking,
+        )
     return ClaudePlatformProvider(
         model_id=model_id,
         web_search=claude_platform.WEB_SEARCH_TOOL_NAME in native_tools,
+        effort=effort,
+        thinking=thinking,
     )
 
 

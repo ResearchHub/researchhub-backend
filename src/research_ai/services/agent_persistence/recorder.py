@@ -358,11 +358,16 @@ class DatabaseAgentRecorder:
             else:
                 stop_reason = "error"
         cause = getattr(error, "__cause__", None)
+        retryable = getattr(error, "retryable", None)
         details = {
             "stop_reason": stop_reason,
             "iterations": getattr(error, "iterations", None),
             "cause_type": type(cause).__name__ if cause else None,
             "cause_message": _safe_exception_message(cause) if cause else None,
+            # The provider's transient-vs-permanent verdict -- None when the
+            # error carries no classification -- recorded because the exception
+            # dies with this worker and the taxonomy needs the answer later.
+            "retryable": None if retryable is None else bool(retryable),
         }
         safe_details, _truncated, _size = bounded_payload(details)
         status = (

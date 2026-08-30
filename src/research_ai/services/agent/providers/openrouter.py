@@ -13,10 +13,12 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+import openai
 from django.conf import settings
 from openai import OpenAI
 
 from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
@@ -44,10 +46,17 @@ MODEL_ID = "anthropic/claude-opus-5"
 # the client read timeout and die whole. Raise only after moving to streaming.
 MAX_OUTPUT_TOKENS = 32_768
 
+# How much the model may deliberate and spend per turn. OpenRouter normalizes
+# this across supported model families through ``reasoning.effort``. Keep the
+# default aligned with the Claude Platform adapter so switching providers does
+# not silently change the workflow's reasoning depth. ``""`` omits the option.
+EFFORT = "low"
+
 # Same guard as the Bedrock adapter: Opus 4.7+ and Fable reject sampling params
 # (temperature/top_p) with a 400. OpenRouter forwards params to the upstream
 # provider verbatim, so omit them for those models here too.
 _NO_SAMPLING_PARAMS = (
+    "openai/gpt-5",
     "opus-4-7",
     "opus-4-8",
     "opus-4.7",
@@ -62,6 +71,22 @@ _NO_SAMPLING_PARAMS = (
 def _accepts_sampling_params(model_id: str) -> bool:
     mid = model_id.lower()
     return not any(tag in mid for tag in _NO_SAMPLING_PARAMS)
+
+
+# Statuses worth repeating unchanged: timeouts, races, rate limits, and every
+# server-side failure. Auth/config/invalid-request statuses fail identically
+# on every attempt.
+_RETRYABLE_STATUS_CODES = frozenset({408, 409, 429})
+
+
+def _is_retryable_error(error: Exception) -> bool:
+    """Whether this SDK failure is transient rather than a fault of the request."""
+    if isinstance(error, openai.APIConnectionError):
+        return True
+    if isinstance(error, openai.APIStatusError):
+        status = error.status_code
+        return status in _RETRYABLE_STATUS_CODES or status >= 500
+    return False
 
 
 # Chat Completions ``finish_reason`` -> neutral ``StopReason``.
@@ -105,8 +130,20 @@ def _plain_dict(value: Any) -> dict:
 class OpenRouterProvider(LLMProvider):
     """Adapts the neutral agent types to OpenRouter's Chat Completions API."""
 
-    def __init__(self, *, client: Any = None, model_id: str | None = None):
+    def __init__(
+        self,
+        *,
+        client: Any = None,
+        model_id: str | None = None,
+        effort: str | None = None,
+        thinking: str | None = None,
+    ):
         self.model_id = model_id or MODEL_ID
+        capabilities = model_capabilities("openrouter", self.model_id)
+        self.effort = (
+            EFFORT if effort is None and EFFORT in capabilities.effort else effort or ""
+        )
+        self.thinking = thinking
         if client is not None:
             self._client = client
         else:
@@ -156,13 +193,26 @@ class OpenRouterProvider(LLMProvider):
             kwargs["temperature"] = temperature
         if rendered_tools:
             kwargs["tools"] = rendered_tools
+        reasoning: dict = {}
+        if self.thinking is not None:
+            reasoning["enabled"] = self.thinking == "adaptive"
+        if self.effort and self.thinking != "disabled":
+            reasoning["effort"] = self.effort
+        if reasoning:
+            # ``reasoning`` is an OpenRouter extension rather than an OpenAI
+            # Chat Completions argument, so the OpenAI client forwards it via
+            # ``extra_body``.
+            kwargs["extra_body"] = {"reasoning": reasoning}
 
         started = time.perf_counter()
         try:
             response = self._client.chat.completions.create(**kwargs)
         except Exception as e:
             logger.exception("OpenRouter complete failed")
-            raise ProviderError(f"OpenRouter complete failed: {e}") from e
+            raise ProviderError(
+                f"OpenRouter complete failed: {e}",
+                retryable=_is_retryable_error(e),
+            ) from e
         latency_ms = int((time.perf_counter() - started) * 1000)
 
         self._log_usage(response)

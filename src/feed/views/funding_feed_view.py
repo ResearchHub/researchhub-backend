@@ -19,7 +19,6 @@ from feed.feed_list_dto import (
     FundingFeedListEntrySerializer,
     serialize_fund_feed_metrics,
 )
-from feed.feed_visibility import exclude_hidden_from_feed
 from feed.filters import FundOrderingFilter
 from feed.views.feed_view_mixin import FeedViewMixin
 from feed.views.funding_cache_mixin import (
@@ -182,7 +181,6 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
                 unified_document__status=ResearchhubUnifiedDocument.APPROVED,
             )
         )
-        queryset = exclude_hidden_from_feed(queryset)
 
         # Personalized feeds (grant_id / created_by / funded_by) are never
         # cached -- see `use_cache` in list() -- so they can safely respect

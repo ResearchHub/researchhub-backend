@@ -223,16 +223,63 @@ class AgentChatService:
         )
 
     @staticmethod
-    def _public_error(execution: AgentExecution) -> dict[str, str] | None:
+    def _public_error(execution: AgentExecution) -> dict | None:
+        """A user-safe rendering of why this attempt failed.
+
+        A coarse code, a ``retryable`` hint for a client's Retry affordance,
+        and a message written for the user -- never raw provider or exception
+        text, which can carry request internals. Classification reads only
+        what the failure recorded on the row (status, stop reason, and the
+        provider's stored transient-vs-permanent verdict), so it works long
+        after the worker that failed is gone.
+        """
         if not execution.error_type:
             return None
         if execution.status == AgentExecution.Status.INTERRUPTED:
+            # The worker observed the user's own stop mid-run -- named for
+            # the client, but not offered for retry.
             return {
                 "code": "agent_interrupted",
+                "retryable": False,
                 "message": "The agent request was interrupted.",
             }
+        if execution.stop_reason == "iteration_limit":
+            return {
+                "code": "turn_too_long",
+                "retryable": True,
+                "message": (
+                    "The agent ran out of steps before finishing. Try again, "
+                    "or ask for something smaller."
+                ),
+            }
+        if execution.stop_reason == "max_tokens":
+            return {
+                "code": "turn_too_long",
+                "retryable": True,
+                "message": (
+                    "The answer ran out of room before finishing. Try again, "
+                    "or ask for something smaller."
+                ),
+            }
+        if execution.stop_reason == "content_filtered":
+            return {
+                "code": "content_refused",
+                "retryable": False,
+                "message": "The agent declined to complete this request.",
+            }
+        details = execution.error_details
+        verdict = details.get("retryable") if isinstance(details, dict) else None
+        if verdict:
+            return {
+                "code": "provider_busy",
+                "retryable": True,
+                "message": "The model was overloaded — try again.",
+            }
         return {
+            # An explicit permanent verdict means an identical retry would
+            # fail the same way; an unclassified failure is worth one.
             "code": "agent_failed",
+            "retryable": verdict is None,
             "message": "The agent could not complete this request.",
         }
 

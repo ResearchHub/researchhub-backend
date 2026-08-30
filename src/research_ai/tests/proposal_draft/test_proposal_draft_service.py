@@ -51,7 +51,10 @@ from research_ai.services.proposal_draft.runner import (
 from research_ai.services.proposal_draft.tools.assembly import assemble_proposal
 from researchhub_access_group.constants import ADMIN, NO_ACCESS
 from researchhub_document.helpers import create_post
-from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from user.tests.helpers import create_random_default_user
 
 _CRITERIA = ("c1", "c2", "c3", "c4", "c5", "c6", "c7")
@@ -279,6 +282,24 @@ class ProposalDraftServiceTests(TestCase):
 
     # -- clean submit writes the Note -------------------------------------
 
+    def test_shipped_note_is_a_preregistration_for_the_rfp_it_answers(self):
+        # Arrange
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: the note the user opens already applies to the grant the
+        # draft was written against, rather than making them re-pick it.
+        note = Note.objects.get(id=result["note_id"])
+        self.assertEqual(note.document_type, PREREGISTRATION)
+        self.assertEqual(note.selected_grant_id, self.grant.id)
+
     def test_clean_submit_writes_note(self):
         # Arrange: one clean submit; panel clears the threshold; no citations.
         provider = _ScriptedProvider([_submit_turn(_clean_payload())])
@@ -381,6 +402,8 @@ class ProposalDraftServiceTests(TestCase):
             result = run_proposal_draft(
                 self.search_expert.id,
                 model_ref="openrouter:openai/gpt-5.6-sol",
+                effort="high",
+                thinking="adaptive",
                 panel=_FakePanel(overall=5),
                 oa_client=_FakeOpenAlex(),
             )
@@ -390,6 +413,8 @@ class ProposalDraftServiceTests(TestCase):
         resolve.assert_called_once_with(
             "openrouter:openai/gpt-5.6-sol",
             native_tools=frozenset({"web_search"}),
+            effort="high",
+            thinking="adaptive",
         )
         self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
@@ -397,6 +422,8 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(
             draft.run_config["generator_model_id"], "openrouter:openai/gpt-5.6-sol"
         )
+        self.assertEqual(draft.run_config["effort"], "high")
+        self.assertEqual(draft.run_config["thinking"], "adaptive")
 
     def test_default_judge_roster_follows_the_selected_model(self):
         # Arrange: no injected panel, so the default single-judge roster is

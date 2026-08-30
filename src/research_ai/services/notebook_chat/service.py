@@ -54,6 +54,7 @@ from research_ai.services.agent import (
     split_model_ref,
     validate_model_ref,
 )
+from research_ai.services.agent.model_capabilities import validate_generation_options
 from research_ai.services.agent_persistence import (
     AgentChatService,
     AgentContextService,
@@ -83,6 +84,9 @@ from research_ai.services.notebook_chat.events import (
 from research_ai.services.notebook_chat.grant_tools import (
     GrantSearchToolset,
     SelectedRFPToolset,
+)
+from research_ai.services.notebook_chat.researcher_profile_tools import (
+    ResearcherProfileToolset,
 )
 from research_ai.services.notebook_chat.streaming import ExecutionStreamStore
 from research_ai.services.notebook_chat.toolset import (
@@ -172,6 +176,7 @@ class NotebookChatService:
         oa_client: OpenAlex | None = None,
         web_search_client=None,
         grant_toolset_factory=None,
+        researcher_profile_toolset_factory=None,
         chat_service: AgentChatService | None = None,
         conversation_service: AgentConversationService | None = None,
         note_conversation_service: NoteAgentConversationService | None = None,
@@ -188,6 +193,11 @@ class NotebookChatService:
             GrantSearchToolset
             if grant_toolset_factory is None
             else grant_toolset_factory
+        )
+        self._researcher_profile_toolset_factory = (
+            ResearcherProfileToolset
+            if researcher_profile_toolset_factory is None
+            else researcher_profile_toolset_factory
         )
         self.chat = AgentChatService() if chat_service is None else chat_service
         self.conversations = (
@@ -427,6 +437,9 @@ class NotebookChatService:
         text: str,
         *,
         model_ref: str | None = None,
+        effort: str | None = None,
+        thinking: str | None = None,
+        temperature: float | None = None,
     ) -> AgentExecution:
         """Record the user's message on ``conversation`` and schedule the turn.
 
@@ -474,6 +487,27 @@ class NotebookChatService:
                     "model cannot be changed after a conversation has started"
                 )
             model = conversation_model or selected_model or generator_model_ref()
+            provider_name, model_id = split_model_ref(model)
+            validate_generation_options(
+                provider_name,
+                model_id or "",
+                effort=effort,
+                thinking=thinking,
+                temperature=temperature,
+            )
+
+            configuration = {
+                "max_iterations": config.max_iterations,
+                "max_tokens": config.max_tokens,
+                "temperature": (
+                    config.temperature if temperature is None else temperature
+                ),
+                "note_id": note.id,
+            }
+            if effort is not None:
+                configuration["effort"] = effort
+            if thinking is not None:
+                configuration["thinking"] = thinking
 
             prepared = self.chat.prepare_turn(
                 locked_conversation,
@@ -481,12 +515,7 @@ class NotebookChatService:
                 pending=True,
                 provider=split_model_ref(model)[0],
                 model=model,
-                configuration={
-                    "max_iterations": config.max_iterations,
-                    "max_tokens": config.max_tokens,
-                    "temperature": config.temperature,
-                    "note_id": note.id,
-                },
+                configuration=configuration,
                 system_prompt=build_notebook_chat_system_prompt(note),
             )
         execution = prepared.execution
@@ -622,13 +651,23 @@ class NotebookChatService:
             recorder.on_run_failed(error)
             return {"execution_id": execution.id, "error": str(error)}
 
+        stored_configuration = execution.configuration or {}
+        provider_options = {
+            key: stored_configuration[key]
+            for key in ("effort", "thinking")
+            if key in stored_configuration
+        }
         provider = self._provider or resolve_provider(
             execution.model or None,
             native_tools=frozenset({"web_search"}),
+            **provider_options,
         )
         toolset = compose_notebook_toolset(
             note_toolset=NoteToolset(user=conversation.user, note_ids={note.id}),
             user_profile_toolset=UserProfileToolset(user=conversation.user),
+            researcher_profile_toolset=self._researcher_profile_toolset_factory(
+                user=conversation.user
+            ),
             grant_toolset=self._grant_toolset_factory(user=conversation.user),
             selected_rfp_toolset=(
                 SelectedRFPToolset(note=note, user=conversation.user)

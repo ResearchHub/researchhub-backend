@@ -33,6 +33,10 @@ from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE
 from research_ai.services.notebook_chat.grant_tools import (
     READ_SELECTED_RFP,
     SEARCH_GRANTS,
+    SET_SELECTED_RFP,
+)
+from research_ai.services.notebook_chat.researcher_profile_tools import (
+    GET_RESEARCHER_PROFILE,
 )
 from research_ai.services.researcher_profile.openalex_tools import GET_WORK_FULLTEXT
 
@@ -48,11 +52,13 @@ _LABELS = {
     WEB_SEARCH: "Searched the web",
     SEARCH_GRANTS: "Searched grants",
     READ_SELECTED_RFP: "Read the selected RFP",
+    SET_SELECTED_RFP: "Selected an RFP",
     SEARCH_INSTITUTIONS: "Searched institutions",
     SEARCH_AUTHORS: "Searched scholarly authors",
     GET_AUTHOR: "Looked up an author",
     GET_AUTHOR_WORKS: "Fetched an author's publications",
     GET_WORK_FULLTEXT: "Read a paper",
+    GET_RESEARCHER_PROFILE: "Read your researcher profile",
 }
 # What each tool is doing while the call is still open, for the live phase.
 # Distinct from _LABELS, which reads as a completed step.
@@ -62,11 +68,13 @@ _ACTIVE_LABELS = {
     WEB_SEARCH: "Searching the web",
     SEARCH_GRANTS: "Searching grants",
     READ_SELECTED_RFP: "Reading the selected RFP",
+    SET_SELECTED_RFP: "Selecting an RFP",
     SEARCH_INSTITUTIONS: "Searching institutions",
     SEARCH_AUTHORS: "Searching scholarly authors",
     GET_AUTHOR: "Looking up an author",
     GET_AUTHOR_WORKS: "Fetching an author's publications",
     GET_WORK_FULLTEXT: "Reading a paper",
+    GET_RESEARCHER_PROFILE: "Reading your researcher profile",
 }
 # What the model is doing while it is still writing a tool call's arguments.
 # Only tools whose arguments are substantial work in themselves need copy
@@ -284,6 +292,9 @@ def _sources(event: ToolCallEvent) -> list[dict]:
         url_field = "url"
     elif event.tool == READ_SELECTED_RFP:
         items = [result]
+        url_field = "url"
+    elif event.tool == SET_SELECTED_RFP:
+        items = [result.get("selected_rfp")]
         url_field = "url"
     elif event.tool == GET_AUTHOR_WORKS:
         items = result.get("works")

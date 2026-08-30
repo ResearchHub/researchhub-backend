@@ -2,6 +2,7 @@
 
 from django.test import SimpleTestCase, override_settings
 
+from research_ai.services.agent.model_capabilities import validate_generation_options
 from research_ai.services.agent.model_catalog import (
     available_models,
     default_model_ref,
@@ -36,6 +37,38 @@ class AvailableModelsTests(SimpleTestCase):
         for option in options:
             self.assertTrue(option.label)
             self.assertIn(option.provider, ("bedrock", "claude_platform", "openrouter"))
+
+    def test_haiku_advertises_temperature_but_not_effort_or_thinking(self):
+        # Arrange
+        option = next(
+            option
+            for option in available_models()
+            if option.ref == "claude_platform:claude-haiku-4-5"
+        )
+
+        # Act
+        capabilities = option.capabilities
+
+        # Assert
+        self.assertEqual(capabilities.effort, ())
+        self.assertEqual(capabilities.thinking, ())
+        self.assertTrue(capabilities.temperature)
+
+    def test_openrouter_gpt_advertises_reasoning_but_not_temperature(self):
+        # Arrange
+        option = next(
+            option
+            for option in available_models()
+            if option.ref == "openrouter:openai/gpt-5.6-sol"
+        )
+
+        # Act
+        capabilities = option.capabilities
+
+        # Assert
+        self.assertIn("high", capabilities.effort)
+        self.assertEqual(capabilities.thinking, ("adaptive", "disabled"))
+        self.assertFalse(capabilities.temperature)
 
     @override_settings(OPENROUTER_API_KEY="")
     def test_unconfigured_provider_models_are_hidden(self):
@@ -93,3 +126,24 @@ class ValidateModelRefTests(SimpleTestCase):
         # Act / Assert
         with self.assertRaises(ValueError):
             validate_model_ref("openrouter:openai/gpt-5.6-sol")
+
+
+class ValidateGenerationOptionsTests(SimpleTestCase):
+    def test_temperature_requires_disabled_thinking_on_claude_4_6(self):
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "requires thinking='disabled'"):
+            validate_generation_options(
+                "claude_platform",
+                "claude-opus-4-6",
+                temperature=0.4,
+            )
+
+    def test_openrouter_rejects_conflicting_reasoning_controls(self):
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "cannot combine"):
+            validate_generation_options(
+                "openrouter",
+                "openai/gpt-5.6-sol",
+                effort="high",
+                thinking="disabled",
+            )

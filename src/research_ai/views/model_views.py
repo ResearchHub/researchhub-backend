@@ -34,6 +34,7 @@ class AvailableModelsView(APIView):
                         "label": option.label,
                         "description": option.description,
                         "provider": option.provider,
+                        "capabilities": option.capabilities.as_dict(),
                     }
                     for option in available_models()
                 ],
