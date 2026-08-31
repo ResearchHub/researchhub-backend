@@ -108,11 +108,9 @@ def run_proposal_review(review_id: int) -> None:
         review.save(update_fields=["progress", "current_step", "updated_date"])
         external_ctx = build_researcher_external_context(review.unified_document)
         author_ctx = build_author_context_snippet(review.unified_document)
-        triggering_user = review.created_by or review.unified_document.created_by
         web_ctx = fetch_proposal_review_web_context(
             proposal_text,
             author_ctx or "",
-            user=triggering_user,
         )
         review.progress = 40
         review.current_step = "Running AI assessment"
@@ -125,7 +123,7 @@ def run_proposal_review(review_id: int) -> None:
             external_researcher_context=external_ctx or None,
             web_search_context=web_ctx or None,
         )
-        llm = BedrockLLMService(user=triggering_user, feature="proposal_review")
+        llm = BedrockLLMService()
         raw = llm.invoke(
             system,
             user,

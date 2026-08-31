@@ -5,8 +5,6 @@ from io import BytesIO
 from django.conf import settings
 from PIL import Image
 
-from research_ai.services.llm_result import bedrock_usage
-from research_ai.services.usage_budget import record
 from utils.aws import create_client
 
 logger = logging.getLogger(__name__)
@@ -558,15 +556,6 @@ on other criteria."""
                     "temperature": 0.0,
                 },
             )
-            usage = bedrock_usage(response)
-            if usage is not None:
-                record(
-                    None,
-                    "paper_primary_image",
-                    "bedrock",
-                    self.model_id,
-                    usage,
-                )
 
             if "output" not in response or not response["output"].get("message"):
                 logger.error(

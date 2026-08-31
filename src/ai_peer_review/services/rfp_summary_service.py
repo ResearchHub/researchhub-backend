@@ -30,7 +30,7 @@ def run_rfp_summary(rfp_summary_id: int) -> None:
         text = obj.grant.get_llm_context_text()
         if not text.strip():
             raise ValueError("Grant has no readable description or post body.")
-        llm = BedrockLLMService(feature="rfp_summary")
+        llm = BedrockLLMService()
         out = llm.invoke(
             get_rfp_summary_system_prompt(),
             build_rfp_summary_user_prompt(text),
@@ -87,7 +87,7 @@ def run_executive_comparison(
         + "\n\n---\nProposals and scores:\n"
         + "\n".join(lines)
     )
-    llm = BedrockLLMService(feature="rfp_summary")
+    llm = BedrockLLMService()
     out = llm.invoke(
         get_grant_executive_summary_system_prompt(),
         user_prompt,

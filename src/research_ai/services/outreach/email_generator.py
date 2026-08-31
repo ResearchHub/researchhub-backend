@@ -322,7 +322,7 @@ def _generate_with_llm(
         sender_context=sender_block,
         document_context=document_block,
     )
-    service = BedrockLLMService(user=user, feature="outreach_email")
+    service = BedrockLLMService()
     raw = service.invoke(
         system_prompt=EMAIL_SYSTEM_PROMPT,
         user_prompt=prompt,

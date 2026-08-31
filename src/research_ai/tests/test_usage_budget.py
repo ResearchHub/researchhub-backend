@@ -1,5 +1,4 @@
 from threading import Event, Thread
-from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.db import close_old_connections
@@ -9,7 +8,6 @@ from rest_framework.test import APIClient
 
 from research_ai.models import AgentConversation, AgentExecution, Expert, LLMUsageEvent
 from research_ai.services.agent.types import TurnUsage
-from research_ai.services.bedrock_llm_service import BedrockLLMService
 from research_ai.services.usage_budget import (
     UsageLimitExceededError,
     UsageWorkInProgressError,
@@ -107,24 +105,6 @@ class UsageBudgetTests(TestCase):
                 self.user,
                 "claude_platform:claude-opus-5",
             )
-
-    @patch("research_ai.services.bedrock_llm_service.record")
-    @patch("research_ai.services.bedrock_llm_service.create_client")
-    def test_untagged_legacy_wrapper_does_not_record_usage(
-        self, create_client, record_usage
-    ):
-        # Arrange
-        create_client.return_value.converse.return_value = {
-            "output": {"message": {"content": [{"text": "result"}]}},
-            "usage": {"inputTokens": 10, "outputTokens": 5},
-        }
-
-        # Act
-        result = BedrockLLMService().invoke("system", "user")
-
-        # Assert
-        self.assertEqual(result, "result")
-        record_usage.assert_not_called()
 
 
 class AtomicAdmissionTests(TransactionTestCase):

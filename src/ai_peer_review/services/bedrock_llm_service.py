@@ -2,8 +2,6 @@ import logging
 
 from django.conf import settings
 
-from research_ai.services.llm_result import LLMTextResult, bedrock_usage
-from research_ai.services.usage_budget import record
 from utils.aws import bedrock_runtime_client
 
 logger = logging.getLogger(__name__)
@@ -32,11 +30,9 @@ def _converse_inference_config(
 class BedrockLLMService:
     """Invoke Bedrock for structured proposal review JSON (and related tasks)."""
 
-    def __init__(self, *, user=None, feature: str = "proposal_review"):
+    def __init__(self):
         self.bedrock_client = bedrock_runtime_client()
         self.model_id = BEDROCK_MODEL_ID
-        self.user = user
-        self.feature = feature
 
     def invoke(
         self,
@@ -45,7 +41,7 @@ class BedrockLLMService:
         *,
         max_tokens: int = 8192,
         temperature: float = 0.0,
-    ) -> LLMTextResult:
+    ) -> str:
         try:
             response = self.bedrock_client.converse(
                 modelId=self.model_id,
@@ -72,11 +68,8 @@ class BedrockLLMService:
 
         message = response["output"]["message"]
         content = message.get("content", [])
-        usage = bedrock_usage(response)
-        if usage is not None:
-            record(self.user, self.feature, "bedrock", self.model_id, usage)
         if not content:
-            return LLMTextResult("", usage)
+            return ""
 
         parts: list[str] = [block["text"] for block in content if "text" in block]
-        return LLMTextResult("".join(parts), usage)
+        return "".join(parts)

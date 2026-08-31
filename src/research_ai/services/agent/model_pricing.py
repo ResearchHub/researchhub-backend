@@ -44,20 +44,9 @@ _OPENROUTER_PRICING = {
     "moonshotai/kimi-k3": _price("2.55", "12.75", "0.256", "2.55"),
 }
 
-_BEDROCK_PRICING = {
-    "claude-haiku-4-5": _price("1", "5", "0.10", "1.25"),
-    "claude-sonnet-4-5": _price("3", "15", "0.30", "3.75"),
-}
-
-_OPENAI_PRICING = {
-    "gpt-5.4-mini": _price("0.75", "4.50", "0.075", "0.75"),
-}
-
 _PROVIDER_PRICING = {
     "claude_platform": _CLAUDE_PLATFORM_PRICING,
     "openrouter": _OPENROUTER_PRICING,
-    "bedrock": _BEDROCK_PRICING,
-    "openai": _OPENAI_PRICING,
 }
 
 

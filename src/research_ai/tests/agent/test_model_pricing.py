@@ -17,17 +17,6 @@ class ModelPricingTests(SimpleTestCase):
         # Assert
         self.assertEqual(cost, 3_322_000)
 
-    def test_normalizes_platform_decorated_model_ids(self):
-        # Act
-        cost = cost_microusd(
-            "bedrock",
-            "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-            TurnUsage(input_tokens=1_000),
-        )
-
-        # Assert
-        self.assertEqual(cost, 1_000)
-
     def test_unpriced_model_returns_none(self):
         self.assertIsNone(cost_microusd("openrouter", "unknown/model", TurnUsage(1, 1)))
 

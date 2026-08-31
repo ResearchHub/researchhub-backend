@@ -412,13 +412,14 @@ class ProposalJudgePanel:
             elif module.endswith("openrouter"):
                 provider_name = "openrouter"
             else:
-                provider_name = "bedrock"
-            record(
-                self._user,
-                "proposal_draft_judge",
-                provider_name,
-                getattr(provider, "model_id", ""),
-                turn.usage,
-                execution=self._execution,
-            )
+                provider_name = None
+            if provider_name is not None:
+                record(
+                    self._user,
+                    "proposal_draft_judge",
+                    provider_name,
+                    getattr(provider, "model_id", ""),
+                    turn.usage,
+                    execution=self._execution,
+                )
         return turn
