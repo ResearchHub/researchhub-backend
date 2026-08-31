@@ -91,7 +91,6 @@ class NoteSerializer(ModelSerializer):
             "authors",
             "image",
             "preview_img",
-            "publication_is_public",
             "unified_document",
         ]
 
@@ -257,7 +256,6 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
             "authors",
             "image",
             "preview_img",
-            "publication_is_public",
         ]
 
     def get_access(self, note):
