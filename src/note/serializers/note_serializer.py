@@ -128,6 +128,7 @@ class NoteFundraiseSerializer(ModelSerializer):
             "duration_days",
             "goal_amount",
             "goal_currency",
+            "is_public",
             "nonprofit_details",
             "nonprofit_id",
         ]

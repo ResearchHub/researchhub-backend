@@ -66,7 +66,6 @@ DRAFT_FIELDS = frozenset(
         "hub_ids",
         "image",
         "preview_img",
-        "publication_is_public",
         "selected_grant",
     }
 )

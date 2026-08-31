@@ -1791,7 +1791,7 @@ class NoteTests(APITestCase):
         )
         published_draft_response = self.client.patch(
             f"/api/note/{note.id}/",
-            {"publication_is_public": True},
+            {"fundraise": {"is_public": True}},
         )
 
         # Assert
@@ -1802,7 +1802,7 @@ class NoteTests(APITestCase):
         self.assertEqual(published_draft_response.status_code, 409)
 
     def test_creates_note_with_draft_details(self) -> None:
-        """A create request stores the cover, visibility, byline, and hubs."""
+        """A create request stores the cover, byline, and hubs."""
         # Arrange
         first_author = Author.objects.create(first_name="Ada", last_name="Lovelace")
         second_author = Author.objects.create(first_name="Grace", last_name="Hopper")
@@ -1816,7 +1816,6 @@ class NoteTests(APITestCase):
                 "hub_ids": [hub.id],
                 "image": "notes/cover.png",
                 "preview_img": "https://www.researchhub.com/cover.png",
-                "publication_is_public": True,
                 "title": "Draft with details",
             },
         )
@@ -1827,7 +1826,6 @@ class NoteTests(APITestCase):
         self.assertEqual(
             response.data["preview_img"], "https://www.researchhub.com/cover.png"
         )
-        self.assertTrue(response.data["publication_is_public"])
         self.assertEqual(
             [author["id"] for author in response.data["authors"]],
             [second_author.id, first_author.id],
@@ -1867,7 +1865,6 @@ class NoteTests(APITestCase):
                 "author_ids": [author.id],
                 "hub_ids": [first_hub.id],
                 "image": "notes/cover.png",
-                "publication_is_public": True,
             },
         ).data["id"]
         topic = Topic.objects.create(openalex_id="T1", display_name="Genomics")
@@ -1900,7 +1897,6 @@ class NoteTests(APITestCase):
             [second_hub.id],
         )
         self.assertEqual(replace_response.data["image"], "notes/cover.png")
-        self.assertTrue(replace_response.data["publication_is_public"])
         self.assertEqual(clear_response.status_code, 200)
         self.assertEqual(clear_response.data["authors"], [])
         self.assertIsNone(clear_response.data["image"])
@@ -1960,7 +1956,7 @@ class NoteTests(APITestCase):
         self.assertFalse(Grant.objects.filter(created_by=self.user).exists())
 
     def test_saves_fundraise_details_on_preregistration_note(self) -> None:
-        """Fundraise form values round-trip without creating a live fundraise."""
+        """Fundraise and visibility values round-trip without a live fundraise."""
         # Arrange
         grant = self._create_grant()
         nonprofit = NonprofitOrg.objects.create(
@@ -1979,9 +1975,14 @@ class NoteTests(APITestCase):
                     "duration_days": 30,
                     "goal_amount": "2500.00",
                     "goal_currency": "USD",
+                    "is_public": False,
                     "nonprofit_id": nonprofit.id,
                 }
             },
+        )
+        funding_only_response = self.client.patch(
+            f"/api/note/{note_id}/",
+            {"fundraise": {"goal_amount": "3000.00"}},
         )
 
         # Assert
@@ -1989,10 +1990,16 @@ class NoteTests(APITestCase):
         self.assertEqual(response.data["fundraise"]["duration_days"], 30)
         self.assertEqual(response.data["fundraise"]["goal_amount"], "2500.00")
         self.assertEqual(response.data["fundraise"]["nonprofit_id"], nonprofit.id)
+        self.assertFalse(response.data["fundraise"]["is_public"])
         self.assertEqual(
             response.data["fundraise"]["nonprofit_details"]["name"], "Hope Charity"
         )
         self.assertEqual(response.data["selected_grant"], grant.id)
+        self.assertEqual(funding_only_response.status_code, 200)
+        self.assertEqual(
+            funding_only_response.data["fundraise"]["goal_amount"], "3000.00"
+        )
+        self.assertFalse(funding_only_response.data["fundraise"]["is_public"])
         self.assertFalse(Fundraise.objects.filter(created_by=self.user).exists())
 
     def test_rejects_funding_details_the_document_type_does_not_use(self) -> None:
