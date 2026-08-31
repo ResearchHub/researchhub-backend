@@ -531,14 +531,25 @@ class OpenAlexToolset:
     def _relevant_passages(cls, text: str, query: str, *, limit: int) -> list[dict]:
         """Rank overlapping text windows by focused lexical query coverage."""
         query_lower = query.lower()
-        terms = [
+        terms = cls._query_terms(query_lower)
+        candidates = cls._passage_candidates(text, query_lower, terms)
+        candidates.sort(key=lambda item: (-item[0], -item[1], item[2]))
+        return cls._select_nonoverlapping_passages(candidates, limit=limit)
+
+    @staticmethod
+    def _query_terms(query_lower: str) -> list[str]:
+        all_terms = list(dict.fromkeys(_WORD_RE.findall(query_lower)))
+        focused_terms = [
             term
-            for term in dict.fromkeys(_WORD_RE.findall(query_lower))
+            for term in all_terms
             if len(term) >= 3 and term not in _QUERY_STOPWORDS
         ]
-        if not terms:
-            terms = list(dict.fromkeys(_WORD_RE.findall(query_lower)))
+        return focused_terms or all_terms
 
+    @staticmethod
+    def _passage_candidates(
+        text: str, query_lower: str, terms: list[str]
+    ) -> list[tuple[int, int, int, int, str]]:
         window_size = _MAX_PASSAGE_CHARS
         overlap = 240
         candidates = []
@@ -560,8 +571,12 @@ class OpenAlexToolset:
             if end >= len(text):
                 break
             start = max(start + 1, end - overlap)
+        return candidates
 
-        candidates.sort(key=lambda item: (-item[0], -item[1], item[2]))
+    @staticmethod
+    def _select_nonoverlapping_passages(
+        candidates: list[tuple[int, int, int, int, str]], *, limit: int
+    ) -> list[dict]:
         selected = []
         selected_ranges: list[tuple[int, int]] = []
         for score, _coverage, start, end, passage in candidates:

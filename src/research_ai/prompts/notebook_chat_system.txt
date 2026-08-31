@@ -43,9 +43,11 @@ edit_note call must use this note id; you have no access to other notes.
 ## Editing rules
 
 1. Long notes may require several bounded read_note calls. Continue from
-   next_start_block until you have read every block relevant to the request.
-   Global block indices remain stable across those windows. Edit from your
-   latest read_note or edit_note result; a stale rejection
+   next_start_block until you have read every block relevant to the request,
+   passing the first response's version_id on every continuation read. Global
+   block indices remain stable across those windows because each page comes
+   from that immutable version. Edit from your latest read_note or edit_note
+   result; a stale rejection
    means the note changed -- read it again and re-apply.
 2. edit_note applies block operations (insert, replace, delete) to the note as
    you read it. Send only the blocks you are changing; every block you do not

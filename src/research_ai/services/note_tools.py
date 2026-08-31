@@ -88,7 +88,9 @@ class NoteToolset:
                     "as `blocks`: a map from global top-level block index "
                     '("0", "1", ...) to that block. Use start_block and '
                     "max_blocks to continue through a long note; next_start_block "
-                    "is null at the end. "
+                    "is null at the end. Pass the first response's version_id "
+                    "on every continuation read so all pages come from the same "
+                    "immutable note version. "
                     f"{_BLOCK_FORMAT} A note with no content yet reads as "
                     "`blocks` null; populate it with an insert."
                 ),
@@ -110,6 +112,13 @@ class NoteToolset:
                             "maximum": _MAX_BLOCKS_PER_READ,
                             "description": (
                                 "Maximum blocks to return (default and limit 50)."
+                            ),
+                        },
+                        "version_id": {
+                            "type": "integer",
+                            "description": (
+                                "Version returned by the first read. Required "
+                                "when start_block is greater than 0."
                             ),
                         },
                     },
@@ -211,10 +220,21 @@ class NoteToolset:
         note = self._get_readable_note(input.get("note_id"))
         if note is None:
             return {"error": f"note {input.get('note_id')} not found or not accessible"}
-        latest = note.latest_version
+        try:
+            start = self._read_bound(input.get("start_block"), default=0, minimum=0)
+            limit = self._read_bound(
+                input.get("max_blocks"),
+                default=_MAX_BLOCKS_PER_READ,
+                minimum=1,
+                maximum=_MAX_BLOCKS_PER_READ,
+            )
+            version = self._read_version(note, input.get("version_id"), start=start)
+        except ValueError as exc:
+            return {"error": str(exc)}
+
         # Stored JSON may be a JSON-encoded string rather than a dict;
         # normalize before block extraction.
-        doc = parse_note_json(latest.json) if latest else None
+        doc = parse_note_json(version.json) if version else None
         if doc is None:
             blocks = None
         else:
@@ -225,16 +245,6 @@ class NoteToolset:
                 # cleaned up), so surface the mismatch instead of hiding it.
                 logger.warning("note %s content fails the editor schema", note.id)
                 return {"error": f"note {note.id} content could not be read: {exc}"}
-        try:
-            start = self._read_bound(input.get("start_block"), default=0, minimum=0)
-            limit = self._read_bound(
-                input.get("max_blocks"),
-                default=_MAX_BLOCKS_PER_READ,
-                minimum=1,
-                maximum=_MAX_BLOCKS_PER_READ,
-            )
-        except ValueError as exc:
-            return {"error": str(exc)}
         block_count = 0 if blocks is None else len(blocks)
         if start > block_count:
             return {
@@ -247,7 +257,7 @@ class NoteToolset:
         result = {
             "note_id": note.id,
             "title": note.title,
-            "version_id": latest.id if latest else None,
+            "version_id": version.id if version else None,
             "block_count": block_count,
             "start_block": start,
             "returned_block_count": end - start,
@@ -259,6 +269,23 @@ class NoteToolset:
             ),
         }
         return result
+
+    @staticmethod
+    def _read_version(note: Note, version_id, *, start: int) -> NoteContent | None:
+        """Resolve one immutable version and require it for continuation reads."""
+        if version_id is None:
+            if start > 0:
+                raise ValueError(
+                    "version_id is required when start_block is greater than 0; "
+                    "pass the version_id from the first read_note response"
+                )
+            return note.latest_version
+        if isinstance(version_id, bool) or not isinstance(version_id, int):
+            raise ValueError("read_note version_id must be an integer")
+        version = NoteContent.objects.filter(note_id=note.id, id=version_id).first()
+        if version is None:
+            raise ValueError(f"version {version_id} not found for note {note.id}")
+        return version
 
     @staticmethod
     def _read_bound(value, *, default: int, minimum: int, maximum: int | None = None):
