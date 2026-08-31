@@ -61,10 +61,10 @@ logger = logging.getLogger(__name__)
 DRAFT_FIELDS = frozenset(
     {
         "author_ids",
-        "fundraise",
-        "grant",
+        "grant_settings",
         "hub_ids",
         "image",
+        "preregistration_settings",
         "preview_img",
         "selected_grant",
     }
@@ -87,16 +87,16 @@ class NoteViewSet(ModelViewSet):
                 | Q(unified_document__permissions__user=user)
             )
             .select_related(
-                "fundraise_details",
-                "fundraise_details__nonprofit",
-                "grant_details",
+                "grant_settings",
                 "post",
+                "preregistration_settings",
+                "preregistration_settings__nonprofit",
                 "selected_grant",
                 "unified_document",
             )
             .prefetch_related(
                 "author_links",
-                "grant_details__contacts",
+                "grant_settings__contacts",
                 # The selected grant's image lives on its post.
                 "selected_grant__unified_document__posts",
                 "unified_document__hubs",

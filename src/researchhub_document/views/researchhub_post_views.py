@@ -223,14 +223,14 @@ class ResearchhubPostViewSet(
                 # ResearchhubPostSerializer embeds the note, so the draft
                 # relations it renders load here instead of once per post.
                 .select_related(
-                    "note__fundraise_details",
-                    "note__grant_details",
+                    "note__grant_settings",
+                    "note__preregistration_settings",
                     "unified_document",
                 )
                 .prefetch_related(
                     "author_links",
                     "note__author_links",
-                    "note__grant_details__contacts",
+                    "note__grant_settings__contacts",
                     "note__unified_document__hubs",
                     Prefetch(
                         "grant_applications",

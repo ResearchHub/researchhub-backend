@@ -7,7 +7,7 @@ from rest_framework.test import APITestCase
 
 from hub.tests.helpers import create_hub
 from invite.related_models.note_invitation import NoteInvitation
-from note.models import Note, NoteFundraise, NoteTemplate
+from note.models import Note, NoteTemplate, PreregistrationSettings
 from organizations.models import NonprofitOrg
 from purchase.models import Fundraise, Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
@@ -1791,7 +1791,7 @@ class NoteTests(APITestCase):
         )
         published_draft_response = self.client.patch(
             f"/api/note/{note.id}/",
-            {"fundraise": {"is_public": True}},
+            {"preregistration_settings": {"is_public": True}},
         )
 
         # Assert
@@ -1905,7 +1905,7 @@ class NoteTests(APITestCase):
             list(Note.objects.get(id=note_id).unified_document.topics.all()), [topic]
         )
 
-    def test_saves_grant_details_on_grant_note(self) -> None:
+    def test_saves_grant_settings_on_grant_note(self) -> None:
         """Grant form values round-trip without creating a live grant."""
         # Arrange
         contact = get_user_model().objects.create_user(
@@ -1923,7 +1923,7 @@ class NoteTests(APITestCase):
         save_response = self.client.patch(
             f"/api/note/{note_id}/",
             {
-                "grant": {
+                "grant_settings": {
                     "amount": "50000.00",
                     "application_visibility": Grant.APPLICATION_VISIBILITY_PRIVATE,
                     "contact_ids": [contact.id],
@@ -1934,28 +1934,30 @@ class NoteTests(APITestCase):
         )
         clear_response = self.client.patch(
             f"/api/note/{note_id}/",
-            {"grant": {"contact_ids": [], "organization": None}},
+            {"grant_settings": {"contact_ids": [], "organization": None}},
         )
 
         # Assert
         self.assertEqual(save_response.status_code, 200)
-        self.assertEqual(save_response.data["grant"]["amount"], "50000.00")
-        self.assertEqual(save_response.data["grant"]["contact_ids"], [contact.id])
+        saved_settings = save_response.data["grant_settings"]
+        self.assertEqual(saved_settings["amount"], "50000.00")
+        self.assertEqual(saved_settings["contact_ids"], [contact.id])
         self.assertEqual(
-            save_response.data["grant"]["contacts"],
+            saved_settings["contacts"],
             [{"id": contact.id, "first_name": "Ada", "last_name": "Lovelace"}],
         )
         self.assertEqual(
-            save_response.data["grant"]["application_visibility"],
+            saved_settings["application_visibility"],
             Grant.APPLICATION_VISIBILITY_PRIVATE,
         )
         self.assertEqual(clear_response.status_code, 200)
-        self.assertEqual(clear_response.data["grant"]["contact_ids"], [])
-        self.assertIsNone(clear_response.data["grant"]["organization"])
-        self.assertEqual(clear_response.data["grant"]["currency"], "USD")
+        cleared_settings = clear_response.data["grant_settings"]
+        self.assertEqual(cleared_settings["contact_ids"], [])
+        self.assertIsNone(cleared_settings["organization"])
+        self.assertEqual(cleared_settings["currency"], "USD")
         self.assertFalse(Grant.objects.filter(created_by=self.user).exists())
 
-    def test_saves_fundraise_details_on_preregistration_note(self) -> None:
+    def test_saves_preregistration_settings_on_preregistration_note(self) -> None:
         """Fundraise and visibility values round-trip without a live fundraise."""
         # Arrange
         grant = self._create_grant()
@@ -1971,7 +1973,7 @@ class NoteTests(APITestCase):
         response = self.client.patch(
             f"/api/note/{note_id}/",
             {
-                "fundraise": {
+                "preregistration_settings": {
                     "duration_days": 30,
                     "goal_amount": "2500.00",
                     "goal_currency": "USD",
@@ -1982,24 +1984,22 @@ class NoteTests(APITestCase):
         )
         funding_only_response = self.client.patch(
             f"/api/note/{note_id}/",
-            {"fundraise": {"goal_amount": "3000.00"}},
+            {"preregistration_settings": {"goal_amount": "3000.00"}},
         )
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["fundraise"]["duration_days"], 30)
-        self.assertEqual(response.data["fundraise"]["goal_amount"], "2500.00")
-        self.assertEqual(response.data["fundraise"]["nonprofit_id"], nonprofit.id)
-        self.assertFalse(response.data["fundraise"]["is_public"])
-        self.assertEqual(
-            response.data["fundraise"]["nonprofit_details"]["name"], "Hope Charity"
-        )
+        saved_settings = response.data["preregistration_settings"]
+        self.assertEqual(saved_settings["duration_days"], 30)
+        self.assertEqual(saved_settings["goal_amount"], "2500.00")
+        self.assertEqual(saved_settings["nonprofit_id"], nonprofit.id)
+        self.assertFalse(saved_settings["is_public"])
+        self.assertEqual(saved_settings["nonprofit_details"]["name"], "Hope Charity")
         self.assertEqual(response.data["selected_grant"], grant.id)
         self.assertEqual(funding_only_response.status_code, 200)
-        self.assertEqual(
-            funding_only_response.data["fundraise"]["goal_amount"], "3000.00"
-        )
-        self.assertFalse(funding_only_response.data["fundraise"]["is_public"])
+        funding_only_settings = funding_only_response.data["preregistration_settings"]
+        self.assertEqual(funding_only_settings["goal_amount"], "3000.00")
+        self.assertFalse(funding_only_settings["is_public"])
         self.assertFalse(Fundraise.objects.filter(created_by=self.user).exists())
 
     def test_rejects_funding_details_the_document_type_does_not_use(self) -> None:
@@ -2009,12 +2009,14 @@ class NoteTests(APITestCase):
             "/api/note/", {"document_type": GRANT, "title": "RFP draft"}
         ).data["id"]
         self.client.patch(
-            f"/api/note/{note_id}/", {"grant": {"organization": "Kind Foundation"}}
+            f"/api/note/{note_id}/",
+            {"grant_settings": {"organization": "Kind Foundation"}},
         )
 
         # Act
         rejected_response = self.client.patch(
-            f"/api/note/{note_id}/", {"fundraise": {"duration_days": 30}}
+            f"/api/note/{note_id}/",
+            {"preregistration_settings": {"duration_days": 30}},
         )
         retyped_response = self.client.patch(
             f"/api/note/{note_id}/", {"document_type": DISCUSSION}
@@ -2025,11 +2027,12 @@ class NoteTests(APITestCase):
 
         # Assert
         self.assertEqual(rejected_response.status_code, 400)
-        self.assertIn("fundraise", rejected_response.data)
-        self.assertFalse(NoteFundraise.objects.exists())
-        self.assertIsNone(retyped_response.data["grant"])
+        self.assertIn("preregistration_settings", rejected_response.data)
+        self.assertFalse(PreregistrationSettings.objects.exists())
+        self.assertIsNone(retyped_response.data["grant_settings"])
         self.assertEqual(
-            restored_response.data["grant"]["organization"], "Kind Foundation"
+            restored_response.data["grant_settings"]["organization"],
+            "Kind Foundation",
         )
 
 

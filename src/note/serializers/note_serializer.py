@@ -12,7 +12,7 @@ from rest_framework.serializers import (
 
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
-from note.models import Note, NoteContent, NoteFundraise, NoteGrant
+from note.models import GrantSettings, Note, NoteContent, PreregistrationSettings
 from note.services.grant_selection_service import (
     GrantSelectionError,
     selectable_grants,
@@ -79,7 +79,7 @@ class DynamicNoteContentSerializer(DynamicModelFieldSerializer):
         fields = "__all__"
 
 
-class NoteGrantSerializer(ModelSerializer):
+class GrantSettingsSerializer(ModelSerializer):
     """Draft grant form values held by a notebook note."""
 
     contact_ids = PrimaryKeyRelatedField(
@@ -96,7 +96,7 @@ class NoteGrantSerializer(ModelSerializer):
     )
 
     class Meta:
-        model = NoteGrant
+        model = GrantSettings
         fields = [
             "amount",
             "application_visibility",
@@ -109,8 +109,8 @@ class NoteGrantSerializer(ModelSerializer):
         ]
 
 
-class NoteFundraiseSerializer(ModelSerializer):
-    """Draft fundraise form values held by a notebook note."""
+class PreregistrationSettingsSerializer(ModelSerializer):
+    """Draft preregistration form values held by a notebook note."""
 
     # The nonprofit is shown by name and EIN, so the form cannot redraw it from
     # an id alone.
@@ -123,7 +123,7 @@ class NoteFundraiseSerializer(ModelSerializer):
     )
 
     class Meta:
-        model = NoteFundraise
+        model = PreregistrationSettings
         fields = [
             "duration_days",
             "goal_amount",
@@ -150,8 +150,7 @@ class NoteSerializer(ModelSerializer):
         source="ordered_authors",
         _include_fields=["first_name", "id", "last_name", "profile_image", "user"],
     )
-    fundraise = NoteFundraiseSerializer(required=False, source="fundraise_details")
-    grant = NoteGrantSerializer(required=False, source="grant_details")
+    grant_settings = GrantSettingsSerializer(required=False)
     hub_ids = PrimaryKeyRelatedField(
         many=True,
         queryset=Hub.objects.all(),
@@ -171,6 +170,7 @@ class NoteSerializer(ModelSerializer):
     latest_version = NoteContentSerializer(read_only=True)
     organization = OrganizationSerializer(read_only=True)
     post = SerializerMethodField()
+    preregistration_settings = PreregistrationSettingsSerializer(required=False)
     registered_report_prefill = SerializerMethodField()
     selected_grant = PrimaryKeyRelatedField(
         allow_null=True,
@@ -235,11 +235,17 @@ class NoteSerializer(ModelSerializer):
         self, attrs: dict, document_type: str | None
     ) -> None:
         """Reject a funding form the resulting document type does not use."""
-        if "grant_details" in attrs and document_type != GRANT:
-            raise ValidationError({"grant": "Only grant notes have grant details."})
-        if "fundraise_details" in attrs and document_type != PREREGISTRATION:
+        if "grant_settings" in attrs and document_type != GRANT:
             raise ValidationError(
-                {"fundraise": "Only preregistration notes have fundraise details."}
+                {"grant_settings": "Only grant notes have grant settings."}
+            )
+        if "preregistration_settings" in attrs and document_type != PREREGISTRATION:
+            raise ValidationError(
+                {
+                    "preregistration_settings": (
+                        "Only preregistration notes have preregistration settings."
+                    )
+                }
             )
 
     def create(self, validated_data: dict) -> Note:
@@ -267,8 +273,10 @@ class NoteSerializer(ModelSerializer):
         return {
             "authors": validated_data.pop("author_ids", None),
             "hubs": validated_data.pop("hub_ids", None),
-            "grant_details": validated_data.pop("grant_details", None),
-            "fundraise_details": validated_data.pop("fundraise_details", None),
+            "grant_settings": validated_data.pop("grant_settings", None),
+            "preregistration_settings": validated_data.pop(
+                "preregistration_settings", None
+            ),
         }
 
     def to_representation(self, note: Note) -> dict:
@@ -280,9 +288,9 @@ class NoteSerializer(ModelSerializer):
         """
         data = super().to_representation(note)
         if note.document_type != GRANT:
-            data["grant"] = None
+            data["grant_settings"] = None
         if note.document_type != PREREGISTRATION:
-            data["fundraise"] = None
+            data["preregistration_settings"] = None
         return data
 
     def get_access(self, note):
