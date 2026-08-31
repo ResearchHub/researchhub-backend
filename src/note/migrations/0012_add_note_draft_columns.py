@@ -18,9 +18,4 @@ class Migration(migrations.Migration):
             name="preview_img",
             field=models.URLField(blank=True, max_length=2048, null=True),
         ),
-        migrations.AddField(
-            model_name="note",
-            name="publication_is_public",
-            field=models.BooleanField(blank=True, null=True),
-        ),
     ]

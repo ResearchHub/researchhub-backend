@@ -90,7 +90,6 @@ class NoteSerializer(ModelSerializer):
         read_only_fields = [
             "image",
             "preview_img",
-            "publication_is_public",
             "unified_document",
         ]
 
@@ -255,7 +254,6 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         read_only_fields = [
             "image",
             "preview_img",
-            "publication_is_public",
         ]
 
     def get_access(self, note):

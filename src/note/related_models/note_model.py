@@ -35,10 +35,6 @@ class Note(DefaultModel):
         max_length=2048,
         null=True,
     )
-    publication_is_public = models.BooleanField(
-        blank=True,
-        null=True,
-    )
     selected_grant = models.ForeignKey(
         "purchase.Grant",
         blank=True,
