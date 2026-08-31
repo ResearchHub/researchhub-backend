@@ -4,13 +4,13 @@ from django.db import models
 from utils.models import DefaultModel
 
 
-class NoteFundraise(DefaultModel):
-    """Unpublished fundraise Details for a notebook draft."""
+class PreregistrationSettings(DefaultModel):
+    """Unpublished preregistration Details for a notebook draft."""
 
     note = models.OneToOneField(
         "note.Note",
         on_delete=models.CASCADE,
-        related_name="fundraise_details",
+        related_name="preregistration_settings",
     )
     goal_amount = models.DecimalField(
         blank=True,
@@ -37,5 +37,8 @@ class NoteFundraise(DefaultModel):
         blank=True,
         null=True,
         on_delete=models.SET_NULL,
-        related_name="note_fundraises",
+        related_name="note_preregistration_settings",
     )
+
+    class Meta:
+        db_table = "note_preregistration_settings"
