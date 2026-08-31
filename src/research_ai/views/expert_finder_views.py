@@ -41,9 +41,12 @@ from research_ai.services.outreach.invited_experts import (
     invited_stats_cache_key,
     load_editor_users,
 )
+from research_ai.services.usage_budget import (
+    UsageLimitExceededError,
+    check_budget_admission,
+)
 from research_ai.tasks import run_expert_finder_search
 from researchhub_document.models import ResearchhubUnifiedDocument
-from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +74,6 @@ class ExpertSearchListCreateView(APIView):
     permission_classes = [
         IsAuthenticated,
         ResearchAIPermission,
-        UserIsEditor | IsModerator,
     ]
 
     def get_queryset(self):
@@ -102,6 +104,13 @@ class ExpertSearchListCreateView(APIView):
         )
 
     def post(self, request):
+        try:
+            check_budget_admission(request.user)
+        except UsageLimitExceededError as error:
+            return Response(
+                {"code": error.code, **error.status.as_dict()},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
         ser = ExpertSearchCreateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
@@ -181,7 +190,6 @@ class ExpertSearchDetailView(APIView):
     permission_classes = [
         IsAuthenticated,
         ResearchAIPermission,
-        UserIsEditor | IsModerator,
     ]
 
     def get(self, request, search_id):
@@ -209,7 +217,6 @@ class ExpertDetailView(APIView):
     permission_classes = [
         IsAuthenticated,
         ResearchAIPermission,
-        UserIsEditor | IsModerator,
     ]
 
     def patch(self, request, expert_id):
@@ -238,7 +245,6 @@ class ExpertSearchAddExpertView(APIView):
     permission_classes = [
         IsAuthenticated,
         ResearchAIPermission,
-        UserIsEditor | IsModerator,
     ]
 
     def post(self, request, search_id):
@@ -305,7 +311,6 @@ class InvitedExpertStatsMixin:
     permission_classes = [
         IsAuthenticated,
         ResearchAIPermission,
-        UserIsEditor | IsModerator,
     ]
 
     cache_prefix = ""
@@ -541,7 +546,6 @@ class ExpertSearchWorkView(APIView):
     permission_classes = [
         IsAuthenticated,
         ResearchAIPermission,
-        UserIsEditor | IsModerator,
     ]
 
     def get(self, request, unified_document_id):
@@ -652,7 +656,6 @@ class ExpertSearchProgressStreamView(APIView):
     permission_classes = [
         IsAuthenticated,
         ResearchAIPermission,
-        UserIsEditor | IsModerator,
     ]
 
     def get(self, request, search_id):

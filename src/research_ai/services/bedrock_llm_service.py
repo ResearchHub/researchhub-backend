@@ -2,6 +2,8 @@ import logging
 
 from django.conf import settings
 
+from research_ai.services.llm_result import LLMTextResult, bedrock_usage
+from research_ai.services.usage_budget import record
 from utils.aws import create_client
 
 logger = logging.getLogger(__name__)
@@ -15,9 +17,11 @@ BEDROCK_MODEL_ID = getattr(
 
 
 class BedrockLLMService:
-    def __init__(self):
+    def __init__(self, *, user=None, feature: str = "research_ai_legacy"):
         self.bedrock_client = create_client("bedrock-runtime")
         self.model_id = BEDROCK_MODEL_ID
+        self.user = user
+        self.feature = feature
 
     def invoke(
         self,
@@ -26,7 +30,7 @@ class BedrockLLMService:
         *,
         max_tokens: int = 8192,
         temperature: float = 0.0,
-    ) -> str:
+    ) -> LLMTextResult:
         """
         Invoke Bedrock Converse API with text-only system and user messages.
 
@@ -67,8 +71,11 @@ class BedrockLLMService:
 
         message = response["output"]["message"]
         content = message.get("content", [])
+        usage = bedrock_usage(response)
+        if usage is not None:
+            record(self.user, self.feature, "bedrock", self.model_id, usage)
         if not content:
-            return ""
+            return LLMTextResult("", usage)
 
         parts = [block["text"] for block in content if "text" in block]
-        return "".join(parts)
+        return LLMTextResult("".join(parts), usage)

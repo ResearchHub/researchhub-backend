@@ -6,6 +6,8 @@ from openai import OpenAI
 from ai_peer_review.prompts.proposal_review_prompts import (
     get_openai_web_context_system_prompt,
 )
+from research_ai.services.llm_result import LLMTextResult, openai_usage
+from research_ai.services.usage_budget import record
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +21,11 @@ OPENAI_WEB_CONTEXT_MODEL = getattr(
 class OpenAIReviewContextService:
     """Produce bullet web-search notes to inject into proposal review prompts."""
 
-    def __init__(self):
+    def __init__(self, *, user=None):
         api_key = getattr(settings, "OPENAI_API_KEY", "") or ""
         self._client = OpenAI(api_key=api_key) if api_key else None
         self.model_id = OPENAI_WEB_CONTEXT_MODEL
+        self.user = user
 
     def build_user_prompt(
         self,
@@ -30,7 +33,7 @@ class OpenAIReviewContextService:
         proposal_excerpt: str,
         researcher_display_name: str | None = None,
         institutional_affiliation: str | None = None,
-    ) -> str:
+    ) -> LLMTextResult:
         text = (proposal_excerpt or "").strip()
         if len(text) > 24000:
             text = text[:24000] + "\n\n[TRUNCATED]"
@@ -59,7 +62,7 @@ class OpenAIReviewContextService:
         *,
         max_tokens: int = 2048,
         temperature: float = 0.0,
-    ) -> str:
+    ) -> LLMTextResult:
         if not self._client:
             raise RuntimeError(
                 "OPENAI_API_KEY is not configured; cannot run web context pass."
@@ -94,7 +97,7 @@ class OpenAIReviewContextService:
         user_prompt: str,
         max_tokens: int,
         temperature: float,
-    ) -> str:
+    ) -> LLMTextResult:
         response = self._client.responses.create(
             model=self.model_id,
             instructions=system_prompt,
@@ -103,7 +106,10 @@ class OpenAIReviewContextService:
             max_output_tokens=max_tokens,
             temperature=temperature,
         )
-        return (response.output_text or "").strip()
+        usage = openai_usage(response)
+        if usage is not None:
+            record(self.user, "web_context", "openai", self.model_id, usage)
+        return LLMTextResult((response.output_text or "").strip(), usage)
 
     def _invoke_chat_completions(
         self,
@@ -112,7 +118,7 @@ class OpenAIReviewContextService:
         user_prompt: str,
         max_tokens: int,
         temperature: float,
-    ) -> str:
+    ) -> LLMTextResult:
         completion = self._client.chat.completions.create(
             model=self.model_id,
             messages=[
@@ -124,7 +130,10 @@ class OpenAIReviewContextService:
         )
         choice = completion.choices[0].message
         content = choice.content or ""
-        return content.strip()
+        usage = openai_usage(completion)
+        if usage is not None:
+            record(self.user, "web_context", "openai", self.model_id, usage)
+        return LLMTextResult(content.strip(), usage)
 
     def fetch_proposal_web_context(
         self,
@@ -157,6 +166,7 @@ def fetch_proposal_review_web_context(
     max_input_proposal_chars: int = 8000,
     max_input_author_chars: int = 2000,
     max_return_chars: int = 6000,
+    user=None,
 ) -> str:
     api_key = getattr(settings, "OPENAI_API_KEY", "") or ""
     if not api_key:
@@ -164,7 +174,7 @@ def fetch_proposal_review_web_context(
             "OPENAI_API_KEY is empty; skipping proposal review web search context"
         )
         return ""
-    svc = OpenAIReviewContextService()
+    svc = OpenAIReviewContextService(user=user)
     if not svc._client:
         return ""
     try:

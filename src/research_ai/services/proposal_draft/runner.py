@@ -136,6 +136,8 @@ class _ProposalDraftRunner:
         # The default single-judge roster critiques on the generator model
         # itself, so a user-selected generator carries its judge along.
         self.panel = panel or ProposalJudgePanel(generator_model_id=model_ref)
+        if accounting := getattr(self.panel, "set_accounting", None):
+            accounting(user=draft.created_by)
         self.config = config or ProposalDraftConfig.from_settings()
         if temperature is not None:
             self.config = replace(self.config, temperature=temperature)
@@ -319,6 +321,11 @@ class _ProposalDraftRunner:
                 retry_of=retry_of,
                 publish_assistant_message=False,
             )
+            if accounting := getattr(self.panel, "set_accounting", None):
+                accounting(
+                    user=self.recorder.draft.created_by,
+                    execution=self.agent_recorder.execution,
+                )
         except Exception:  # noqa: BLE001 - observability cannot break drafting
             logger.warning("could not initialize proposal agent trace", exc_info=True)
             self.agent_recorder = None

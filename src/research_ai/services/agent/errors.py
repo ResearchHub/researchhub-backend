@@ -82,3 +82,9 @@ class IncompleteTurnError(AgentRunError):
 
 class IterationLimitError(AgentRunError):
     """The loop hit ``max_iterations`` without the run completing."""
+
+
+class BudgetExceededError(AgentRunError):
+    """The user exhausted their daily budget during a multi-turn run."""
+
+    stop_reason = "budget_exhausted"

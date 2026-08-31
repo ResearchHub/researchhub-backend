@@ -1,14 +1,9 @@
+from research_ai.services.usage_budget import resolve_ai_tier
 from utils.permissions import AuthorizationBasedPermission
 
 
 class ResearchAIPermission(AuthorizationBasedPermission):
-    """
-    Placeholder permission for Research AI features.
-    For now: allows any authenticated user. Compose with UserIsEditor | IsModerator
-    in views for editor/moderator access, e.g.:
-        permission_classes = [ResearchAIPermission, UserIsEditor | IsModerator]
-    Future: Add business logic here (min funded, subscription tier, credits).
-    """
+    """Allow authenticated users whose resolved Research AI tier is not blocked."""
 
     message = "Not allowed to use Research AI features."
 
@@ -21,6 +16,4 @@ class ResearchAIPermission(AuthorizationBasedPermission):
         return self._can_use_research_ai(request.user)
 
     def _can_use_research_ai(self, user):
-        # Placeholder - expand with business logic later
-        # e.g., check minimum funding, subscription, credits
-        return True
+        return resolve_ai_tier(user).name != "blocked"

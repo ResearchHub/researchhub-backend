@@ -189,7 +189,7 @@ class ProposalKeyInsightsService:
         key_insight.save(update_fields=["status", "error_message", "updated_date"])
 
         t0 = time.monotonic()
-        llm = self._llm or BedrockLLMService()
+        llm = self._llm or BedrockLLMService(feature="proposal_key_insights")
 
         try:
             proposal_text = get_proposal_markdown(review.unified_document)

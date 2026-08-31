@@ -228,6 +228,13 @@ class Agent:
         if not active:
             raise InterruptedError("agent execution is no longer running")
 
+    def _ensure_can_spend(self) -> None:
+        """Check cancellation and an optional recorder-owned spend guard."""
+        self._ensure_active()
+        before_model_call = getattr(self.recorder, "before_model_call", None)
+        if before_model_call is not None:
+            before_model_call()
+
     def _record_terminal(self, hook: str, *args) -> None:
         """Best-effort terminal observation must not mask the run outcome."""
         if self.recorder is None:
@@ -245,7 +252,7 @@ class Agent:
                 rendered_tools=rendered_tools,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
-                before_retry=self._ensure_active,
+                before_retry=self._ensure_can_spend,
                 on_event=lambda event: self._record_stream_event(iteration, event),
             )
         except AgentRunError as exc:
@@ -369,7 +376,7 @@ class Agent:
             # call is the most expensive thing an iteration does and can hold the
             # worker for the vendor SDK's whole retry budget, so a run that was
             # stopped must not start another one.
-            self._ensure_active()
+            self._ensure_can_spend()
             turn = self._complete_turn(messages, rendered_tools, iteration)
             # The turn is replayed exactly as the provider sent it: reasoning
             # blocks are signed and must lead, and a server-side tool's result

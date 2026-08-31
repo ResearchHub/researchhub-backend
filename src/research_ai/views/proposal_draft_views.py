@@ -18,8 +18,13 @@ from research_ai.services.agent.model_capabilities import validate_generation_op
 from research_ai.services.proposal_draft.cancel_service import (
     ProposalDraftCancelService,
 )
+from research_ai.services.usage_budget import (
+    UsageLimitExceededError,
+    check_turn_admission,
+    effective_generation_options,
+    resolve_ai_tier,
+)
 from research_ai.tasks import run_proposal_draft_task
-from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +57,6 @@ class ProposalDraftCreateView(APIView):
     permission_classes = [
         IsAuthenticated,
         ResearchAIPermission,
-        UserIsEditor | IsModerator,
     ]
 
     def post(self, request):
@@ -64,14 +68,38 @@ class ProposalDraftCreateView(APIView):
         serializer = ProposalDraftCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         search_expert_id = serializer.validated_data["search_expert_id"]
-        model_ref = serializer.validated_data["model"] or generator_model_ref()
+        policy = resolve_ai_tier(request.user)
+        model_ref = (
+            serializer.validated_data["model"]
+            or policy.default_model_ref
+            or generator_model_ref()
+        )
+        try:
+            effort, thinking = effective_generation_options(
+                policy,
+                effort=serializer.validated_data.get("effort"),
+                thinking=serializer.validated_data.get("thinking"),
+            )
+            check_turn_admission(
+                request.user, model_ref, effort=effort, thinking=thinking
+            )
+        except UsageLimitExceededError as error:
+            return Response(
+                {"code": error.code, **error.status.as_dict()},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        except ValueError as error:
+            return Response(
+                {"detail": str(error), "code": getattr(error, "code", "invalid")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         provider_name, model_id = split_model_ref(model_ref)
         try:
             validate_generation_options(
                 provider_name,
                 model_id or "",
-                effort=serializer.validated_data.get("effort"),
-                thinking=serializer.validated_data.get("thinking"),
+                effort=effort,
+                thinking=thinking,
                 temperature=serializer.validated_data.get("temperature"),
             )
         except ValueError as error:
@@ -79,9 +107,13 @@ class ProposalDraftCreateView(APIView):
 
         requested_options = {
             key: serializer.validated_data[key]
-            for key in ("effort", "thinking", "temperature")
+            for key in ("temperature",)
             if key in serializer.validated_data
         }
+        if effort is not None:
+            requested_options["effort"] = effort
+        if thinking is not None:
+            requested_options["thinking"] = thinking
 
         search_expert = get_object_or_404(SearchExpert, id=search_expert_id)
 
@@ -96,7 +128,7 @@ class ProposalDraftCreateView(APIView):
                     created_by=request.user,
                     status=ProposalDraft.Status.PENDING,
                     step=ProposalDraft.Step.QUEUED,
-                    model_ref=serializer.validated_data["model"],
+                    model_ref=model_ref,
                     run_config=requested_options,
                 )
         except IntegrityError:
@@ -120,7 +152,6 @@ class ProposalDraftDetailView(APIView):
     permission_classes = [
         IsAuthenticated,
         ResearchAIPermission,
-        UserIsEditor | IsModerator,
     ]
 
     def get(self, request, draft_id):
@@ -147,7 +178,6 @@ class ProposalDraftCancelView(APIView):
     permission_classes = [
         IsAuthenticated,
         ResearchAIPermission,
-        UserIsEditor | IsModerator,
     ]
 
     def post(self, request, draft_id):

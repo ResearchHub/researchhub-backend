@@ -293,15 +293,17 @@ class ExpertFinderService:
     ) -> dict[str, Any]:
         expert_search_id = int(search_id)
         try:
-            unified_document_id = (
-                ExpertSearch.objects.only("unified_document_id")
-                .get(id=expert_search_id)
-                .unified_document_id
+            expert_search = ExpertSearch.objects.select_related("created_by").get(
+                id=expert_search_id
             )
+            unified_document_id = expert_search.unified_document_id
         except ExpertSearch.DoesNotExist:
+            expert_search = None
             unified_document_id = None
         progress_service = self.progress_service
         openai = self.openai_expert
+        if expert_search is not None:
+            openai.user = expert_search.created_by
 
         def publish_progress(
             message: str,

@@ -3,6 +3,9 @@ import logging
 from django.conf import settings
 from openai import OpenAI
 
+from research_ai.services.llm_result import LLMTextResult, openai_usage
+from research_ai.services.usage_budget import record
+
 logger = logging.getLogger(__name__)
 
 OPENAI_EXPERT_FINDER_MODEL = "gpt-5.4-mini"
@@ -11,10 +14,11 @@ OPENAI_EXPERT_FINDER_MODEL = "gpt-5.4-mini"
 class OpenAIExpertFinderService:
     """Call OpenAI for expert-finder table output (markdown)."""
 
-    def __init__(self):
+    def __init__(self, *, user=None):
         api_key = getattr(settings, "OPENAI_API_KEY", "") or ""
         self._client = OpenAI(api_key=api_key) if api_key else None
         self.model_id = OPENAI_EXPERT_FINDER_MODEL
+        self.user = user
 
     def invoke(
         self,
@@ -23,7 +27,7 @@ class OpenAIExpertFinderService:
         *,
         max_tokens: int = 16_384,
         temperature: float = 0.0,
-    ) -> str:
+    ) -> LLMTextResult:
         """
         Run expert discovery via the Responses API with web search.
 
@@ -63,7 +67,7 @@ class OpenAIExpertFinderService:
         user_prompt: str,
         max_tokens: int,
         temperature: float,
-    ) -> str:
+    ) -> LLMTextResult:
         response = self._client.responses.create(
             model=self.model_id,
             instructions=system_prompt,
@@ -75,4 +79,7 @@ class OpenAIExpertFinderService:
         text = (response.output_text or "").strip()
         if not text:
             logger.warning("OpenAI Responses returned empty output_text")
-        return text
+        usage = openai_usage(response)
+        if usage is not None:
+            record(self.user, "expert_finder", "openai", self.model_id, usage)
+        return LLMTextResult(text, usage)

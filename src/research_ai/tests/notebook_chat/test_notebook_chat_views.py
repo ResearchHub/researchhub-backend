@@ -283,8 +283,8 @@ class NotebookChatViewTests(APITestCase):
         self.assertEqual(get_response.status_code, 404)
         self.assertEqual(post_response.status_code, 404)
 
-    def test_gate_blocks_regular_users_even_with_note_access(self):
-        # Arrange: full note access, but neither hub editor nor moderator.
+    def test_regular_user_with_note_access_can_use_default_tier(self):
+        # Arrange: full note access and the default Research AI tier.
         self.client.force_authenticate(self.regular_user)
 
         # Act
@@ -292,8 +292,8 @@ class NotebookChatViewTests(APITestCase):
         list_response = self.client.get(self.chats_url)
 
         # Assert
-        self.assertEqual(create_response.status_code, 403)
-        self.assertEqual(list_response.status_code, 403)
+        self.assertEqual(create_response.status_code, 201)
+        self.assertEqual(list_response.status_code, 200)
 
     def test_post_message_requires_authentication(self):
         # Act

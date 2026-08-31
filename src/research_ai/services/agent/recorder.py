@@ -63,3 +63,7 @@ class AgentRecorder(Protocol):
         required of observers that cannot be pre-empted.
         """
         ...
+
+    def before_model_call(self) -> None:
+        """Optional pre-spend hook, called before each request and retry."""
+        ...

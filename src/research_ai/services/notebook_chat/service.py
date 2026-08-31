@@ -94,6 +94,11 @@ from research_ai.services.notebook_chat.toolset import (
     compose_notebook_toolset,
 )
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
+from research_ai.services.usage_budget import (
+    check_turn_admission,
+    effective_generation_options,
+    resolve_ai_tier,
+)
 from research_ai.services.user_profile_tools import UserProfileToolset
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from utils.openalex import OpenAlex
@@ -486,7 +491,22 @@ class NotebookChatService:
                 raise ValueError(
                     "model cannot be changed after a conversation has started"
                 )
-            model = conversation_model or selected_model or generator_model_ref()
+            policy = resolve_ai_tier(locked_conversation.user)
+            model = (
+                conversation_model
+                or selected_model
+                or policy.default_model_ref
+                or generator_model_ref()
+            )
+            effort, thinking = effective_generation_options(
+                policy, effort=effort, thinking=thinking
+            )
+            check_turn_admission(
+                locked_conversation.user,
+                model,
+                effort=effort,
+                thinking=thinking,
+            )
             provider_name, model_id = split_model_ref(model)
             validate_generation_options(
                 provider_name,

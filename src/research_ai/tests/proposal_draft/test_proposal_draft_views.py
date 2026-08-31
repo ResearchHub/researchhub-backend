@@ -30,7 +30,8 @@ class ProposalDraftCreateViewTests(APITestCase):
             expert=self.expert,
         )
 
-    def test_create_requires_editor_or_moderator(self):
+    @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
+    def test_default_tier_user_can_create(self, mock_delay):
         # Arrange
         self.client.force_authenticate(self.user)
 
@@ -40,7 +41,8 @@ class ProposalDraftCreateViewTests(APITestCase):
         )
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        mock_delay.assert_called_once()
 
     @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
     def test_create_returns_201_and_enqueues_task(self, mock_delay):
@@ -226,7 +228,7 @@ class ProposalDraftDetailViewTests(APITestCase):
             error_message="gates not cleared within 2 rounds",
         )
 
-    def test_detail_requires_editor_or_moderator(self):
+    def test_default_tier_user_can_read_detail(self):
         # Arrange
         self.client.force_authenticate(self.user)
 
@@ -234,7 +236,7 @@ class ProposalDraftDetailViewTests(APITestCase):
         response = self.client.get(f"{BASE_URL}{self.draft.id}/")
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_detail_returns_job_state(self):
         # Arrange
@@ -289,17 +291,17 @@ class ProposalDraftCancelViewTests(APITestCase):
     def _cancel(self, draft_id=None):
         return self.client.post(f"{BASE_URL}{draft_id or self.draft.id}/cancel/")
 
-    def test_cancel_requires_editor_or_moderator(self):
+    def test_default_tier_user_can_cancel(self):
         # Arrange
         self.client.force_authenticate(self.user)
 
         # Act
         response = self._cancel()
 
-        # Assert: drafting is a privileged operation, and so is stopping one.
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.draft.refresh_from_db()
-        self.assertEqual(self.draft.status, ProposalDraft.Status.PROCESSING)
+        self.assertEqual(self.draft.status, ProposalDraft.Status.CANCELLED)
 
     def test_cancel_requires_authentication(self):
         # Act

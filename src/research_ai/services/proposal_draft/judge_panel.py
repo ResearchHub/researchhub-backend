@@ -39,6 +39,7 @@ from research_ai.services.agent import (
     resolve_provider,
 )
 from research_ai.services.expert_finder.json_parsing import ExpertFinderJson
+from research_ai.services.usage_budget import record
 
 logger = logging.getLogger(__name__)
 
@@ -218,16 +219,24 @@ class ProposalJudgePanel:
         generator_model_id: str | None = None,
         max_tokens: int = JUDGE_MAX_TOKENS,
         temperature: float = 0.0,
+        user=None,
+        execution=None,
     ):
         self._generator_model_id = generator_model_id or _default_generator_id()
         self._max_tokens = max_tokens
         self._temperature = temperature
+        self._user = user
+        self._execution = execution
         if providers is None:
             self._model_ids = _default_roster_ids(self._generator_model_id)
             self._providers: list[LLMProvider] | None = None
         else:
             self._providers = list(providers)
             self._model_ids = [getattr(p, "model_id", "") for p in self._providers]
+
+    def set_accounting(self, *, user, execution=None) -> None:
+        self._user = user
+        self._execution = execution
 
     @property
     def model_ids(self) -> list[str]:
@@ -389,10 +398,28 @@ class ProposalJudgePanel:
         carry a verdict is decided by the caller, which holds the text either
         way and can report it when the answer is rejected.
         """
-        return provider.complete(
+        turn = provider.complete(
             system_prompt=system_prompt,
             messages=[Message(role="user", content=[TextBlock(text=user_prompt)])],
             rendered_tools={},
             max_tokens=self._max_tokens,
             temperature=self._temperature,
         )
+        if turn.usage is not None:
+            module = type(provider).__module__
+            provider_name = (
+                "claude_platform"
+                if module.endswith("claude_platform")
+                else "openrouter"
+                if module.endswith("openrouter")
+                else "bedrock"
+            )
+            record(
+                self._user,
+                "proposal_draft_judge",
+                provider_name,
+                getattr(provider, "model_id", ""),
+                turn.usage,
+                execution=self._execution,
+            )
+        return turn
