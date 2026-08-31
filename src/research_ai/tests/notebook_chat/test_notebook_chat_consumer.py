@@ -12,7 +12,6 @@ from django.test import TransactionTestCase
 import research_ai.routing
 from note.tests.helpers import create_note
 from research_ai.consumers import (
-    CLOSE_FORBIDDEN,
     CLOSE_NOT_FOUND,
     CLOSE_UNAUTHENTICATED,
 )
@@ -111,13 +110,13 @@ class NotebookChatConsumerTests(TransactionTestCase):
         self.assertFalse(connected)
         self.assertEqual(code, CLOSE_UNAUTHENTICATED)
 
-    async def test_user_outside_the_rollout_gate_is_rejected(self):
-        # Act: authenticated, but neither editor nor moderator.
+    async def test_default_tier_user_reaches_conversation_ownership_check(self):
+        # Act: authenticated default-tier user, but the chat belongs to someone else.
         _communicator, connected, code = await self._connect(self.other_user)
 
-        # Assert
+        # Assert: tier admission succeeds; object ownership still leaks nothing.
         self.assertFalse(connected)
-        self.assertEqual(code, CLOSE_FORBIDDEN)
+        self.assertEqual(code, CLOSE_NOT_FOUND)
 
     async def test_someone_elses_conversation_reads_as_not_found(self):
         # Arrange: a moderator who can view the note but does not own the

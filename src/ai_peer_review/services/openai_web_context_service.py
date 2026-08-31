@@ -33,7 +33,7 @@ class OpenAIReviewContextService:
         proposal_excerpt: str,
         researcher_display_name: str | None = None,
         institutional_affiliation: str | None = None,
-    ) -> LLMTextResult:
+    ) -> str:
         text = (proposal_excerpt or "").strip()
         if len(text) > 24000:
             text = text[:24000] + "\n\n[TRUNCATED]"

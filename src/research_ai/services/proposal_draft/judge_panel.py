@@ -407,13 +407,12 @@ class ProposalJudgePanel:
         )
         if turn.usage is not None:
             module = type(provider).__module__
-            provider_name = (
-                "claude_platform"
-                if module.endswith("claude_platform")
-                else "openrouter"
-                if module.endswith("openrouter")
-                else "bedrock"
-            )
+            if module.endswith("claude_platform"):
+                provider_name = "claude_platform"
+            elif module.endswith("openrouter"):
+                provider_name = "openrouter"
+            else:
+                provider_name = "bedrock"
             record(
                 self._user,
                 "proposal_draft_judge",

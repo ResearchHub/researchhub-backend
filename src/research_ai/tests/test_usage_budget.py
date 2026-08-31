@@ -1,11 +1,17 @@
-from django.test import TestCase, override_settings
+from threading import Event, Thread
+
+from django.contrib.auth import get_user_model
+from django.db import close_old_connections
+from django.test import TestCase, TransactionTestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from research_ai.models import Expert, LLMUsageEvent
+from research_ai.models import Expert, ExpertSearch, LLMUsageEvent
 from research_ai.services.agent.types import TurnUsage
 from research_ai.services.usage_budget import (
     UsageLimitExceededError,
+    UsageWorkInProgressError,
+    atomic_turn_admission,
     budget_status,
     check_turn_admission,
     record,
@@ -70,10 +76,10 @@ class UsageBudgetTests(TestCase):
         status = budget_status(self.user)
 
         # Assert
-        self.assertEqual(event.cost_microusd, 280)
-        self.assertEqual(status.spent_today_microusd, 280)
+        self.assertEqual(event.cost_microusd, 1_650)
+        self.assertEqual(status.spent_today_microusd, 1_650)
         self.assertEqual(status.turns_used, 1)
-        self.assertEqual(status.remaining_microusd, 249_720)
+        self.assertEqual(status.remaining_microusd, 248_350)
 
     @override_settings(RESEARCH_AI_TIER_DEFAULT_DAILY_TURN_CAP=1)
     def test_admission_raises_when_daily_turn_cap_is_spent(self):
@@ -99,6 +105,68 @@ class UsageBudgetTests(TestCase):
                 self.user,
                 "claude_platform:claude-opus-5",
             )
+
+
+class AtomicAdmissionTests(TransactionTestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("budget-concurrent")
+
+    def test_concurrent_jobs_cannot_share_the_same_budget_snapshot(self):
+        # Arrange
+        first_created = Event()
+        second_started = Event()
+        allow_first_commit = Event()
+        errors = []
+        admissions = []
+
+        def admit_first():
+            close_old_connections()
+            user = get_user_model().objects.get(pk=self.user.pk)
+            try:
+                with atomic_turn_admission(user):
+                    ExpertSearch.objects.create(
+                        created_by=user,
+                        query="first",
+                        status=ExpertSearch.Status.PENDING,
+                    )
+                    first_created.set()
+                    allow_first_commit.wait(timeout=10)
+            except Exception as error:  # noqa: BLE001 - asserted in main thread
+                errors.append(error)
+            finally:
+                close_old_connections()
+
+        def admit_second():
+            first_created.wait(timeout=10)
+            close_old_connections()
+            user = get_user_model().objects.get(pk=self.user.pk)
+            second_started.set()
+            try:
+                with atomic_turn_admission(user):
+                    admissions.append("second")
+            except Exception as error:  # noqa: BLE001 - asserted in main thread
+                errors.append(error)
+            finally:
+                close_old_connections()
+
+        first = Thread(target=admit_first)
+        second = Thread(target=admit_second)
+
+        # Act
+        first.start()
+        self.assertTrue(first_created.wait(timeout=10))
+        second.start()
+        self.assertTrue(second_started.wait(timeout=10))
+        allow_first_commit.set()
+        first.join(timeout=10)
+        second.join(timeout=10)
+
+        # Assert
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertEqual(admissions, [])
+        self.assertEqual(len(errors), 1)
+        self.assertIsInstance(errors[0], UsageWorkInProgressError)
 
 
 class UsageBudgetAPITests(TestCase):

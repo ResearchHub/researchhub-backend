@@ -66,4 +66,3 @@ class AgentRecorder(Protocol):
 
     def before_model_call(self) -> None:
         """Optional pre-spend hook, called before each request and retry."""
-        ...

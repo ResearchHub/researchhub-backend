@@ -37,7 +37,10 @@ from research_ai.services.notebook_chat import (
     ACTIVITY_LIVE,
     NotebookChatService,
 )
-from research_ai.services.usage_budget import UsageLimitExceededError
+from research_ai.services.usage_budget import (
+    UsageLimitExceededError,
+    UsageWorkInProgressError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +163,11 @@ class NotebookChatMessageView(APIView):
         except AgentConversationBusyError:
             return Response(
                 {"detail": "The assistant is still working on a previous message."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        except UsageWorkInProgressError as error:
+            return Response(
+                {"detail": str(error), "code": error.code},
                 status=status.HTTP_409_CONFLICT,
             )
         except UsageLimitExceededError as error:

@@ -74,6 +74,7 @@ class NotebookChatServiceTests(TestCase):
             username="owner@researchhub_test.com",
             password="password",
             email="owner@researchhub_test.com",
+            is_staff=True,
         )
         self.note, self.content = create_note(self.user, organization=None)
         Permission.objects.create(

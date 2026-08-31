@@ -20,10 +20,31 @@ class ExpertSearchListCreateViewTests(APITestCase):
         response = self.client.post(self.url, {"query": "ML"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_create_requires_moderator(self):
+    @patch("research_ai.views.expert_finder_views.get_document_content")
+    @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")
+    def test_default_tier_user_can_create(self, mock_delay, mock_get_document_content):
+        # Arrange
+        from paper.tests.helpers import create_paper
+
+        mock_get_document_content.return_value = ("abstract text", "abstract")
+        paper = create_paper(title="Default tier paper")
         self.client.force_authenticate(self.user)
-        response = self.client.post(self.url, {"query": "ML"}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Act
+        response = self.client.post(
+            self.url,
+            {
+                "unified_document_id": paper.unified_document_id,
+                "input_type": "abstract",
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        search = ExpertSearch.objects.get(id=response.json()["search_id"])
+        self.assertEqual(search.created_by, self.user)
+        mock_delay.assert_called_once()
 
     @patch("research_ai.views.expert_finder_views.get_document_content")
     @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")

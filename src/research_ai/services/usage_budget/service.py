@@ -1,15 +1,23 @@
 """Tier resolution, accounting, and admission for Research AI spend."""
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.db import transaction
 from django.db.models import BigIntegerField, Count, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from research_ai.models import Expert, LLMUsageEvent
+from research_ai.models import (
+    AgentExecution,
+    Expert,
+    ExpertSearch,
+    LLMUsageEvent,
+    ProposalDraft,
+)
 from research_ai.services.agent.errors import BudgetExceededError
 from research_ai.services.agent.model_capabilities import EFFORT_LEVELS
 from research_ai.services.agent.model_pricing import cost_microusd, model_pricing
@@ -30,6 +38,10 @@ class UsageLimitExceededError(RuntimeError):
     def __init__(self, status: "BudgetStatus"):
         super().__init__("Daily Research AI usage limit exceeded")
         self.status = status
+
+
+class UsageWorkInProgressError(RuntimeError):
+    code = "usage_work_in_progress"
 
 
 @dataclass(frozen=True)
@@ -196,6 +208,69 @@ def check_budget_admission(user) -> BudgetStatus:
     if getattr(settings, "RESEARCH_AI_BUDGETS_ENFORCED", True) and status.exhausted:
         raise UsageLimitExceededError(status)
     return status
+
+
+def _has_in_flight_work(user) -> bool:
+    """Whether a budgeted user already has spend-producing work reserved."""
+    return (
+        AgentExecution.objects.filter(
+            conversation__user=user,
+            status__in=[
+                AgentExecution.Status.PENDING,
+                AgentExecution.Status.RUNNING,
+            ],
+        ).exists()
+        or ProposalDraft.objects.filter(
+            created_by=user,
+            status__in=[
+                ProposalDraft.Status.PENDING,
+                ProposalDraft.Status.PROCESSING,
+            ],
+        ).exists()
+        or ExpertSearch.objects.filter(
+            created_by=user,
+            status__in=[
+                ExpertSearch.Status.PENDING,
+                ExpertSearch.Status.PROCESSING,
+            ],
+        ).exists()
+    )
+
+
+@contextmanager
+def atomic_turn_admission(
+    user,
+    model_ref: str | None = None,
+    *,
+    effort: str | None = None,
+    thinking: str | None = None,
+):
+    """Atomically reserve one in-flight budgeted job for ``user``.
+
+    The caller must create its pending execution/search/draft before leaving
+    this context. That row is the reservation observed by the next admission.
+    Restricting budgeted users to one in-flight top-level job keeps soft
+    enforcement's overshoot bounded to the currently running provider call.
+    """
+    with transaction.atomic():
+        locked_user = type(user)._default_manager.select_for_update().get(pk=user.pk)
+        policy = resolve_ai_tier(locked_user)
+        enforced = getattr(settings, "RESEARCH_AI_BUDGETS_ENFORCED", True)
+        if enforced and policy.is_budgeted and _has_in_flight_work(locked_user):
+            raise UsageWorkInProgressError(
+                "Another Research AI request is still in progress"
+            )
+        status = (
+            check_turn_admission(
+                locked_user,
+                model_ref,
+                effort=effort,
+                thinking=thinking,
+            )
+            if model_ref is not None
+            else check_budget_admission(locked_user)
+        )
+        yield status
 
 
 def record(

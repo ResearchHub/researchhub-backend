@@ -1,6 +1,6 @@
 import logging
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -20,13 +20,28 @@ from research_ai.services.proposal_draft.cancel_service import (
 )
 from research_ai.services.usage_budget import (
     UsageLimitExceededError,
-    check_turn_admission,
+    UsageWorkInProgressError,
+    atomic_turn_admission,
     effective_generation_options,
     resolve_ai_tier,
 )
 from research_ai.tasks import run_proposal_draft_task
 
 logger = logging.getLogger(__name__)
+
+
+def _search_experts_for(user):
+    queryset = SearchExpert.objects.select_related("expert_search")
+    if user.is_moderator_or_editor():
+        return queryset
+    return queryset.filter(expert_search__created_by=user)
+
+
+def _proposal_drafts_for(user):
+    queryset = ProposalDraft.objects.all()
+    if user.is_moderator_or_editor():
+        return queryset
+    return queryset.filter(created_by=user)
 
 
 def _active_draft_for(search_expert):
@@ -68,6 +83,14 @@ class ProposalDraftCreateView(APIView):
         serializer = ProposalDraftCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         search_expert_id = serializer.validated_data["search_expert_id"]
+        search_expert = get_object_or_404(
+            _search_experts_for(request.user), id=search_expert_id
+        )
+
+        active = _active_draft_for(search_expert)
+        if active is not None:
+            return _active_draft_conflict(active)
+
         policy = resolve_ai_tier(request.user)
         model_ref = (
             serializer.validated_data["model"]
@@ -79,14 +102,6 @@ class ProposalDraftCreateView(APIView):
                 policy,
                 effort=serializer.validated_data.get("effort"),
                 thinking=serializer.validated_data.get("thinking"),
-            )
-            check_turn_admission(
-                request.user, model_ref, effort=effort, thinking=thinking
-            )
-        except UsageLimitExceededError as error:
-            return Response(
-                {"code": error.code, **error.status.as_dict()},
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
         except ValueError as error:
             return Response(
@@ -115,14 +130,13 @@ class ProposalDraftCreateView(APIView):
         if thinking is not None:
             requested_options["thinking"] = thinking
 
-        search_expert = get_object_or_404(SearchExpert, id=search_expert_id)
-
-        active = _active_draft_for(search_expert)
-        if active is not None:
-            return _active_draft_conflict(active)
-
         try:
-            with transaction.atomic():
+            with atomic_turn_admission(
+                request.user,
+                model_ref,
+                effort=effort,
+                thinking=thinking,
+            ):
                 draft = ProposalDraft.objects.create(
                     search_expert=search_expert,
                     created_by=request.user,
@@ -131,6 +145,16 @@ class ProposalDraftCreateView(APIView):
                     model_ref=model_ref,
                     run_config=requested_options,
                 )
+        except UsageLimitExceededError as error:
+            return Response(
+                {"code": error.code, **error.status.as_dict()},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        except UsageWorkInProgressError as error:
+            return Response(
+                {"detail": str(error), "code": error.code},
+                status=status.HTTP_409_CONFLICT,
+            )
         except IntegrityError:
             active = _active_draft_for(search_expert)
             if active is not None:
@@ -155,7 +179,7 @@ class ProposalDraftDetailView(APIView):
     ]
 
     def get(self, request, draft_id):
-        draft = get_object_or_404(ProposalDraft, id=draft_id)
+        draft = get_object_or_404(_proposal_drafts_for(request.user), id=draft_id)
 
         return Response(ProposalDraftSerializer(draft).data)
 
@@ -181,7 +205,7 @@ class ProposalDraftCancelView(APIView):
     ]
 
     def post(self, request, draft_id):
-        draft = get_object_or_404(ProposalDraft, id=draft_id)
+        draft = get_object_or_404(_proposal_drafts_for(request.user), id=draft_id)
         cancelled = ProposalDraftCancelService().cancel(
             draft, cancelled_by=request.user
         )

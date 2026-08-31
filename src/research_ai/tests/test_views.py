@@ -17,6 +17,9 @@ class ExpertSearchDetailViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod2", moderator=True)
         self.other = create_random_authenticated_user("other", moderator=True)
+        self.default_user = create_random_authenticated_user(
+            "detail_default", moderator=False
+        )
         self.search = ExpertSearch.objects.create(
             created_by=self.moderator,
             query="Detail test",
@@ -63,6 +66,16 @@ class ExpertSearchDetailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json()["search_id"], self.search.id)
 
+    def test_default_user_cannot_get_another_users_search(self):
+        # Arrange
+        self.client.force_authenticate(self.default_user)
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
     def test_get_non_integer_search_id_returns_404(self):
         """Non-integer search_id does not match URL pattern; Django returns 404."""
         self.client.force_authenticate(self.moderator)
@@ -93,6 +106,7 @@ class ExpertSearchDetailViewTests(APITestCase):
 class ExpertSearchListViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod3", moderator=True)
+        self.user = create_random_authenticated_user("list_default", moderator=False)
         self.url = "/api/research_ai/expert-finder/searches/"
 
     def test_list_returns_own_searches(self):
@@ -113,10 +127,33 @@ class ExpertSearchListViewTests(APITestCase):
         self.assertEqual(data["total"], 2)
         self.assertEqual(len(data["searches"]), 2)
 
+    def test_default_user_lists_only_own_searches(self):
+        # Arrange
+        own = ExpertSearch.objects.create(
+            created_by=self.user,
+            query="Own",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        ExpertSearch.objects.create(
+            created_by=self.moderator,
+            query="Other",
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["total"], 1)
+        self.assertEqual(response.json()["searches"][0]["search_id"], own.id)
+
 
 class ExpertSearchProgressStreamViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod4", moderator=True)
+        self.user = create_random_authenticated_user("stream_default", moderator=False)
         self.search = ExpertSearch.objects.create(
             created_by=self.moderator,
             query="Stream test",
@@ -133,6 +170,16 @@ class ExpertSearchProgressStreamViewTests(APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("text/event-stream", response.get("Content-Type", ""))
+
+    def test_default_user_cannot_stream_another_users_search(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 class ExpertSearchWorkViewTests(APITestCase):
@@ -522,10 +569,31 @@ class ExpertSearchListCreateViewTests(APITestCase):
         r = self.client.post(self.base, {"query": "x"}, format="json")
         self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_create_requires_moderator(self):
+    @patch("research_ai.views.expert_finder_views.get_document_content")
+    @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")
+    def test_default_tier_user_can_create(self, mock_delay, mock_get_document_content):
+        # Arrange
+        from paper.tests.helpers import create_paper
+
+        mock_get_document_content.return_value = ("abstract text", "abstract")
+        paper = create_paper(title="Default tier V2 paper")
         self.client.force_authenticate(self.user)
-        r = self.client.post(self.base, {"query": "x"}, format="json")
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Act
+        r = self.client.post(
+            self.base,
+            {
+                "unified_document_id": paper.unified_document_id,
+                "input_type": "abstract",
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
+        search = ExpertSearch.objects.get(id=r.json()["search_id"])
+        self.assertEqual(search.created_by, self.user)
+        mock_delay.assert_called_once()
 
     @patch("research_ai.views.expert_finder_views.get_document_content")
     @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")

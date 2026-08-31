@@ -95,7 +95,7 @@ from research_ai.services.notebook_chat.toolset import (
 )
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
 from research_ai.services.usage_budget import (
-    check_turn_admission,
+    atomic_turn_admission,
     effective_generation_options,
     resolve_ai_tier,
 )
@@ -501,43 +501,43 @@ class NotebookChatService:
             effort, thinking = effective_generation_options(
                 policy, effort=effort, thinking=thinking
             )
-            check_turn_admission(
+            with atomic_turn_admission(
                 locked_conversation.user,
                 model,
                 effort=effort,
                 thinking=thinking,
-            )
-            provider_name, model_id = split_model_ref(model)
-            validate_generation_options(
-                provider_name,
-                model_id or "",
-                effort=effort,
-                thinking=thinking,
-                temperature=temperature,
-            )
+            ):
+                provider_name, model_id = split_model_ref(model)
+                validate_generation_options(
+                    provider_name,
+                    model_id or "",
+                    effort=effort,
+                    thinking=thinking,
+                    temperature=temperature,
+                )
 
-            configuration = {
-                "max_iterations": config.max_iterations,
-                "max_tokens": config.max_tokens,
-                "temperature": (
-                    config.temperature if temperature is None else temperature
-                ),
-                "note_id": note.id,
-            }
-            if effort is not None:
-                configuration["effort"] = effort
-            if thinking is not None:
-                configuration["thinking"] = thinking
+                configuration = {
+                    "max_iterations": config.max_iterations,
+                    "max_tokens": config.max_tokens,
+                    "temperature": (
+                        config.temperature if temperature is None else temperature
+                    ),
+                    "note_id": note.id,
+                }
+                if effort is not None:
+                    configuration["effort"] = effort
+                if thinking is not None:
+                    configuration["thinking"] = thinking
 
-            prepared = self.chat.prepare_turn(
-                locked_conversation,
-                text,
-                pending=True,
-                provider=split_model_ref(model)[0],
-                model=model,
-                configuration=configuration,
-                system_prompt=build_notebook_chat_system_prompt(note),
-            )
+                prepared = self.chat.prepare_turn(
+                    locked_conversation,
+                    text,
+                    pending=True,
+                    provider=provider_name,
+                    model=model,
+                    configuration=configuration,
+                    system_prompt=build_notebook_chat_system_prompt(note),
+                )
         execution = prepared.execution
         # After prepare_turn so a refused turn (busy, for instance) names
         # nothing; the filtered update keeps a concurrent rename authoritative.
