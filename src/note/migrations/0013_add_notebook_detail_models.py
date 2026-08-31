@@ -160,6 +160,10 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
+                    "is_public",
+                    models.BooleanField(blank=True, null=True),
+                ),
+                (
                     "note",
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.CASCADE,

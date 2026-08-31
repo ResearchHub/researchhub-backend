@@ -28,6 +28,10 @@ class NoteFundraise(DefaultModel):
         null=True,
         validators=[MinValueValidator(1)],
     )
+    is_public = models.BooleanField(
+        blank=True,
+        null=True,
+    )
     nonprofit = models.ForeignKey(
         "organizations.NonprofitOrg",
         blank=True,
