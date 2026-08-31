@@ -11,6 +11,7 @@ from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
 from discussion.models import Vote
+from feed.views.funding_feed_view import FundingFeedViewSet
 from hub.models import Hub
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
@@ -1106,6 +1107,29 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
         self.assertNotIn(private_post.id, post_ids)
+
+    @patch.object(
+        FundingFeedViewSet,
+        "_include_private_for_privileged",
+        side_effect=[False, True],
+    )
+    def test_list_reuses_include_private_decision_in_queryset(
+        self, mock_include_private
+    ):
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+
+        # Act
+        response = self.client.get(
+            reverse("funding_feed-list"),
+            {"include_private": "true", "page": 1},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
+        mock_include_private.assert_called_once()
 
     def test_moderator_discovery_without_include_private_excludes_private(self):
         # Arrange

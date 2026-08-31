@@ -74,7 +74,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
         grant_id = request.query_params.get("grant_id", None)
         created_by = request.query_params.get("created_by", None)
         funded_by = request.query_params.get("funded_by", None)
-        include_private = self._include_private_for_privileged(request)
+        self._include_private = self._include_private_for_privileged(request)
         suffix, should_cache = get_feed_cache_segment(request)
         use_cache = (
             should_cache
@@ -82,7 +82,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
             and grant_id is None
             and created_by is None
             and funded_by is None
-            and not include_private
+            and not self._include_private
         )
         cache_key = (
             (self.get_cache_key(request, "funding") + suffix) if use_cache else None
@@ -191,12 +191,10 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
         #
         # This feed stays public-only unless a mod/editor passes
         # include_private.
-        if (
-            grant_id
-            or created_by
-            or funded_by
-            or self._include_private_for_privileged(self.request)
-        ):
+        include_private = getattr(self, "_include_private", None)
+        if include_private is None:
+            include_private = self._include_private_for_privileged(self.request)
+        if grant_id or created_by or funded_by or include_private:
             visible_ids = ResearchhubPost.objects.visible_to(self.request.user).values(
                 "id"
             )
