@@ -1,4 +1,5 @@
 from threading import Event, Thread
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.db import close_old_connections
@@ -6,8 +7,9 @@ from django.test import TestCase, TransactionTestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from research_ai.models import Expert, ExpertSearch, LLMUsageEvent
+from research_ai.models import AgentConversation, AgentExecution, Expert, LLMUsageEvent
 from research_ai.services.agent.types import TurnUsage
+from research_ai.services.bedrock_llm_service import BedrockLLMService
 from research_ai.services.usage_budget import (
     UsageLimitExceededError,
     UsageWorkInProgressError,
@@ -106,6 +108,24 @@ class UsageBudgetTests(TestCase):
                 "claude_platform:claude-opus-5",
             )
 
+    @patch("research_ai.services.bedrock_llm_service.record")
+    @patch("research_ai.services.bedrock_llm_service.create_client")
+    def test_untagged_legacy_wrapper_does_not_record_usage(
+        self, create_client, record_usage
+    ):
+        # Arrange
+        create_client.return_value.converse.return_value = {
+            "output": {"message": {"content": [{"text": "result"}]}},
+            "usage": {"inputTokens": 10, "outputTokens": 5},
+        }
+
+        # Act
+        result = BedrockLLMService().invoke("system", "user")
+
+        # Assert
+        self.assertEqual(result, "result")
+        record_usage.assert_not_called()
+
 
 class AtomicAdmissionTests(TransactionTestCase):
     def setUp(self):
@@ -124,10 +144,14 @@ class AtomicAdmissionTests(TransactionTestCase):
             user = get_user_model().objects.get(pk=self.user.pk)
             try:
                 with atomic_turn_admission(user):
-                    ExpertSearch.objects.create(
-                        created_by=user,
-                        query="first",
-                        status=ExpertSearch.Status.PENDING,
+                    conversation = AgentConversation.objects.create(
+                        user=user,
+                        workflow="notebook_chat",
+                    )
+                    AgentExecution.objects.create(
+                        conversation=conversation,
+                        status=AgentExecution.Status.PENDING,
+                        attempt=1,
                     )
                     first_created.set()
                     allow_first_commit.wait(timeout=10)
@@ -194,25 +218,3 @@ class UsageBudgetAPITests(TestCase):
             ],
         )
         self.assertEqual(response.json()["tier"], "default")
-
-    @override_settings(RESEARCH_AI_TIER_DEFAULT_DAILY_TURN_CAP=1)
-    def test_expert_search_admission_returns_429_status_shape(self):
-        # Arrange
-        LLMUsageEvent.objects.create(
-            user=self.user,
-            feature="expert_finder",
-            provider="openai",
-            model="gpt-5.4-mini",
-            cost_microusd=1,
-        )
-
-        # Act: admission runs before request-shape validation.
-        response = self.client.post(
-            "/api/research_ai/expert-finder/searches/", {}, format="json"
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
-        self.assertEqual(response.json()["code"], "usage_limit_exceeded")
-        self.assertEqual(response.json()["turns_used"], 1)
-        self.assertIn("resets_at", response.json())

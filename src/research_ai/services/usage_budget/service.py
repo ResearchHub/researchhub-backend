@@ -14,7 +14,6 @@ from django.utils import timezone
 from research_ai.models import (
     AgentExecution,
     Expert,
-    ExpertSearch,
     LLMUsageEvent,
     ProposalDraft,
 )
@@ -227,13 +226,6 @@ def _has_in_flight_work(user) -> bool:
                 ProposalDraft.Status.PROCESSING,
             ],
         ).exists()
-        or ExpertSearch.objects.filter(
-            created_by=user,
-            status__in=[
-                ExpertSearch.Status.PENDING,
-                ExpertSearch.Status.PROCESSING,
-            ],
-        ).exists()
     )
 
 
@@ -247,7 +239,7 @@ def atomic_turn_admission(
 ):
     """Atomically reserve one in-flight budgeted job for ``user``.
 
-    The caller must create its pending execution/search/draft before leaving
+    The caller must create its pending execution or draft before leaving
     this context. That row is the reservation observed by the next admission.
     Restricting budgeted users to one in-flight top-level job keeps soft
     enforcement's overshoot bounded to the currently running provider call.

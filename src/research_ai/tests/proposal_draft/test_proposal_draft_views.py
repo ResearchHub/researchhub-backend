@@ -24,7 +24,6 @@ class ProposalDraftCreateViewTests(APITestCase):
         self.expert_search = ExpertSearch.objects.create(
             created_by=self.moderator,
             query="protein folding",
-            status=ExpertSearch.Status.COMPLETED,
         )
         self.search_expert = SearchExpert.objects.create(
             expert_search=self.expert_search,
@@ -37,7 +36,6 @@ class ProposalDraftCreateViewTests(APITestCase):
         own_search = ExpertSearch.objects.create(
             created_by=self.user,
             query="protein folding",
-            status=ExpertSearch.Status.COMPLETED,
         )
         own_search_expert = SearchExpert.objects.create(
             expert_search=own_search,
@@ -236,7 +234,6 @@ class ProposalDraftDetailViewTests(APITestCase):
         self.expert_search = ExpertSearch.objects.create(
             created_by=self.moderator,
             query="protein folding",
-            status=ExpertSearch.Status.COMPLETED,
         )
         self.search_expert = SearchExpert.objects.create(
             expert_search=self.expert_search,
@@ -311,7 +308,6 @@ class ProposalDraftCancelViewTests(APITestCase):
         self.expert_search = ExpertSearch.objects.create(
             created_by=self.moderator,
             query="protein folding",
-            status=ExpertSearch.Status.COMPLETED,
         )
         self.search_expert = SearchExpert.objects.create(
             expert_search=self.expert_search,

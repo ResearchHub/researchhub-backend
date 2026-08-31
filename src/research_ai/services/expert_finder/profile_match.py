@@ -78,7 +78,7 @@ class ProfileJudge:
 
     def _get_llm(self) -> BedrockLLMService:
         if self._llm is None:
-            self._llm = BedrockLLMService(feature="expert_profile_match")
+            self._llm = BedrockLLMService()
         return self._llm
 
     def pick(

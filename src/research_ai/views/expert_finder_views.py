@@ -41,12 +41,6 @@ from research_ai.services.outreach.invited_experts import (
     invited_stats_cache_key,
     load_editor_users,
 )
-from research_ai.services.usage_budget import (
-    UsageLimitExceededError,
-    UsageWorkInProgressError,
-    atomic_turn_admission,
-    check_budget_admission,
-)
 from research_ai.tasks import run_expert_finder_search
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.permissions import IsModerator, UserIsEditor
@@ -68,13 +62,6 @@ def _search_prefetch():
     )
 
 
-def _expert_searches_for(user):
-    queryset = ExpertSearch.objects.all()
-    if user.is_moderator_or_editor():
-        return queryset
-    return queryset.filter(created_by=user)
-
-
 class ExpertSearchListCreateView(APIView):
     """
     GET ``/expert-finder/searches/`` — list searches.
@@ -84,12 +71,12 @@ class ExpertSearchListCreateView(APIView):
     permission_classes = [
         IsAuthenticated,
         ResearchAIPermission,
+        UserIsEditor | IsModerator,
     ]
 
-    def get_queryset(self, user):
+    def get_queryset(self):
         return (
-            _expert_searches_for(user)
-            .select_related(
+            ExpertSearch.objects.select_related(
                 "created_by",
                 "created_by__author_profile",
             )
@@ -100,7 +87,7 @@ class ExpertSearchListCreateView(APIView):
     def get(self, request):
         limit = max(1, min(100, int(request.query_params.get("limit", 10))))
         offset = max(0, int(request.query_params.get("offset", 0)))
-        qs = self.get_queryset(request.user)
+        qs = self.get_queryset()
         total = qs.count()
         end = offset + limit
         items = list(qs[offset:end])
@@ -115,13 +102,6 @@ class ExpertSearchListCreateView(APIView):
         )
 
     def post(self, request):
-        try:
-            check_budget_admission(request.user)
-        except UsageLimitExceededError as error:
-            return Response(
-                {"code": error.code, **error.status.as_dict()},
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
-            )
         ser = ExpertSearchCreateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
@@ -149,11 +129,6 @@ class ExpertSearchListCreateView(APIView):
                 {"detail": "Unified document not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        if not unified_doc.is_visible_to_user(request.user):
-            return Response(
-                {"detail": "Unified document not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
         try:
             query_text, content_type = get_document_content(unified_doc, input_type)
         except ValueError as e:
@@ -166,30 +141,18 @@ class ExpertSearchListCreateView(APIView):
         if not search_name:
             search_name = unified_doc.get_display_title()
 
-        try:
-            with atomic_turn_admission(request.user):
-                expert_search = ExpertSearch.objects.create(
-                    created_by=request.user,
-                    unified_document_id=unified_document_id,
-                    name=search_name,
-                    query=query_text,
-                    additional_context=additional_context,
-                    input_type=effective_input_type,
-                    config=search_config,
-                    status=ExpertSearch.Status.PENDING,
-                    progress=0,
-                    current_step="Queued for processing",
-                )
-        except UsageLimitExceededError as error:
-            return Response(
-                {"code": error.code, **error.status.as_dict()},
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
-            )
-        except UsageWorkInProgressError as error:
-            return Response(
-                {"detail": str(error), "code": error.code},
-                status=status.HTTP_409_CONFLICT,
-            )
+        expert_search = ExpertSearch.objects.create(
+            created_by=request.user,
+            unified_document_id=unified_document_id,
+            name=search_name,
+            query=query_text,
+            additional_context=additional_context,
+            input_type=effective_input_type,
+            config=search_config,
+            status=ExpertSearch.Status.PENDING,
+            progress=0,
+            current_step="Queued for processing",
+        )
 
         search_id = expert_search.id
         run_expert_finder_search.delay(
@@ -218,13 +181,13 @@ class ExpertSearchDetailView(APIView):
     permission_classes = [
         IsAuthenticated,
         ResearchAIPermission,
+        UserIsEditor | IsModerator,
     ]
 
     def get(self, request, search_id):
         try:
             expert_search = (
-                _expert_searches_for(request.user)
-                .select_related(
+                ExpertSearch.objects.select_related(
                     "created_by",
                     "created_by__author_profile",
                 )
@@ -689,13 +652,12 @@ class ExpertSearchProgressStreamView(APIView):
     permission_classes = [
         IsAuthenticated,
         ResearchAIPermission,
+        UserIsEditor | IsModerator,
     ]
 
     def get(self, request, search_id):
         try:
-            _expert_searches_for(request.user).select_related("created_by").get(
-                id=search_id
-            )
+            ExpertSearch.objects.select_related("created_by").get(id=search_id)
         except ExpertSearch.DoesNotExist:
             return Response(
                 {"detail": "Expert search not found."},

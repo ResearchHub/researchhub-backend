@@ -10,7 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from research_ai.permissions import ResearchAIPermission
+from research_ai.permissions import ResearchAIBudgetPermission
 from research_ai.services.agent import available_models, default_model_ref
 from research_ai.services.agent.model_capabilities import EFFORT_LEVELS
 from research_ai.services.agent.model_pricing import cost_multiplier, model_pricing
@@ -23,7 +23,7 @@ class AvailableModelsView(APIView):
 
     permission_classes = [
         IsAuthenticated,
-        ResearchAIPermission,
+        ResearchAIBudgetPermission,
     ]
 
     def get(self, request):

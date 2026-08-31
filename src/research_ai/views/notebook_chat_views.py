@@ -25,7 +25,7 @@ from rest_framework.views import APIView
 
 from note.related_models.note_model import Note
 from research_ai.models import AgentConversation
-from research_ai.permissions import ResearchAIPermission
+from research_ai.permissions import ResearchAIBudgetPermission
 from research_ai.serializers import (
     NotebookChatCreateSerializer,
     NotebookChatMessageCreateSerializer,
@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 NOTEBOOK_CHAT_PERMISSIONS = [
     IsAuthenticated,
-    ResearchAIPermission,
+    ResearchAIBudgetPermission,
 ]
 
 

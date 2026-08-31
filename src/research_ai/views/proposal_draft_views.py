@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from research_ai.models import ProposalDraft, SearchExpert
-from research_ai.permissions import ResearchAIPermission
+from research_ai.permissions import ResearchAIBudgetPermission
 from research_ai.serializers import (
     ProposalDraftCreateSerializer,
     ProposalDraftSerializer,
@@ -71,7 +71,7 @@ class ProposalDraftCreateView(APIView):
 
     permission_classes = [
         IsAuthenticated,
-        ResearchAIPermission,
+        ResearchAIBudgetPermission,
     ]
 
     def post(self, request):
@@ -175,7 +175,7 @@ class ProposalDraftDetailView(APIView):
 
     permission_classes = [
         IsAuthenticated,
-        ResearchAIPermission,
+        ResearchAIBudgetPermission,
     ]
 
     def get(self, request, draft_id):
@@ -201,7 +201,7 @@ class ProposalDraftCancelView(APIView):
 
     permission_classes = [
         IsAuthenticated,
-        ResearchAIPermission,
+        ResearchAIBudgetPermission,
     ]
 
     def post(self, request, draft_id):

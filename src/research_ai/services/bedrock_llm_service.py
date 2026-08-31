@@ -17,7 +17,7 @@ BEDROCK_MODEL_ID = getattr(
 
 
 class BedrockLLMService:
-    def __init__(self, *, user=None, feature: str = "research_ai_legacy"):
+    def __init__(self, *, user=None, feature: str | None = None):
         self.bedrock_client = create_client("bedrock-runtime")
         self.model_id = BEDROCK_MODEL_ID
         self.user = user
@@ -72,7 +72,7 @@ class BedrockLLMService:
         message = response["output"]["message"]
         content = message.get("content", [])
         usage = bedrock_usage(response)
-        if usage is not None:
+        if usage is not None and self.feature is not None:
             record(self.user, self.feature, "bedrock", self.model_id, usage)
         if not content:
             return LLMTextResult("", usage)
