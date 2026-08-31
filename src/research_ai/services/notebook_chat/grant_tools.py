@@ -236,13 +236,8 @@ def _grant_terms(grant) -> dict:
 
 
 def _grant_full_text(grant) -> str:
-    """All available RFP text, including a rendered post without a source file."""
-    text = str(grant.get_llm_context_text() or "").strip()
-    post = grant.unified_document.posts.first()
-    rendered = str(getattr(post, "renderable_text", "") or "").strip()
-    if rendered and rendered not in text:
-        text = f"{text}\n\n{rendered}" if text else rendered
-    return text
+    """The canonical RFP text, with Markdown preferred over rendered fallback."""
+    return str(grant.get_llm_context_text() or "").strip()
 
 
 def _parse_grant_id(args: dict) -> tuple[int | None, dict | None]:

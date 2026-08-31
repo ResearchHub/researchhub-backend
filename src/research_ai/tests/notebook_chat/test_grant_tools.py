@@ -325,6 +325,7 @@ class SelectedRFPToolsetTests(TestCase):
         self.assertEqual(result["amount"], "75000.00")
         self.assertIn("Funding for reproducible research.", result["rfp_text"])
         self.assertIn("Applicants must publish their methods.", result["rfp_text"])
+        self.assertNotIn("some text", result["rfp_text"])
         self.assertIn("/grant/", result["url"])
 
     def test_reports_when_preregistration_has_no_selected_rfp(self):
