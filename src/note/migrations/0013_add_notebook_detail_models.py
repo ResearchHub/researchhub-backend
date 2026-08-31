@@ -58,7 +58,7 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.CreateModel(
-            name="NoteGrant",
+            name="GrantSettings",
             fields=[
                 (
                     "id",
@@ -110,7 +110,7 @@ class Migration(migrations.Migration):
                     "note",
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name="grant_details",
+                        related_name="grant_settings",
                         to="note.note",
                     ),
                 ),
@@ -118,14 +118,17 @@ class Migration(migrations.Migration):
                     "contacts",
                     models.ManyToManyField(
                         blank=True,
-                        related_name="note_grant_contacts",
+                        related_name="note_grant_settings_contacts",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
             ],
+            options={
+                "db_table": "note_grant_settings",
+            },
         ),
         migrations.CreateModel(
-            name="NoteFundraise",
+            name="PreregistrationSettings",
             fields=[
                 (
                     "id",
@@ -167,7 +170,7 @@ class Migration(migrations.Migration):
                     "note",
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name="fundraise_details",
+                        related_name="preregistration_settings",
                         to="note.note",
                     ),
                 ),
@@ -177,10 +180,13 @@ class Migration(migrations.Migration):
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        related_name="note_fundraises",
+                        related_name="note_preregistration_settings",
                         to="organizations.nonprofitorg",
                     ),
                 ),
             ],
+            options={
+                "db_table": "note_preregistration_settings",
+            },
         ),
     ]

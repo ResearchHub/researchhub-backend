@@ -4,13 +4,13 @@ from purchase.related_models.grant_model import Grant
 from utils.models import DefaultModel
 
 
-class NoteGrant(DefaultModel):
+class GrantSettings(DefaultModel):
     """Unpublished grant Details for a notebook draft."""
 
     note = models.OneToOneField(
         "note.Note",
         on_delete=models.CASCADE,
-        related_name="grant_details",
+        related_name="grant_settings",
     )
     amount = models.DecimalField(
         blank=True,
@@ -45,5 +45,8 @@ class NoteGrant(DefaultModel):
     contacts = models.ManyToManyField(
         "user.User",
         blank=True,
-        related_name="note_grant_contacts",
+        related_name="note_grant_settings_contacts",
     )
+
+    class Meta:
+        db_table = "note_grant_settings"
