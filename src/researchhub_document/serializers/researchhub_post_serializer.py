@@ -30,7 +30,6 @@ from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
     REGISTERED_REPORT,
-    RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
 from researchhub_document.services.unified_document_share_link_service import (
     get_shared_unified_document_id,
@@ -162,10 +161,7 @@ class ResearchhubPostSerializer(
 
     def get_post_src(self, instance):
         try:
-            if instance.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                return instance.discussion_src.url
-            else:
-                return instance.eln_src.url
+            return instance.discussion_src.url
         except Exception:
             return None
 
