@@ -113,21 +113,24 @@ class GrantSearchToolset:
 
         return {
             "query": query,
-            "grants": [self._serialize_card(grant) for grant in grants],
+            "grants": [self._serialize_card(grant, query) for grant in grants],
         }
 
     @staticmethod
-    def _serialize_card(grant) -> dict:
+    def _serialize_card(grant, query: str) -> dict:
         posts = list(grant.unified_document.posts.all())
         post = posts[0] if posts else None
-        title = (grant.short_title or "").strip()
-        if not title and post is not None:
-            title = (post.title or "").strip()
-        summary = (post.renderable_text or "").strip() if post is not None else ""
-        if not summary:
-            summary = (grant.description or "").strip()
-        if len(summary) > _MAX_SUMMARY_CHARS:
-            summary = summary[: _MAX_SUMMARY_CHARS - 1].rstrip() + "…"
+        short_title = (grant.short_title or "").strip()
+        post_title = (post.title or "").strip() if post is not None else ""
+        title = max(
+            (short_title, post_title),
+            key=lambda text: (
+                _match_rank(text, query),
+                bool(text),
+                text == short_title,
+            ),
+        )
+        summary = _grant_search_summary(grant, post, query)
         return {
             "id": grant.id,
             "title": title,
@@ -161,6 +164,57 @@ class GrantSearchToolset:
         except Exception:  # noqa: BLE001 - tool failures are model-readable
             logger.exception("grant detail read failed for grant %s", grant_id)
             return {"error": "grant details are temporarily unavailable"}
+
+
+def _grant_search_summary(grant, post, query: str) -> str:
+    """Return a compact snippet from the body field with the strongest match."""
+    description = " ".join(str(grant.description or "").split())
+    post_text = (
+        " ".join(str(post.renderable_text or "").split()) if post is not None else ""
+    )
+    candidates = [description, post_text]
+    matching = [text for text in candidates if _match_position(text, query) is not None]
+    source = max(matching, key=lambda text: _match_rank(text, query), default="")
+    if not source:
+        source = post_text or description
+    return _compact_match_snippet(source, query)
+
+
+def _match_rank(text: str, query: str) -> tuple[bool, int]:
+    lower = text.lower()
+    query_lower = query.lower()
+    terms = dict.fromkeys(query_lower.split()[:12])
+    return query_lower in lower, sum(term in lower for term in terms)
+
+
+def _match_position(text: str, query: str) -> int | None:
+    lower = text.lower()
+    query_lower = query.lower()
+    phrase_position = lower.find(query_lower)
+    if phrase_position >= 0:
+        return phrase_position
+    positions = [lower.find(term) for term in query_lower.split()[:12]]
+    positions = [position for position in positions if position >= 0]
+    return min(positions, default=None)
+
+
+def _compact_match_snippet(text: str, query: str) -> str:
+    if len(text) <= _MAX_SUMMARY_CHARS:
+        return text
+    position = _match_position(text, query) or 0
+    start = max(0, position - _MAX_SUMMARY_CHARS // 4)
+    if start:
+        next_space = text.find(" ", start)
+        start = next_space + 1 if next_space >= 0 else start
+    prefix = "…" if start else ""
+    available = _MAX_SUMMARY_CHARS - len(prefix) - 1
+    body = text[start : start + available]
+    if start + len(body) < len(text):
+        body = body.rsplit(" ", 1)[0] or body
+        suffix = "…"
+    else:
+        suffix = ""
+    return f"{prefix}{body.rstrip()}{suffix}"
 
 
 def _grant_terms(grant) -> dict:

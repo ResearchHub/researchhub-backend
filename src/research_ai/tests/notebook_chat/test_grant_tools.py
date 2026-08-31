@@ -160,6 +160,59 @@ class GrantSearchToolsetTests(TestCase):
         self.assertLessEqual(len(item["summary"]), 280)
         self.assertNotIn("post_content", item)
 
+    def test_search_summary_preserves_a_description_only_match(self):
+        # Arrange: the backing post exists but contains generic boilerplate
+        # unrelated to the query that matched the structured description.
+        matching = self._grant(
+            title="Emerging Methods Award",
+            description="Supports spatial metabolomics for rare diseases.",
+            post_content="Applications are invited from eligible investigators.",
+        )
+
+        # Act
+        result = self._search(self.user, "spatial metabolomics")
+
+        # Assert
+        self.assertEqual([item["id"] for item in result["grants"]], [matching.id])
+        self.assertIn("spatial metabolomics", result["grants"][0]["summary"].lower())
+
+    def test_search_summary_keeps_a_deep_backing_post_match(self):
+        # Arrange: the relevant phrase falls outside a naive prefix truncation.
+        matching = self._grant(
+            title="Emerging Methods Award",
+            description="Funding for reproducible experimental research.",
+            post_content=(
+                "General application guidance and eligibility boilerplate. " * 12
+                + "Supports spatial metabolomics in rare diseases."
+            ),
+        )
+
+        # Act
+        result = self._search(self.user, "spatial metabolomics")
+
+        # Assert
+        self.assertEqual([item["id"] for item in result["grants"]], [matching.id])
+        summary = result["grants"][0]["summary"]
+        self.assertIn("spatial metabolomics", summary.lower())
+        self.assertLessEqual(len(summary), 280)
+
+    def test_search_card_preserves_a_backing_post_title_match(self):
+        # Arrange: the structured short title differs from the post title that
+        # made the grant match.
+        matching = self._grant(
+            title="Spatial Metabolomics Award",
+            short_title="Emerging Methods Award",
+            description="Funding for reproducible experimental research.",
+            post_content="Applications are invited from eligible investigators.",
+        )
+
+        # Act
+        result = self._search(self.user, "spatial metabolomics")
+
+        # Assert
+        self.assertEqual([item["id"] for item in result["grants"]], [matching.id])
+        self.assertEqual(result["grants"][0]["title"], "Spatial Metabolomics Award")
+
     def test_grant_details_returns_full_text_on_demand(self):
         # Arrange
         grant = self._grant(
