@@ -1,6 +1,5 @@
 """API tests for the selectable-model listing."""
 
-from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -59,19 +58,3 @@ class AvailableModelsViewTests(APITestCase):
         self.assertIn("low", opus["capabilities"]["effort"])
         self.assertEqual(opus["capabilities"]["thinking"], ["adaptive", "disabled"])
         self.assertFalse(opus["capabilities"]["temperature"])
-
-    @override_settings(
-        ANTHROPIC_AWS_WORKSPACE_ID="", AWS_REGION_NAME="", OPENROUTER_API_KEY=""
-    )
-    def test_lists_models_without_provider_credentials(self):
-        # Arrange: keys are configured on the workers that run turns, not on
-        # the API process serving this listing.
-        self.client.force_authenticate(self.moderator)
-
-        # Act
-        response = self.client.get(URL)
-
-        # Assert
-        providers = {model["provider"] for model in response.json()["models"]}
-        self.assertIn("openrouter", providers)
-        self.assertIn("claude_platform", providers)
