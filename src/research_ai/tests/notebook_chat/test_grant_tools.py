@@ -12,6 +12,7 @@ from note.models import Note
 from note.tests.helpers import create_note
 from purchase.models import Grant
 from research_ai.services.notebook_chat.grant_tools import (
+    GET_GRANT_DETAILS,
     READ_SELECTED_RFP,
     SEARCH_GRANTS,
     SET_SELECTED_RFP,
@@ -73,6 +74,12 @@ class GrantSearchToolsetTests(TestCase):
         self.assertFalse(stop)
         return result
 
+    def _details(self, user, grant_id):
+        toolset = GrantSearchToolset(user=user).as_toolset()
+        result, stop = toolset.dispatch(GET_GRANT_DETAILS, {"grant_id": grant_id})
+        self.assertFalse(stop)
+        return result
+
     def test_search_returns_only_matching_active_visible_grants(self):
         # Arrange
         matching = self._grant(
@@ -111,6 +118,8 @@ class GrantSearchToolsetTests(TestCase):
         self.assertEqual(item["currency"], "USD")
         post_id = matching.unified_document.posts.first().id
         self.assertIn(f"/grant/{post_id}/", item["url"])
+        self.assertNotIn("description", item)
+        self.assertNotIn("post_content", item)
 
     def test_search_respects_private_grant_owner_visibility(self):
         # Arrange
@@ -128,7 +137,7 @@ class GrantSearchToolsetTests(TestCase):
         self.assertEqual([item["id"] for item in owner_result["grants"]], [private.id])
         self.assertEqual(other_result["grants"], [])
 
-    def test_search_returns_content_when_only_the_backing_post_matches(self):
+    def test_search_returns_compact_summary_when_only_the_backing_post_matches(self):
         # Arrange
         post_content = "Supports single-cell proteomics in rare diseases. " + (
             "x" * 4000
@@ -147,7 +156,44 @@ class GrantSearchToolsetTests(TestCase):
         self.assertEqual([item["id"] for item in result["grants"]], [matching.id])
         item = result["grants"][0]
         self.assertEqual(item["title"], "Emerging Methods Award")
-        self.assertEqual(item["post_content"], post_content[:3000])
+        self.assertTrue(item["summary"].startswith("Supports single-cell proteomics"))
+        self.assertLessEqual(len(item["summary"]), 280)
+        self.assertNotIn("post_content", item)
+
+    def test_grant_details_returns_full_text_on_demand(self):
+        # Arrange
+        grant = self._grant(
+            title="Rare Disease Methods",
+            description="Structured program summary.",
+            post_content="Full RFP requirements for single-cell proteomics.",
+        )
+
+        # Act
+        result = self._details(self.user, grant.id)
+
+        # Assert
+        self.assertEqual(result["id"], grant.id)
+        self.assertEqual(result["description"], "Structured program summary.")
+        self.assertIn("Full RFP requirements", result["rfp_text"])
+
+    def test_grant_details_rechecks_visibility(self):
+        # Arrange
+        private = self._grant(
+            title="Private Methods Call",
+            description="Not public.",
+            is_public=False,
+        )
+
+        # Act
+        owner_result = self._details(self.owner, private.id)
+        other_result = self._details(self.user, private.id)
+
+        # Assert
+        self.assertEqual(owner_result["id"], private.id)
+        self.assertEqual(
+            other_result,
+            {"error": f"grant {private.id} not found or not accessible"},
+        )
 
     def test_search_requires_a_bounded_query(self):
         # Arrange

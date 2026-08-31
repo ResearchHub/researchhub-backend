@@ -126,6 +126,52 @@ class NoteToolsetTests(TestCase):
         # Assert
         self.assertIn("could not be read", result["error"])
 
+    def test_read_note_returns_bounded_windows_with_global_indices(self):
+        # Arrange: enough compact paragraph blocks to require two reads.
+        document = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": f"Block {i}"}],
+                }
+                for i in range(75)
+            ],
+        }
+        seeded = self._seed_version(document)
+
+        # Act
+        first, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+        second, _ = self.toolset.dispatch(
+            READ_NOTE,
+            {"note_id": self.note.id, "start_block": 50, "max_blocks": 25},
+        )
+
+        # Assert
+        self.assertEqual(first["version_id"], seeded.id)
+        self.assertEqual(first["block_count"], 75)
+        self.assertEqual(first["returned_block_count"], 50)
+        self.assertEqual(first["next_start_block"], 50)
+        self.assertEqual(first["blocks"]["49"], "Block 49")
+        self.assertEqual(second["start_block"], 50)
+        self.assertEqual(second["returned_block_count"], 25)
+        self.assertIsNone(second["next_start_block"])
+        self.assertEqual(second["blocks"]["50"], "Block 50")
+        self.assertEqual(second["blocks"]["74"], "Block 74")
+
+    def test_read_note_rejects_invalid_bounds(self):
+        # Act
+        too_wide, _ = self.toolset.dispatch(
+            READ_NOTE, {"note_id": self.note.id, "max_blocks": 51}
+        )
+        negative, _ = self.toolset.dispatch(
+            READ_NOTE, {"note_id": self.note.id, "start_block": -1}
+        )
+
+        # Assert
+        self.assertIn("between 1 and 50", too_wide["error"])
+        self.assertIn("at least 0", negative["error"])
+
     def test_read_note_denied_for_user_without_access(self):
         # Arrange
         toolset = NoteToolset(user=self.outsider).as_toolset()

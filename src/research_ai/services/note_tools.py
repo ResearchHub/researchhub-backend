@@ -1,10 +1,11 @@
 """Notebook note tools for the agent core.
 
 ``NoteToolset`` lets an agent read and edit Tiptap notes on behalf of a
-specific user. Reads hand the model the note's top-level blocks in the
-compact dialect of ``utils.prosemirror``, indexed by position, plus a version
-id. Edits are block-level operations (insert/replace/delete) against those
-indices, guarded by that version id (optimistic concurrency), with the new
+specific user. Reads hand the model a bounded window of the note's top-level
+blocks in the compact dialect of ``utils.prosemirror``, indexed by global
+position, plus a version id. Edits are block-level operations
+(insert/replace/delete) against those indices, guarded by that version id
+(optimistic concurrency), with the new
 blocks validated against the vendored editor schema before anything is
 stored. Tool traffic thus stays proportional to the change, not to the note:
 the model never receives or regenerates the parts of the document it is not
@@ -43,6 +44,7 @@ logger = logging.getLogger(__name__)
 
 READ_NOTE = "read_note"
 EDIT_NOTE = "edit_note"
+_MAX_BLOCKS_PER_READ = 50
 
 _BLOCK_FORMAT = (
     "Blocks use a compact Tiptap form: a bare string at block level is a "
@@ -82,8 +84,11 @@ class NoteToolset:
                 description=(
                     "Read a ResearchHub notebook note. Returns the note "
                     "title, the version_id that edit_note requires, "
-                    "block_count, and the note body as `blocks`: a map from "
-                    'top-level block index ("0", "1", ...) to that block. '
+                    "total block_count, and a bounded window of the note body "
+                    "as `blocks`: a map from global top-level block index "
+                    '("0", "1", ...) to that block. Use start_block and '
+                    "max_blocks to continue through a long note; next_start_block "
+                    "is null at the end. "
                     f"{_BLOCK_FORMAT} A note with no content yet reads as "
                     "`blocks` null; populate it with an insert."
                 ),
@@ -93,6 +98,19 @@ class NoteToolset:
                         "note_id": {
                             "type": "integer",
                             "description": "Id of the note to read.",
+                        },
+                        "start_block": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "First global block index (default 0).",
+                        },
+                        "max_blocks": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": _MAX_BLOCKS_PER_READ,
+                            "description": (
+                                "Maximum blocks to return (default and limit 50)."
+                            ),
                         },
                     },
                     "required": ["note_id"],
@@ -207,18 +225,52 @@ class NoteToolset:
                 # cleaned up), so surface the mismatch instead of hiding it.
                 logger.warning("note %s content fails the editor schema", note.id)
                 return {"error": f"note {note.id} content could not be read: {exc}"}
+        try:
+            start = self._read_bound(input.get("start_block"), default=0, minimum=0)
+            limit = self._read_bound(
+                input.get("max_blocks"),
+                default=_MAX_BLOCKS_PER_READ,
+                minimum=1,
+                maximum=_MAX_BLOCKS_PER_READ,
+            )
+        except ValueError as exc:
+            return {"error": str(exc)}
+        block_count = 0 if blocks is None else len(blocks)
+        if start > block_count:
+            return {
+                "error": (
+                    f"start_block {start} is out of range; note {note.id} has "
+                    f"{block_count} blocks"
+                )
+            }
+        end = min(start + limit, block_count)
         result = {
             "note_id": note.id,
             "title": note.title,
             "version_id": latest.id if latest else None,
-            "block_count": 0 if blocks is None else len(blocks),
+            "block_count": block_count,
+            "start_block": start,
+            "returned_block_count": end - start,
+            "next_start_block": end if end < block_count else None,
             "blocks": (
                 None
                 if blocks is None
-                else {str(index): block for index, block in enumerate(blocks)}
+                else {str(index): blocks[index] for index in range(start, end)}
             ),
         }
         return result
+
+    @staticmethod
+    def _read_bound(value, *, default: int, minimum: int, maximum: int | None = None):
+        if value is None:
+            return default
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError("read_note bounds must be integers")
+        if value < minimum or (maximum is not None and value > maximum):
+            if maximum is None:
+                raise ValueError(f"read_note bound must be at least {minimum}")
+            raise ValueError(f"read_note bound must be between {minimum} and {maximum}")
+        return value
 
     def _edit_note(self, input: dict) -> dict:
         note = self._get_readable_note(input.get("note_id"))

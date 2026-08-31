@@ -17,11 +17,11 @@ from researchhub_document.related_models.constants.document_type import PREREGIS
 logger = logging.getLogger(__name__)
 
 SEARCH_GRANTS = "search_grants"
+GET_GRANT_DETAILS = "get_grant_details"
 READ_SELECTED_RFP = "read_selected_rfp"
 SET_SELECTED_RFP = "set_selected_rfp"
 _MAX_QUERY_CHARS = 500
-_MAX_DESCRIPTION_CHARS = 3000
-_MAX_POST_CONTENT_CHARS = 3000
+_MAX_SUMMARY_CHARS = 280
 _EMPTY_INPUT_SCHEMA = {"type": "object", "properties": {}}
 _SELECTED_RFP_NOT_ACCESSIBLE = "selected RFP not found or not accessible"
 _NOTE_NOT_ACCESSIBLE = "this preregistration is not accessible"
@@ -56,7 +56,8 @@ class GrantSearchToolset:
                     "preregistration. Use a focused topic, method, disease, or "
                     "research-area query derived from the note. Returns only "
                     "grants currently accepting applications that the user can "
-                    "view, with their terms, deadlines, and ResearchHub URLs."
+                    "view, as compact result cards. Call get_grant_details with "
+                    "a result id before evaluating exact requirements or fit."
                 ),
                 input_schema={
                     "type": "object",
@@ -72,7 +73,26 @@ class GrantSearchToolset:
                     "required": ["query"],
                 },
                 handler=self._search_grants,
-            )
+            ),
+            Tool(
+                name=GET_GRANT_DETAILS,
+                description=(
+                    "Inspect one grant/RFP in full. Pass an id from "
+                    "search_grants. Visibility is checked again for the acting "
+                    "user before any call text is returned."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "grant_id": {
+                            "type": "integer",
+                            "description": "Grant id from search_grants.",
+                        }
+                    },
+                    "required": ["grant_id"],
+                },
+                handler=self._get_grant_details,
+            ),
         ]
 
     def as_toolset(self) -> Toolset:
@@ -93,32 +113,54 @@ class GrantSearchToolset:
 
         return {
             "query": query,
-            "grants": [self._serialize(grant) for grant in grants],
+            "grants": [self._serialize_card(grant) for grant in grants],
         }
 
     @staticmethod
-    def _serialize(grant) -> dict:
+    def _serialize_card(grant) -> dict:
         posts = list(grant.unified_document.posts.all())
         post = posts[0] if posts else None
         title = (grant.short_title or "").strip()
         if not title and post is not None:
             title = (post.title or "").strip()
+        summary = (post.renderable_text or "").strip() if post is not None else ""
+        if not summary:
+            summary = (grant.description or "").strip()
+        if len(summary) > _MAX_SUMMARY_CHARS:
+            summary = summary[: _MAX_SUMMARY_CHARS - 1].rstrip() + "…"
         return {
             "id": grant.id,
             "title": title,
             "organization": (grant.organization or "").strip(),
-            "description": (grant.description or "")[:_MAX_DESCRIPTION_CHARS],
-            "post_content": (
-                (post.renderable_text or "").strip()[:_MAX_POST_CONTENT_CHARS]
-                if post is not None
-                else ""
-            ),
+            "summary": summary,
             "amount": str(grant.amount),
             "currency": grant.currency,
             "deadline": grant.end_date.isoformat() if grant.end_date else None,
-            "application_visibility": grant.application_visibility,
             "url": _grant_url(grant, post),
         }
+
+    def _get_grant_details(self, args: dict) -> dict:
+        grant_id, error = _parse_required_grant_id(args)
+        if error is not None:
+            return error
+        try:
+            grant = (
+                selectable_grants(self._user)
+                .select_related("unified_document")
+                .prefetch_related("unified_document__posts")
+                .filter(id=grant_id)
+                .first()
+            )
+            if grant is None:
+                return {"error": f"grant {grant_id} not found or not accessible"}
+            return {
+                **_grant_terms(grant),
+                "description": (grant.description or "").strip(),
+                "rfp_text": _grant_full_text(grant),
+            }
+        except Exception:  # noqa: BLE001 - tool failures are model-readable
+            logger.exception("grant detail read failed for grant %s", grant_id)
+            return {"error": "grant details are temporarily unavailable"}
 
 
 def _grant_terms(grant) -> dict:
@@ -137,6 +179,16 @@ def _grant_terms(grant) -> dict:
         "application_visibility": grant.application_visibility,
         "url": _grant_url(grant, post),
     }
+
+
+def _grant_full_text(grant) -> str:
+    """All available RFP text, including a rendered post without a source file."""
+    text = str(grant.get_llm_context_text() or "").strip()
+    post = grant.unified_document.posts.first()
+    rendered = str(getattr(post, "renderable_text", "") or "").strip()
+    if rendered and rendered not in text:
+        text = f"{text}\n\n{rendered}" if text else rendered
+    return text
 
 
 def _parse_grant_id(args: dict) -> tuple[int | None, dict | None]:
@@ -164,6 +216,16 @@ def _parse_grant_id(args: dict) -> tuple[int | None, dict | None]:
         if text.isascii() and text.isdigit():
             return int(text), None
     return None, {"error": "grant_id must be a grant id or null"}
+
+
+def _parse_required_grant_id(args: dict) -> tuple[int | None, dict | None]:
+    """A non-null grant id for read-only detail lookup."""
+    grant_id, error = _parse_grant_id(args)
+    if error is not None:
+        return None, error
+    if grant_id is None:
+        return None, {"error": "grant_id must be a grant id"}
+    return grant_id, None
 
 
 class SelectedRFPToolset:
@@ -237,7 +299,7 @@ class SelectedRFPToolset:
             ):
                 return {"error": _SELECTED_RFP_NOT_ACCESSIBLE}
 
-            return {**_grant_terms(grant), "rfp_text": grant.get_llm_context_text()}
+            return {**_grant_terms(grant), "rfp_text": _grant_full_text(grant)}
         except Exception:  # noqa: BLE001 - tool failures are model-readable
             logger.exception("selected RFP read failed for note %s", self._note_id)
             return {"error": "selected RFP is temporarily unavailable"}
