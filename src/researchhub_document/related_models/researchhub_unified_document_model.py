@@ -69,12 +69,6 @@ class ResearchhubUnifiedDocument(
         related_name="unified_document",
         null=True,
     )
-    concepts = models.ManyToManyField(
-        "tag.Concept",
-        related_name="documents",
-        blank=True,
-        through="UnifiedDocumentConcepts",
-    )
     topics = models.ManyToManyField(
         "topic.Topic",
         related_name="documents",
@@ -419,28 +413,6 @@ class ResearchhubUnifiedDocument(
         if getattr(self, "document_filter", None) is None:
             self.document_filter = DocumentFilter.objects.create()
         super().save(**kwargs)
-
-
-class UnifiedDocumentConcepts(DefaultModel):
-    unified_document = models.ForeignKey(
-        ResearchhubUnifiedDocument,
-        on_delete=models.CASCADE,
-    )
-
-    concept = models.ForeignKey(
-        "tag.Concept",
-        related_name="through_unified_document",
-        blank=True,
-        on_delete=models.CASCADE,
-    )
-
-    relevancy_score = models.FloatField(
-        default=0.0,
-    )
-
-    level = models.IntegerField(
-        default=0,
-    )
 
 
 class ResearchhubUnifiedDocumentHub(models.Model):
