@@ -9,11 +9,6 @@ from user.tests.helpers import create_random_authenticated_user
 URL = "/api/research_ai/models/"
 
 
-@override_settings(
-    ANTHROPIC_AWS_WORKSPACE_ID="ws-test",
-    AWS_REGION_NAME="us-east-1",
-    OPENROUTER_API_KEY="or-test",
-)
 class AvailableModelsViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
@@ -65,9 +60,12 @@ class AvailableModelsViewTests(APITestCase):
         self.assertEqual(opus["capabilities"]["thinking"], ["adaptive", "disabled"])
         self.assertFalse(opus["capabilities"]["temperature"])
 
-    @override_settings(OPENROUTER_API_KEY="")
-    def test_hides_models_without_provider_credentials(self):
-        # Arrange
+    @override_settings(
+        ANTHROPIC_AWS_WORKSPACE_ID="", AWS_REGION_NAME="", OPENROUTER_API_KEY=""
+    )
+    def test_lists_models_without_provider_credentials(self):
+        # Arrange: keys are configured on the workers that run turns, not on
+        # the API process serving this listing.
         self.client.force_authenticate(self.moderator)
 
         # Act
@@ -75,4 +73,5 @@ class AvailableModelsViewTests(APITestCase):
 
         # Assert
         providers = {model["provider"] for model in response.json()["models"]}
-        self.assertNotIn("openrouter", providers)
+        self.assertIn("openrouter", providers)
+        self.assertIn("claude_platform", providers)

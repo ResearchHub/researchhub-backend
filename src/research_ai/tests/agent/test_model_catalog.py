@@ -12,15 +12,15 @@ from research_ai.services.agent.model_catalog import (
     validate_model_ref,
 )
 
-# Every provider credential present, so the whole catalog is listed.
-ALL_PROVIDERS_CONFIGURED = {
-    "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
-    "AWS_REGION_NAME": "us-east-1",
-    "OPENROUTER_API_KEY": "or-test",
+# Provider keys live on the workers that run turns, not on the API process
+# that serves the catalog, so listing must not depend on them.
+NO_PROVIDER_CREDENTIALS = {
+    "ANTHROPIC_AWS_WORKSPACE_ID": "",
+    "AWS_REGION_NAME": "",
+    "OPENROUTER_API_KEY": "",
 }
 
 
-@override_settings(**ALL_PROVIDERS_CONFIGURED)
 class AvailableModelsTests(SimpleTestCase):
     def test_catalog_refs_have_valid_structure(self):
         # Act
@@ -89,29 +89,26 @@ class AvailableModelsTests(SimpleTestCase):
         self.assertEqual(capabilities.thinking, ("adaptive", "disabled"))
         self.assertFalse(capabilities.temperature)
 
-    @override_settings(OPENROUTER_API_KEY="")
-    def test_unconfigured_provider_models_are_hidden(self):
+    @override_settings(**NO_PROVIDER_CREDENTIALS)
+    def test_models_are_listed_without_provider_credentials(self):
         # Act
-        options = available_models()
+        providers = {option.provider for option in available_models()}
 
         # Assert
-        self.assertTrue(options)
-        self.assertFalse(any(o.provider == "openrouter" for o in options))
+        self.assertIn("openrouter", providers)
+        self.assertIn("claude_platform", providers)
 
-    @override_settings(ANTHROPIC_AWS_WORKSPACE_ID="")
-    def test_generator_default_is_always_selectable(self):
-        # Arrange: the default generator's provider has no credentials, so its
-        # catalog entries are hidden -- but the default itself must survive.
+    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
+    def test_generator_default_outside_the_catalog_is_still_selectable(self):
+        # Arrange: no Bedrock ref is catalogued, so the default is not one.
         default = default_model_ref()
 
         # Act
         options = available_models()
 
         # Assert
+        self.assertEqual(default, "bedrock:us.anthropic.claude-opus-5")
         self.assertEqual(options[0].ref, default)
-        self.assertNotIn(
-            "claude_platform:claude-sonnet-5", [option.ref for option in options]
-        )
 
 
 class CapabilityLookupTests(SimpleTestCase):
@@ -157,7 +154,6 @@ class CapabilityLookupTests(SimpleTestCase):
                 )
 
 
-@override_settings(**ALL_PROVIDERS_CONFIGURED)
 class ValidateModelRefTests(SimpleTestCase):
     def test_no_selection_returns_none(self):
         # Act / Assert
@@ -183,11 +179,13 @@ class ValidateModelRefTests(SimpleTestCase):
         with self.assertRaises(ValueError):
             validate_model_ref("openrouter:acme/totally-made-up")
 
-    @override_settings(OPENROUTER_API_KEY="")
-    def test_model_on_unconfigured_provider_is_rejected(self):
+    @override_settings(**NO_PROVIDER_CREDENTIALS)
+    def test_catalog_ref_is_accepted_without_provider_credentials(self):
         # Act / Assert
-        with self.assertRaises(ValueError):
-            validate_model_ref("openrouter:openai/gpt-5.6-sol")
+        self.assertEqual(
+            validate_model_ref("openrouter:openai/gpt-5.6-sol"),
+            "openrouter:openai/gpt-5.6-sol",
+        )
 
 
 class ValidateGenerationOptionsTests(SimpleTestCase):
