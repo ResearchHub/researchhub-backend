@@ -6,7 +6,7 @@ from django.test import TestCase, TransactionTestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from research_ai.models import AgentConversation, AgentExecution, Expert, LLMUsageEvent
+from research_ai.models import AgentConversation, AgentExecution, LLMUsageEvent
 from research_ai.services.agent.types import TurnUsage
 from research_ai.services.usage_budget import (
     UsageLimitExceededError,
@@ -17,8 +17,6 @@ from research_ai.services.usage_budget import (
     record,
     resolve_ai_tier,
 )
-from user.constants.gatekeeper_constants import RESEARCH_AI_UNLIMITED
-from user.related_models.gatekeeper_model import Gatekeeper
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -35,26 +33,15 @@ class TierResolutionTests(TestCase):
         # Act / Assert
         self.assertEqual(resolve_ai_tier(self.user).name, "blocked")
 
-    def test_staff_and_gatekeeper_overrides_are_unlimited(self):
+    def test_staff_and_moderators_are_privileged(self):
         # Arrange / Act / Assert
         self.user.is_staff = True
         self.user.save(update_fields=["is_staff"])
-        self.assertEqual(resolve_ai_tier(self.user).name, "unlimited")
-
-        self.user.is_staff = False
-        self.user.save(update_fields=["is_staff"])
-        Gatekeeper.objects.create(user=self.user, type=RESEARCH_AI_UNLIMITED)
-        self.assertEqual(resolve_ai_tier(self.user).name, "unlimited")
-
-    def test_moderator_and_registered_expert_are_privileged(self):
-        # Arrange / Act / Assert
-        self.user.moderator = True
-        self.user.save(update_fields=["moderator"])
         self.assertEqual(resolve_ai_tier(self.user).name, "privileged")
 
-        self.user.moderator = False
-        self.user.save(update_fields=["moderator"])
-        Expert.objects.create(email="invitee@example.org", registered_user=self.user)
+        self.user.is_staff = False
+        self.user.moderator = True
+        self.user.save(update_fields=["is_staff", "moderator"])
         self.assertEqual(resolve_ai_tier(self.user).name, "privileged")
 
 

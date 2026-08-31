@@ -2,11 +2,9 @@
 
 A user can keep any number of chats on a note, workflow ``notebook_chat``.
 Each chat is its own ``AgentConversation`` -- resolved by id, never by
-position -- with its own context lineage and its own busy check, so turns in
-different chats on the same note may run concurrently. That is safe by
-construction: note edits are optimistic-concurrency guarded and versioned
-(see ``NoteToolset``), so parallel agents can at worst reject each other's
-stale writes, never corrupt the note. A turn is split across two processes:
+position -- with its own context lineage and its own busy check. Budgeted users
+may still have only one spend-producing job in flight across all chats. A turn
+is split across two processes:
 
 - ``submit_message`` (request path) resolves the conversation, appends the
   user's message, and creates a ``PENDING`` execution via
@@ -58,6 +56,7 @@ from research_ai.services.agent.model_capabilities import validate_generation_op
 from research_ai.services.agent_persistence import (
     AgentChatService,
     AgentContextService,
+    AgentConversationBusyError,
     AgentConversationService,
     AgentExecutionCancelService,
     NoteAgentConversationService,
@@ -456,7 +455,8 @@ class NotebookChatService:
         Raises ``ValueError`` on an empty or oversized message or a model not
         in the selectable catalog, and lets ``AgentConversationBusyError``
         propagate when a turn is already running on this conversation (the
-        API maps it to a 409); other chats on the note are unaffected.
+        API maps it to a 409). Budget admission may also serialize work across
+        the user's other chats.
         """
         text = (text or "").strip()
         if not text:
@@ -477,6 +477,15 @@ class NotebookChatService:
             locked_conversation = AgentConversation.objects.select_for_update().get(
                 id=conversation.id
             )
+            if locked_conversation.executions.filter(
+                status__in=[
+                    AgentExecution.Status.PENDING,
+                    AgentExecution.Status.RUNNING,
+                ]
+            ).exists():
+                raise AgentConversationBusyError(
+                    "agent conversation already has an active execution"
+                )
             conversation_model = (
                 locked_conversation.executions.exclude(model="")
                 .order_by("attempt")

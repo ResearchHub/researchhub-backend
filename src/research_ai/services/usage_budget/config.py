@@ -86,10 +86,6 @@ def tier_policies() -> dict[str, TierPolicy]:
             "RESEARCH_AI_TIER_PRIVILEGED_DEFAULT_MODEL_REF", None
         ),
     )
-    unlimited = TierPolicy("unlimited", None, None, None, None)
     blocked = TierPolicy("blocked", 0, 0, (), None)
     # ``replace`` keeps policies independent even if future defaults share fields.
-    return {
-        policy.name: replace(policy)
-        for policy in (blocked, unlimited, privileged, default)
-    }
+    return {policy.name: replace(policy) for policy in (blocked, privileged, default)}

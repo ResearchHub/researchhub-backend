@@ -5,7 +5,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         ("research_ai", "0025_proposaldraft_model_ref"),
-        ("user", "0151_alter_gatekeeper_type"),
+        ("user", "0150_author_user_soft_delete_fields"),
     ]
 
     operations = [

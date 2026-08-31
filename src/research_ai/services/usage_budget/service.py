@@ -13,7 +13,6 @@ from django.utils import timezone
 
 from research_ai.models import (
     AgentExecution,
-    Expert,
     LLMUsageEvent,
     ProposalDraft,
 )
@@ -23,8 +22,6 @@ from research_ai.services.agent.model_pricing import cost_microusd, model_pricin
 from research_ai.services.agent.providers.registry import split_model_ref
 from research_ai.services.agent.types import TurnUsage
 from research_ai.services.usage_budget.config import TierPolicy, tier_policies
-from user.constants.gatekeeper_constants import RESEARCH_AI_UNLIMITED
-from user.related_models.gatekeeper_model import Gatekeeper
 
 
 class ModelNotAllowedError(ValueError):
@@ -94,23 +91,7 @@ def resolve_ai_tier(user) -> TierPolicy:
         or getattr(user, "probable_spammer", False)
     ):
         return policies["blocked"]
-    has_user_override = (
-        bool(getattr(user, "pk", None))
-        and Gatekeeper.objects.filter(type=RESEARCH_AI_UNLIMITED, user=user).exists()
-    )
-    has_email_override = (
-        bool(getattr(user, "email", ""))
-        and Gatekeeper.objects.filter(
-            type=RESEARCH_AI_UNLIMITED, email__iexact=user.email
-        ).exists()
-    )
-    if getattr(user, "is_staff", False) or has_user_override or has_email_override:
-        return policies["unlimited"]
-    is_invited_expert = (
-        bool(getattr(user, "pk", None))
-        and Expert.objects.filter(registered_user=user).exists()
-    )
-    if getattr(user, "moderator", False) or is_invited_expert:
+    if getattr(user, "is_staff", False) or getattr(user, "moderator", False):
         return policies["privileged"]
     return policies["default"]
 

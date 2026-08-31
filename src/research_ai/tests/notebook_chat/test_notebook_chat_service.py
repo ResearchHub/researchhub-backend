@@ -30,6 +30,7 @@ from research_ai.services.notebook_chat.events import (
     ConversationEventPublisher,
 )
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
+from research_ai.services.usage_budget import UsageWorkInProgressError
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -298,17 +299,14 @@ class NotebookChatServiceTests(TestCase):
         with self.assertRaises(AgentConversationBusyError):
             self.service.submit_message(self.note, self.conversation, "again")
 
-    def test_busy_chat_does_not_block_the_users_other_chats(self):
+    def test_busy_chat_blocks_the_users_other_chats_while_budgeted(self):
         # Arrange: a turn is pending on the first chat.
         self._submit()
         second = self.service.create_conversation(self.note, self.user)
 
-        # Act
-        execution, _delay = self._submit("Different thread", conversation=second)
-
-        # Assert: each chat serializes its own turns independently.
-        self.assertEqual(execution.conversation_id, second.id)
-        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
+        # Act / Assert
+        with self.assertRaises(UsageWorkInProgressError):
+            self._submit("Different thread", conversation=second)
 
     def test_run_turn_edits_note_and_publishes_reply(self):
         # Arrange
