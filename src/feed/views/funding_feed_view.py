@@ -74,6 +74,8 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
         grant_id = request.query_params.get("grant_id", None)
         created_by = request.query_params.get("created_by", None)
         funded_by = request.query_params.get("funded_by", None)
+        # Decide once per request so get_queryset() cannot diverge from the
+        # cache-key decision if hub-editor status changes mid-request.
         self._include_private = self._include_private_for_privileged(request)
         suffix, should_cache = get_feed_cache_segment(request)
         use_cache = (
@@ -190,7 +192,8 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
         # including anonymous viewers, still only sees public ones.
         #
         # This feed stays public-only unless a mod/editor passes
-        # include_private.
+        # include_private. Reuse list()'s decision when present so the
+        # visibility filter cannot diverge from the cache-key choice.
         include_private = getattr(self, "_include_private", None)
         if include_private is None:
             include_private = self._include_private_for_privileged(self.request)

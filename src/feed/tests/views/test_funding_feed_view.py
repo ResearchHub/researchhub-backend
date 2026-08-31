@@ -1116,6 +1116,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
     def test_list_reuses_include_private_decision_in_queryset(
         self, mock_include_private
     ):
+        """list()'s auth decision must be reused so a later privilege flip
+        cannot select private rows into a public cache key."""
         # Arrange
         private_post = self._create_private_preregistration(self.user)
 

@@ -2,22 +2,26 @@
 
 from django.test import SimpleTestCase, override_settings
 
-from research_ai.services.agent.model_capabilities import validate_generation_options
+from research_ai.services.agent.model_capabilities import (
+    model_capabilities,
+    validate_generation_options,
+)
 from research_ai.services.agent.model_catalog import (
     available_models,
     default_model_ref,
     validate_model_ref,
 )
 
-# Every provider credential present, so the whole catalog is listed.
-ALL_PROVIDERS_CONFIGURED = {
-    "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
-    "AWS_REGION_NAME": "us-east-1",
-    "OPENROUTER_API_KEY": "or-test",
+# Provider keys live on the workers that run turns, not on the API process
+# that serves the catalog, so every assertion below holds with none set.
+NO_PROVIDER_CREDENTIALS = {
+    "ANTHROPIC_AWS_WORKSPACE_ID": "",
+    "AWS_REGION_NAME": "",
+    "OPENROUTER_API_KEY": "",
 }
 
 
-@override_settings(**ALL_PROVIDERS_CONFIGURED)
+@override_settings(**NO_PROVIDER_CREDENTIALS)
 class AvailableModelsTests(SimpleTestCase):
     def test_catalog_refs_have_valid_structure(self):
         # Act
@@ -37,6 +41,22 @@ class AvailableModelsTests(SimpleTestCase):
         for option in options:
             self.assertTrue(option.label)
             self.assertIn(option.provider, ("bedrock", "claude_platform", "openrouter"))
+
+    def test_every_catalog_model_declares_an_output_ceiling(self):
+        # Arrange: both adapters refuse a model whose ceiling is unreviewed, so
+        # a catalog entry without one cannot run a turn.
+        options = available_models()
+
+        # Act
+        unreviewed = [
+            option.ref
+            for option in options
+            if option.capabilities.max_output_tokens is None
+        ]
+
+        # Assert
+        self.assertTrue(options)
+        self.assertEqual(unreviewed, [])
 
     def test_haiku_advertises_temperature_but_not_effort_or_thinking(self):
         # Arrange
@@ -70,32 +90,63 @@ class AvailableModelsTests(SimpleTestCase):
         self.assertEqual(capabilities.thinking, ("adaptive", "disabled"))
         self.assertFalse(capabilities.temperature)
 
-    @override_settings(OPENROUTER_API_KEY="")
-    def test_unconfigured_provider_models_are_hidden(self):
-        # Act
-        options = available_models()
-
-        # Assert
-        self.assertTrue(options)
-        self.assertFalse(any(o.provider == "openrouter" for o in options))
-
-    @override_settings(ANTHROPIC_AWS_WORKSPACE_ID="")
-    def test_generator_default_is_always_selectable(self):
-        # Arrange: the default generator's provider has no credentials, so its
-        # catalog entries are hidden -- but the default itself must survive.
+    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
+    def test_generator_default_outside_the_catalog_is_still_selectable(self):
+        # Arrange: no Bedrock ref is catalogued, so the default is not one.
         default = default_model_ref()
 
         # Act
         options = available_models()
 
         # Assert
+        self.assertEqual(default, "bedrock:us.anthropic.claude-opus-5")
         self.assertEqual(options[0].ref, default)
-        self.assertNotIn(
-            "claude_platform:claude-sonnet-5", [option.ref for option in options]
+
+
+class CapabilityLookupTests(SimpleTestCase):
+    def test_bedrock_haiku_carries_sampling_and_its_own_ceiling(self):
+        # Act: the Converse adapter takes prefixed ids and exposes sampling only.
+        capabilities = model_capabilities(
+            "bedrock", "us.anthropic.claude-haiku-4-5-20251001-v1:0"
         )
 
+        # Assert
+        self.assertTrue(capabilities.temperature)
+        self.assertEqual(capabilities.effort, ())
+        self.assertEqual(capabilities.thinking, ())
+        self.assertEqual(capabilities.max_output_tokens, 64_000)
 
-@override_settings(**ALL_PROVIDERS_CONFIGURED)
+    def test_platform_decorations_resolve_to_the_same_model(self):
+        # Arrange: dated snapshots and OpenRouter variant tags name one model.
+        decorated = (
+            ("claude_platform", "claude-haiku-4-5-20251001", 64_000),
+            ("claude_platform", "claude-opus-4-5-20251101", 64_000),
+            ("openrouter", "deepseek/deepseek-v4-pro-0813:free", 384_000),
+        )
+
+        # Act / Assert
+        for provider, model_id, ceiling in decorated:
+            with self.subTest(model_id=model_id):
+                capabilities = model_capabilities(provider, model_id)
+                self.assertEqual(capabilities.max_output_tokens, ceiling)
+
+    def test_an_id_that_merely_contains_a_reviewed_id_is_unreviewed(self):
+        # Arrange: a longer id is a different model, not the one it contains.
+        near_misses = (
+            ("claude_platform", "claude-opus-50"),
+            ("claude_platform", "claude-haiku-4-50"),
+            ("openrouter", "openai/gpt-5.6-sol-next"),
+        )
+
+        # Act / Assert
+        for provider, model_id in near_misses:
+            with self.subTest(model_id=model_id):
+                self.assertIsNone(
+                    model_capabilities(provider, model_id).max_output_tokens
+                )
+
+
+@override_settings(**NO_PROVIDER_CREDENTIALS)
 class ValidateModelRefTests(SimpleTestCase):
     def test_no_selection_returns_none(self):
         # Act / Assert
@@ -120,12 +171,6 @@ class ValidateModelRefTests(SimpleTestCase):
         # Act / Assert
         with self.assertRaises(ValueError):
             validate_model_ref("openrouter:acme/totally-made-up")
-
-    @override_settings(OPENROUTER_API_KEY="")
-    def test_model_on_unconfigured_provider_is_rejected(self):
-        # Act / Assert
-        with self.assertRaises(ValueError):
-            validate_model_ref("openrouter:openai/gpt-5.6-sol")
 
 
 class ValidateGenerationOptionsTests(SimpleTestCase):
