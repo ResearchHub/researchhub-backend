@@ -56,7 +56,7 @@ def _tool_call(call_id="call-1", name="search", arguments='{"q": 1}'):
     )
 
 
-def _build_provider(responses=None, model_id="test-model", **kwargs):
+def _build_provider(responses=None, model_id="google/gemini-3.7-flash", **kwargs):
     """Build an OpenRouterProvider with a fake client so no HTTP client exists."""
     return OpenRouterProvider(
         client=FakeChatCompletionsClient(responses or []),
@@ -203,21 +203,20 @@ class CompleteRequestTests(SimpleTestCase):
 
         # Assert
         kwargs = provider._client.calls[0]
-        self.assertEqual(kwargs["model"], "test-model")
+        self.assertEqual(kwargs["model"], "google/gemini-3.7-flash")
         self.assertEqual(kwargs["max_tokens"], 100)
         self.assertEqual(kwargs["temperature"], 0.5)
         self.assertEqual(kwargs["tools"], rendered_tools)
         self.assertEqual(kwargs["extra_body"], {"reasoning": {"effort": "low"}})
 
-    def test_effort_can_be_omitted_for_incompatible_models(self):
+    def test_unreviewed_model_is_refused_before_the_request(self):
         # Arrange
-        provider = _build_provider([_response(content="ok")])
+        provider = _build_provider([_response(content="ok")], model_id="new/model")
 
-        # Act
-        _complete(provider)
-
-        # Assert
-        self.assertNotIn("extra_body", provider._client.calls[0])
+        # Act / Assert
+        with self.assertRaisesRegex(ProviderError, "no reviewed output ceiling"):
+            _complete(provider)
+        self.assertEqual(provider._client.calls, [])
 
     def test_default_effort_is_sent_for_a_capable_model(self):
         # Arrange
@@ -289,6 +288,22 @@ class CompleteRequestTests(SimpleTestCase):
             provider._client.calls[0]["max_tokens"], openrouter.MAX_OUTPUT_TOKENS
         )
 
+    def test_max_tokens_is_clamped_to_the_model_output_ceiling(self):
+        # Arrange: Gemini 3.7 Flash caps output at 65,536.
+        provider = _build_provider([_response(content="ok")])
+
+        # Act
+        provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools=[],
+            max_tokens=100_000,
+            temperature=0.5,
+        )
+
+        # Assert
+        self.assertEqual(provider._client.calls[0]["max_tokens"], 65_536)
+
     def test_no_tools_key_when_toolset_is_empty(self):
         # Arrange
         provider = _build_provider([_response(content="ok")])
@@ -302,7 +317,7 @@ class CompleteRequestTests(SimpleTestCase):
     def test_sampling_params_omitted_for_models_that_reject_them(self):
         # Arrange
         provider = _build_provider(
-            [_response(content="ok")], model_id="anthropic/claude-opus-4.8"
+            [_response(content="ok")], model_id="anthropic/claude-opus-5"
         )
 
         # Act
@@ -464,7 +479,7 @@ class ErrorTests(SimpleTestCase):
     @override_settings(OPENROUTER_API_KEY="")
     def test_missing_api_key_raises_provider_error_on_complete(self):
         # Arrange
-        provider = OpenRouterProvider(model_id="test-model")
+        provider = OpenRouterProvider(model_id="google/gemini-3.7-flash")
 
         # Act / Assert
         with self.assertRaises(ProviderError):
@@ -481,7 +496,9 @@ class ErrorTests(SimpleTestCase):
             def _create(self, **kwargs):
                 raise RuntimeError("boom")
 
-        provider = OpenRouterProvider(client=ExplodingClient(), model_id="test-model")
+        provider = OpenRouterProvider(
+            client=ExplodingClient(), model_id="google/gemini-3.7-flash"
+        )
 
         # Act / Assert
         with self.assertRaises(ProviderError):
@@ -536,7 +553,9 @@ class ErrorTests(SimpleTestCase):
             def _create(self, **kwargs):
                 raise rate_limited
 
-        provider = OpenRouterProvider(client=ExplodingClient(), model_id="test-model")
+        provider = OpenRouterProvider(
+            client=ExplodingClient(), model_id="google/gemini-3.7-flash"
+        )
 
         # Act
         with self.assertRaises(ProviderError) as ctx:

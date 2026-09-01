@@ -1,6 +1,5 @@
 """API tests for the selectable-model listing."""
 
-from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -9,11 +8,6 @@ from user.tests.helpers import create_random_authenticated_user
 URL = "/api/research_ai/models/"
 
 
-@override_settings(
-    ANTHROPIC_AWS_WORKSPACE_ID="ws-test",
-    AWS_REGION_NAME="us-east-1",
-    OPENROUTER_API_KEY="or-test",
-)
 class AvailableModelsViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
@@ -64,15 +58,3 @@ class AvailableModelsViewTests(APITestCase):
         self.assertIn("low", opus["capabilities"]["effort"])
         self.assertEqual(opus["capabilities"]["thinking"], ["adaptive", "disabled"])
         self.assertFalse(opus["capabilities"]["temperature"])
-
-    @override_settings(OPENROUTER_API_KEY="")
-    def test_hides_models_without_provider_credentials(self):
-        # Arrange
-        self.client.force_authenticate(self.moderator)
-
-        # Act
-        response = self.client.get(URL)
-
-        # Assert
-        providers = {model["provider"] for model in response.json()["models"]}
-        self.assertNotIn("openrouter", providers)

@@ -41,9 +41,12 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 # that want a different route pass ``model_id`` or use a prefixed model ref.
 MODEL_ID = "anthropic/claude-opus-5"
 
-# What ``max_tokens=None`` resolves to. Deliberately below the model's 128K
-# ceiling: the completion is not streamed, so a longer emission would outlive
-# the client read timeout and die whole. Raise only after moving to streaming.
+# What ``max_tokens=None`` resolves to: a spend budget, not a model limit.
+# Deliberately below every routed model's ceiling because the completion is not
+# streamed, so a longer emission would outlive the client read timeout and die
+# whole. Raise only after moving to streaming. The model's own ceiling
+# (``ModelCapabilities.max_output_tokens``) clamps this and anything a caller
+# asks for.
 MAX_OUTPUT_TOKENS = 32_768
 
 # How much the model may deliberate and spend per turn. OpenRouter normalizes
@@ -184,10 +187,20 @@ class OpenRouterProvider(LLMProvider):
             raise ProviderError(
                 "OPENROUTER_API_KEY is not configured; cannot call OpenRouter."
             )
+        capabilities = model_capabilities("openrouter", self.model_id)
+        if capabilities.max_output_tokens is None:
+            # No guessed ceiling: too high is a 400, too low truncates a turn
+            # mid-emission. A model is reviewed before it is served.
+            raise ProviderError(
+                f"model {self.model_id!r} has no reviewed output ceiling; add "
+                "it to model_capabilities before serving it.",
+                retryable=False,
+            )
+        budget = MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens
         kwargs: dict = {
             "model": self.model_id,
             "messages": self._render_messages(system_prompt, messages),
-            "max_tokens": MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens,
+            "max_tokens": min(budget, capabilities.max_output_tokens),
         }
         if _accepts_sampling_params(self.model_id):
             kwargs["temperature"] = temperature

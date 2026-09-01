@@ -11,6 +11,7 @@ from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
 from discussion.models import Vote
+from feed.views.funding_feed_view import FundingFeedViewSet
 from hub.models import Hub
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
@@ -1035,6 +1036,116 @@ class FundingFeedViewSetTests(AWSMockTestCase):
 
         # Act
         response = self.client.get(reverse("funding_feed-list"))
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
+
+    @patch("feed.views.funding_feed_view.cache")
+    def test_include_private_shows_private_for_moderator(self, mock_cache):
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+        moderator = User.objects.create_user(
+            username="funding_include_private_mod",
+            password=uuid.uuid4().hex,
+            moderator=True,
+        )
+        mod_client = APIClient()
+        mod_client.force_authenticate(user=moderator)
+
+        # Act
+        response = mod_client.get(
+            reverse("funding_feed-list"),
+            {"include_private": "true", "page": 1},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertIn(private_post.id, post_ids)
+        mock_cache.get.assert_not_called()
+        mock_cache.set.assert_not_called()
+
+    @patch("feed.views.funding_feed_view.cache")
+    def test_include_private_shows_private_for_hub_editor(self, mock_cache):
+        # Arrange
+        from user.tests.helpers import create_hub_editor
+
+        private_post = self._create_private_preregistration(self.user)
+        editor = create_hub_editor(
+            "funding_include_private_editor", "Funding Include Private Hub"
+        )[0]
+        editor_client = APIClient()
+        editor_client.force_authenticate(user=editor)
+        mock_cache.get.return_value = None
+
+        # Act
+        response = editor_client.get(
+            reverse("funding_feed-list"),
+            {"include_private": "true", "page": 1},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertIn(private_post.id, post_ids)
+        mock_cache.get.assert_not_called()
+        mock_cache.set.assert_not_called()
+
+    def test_include_private_ignored_for_non_mod(self):
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+
+        # Act
+        response = self.client.get(
+            reverse("funding_feed-list"),
+            {"include_private": "true"},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
+
+    @patch.object(
+        FundingFeedViewSet,
+        "_include_private_for_privileged",
+        side_effect=[False, True],
+    )
+    def test_list_reuses_include_private_decision_in_queryset(
+        self, mock_include_private
+    ):
+        """list()'s auth decision must be reused so a later privilege flip
+        cannot select private rows into a public cache key."""
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+
+        # Act
+        response = self.client.get(
+            reverse("funding_feed-list"),
+            {"include_private": "true", "page": 1},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(private_post.id, post_ids)
+        mock_include_private.assert_called_once()
+
+    def test_moderator_discovery_without_include_private_excludes_private(self):
+        # Arrange
+        private_post = self._create_private_preregistration(self.user)
+        moderator = User.objects.create_user(
+            username="funding_mod_no_param",
+            password=uuid.uuid4().hex,
+            moderator=True,
+        )
+        mod_client = APIClient()
+        mod_client.force_authenticate(user=moderator)
+
+        # Act
+        response = mod_client.get(reverse("funding_feed-list"))
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
