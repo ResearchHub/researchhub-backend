@@ -21,7 +21,6 @@ class PreregistrationSettings(DefaultModel):
     goal_currency = models.CharField(
         blank=True,
         max_length=16,
-        null=True,
     )
     duration_days = models.PositiveSmallIntegerField(
         blank=True,
