@@ -1883,7 +1883,7 @@ class NoteTests(APITestCase):
         )
         clear_response = self.client.patch(
             f"/api/note/{note_id}/",
-            {"author_ids": [], "image": None},
+            {"author_ids": [], "image": ""},
         )
 
         # Assert
@@ -1899,7 +1899,7 @@ class NoteTests(APITestCase):
         self.assertEqual(replace_response.data["image"], "notes/cover.png")
         self.assertEqual(clear_response.status_code, 200)
         self.assertEqual(clear_response.data["authors"], [])
-        self.assertIsNone(clear_response.data["image"])
+        self.assertEqual(clear_response.data["image"], "")
         self.assertEqual(clear_response.data["title"], "Renamed")
         self.assertEqual(
             list(Note.objects.get(id=note_id).unified_document.topics.all()), [topic]
@@ -1934,7 +1934,7 @@ class NoteTests(APITestCase):
         )
         clear_response = self.client.patch(
             f"/api/note/{note_id}/",
-            {"grant_settings": {"contact_ids": [], "organization": None}},
+            {"grant_settings": {"contact_ids": [], "organization": ""}},
         )
 
         # Assert
@@ -1953,7 +1953,7 @@ class NoteTests(APITestCase):
         self.assertEqual(clear_response.status_code, 200)
         cleared_settings = clear_response.data["grant_settings"]
         self.assertEqual(cleared_settings["contact_ids"], [])
-        self.assertIsNone(cleared_settings["organization"])
+        self.assertEqual(cleared_settings["organization"], "")
         self.assertEqual(cleared_settings["currency"], "USD")
         self.assertFalse(Grant.objects.filter(created_by=self.user).exists())
 

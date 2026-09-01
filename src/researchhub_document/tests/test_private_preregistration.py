@@ -82,14 +82,21 @@ class PrivatePreregistrationCreateTests(AWSMockTestCase):
         payload.update(overrides)
         return payload
 
-    def test_default_post_is_public(self):
+    def test_defaults_published_preregistration_values(self):
+        """Publishing defaults visibility to public and blank currency to USD."""
+        # Arrange
+        payload = self._payload(fundraise_goal_currency="")
+
+        # Act
         response = self.client.post(
-            "/api/researchhubpost/", self._payload(), format="json"
+            "/api/researchhubpost/", payload, format="json"
         )
 
+        # Assert
         self.assertEqual(response.status_code, 200)
         post = ResearchhubPost.objects.get(id=response.data["id"])
         self.assertTrue(post.unified_document.is_public)
+        self.assertEqual(response.data["fundraise"]["goal_currency"], USD)
 
     def test_is_public_false_marks_unified_doc_private(self):
         response = self.client.post(
