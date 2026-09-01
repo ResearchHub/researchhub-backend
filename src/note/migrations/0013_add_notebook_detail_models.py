@@ -82,13 +82,13 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "currency",
-                    models.CharField(blank=True, max_length=16, null=True),
+                    models.CharField(blank=True, max_length=16),
                 ),
                 (
                     "organization",
-                    models.CharField(blank=True, max_length=255, null=True),
+                    models.CharField(blank=True, max_length=255),
                 ),
-                ("description", models.TextField(blank=True, null=True)),
+                ("description", models.TextField(blank=True)),
                 (
                     "end_date",
                     models.DateTimeField(blank=True, null=True),
@@ -103,7 +103,6 @@ class Migration(migrations.Migration):
                             ("PUBLIC", "Applications must be public"),
                         ],
                         max_length=16,
-                        null=True,
                     ),
                 ),
                 (
@@ -152,7 +151,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "goal_currency",
-                    models.CharField(blank=True, max_length=16, null=True),
+                    models.CharField(blank=True, max_length=16),
                 ),
                 (
                     "duration_days",

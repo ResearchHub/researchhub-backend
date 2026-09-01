@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="note",
             name="image",
-            field=models.TextField(blank=True, null=True),
+            field=models.TextField(blank=True),
         ),
         migrations.AddField(
             model_name="note",
