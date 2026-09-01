@@ -39,6 +39,7 @@ class GrantViewSet(viewsets.ModelViewSet):
                 "proposal_reviews",
                 queryset=ProposalReview.objects.prefetch_related("key_insight__items"),
             ),
+            "unified_document__posts",
         )
 
     def dispatch(self, request, *args, **kwargs):
