@@ -61,11 +61,6 @@ logger = logging.getLogger(__name__)
 # Callers that want a different model pass ``model_id``.
 MODEL_ID = "claude-opus-5"
 
-# claude-opus-5's output ceiling; what ``max_tokens=None`` resolves to. On
-# Opus 5 the budget covers thinking + text together, so an artificially low
-# ceiling truncates tool calls mid-emission. Review alongside MODEL_ID.
-MAX_OUTPUT_TOKENS = 128_000
-
 # How much the model may deliberate and spend per turn: low | medium | high |
 # xhigh | max. ``low`` keeps routine agent workflows economical; higher levels
 # trade more tokens for depth. "" omits the parameter entirely (models older
@@ -574,9 +569,22 @@ class ClaudePlatformProvider(LLMProvider):
             # the system block caches the whole tools+system prefix -- the
             # bytes that repeat unchanged on every turn.
             system["cache_control"] = {"type": "ephemeral"}
+        capabilities = model_capabilities("claude_platform", self.model_id)
+        if capabilities.max_output_tokens is None:
+            # No guessed ceiling: too high is a 400, too low truncates a turn
+            # mid-emission. A model is reviewed before it is served.
+            raise ProviderError(
+                f"model {self.model_id!r} has no reviewed output ceiling; add "
+                "it to model_capabilities before serving it.",
+                retryable=False,
+            )
+        # A ceiling above the model's own cap is a 400, so clamp rather than
+        # forward what Haiku 4.5 (64K) cannot accept.
+        ceiling = capabilities.max_output_tokens
+        max_tokens = ceiling if max_tokens is None else min(max_tokens, ceiling)
         kwargs: dict = {
             "model": self.model_id,
-            "max_tokens": MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens,
+            "max_tokens": max_tokens,
             "system": [system],
             "messages": self._render_messages(messages, cache_last=self.prompt_caching),
         }
@@ -589,7 +597,6 @@ class ClaudePlatformProvider(LLMProvider):
             # state, separate from the content blocks replayed above.
             kwargs["container"] = container_id
             logger.info("claude platform: reusing code execution container")
-        capabilities = model_capabilities("claude_platform", self.model_id)
         thinking_mode = self.thinking if self.thinking in capabilities.thinking else ""
         if thinking_mode:
             thinking: dict = {"type": thinking_mode}

@@ -13,16 +13,15 @@ search, adaptive thinking, prompt caching) and every other family through
 OpenRouter. Bedrock refs are equally valid entries; they are just not listed,
 since they would duplicate the Anthropic entries under a second name.
 
-Models whose provider has no credentials configured are hidden -- offering
-them would sell a selection that can only fail at run time. The configured
-generator default is always selectable, even when it falls outside the
-catalog's availability checks, because it is what runs when the user picks
-nothing.
+The catalog is not credential-gated. Provider keys are configured on the
+Celery workers that execute turns, not on the API process that serves this
+listing, so checking them here would hide models that run fine; each provider
+raises on missing credentials where they are actually used. The configured
+generator default is listed too, even when it falls outside the catalog,
+because it is what runs when the user picks nothing.
 """
 
 from dataclasses import dataclass
-
-from django.conf import settings
 
 from research_ai.services.agent.model_capabilities import (
     ModelCapabilities,
@@ -114,14 +113,13 @@ _CATALOG: tuple[ModelOption, ...] = (
 
 
 def available_models() -> list[ModelOption]:
-    """The models a user may select right now, generator default first-class.
+    """The models a user may select, generator default first-class.
 
-    Catalog entries whose provider lacks credentials are dropped; the
-    configured generator default is prepended when the surviving list does not
+    The configured generator default is prepended when the catalog does not
     already carry it, so "what runs by default" is always also a legal
     explicit choice.
     """
-    options = [option for option in _CATALOG if _provider_configured(option.provider)]
+    options = list(_CATALOG)
     default_ref = default_model_ref()
     if not any(option.ref == default_ref for option in options):
         options.insert(
@@ -151,23 +149,9 @@ def validate_model_ref(value: str | None) -> str | None:
     for option in available_models():
         if _canonical(option.ref) == requested:
             return option.ref
-    raise ValueError(f"unknown or unavailable model: {value.strip()!r}")
+    raise ValueError(f"unknown model: {value.strip()!r}")
 
 
 def _canonical(ref: str) -> str:
     provider, model_id = split_model_ref(ref)
     return f"{provider}:{model_id or ''}"
-
-
-def _provider_configured(name: str) -> bool:
-    """Whether ``name`` has the credentials its client needs, settings-only.
-
-    Deliberately no client construction (same contract as the registry).
-    Bedrock rides the ambient AWS credential chain, which cannot be checked
-    from settings, so it always counts as configured.
-    """
-    if name == CLAUDE_PLATFORM:
-        return bool(settings.ANTHROPIC_AWS_WORKSPACE_ID and settings.AWS_REGION_NAME)
-    if name == OPENROUTER:
-        return bool(getattr(settings, "OPENROUTER_API_KEY", ""))
-    return True

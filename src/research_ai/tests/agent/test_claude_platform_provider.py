@@ -175,6 +175,7 @@ def _complete(
     *,
     messages=None,
     rendered_tools=None,
+    max_tokens=100,
     temperature=0.0,
     before_retry=None,
 ):
@@ -182,7 +183,7 @@ def _complete(
         system_prompt="sys",
         messages=messages or [Message(role="user", content=[TextBlock(text="hi")])],
         rendered_tools=rendered_tools if rendered_tools is not None else [],
-        max_tokens=100,
+        max_tokens=max_tokens,
         temperature=temperature,
         before_retry=before_retry,
     )
@@ -540,18 +541,30 @@ class CompleteAndParseTests(SimpleTestCase):
         self.assertNotIn("thinking", call)
         self.assertEqual(call["temperature"], 0.7)
 
-    def test_unknown_model_omits_unreviewed_optional_controls(self):
+    def test_haiku_4_5_clamps_max_tokens_to_the_model_output_cap(self):
+        # Arrange: Haiku 4.5 caps output at 64K and rejects anything above it.
+        provider = _build_provider(
+            [_build_response([]), _build_response([])],
+            model_id="claude-haiku-4-5",
+        )
+
+        # Act: both an unset ceiling and a caller ceiling above the cap.
+        _complete(provider, max_tokens=None, temperature=0.7)
+        _complete(provider, max_tokens=100_000, temperature=0.7)
+
+        # Assert
+        calls = provider._client.messages.calls
+        self.assertEqual(calls[0]["max_tokens"], 64_000)
+        self.assertEqual(calls[1]["max_tokens"], 64_000)
+
+    def test_unreviewed_model_is_refused_before_the_request(self):
         # Arrange
         provider = _build_provider([_build_response([])], model_id="claude-future")
 
-        # Act
-        _complete(provider, temperature=0.7)
-
-        # Assert
-        call = provider._client.messages.calls[0]
-        self.assertNotIn("output_config", call)
-        self.assertNotIn("thinking", call)
-        self.assertNotIn("temperature", call)
+        # Act / Assert
+        with self.assertRaisesRegex(ProviderError, "no reviewed output ceiling"):
+            _complete(provider, temperature=0.7)
+        self.assertEqual(provider._client.messages.calls, [])
 
     def test_prompt_caching_marks_system_and_the_last_message_block(self):
         # Arrange
@@ -719,7 +732,7 @@ class CompleteAndParseTests(SimpleTestCase):
         self.assertIsInstance(ctx.exception.__cause__, ValueError)
 
     def test_none_max_tokens_resolves_to_the_model_output_ceiling(self):
-        # Arrange
+        # Arrange: an unset ceiling resolves to Opus 5's reviewed cap.
         provider = _build_provider([_build_response([])])
 
         # Act
@@ -733,7 +746,7 @@ class CompleteAndParseTests(SimpleTestCase):
 
         # Assert
         call = provider._client.messages.calls[0]
-        self.assertEqual(call["max_tokens"], claude_platform.MAX_OUTPUT_TOKENS)
+        self.assertEqual(call["max_tokens"], 128_000)
 
     def test_explicit_max_tokens_is_forwarded_unchanged(self):
         # Arrange: the _complete helper passes max_tokens=100.

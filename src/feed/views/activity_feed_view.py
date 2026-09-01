@@ -90,6 +90,10 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     The unscoped public discovery feed (pages 1–20, page_size=20) may be served
     from a shared warm cache. Votes are attached after the cache read for
     authenticated users.
+
+    Moderators and hub editors may pass ``?disable_cache=true`` (or ``1``) to
+    force a live DB read and skip both cache get and cache set. The param is
+    ignored for non-privileged users.
     """
 
     serializer_class = ActivityFeedEntrySerializer
