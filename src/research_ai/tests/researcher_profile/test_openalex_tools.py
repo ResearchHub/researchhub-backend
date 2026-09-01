@@ -231,6 +231,25 @@ class WorkDetailTests(SimpleTestCase):
         self.assertIn("No readable full text", result["error"])
         self.assertNotIn("Abstract text", str(result))
 
+    def test_fulltext_search_reports_when_source_text_was_truncated(self):
+        # Arrange: the only query match falls beyond the bounded search prefix.
+        text = "background " * 12000 + "unique-tail-evidence"
+        _, toolset, url = self._toolset_with_work(
+            pdf_text_fetcher=lambda _pdf_url: text
+        )
+
+        # Act
+        result, _ = toolset.dispatch(
+            "search_work_fulltext",
+            {"source_url": url, "query": "unique-tail-evidence"},
+        )
+
+        # Assert
+        self.assertTrue(result["source_truncated"])
+        self.assertEqual(result["searched_characters"], 120000)
+        self.assertEqual(result["match_count"], 0)
+        self.assertIn("first 120000 characters", result["warning"])
+
     def test_unknown_source_url_errors(self):
         # Arrange
         _, toolset, _ = self._toolset_with_work(pdf_text_fetcher=lambda u: "")

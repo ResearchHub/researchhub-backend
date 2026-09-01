@@ -22,6 +22,9 @@ READ_SELECTED_RFP = "read_selected_rfp"
 SET_SELECTED_RFP = "set_selected_rfp"
 _MAX_QUERY_CHARS = 500
 _MAX_SUMMARY_CHARS = 280
+# At most 8,000 Python characters also stays below the agent's 128 KiB JSON
+# result limit for worst-case non-BMP Unicode escaping, with room for metadata.
+_MAX_RFP_PAGE_CHARS = 8000
 _EMPTY_INPUT_SCHEMA = {"type": "object", "properties": {}}
 _SELECTED_RFP_NOT_ACCESSIBLE = "selected RFP not found or not accessible"
 _NOTE_NOT_ACCESSIBLE = "this preregistration is not accessible"
@@ -77,9 +80,10 @@ class GrantSearchToolset:
             Tool(
                 name=GET_GRANT_DETAILS,
                 description=(
-                    "Inspect one grant/RFP in full. Pass an id from "
-                    "search_grants. Visibility is checked again for the acting "
-                    "user before any call text is returned."
+                    "Inspect one grant/RFP. Pass an id from search_grants. "
+                    "Visibility and active status are checked again for the "
+                    "acting user. Long call text is paginated; pass the returned "
+                    "next_start_char to continue reading."
                 ),
                 input_schema={
                     "type": "object",
@@ -87,7 +91,23 @@ class GrantSearchToolset:
                         "grant_id": {
                             "type": "integer",
                             "description": "Grant id from search_grants.",
-                        }
+                        },
+                        "start_char": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": (
+                                "Character offset for the RFP text page; default 0."
+                            ),
+                        },
+                        "max_chars": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": _MAX_RFP_PAGE_CHARS,
+                            "description": (
+                                "Maximum RFP text characters to return; default "
+                                f"and maximum {_MAX_RFP_PAGE_CHARS}."
+                            ),
+                        },
                     },
                     "required": ["grant_id"],
                 },
@@ -146,6 +166,10 @@ class GrantSearchToolset:
         grant_id, error = _parse_required_grant_id(args)
         if error is not None:
             return error
+        page_bounds, error = _parse_rfp_page_bounds(args)
+        if error is not None:
+            return error
+        start_char, max_chars = page_bounds
         try:
             grant = (
                 selectable_grants(self._user)
@@ -156,10 +180,28 @@ class GrantSearchToolset:
             )
             if grant is None:
                 return {"error": f"grant {grant_id} not found or not accessible"}
+            if not grant.is_active():
+                return {
+                    "error": f"grant {grant_id} is no longer accepting applications"
+                }
+            rfp_text = _grant_full_text(grant)
+            if start_char > len(rfp_text):
+                return {
+                    "error": (
+                        f"start_char must be at most the RFP text length "
+                        f"({len(rfp_text)})"
+                    )
+                }
+            end_char = min(start_char + max_chars, len(rfp_text))
+            next_start_char = end_char if end_char < len(rfp_text) else None
             return {
                 **_grant_terms(grant),
-                "description": (grant.description or "").strip(),
-                "rfp_text": _grant_full_text(grant),
+                "rfp_text": rfp_text[start_char:end_char],
+                "rfp_text_start_char": start_char,
+                "rfp_text_end_char": end_char,
+                "rfp_text_total_chars": len(rfp_text),
+                "rfp_text_is_partial": start_char > 0 or next_start_char is not None,
+                "next_start_char": next_start_char,
             }
         except Exception:  # noqa: BLE001 - tool failures are model-readable
             logger.exception("grant detail read failed for grant %s", grant_id)
@@ -275,6 +317,28 @@ def _parse_required_grant_id(args: dict) -> tuple[int | None, dict | None]:
     if grant_id is None:
         return None, {"error": "grant_id must be a grant id"}
     return grant_id, None
+
+
+def _parse_rfp_page_bounds(args: dict) -> tuple[tuple[int, int] | None, dict | None]:
+    """Validate character pagination for grant detail text."""
+    args = args or {}
+    start_char = args.get("start_char", 0)
+    max_chars = args.get("max_chars", _MAX_RFP_PAGE_CHARS)
+    if (
+        isinstance(start_char, bool)
+        or not isinstance(start_char, int)
+        or start_char < 0
+    ):
+        return None, {"error": "start_char must be a non-negative integer"}
+    if (
+        isinstance(max_chars, bool)
+        or not isinstance(max_chars, int)
+        or not 1 <= max_chars <= _MAX_RFP_PAGE_CHARS
+    ):
+        return None, {
+            "error": f"max_chars must be an integer from 1 to {_MAX_RFP_PAGE_CHARS}"
+        }
+    return (start_char, max_chars), None
 
 
 class SelectedRFPToolset:

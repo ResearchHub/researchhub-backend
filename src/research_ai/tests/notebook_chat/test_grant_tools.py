@@ -226,8 +226,75 @@ class GrantSearchToolsetTests(TestCase):
 
         # Assert
         self.assertEqual(result["id"], grant.id)
-        self.assertEqual(result["description"], "Structured program summary.")
+        self.assertIn("Structured program summary.", result["rfp_text"])
         self.assertIn("Full RFP requirements", result["rfp_text"])
+        self.assertFalse(result["rfp_text_is_partial"])
+        self.assertIsNone(result["next_start_char"])
+
+    def test_grant_details_rechecks_that_the_grant_is_active(self):
+        # Arrange: this grant could have closed after a prior search returned it.
+        grant = self._grant(
+            title="Closed Methods Call",
+            description="No longer accepting applications.",
+            status=Grant.CLOSED,
+        )
+
+        # Act
+        result = self._details(self.user, grant.id)
+
+        # Assert
+        self.assertEqual(
+            result,
+            {"error": f"grant {grant.id} is no longer accepting applications"},
+        )
+
+    def test_grant_details_paginates_long_rfp_text(self):
+        # Arrange
+        grant = self._grant(
+            title="Long Methods Call",
+            description="Detailed eligibility and application instructions. " * 300,
+        )
+        toolset = GrantSearchToolset(user=self.user).as_toolset()
+
+        # Act
+        first, _ = toolset.dispatch(
+            GET_GRANT_DETAILS,
+            {"grant_id": grant.id, "max_chars": 100},
+        )
+        second, _ = toolset.dispatch(
+            GET_GRANT_DETAILS,
+            {
+                "grant_id": grant.id,
+                "start_char": first["next_start_char"],
+                "max_chars": 100,
+            },
+        )
+
+        # Assert
+        self.assertEqual(len(first["rfp_text"]), 100)
+        self.assertEqual(first["rfp_text_start_char"], 0)
+        self.assertEqual(first["rfp_text_end_char"], 100)
+        self.assertEqual(first["next_start_char"], 100)
+        self.assertTrue(first["rfp_text_is_partial"])
+        self.assertEqual(second["rfp_text_start_char"], 100)
+        self.assertNotEqual(first["rfp_text"], second["rfp_text"])
+
+    def test_grant_details_page_stays_below_dispatch_limit_for_unicode(self):
+        # Arrange: json.dumps expands each non-BMP character to two surrogates.
+        grant = self._grant(
+            title="Unicode Methods Call",
+            description="🔬" * 20000,
+        )
+        toolset = GrantSearchToolset(user=self.user).as_toolset()
+
+        # Act
+        result, _ = toolset.dispatch(GET_GRANT_DETAILS, {"grant_id": grant.id})
+
+        # Assert
+        self.assertNotIn("error", result)
+        self.assertEqual(len(result["rfp_text"]), 8000)
+        self.assertTrue(result["rfp_text_is_partial"])
+        self.assertEqual(result["next_start_char"], 8000)
 
     def test_grant_details_rechecks_visibility(self):
         # Arrange

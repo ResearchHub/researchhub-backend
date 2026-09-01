@@ -104,7 +104,7 @@ class OpenAlexToolset:
         self._pdf_text_fetcher = pdf_text_fetcher or self._fetch_pdf_text
         self._max_fulltext_fetches = max_fulltext_fetches
         self._fulltext_fetches_used = 0
-        self._fulltext_cache: dict[str, str] = {}
+        self._fulltext_cache: dict[str, tuple[str, bool]] = {}
         # Full ground-truth work record for every work handed to the model,
         # keyed by source_url. The profile is materialized from these rather
         # than from the model's (often mangled) copy of each work.
@@ -442,7 +442,7 @@ class OpenAlexToolset:
                     "get_author_works."
                 )
             }
-        text, error = self._fulltext(source_url, work)
+        text, source_truncated, error = self._fulltext(source_url, work)
         if error is not None:
             return error
         if not text:
@@ -455,35 +455,48 @@ class OpenAlexToolset:
                 ),
             }
         passages = self._relevant_passages(text, query, limit=max_passages)
-        return {
+        result = {
             "source_url": source_url,
             "title": str(work.get("title") or "").strip(),
             "query": query,
             "searched_characters": len(text),
+            "source_truncated": source_truncated,
             "passages": passages,
             "match_count": len(passages),
         }
+        if source_truncated:
+            result["warning"] = (
+                f"Search covered only the first {_MAX_FULLTEXT_SOURCE_CHARS} "
+                "characters of the extracted PDF text."
+            )
+        return result
 
-    def _fulltext(self, source_url: str, work: dict) -> tuple[str, dict | None]:
+    def _fulltext(self, source_url: str, work: dict) -> tuple[str, bool, dict | None]:
         if source_url in self._fulltext_cache:
-            return self._fulltext_cache[source_url], None
+            text, source_truncated = self._fulltext_cache[source_url]
+            return text, source_truncated, None
         if self._fulltext_fetches_used >= self._max_fulltext_fetches:
-            return "", {
-                "error": (
-                    "Full-text fetch budget exhausted "
-                    f"({self._max_fulltext_fetches} documents). Work from text "
-                    "already searched or from separately fetched abstracts."
-                )
-            }
+            return (
+                "",
+                False,
+                {
+                    "error": (
+                        "Full-text fetch budget exhausted "
+                        f"({self._max_fulltext_fetches} documents). Work from text "
+                        "already searched or from separately fetched abstracts."
+                    )
+                },
+            )
         pdf_url = str(work.get("pdf_url") or "").strip()
         if not pdf_url:
-            self._fulltext_cache[source_url] = ""
-            return "", None
+            self._fulltext_cache[source_url] = ("", False)
+            return "", False, None
         self._fulltext_fetches_used += 1
-        text = self._pdf_text_fetcher(pdf_url)
-        text = str(text or "").strip()
-        self._fulltext_cache[source_url] = text
-        return text, None
+        source_text = str(self._pdf_text_fetcher(pdf_url) or "")
+        source_truncated = len(source_text) > _MAX_FULLTEXT_SOURCE_CHARS
+        text = source_text[:_MAX_FULLTEXT_SOURCE_CHARS].strip()
+        self._fulltext_cache[source_url] = (text, source_truncated)
+        return text, source_truncated, None
 
     @staticmethod
     def _work_card(work: dict) -> dict:
@@ -608,7 +621,7 @@ class OpenAlexToolset:
             if not pdf_bytes:
                 return ""
             return extract_text_from_pdf_bytes(
-                pdf_bytes, max_chars=_MAX_FULLTEXT_SOURCE_CHARS
+                pdf_bytes, max_chars=_MAX_FULLTEXT_SOURCE_CHARS + 1
             )
         except Exception as exc:  # noqa: BLE001 - a bad PDF must not break the loop
             logger.warning(
