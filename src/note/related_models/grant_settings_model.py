@@ -21,16 +21,13 @@ class GrantSettings(DefaultModel):
     currency = models.CharField(
         blank=True,
         max_length=16,
-        null=True,
     )
     organization = models.CharField(
         blank=True,
         max_length=255,
-        null=True,
     )
     description = models.TextField(
         blank=True,
-        null=True,
     )
     end_date = models.DateTimeField(
         blank=True,
@@ -40,7 +37,6 @@ class GrantSettings(DefaultModel):
         blank=True,
         choices=Grant.APPLICATION_VISIBILITY_CHOICES,
         max_length=16,
-        null=True,
     )
     contacts = models.ManyToManyField(
         "user.User",
