@@ -224,13 +224,15 @@ class ResearchhubPostViewSet(
                 # relations it renders load here instead of once per post.
                 .select_related(
                     "note__grant_settings",
-                    "note__preregistration_settings",
+                    "note__preregistration_settings__nonprofit",
+                    "note__selected_grant",
                     "unified_document",
                 )
                 .prefetch_related(
                     "author_links",
                     "note__author_links",
                     "note__grant_settings__contacts",
+                    "note__selected_grant__unified_document__posts",
                     "note__unified_document__hubs",
                     Prefetch(
                         "grant_applications",
