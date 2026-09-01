@@ -22,7 +22,6 @@ class Note(DefaultModel):
     )
     image = models.TextField(
         blank=True,
-        null=True,
     )
     latest_version = models.ForeignKey(
         "note.NoteContent", null=True, related_name="source", on_delete=models.CASCADE
