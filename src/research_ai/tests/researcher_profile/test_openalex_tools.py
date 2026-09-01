@@ -200,13 +200,25 @@ class WorkDetailTests(SimpleTestCase):
         # Assert
         self.assertIn("CRISPR", result["passages"][0]["text"])
 
-    def test_fulltext_query_terms_do_not_use_a_manual_stopword_list(self):
-        # Act / Assert: generic terms are retained and receive low weight only
-        # when they are empirically common in this particular document.
-        self.assertEqual(
-            OpenAlexToolset._query_terms("paper using cells after treatment"),
-            ["paper", "using", "cells", "after", "treatment"],
+    def test_fulltext_search_retains_common_research_query_terms(self):
+        # Arrange: these terms were previously handled by a manual stop list.
+        text = (
+            "Unrelated introduction and background. " * 60
+            + "This paper reports what happened after using the intervention. "
+            + "Unrelated conclusions and references. " * 60
         )
+        _, toolset, url = self._toolset_with_work(
+            pdf_text_fetcher=lambda _pdf_url: text
+        )
+
+        # Act
+        result, _ = toolset.dispatch(
+            "search_work_fulltext",
+            {"source_url": url, "query": "paper what after using"},
+        )
+
+        # Assert
+        self.assertIn("paper reports", result["passages"][0]["text"])
 
     def test_fulltext_search_does_not_fall_back_to_abstract(self):
         # Arrange

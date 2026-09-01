@@ -16,10 +16,9 @@ final profile from these records so a hallucinated citation cannot survive.
 """
 
 import logging
-import re
-from collections import Counter
 from collections.abc import Callable
-from math import log
+
+import bm25s
 
 from research_ai.services.agent import Tool, Toolset
 from research_ai.services.pdf_text import (
@@ -49,7 +48,7 @@ _MAX_FULLTEXT_SOURCE_CHARS = 120000
 _MAX_PASSAGES = 5
 _MAX_PASSAGE_CHARS = 1400
 _MAX_FULLTEXT_QUERY_CHARS = 500
-_WORD_RE = re.compile(r"[a-z0-9][a-z0-9_-]*")
+_BM25_TOKEN_PATTERN = r"(?u)\b\w[\w-]*\b"
 
 
 def _institution_names(record: dict) -> list[str]:
@@ -511,46 +510,51 @@ class OpenAlexToolset:
 
     @classmethod
     def _relevant_passages(cls, text: str, query: str, *, limit: int) -> list[dict]:
-        """Rank overlapping text windows by focused lexical query coverage."""
-        query_lower = query.lower()
-        terms = cls._query_terms(query_lower)
-        candidates = cls._passage_candidates(text, query_lower, terms)
-        candidates.sort(key=lambda item: (-item[0], -item[1], item[2]))
+        """Rank overlapping text windows with Lucene-compatible BM25."""
+        candidates = cls._passage_candidates(text, query)
         return cls._select_nonoverlapping_passages(candidates, limit=limit)
-
-    @staticmethod
-    def _query_terms(query_lower: str) -> list[str]:
-        return list(dict.fromkeys(_WORD_RE.findall(query_lower)))
 
     @classmethod
     def _passage_candidates(
-        cls, text: str, query_lower: str, terms: list[str]
-    ) -> list[tuple[float, int, int, int, str]]:
+        cls, text: str, query: str
+    ) -> list[tuple[float, int, int, str]]:
         windows = cls._passage_windows(text)
-        token_counts = [
-            Counter(_WORD_RE.findall(passage.lower())) for *_, passage in windows
-        ]
-        document_frequency = Counter(
-            term for counts in token_counts for term in terms if counts[term]
+        if not windows:
+            return []
+        corpus_tokens = cls._bm25_tokens([passage for *_, passage in windows])
+        query_tokens = cls._bm25_tokens([query])
+        if not query_tokens[0]:
+            return []
+
+        # Match OpenSearch/Lucene's BM25 variant for local, transient passages.
+        retriever = bm25s.BM25(method="lucene")
+        retriever.index(corpus_tokens, show_progress=False)
+        ranked = retriever.retrieve(
+            query_tokens,
+            corpus=list(range(len(windows))),
+            k=len(windows),
+            show_progress=False,
         )
-        window_count = len(windows)
         candidates = []
-        for (start, end, passage), counts in zip(windows, token_counts, strict=True):
-            matched = [term for term in terms if counts[term]]
-            score = sum(
-                log(
-                    1
-                    + (window_count - document_frequency[term] + 0.5)
-                    / (document_frequency[term] + 0.5)
-                )
-                * (counts[term] * 2.2 / (counts[term] + 1.2))
-                for term in matched
-            )
-            if query_lower in passage.lower():
-                score += 2
-            if score:
-                candidates.append((score, len(matched), start, end, passage))
+        for window_index, score in zip(
+            ranked.documents[0], ranked.scores[0], strict=True
+        ):
+            if score <= 0:
+                continue
+            start, end, passage = windows[int(window_index)]
+            candidates.append((float(score), start, end, passage))
         return candidates
+
+    @staticmethod
+    def _bm25_tokens(texts: list[str]) -> list[list[str]]:
+        return bm25s.tokenize(
+            texts,
+            token_pattern=_BM25_TOKEN_PATTERN,
+            # BM25 downweights document-common terms without a global stop list.
+            stopwords=None,
+            return_ids=False,
+            show_progress=False,
+        )
 
     @staticmethod
     def _passage_windows(text: str) -> list[tuple[int, int, str]]:
@@ -573,11 +577,11 @@ class OpenAlexToolset:
 
     @staticmethod
     def _select_nonoverlapping_passages(
-        candidates: list[tuple[float, int, int, int, str]], *, limit: int
+        candidates: list[tuple[float, int, int, str]], *, limit: int
     ) -> list[dict]:
         selected = []
         selected_ranges: list[tuple[int, int]] = []
-        for score, _coverage, start, end, passage in candidates:
+        for score, start, end, passage in candidates:
             if any(
                 start < kept_end and end > kept_start
                 for kept_start, kept_end in selected_ranges
