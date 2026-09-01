@@ -17,7 +17,9 @@ final profile from these records so a hallucinated citation cannot survive.
 
 import logging
 import re
+from collections import Counter
 from collections.abc import Callable
+from math import log
 
 from research_ai.services.agent import Tool, Toolset
 from research_ai.services.pdf_text import (
@@ -48,26 +50,6 @@ _MAX_PASSAGES = 5
 _MAX_PASSAGE_CHARS = 1400
 _MAX_FULLTEXT_QUERY_CHARS = 500
 _WORD_RE = re.compile(r"[a-z0-9][a-z0-9_-]*")
-_QUERY_STOPWORDS = frozenset(
-    {
-        "about",
-        "after",
-        "also",
-        "from",
-        "into",
-        "paper",
-        "that",
-        "their",
-        "this",
-        "using",
-        "were",
-        "what",
-        "when",
-        "where",
-        "which",
-        "with",
-    }
-)
 
 
 def _institution_names(record: dict) -> list[str]:
@@ -538,21 +520,43 @@ class OpenAlexToolset:
 
     @staticmethod
     def _query_terms(query_lower: str) -> list[str]:
-        all_terms = list(dict.fromkeys(_WORD_RE.findall(query_lower)))
-        focused_terms = [
-            term
-            for term in all_terms
-            if len(term) >= 3 and term not in _QUERY_STOPWORDS
+        return list(dict.fromkeys(_WORD_RE.findall(query_lower)))
+
+    @classmethod
+    def _passage_candidates(
+        cls, text: str, query_lower: str, terms: list[str]
+    ) -> list[tuple[float, int, int, int, str]]:
+        windows = cls._passage_windows(text)
+        token_counts = [
+            Counter(_WORD_RE.findall(passage.lower())) for *_, passage in windows
         ]
-        return focused_terms or all_terms
+        document_frequency = Counter(
+            term for counts in token_counts for term in terms if counts[term]
+        )
+        window_count = len(windows)
+        candidates = []
+        for (start, end, passage), counts in zip(windows, token_counts, strict=True):
+            matched = [term for term in terms if counts[term]]
+            score = sum(
+                log(
+                    1
+                    + (window_count - document_frequency[term] + 0.5)
+                    / (document_frequency[term] + 0.5)
+                )
+                * (counts[term] * 2.2 / (counts[term] + 1.2))
+                for term in matched
+            )
+            if query_lower in passage.lower():
+                score += 2
+            if score:
+                candidates.append((score, len(matched), start, end, passage))
+        return candidates
 
     @staticmethod
-    def _passage_candidates(
-        text: str, query_lower: str, terms: list[str]
-    ) -> list[tuple[int, int, int, int, str]]:
+    def _passage_windows(text: str) -> list[tuple[int, int, str]]:
         window_size = _MAX_PASSAGE_CHARS
         overlap = 240
-        candidates = []
+        windows = []
         start = 0
         while start < len(text):
             end = min(start + window_size, len(text))
@@ -561,21 +565,15 @@ class OpenAlexToolset:
                 if boundary > start:
                     end = boundary
             passage = " ".join(text[start:end].split())
-            lower = passage.lower()
-            matched = [term for term in terms if term in lower]
-            score = sum(lower.count(term) for term in terms) + 3 * len(matched)
-            if query_lower in lower:
-                score += 10
-            if score:
-                candidates.append((score, len(matched), start, end, passage))
+            windows.append((start, end, passage))
             if end >= len(text):
                 break
             start = max(start + 1, end - overlap)
-        return candidates
+        return windows
 
     @staticmethod
     def _select_nonoverlapping_passages(
-        candidates: list[tuple[int, int, int, int, str]], *, limit: int
+        candidates: list[tuple[float, int, int, int, str]], *, limit: int
     ) -> list[dict]:
         selected = []
         selected_ranges: list[tuple[int, int]] = []
@@ -590,7 +588,7 @@ class OpenAlexToolset:
                 {
                     "start_char": start,
                     "end_char": end,
-                    "score": score,
+                    "score": round(score, 4),
                     "text": passage,
                 }
             )

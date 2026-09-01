@@ -179,6 +179,35 @@ class WorkDetailTests(SimpleTestCase):
         self.assertIn("single-cell", result["passages"][0]["text"])
         self.assertLess(len(result["passages"][0]["text"]), len(text))
 
+    def test_fulltext_search_downweights_terms_common_across_the_document(self):
+        # Arrange: "using" appears throughout the paper, while the substantive
+        # query term identifies one passage.
+        text = (
+            "Background using standard controls and routine analysis. " * 100
+            + "METHODS: using CRISPR screens to identify resistance genes. "
+            + "Discussion using standard controls and routine analysis. " * 100
+        )
+        _, toolset, url = self._toolset_with_work(
+            pdf_text_fetcher=lambda _pdf_url: text
+        )
+
+        # Act
+        result, _ = toolset.dispatch(
+            "search_work_fulltext",
+            {"source_url": url, "query": "using CRISPR"},
+        )
+
+        # Assert
+        self.assertIn("CRISPR", result["passages"][0]["text"])
+
+    def test_fulltext_query_terms_do_not_use_a_manual_stopword_list(self):
+        # Act / Assert: generic terms are retained and receive low weight only
+        # when they are empirically common in this particular document.
+        self.assertEqual(
+            OpenAlexToolset._query_terms("paper using cells after treatment"),
+            ["paper", "using", "cells", "after", "treatment"],
+        )
+
     def test_fulltext_search_does_not_fall_back_to_abstract(self):
         # Arrange
         _, toolset, url = self._toolset_with_work(pdf_text_fetcher=lambda pdf_url: "")
