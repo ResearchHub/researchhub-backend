@@ -31,6 +31,7 @@ from research_ai.services.agent_persistence.activity import (
 )
 from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE
 from research_ai.services.notebook_chat.grant_tools import (
+    GET_GRANT_DETAILS,
     READ_SELECTED_RFP,
     SEARCH_GRANTS,
     SET_SELECTED_RFP,
@@ -38,7 +39,11 @@ from research_ai.services.notebook_chat.grant_tools import (
 from research_ai.services.notebook_chat.researcher_profile_tools import (
     GET_RESEARCHER_PROFILE,
 )
-from research_ai.services.researcher_profile.openalex_tools import GET_WORK_FULLTEXT
+from research_ai.services.researcher_profile.openalex_tools import (
+    GET_WORK_ABSTRACT,
+    GET_WORK_FULLTEXT,
+    SEARCH_WORK_FULLTEXT,
+)
 
 WEB_SEARCH = "web_search"
 SEARCH_INSTITUTIONS = "search_institutions"
@@ -51,6 +56,7 @@ _LABELS = {
     EDIT_NOTE: "Edited the note",
     WEB_SEARCH: "Searched the web",
     SEARCH_GRANTS: "Searched grants",
+    GET_GRANT_DETAILS: "Read grant details",
     READ_SELECTED_RFP: "Read the selected RFP",
     SET_SELECTED_RFP: "Selected an RFP",
     SEARCH_INSTITUTIONS: "Searched institutions",
@@ -58,6 +64,8 @@ _LABELS = {
     GET_AUTHOR: "Looked up an author",
     GET_AUTHOR_WORKS: "Fetched an author's publications",
     GET_WORK_FULLTEXT: "Read a paper",
+    GET_WORK_ABSTRACT: "Read a paper abstract",
+    SEARCH_WORK_FULLTEXT: "Searched a paper",
     GET_RESEARCHER_PROFILE: "Read your researcher profile",
 }
 # What each tool is doing while the call is still open, for the live phase.
@@ -67,6 +75,7 @@ _ACTIVE_LABELS = {
     EDIT_NOTE: "Editing the note",
     WEB_SEARCH: "Searching the web",
     SEARCH_GRANTS: "Searching grants",
+    GET_GRANT_DETAILS: "Reading grant details",
     READ_SELECTED_RFP: "Reading the selected RFP",
     SET_SELECTED_RFP: "Selecting an RFP",
     SEARCH_INSTITUTIONS: "Searching institutions",
@@ -74,6 +83,8 @@ _ACTIVE_LABELS = {
     GET_AUTHOR: "Looking up an author",
     GET_AUTHOR_WORKS: "Fetching an author's publications",
     GET_WORK_FULLTEXT: "Reading a paper",
+    GET_WORK_ABSTRACT: "Reading a paper abstract",
+    SEARCH_WORK_FULLTEXT: "Searching a paper",
     GET_RESEARCHER_PROFILE: "Reading your researcher profile",
 }
 # What the model is doing while it is still writing a tool call's arguments.
@@ -90,6 +101,7 @@ _DETAIL_INPUT_FIELDS = {
     SEARCH_GRANTS: "query",
     SEARCH_INSTITUTIONS: "query",
     SEARCH_AUTHORS: "name",
+    SEARCH_WORK_FULLTEXT: "query",
 }
 _MAX_DETAIL_CHARS = 200
 _MAX_SOURCES = 5
@@ -290,7 +302,7 @@ def _sources(event: ToolCallEvent) -> list[dict]:
     elif event.tool == SEARCH_GRANTS:
         items = result.get("grants")
         url_field = "url"
-    elif event.tool == READ_SELECTED_RFP:
+    elif event.tool in (GET_GRANT_DETAILS, READ_SELECTED_RFP):
         items = [result]
         url_field = "url"
     elif event.tool == SET_SELECTED_RFP:
@@ -299,7 +311,7 @@ def _sources(event: ToolCallEvent) -> list[dict]:
     elif event.tool == GET_AUTHOR_WORKS:
         items = result.get("works")
         url_field = "source_url"
-    elif event.tool == GET_WORK_FULLTEXT:
+    elif event.tool in (GET_WORK_ABSTRACT, GET_WORK_FULLTEXT, SEARCH_WORK_FULLTEXT):
         items = [result]
         url_field = "source_url"
     else:

@@ -405,7 +405,10 @@ class ParseTurnTests(SimpleTestCase):
         usage = SimpleNamespace(
             prompt_tokens=100,
             completion_tokens=20,
-            prompt_tokens_details=SimpleNamespace(cached_tokens=80),
+            prompt_tokens_details=SimpleNamespace(
+                cached_tokens=80,
+                cache_write_tokens=10,
+            ),
         )
         provider = _build_provider([_response(content="ok", usage=usage)])
 
@@ -413,9 +416,10 @@ class ParseTurnTests(SimpleTestCase):
         turn = _complete(provider)
 
         # Assert
-        self.assertEqual(turn.usage.input_tokens, 100)
+        self.assertEqual(turn.usage.input_tokens, 10)
         self.assertEqual(turn.usage.output_tokens, 20)
         self.assertEqual(turn.usage.cache_read_tokens, 80)
+        self.assertEqual(turn.usage.cache_write_tokens, 10)
 
     def test_reasoning_details_are_preserved_for_replay(self):
         # Arrange
