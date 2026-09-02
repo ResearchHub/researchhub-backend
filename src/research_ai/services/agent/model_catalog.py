@@ -65,11 +65,6 @@ _CATALOG: tuple[ModelOption, ...] = (
         description="Anthropic's balanced model; near-flagship quality, faster.",
     ),
     ModelOption(
-        ref=f"{CLAUDE_PLATFORM}:claude-haiku-4-5",
-        label="Claude Haiku 4.5",
-        description="Anthropic's fast, low-cost model for quick turns.",
-    ),
-    ModelOption(
         ref=f"{OPENROUTER}:openai/gpt-5.6-sol",
         label="GPT-5.6 Sol",
         description="OpenAI's flagship generalist.",
