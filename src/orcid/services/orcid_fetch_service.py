@@ -1,6 +1,7 @@
 from allauth.socialaccount.models import SocialAccount, SocialToken
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 
 from orcid.identifiers import normalize_orcid
 from orcid.services.orcid_email_service import OrcidEmailService
@@ -73,6 +74,7 @@ class OrcidFetchService:
             author.save(
                 update_fields=["h_index", "i10_index", "two_year_mean_citedness"]
             )
+            cache.delete(f"author-{author.id}-summary-stats")
 
     def _extract_orcid_id(self, orcid_url: str | None) -> str:
         """Extract bare ORCID ID from full URL (e.g., '0000-0001-2345-6789')."""
