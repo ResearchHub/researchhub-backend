@@ -122,6 +122,13 @@ class ProposalDraft(DefaultModel):
     error_message = models.TextField(blank=True)
     processing_time = models.FloatField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    usage_reservation_active = models.BooleanField(
+        default=False,
+        db_comment=(
+            "Whether this draft still reserves its creator's Research AI budget "
+            "slot, including while cancelled work unwinds."
+        ),
+    )
 
     class Meta:
         db_table = "research_ai_proposal_draft"

@@ -304,6 +304,9 @@ def run_proposal_draft_task(draft_id: int):
             status=ProposalDraft.Status.FAILED,
             error_message=str(e)[:10000],
         )
+        # The worker is exiting even if a concurrent cancellation won the
+        # lifecycle update above, so its separate usage reservation can now go.
+        ProposalDraft.objects.filter(id=draft_id).update(usage_reservation_active=False)
         raise
     processing_time = (timezone.now() - start_time).total_seconds()
     ProposalDraft.objects.filter(id=draft_id).update(processing_time=processing_time)

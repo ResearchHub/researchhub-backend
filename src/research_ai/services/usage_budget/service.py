@@ -6,7 +6,7 @@ from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import BigIntegerField, Count, Sum
+from django.db.models import BigIntegerField, Count, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -237,18 +237,36 @@ def _has_in_flight_work(user) -> bool:
     return (
         AgentExecution.objects.filter(
             conversation__user=user,
-            status__in=[
-                AgentExecution.Status.PENDING,
-                AgentExecution.Status.RUNNING,
-            ],
-        ).exists()
+        )
+        .filter(
+            Q(
+                status__in=[
+                    AgentExecution.Status.PENDING,
+                    AgentExecution.Status.RUNNING,
+                ]
+            )
+            | Q(
+                status=AgentExecution.Status.CANCELLED,
+                usage_reservation_active=True,
+            )
+        )
+        .exists()
         or ProposalDraft.objects.filter(
             created_by=user,
-            status__in=[
-                ProposalDraft.Status.PENDING,
-                ProposalDraft.Status.PROCESSING,
-            ],
-        ).exists()
+        )
+        .filter(
+            Q(
+                status__in=[
+                    ProposalDraft.Status.PENDING,
+                    ProposalDraft.Status.PROCESSING,
+                ]
+            )
+            | Q(
+                status=ProposalDraft.Status.CANCELLED,
+                usage_reservation_active=True,
+            )
+        )
+        .exists()
     )
 
 

@@ -146,6 +146,7 @@ class ProposalDraftCreateView(APIView):
                     step=ProposalDraft.Step.QUEUED,
                     model_ref=model_ref,
                     run_config=requested_options,
+                    usage_reservation_active=True,
                 )
         except UsageLimitExceededError as error:
             return Response(
@@ -177,6 +178,7 @@ class ProposalDraftCreateView(APIView):
             ).update(
                 status=ProposalDraft.Status.FAILED,
                 error_message="Could not queue proposal drafting task",
+                usage_reservation_active=False,
             )
             return Response(
                 {

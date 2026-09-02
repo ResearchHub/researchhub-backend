@@ -44,9 +44,12 @@ class AgentExecutionCancelService:
         """Mark an active execution ``CANCELLED``; report whether it landed.
 
         No error fields are written: a cancellation is the user's own decision,
-        not a failure, and the status alone says so. Returns ``False`` when the
-        execution already reached a terminal state, which is the ordinary race
-        of cancelling a turn that was finishing anyway.
+        not a failure, and the status alone says so. A queued execution releases
+        its usage reservation here because no provider call started. A running
+        execution keeps it until its worker observes the cancellation and
+        unwinds. Returns ``False`` when the execution already reached a terminal
+        state, which is the ordinary race of cancelling a turn that was finishing
+        anyway.
         """
         with transaction.atomic():
             locked = (
@@ -63,10 +66,15 @@ class AgentExecutionCancelService:
             if locked is None:
                 return False
             now = timezone.now()
+            was_pending = locked.status == AgentExecution.Status.PENDING
             locked.status = AgentExecution.Status.CANCELLED
             locked.stop_reason = CANCELLED_STOP_REASON
             locked.finished_at = now
             locked.last_activity_at = now
+            # Set this from the claimed state rather than preserving the old
+            # value so executions already running during a rolling deployment
+            # receive the same protection as newly admitted work.
+            locked.usage_reservation_active = not was_pending
             if locked.started_at is not None:
                 locked.duration_ms = max(
                     0, round((now - locked.started_at).total_seconds() * 1000)
@@ -78,6 +86,7 @@ class AgentExecutionCancelService:
                     "finished_at",
                     "last_activity_at",
                     "duration_ms",
+                    "usage_reservation_active",
                     "updated_date",
                 ]
             )

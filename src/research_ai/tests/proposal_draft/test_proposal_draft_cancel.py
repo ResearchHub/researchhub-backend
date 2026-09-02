@@ -62,6 +62,37 @@ class ProposalDraftCancelServiceTests(TestCase):
         self.assertEqual(draft.error_message, "")
         self.assertEqual(draft.step, ProposalDraft.Step.JUDGING)
 
+    def test_running_cancellation_reserves_budget_until_worker_unwinds(self):
+        # Arrange
+        draft = self._draft()
+        draft.usage_reservation_active = True
+        draft.save(update_fields=["usage_reservation_active"])
+        state = ProposalRunState(ProposalDraftConfig(max_rounds=2))
+        recorder = DraftRecorder(draft, state)
+
+        # Act: cancellation lands while provider work is still in flight.
+        self.cancels.cancel(draft)
+
+        # Assert: only the worker's cancelled result releases admission.
+        draft.refresh_from_db()
+        self.assertTrue(draft.usage_reservation_active)
+        recorder.cancelled_result()
+        draft.refresh_from_db()
+        self.assertFalse(draft.usage_reservation_active)
+
+    def test_queued_cancellation_releases_budget_immediately(self):
+        # Arrange
+        draft = self._draft(status=ProposalDraft.Status.PENDING)
+        draft.usage_reservation_active = True
+        draft.save(update_fields=["usage_reservation_active"])
+
+        # Act
+        self.cancels.cancel(draft)
+
+        # Assert
+        draft.refresh_from_db()
+        self.assertFalse(draft.usage_reservation_active)
+
     def test_cancelling_also_stops_the_traced_agent_execution(self):
         # Arrange: a run whose agent trace exists, so the loop has something to
         # notice -- it stops before its next tool call rather than at its next

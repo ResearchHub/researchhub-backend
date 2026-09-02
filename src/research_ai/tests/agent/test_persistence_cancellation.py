@@ -83,6 +83,37 @@ class AgentCancellationTests(TestCase):
         self.assertEqual(execution.error_type, "")
         self.assertIsNotNone(execution.finished_at)
 
+    def test_running_cancellation_reserves_budget_until_worker_unwinds(self):
+        # Arrange: this execution owns the budgeted user's single-flight slot.
+        recorder = self._running()
+        AgentExecution.objects.filter(id=recorder.execution.id).update(
+            usage_reservation_active=True
+        )
+
+        # Act: the request reports cancellation before the provider call returns.
+        self.cancels.cancel(recorder.execution)
+
+        # Assert: admission remains reserved until the worker reaches its
+        # terminal hook, which represents the in-flight call having returned.
+        execution = AgentExecution.objects.get(id=recorder.execution.id)
+        self.assertTrue(execution.usage_reservation_active)
+        self.assertFalse(recorder.on_run_failed(InterruptedError("cancelled")))
+        execution.refresh_from_db()
+        self.assertFalse(execution.usage_reservation_active)
+
+    def test_pending_cancellation_releases_budget_immediately(self):
+        # Arrange: no worker or provider call has claimed this execution.
+        execution = AgentExecutionService().create_pending(self.conversation)
+        execution.usage_reservation_active = True
+        execution.save(update_fields=["usage_reservation_active"])
+
+        # Act
+        self.cancels.cancel(execution)
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertFalse(execution.usage_reservation_active)
+
     def test_cancelling_stops_the_worker_at_its_next_durable_write(self):
         # Arrange: a run in flight, cancelled from another process.
         recorder = self._running()

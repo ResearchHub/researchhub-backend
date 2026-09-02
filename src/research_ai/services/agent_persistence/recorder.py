@@ -310,6 +310,7 @@ class DatabaseAgentRecorder:
             )
             if execution.status == AgentExecution.Status.RUNNING:
                 execution.status = AgentExecution.Status.SUCCEEDED
+                execution.usage_reservation_active = False
                 execution.final_output = final_output
                 execution.stop_reason = result.stop_reason
                 execution.iterations = max(execution.iterations, result.iterations)
@@ -325,10 +326,19 @@ class DatabaseAgentRecorder:
                         "finished_at",
                         "last_activity_at",
                         "duration_ms",
+                        "usage_reservation_active",
                         "updated_date",
                     ]
                 )
                 transitioned = True
+            elif execution.usage_reservation_active:
+                # A cooperative cancellation seals the public lifecycle first.
+                # Reaching this hook means the worker has now returned from its
+                # provider call and no longer needs the budget reservation.
+                execution.usage_reservation_active = False
+                execution.save(
+                    update_fields=["usage_reservation_active", "updated_date"]
+                )
             terminal = _is_terminal(execution.status)
         self.terminal_observed = terminal
         if not transitioned:
@@ -382,6 +392,7 @@ class DatabaseAgentRecorder:
             )
             if execution.status == AgentExecution.Status.RUNNING:
                 execution.status = status
+                execution.usage_reservation_active = False
                 execution.error_type = type(error).__name__
                 execution.error_message = _safe_exception_message(error)
                 execution.error_details = safe_details
@@ -403,10 +414,18 @@ class DatabaseAgentRecorder:
                         "finished_at",
                         "last_activity_at",
                         "duration_ms",
+                        "usage_reservation_active",
                         "updated_date",
                     ]
                 )
                 transitioned = True
+            elif execution.usage_reservation_active:
+                # Most often this is a cancelled execution whose in-flight
+                # provider call just returned and caused the loop to unwind.
+                execution.usage_reservation_active = False
+                execution.save(
+                    update_fields=["usage_reservation_active", "updated_date"]
+                )
             terminal = _is_terminal(execution.status)
         self.terminal_observed = terminal
         return transitioned

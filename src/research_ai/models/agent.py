@@ -136,6 +136,13 @@ class AgentExecution(DefaultModel):
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
     last_activity_at = models.DateTimeField(null=True, blank=True)
+    usage_reservation_active = models.BooleanField(
+        default=False,
+        db_comment=(
+            "Whether this execution still reserves its user's Research AI budget "
+            "slot, including while a cancelled provider call unwinds."
+        ),
+    )
     next_message_sequence = models.PositiveIntegerField(default=1)
     next_context_sequence = models.PositiveIntegerField(default=1)
     publish_output_to_chat = models.BooleanField(

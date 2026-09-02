@@ -545,6 +545,10 @@ class NotebookChatService:
                     configuration=configuration,
                     system_prompt=build_notebook_chat_system_prompt(note),
                 )
+                prepared.execution.usage_reservation_active = True
+                prepared.execution.save(
+                    update_fields=["usage_reservation_active", "updated_date"]
+                )
         execution = prepared.execution
         # After prepare_turn so a refused turn (busy, for instance) names
         # nothing; the filtered update keeps a concurrent rename authoritative.

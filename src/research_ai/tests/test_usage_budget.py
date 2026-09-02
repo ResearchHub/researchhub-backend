@@ -261,6 +261,33 @@ class AtomicAdmissionTests(TransactionTestCase):
         self.assertEqual(len(errors), 1)
         self.assertIsInstance(errors[0], UsageWorkInProgressError)
 
+    def test_cancelled_call_blocks_admission_until_its_reservation_is_released(self):
+        # Arrange: cancellation is visible immediately, but the provider call
+        # that was already in flight has not returned to its worker yet.
+        conversation = AgentConversation.objects.create(
+            user=self.user,
+            workflow="notebook_chat",
+        )
+        execution = AgentExecution.objects.create(
+            conversation=conversation,
+            status=AgentExecution.Status.CANCELLED,
+            attempt=1,
+            usage_reservation_active=True,
+        )
+
+        # Act & Assert
+        with (
+            self.assertRaises(UsageWorkInProgressError),
+            atomic_turn_admission(self.user),
+        ):
+            pass
+
+        # The worker releases the separate reservation after the call returns.
+        execution.usage_reservation_active = False
+        execution.save(update_fields=["usage_reservation_active"])
+        with atomic_turn_admission(self.user):
+            pass
+
 
 class UsageBudgetAPITests(TestCase):
     def setUp(self):
