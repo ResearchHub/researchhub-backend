@@ -1703,10 +1703,14 @@ class NoteTests(APITestCase):
         )
 
     def test_adds_replaces_and_removes_selected_grant(self) -> None:
-        """A draft can manage its grant without violating its document type."""
+        """A draft can manage its grant and return the selected RFP details."""
         # Arrange
         first_grant = self._create_grant()
         second_grant = self._create_grant()
+        grant_post = first_grant.unified_document.posts.get()
+        grant_post.title = "Kindness Research RFP"
+        grant_post.image = "grant-cover.png"
+        grant_post.save(update_fields=["image", "title"])
 
         # Act
         create_response = self.client.post("/api/note/")
@@ -1736,8 +1740,12 @@ class NoteTests(APITestCase):
         self.assertEqual(add_response.status_code, 200)
         self.assertEqual(add_response.data["document_type"], PREREGISTRATION)
         self.assertEqual(add_response.data["selected_grant"], first_grant.id)
-        self.assertEqual(
-            add_response.data["selected_grant_details"]["short_title"], "Kindness RFP"
+        selected_grant_details = add_response.data["selected_grant_details"]
+        self.assertEqual(selected_grant_details["short_title"], "Kindness RFP")
+        self.assertEqual(selected_grant_details["title"], "Kindness Research RFP")
+        self.assertIn(
+            "grant-cover.png",
+            selected_grant_details["image_url"],
         )
         self.assertEqual(replace_response.status_code, 200)
         self.assertEqual(replace_response.data["selected_grant"], second_grant.id)

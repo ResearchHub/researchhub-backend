@@ -134,6 +134,17 @@ class PreregistrationSettingsSerializer(ModelSerializer):
         ]
 
 
+class SelectedGrantSerializer(DynamicGrantSerializer):
+    """Serialize the grant details needed to redraw a selected RFP."""
+
+    title = SerializerMethodField()
+
+    def get_title(self, grant: Grant) -> str | None:
+        """Return the selected grant's title from its backing post."""
+        posts = grant.unified_document.posts.all()
+        return posts[0].title if posts else None
+
+
 class NoteSerializer(ModelSerializer):
     access = SerializerMethodField()
     author_ids = PrimaryKeyRelatedField(
@@ -179,7 +190,7 @@ class NoteSerializer(ModelSerializer):
     )
     # The RFP card shows the grant, not its id, and the funder's visibility rule
     # decides whether the applicant may still choose a public proposal.
-    selected_grant_details = DynamicGrantSerializer(
+    selected_grant_details = SelectedGrantSerializer(
         read_only=True,
         source="selected_grant",
         _include_fields=[
@@ -189,6 +200,7 @@ class NoteSerializer(ModelSerializer):
             "image_url",
             "organization",
             "short_title",
+            "title",
         ],
     )
     unified_document = SerializerMethodField()
