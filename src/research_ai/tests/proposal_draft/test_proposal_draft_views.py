@@ -30,7 +30,29 @@ class ProposalDraftCreateViewTests(APITestCase):
             expert=self.expert,
         )
 
-    def test_create_requires_editor_or_moderator(self):
+    @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
+    def test_default_tier_user_can_create(self, mock_delay):
+        # Arrange
+        own_search = ExpertSearch.objects.create(
+            created_by=self.user,
+            query="protein folding",
+        )
+        own_search_expert = SearchExpert.objects.create(
+            expert_search=own_search,
+            expert=self.expert,
+        )
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.post(
+            BASE_URL, {"search_expert_id": own_search_expert.id}, format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        mock_delay.assert_called_once()
+
+    def test_default_tier_user_cannot_create_for_another_users_search(self):
         # Arrange
         self.client.force_authenticate(self.user)
 
@@ -40,7 +62,7 @@ class ProposalDraftCreateViewTests(APITestCase):
         )
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
     def test_create_returns_201_and_enqueues_task(self, mock_delay):
@@ -226,7 +248,7 @@ class ProposalDraftDetailViewTests(APITestCase):
             error_message="gates not cleared within 2 rounds",
         )
 
-    def test_detail_requires_editor_or_moderator(self):
+    def test_default_tier_user_cannot_read_another_users_detail(self):
         # Arrange
         self.client.force_authenticate(self.user)
 
@@ -234,7 +256,19 @@ class ProposalDraftDetailViewTests(APITestCase):
         response = self.client.get(f"{BASE_URL}{self.draft.id}/")
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_default_tier_user_can_read_own_detail(self):
+        # Arrange
+        self.draft.created_by = self.user
+        self.draft.save(update_fields=["created_by"])
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get(f"{BASE_URL}{self.draft.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_detail_returns_job_state(self):
         # Arrange
@@ -289,17 +323,31 @@ class ProposalDraftCancelViewTests(APITestCase):
     def _cancel(self, draft_id=None):
         return self.client.post(f"{BASE_URL}{draft_id or self.draft.id}/cancel/")
 
-    def test_cancel_requires_editor_or_moderator(self):
+    def test_default_tier_user_cannot_cancel_another_users_draft(self):
         # Arrange
         self.client.force_authenticate(self.user)
 
         # Act
         response = self._cancel()
 
-        # Assert: drafting is a privileged operation, and so is stopping one.
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.draft.refresh_from_db()
         self.assertEqual(self.draft.status, ProposalDraft.Status.PROCESSING)
+
+    def test_default_tier_user_can_cancel_own_draft(self):
+        # Arrange
+        self.draft.created_by = self.user
+        self.draft.save(update_fields=["created_by"])
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._cancel()
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.status, ProposalDraft.Status.CANCELLED)
 
     def test_cancel_requires_authentication(self):
         # Act
