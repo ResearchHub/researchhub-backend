@@ -156,7 +156,7 @@ class Grant(DefaultModel):
         parts.append(self.description or "")
         post = self.unified_document.posts.first()
         if post:
-            body = post.get_full_markdown()
+            body = post.get_full_markdown() or post.renderable_text
             if body:
                 parts.append(body)
         return "\n\n".join(p for p in parts if p).strip()
