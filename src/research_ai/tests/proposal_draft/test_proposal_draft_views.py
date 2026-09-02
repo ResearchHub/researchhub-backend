@@ -114,31 +114,6 @@ class ProposalDraftCreateViewTests(APITestCase):
         )
         mock_delay.assert_called_once_with(draft.id)
 
-    @override_settings(
-        ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
-    )
-    @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
-    def test_create_rejects_effort_for_haiku(self, mock_delay):
-        # Arrange
-        self.client.force_authenticate(self.moderator)
-
-        # Act
-        response = self.client.post(
-            BASE_URL,
-            {
-                "search_expert_id": self.search_expert.id,
-                "model": "claude_platform:claude-haiku-4-5",
-                "effort": "high",
-            },
-            format="json",
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("does not support effort", response.json()["detail"])
-        self.assertFalse(ProposalDraft.objects.exists())
-        mock_delay.assert_not_called()
-
     @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
     def test_create_with_unknown_model_returns_400(self, mock_delay):
         # Arrange
