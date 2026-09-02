@@ -405,6 +405,7 @@ class ParseTurnTests(SimpleTestCase):
         usage = SimpleNamespace(
             prompt_tokens=100,
             completion_tokens=20,
+            cost="0.0012345",
             prompt_tokens_details=SimpleNamespace(
                 cached_tokens=80,
                 cache_write_tokens=10,
@@ -420,6 +421,7 @@ class ParseTurnTests(SimpleTestCase):
         self.assertEqual(turn.usage.output_tokens, 20)
         self.assertEqual(turn.usage.cache_read_tokens, 80)
         self.assertEqual(turn.usage.cache_write_tokens, 10)
+        self.assertEqual(turn.usage.provider_cost_microusd, 1_235)
 
     def test_reasoning_details_are_preserved_for_replay(self):
         # Arrange
