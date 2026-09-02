@@ -20,7 +20,7 @@ class AvailableModelsViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_requires_editor_or_moderator(self):
+    def test_default_user_receives_tier_catalog(self):
         # Arrange
         self.client.force_authenticate(self.user)
 
@@ -28,7 +28,11 @@ class AvailableModelsViewTests(APITestCase):
         response = self.client.get(URL)
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.json()["default"],
+            "openrouter:deepseek/deepseek-v4-pro-0813",
+        )
 
     def test_lists_models_and_the_default(self):
         # Arrange
@@ -47,7 +51,15 @@ class AvailableModelsViewTests(APITestCase):
         for model in data["models"]:
             self.assertEqual(
                 sorted(model),
-                ["capabilities", "description", "label", "provider", "ref"],
+                [
+                    "allowed",
+                    "capabilities",
+                    "description",
+                    "label",
+                    "multiplier",
+                    "provider",
+                    "ref",
+                ],
             )
 
         opus = next(
