@@ -299,15 +299,28 @@ class ResearchhubPostGrantModeratorTests(APITestCase):
         }
 
     def test_moderator_can_create_grant_post_with_grant_data(self):
-        """Test that moderators can create GRANT type posts with grant data"""
+        """A moderator can publish a grant using blank draft defaults."""
+        # Arrange
         self.client.force_authenticate(user=self.moderator_user)
+        grant_post_data = {
+            **self.grant_post_data,
+            "grant_application_visibility": "",
+            "grant_currency": "",
+        }
 
+        # Act
         url = reverse("researchhubpost-list")
-        response = self.client.post(url, self.grant_post_data, format="json")
+        response = self.client.post(url, grant_post_data, format="json")
 
+        # Assert
         self.assertEqual(response.status_code, 200)
         self.assertIn("grant", response.data)
         self.assertIsNotNone(response.data["grant"])
+        self.assertEqual(response.data["grant"]["currency"], "USD")
+        self.assertEqual(
+            response.data["grant"]["application_visibility"],
+            Grant.APPLICATION_VISIBILITY_OPTIONAL,
+        )
 
     def test_regular_user_can_create_grant_post_without_grant_data(self):
         """Test that regular users can create GRANT type posts without grant data"""

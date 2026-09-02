@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.db.models import Q
 from rest_framework.serializers import (
     ModelSerializer,
@@ -9,14 +10,19 @@ from rest_framework.serializers import (
     ValidationError,
 )
 
-from hub.serializers import SimpleHubSerializer
-from note.models import Note, NoteContent
+from hub.models import Hub
+from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
+from note.models import GrantSettings, Note, NoteContent, PreregistrationSettings
 from note.services.grant_selection_service import (
     GrantSelectionError,
     selectable_grants,
     validate_selection,
 )
+from note.services.note_draft_service import save_note_draft_details
+from organizations.models import NonprofitOrg
+from organizations.serializers import NonprofitOrgSerializer
 from purchase.models import Grant
+from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
     ADMIN,
@@ -31,13 +37,15 @@ from researchhub_document.registered_report_note_metadata import (
     get_registered_report_prefill_metadata,
 )
 from researchhub_document.related_models.constants.document_type import (
+    GRANT,
     PREREGISTRATION,
     REGISTERED_REPORT,
 )
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
-from user.models import Author
+from user.models import Author, User
 from user.serializers import (
     AuthorSerializer,
+    DynamicAuthorSerializer,
     DynamicOrganizationSerializer,
     DynamicUserSerializer,
     OrganizationSerializer,
@@ -71,23 +79,137 @@ class DynamicNoteContentSerializer(DynamicModelFieldSerializer):
         fields = "__all__"
 
 
+class GrantSettingsSerializer(ModelSerializer):
+    """Draft grant form values held by a notebook note."""
+
+    contact_ids = PrimaryKeyRelatedField(
+        many=True,
+        queryset=User.objects.all(),
+        required=False,
+        source="contacts",
+    )
+    # Contacts are picked by name, so the form cannot redraw them from ids alone.
+    contacts = DynamicUserSerializer(
+        many=True,
+        read_only=True,
+        _include_fields=["first_name", "id", "last_name"],
+    )
+
+    class Meta:
+        model = GrantSettings
+        fields = [
+            "amount",
+            "application_visibility",
+            "contact_ids",
+            "contacts",
+            "currency",
+            "description",
+            "end_date",
+            "organization",
+        ]
+
+
+class PreregistrationSettingsSerializer(ModelSerializer):
+    """Draft preregistration form values held by a notebook note."""
+
+    # The nonprofit is shown by name and EIN, so the form cannot redraw it from
+    # an id alone.
+    nonprofit_details = NonprofitOrgSerializer(read_only=True, source="nonprofit")
+    nonprofit_id = PrimaryKeyRelatedField(
+        allow_null=True,
+        queryset=NonprofitOrg.objects.all(),
+        required=False,
+        source="nonprofit",
+    )
+
+    class Meta:
+        model = PreregistrationSettings
+        fields = [
+            "duration_days",
+            "goal_amount",
+            "goal_currency",
+            "is_public",
+            "nonprofit_details",
+            "nonprofit_id",
+        ]
+
+
+class SelectedGrantSerializer(DynamicGrantSerializer):
+    """Serialize the grant details needed to redraw a selected RFP."""
+
+    title = SerializerMethodField()
+
+    def get_title(self, grant: Grant) -> str | None:
+        """Return the selected grant's title from its backing post."""
+        posts = grant.unified_document.posts.all()
+        return posts[0].title if posts else None
+
+
 class NoteSerializer(ModelSerializer):
     access = SerializerMethodField()
-    latest_version = NoteContentSerializer()
-    organization = OrganizationSerializer()
+    author_ids = PrimaryKeyRelatedField(
+        many=True,
+        queryset=Author.objects.all(),
+        required=False,
+        write_only=True,
+    )
+    # A byline needs names and faces, not the reputation, wallet, and editor
+    # lookups AuthorSerializer runs per author.
+    authors = DynamicAuthorSerializer(
+        many=True,
+        read_only=True,
+        source="ordered_authors",
+        _include_fields=["first_name", "id", "last_name", "profile_image", "user"],
+    )
+    grant_settings = GrantSettingsSerializer(required=False)
+    hub_ids = PrimaryKeyRelatedField(
+        many=True,
+        queryset=Hub.objects.all(),
+        required=False,
+        write_only=True,
+    )
+    # Topic chips need names, not the editor permission groups SimpleHubSerializer
+    # queries and serializes per hub.
+    hubs = DynamicHubSerializer(
+        many=True,
+        read_only=True,
+        source="unified_document.hubs",
+        _include_fields=["id", "name", "slug"],
+    )
+    # Version lineage and workspace are owned by the content signal and the
+    # view's organization_slug resolution, never by a note payload.
+    latest_version = NoteContentSerializer(read_only=True)
+    organization = OrganizationSerializer(read_only=True)
     post = SerializerMethodField()
+    preregistration_settings = PreregistrationSettingsSerializer(required=False)
     registered_report_prefill = SerializerMethodField()
     selected_grant = PrimaryKeyRelatedField(
         allow_null=True,
         queryset=Grant.objects.none(),
         required=False,
     )
+    # The RFP card shows the grant, not its id, and the funder's visibility rule
+    # decides whether the applicant may still choose a public proposal.
+    selected_grant_details = SelectedGrantSerializer(
+        read_only=True,
+        source="selected_grant",
+        _include_fields=[
+            "amount",
+            "application_visibility",
+            "id",
+            "image_url",
+            "organization",
+            "short_title",
+            "title",
+        ],
+    )
     unified_document = SerializerMethodField()
 
     class Meta:
         model = Note
         fields = "__all__"
-        read_only_fields = ["unified_document"]
+        # The creator is set from the request, never from a note payload.
+        read_only_fields = ["created_by"]
 
     def get_fields(self) -> dict:
         """Return fields with writable grants restricted to the requester."""
@@ -98,10 +220,12 @@ class NoteSerializer(ModelSerializer):
         return fields
 
     def validate(self, attrs: dict) -> dict:
-        """Validate a selected grant against the note's resulting state."""
+        """Validate the selected grant and funding forms against the note's type."""
         document_type = attrs.get(
             "document_type", getattr(self.instance, "document_type", None)
         )
+        self._validate_funding_details(attrs, document_type)
+
         selection_requires_validation = "selected_grant" in attrs or (
             self.instance is not None
             and self.instance.selected_grant_id is not None
@@ -118,6 +242,66 @@ class NoteSerializer(ModelSerializer):
         except GrantSelectionError as exc:
             raise ValidationError({"selected_grant": str(exc)}) from exc
         return attrs
+
+    def _validate_funding_details(self, attrs: dict, document_type: str | None) -> None:
+        """Reject a funding form the resulting document type does not use."""
+        if "grant_settings" in attrs and document_type != GRANT:
+            raise ValidationError(
+                {"grant_settings": "Only grant notes have grant settings."}
+            )
+        if "preregistration_settings" in attrs and document_type != PREREGISTRATION:
+            raise ValidationError(
+                {
+                    "preregistration_settings": (
+                        "Only preregistration notes have preregistration settings."
+                    )
+                }
+            )
+
+    def create(self, validated_data: dict) -> Note:
+        """Create the note and persist the draft Details sent with it."""
+        details = self._pop_draft_details(validated_data)
+        with transaction.atomic():
+            note = super().create(validated_data)
+            save_note_draft_details(note, **details)
+        return note
+
+    def update(self, note: Note, validated_data: dict) -> Note:
+        """Persist the draft Details changes this request carries."""
+        details = self._pop_draft_details(validated_data)
+        with transaction.atomic():
+            if validated_data:
+                note = super().update(note, validated_data)
+            else:
+                # A relationship-only save still has to record when it happened.
+                note.save(update_fields=["updated_date"])
+            save_note_draft_details(note, **details)
+        return note
+
+    def _pop_draft_details(self, validated_data: dict) -> dict:
+        """Remove the related draft values, which the draft service writes itself."""
+        return {
+            "authors": validated_data.pop("author_ids", None),
+            "hubs": validated_data.pop("hub_ids", None),
+            "grant_settings": validated_data.pop("grant_settings", None),
+            "preregistration_settings": validated_data.pop(
+                "preregistration_settings", None
+            ),
+        }
+
+    def to_representation(self, note: Note) -> dict:
+        """Return the note, exposing only the funding form its type uses.
+
+        A row kept from an earlier document type stays in the database so
+        switching back restores it, but it is not part of the note's contract
+        while another type is selected.
+        """
+        data = super().to_representation(note)
+        if note.document_type != GRANT:
+            data["grant_settings"] = None
+        if note.document_type != PREREGISTRATION:
+            data["preregistration_settings"] = None
+        return data
 
     def get_access(self, note):
         permissions = note.permissions

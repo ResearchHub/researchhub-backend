@@ -220,9 +220,20 @@ class ResearchhubPostViewSet(
                 .annotate(
                     registered_report_id=Subquery(registered_reports.values("id")[:1])
                 )
-                .select_related("unified_document")
+                # ResearchhubPostSerializer embeds the note, so the draft
+                # relations it renders load here instead of once per post.
+                .select_related(
+                    "note__grant_settings",
+                    "note__preregistration_settings__nonprofit",
+                    "note__selected_grant",
+                    "unified_document",
+                )
                 .prefetch_related(
                     "author_links",
+                    "note__author_links",
+                    "note__grant_settings__contacts",
+                    "note__selected_grant__unified_document__posts",
+                    "note__unified_document__hubs",
                     Prefetch(
                         "grant_applications",
                         queryset=GrantApplication.objects.select_related("grant"),
@@ -415,7 +426,7 @@ class ResearchhubPostViewSet(
                 if goal_amount := data.get("fundraise_goal_amount"):
                     fundraise_data = {
                         "goal_amount": goal_amount,
-                        "goal_currency": data.get("fundraise_goal_currency", USD),
+                        "goal_currency": data.get("fundraise_goal_currency") or USD,
                         "unified_document_id": unified_document.id,
                         "recipient_user_id": created_by.id,
                     }
@@ -443,7 +454,7 @@ class ResearchhubPostViewSet(
                 if grant_amount := data.get("grant_amount"):
                     grant_data = {
                         "amount": grant_amount,
-                        "currency": data.get("grant_currency", USD),
+                        "currency": data.get("grant_currency") or USD,
                         "organization": data.get("grant_organization"),
                         "description": data.get("grant_description"),
                         "unified_document_id": unified_document.id,
@@ -455,11 +466,9 @@ class ResearchhubPostViewSet(
                     if grant_contacts is not None:
                         grant_data["contact_ids"] = grant_contacts
 
-                    if (
-                        application_visibility := data.get(
-                            "grant_application_visibility"
-                        )
-                    ) is not None:
+                    if application_visibility := data.get(
+                        "grant_application_visibility"
+                    ):
                         grant_data["application_visibility"] = application_visibility
 
                     grant_serializer = GrantCreateSerializer(data=grant_data)
@@ -661,7 +670,7 @@ class ResearchhubPostViewSet(
             if (grant_amount := data.get("grant_amount")) and existing_grant:
                 grant_data = {
                     "amount": grant_amount,
-                    "currency": data.get("grant_currency", USD),
+                    "currency": data.get("grant_currency") or USD,
                     "organization": data.get("grant_organization"),
                     "description": data.get("grant_description"),
                     "unified_document_id": unified_document.id,
@@ -673,9 +682,7 @@ class ResearchhubPostViewSet(
                 if grant_contacts is not None:
                     grant_data["contact_ids"] = grant_contacts
 
-                if (
-                    application_visibility := data.get("grant_application_visibility")
-                ) is not None:
+                if application_visibility := data.get("grant_application_visibility"):
                     grant_data["application_visibility"] = application_visibility
 
                 grant_serializer = GrantCreateSerializer(data=grant_data)

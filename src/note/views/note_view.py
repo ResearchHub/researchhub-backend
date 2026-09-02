@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
+from django.db import transaction
 from django.db.models import Q, QuerySet
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -55,6 +56,20 @@ from utils.prosemirror import BLOCK_EDITOR, parse_document
 
 logger = logging.getLogger(__name__)
 
+# Draft values a published note no longer owns; its post does. `title` stays out
+# so a published note can still be renamed.
+DRAFT_FIELDS = frozenset(
+    {
+        "author_ids",
+        "grant_settings",
+        "hub_ids",
+        "image",
+        "preregistration_settings",
+        "preview_img",
+        "selected_grant",
+    }
+)
+
 
 class NoteViewSet(ModelViewSet):
     ordering = "-created_date"
@@ -70,6 +85,21 @@ class NoteViewSet(ModelViewSet):
                 Q(created_by=user)
                 | Q(organization__permissions__user=user)
                 | Q(unified_document__permissions__user=user)
+            )
+            .select_related(
+                "grant_settings",
+                "post",
+                "preregistration_settings",
+                "preregistration_settings__nonprofit",
+                "selected_grant",
+                "unified_document",
+            )
+            .prefetch_related(
+                "author_links",
+                "grant_settings__contacts",
+                # The selected grant's image lives on its post.
+                "selected_grant__unified_document__posts",
+                "unified_document__hubs",
             )
             .distinct()
             .order_by("-created_date")
@@ -161,52 +191,32 @@ class NoteViewSet(ModelViewSet):
         user = request.user
         data = request.data
         organization_slug = data.get("organization_slug", None)
-        title = data.get("title", "")
         grouping = data.get("grouping", WORKSPACE)
-        document_type = data.get("document_type", None)
 
         if organization_slug:
             organization = Organization.objects.get(slug=organization_slug)
-            created_by = user
             if not (
                 organization.org_has_admin_user(user, content_user=False)
                 or organization.org_has_member_user(user, content_user=False)
             ):
                 return Response({"data": "Invalid permissions"}, status=403)
         else:
-            created_by = user
             organization = user.organization
 
-        selected_grant = None
-        if "selected_grant" in data:
-            selection_serializer = self.get_serializer(
-                data={
-                    "document_type": document_type,
-                    "selected_grant": data.get("selected_grant"),
-                },
-                partial=True,
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            unified_doc = self._create_unified_doc(request)
+            self._create_permission(user, organization, unified_doc, grouping)
+            note = serializer.save(
+                created_by=user,
+                organization=organization,
+                unified_document=unified_doc,
             )
-            selection_serializer.is_valid(raise_exception=True)
-            selected_grant = selection_serializer.validated_data["selected_grant"]
 
-        unified_doc = self._create_unified_doc(request)
-        self._create_permission(created_by, organization, unified_doc, grouping)
-
-        note_kwargs = {
-            "created_by": created_by,
-            "organization": organization,
-            "selected_grant": selected_grant,
-            "unified_document": unified_doc,
-            "title": title,
-        }
-        if document_type:
-            note_kwargs["document_type"] = document_type
-
-        note = Note.objects.create(**note_kwargs)
-        serializer = self.serializer_class(note)
-        data = serializer.data
         note.notify_note_created()
-        return Response(data, status=200)
+        return Response(serializer.data, status=200)
 
     def _create_unified_doc(self, request):
         data = request.data
@@ -273,12 +283,13 @@ class NoteViewSet(ModelViewSet):
         if not (is_admin or is_editor):
             return Response({"data": "Invalid permissions"}, status=403)
 
-        if "selected_grant" in request.data and hasattr(note, "post"):
+        if DRAFT_FIELDS.intersection(request.data) and hasattr(note, "post"):
             return Response(
-                {"detail": "Published notes cannot change grants."},
+                {"detail": "Published notes cannot change draft details."},
                 status=status.HTTP_409_CONFLICT,
             )
 
+        previous_title = note.title
         serializer = self.get_serializer(note, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
@@ -288,7 +299,10 @@ class NoteViewSet(ModelViewSet):
             # forcibly invalidate the prefetch cache on the instance.
             note._prefetched_objects_cache = {}
 
-        note.notify_note_updated_title()
+        # Autosave patches this route continuously; only a real rename is worth
+        # rendering the whole note and broadcasting it to the organization.
+        if note.title != previous_title:
+            note.notify_note_updated_title()
         return Response(serializer.data)
 
     def destroy(self, request, pk=None):

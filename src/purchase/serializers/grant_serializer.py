@@ -29,6 +29,7 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
     is_expired = serializers.SerializerMethodField()
     is_active = serializers.SerializerMethodField()
     applications = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Grant
@@ -53,6 +54,11 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
     def get_post_id(self, grant):
         posts = grant.unified_document.posts.all()
         return posts[0].id if posts else None
+
+    def get_image_url(self, grant: Grant) -> str | None:
+        """Return the grant's image, which lives on its post rather than the grant."""
+        posts = grant.unified_document.posts.all()
+        return posts[0].get_image_url() if posts else None
 
     def get_amount(self, grant):
         """
