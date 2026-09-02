@@ -556,30 +556,6 @@ RESEARCH_AI_GENERATOR_PROVIDER = os.environ.get(
     "RESEARCH_AI_GENERATOR_PROVIDER", "claude_platform"
 )
 
-# Dollar-denominated Research AI usage budgets. Tier policy objects read these
-# settings at call time, which keeps deploy tuning and test overrides immediate.
-RESEARCH_AI_BUDGETS_ENFORCED = (
-    os.environ.get("RESEARCH_AI_BUDGETS_ENFORCED", "true").lower() == "true"
-)
-RESEARCH_AI_TIER_DEFAULT_DAILY_BUDGET_USD = os.environ.get(
-    "RESEARCH_AI_TIER_DEFAULT_DAILY_BUDGET_USD", "0.25"
-)
-RESEARCH_AI_TIER_DEFAULT_DAILY_TURN_CAP = int(
-    os.environ.get("RESEARCH_AI_TIER_DEFAULT_DAILY_TURN_CAP", "10")
-)
-RESEARCH_AI_TIER_INVITED_DAILY_BUDGET_USD = os.environ.get(
-    "RESEARCH_AI_TIER_INVITED_DAILY_BUDGET_USD", "10.00"
-)
-RESEARCH_AI_TIER_INVITED_DAILY_TURN_CAP = int(
-    os.environ.get("RESEARCH_AI_TIER_INVITED_DAILY_TURN_CAP", "200")
-)
-RESEARCH_AI_TIER_PRIVILEGED_DAILY_BUDGET_USD = os.environ.get(
-    "RESEARCH_AI_TIER_PRIVILEGED_DAILY_BUDGET_USD", "100.00"
-)
-RESEARCH_AI_TIER_PRIVILEGED_DAILY_TURN_CAP = int(
-    os.environ.get("RESEARCH_AI_TIER_PRIVILEGED_DAILY_TURN_CAP", "2000")
-)
-
 AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
     "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
     getattr(keys, "AI_PEER_REVIEW_BEDROCK_MODEL_ID", ""),

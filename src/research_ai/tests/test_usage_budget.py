@@ -103,15 +103,19 @@ class UsageBudgetTests(TestCase):
         self.assertEqual(status.turns_used, 1)
         self.assertEqual(status.remaining_microusd, 248_350)
 
-    @override_settings(RESEARCH_AI_TIER_DEFAULT_DAILY_TURN_CAP=1)
     def test_admission_raises_when_daily_turn_cap_is_spent(self):
         # Arrange
-        LLMUsageEvent.objects.create(
-            user=self.user,
-            feature="notebook_chat",
-            provider="openrouter",
-            model="deepseek/deepseek-v4-pro-0813",
-            cost_microusd=1,
+        LLMUsageEvent.objects.bulk_create(
+            [
+                LLMUsageEvent(
+                    user=self.user,
+                    feature="notebook_chat",
+                    provider="openrouter",
+                    model="deepseek/deepseek-v4-pro-0813",
+                    cost_microusd=1,
+                )
+                for _ in range(10)
+            ]
         )
 
         # Act / Assert
@@ -119,7 +123,7 @@ class UsageBudgetTests(TestCase):
             check_turn_admission(
                 self.user, self.MODEL, effort="none", thinking="disabled"
             )
-        self.assertEqual(raised.exception.status.turns_used, 1)
+        self.assertEqual(raised.exception.status.turns_used, 10)
 
     def test_default_tier_rejects_locked_model(self):
         with self.assertRaisesRegex(ValueError, "not allowed"):

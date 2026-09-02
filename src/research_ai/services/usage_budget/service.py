@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 
-from django.conf import settings
 from django.db import transaction
 from django.db.models import BigIntegerField, Count, Sum
 from django.db.models.functions import Coalesce
@@ -26,7 +25,11 @@ from research_ai.services.agent.providers.registry import (
     split_model_ref,
 )
 from research_ai.services.agent.types import TurnUsage
-from research_ai.services.usage_budget.config import TierPolicy, tier_policies
+from research_ai.services.usage_budget.config import (
+    BUDGETS_ENFORCED,
+    TierPolicy,
+    tier_policies,
+)
 
 
 class ModelNotAllowedError(ValueError):
@@ -214,7 +217,7 @@ def check_turn_admission(
     _validate_model(policy, model_ref)
     effective_generation_options(policy, effort=effort, thinking=thinking)
     status = budget_status(user)
-    if getattr(settings, "RESEARCH_AI_BUDGETS_ENFORCED", True) and status.exhausted:
+    if BUDGETS_ENFORCED and status.exhausted:
         raise UsageLimitExceededError(status)
     return status
 
@@ -222,7 +225,7 @@ def check_turn_admission(
 def check_budget_admission(user) -> BudgetStatus:
     """Check only the dollar/turn counters for a fixed-model feature."""
     status = budget_status(user)
-    if getattr(settings, "RESEARCH_AI_BUDGETS_ENFORCED", True) and status.exhausted:
+    if BUDGETS_ENFORCED and status.exhausted:
         raise UsageLimitExceededError(status)
     return status
 
@@ -265,8 +268,7 @@ def atomic_turn_admission(
     with transaction.atomic():
         locked_user = type(user)._default_manager.select_for_update().get(pk=user.pk)
         policy = resolve_ai_tier(locked_user)
-        enforced = getattr(settings, "RESEARCH_AI_BUDGETS_ENFORCED", True)
-        if enforced and policy.is_budgeted and _has_in_flight_work(locked_user):
+        if BUDGETS_ENFORCED and policy.is_budgeted and _has_in_flight_work(locked_user):
             raise UsageWorkInProgressError(
                 "Another Research AI request is still in progress"
             )
@@ -310,9 +312,7 @@ def record(
 def ensure_budget_available(user) -> None:
     """Between-call guard used by budget-aware modern agent-loop recorders."""
     policy = resolve_ai_tier(user)
-    if not policy.is_budgeted or not getattr(
-        settings, "RESEARCH_AI_BUDGETS_ENFORCED", True
-    ):
+    if not policy.is_budgeted or not BUDGETS_ENFORCED:
         return
     status = budget_status(user)
     if status.exhausted:

@@ -1,11 +1,15 @@
-"""Settings-backed Research AI tier policies."""
+"""Code-owned Research AI tier policies."""
 
 from dataclasses import dataclass, replace
-from decimal import Decimal
-
-from django.conf import settings
 
 DEFAULT_OPEN_WEIGHT_MODEL = "openrouter:deepseek/deepseek-v4-pro-0813"
+BUDGETS_ENFORCED = True
+DEFAULT_DAILY_BUDGET_MICROUSD = 250_000
+DEFAULT_DAILY_TURN_CAP = 10
+INVITED_DAILY_BUDGET_MICROUSD = 10_000_000
+INVITED_DAILY_TURN_CAP = 200
+PRIVILEGED_DAILY_BUDGET_MICROUSD = 100_000_000
+PRIVILEGED_DAILY_TURN_CAP = 2000
 
 
 @dataclass(frozen=True)
@@ -23,79 +27,30 @@ class TierPolicy:
         return self.daily_budget_microusd is not None or self.daily_turn_cap is not None
 
 
-def _setting(name: str, default):
-    return getattr(settings, name, default)
-
-
-def _tuple_setting(name: str, default: tuple[str, ...] | None):
-    value = _setting(name, default)
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return tuple(item.strip() for item in value.split(",") if item.strip())
-    return tuple(value)
-
-
-def _budget_microusd(tier: str, default: int | None) -> int | None:
-    prefix = f"RESEARCH_AI_TIER_{tier.upper()}"
-    explicit = getattr(settings, f"{prefix}_DAILY_BUDGET_MICROUSD", None)
-    if explicit is not None:
-        return int(explicit)
-    usd = getattr(settings, f"{prefix}_DAILY_BUDGET_USD", None)
-    if usd is not None:
-        return int(Decimal(str(usd)) * Decimal(1000000))
-    return default
-
-
-def _optional_int_setting(name: str, default: int | None) -> int | None:
-    value = _setting(name, default)
-    return None if value is None else int(value)
-
-
 def tier_policies() -> dict[str, TierPolicy]:
-    """Build fresh policies so ``override_settings`` works in every test/call."""
+    """Build fresh policy values for each resolution."""
     default = TierPolicy(
         name="default",
-        daily_budget_microusd=_budget_microusd("default", 250_000),
-        daily_turn_cap=_optional_int_setting(
-            "RESEARCH_AI_TIER_DEFAULT_DAILY_TURN_CAP", 10
-        ),
-        allowed_model_refs=_tuple_setting(
-            "RESEARCH_AI_TIER_DEFAULT_ALLOWED_MODEL_REFS",
-            (DEFAULT_OPEN_WEIGHT_MODEL,),
-        ),
-        default_model_ref=_setting(
-            "RESEARCH_AI_TIER_DEFAULT_DEFAULT_MODEL_REF",
-            DEFAULT_OPEN_WEIGHT_MODEL,
-        ),
-        max_effort=_setting("RESEARCH_AI_TIER_DEFAULT_MAX_EFFORT", "none"),
-        allowed_thinking_modes=_tuple_setting(
-            "RESEARCH_AI_TIER_DEFAULT_ALLOWED_THINKING_MODES", ("disabled",)
-        ),
+        daily_budget_microusd=DEFAULT_DAILY_BUDGET_MICROUSD,
+        daily_turn_cap=DEFAULT_DAILY_TURN_CAP,
+        allowed_model_refs=(DEFAULT_OPEN_WEIGHT_MODEL,),
+        default_model_ref=DEFAULT_OPEN_WEIGHT_MODEL,
+        max_effort="none",
+        allowed_thinking_modes=("disabled",),
     )
     invited = TierPolicy(
         name="invited",
-        daily_budget_microusd=_budget_microusd("invited", 10_000_000),
-        daily_turn_cap=_optional_int_setting(
-            "RESEARCH_AI_TIER_INVITED_DAILY_TURN_CAP", 200
-        ),
-        allowed_model_refs=_tuple_setting(
-            "RESEARCH_AI_TIER_INVITED_ALLOWED_MODEL_REFS", None
-        ),
-        default_model_ref=_setting("RESEARCH_AI_TIER_INVITED_DEFAULT_MODEL_REF", None),
+        daily_budget_microusd=INVITED_DAILY_BUDGET_MICROUSD,
+        daily_turn_cap=INVITED_DAILY_TURN_CAP,
+        allowed_model_refs=None,
+        default_model_ref=None,
     )
     privileged = TierPolicy(
         name="privileged",
-        daily_budget_microusd=_budget_microusd("privileged", 100_000_000),
-        daily_turn_cap=_optional_int_setting(
-            "RESEARCH_AI_TIER_PRIVILEGED_DAILY_TURN_CAP", 2000
-        ),
-        allowed_model_refs=_tuple_setting(
-            "RESEARCH_AI_TIER_PRIVILEGED_ALLOWED_MODEL_REFS", None
-        ),
-        default_model_ref=_setting(
-            "RESEARCH_AI_TIER_PRIVILEGED_DEFAULT_MODEL_REF", None
-        ),
+        daily_budget_microusd=PRIVILEGED_DAILY_BUDGET_MICROUSD,
+        daily_turn_cap=PRIVILEGED_DAILY_TURN_CAP,
+        allowed_model_refs=None,
+        default_model_ref=None,
     )
     blocked = TierPolicy("blocked", 0, 0, (), None)
     # ``replace`` keeps policies independent even if future defaults share fields.
