@@ -243,9 +243,7 @@ class NoteSerializer(ModelSerializer):
             raise ValidationError({"selected_grant": str(exc)}) from exc
         return attrs
 
-    def _validate_funding_details(
-        self, attrs: dict, document_type: str | None
-    ) -> None:
+    def _validate_funding_details(self, attrs: dict, document_type: str | None) -> None:
         """Reject a funding form the resulting document type does not use."""
         if "grant_settings" in attrs and document_type != GRANT:
             raise ValidationError(

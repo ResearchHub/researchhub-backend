@@ -88,9 +88,7 @@ class PrivatePreregistrationCreateTests(AWSMockTestCase):
         payload = self._payload(fundraise_goal_currency="")
 
         # Act
-        response = self.client.post(
-            "/api/researchhubpost/", payload, format="json"
-        )
+        response = self.client.post("/api/researchhubpost/", payload, format="json")
 
         # Assert
         self.assertEqual(response.status_code, 200)

@@ -682,9 +682,7 @@ class ResearchhubPostViewSet(
                 if grant_contacts is not None:
                     grant_data["contact_ids"] = grant_contacts
 
-                if application_visibility := data.get(
-                    "grant_application_visibility"
-                ):
+                if application_visibility := data.get("grant_application_visibility"):
                     grant_data["application_visibility"] = application_visibility
 
                 grant_serializer = GrantCreateSerializer(data=grant_data)

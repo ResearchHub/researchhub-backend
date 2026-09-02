@@ -1848,9 +1848,7 @@ class NoteTests(APITestCase):
         hub = create_hub(name="Neuroscience")
 
         # Act
-        response = self.client.post(
-            "/api/note/", {"hubs": [hub.id], "title": "Legacy"}
-        )
+        response = self.client.post("/api/note/", {"hubs": [hub.id], "title": "Legacy"})
 
         # Assert
         self.assertEqual(response.status_code, 200)
