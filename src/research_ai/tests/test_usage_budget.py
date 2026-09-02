@@ -16,6 +16,7 @@ from research_ai.services.agent.types import (
 )
 from research_ai.services.usage_budget import (
     AgentLoopBudgetRecorder,
+    BudgetExceededError,
     UsageLimitExceededError,
     UsageWorkInProgressError,
     atomic_turn_admission,
@@ -38,6 +39,15 @@ class TierResolutionTests(TestCase):
         self.user.save(update_fields=["is_staff", "probable_spammer"])
 
         # Act / Assert
+        self.assertEqual(resolve_ai_tier(self.user).name, "blocked")
+
+    def test_inactive_and_removed_users_are_blocked(self):
+        # Arrange / Act / Assert
+        self.user.is_active = False
+        self.assertEqual(resolve_ai_tier(self.user).name, "blocked")
+
+        self.user.is_active = True
+        self.user.is_removed = True
         self.assertEqual(resolve_ai_tier(self.user).name, "blocked")
 
     def test_staff_and_moderators_are_privileged(self):
@@ -138,7 +148,7 @@ class AgentLoopBudgetRecorderTests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("loop-budget")
 
-    def test_records_only_assistant_turn_usage(self):
+    def test_records_provider_usage_without_double_counting_assistant_message(self):
         # Arrange
         recorder = AgentLoopBudgetRecorder(
             user=self.user,
@@ -154,6 +164,7 @@ class AgentLoopBudgetRecorderTests(TestCase):
         )
 
         # Act
+        recorder.record_usage(turn.usage)
         recorder.record_message(
             Message(role="assistant", content=[TextBlock(text="done")]),
             turn=turn,
@@ -164,6 +175,25 @@ class AgentLoopBudgetRecorderTests(TestCase):
         self.assertEqual(event.user, self.user)
         self.assertEqual(event.feature, "notebook_chat")
         self.assertEqual(event.input_tokens, 100)
+        self.assertEqual(LLMUsageEvent.objects.count(), 1)
+
+    def test_pre_spend_guard_reloads_a_soft_deleted_user(self):
+        # Arrange: keep the stale instance a running job would hold while a
+        # separate request changes the authoritative database row.
+        get_user_model().all_objects.filter(pk=self.user.pk).update(
+            is_active=False,
+            is_removed=True,
+        )
+        recorder = AgentLoopBudgetRecorder(
+            user=self.user,
+            feature="notebook_chat",
+            provider="openrouter",
+            model_id="deepseek/deepseek-v4-pro-0813",
+        )
+
+        # Act / Assert
+        with self.assertRaisesMessage(BudgetExceededError, "access is blocked"):
+            recorder.before_model_call()
 
 
 class AtomicAdmissionTests(TransactionTestCase):

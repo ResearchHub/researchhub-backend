@@ -401,6 +401,7 @@ class ClaudePlatformProvider(LLMProvider):
         max_tokens: int | None,
         temperature: float,
         before_retry: Callable[[], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
     ) -> AssistantTurn:
         return self.complete_with_events(
             system_prompt=system_prompt,
@@ -409,6 +410,7 @@ class ClaudePlatformProvider(LLMProvider):
             max_tokens=max_tokens,
             temperature=temperature,
             before_retry=before_retry,
+            on_usage=on_usage,
         )
 
     def complete_with_events(
@@ -421,6 +423,7 @@ class ClaudePlatformProvider(LLMProvider):
         temperature: float,
         on_event: Callable[[ProviderStreamEvent], None] | None = None,
         before_retry: Callable[[], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
     ) -> AssistantTurn:
         if self._client is None:
             raise ProviderError(
@@ -491,6 +494,9 @@ class ClaudePlatformProvider(LLMProvider):
                 ) from e
             responses.append(response)
             self._log_usage(response)
+            usage = self._parse_usage(response)
+            if usage is not None and on_usage is not None:
+                on_usage(usage)
             self._log_continuation_state(response)
             if not self._response_missing_required_container(
                 response, request_container_id=kwargs.get("container")

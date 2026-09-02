@@ -95,6 +95,8 @@ def resolve_ai_tier(user) -> TierPolicy:
     if (
         user is None
         or not getattr(user, "is_authenticated", False)
+        or not getattr(user, "is_active", False)
+        or getattr(user, "is_removed", False)
         or getattr(user, "is_suspended", False)
         or getattr(user, "probable_spammer", False)
     ):
@@ -311,7 +313,17 @@ def record(
 
 def ensure_budget_available(user) -> None:
     """Between-call guard used by budget-aware modern agent-loop recorders."""
+    user_id = getattr(user, "pk", None)
+    if user_id is not None:
+        manager = getattr(type(user), "all_objects", type(user)._default_manager)
+        try:
+            user = manager.get(pk=user_id)
+        except type(user).DoesNotExist:
+            user = None
+
     policy = resolve_ai_tier(user)
+    if policy.name == "blocked":
+        raise BudgetExceededError("Research AI access is blocked")
     if not policy.is_budgeted or not BUDGETS_ENFORCED:
         return
     status = budget_status(user)

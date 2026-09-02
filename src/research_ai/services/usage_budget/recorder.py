@@ -1,6 +1,6 @@
 """Budget accounting wrapper for calls made by the modern agent loop."""
 
-from research_ai.services.agent.types import AssistantTurn, Message
+from research_ai.services.agent.types import AssistantTurn, Message, TurnUsage
 from research_ai.services.usage_budget.service import ensure_budget_available, record
 
 
@@ -30,7 +30,7 @@ class AgentLoopBudgetRecorder:
         self.execution = execution or getattr(recorder, "execution", None)
         # Losing a usage row would silently reopen budget that was actually
         # spent, so accounting writes are required even without a transcript.
-        self.requires_durable_messages = True
+        self.requires_durable_usage = True
 
     def __getattr__(self, name):
         if self._recorder is None:
@@ -48,18 +48,23 @@ class AgentLoopBudgetRecorder:
         if callback is not None:
             callback()
 
-    def record_message(
-        self, message: Message, *, turn: AssistantTurn | None = None
-    ) -> None:
-        if self.user is not None and turn is not None and turn.usage is not None:
+    def record_usage(self, usage: TurnUsage) -> None:
+        if self.user is not None:
             record(
                 self.user,
                 self.feature,
                 self.provider,
                 self.model_id,
-                turn.usage,
+                usage,
                 execution=self.execution,
             )
+        callback = getattr(self._recorder, "record_usage", None)
+        if callback is not None:
+            callback(usage)
+
+    def record_message(
+        self, message: Message, *, turn: AssistantTurn | None = None
+    ) -> None:
         if self._recorder is not None:
             self._recorder.record_message(message, turn=turn)
 

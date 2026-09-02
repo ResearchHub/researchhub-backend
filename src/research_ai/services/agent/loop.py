@@ -29,6 +29,7 @@ from research_ai.services.agent.types import (
     StopReason,
     TextBlock,
     ToolResultBlock,
+    TurnUsage,
 )
 
 logger = logging.getLogger(__name__)
@@ -253,6 +254,7 @@ class Agent:
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
                 before_retry=self._ensure_can_spend,
+                on_usage=self._record_usage,
                 on_event=lambda event: self._record_stream_event(iteration, event),
             )
         except AgentRunError as exc:
@@ -275,6 +277,18 @@ class Agent:
             ) from exc
         finally:
             self._flush_stream_events()
+
+    def _record_usage(self, usage: TurnUsage) -> None:
+        """Deliver one completed provider response's billable usage."""
+        callback = getattr(self.recorder, "record_usage", None)
+        if callback is None:
+            return
+        try:
+            callback(usage)
+        except Exception:  # noqa: BLE001 - observers are best-effort by default
+            if getattr(self.recorder, "requires_durable_usage", False):
+                raise
+            logger.warning("agent recorder record_usage failed", exc_info=True)
 
     def _record_stream_event(self, iteration: int, event) -> None:
         """Best-effort delivery of transient model output to an observer."""

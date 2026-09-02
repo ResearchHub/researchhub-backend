@@ -182,6 +182,7 @@ class OpenRouterProvider(LLMProvider):
         max_tokens: int | None,
         temperature: float,
         before_retry: Callable[[], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
     ) -> AssistantTurn:
         if self._client is None:
             raise ProviderError(
@@ -229,6 +230,9 @@ class OpenRouterProvider(LLMProvider):
         latency_ms = int((time.perf_counter() - started) * 1000)
 
         self._log_usage(response)
+        usage = self._parse_usage(response)
+        if usage is not None and on_usage is not None:
+            on_usage(usage)
         return self._parse_turn(response, latency_ms=latency_ms)
 
     # -- private helpers --------------------------------------------------
