@@ -13,6 +13,7 @@ persist outcomes.
 
 from research_ai.services.agent import (
     AgentRunError,
+    BudgetExceededError,
     IncompleteTurnError,
     IterationLimitError,
 )
@@ -171,6 +172,8 @@ class ProposalRunState:
         ``failure_message`` reads (stop reason, detail)."""
         if isinstance(exc, IterationLimitError):
             self.agent_stop_reason = "iteration_cap"
+        elif isinstance(exc, BudgetExceededError):
+            self.agent_stop_reason = "budget_exhausted"
         elif isinstance(exc, IncompleteTurnError):
             self.agent_stop_reason = "incomplete_turn"
             self.agent_error = exc.stop_reason
@@ -205,6 +208,8 @@ class ProposalRunState:
                 "judge panel unavailable (no judge returned a score) on round "
                 f"{self.rounds_used}{detail}"
             )
+        if self.agent_stop_reason == "budget_exhausted":
+            return "daily Research AI usage limit reached; try again after it resets"
         if self.submitted is None and self.agent_stop_reason in (
             "incomplete_turn",
             "provider_error",

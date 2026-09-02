@@ -11,7 +11,14 @@ from researchhub_access_group.constants import ADMIN, VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
 
+MODEL_SETTINGS = {
+    "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
+    "AWS_REGION_NAME": "us-east-1",
+    "OPENROUTER_API_KEY": "or-test",
+}
 
+
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatViewTests(APITestCase):
     def setUp(self):
         user_model = get_user_model()
@@ -283,8 +290,8 @@ class NotebookChatViewTests(APITestCase):
         self.assertEqual(get_response.status_code, 404)
         self.assertEqual(post_response.status_code, 404)
 
-    def test_gate_blocks_regular_users_even_with_note_access(self):
-        # Arrange: full note access, but neither hub editor nor moderator.
+    def test_regular_user_with_note_access_can_use_default_tier(self):
+        # Arrange: full note access and the default Research AI tier.
         self.client.force_authenticate(self.regular_user)
 
         # Act
@@ -292,8 +299,8 @@ class NotebookChatViewTests(APITestCase):
         list_response = self.client.get(self.chats_url)
 
         # Assert
-        self.assertEqual(create_response.status_code, 403)
-        self.assertEqual(list_response.status_code, 403)
+        self.assertEqual(create_response.status_code, 201)
+        self.assertEqual(list_response.status_code, 200)
 
     def test_post_message_requires_authentication(self):
         # Act
@@ -328,7 +335,7 @@ class NotebookChatViewTests(APITestCase):
         # Assert
         self.assertEqual(second.status_code, 409)
 
-    def test_busy_chat_does_not_block_the_users_other_chats(self):
+    def test_busy_chat_blocks_the_users_other_chats(self):
         # Arrange: a turn is running in the first chat.
         self.client.force_authenticate(self.owner)
         busy_chat = self._create_chat_id()
@@ -338,9 +345,10 @@ class NotebookChatViewTests(APITestCase):
         # Act
         response, _delay = self._post_message(other_chat, "Separate thread")
 
-        # Assert: the 409 is per chat, not per note.
-        self.assertEqual(response.status_code, 202)
-        self.assertEqual(response.data["conversation_id"], other_chat)
+        # Assert: budget admission is per user so parallel chats cannot race
+        # against the same usage snapshot.
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data["code"], "usage_work_in_progress")
 
     # -- cancelling -------------------------------------------------------
 
@@ -394,23 +402,22 @@ class NotebookChatViewTests(APITestCase):
             AgentExecution.Status.PENDING,
         )
 
-    def test_cancel_only_touches_the_addressed_chat(self):
-        # Arrange: the same user runs turns in two chats on the note.
+    def test_cancel_idle_chat_does_not_touch_the_users_running_chat(self):
+        # Arrange: a turn is running in one chat and single-flight admission
+        # refuses a second turn in another chat.
         self.client.force_authenticate(self.owner)
         first_chat = self._create_chat_id()
         first_posted, _delay = self._post_message(first_chat)
         second_chat = self._create_chat_id()
         second_posted, _delay = self._post_message(second_chat)
+        self.assertEqual(second_posted.status_code, 409)
 
         # Act
         response = self._cancel(second_chat)
 
         # Assert
-        self.assertTrue(response.data["cancelled"])
-        self.assertEqual(
-            AgentExecution.objects.get(id=second_posted.data["execution_id"]).status,
-            AgentExecution.Status.CANCELLED,
-        )
+        self.assertFalse(response.data["cancelled"])
+        self.assertIsNone(response.data["execution_id"])
         self.assertEqual(
             AgentExecution.objects.get(id=first_posted.data["execution_id"]).status,
             AgentExecution.Status.PENDING,

@@ -267,6 +267,15 @@ class AgentChatService:
                 "retryable": False,
                 "message": "The agent declined to complete this request.",
             }
+        if execution.stop_reason == "budget_exhausted":
+            return {
+                "code": "usage_limit_exceeded",
+                "retryable": False,
+                "message": (
+                    "Your daily Research AI usage limit was reached. "
+                    "Try again after it resets."
+                ),
+            }
         details = execution.error_details
         verdict = details.get("retryable") if isinstance(details, dict) else None
         if verdict:

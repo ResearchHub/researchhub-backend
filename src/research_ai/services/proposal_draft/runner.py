@@ -57,6 +57,7 @@ from research_ai.prompts.proposal_draft_prompts import (
 from research_ai.services.agent import (
     AgentRunError,
     AgentService,
+    BudgetExceededError,
     Tool,
     Toolset,
     generator_model_ref,
@@ -98,6 +99,7 @@ from research_ai.services.researcher_profile.agent import (
     SCHEMA_VERSION as PROFILE_SCHEMA_VERSION,
 )
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
+from research_ai.services.usage_budget import AgentLoopBudgetRecorder
 from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
@@ -232,7 +234,13 @@ class _ProposalDraftRunner:
             return self._fail(message)
 
         self._ensure_not_cancelled()
-        self._ensure_profile()
+        try:
+            self._ensure_profile()
+        except BudgetExceededError as exc:
+            logger.warning("proposal profile build stopped on budget: %s", exc)
+            self.state.record_agent_error(exc)
+            self._record_setup_failure(exc)
+            return self._fail()
 
         system_prompt = build_proposal_system_prompt(
             panel_threshold=self.config.panel_threshold,
@@ -351,11 +359,29 @@ class _ProposalDraftRunner:
             return
         self.recorder.set_step(ProposalDraft.Step.BUILDING_PROFILE)
         try:
+            provider_options = {
+                key: value
+                for key, value in {
+                    "effort": self.effort,
+                    "thinking": self.thinking,
+                }.items()
+                if value is not None
+            }
+            provider = self.provider or resolve_provider(
+                self.model_ref,
+                **provider_options,
+            )
             build_and_store_expert_profile(
                 self.expert,
-                provider=self.provider,
+                provider=provider,
                 oa_client=self.oa_client,
+                recorder=self._budget_recorder(
+                    provider,
+                    feature="proposal_draft_profile",
+                ),
             )
+        except BudgetExceededError:
+            raise
         except Exception:  # noqa: BLE001 - profile build is best-effort
             logger.exception("proposal draft: profile build failed")
 
@@ -388,7 +414,30 @@ class _ProposalDraftRunner:
             system_prompt=system_prompt,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
-            recorder=self.agent_recorder,
+            recorder=self._budget_recorder(
+                provider,
+                feature="proposal_draft_generator",
+                recorder=self.agent_recorder,
+            ),
+        )
+
+    def _budget_recorder(self, provider, *, feature: str, recorder=None):
+        """Account only provider calls driven by a modern ``Agent`` loop."""
+        execution = getattr(self.agent_recorder, "execution", None)
+        model_ref = (
+            getattr(execution, "model", "") or self.model_ref or generator_model_ref()
+        )
+        provider_name, model_id = split_model_ref(model_ref)
+        if execution is not None and execution.provider:
+            provider_name = execution.provider
+        model_id = getattr(provider, "model_id", None) or model_id or ""
+        return AgentLoopBudgetRecorder(
+            user=self.recorder.draft.created_by,
+            feature=feature,
+            provider=provider_name,
+            model_id=model_id,
+            recorder=recorder,
+            execution=execution,
         )
 
     def _compose_toolset(self, provider) -> Toolset:

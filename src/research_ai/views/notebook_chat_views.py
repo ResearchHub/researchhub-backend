@@ -6,12 +6,10 @@ by id. Chats are private to their creator: resolution is scoped to the
 requesting user, so another collaborator's chat id -- like a note the user
 cannot view -- is reported as 404 rather than 403, and nothing is leaked.
 
-Rollout is gated to hub editors and moderators for now (same gate as the
-proposal-draft views); within that group, access mirrors the note itself:
-anyone who can view the note can chat on it (the agent runs with the
-requester's permissions, so its edit tool refuses writes for viewers). A note
-the user cannot view is likewise a 404 -- the same contract as
-``NoteToolset``.
+Access mirrors the note itself: anyone with a non-blocked Research AI tier who
+can view the note can chat on it. The agent runs with the requester's
+permissions, so its edit tool refuses writes for viewers. A note the user
+cannot view is likewise a 404 -- the same contract as ``NoteToolset``.
 """
 
 import logging
@@ -25,7 +23,7 @@ from rest_framework.views import APIView
 
 from note.related_models.note_model import Note
 from research_ai.models import AgentConversation
-from research_ai.permissions import ResearchAIPermission
+from research_ai.permissions import ResearchAIBudgetPermission
 from research_ai.serializers import (
     NotebookChatCreateSerializer,
     NotebookChatMessageCreateSerializer,
@@ -37,14 +35,16 @@ from research_ai.services.notebook_chat import (
     ACTIVITY_LIVE,
     NotebookChatService,
 )
-from user.permissions import IsModerator, UserIsEditor
+from research_ai.services.usage_budget import (
+    UsageLimitExceededError,
+    UsageWorkInProgressError,
+)
 
 logger = logging.getLogger(__name__)
 
 NOTEBOOK_CHAT_PERMISSIONS = [
     IsAuthenticated,
-    ResearchAIPermission,
-    UserIsEditor | IsModerator,
+    ResearchAIBudgetPermission,
 ]
 
 
@@ -163,8 +163,24 @@ class NotebookChatMessageView(APIView):
                 {"detail": "The assistant is still working on a previous message."},
                 status=status.HTTP_409_CONFLICT,
             )
+        except UsageWorkInProgressError as error:
+            return Response(
+                {"detail": str(error), "code": error.code},
+                status=status.HTTP_409_CONFLICT,
+            )
+        except UsageLimitExceededError as error:
+            return Response(
+                {"code": error.code, **error.status.as_dict()},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
         except ValueError as error:
-            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {
+                    "detail": str(error),
+                    **({"code": error.code} if getattr(error, "code", None) else {}),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         return Response(
             {
                 "conversation_id": execution.conversation_id,

@@ -1,6 +1,6 @@
 import logging
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -8,20 +8,43 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from research_ai.models import ProposalDraft, SearchExpert
-from research_ai.permissions import ResearchAIPermission
+from research_ai.permissions import ResearchAIBudgetPermission
 from research_ai.serializers import (
     ProposalDraftCreateSerializer,
     ProposalDraftSerializer,
 )
-from research_ai.services.agent import generator_model_ref, split_model_ref
+from research_ai.services.agent import split_model_ref
 from research_ai.services.agent.model_capabilities import validate_generation_options
 from research_ai.services.proposal_draft.cancel_service import (
     ProposalDraftCancelService,
+)
+from research_ai.services.usage_budget import (
+    ModelNotAllowedError,
+    UsageLimitExceededError,
+    UsageWorkInProgressError,
+    atomic_turn_admission,
+    effective_generation_options,
+    resolve_ai_tier,
+    resolve_default_model,
 )
 from research_ai.tasks import run_proposal_draft_task
 from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
+
+
+def _search_experts_for(user):
+    queryset = SearchExpert.objects.select_related("expert_search")
+    if user.is_moderator_or_editor():
+        return queryset
+    return queryset.filter(expert_search__created_by=user)
+
+
+def _proposal_drafts_for(user):
+    queryset = ProposalDraft.objects.all()
+    if user.is_moderator_or_editor():
+        return queryset
+    return queryset.filter(created_by=user)
 
 
 def _active_draft_for(search_expert):
@@ -51,7 +74,7 @@ class ProposalDraftCreateView(APIView):
 
     permission_classes = [
         IsAuthenticated,
-        ResearchAIPermission,
+        ResearchAIBudgetPermission,
         UserIsEditor | IsModerator,
     ]
 
@@ -64,14 +87,36 @@ class ProposalDraftCreateView(APIView):
         serializer = ProposalDraftCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         search_expert_id = serializer.validated_data["search_expert_id"]
-        model_ref = serializer.validated_data["model"] or generator_model_ref()
+        search_expert = get_object_or_404(
+            _search_experts_for(request.user), id=search_expert_id
+        )
+
+        active = _active_draft_for(search_expert)
+        if active is not None:
+            return _active_draft_conflict(active)
+
+        try:
+            policy = resolve_ai_tier(request.user)
+            model_ref = serializer.validated_data["model"] or resolve_default_model(
+                policy
+            )
+            effort, thinking = effective_generation_options(
+                policy,
+                effort=serializer.validated_data.get("effort"),
+                thinking=serializer.validated_data.get("thinking"),
+            )
+        except ValueError as error:
+            return Response(
+                {"detail": str(error), "code": getattr(error, "code", "invalid")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         provider_name, model_id = split_model_ref(model_ref)
         try:
             validate_generation_options(
                 provider_name,
                 model_id or "",
-                effort=serializer.validated_data.get("effort"),
-                thinking=serializer.validated_data.get("thinking"),
+                effort=effort,
+                thinking=thinking,
                 temperature=serializer.validated_data.get("temperature"),
             )
         except ValueError as error:
@@ -79,32 +124,67 @@ class ProposalDraftCreateView(APIView):
 
         requested_options = {
             key: serializer.validated_data[key]
-            for key in ("effort", "thinking", "temperature")
+            for key in ("temperature",)
             if key in serializer.validated_data
         }
-
-        search_expert = get_object_or_404(SearchExpert, id=search_expert_id)
-
-        active = _active_draft_for(search_expert)
-        if active is not None:
-            return _active_draft_conflict(active)
+        if effort is not None:
+            requested_options["effort"] = effort
+        if thinking is not None:
+            requested_options["thinking"] = thinking
 
         try:
-            with transaction.atomic():
+            with atomic_turn_admission(
+                request.user,
+                model_ref,
+                effort=effort,
+                thinking=thinking,
+            ):
                 draft = ProposalDraft.objects.create(
                     search_expert=search_expert,
                     created_by=request.user,
                     status=ProposalDraft.Status.PENDING,
                     step=ProposalDraft.Step.QUEUED,
-                    model_ref=serializer.validated_data["model"],
+                    model_ref=model_ref,
                     run_config=requested_options,
                 )
+        except UsageLimitExceededError as error:
+            return Response(
+                {"code": error.code, **error.status.as_dict()},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        except ModelNotAllowedError as error:
+            return Response(
+                {"detail": str(error), "code": error.code},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except UsageWorkInProgressError as error:
+            return Response(
+                {"detail": str(error), "code": error.code},
+                status=status.HTTP_409_CONFLICT,
+            )
         except IntegrityError:
             active = _active_draft_for(search_expert)
             if active is not None:
                 return _active_draft_conflict(active)
             raise
-        run_proposal_draft_task.delay(draft.id)
+        try:
+            run_proposal_draft_task.delay(draft.id)
+        except Exception:  # noqa: BLE001 - a broker refusal must release the job
+            logger.exception("could not queue proposal draft %s", draft.id)
+            ProposalDraft.objects.filter(
+                id=draft.id,
+                status=ProposalDraft.Status.PENDING,
+            ).update(
+                status=ProposalDraft.Status.FAILED,
+                error_message="Could not queue proposal drafting task",
+            )
+            return Response(
+                {
+                    "detail": "Could not queue proposal drafting task",
+                    "code": "proposal_draft_enqueue_failed",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         return Response(
             ProposalDraftSerializer(draft).data,
@@ -119,12 +199,12 @@ class ProposalDraftDetailView(APIView):
 
     permission_classes = [
         IsAuthenticated,
-        ResearchAIPermission,
+        ResearchAIBudgetPermission,
         UserIsEditor | IsModerator,
     ]
 
     def get(self, request, draft_id):
-        draft = get_object_or_404(ProposalDraft, id=draft_id)
+        draft = get_object_or_404(_proposal_drafts_for(request.user), id=draft_id)
 
         return Response(ProposalDraftSerializer(draft).data)
 
@@ -146,12 +226,12 @@ class ProposalDraftCancelView(APIView):
 
     permission_classes = [
         IsAuthenticated,
-        ResearchAIPermission,
+        ResearchAIBudgetPermission,
         UserIsEditor | IsModerator,
     ]
 
     def post(self, request, draft_id):
-        draft = get_object_or_404(ProposalDraft, id=draft_id)
+        draft = get_object_or_404(_proposal_drafts_for(request.user), id=draft_id)
         cancelled = ProposalDraftCancelService().cancel(
             draft, cancelled_by=request.user
         )
