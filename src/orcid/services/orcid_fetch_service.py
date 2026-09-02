@@ -10,18 +10,17 @@ User = get_user_model()
 
 
 class OrcidFetchService:
-    """Syncs ORCID data to ResearchHub."""
+    """Syncs verified ORCID education emails and author stats."""
 
     def __init__(self, email_service: OrcidEmailService | None = None) -> None:
         self.email_service = email_service or OrcidEmailService()
 
-    def sync_orcid(self, author_id: int) -> dict:
-        """Sync an author's ORCID data to their ResearchHub profile."""
+    def sync_orcid(self, author_id: int) -> None:
+        """Sync an author's ORCID education emails and stats."""
         author, orcid_id = self._get_author_and_orcid_id(author_id)
 
         self._sync_edu_emails(author.user, orcid_id)
         self._sync_author_stats(author)
-        return {"papers_processed": 0, "author_id": author_id}
 
     def _get_author_and_orcid_id(self, author_id: int) -> tuple[Author, str]:
         """Get author and ORCID ID, raising if not found or not connected."""
