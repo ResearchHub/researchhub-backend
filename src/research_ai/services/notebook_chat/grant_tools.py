@@ -188,16 +188,9 @@ class GrantSearchToolset:
                         f"({len(rfp_text)})"
                     )
                 }
-            end_char = min(start_char + max_chars, len(rfp_text))
-            next_start_char = end_char if end_char < len(rfp_text) else None
             return {
                 **_grant_terms(grant),
-                "rfp_text": rfp_text[start_char:end_char],
-                "rfp_text_start_char": start_char,
-                "rfp_text_end_char": end_char,
-                "rfp_text_total_chars": len(rfp_text),
-                "rfp_text_is_partial": start_char > 0 or next_start_char is not None,
-                "next_start_char": next_start_char,
+                **_rfp_text_page(rfp_text, start_char=start_char, max_chars=max_chars),
             }
         except Exception:  # noqa: BLE001 - tool failures are model-readable
             logger.exception("grant detail read failed for grant %s", grant_id)
@@ -278,6 +271,22 @@ def _grant_full_text(grant) -> str:
     return str(grant.get_llm_context_text() or "").strip()
 
 
+def _rfp_text_page(
+    rfp_text: str, *, start_char: int = 0, max_chars: int = _MAX_RFP_PAGE_CHARS
+) -> dict:
+    """A bounded RFP text page plus continuation metadata."""
+    end_char = min(start_char + max_chars, len(rfp_text))
+    next_start_char = end_char if end_char < len(rfp_text) else None
+    return {
+        "rfp_text": rfp_text[start_char:end_char],
+        "rfp_text_start_char": start_char,
+        "rfp_text_end_char": end_char,
+        "rfp_text_total_chars": len(rfp_text),
+        "rfp_text_is_partial": start_char > 0 or next_start_char is not None,
+        "next_start_char": next_start_char,
+    }
+
+
 def _parse_grant_id(args: dict) -> tuple[int | None, dict | None]:
     """The requested grant id, or ``(None, error)``.
 
@@ -349,11 +358,12 @@ class SelectedRFPToolset:
             Tool(
                 name=READ_SELECTED_RFP,
                 description=(
-                    "Read the full RFP selected for this preregistration note. "
+                    "Read the selected RFP for this preregistration note. "
                     "Use it before evaluating fit, requirements, budget, "
                     "deadline, or revising the note for the selected funding "
-                    "opportunity. Returns structured grant terms and the full "
-                    "call text."
+                    "opportunity. Returns structured grant terms and a bounded "
+                    "call-text page. If next_start_char is returned, continue "
+                    "with get_grant_details using the returned id and offset."
                 ),
                 input_schema=_EMPTY_INPUT_SCHEMA,
                 handler=self._read_selected_rfp,
@@ -408,7 +418,10 @@ class SelectedRFPToolset:
             ):
                 return {"error": _SELECTED_RFP_NOT_ACCESSIBLE}
 
-            return {**_grant_terms(grant), "rfp_text": _grant_full_text(grant)}
+            return {
+                **_grant_terms(grant),
+                **_rfp_text_page(_grant_full_text(grant)),
+            }
         except Exception:  # noqa: BLE001 - tool failures are model-readable
             logger.exception("selected RFP read failed for note %s", self._note_id)
             return {"error": "selected RFP is temporarily unavailable"}

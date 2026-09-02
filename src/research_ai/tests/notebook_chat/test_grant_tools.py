@@ -328,17 +328,25 @@ class SelectedRFPToolsetTests(TestCase):
             user=self.user,
         )
 
-    def _grant(self, *, is_public=True):
+    def _grant(
+        self,
+        *,
+        is_public=True,
+        markdown="# Full call\nApplicants must publish their methods.",
+        renderable_text="",
+    ):
         post = create_post(
             created_by=self.owner,
             document_type=GRANT,
             title="Reproducibility RFP",
+            renderable_text=renderable_text,
         )
         post.slug = "reproducibility-rfp"
-        post.discussion_src.save(
-            "rfp.md",
-            ContentFile(b"# Full call\nApplicants must publish their methods."),
-        )
+        if markdown is not None:
+            post.discussion_src.save(
+                "rfp.md",
+                ContentFile(markdown.encode()),
+            )
         post.save(update_fields=["slug"])
         post.unified_document.is_public = is_public
         post.unified_document.save(update_fields=["is_public"])
@@ -377,6 +385,32 @@ class SelectedRFPToolsetTests(TestCase):
         self.assertIn("Applicants must publish their methods.", result["rfp_text"])
         self.assertNotIn("some text", result["rfp_text"])
         self.assertIn("/grant/", result["url"])
+        self.assertFalse(result["rfp_text_is_partial"])
+        self.assertIsNone(result["next_start_char"])
+
+    def test_bounds_selected_rfp_text_from_markdown_or_rendered_fallback(self):
+        for source, options in (
+            ("markdown", {"markdown": "🔬" * 20000}),
+            (
+                "rendered fallback",
+                {"markdown": None, "renderable_text": "🔬" * 20000},
+            ),
+        ):
+            with self.subTest(source=source):
+                # Arrange
+                grant = self._grant(**options)
+                self.note.selected_grant = grant
+                self.note.save(update_fields=["selected_grant"])
+
+                # Act
+                result = self._read()
+
+                # Assert
+                self.assertNotIn("error", result)
+                self.assertEqual(len(result["rfp_text"]), 8000)
+                self.assertTrue(result["rfp_text_is_partial"])
+                self.assertEqual(result["next_start_char"], 8000)
+                self.assertGreater(result["rfp_text_total_chars"], 8000)
 
     def test_reports_when_preregistration_has_no_selected_rfp(self):
         # Act
