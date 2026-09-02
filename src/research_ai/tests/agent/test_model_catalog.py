@@ -99,7 +99,7 @@ class AvailableModelsTests(SimpleTestCase):
         self.assertFalse(any(o.provider == "openrouter" for o in options))
 
     @override_settings(ANTHROPIC_AWS_WORKSPACE_ID="")
-    def test_generator_default_is_always_selectable(self):
+    def test_unconfigured_generator_default_is_not_selectable(self):
         # Arrange: the default generator's provider has no credentials, so its
         # catalog entries are hidden -- but the default itself must survive.
         default = default_model_ref()
@@ -108,7 +108,7 @@ class AvailableModelsTests(SimpleTestCase):
         options = available_models()
 
         # Assert
-        self.assertEqual(options[0].ref, default)
+        self.assertNotIn(default, [option.ref for option in options])
         self.assertNotIn(
             "claude_platform:claude-sonnet-5", [option.ref for option in options]
         )

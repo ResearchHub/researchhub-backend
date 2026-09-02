@@ -45,6 +45,11 @@ from researchhub_document.related_models.constants.document_type import PREREGIS
 # edit_note input: block operations in the compact dialect (a bare string
 # block is a paragraph).
 EDIT_NOTE_EDITS = [{"op": "insert", "at": 0, "blocks": ["Edited by the assistant"]}]
+MODEL_SETTINGS = {
+    "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
+    "AWS_REGION_NAME": "us-east-1",
+    "OPENROUTER_API_KEY": "or-test",
+}
 
 
 def _make_service(provider=None, **kwargs):
@@ -68,6 +73,7 @@ class CapturingProvider(FakeProvider):
         return super().complete(**kwargs)
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatServiceTests(TestCase):
     def setUp(self):
         user_model = get_user_model()
@@ -739,6 +745,7 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(AgentConversation.objects.filter(user=self.user).count(), 1)
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatTitleTests(TestCase):
     def setUp(self):
         user_model = get_user_model()
@@ -821,6 +828,7 @@ class NotebookChatTitleTests(TestCase):
         self.assertEqual(self.conversation.title, "Literature review")
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatResolutionTests(TestCase):
     def setUp(self):
         user_model = get_user_model()
@@ -914,6 +922,7 @@ class CancellingProvider(FakeProvider):
         return super().complete(**kwargs)
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatEventEmissionTests(TestCase):
     """Where the service nudges the chat's WebSocket group.
 
@@ -1174,6 +1183,7 @@ class NotebookChatEventEmissionTests(TestCase):
         self.publisher.publish.assert_not_called()
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatEventSendOrderTests(TransactionTestCase):
     """Send order under autocommit, where ``on_commit`` runs immediately.
 

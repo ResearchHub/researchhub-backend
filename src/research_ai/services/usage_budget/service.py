@@ -13,13 +13,18 @@ from django.utils import timezone
 
 from research_ai.models import (
     AgentExecution,
+    Expert,
     LLMUsageEvent,
     ProposalDraft,
 )
 from research_ai.services.agent.errors import BudgetExceededError
 from research_ai.services.agent.model_capabilities import EFFORT_LEVELS
+from research_ai.services.agent.model_catalog import available_models
 from research_ai.services.agent.model_pricing import cost_microusd, model_pricing
-from research_ai.services.agent.providers.registry import split_model_ref
+from research_ai.services.agent.providers.registry import (
+    generator_model_ref,
+    split_model_ref,
+)
 from research_ai.services.agent.types import TurnUsage
 from research_ai.services.usage_budget.config import TierPolicy, tier_policies
 
@@ -91,8 +96,16 @@ def resolve_ai_tier(user) -> TierPolicy:
         or getattr(user, "probable_spammer", False)
     ):
         return policies["blocked"]
-    if getattr(user, "is_staff", False) or getattr(user, "moderator", False):
+    elevated_role = getattr(user, "is_moderator_or_editor", None)
+    if getattr(user, "is_staff", False) or (
+        callable(elevated_role) and elevated_role()
+    ):
         return policies["privileged"]
+    if (
+        getattr(user, "pk", None)
+        and Expert.objects.filter(registered_user=user).exists()
+    ):
+        return policies["invited"]
     return policies["default"]
 
 
@@ -135,6 +148,30 @@ def _validate_model(policy: TierPolicy, model_ref: str) -> None:
     provider, model_id = split_model_ref(model_ref)
     if policy.is_budgeted and model_pricing(provider, model_id or "") is None:
         raise ModelNotAllowedError(f"model {model_ref!r} has no reviewed pricing")
+    if model_ref not in {option.ref for option in available_models()}:
+        raise ModelNotAllowedError(f"model {model_ref!r} is not configured")
+
+
+def resolve_default_model(policy: TierPolicy) -> str:
+    """Choose a configured, priced model allowed by ``policy``."""
+    candidates = []
+    for option in available_models():
+        entitled = (
+            policy.allowed_model_refs is None or option.ref in policy.allowed_model_refs
+        )
+        provider, model_id = split_model_ref(option.ref)
+        priced = model_pricing(provider, model_id or "") is not None
+        if entitled and (not policy.is_budgeted or priced):
+            candidates.append(option.ref)
+
+    preferred = policy.default_model_ref or generator_model_ref()
+    if preferred in candidates:
+        return preferred
+    if candidates:
+        return candidates[0]
+    raise ModelNotAllowedError(
+        f"No configured model is available for tier {policy.name!r}"
+    )
 
 
 def effective_generation_options(
@@ -264,13 +301,14 @@ def record(
         output_tokens=usage.output_tokens,
         cache_read_tokens=usage.cache_read_tokens,
         cache_write_tokens=usage.cache_write_tokens,
+        web_search_requests=usage.web_search_requests,
         cost_microusd=cost_microusd(provider, model_id, usage),
         execution=execution,
     )
 
 
 def ensure_budget_available(user) -> None:
-    """Between-iteration guard used by database-backed agent recorders."""
+    """Between-call guard used by budget-aware modern agent-loop recorders."""
     policy = resolve_ai_tier(user)
     if not policy.is_budgeted or not getattr(
         settings, "RESEARCH_AI_BUDGETS_ENFORCED", True

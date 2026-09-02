@@ -14,7 +14,6 @@ from research_ai.models import (
     AgentExecutionMessage,
 )
 from research_ai.services.agent.errors import IterationLimitError
-from research_ai.services.agent.providers.registry import split_model_ref
 from research_ai.services.agent.types import (
     AssistantTurn,
     Message,
@@ -30,15 +29,10 @@ from research_ai.services.agent_persistence.replacement import (
     replaced_execution_ids,
     superseded_execution_ids,
 )
-from research_ai.services.usage_budget.service import ensure_budget_available, record
 
 logger = logging.getLogger(__name__)
 
 _MAX_ERROR_CHARS = 10_000
-
-_USAGE_FEATURES = {
-    "proposal_draft": "proposal_draft_generator",
-}
 
 
 def _add_optional(current: int | None, increment: int | None) -> int | None:
@@ -179,12 +173,6 @@ class DatabaseAgentRecorder:
             ],
         ).exists()
 
-    def before_model_call(self) -> None:
-        """Refuse the next provider call once this user's daily limit is spent."""
-        user = self.execution.conversation.user
-        if user is not None:
-            ensure_budget_available(user)
-
     def _provenance(self, message: Message) -> str:
         if message.role == "assistant":
             return AgentExecutionMessage.Provenance.MODEL
@@ -237,23 +225,6 @@ class DatabaseAgentRecorder:
                 ]
             )
         self._recorded_messages += 1
-
-        if turn is not None and turn.usage is not None:
-            provider, model_id = split_model_ref(self.execution.model)
-            # The execution provider is authoritative for older rows whose model
-            # was stored bare; prefixed refs remain canonical through split.
-            provider = self.execution.provider or provider
-            record(
-                self.execution.conversation.user,
-                _USAGE_FEATURES.get(
-                    self.execution.conversation.workflow,
-                    self.execution.conversation.workflow or "agent",
-                ),
-                provider,
-                model_id or "",
-                turn.usage,
-                execution=self.execution,
-            )
 
         try:
             content, is_truncated, original_size = serialize_trace_message(message)

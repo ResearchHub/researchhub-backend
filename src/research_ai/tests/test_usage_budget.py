@@ -6,9 +6,16 @@ from django.test import TestCase, TransactionTestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from research_ai.models import AgentConversation, AgentExecution, LLMUsageEvent
-from research_ai.services.agent.types import TurnUsage
+from research_ai.models import AgentConversation, AgentExecution, Expert, LLMUsageEvent
+from research_ai.services.agent.types import (
+    AssistantTurn,
+    Message,
+    StopReason,
+    TextBlock,
+    TurnUsage,
+)
 from research_ai.services.usage_budget import (
+    AgentLoopBudgetRecorder,
     UsageLimitExceededError,
     UsageWorkInProgressError,
     atomic_turn_admission,
@@ -17,7 +24,7 @@ from research_ai.services.usage_budget import (
     record,
     resolve_ai_tier,
 )
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 
 class TierResolutionTests(TestCase):
@@ -44,7 +51,35 @@ class TierResolutionTests(TestCase):
         self.user.save(update_fields=["is_staff", "moderator"])
         self.assertEqual(resolve_ai_tier(self.user).name, "privileged")
 
+    def test_hub_editors_are_privileged(self):
+        # Arrange
+        editor, _hub = create_hub_editor("budget-editor", "Budget Editor Hub")
 
+        # Act / Assert
+        policy = resolve_ai_tier(editor)
+        self.assertEqual(policy.name, "privileged")
+        self.assertEqual(policy.daily_budget_microusd, 100_000_000)
+
+    def test_registered_experts_receive_invited_tier(self):
+        # Arrange
+        Expert.objects.create(email="invitee@example.com", registered_user=self.user)
+
+        # Act / Assert
+        policy = resolve_ai_tier(self.user)
+        self.assertEqual(policy.name, "invited")
+        self.assertEqual(policy.daily_budget_microusd, 10_000_000)
+
+    def test_privileged_role_precedes_invited_tier(self):
+        # Arrange
+        Expert.objects.create(email="staff@example.com", registered_user=self.user)
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+
+        # Act / Assert
+        self.assertEqual(resolve_ai_tier(self.user).name, "privileged")
+
+
+@override_settings(OPENROUTER_API_KEY="or-test")
 class UsageBudgetTests(TestCase):
     MODEL = "openrouter:deepseek/deepseek-v4-pro-0813"
 
@@ -92,6 +127,39 @@ class UsageBudgetTests(TestCase):
                 self.user,
                 "claude_platform:claude-opus-5",
             )
+
+
+@override_settings(OPENROUTER_API_KEY="or-test")
+class AgentLoopBudgetRecorderTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("loop-budget")
+
+    def test_records_only_assistant_turn_usage(self):
+        # Arrange
+        recorder = AgentLoopBudgetRecorder(
+            user=self.user,
+            feature="notebook_chat",
+            provider="openrouter",
+            model_id="deepseek/deepseek-v4-pro-0813",
+        )
+        turn = AssistantTurn(
+            text_blocks=[TextBlock(text="done")],
+            tool_calls=[],
+            stop_reason=StopReason.END_TURN,
+            usage=TurnUsage(input_tokens=100, output_tokens=50),
+        )
+
+        # Act
+        recorder.record_message(
+            Message(role="assistant", content=[TextBlock(text="done")]),
+            turn=turn,
+        )
+
+        # Assert
+        event = LLMUsageEvent.objects.get()
+        self.assertEqual(event.user, self.user)
+        self.assertEqual(event.feature, "notebook_chat")
+        self.assertEqual(event.input_tokens, 100)
 
 
 class AtomicAdmissionTests(TransactionTestCase):

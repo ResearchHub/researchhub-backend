@@ -88,3 +88,16 @@ class AvailableModelsViewTests(APITestCase):
         # Assert
         providers = {model["provider"] for model in response.json()["models"]}
         self.assertNotIn("openrouter", providers)
+
+    @override_settings(OPENROUTER_API_KEY="")
+    def test_default_user_has_no_default_when_entitled_provider_is_unconfigured(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self.client.get(URL)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.json()["default"])
+        self.assertFalse(any(model["allowed"] for model in response.json()["models"]))

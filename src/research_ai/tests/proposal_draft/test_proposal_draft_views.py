@@ -14,8 +14,14 @@ from research_ai.models import Expert, ExpertSearch, ProposalDraft, SearchExpert
 from user.tests.helpers import create_random_authenticated_user
 
 BASE_URL = "/api/research_ai/expert-finder/proposal-drafts/"
+MODEL_SETTINGS = {
+    "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
+    "AWS_REGION_NAME": "us-east-1",
+    "OPENROUTER_API_KEY": "or-test",
+}
 
 
+@override_settings(**MODEL_SETTINGS)
 class ProposalDraftCreateViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
@@ -31,7 +37,7 @@ class ProposalDraftCreateViewTests(APITestCase):
         )
 
     @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
-    def test_default_tier_user_can_create(self, mock_delay):
+    def test_default_tier_user_cannot_create(self, mock_delay):
         # Arrange
         own_search = ExpertSearch.objects.create(
             created_by=self.user,
@@ -49,8 +55,8 @@ class ProposalDraftCreateViewTests(APITestCase):
         )
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        mock_delay.assert_called_once()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        mock_delay.assert_not_called()
 
     def test_default_tier_user_cannot_create_for_another_users_search(self):
         # Arrange
@@ -62,7 +68,7 @@ class ProposalDraftCreateViewTests(APITestCase):
         )
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
     def test_create_returns_201_and_enqueues_task(self, mock_delay):
@@ -84,6 +90,26 @@ class ProposalDraftCreateViewTests(APITestCase):
         self.assertEqual(draft.step, ProposalDraft.Step.QUEUED)
         self.assertEqual(data["status"], ProposalDraft.Status.PENDING)
         mock_delay.assert_called_once_with(draft.id)
+
+    @patch(
+        "research_ai.views.proposal_draft_views.run_proposal_draft_task.delay",
+        side_effect=RuntimeError("broker unavailable"),
+    )
+    def test_enqueue_failure_marks_draft_failed(self, _mock_delay):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(
+            BASE_URL, {"search_expert_id": self.search_expert.id}, format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.json()["code"], "proposal_draft_enqueue_failed")
+        draft = ProposalDraft.objects.get()
+        self.assertEqual(draft.status, ProposalDraft.Status.FAILED)
+        self.assertEqual(draft.error_message, "Could not queue proposal drafting task")
 
     @override_settings(
         ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
@@ -225,6 +251,7 @@ class ProposalDraftCreateViewTests(APITestCase):
         self.assertEqual(response.json()["proposal_draft_id"], draft.id)
 
 
+@override_settings(**MODEL_SETTINGS)
 class ProposalDraftDetailViewTests(APITestCase):
     def setUp(self):
         # Arrange
@@ -256,9 +283,9 @@ class ProposalDraftDetailViewTests(APITestCase):
         response = self.client.get(f"{BASE_URL}{self.draft.id}/")
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_default_tier_user_can_read_own_detail(self):
+    def test_default_tier_user_cannot_read_own_detail(self):
         # Arrange
         self.draft.created_by = self.user
         self.draft.save(update_fields=["created_by"])
@@ -268,7 +295,7 @@ class ProposalDraftDetailViewTests(APITestCase):
         response = self.client.get(f"{BASE_URL}{self.draft.id}/")
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_detail_returns_job_state(self):
         # Arrange
@@ -299,6 +326,7 @@ class ProposalDraftDetailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
+@override_settings(**MODEL_SETTINGS)
 class ProposalDraftCancelViewTests(APITestCase):
     def setUp(self):
         # Arrange
@@ -331,11 +359,11 @@ class ProposalDraftCancelViewTests(APITestCase):
         response = self._cancel()
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.draft.refresh_from_db()
         self.assertEqual(self.draft.status, ProposalDraft.Status.PROCESSING)
 
-    def test_default_tier_user_can_cancel_own_draft(self):
+    def test_default_tier_user_cannot_cancel_own_draft(self):
         # Arrange
         self.draft.created_by = self.user
         self.draft.save(update_fields=["created_by"])
@@ -345,9 +373,9 @@ class ProposalDraftCancelViewTests(APITestCase):
         response = self._cancel()
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.draft.refresh_from_db()
-        self.assertEqual(self.draft.status, ProposalDraft.Status.CANCELLED)
+        self.assertEqual(self.draft.status, ProposalDraft.Status.PROCESSING)
 
     def test_cancel_requires_authentication(self):
         # Act

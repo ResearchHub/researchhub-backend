@@ -6,12 +6,10 @@ by id. Chats are private to their creator: resolution is scoped to the
 requesting user, so another collaborator's chat id -- like a note the user
 cannot view -- is reported as 404 rather than 403, and nothing is leaked.
 
-Rollout is gated to hub editors and moderators for now (same gate as the
-proposal-draft views); within that group, access mirrors the note itself:
-anyone who can view the note can chat on it (the agent runs with the
-requester's permissions, so its edit tool refuses writes for viewers). A note
-the user cannot view is likewise a 404 -- the same contract as
-``NoteToolset``.
+Access mirrors the note itself: anyone with a non-blocked Research AI tier who
+can view the note can chat on it. The agent runs with the requester's
+permissions, so its edit tool refuses writes for viewers. A note the user
+cannot view is likewise a 404 -- the same contract as ``NoteToolset``.
 """
 
 import logging

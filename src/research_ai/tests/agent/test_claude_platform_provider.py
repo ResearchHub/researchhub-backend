@@ -610,6 +610,25 @@ class CompleteAndParseTests(SimpleTestCase):
         )
         self.assertIsNotNone(turn.latency_ms)
 
+    def test_usage_includes_billed_web_search_requests(self):
+        # Arrange
+        provider = _build_provider([])
+        response = SimpleNamespace(
+            usage=SimpleNamespace(
+                input_tokens=10,
+                output_tokens=3,
+                cache_read_input_tokens=0,
+                cache_creation_input_tokens=0,
+                server_tool_use=SimpleNamespace(web_search_requests=2),
+            )
+        )
+
+        # Act
+        usage = provider._parse_usage(response)
+
+        # Assert
+        self.assertEqual(usage.web_search_requests, 2)
+
     def test_refusal_stop_reason_maps_to_content_filtered(self):
         # Arrange: a policy decline is a 200 with empty content, not an error.
         provider = _build_provider([_build_response([], stop_reason="refusal")])

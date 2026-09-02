@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -37,6 +37,12 @@ PUBLIC_EVENT_KEYS = {
     "detail",
     "note_version_id",
     "sources",
+}
+
+MODEL_SETTINGS = {
+    "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
+    "AWS_REGION_NAME": "us-east-1",
+    "OPENROUTER_API_KEY": "or-test",
 }
 
 PUBLIC_NARRATION_KEYS = {"type", "text", "at"}
@@ -81,6 +87,7 @@ def _settle_beyond_grace(execution_id):
     )
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatActivityTests(TestCase):
     """Activity feeds produced by real turns, read via ``representation``."""
 
@@ -501,6 +508,7 @@ class NotebookChatActivityTests(TestCase):
         self.assertNotIn("not configured", json.dumps(activity, default=str))
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatActivityProjectionTests(TestCase):
     """Trace shapes a live run cannot conveniently produce, built directly."""
 
@@ -1484,6 +1492,7 @@ class NotebookChatActivityProjectionTests(TestCase):
         self.assertNotIn("max_uses_exceeded", json.dumps(event, default=str))
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatActivityViewTests(APITestCase):
     def setUp(self):
         user_model = get_user_model()

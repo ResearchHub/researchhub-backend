@@ -14,10 +14,9 @@ OpenRouter. Bedrock refs are equally valid entries; they are just not listed,
 since they would duplicate the Anthropic entries under a second name.
 
 Models whose provider has no credentials configured are hidden -- offering
-them would sell a selection that can only fail at run time. The configured
-generator default is always selectable, even when it falls outside the
-catalog's availability checks, because it is what runs when the user picks
-nothing.
+them would sell a selection that can only fail at run time. A configured
+generator default outside the curated catalog is added only when its provider
+is available for the same reason.
 """
 
 from dataclasses import dataclass
@@ -114,16 +113,18 @@ _CATALOG: tuple[ModelOption, ...] = (
 
 
 def available_models() -> list[ModelOption]:
-    """The models a user may select right now, generator default first-class.
+    """The models a user may select right now.
 
     Catalog entries whose provider lacks credentials are dropped; the
-    configured generator default is prepended when the surviving list does not
-    already carry it, so "what runs by default" is always also a legal
-    explicit choice.
+    configured generator default is prepended only when its provider is
+    configured and the surviving list does not already carry it.
     """
     options = [option for option in _CATALOG if _provider_configured(option.provider)]
     default_ref = default_model_ref()
-    if not any(option.ref == default_ref for option in options):
+    default_provider = split_model_ref(default_ref)[0]
+    if _provider_configured(default_provider) and not any(
+        option.ref == default_ref for option in options
+    ):
         options.insert(
             0,
             ModelOption(ref=default_ref, label=split_model_ref(default_ref)[1] or ""),

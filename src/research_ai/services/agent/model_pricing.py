@@ -16,11 +16,21 @@ class ModelPricing:
     output_usd_per_mtok: Decimal
     cache_read_usd_per_mtok: Decimal
     cache_write_usd_per_mtok: Decimal
+    web_search_usd_per_request: Decimal
 
 
-def _price(input_: str, output: str, cache_read: str, cache_write: str) -> ModelPricing:
+def _price(
+    input_: str,
+    output: str,
+    cache_read: str,
+    cache_write: str,
+    web_search: str = "0",
+) -> ModelPricing:
     return ModelPricing(
-        *(Decimal(value) for value in (input_, output, cache_read, cache_write))
+        *(
+            Decimal(value)
+            for value in (input_, output, cache_read, cache_write, web_search)
+        )
     )
 
 
@@ -28,9 +38,9 @@ def _price(input_: str, output: str, cache_read: str, cache_write: str) -> Model
 # Updating a vendor rate is one reviewed table edit; historical ledger rows retain
 # the price actually applied when their request completed.
 _CLAUDE_PLATFORM_PRICING = {
-    "claude-opus-5": _price("5", "25", "0.50", "6.25"),
-    "claude-sonnet-5": _price("2", "10", "0.20", "2.50"),
-    "claude-haiku-4-5": _price("1", "5", "0.10", "1.25"),
+    "claude-opus-5": _price("5", "25", "0.50", "6.25", "0.01"),
+    "claude-sonnet-5": _price("2", "10", "0.20", "2.50", "0.01"),
+    "claude-haiku-4-5": _price("1", "5", "0.10", "1.25", "0.01"),
 }
 
 _OPENROUTER_PRICING = {
@@ -75,6 +85,11 @@ def cost_microusd(provider: str, model_id: str, usage: TurnUsage) -> int | None:
             )
         ),
         Decimal(0),
+    )
+    total += (
+        Decimal(usage.web_search_requests or 0)
+        * pricing.web_search_usd_per_request
+        * Decimal(1_000_000)
     )
     # rate ($ / MTok) * tokens is numerically micro-USD.
     return int(total.quantize(Decimal(1), rounding=ROUND_HALF_UP))

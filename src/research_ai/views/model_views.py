@@ -11,11 +11,16 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from research_ai.permissions import ResearchAIBudgetPermission
-from research_ai.services.agent import available_models, default_model_ref
+from research_ai.services.agent import available_models
 from research_ai.services.agent.model_capabilities import EFFORT_LEVELS
 from research_ai.services.agent.model_pricing import cost_multiplier, model_pricing
 from research_ai.services.agent.providers.registry import split_model_ref
-from research_ai.services.usage_budget import budget_status, resolve_ai_tier
+from research_ai.services.usage_budget import (
+    ModelNotAllowedError,
+    budget_status,
+    resolve_ai_tier,
+    resolve_default_model,
+)
 
 
 class AvailableModelsView(APIView):
@@ -28,7 +33,10 @@ class AvailableModelsView(APIView):
 
     def get(self, request):
         policy = resolve_ai_tier(request.user)
-        tier_default = policy.default_model_ref or default_model_ref()
+        try:
+            tier_default = resolve_default_model(policy)
+        except ModelNotAllowedError:
+            tier_default = None
 
         def capabilities(option):
             payload = option.capabilities.as_dict()

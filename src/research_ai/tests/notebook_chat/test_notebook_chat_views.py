@@ -11,7 +11,14 @@ from researchhub_access_group.constants import ADMIN, VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
 
+MODEL_SETTINGS = {
+    "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
+    "AWS_REGION_NAME": "us-east-1",
+    "OPENROUTER_API_KEY": "or-test",
+}
 
+
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatViewTests(APITestCase):
     def setUp(self):
         user_model = get_user_model()

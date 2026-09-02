@@ -47,7 +47,6 @@ from research_ai.prompts.notebook_chat_prompts import build_notebook_chat_system
 from research_ai.services.agent import (
     AgentRunError,
     AgentService,
-    generator_model_ref,
     resolve_provider,
     split_model_ref,
     validate_model_ref,
@@ -94,9 +93,11 @@ from research_ai.services.notebook_chat.toolset import (
 )
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
 from research_ai.services.usage_budget import (
+    AgentLoopBudgetRecorder,
     atomic_turn_admission,
     effective_generation_options,
     resolve_ai_tier,
+    resolve_default_model,
 )
 from research_ai.services.user_profile_tools import UserProfileToolset
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -502,10 +503,7 @@ class NotebookChatService:
                 )
             policy = resolve_ai_tier(locked_conversation.user)
             model = (
-                conversation_model
-                or selected_model
-                or policy.default_model_ref
-                or generator_model_ref()
+                conversation_model or selected_model or resolve_default_model(policy)
             )
             effort, thinking = effective_generation_options(
                 policy, effort=effort, thinking=thinking
@@ -708,6 +706,15 @@ class NotebookChatService:
             native_tool_names=provider.native_tool_names,
         )
         config = self._turn_config(execution)
+        accounting_provider, accounting_model = split_model_ref(execution.model)
+        budget_recorder = AgentLoopBudgetRecorder(
+            user=conversation.user,
+            feature=WORKFLOW,
+            provider=execution.provider or accounting_provider,
+            model_id=accounting_model or "",
+            recorder=recorder,
+            execution=execution,
+        )
         agent = AgentService(
             provider=provider, max_iterations=config.max_iterations
         ).create_agent(
@@ -715,7 +722,7 @@ class NotebookChatService:
             system_prompt=execution.system_prompt,
             max_tokens=config.max_tokens,
             temperature=config.temperature,
-            recorder=recorder,
+            recorder=budget_recorder,
         )
 
         context = (

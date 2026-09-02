@@ -40,6 +40,10 @@ class Migration(migrations.Migration):
                     models.PositiveBigIntegerField(blank=True, null=True),
                 ),
                 (
+                    "web_search_requests",
+                    models.PositiveBigIntegerField(blank=True, null=True),
+                ),
+                (
                     "cost_microusd",
                     models.PositiveBigIntegerField(blank=True, null=True),
                 ),

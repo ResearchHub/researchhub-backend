@@ -133,9 +133,9 @@ class Message:
 
 @dataclass(frozen=True)
 class TurnUsage:
-    """Normalized token accounting for a single model turn.
+    """Normalized billable accounting for a single model turn.
 
-    Each adapter maps its provider's usage shape onto these four counters; a
+    Each adapter maps its provider's usage shape onto these counters; a
     counter the provider did not report stays ``None`` (distinct from a
     reported zero).
     """
@@ -144,6 +144,7 @@ class TurnUsage:
     output_tokens: int | None = None
     cache_read_tokens: int | None = None
     cache_write_tokens: int | None = None
+    web_search_requests: int | None = None
 
 
 @dataclass(frozen=True)

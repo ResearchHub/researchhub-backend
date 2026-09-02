@@ -760,11 +760,12 @@ class ClaudePlatformProvider(LLMProvider):
             return
         logger.info(
             "claude platform usage: input=%s cache_read=%s cache_write=%s "
-            "output=%s container_returned=%s",
+            "output=%s web_searches=%s container_returned=%s",
             getattr(usage, "input_tokens", None),
             getattr(usage, "cache_read_input_tokens", None),
             getattr(usage, "cache_creation_input_tokens", None),
             getattr(usage, "output_tokens", None),
+            self._server_tool_usage(usage, "web_search_requests"),
             getattr(response, "container", None) is not None,
         )
 
@@ -829,6 +830,7 @@ class ClaudePlatformProvider(LLMProvider):
             output_tokens=total("output_tokens"),
             cache_read_tokens=total("cache_read_tokens"),
             cache_write_tokens=total("cache_write_tokens"),
+            web_search_requests=total("web_search_requests"),
         )
 
     def _parse_turn(self, response: Any, *, latency_ms: int | None = None):
@@ -930,4 +932,12 @@ class ClaudePlatformProvider(LLMProvider):
             output_tokens=getattr(usage, "output_tokens", None),
             cache_read_tokens=getattr(usage, "cache_read_input_tokens", None),
             cache_write_tokens=getattr(usage, "cache_creation_input_tokens", None),
+            web_search_requests=self._server_tool_usage(usage, "web_search_requests"),
         )
+
+    @staticmethod
+    def _server_tool_usage(usage: Any, name: str) -> int | None:
+        server_usage = getattr(usage, "server_tool_use", None)
+        if isinstance(server_usage, dict):
+            return server_usage.get(name)
+        return getattr(server_usage, name, None)

@@ -20,6 +20,7 @@ class LLMUsageEvent(DefaultModel):
     output_tokens = models.PositiveBigIntegerField(null=True, blank=True)
     cache_read_tokens = models.PositiveBigIntegerField(null=True, blank=True)
     cache_write_tokens = models.PositiveBigIntegerField(null=True, blank=True)
+    web_search_requests = models.PositiveBigIntegerField(null=True, blank=True)
     cost_microusd = models.PositiveBigIntegerField(null=True, blank=True)
     execution = models.ForeignKey(
         "research_ai.AgentExecution",

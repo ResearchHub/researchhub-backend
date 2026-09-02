@@ -73,11 +73,22 @@ def tier_policies() -> dict[str, TierPolicy]:
             "RESEARCH_AI_TIER_DEFAULT_ALLOWED_THINKING_MODES", ("disabled",)
         ),
     )
+    invited = TierPolicy(
+        name="invited",
+        daily_budget_microusd=_budget_microusd("invited", 10_000_000),
+        daily_turn_cap=_optional_int_setting(
+            "RESEARCH_AI_TIER_INVITED_DAILY_TURN_CAP", 200
+        ),
+        allowed_model_refs=_tuple_setting(
+            "RESEARCH_AI_TIER_INVITED_ALLOWED_MODEL_REFS", None
+        ),
+        default_model_ref=_setting("RESEARCH_AI_TIER_INVITED_DEFAULT_MODEL_REF", None),
+    )
     privileged = TierPolicy(
         name="privileged",
-        daily_budget_microusd=_budget_microusd("privileged", 10_000_000),
+        daily_budget_microusd=_budget_microusd("privileged", 100_000_000),
         daily_turn_cap=_optional_int_setting(
-            "RESEARCH_AI_TIER_PRIVILEGED_DAILY_TURN_CAP", 200
+            "RESEARCH_AI_TIER_PRIVILEGED_DAILY_TURN_CAP", 2000
         ),
         allowed_model_refs=_tuple_setting(
             "RESEARCH_AI_TIER_PRIVILEGED_ALLOWED_MODEL_REFS", None
@@ -88,4 +99,7 @@ def tier_policies() -> dict[str, TierPolicy]:
     )
     blocked = TierPolicy("blocked", 0, 0, (), None)
     # ``replace`` keeps policies independent even if future defaults share fields.
-    return {policy.name: replace(policy) for policy in (blocked, privileged, default)}
+    return {
+        policy.name: replace(policy)
+        for policy in (blocked, privileged, invited, default)
+    }
