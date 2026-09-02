@@ -19,6 +19,7 @@ from research_ai.services.agent.types import (
     TextStreamDelta,
     ThinkingBlock,
     ToolUseBlock,
+    TurnUsage,
 )
 
 
@@ -96,8 +97,12 @@ class RecordingRecorder:
         self.messages = []  # (message, turn) pairs, in recording order
         self.finished = []
         self.failed = []
+        self.usages = []
         self.stream_events = []
         self.stream_flushes = 0
+
+    def record_usage(self, usage):
+        self.usages.append(usage)
 
     def record_message(self, message, *, turn=None):
         self.messages.append((message, turn))
@@ -175,6 +180,32 @@ class ServerResultSummaryTests(SimpleTestCase):
 
 
 class AgentLoopTests(SimpleTestCase):
+    def test_provider_usage_reaches_recorder_before_provider_failure(self):
+        # Arrange: a provider received a billable response but rejected it
+        # before it could return an AssistantTurn to the loop.
+        usage = TurnUsage(input_tokens=10, output_tokens=3)
+
+        class RespondingThenFailingProvider(FakeProvider):
+            def complete(self, *, on_usage, **kwargs):
+                on_usage(usage)
+                raise ProviderError("response could not be replayed")
+
+        recorder = RecordingRecorder()
+        agent = _build_agent(
+            RespondingThenFailingProvider([]),
+            _build_toolset(),
+            recorder=recorder,
+        )
+
+        # Act
+        with self.assertRaises(ProviderError):
+            agent.run("research")
+
+        # Assert
+        self.assertEqual(recorder.usages, [usage])
+        self.assertEqual(recorder.messages[0][0].role, "user")
+        self.assertEqual(len(recorder.messages), 1)
+
     def test_provider_retry_rechecks_execution_activity(self):
         # Arrange: the run is active before its first provider request, then is
         # cancelled while that request is in flight.

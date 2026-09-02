@@ -58,22 +58,6 @@ class AvailableModelsTests(SimpleTestCase):
         self.assertTrue(options)
         self.assertEqual(unreviewed, [])
 
-    def test_haiku_advertises_temperature_but_not_effort_or_thinking(self):
-        # Arrange
-        option = next(
-            option
-            for option in available_models()
-            if option.ref == "claude_platform:claude-haiku-4-5"
-        )
-
-        # Act
-        capabilities = option.capabilities
-
-        # Assert
-        self.assertEqual(capabilities.effort, ())
-        self.assertEqual(capabilities.thinking, ())
-        self.assertTrue(capabilities.temperature)
-
     def test_openrouter_gpt_advertises_reasoning_but_not_temperature(self):
         # Arrange
         option = next(

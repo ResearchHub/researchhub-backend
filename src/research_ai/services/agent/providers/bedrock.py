@@ -111,6 +111,7 @@ class BedrockProvider(LLMProvider):
         max_tokens: int | None,
         temperature: float,
         before_retry: Callable[[], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
     ) -> AssistantTurn:
         inference_config: dict = {
             "maxTokens": MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens
@@ -139,6 +140,9 @@ class BedrockProvider(LLMProvider):
             raise ProviderError(f"Bedrock complete failed: {e}") from e
 
         self._log_usage(response)
+        usage = self._parse_usage(response)
+        if usage is not None and on_usage is not None:
+            on_usage(usage)
         return self._parse_turn(response)
 
     # -- private helpers --------------------------------------------------

@@ -182,6 +182,7 @@ class OpenRouterProvider(LLMProvider):
         max_tokens: int | None,
         temperature: float,
         before_retry: Callable[[], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
     ) -> AssistantTurn:
         if self._client is None:
             raise ProviderError(
@@ -229,6 +230,9 @@ class OpenRouterProvider(LLMProvider):
         latency_ms = int((time.perf_counter() - started) * 1000)
 
         self._log_usage(response)
+        usage = self._parse_usage(response)
+        if usage is not None and on_usage is not None:
+            on_usage(usage)
         return self._parse_turn(response, latency_ms=latency_ms)
 
     # -- private helpers --------------------------------------------------
@@ -367,15 +371,31 @@ class OpenRouterProvider(LLMProvider):
         usage = getattr(response, "usage", None)
         if usage is None:
             return None
+        prompt_tokens = getattr(usage, "prompt_tokens", None)
+        cache_read_tokens = self._cache_detail(usage, "cached_tokens")
+        cache_write_tokens = self._cache_detail(usage, "cache_write_tokens")
+        uncached_input_tokens = (
+            max(
+                0,
+                prompt_tokens - (cache_read_tokens or 0) - (cache_write_tokens or 0),
+            )
+            if prompt_tokens is not None
+            else None
+        )
         return TurnUsage(
-            input_tokens=getattr(usage, "prompt_tokens", None),
+            input_tokens=uncached_input_tokens,
             output_tokens=getattr(usage, "completion_tokens", None),
-            cache_read_tokens=self._cached_tokens(usage),
+            cache_read_tokens=cache_read_tokens,
+            cache_write_tokens=cache_write_tokens,
         )
 
     @staticmethod
     def _cached_tokens(usage: Any) -> int | None:
+        return OpenRouterProvider._cache_detail(usage, "cached_tokens")
+
+    @staticmethod
+    def _cache_detail(usage: Any, name: str) -> int | None:
         details = getattr(usage, "prompt_tokens_details", None)
         if details is None:
             return None
-        return getattr(details, "cached_tokens", None)
+        return getattr(details, name, None)

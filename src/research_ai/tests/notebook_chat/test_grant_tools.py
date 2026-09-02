@@ -12,6 +12,7 @@ from note.models import Note
 from note.tests.helpers import create_note
 from purchase.models import Grant
 from research_ai.services.notebook_chat.grant_tools import (
+    GET_GRANT_DETAILS,
     READ_SELECTED_RFP,
     SEARCH_GRANTS,
     SET_SELECTED_RFP,
@@ -73,6 +74,12 @@ class GrantSearchToolsetTests(TestCase):
         self.assertFalse(stop)
         return result
 
+    def _details(self, user, grant_id):
+        toolset = GrantSearchToolset(user=user).as_toolset()
+        result, stop = toolset.dispatch(GET_GRANT_DETAILS, {"grant_id": grant_id})
+        self.assertFalse(stop)
+        return result
+
     def test_search_returns_only_matching_active_visible_grants(self):
         # Arrange
         matching = self._grant(
@@ -111,6 +118,8 @@ class GrantSearchToolsetTests(TestCase):
         self.assertEqual(item["currency"], "USD")
         post_id = matching.unified_document.posts.first().id
         self.assertIn(f"/grant/{post_id}/", item["url"])
+        self.assertNotIn("description", item)
+        self.assertNotIn("post_content", item)
 
     def test_search_respects_private_grant_owner_visibility(self):
         # Arrange
@@ -128,7 +137,7 @@ class GrantSearchToolsetTests(TestCase):
         self.assertEqual([item["id"] for item in owner_result["grants"]], [private.id])
         self.assertEqual(other_result["grants"], [])
 
-    def test_search_returns_content_when_only_the_backing_post_matches(self):
+    def test_search_returns_compact_summary_when_only_the_backing_post_matches(self):
         # Arrange
         post_content = "Supports single-cell proteomics in rare diseases. " + (
             "x" * 4000
@@ -147,7 +156,147 @@ class GrantSearchToolsetTests(TestCase):
         self.assertEqual([item["id"] for item in result["grants"]], [matching.id])
         item = result["grants"][0]
         self.assertEqual(item["title"], "Emerging Methods Award")
-        self.assertEqual(item["post_content"], post_content[:3000])
+        self.assertTrue(item["summary"].startswith("Supports single-cell proteomics"))
+        self.assertLessEqual(len(item["summary"]), 280)
+        self.assertNotIn("post_content", item)
+
+    def test_search_summary_preserves_a_description_only_match(self):
+        # Arrange: the backing post exists but contains generic boilerplate
+        # unrelated to the query that matched the structured description.
+        matching = self._grant(
+            title="Emerging Methods Award",
+            description="Supports spatial metabolomics for rare diseases.",
+            post_content="Applications are invited from eligible investigators.",
+        )
+
+        # Act
+        result = self._search(self.user, "spatial metabolomics")
+
+        # Assert
+        self.assertEqual([item["id"] for item in result["grants"]], [matching.id])
+        self.assertIn("spatial metabolomics", result["grants"][0]["summary"].lower())
+
+    def test_search_summary_keeps_a_deep_backing_post_match(self):
+        # Arrange: the relevant phrase falls outside a naive prefix truncation.
+        matching = self._grant(
+            title="Emerging Methods Award",
+            description="Funding for reproducible experimental research.",
+            post_content=(
+                "General application guidance and eligibility boilerplate. " * 12
+                + "Supports spatial metabolomics in rare diseases."
+            ),
+        )
+
+        # Act
+        result = self._search(self.user, "spatial metabolomics")
+
+        # Assert
+        self.assertEqual([item["id"] for item in result["grants"]], [matching.id])
+        summary = result["grants"][0]["summary"]
+        self.assertIn("spatial metabolomics", summary.lower())
+        self.assertLessEqual(len(summary), 280)
+
+    def test_search_card_preserves_a_backing_post_title_match(self):
+        # Arrange: the structured short title differs from the post title that
+        # made the grant match.
+        matching = self._grant(
+            title="Spatial Metabolomics Award",
+            short_title="Emerging Methods Award",
+            description="Funding for reproducible experimental research.",
+            post_content="Applications are invited from eligible investigators.",
+        )
+
+        # Act
+        result = self._search(self.user, "spatial metabolomics")
+
+        # Assert
+        self.assertEqual([item["id"] for item in result["grants"]], [matching.id])
+        self.assertEqual(result["grants"][0]["title"], "Spatial Metabolomics Award")
+
+    def test_grant_details_returns_full_text_on_demand(self):
+        # Arrange
+        grant = self._grant(
+            title="Rare Disease Methods",
+            description="Structured program summary.",
+            post_content="Full RFP requirements for single-cell proteomics.",
+        )
+
+        # Act
+        result = self._details(self.user, grant.id)
+
+        # Assert
+        self.assertEqual(result["id"], grant.id)
+        self.assertIn("Structured program summary.", result["rfp_text"])
+        self.assertIn("Full RFP requirements", result["rfp_text"])
+        self.assertFalse(result["rfp_text_is_partial"])
+        self.assertIsNone(result["next_start_char"])
+
+    def test_grant_details_paginates_long_rfp_text(self):
+        # Arrange
+        grant = self._grant(
+            title="Long Methods Call",
+            description="Detailed eligibility and application instructions. " * 300,
+        )
+        toolset = GrantSearchToolset(user=self.user).as_toolset()
+
+        # Act
+        first, _ = toolset.dispatch(
+            GET_GRANT_DETAILS,
+            {"grant_id": grant.id, "max_chars": 100},
+        )
+        second, _ = toolset.dispatch(
+            GET_GRANT_DETAILS,
+            {
+                "grant_id": grant.id,
+                "start_char": first["next_start_char"],
+                "max_chars": 100,
+            },
+        )
+
+        # Assert
+        self.assertEqual(len(first["rfp_text"]), 100)
+        self.assertEqual(first["rfp_text_start_char"], 0)
+        self.assertEqual(first["rfp_text_end_char"], 100)
+        self.assertEqual(first["next_start_char"], 100)
+        self.assertTrue(first["rfp_text_is_partial"])
+        self.assertEqual(second["rfp_text_start_char"], 100)
+        self.assertNotEqual(first["rfp_text"], second["rfp_text"])
+
+    def test_grant_details_page_stays_below_dispatch_limit_for_unicode(self):
+        # Arrange: json.dumps expands each non-BMP character to two surrogates.
+        grant = self._grant(
+            title="Unicode Methods Call",
+            description="🔬" * 20000,
+        )
+        toolset = GrantSearchToolset(user=self.user).as_toolset()
+
+        # Act
+        result, _ = toolset.dispatch(GET_GRANT_DETAILS, {"grant_id": grant.id})
+
+        # Assert
+        self.assertNotIn("error", result)
+        self.assertEqual(len(result["rfp_text"]), 8000)
+        self.assertTrue(result["rfp_text_is_partial"])
+        self.assertEqual(result["next_start_char"], 8000)
+
+    def test_grant_details_rechecks_visibility(self):
+        # Arrange
+        private = self._grant(
+            title="Private Methods Call",
+            description="Not public.",
+            is_public=False,
+        )
+
+        # Act
+        owner_result = self._details(self.owner, private.id)
+        other_result = self._details(self.user, private.id)
+
+        # Assert
+        self.assertEqual(owner_result["id"], private.id)
+        self.assertEqual(
+            other_result,
+            {"error": f"grant {private.id} not found or not accessible"},
+        )
 
     def test_search_requires_a_bounded_query(self):
         # Arrange
@@ -179,17 +328,25 @@ class SelectedRFPToolsetTests(TestCase):
             user=self.user,
         )
 
-    def _grant(self, *, is_public=True):
+    def _grant(
+        self,
+        *,
+        is_public=True,
+        markdown="# Full call\nApplicants must publish their methods.",
+        renderable_text="",
+    ):
         post = create_post(
             created_by=self.owner,
             document_type=GRANT,
             title="Reproducibility RFP",
+            renderable_text=renderable_text,
         )
         post.slug = "reproducibility-rfp"
-        post.discussion_src.save(
-            "rfp.md",
-            ContentFile(b"# Full call\nApplicants must publish their methods."),
-        )
+        if markdown is not None:
+            post.discussion_src.save(
+                "rfp.md",
+                ContentFile(markdown.encode()),
+            )
         post.save(update_fields=["slug"])
         post.unified_document.is_public = is_public
         post.unified_document.save(update_fields=["is_public"])
@@ -226,7 +383,34 @@ class SelectedRFPToolsetTests(TestCase):
         self.assertEqual(result["amount"], "75000.00")
         self.assertIn("Funding for reproducible research.", result["rfp_text"])
         self.assertIn("Applicants must publish their methods.", result["rfp_text"])
+        self.assertNotIn("some text", result["rfp_text"])
         self.assertIn("/grant/", result["url"])
+        self.assertFalse(result["rfp_text_is_partial"])
+        self.assertIsNone(result["next_start_char"])
+
+    def test_bounds_selected_rfp_text_from_markdown_or_rendered_fallback(self):
+        for source, options in (
+            ("markdown", {"markdown": "🔬" * 20000}),
+            (
+                "rendered fallback",
+                {"markdown": None, "renderable_text": "🔬" * 20000},
+            ),
+        ):
+            with self.subTest(source=source):
+                # Arrange
+                grant = self._grant(**options)
+                self.note.selected_grant = grant
+                self.note.save(update_fields=["selected_grant"])
+
+                # Act
+                result = self._read()
+
+                # Assert
+                self.assertNotIn("error", result)
+                self.assertEqual(len(result["rfp_text"]), 8000)
+                self.assertTrue(result["rfp_text_is_partial"])
+                self.assertEqual(result["next_start_char"], 8000)
+                self.assertGreater(result["rfp_text_total_chars"], 8000)
 
     def test_reports_when_preregistration_has_no_selected_rfp(self):
         # Act
