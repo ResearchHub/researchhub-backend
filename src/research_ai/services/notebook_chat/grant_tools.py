@@ -81,9 +81,9 @@ class GrantSearchToolset:
                 name=GET_GRANT_DETAILS,
                 description=(
                     "Inspect one grant/RFP. Pass an id from search_grants. "
-                    "Visibility and active status are checked again for the "
-                    "acting user. Long call text is paginated; pass the returned "
-                    "next_start_char to continue reading."
+                    "Visibility is checked again for the acting user. Long call "
+                    "text is paginated; pass the returned next_start_char to "
+                    "continue reading."
                 ),
                 input_schema={
                     "type": "object",
@@ -180,10 +180,6 @@ class GrantSearchToolset:
             )
             if grant is None:
                 return {"error": f"grant {grant_id} not found or not accessible"}
-            if not grant.is_active():
-                return {
-                    "error": f"grant {grant_id} is no longer accepting applications"
-                }
             rfp_text = _grant_full_text(grant)
             if start_char > len(rfp_text):
                 return {

@@ -231,23 +231,6 @@ class GrantSearchToolsetTests(TestCase):
         self.assertFalse(result["rfp_text_is_partial"])
         self.assertIsNone(result["next_start_char"])
 
-    def test_grant_details_rechecks_that_the_grant_is_active(self):
-        # Arrange: this grant could have closed after a prior search returned it.
-        grant = self._grant(
-            title="Closed Methods Call",
-            description="No longer accepting applications.",
-            status=Grant.CLOSED,
-        )
-
-        # Act
-        result = self._details(self.user, grant.id)
-
-        # Assert
-        self.assertEqual(
-            result,
-            {"error": f"grant {grant.id} is no longer accepting applications"},
-        )
-
     def test_grant_details_paginates_long_rfp_text(self):
         # Arrange
         grant = self._grant(
