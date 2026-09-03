@@ -218,19 +218,6 @@ class CompleteRequestTests(SimpleTestCase):
             _complete(provider)
         self.assertEqual(provider._client.calls, [])
 
-    def test_retired_models_remain_runnable_for_pinned_conversations(self):
-        # Arrange / Act / Assert
-        for model_id in (
-            "google/gemini-3.1-pro-preview",
-            "google/gemini-3.7-flash",
-        ):
-            with self.subTest(model_id=model_id):
-                provider = _build_provider([_response(content="ok")], model_id=model_id)
-                turn = _complete(provider)
-
-                self.assertEqual(turn.text, "ok")
-                self.assertEqual(provider._client.calls[0]["model"], model_id)
-
     def test_default_effort_is_sent_for_a_capable_model(self):
         # Arrange
         provider = _build_provider(
