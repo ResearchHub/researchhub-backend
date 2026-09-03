@@ -131,6 +131,9 @@ _OPENROUTER_MODELS = {
     "openai/gpt-5.6-sol": _model(_OPENROUTER_REASONING, 128_000),
     "openai/gpt-5.6-terra": _model(_OPENROUTER_REASONING, 128_000),
     "openai/gpt-5.6-luna": _model(_OPENROUTER_REASONING, 128_000),
+    # No longer selectable, but retained for conversations pinned before removal.
+    "google/gemini-3.1-pro-preview": _model(_OPENROUTER_GEMINI, 65_536),
+    "google/gemini-3.7-flash": _model(_OPENROUTER_GEMINI, 65_536),
     "google/gemini-3.8-flash": _model(_OPENROUTER_GEMINI, 65_536),
     "x-ai/grok-4.6": _model(_OPENROUTER_GROK, 450_000),
     "z-ai/glm-5.3-flash": _model(_OPENROUTER_MANDATORY_REASONING, 131_072),
