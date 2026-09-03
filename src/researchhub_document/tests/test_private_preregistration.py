@@ -10,7 +10,6 @@ from rest_framework.test import APIClient
 
 from feed.models import FeedEntry
 from feed.tasks import create_feed_entry
-from hub.models import Hub
 from note.models import Note
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.grant_application_model import GrantApplication
@@ -64,7 +63,6 @@ class PrivatePreregistrationCreateTests(AWSMockTestCase):
     def setUp(self):
         super().setUp()
         self.author = _make_user("author")
-        self.hub = Hub.objects.create(name=f"hub-{uuid.uuid4().hex[:8]}")
         RscExchangeRate.objects.create(rate=1.0)
         self.client = APIClient()
         self.client.force_authenticate(self.author)
@@ -76,7 +74,6 @@ class PrivatePreregistrationCreateTests(AWSMockTestCase):
             "full_src": "body",
             "renderable_text": LONG_BODY,
             "title": LONG_TITLE,
-            "hubs": [self.hub.id],
             "fundraise_goal_amount": 1000,
         }
         payload.update(overrides)
@@ -1070,7 +1067,6 @@ class GrantEnforcedApplicationVisibilityTests(AWSMockTestCase):
         super().setUp()
         self.author = _make_user("author")
         self.grant_owner = _make_user("grant_owner")
-        self.hub = Hub.objects.create(name=f"hub-{uuid.uuid4().hex[:8]}")
         RscExchangeRate.objects.create(rate=1.0)
 
         self.optional_grant = self._make_grant(Grant.APPLICATION_VISIBILITY_OPTIONAL)
@@ -1110,7 +1106,6 @@ class GrantEnforcedApplicationVisibilityTests(AWSMockTestCase):
             "full_src": "body",
             "renderable_text": LONG_BODY,
             "title": LONG_TITLE,
-            "hubs": [self.hub.id],
             "fundraise_goal_amount": 1000,
         }
         payload.update(overrides)
