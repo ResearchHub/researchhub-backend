@@ -10,7 +10,6 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from research_ai.models import AgentConversation, AgentExecution, Expert, LLMUsageEvent
-from research_ai.services.agent.errors import BudgetExceededError
 from research_ai.services.agent.types import (
     AssistantTurn,
     Message,

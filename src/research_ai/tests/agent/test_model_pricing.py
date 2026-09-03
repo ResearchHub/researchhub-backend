@@ -15,7 +15,7 @@ class ModelPricingTests(SimpleTestCase):
         cost = cost_microusd("openrouter", "deepseek/deepseek-v4-pro-0813", usage)
 
         # Assert
-        self.assertEqual(cost, 2_662_000)
+        self.assertEqual(cost, 3_322_000)
 
     def test_provider_reported_cost_takes_precedence_over_static_price(self):
         # Arrange

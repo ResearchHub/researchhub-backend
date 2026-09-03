@@ -1,6 +1,3 @@
-import logging
-
-from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -13,25 +10,20 @@ from research_ai.serializers import (
     ProposalDraftCreateSerializer,
     ProposalDraftSerializer,
 )
-from research_ai.services.agent import split_model_ref
-from research_ai.services.agent.model_capabilities import validate_generation_options
 from research_ai.services.proposal_draft.cancel_service import (
     ProposalDraftCancelService,
+)
+from research_ai.services.proposal_draft.create_service import (
+    ProposalDraftAlreadyActiveError,
+    ProposalDraftCreateService,
+    ProposalDraftEnqueueError,
 )
 from research_ai.services.usage_budget import (
     ModelNotAllowedError,
     UsageLimitExceededError,
     UsageWorkInProgressError,
-    atomic_turn_admission,
-    effective_generation_options,
-    resolve_ai_tier,
-    resolve_default_model,
 )
-from research_ai.services.usage_budget.reservation import reservation_deadline
-from research_ai.tasks import run_proposal_draft_task
 from user.permissions import IsModerator, UserIsEditor
-
-logger = logging.getLogger(__name__)
 
 
 def _search_experts_for(user):
@@ -46,16 +38,6 @@ def _proposal_drafts_for(user):
     if user.is_moderator_or_editor():
         return queryset
     return queryset.filter(created_by=user)
-
-
-def _active_draft_for(search_expert):
-    return ProposalDraft.objects.filter(
-        search_expert=search_expert,
-        status__in=[
-            ProposalDraft.Status.PENDING,
-            ProposalDraft.Status.PROCESSING,
-        ],
-    ).first()
 
 
 def _active_draft_conflict(active):
@@ -92,63 +74,15 @@ class ProposalDraftCreateView(APIView):
             _search_experts_for(request.user), id=search_expert_id
         )
 
-        active = _active_draft_for(search_expert)
-        if active is not None:
-            return _active_draft_conflict(active)
-
         try:
-            policy = resolve_ai_tier(request.user)
-            model_ref = serializer.validated_data["model"] or resolve_default_model(
-                policy
-            )
-            effort, thinking = effective_generation_options(
-                policy,
+            draft = ProposalDraftCreateService().create(
+                search_expert=search_expert,
+                created_by=request.user,
+                model_ref=serializer.validated_data["model"],
                 effort=serializer.validated_data.get("effort"),
                 thinking=serializer.validated_data.get("thinking"),
-            )
-        except ValueError as error:
-            return Response(
-                {"detail": str(error), "code": getattr(error, "code", "invalid")},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        provider_name, model_id = split_model_ref(model_ref)
-        try:
-            validate_generation_options(
-                provider_name,
-                model_id or "",
-                effort=effort,
-                thinking=thinking,
                 temperature=serializer.validated_data.get("temperature"),
             )
-        except ValueError as error:
-            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
-
-        requested_options = {
-            key: serializer.validated_data[key]
-            for key in ("temperature",)
-            if key in serializer.validated_data
-        }
-        if effort is not None:
-            requested_options["effort"] = effort
-        if thinking is not None:
-            requested_options["thinking"] = thinking
-
-        try:
-            with atomic_turn_admission(
-                request.user,
-                model_ref,
-                effort=effort,
-                thinking=thinking,
-            ):
-                draft = ProposalDraft.objects.create(
-                    search_expert=search_expert,
-                    created_by=request.user,
-                    status=ProposalDraft.Status.PENDING,
-                    step=ProposalDraft.Step.QUEUED,
-                    model_ref=model_ref,
-                    run_config=requested_options,
-                    usage_reservation_expires_at=reservation_deadline(),
-                )
         except UsageLimitExceededError as error:
             return Response(
                 {"code": error.code, **error.status.as_dict()},
@@ -164,30 +98,18 @@ class ProposalDraftCreateView(APIView):
                 {"detail": str(error), "code": error.code},
                 status=status.HTTP_409_CONFLICT,
             )
-        except IntegrityError:
-            active = _active_draft_for(search_expert)
-            if active is not None:
-                return _active_draft_conflict(active)
-            raise
-        try:
-            run_proposal_draft_task.delay(draft.id)
-        except Exception:  # noqa: BLE001 - a broker refusal must release the job
-            logger.exception("could not queue proposal draft %s", draft.id)
-            ProposalDraft.objects.filter(
-                id=draft.id,
-                status=ProposalDraft.Status.PENDING,
-            ).update(
-                status=ProposalDraft.Status.FAILED,
-                error_message="Could not queue proposal drafting task",
-                usage_reservation_expires_at=None,
-            )
+        except ProposalDraftAlreadyActiveError as error:
+            return _active_draft_conflict(error.draft)
+        except ProposalDraftEnqueueError as error:
             return Response(
                 {
-                    "detail": "Could not queue proposal drafting task",
-                    "code": "proposal_draft_enqueue_failed",
+                    "detail": str(error),
+                    "code": error.code,
                 },
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
+        except ValueError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(
             ProposalDraftSerializer(draft).data,
