@@ -31,7 +31,7 @@ class AvailableModelsViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
             response.json()["default"],
-            "openrouter:deepseek/deepseek-v4-pro-0813",
+            "openrouter:deepseek/deepseek-v4-flash-0731",
         )
 
     def test_lists_models_and_the_default(self):

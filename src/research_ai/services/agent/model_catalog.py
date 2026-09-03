@@ -80,19 +80,24 @@ _CATALOG: tuple[ModelOption, ...] = (
         description="OpenAI's fast, cost-efficient model.",
     ),
     ModelOption(
-        ref=f"{OPENROUTER}:google/gemini-3.1-pro-preview",
-        label="Gemini 3.1 Pro",
-        description="Google's frontier reasoning model.",
-    ),
-    ModelOption(
-        ref=f"{OPENROUTER}:google/gemini-3.7-flash",
-        label="Gemini 3.7 Flash",
+        ref=f"{OPENROUTER}:google/gemini-3.8-flash",
+        label="Gemini 3.8 Flash",
         description="Google's fast, low-cost model.",
     ),
     ModelOption(
         ref=f"{OPENROUTER}:x-ai/grok-4.6",
         label="Grok 4.6",
         description="xAI's frontier model.",
+    ),
+    ModelOption(
+        ref=f"{OPENROUTER}:z-ai/glm-5.3-flash",
+        label="GLM 5.3 Flash",
+        description="Z.ai's fast, cost-efficient open-weight model.",
+    ),
+    ModelOption(
+        ref=f"{OPENROUTER}:deepseek/deepseek-v4-flash-0731",
+        label="DeepSeek V4 Flash",
+        description="DeepSeek's fast, cost-efficient open-weight model.",
     ),
     ModelOption(
         ref=f"{OPENROUTER}:deepseek/deepseek-v4-pro-0813",

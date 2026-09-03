@@ -66,6 +66,11 @@ _OPENROUTER_GROK = ModelCapabilities(
     thinking=("adaptive",),
     temperature=True,
 )
+_OPENROUTER_MANDATORY_REASONING = ModelCapabilities(
+    effort=("low", "high", "max"),
+    thinking=("adaptive",),
+    temperature=True,
+)
 _OPENROUTER_OPEN_WEIGHT = ModelCapabilities(
     effort=("none", "low", "high", "max"),
     thinking=THINKING_MODES,
@@ -126,9 +131,10 @@ _OPENROUTER_MODELS = {
     "openai/gpt-5.6-sol": _model(_OPENROUTER_REASONING, 128_000),
     "openai/gpt-5.6-terra": _model(_OPENROUTER_REASONING, 128_000),
     "openai/gpt-5.6-luna": _model(_OPENROUTER_REASONING, 128_000),
-    "google/gemini-3.1-pro-preview": _model(_OPENROUTER_GEMINI, 65_536),
-    "google/gemini-3.7-flash": _model(_OPENROUTER_GEMINI, 65_536),
+    "google/gemini-3.8-flash": _model(_OPENROUTER_GEMINI, 65_536),
     "x-ai/grok-4.6": _model(_OPENROUTER_GROK, 450_000),
+    "z-ai/glm-5.3-flash": _model(_OPENROUTER_MANDATORY_REASONING, 131_072),
+    "deepseek/deepseek-v4-flash-0731": _model(_OPENROUTER_OPEN_WEIGHT, 393_216),
     "deepseek/deepseek-v4-pro-0813": _model(_OPENROUTER_OPEN_WEIGHT, 384_000),
     "moonshotai/kimi-k3": _model(_OPENROUTER_OPEN_WEIGHT, 943_718),
 }

@@ -47,9 +47,11 @@ _OPENROUTER_PRICING = {
     "openai/gpt-5.6-sol": _price("2", "10", "0.20", "2.50"),
     "openai/gpt-5.6-terra": _price("2", "12", "0.20", "2.50"),
     "openai/gpt-5.6-luna": _price("0.20", "1.20", "0.02", "0.25"),
-    "google/gemini-3.1-pro-preview": _price("2", "12", "0.20", "0.375"),
-    "google/gemini-3.7-flash": _price("0.75", "3.75", "0.075", "0.04167"),
+    "google/gemini-3.8-flash": _price("0.75", "3.75", "0.075", "0.04167"),
     "x-ai/grok-4.6": _price("2", "6", "0.50", "2"),
+    # Use GLM's undiscounted rates; its launch discount expires September 9, 2026.
+    "z-ai/glm-5.3-flash": _price("0.15", "0.50", "0.03", "0.15"),
+    "deepseek/deepseek-v4-flash-0731": _price("0.05", "0.16", "0.013", "0.05"),
     "deepseek/deepseek-v4-pro-0813": _price("0.66", "1.98", "0.022", "0.66"),
     "moonshotai/kimi-k3": _price("2.55", "12.75", "0.256", "2.55"),
 }

@@ -129,6 +129,15 @@ class CapabilityLookupTests(SimpleTestCase):
                     model_capabilities(provider, model_id).max_output_tokens
                 )
 
+    def test_glm_flash_requires_reasoning(self):
+        # Act
+        capabilities = model_capabilities("openrouter", "z-ai/glm-5.3-flash")
+
+        # Assert
+        self.assertEqual(capabilities.effort, ("low", "high", "max"))
+        self.assertEqual(capabilities.thinking, ("adaptive",))
+        self.assertEqual(capabilities.max_output_tokens, 131_072)
+
 
 @override_settings(**NO_PROVIDER_CREDENTIALS)
 class ValidateModelRefTests(SimpleTestCase):

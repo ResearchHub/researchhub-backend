@@ -157,7 +157,7 @@ class NotebookChatServiceTests(TestCase):
     def test_submit_message_accepts_temperature_for_gemini(self):
         # Act
         execution, _delay = self._submit(
-            model_ref="openrouter:google/gemini-3.1-pro-preview",
+            model_ref="openrouter:google/gemini-3.8-flash",
             temperature=0.4,
         )
 
