@@ -422,10 +422,9 @@ class TestPersonalizedFeed(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
-        content_types = [r["content_type"] for r in response.data["results"]]
-
-        self.assertIn(self.paper.id, result_ids)
-        self.assertNotIn(self.post.id, result_ids)
-        self.assertIn("PAPER", content_types)
-        self.assertNotIn("RESEARCHHUBPOST", content_types)
+        # Paper and post IDs can overlap because they belong to separate tables.
+        result_objects = [
+            (r["content_type"], r["content_object"]["id"])
+            for r in response.data["results"]
+        ]
+        self.assertEqual(result_objects, [("PAPER", self.paper.id)])
