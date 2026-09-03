@@ -91,7 +91,7 @@ class TierResolutionTests(TestCase):
 
 @override_settings(OPENROUTER_API_KEY="or-test")
 class UsageBudgetTests(TestCase):
-    MODEL = "openrouter:deepseek/deepseek-v4-pro-0813"
+    MODEL = "openrouter:deepseek/deepseek-v4-flash-0731"
 
     def setUp(self):
         self.user = create_random_authenticated_user("budget-usage")

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, replace
 
-DEFAULT_OPEN_WEIGHT_MODEL = "openrouter:deepseek/deepseek-v4-pro-0813"
+DEFAULT_OPEN_WEIGHT_MODEL = "openrouter:deepseek/deepseek-v4-flash-0731"
 BUDGETS_ENFORCED = True
 DEFAULT_DAILY_BUDGET_MICROUSD = 250_000
 DEFAULT_DAILY_TURN_CAP = 10

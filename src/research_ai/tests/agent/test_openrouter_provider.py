@@ -56,7 +56,7 @@ def _tool_call(call_id="call-1", name="search", arguments='{"q": 1}'):
     )
 
 
-def _build_provider(responses=None, model_id="google/gemini-3.7-flash", **kwargs):
+def _build_provider(responses=None, model_id="google/gemini-3.8-flash", **kwargs):
     """Build an OpenRouterProvider with a fake client so no HTTP client exists."""
     return OpenRouterProvider(
         client=FakeChatCompletionsClient(responses or []),
@@ -203,7 +203,7 @@ class CompleteRequestTests(SimpleTestCase):
 
         # Assert
         kwargs = provider._client.calls[0]
-        self.assertEqual(kwargs["model"], "google/gemini-3.7-flash")
+        self.assertEqual(kwargs["model"], "google/gemini-3.8-flash")
         self.assertEqual(kwargs["max_tokens"], 100)
         self.assertEqual(kwargs["temperature"], 0.5)
         self.assertEqual(kwargs["tools"], rendered_tools)
@@ -221,7 +221,7 @@ class CompleteRequestTests(SimpleTestCase):
     def test_default_effort_is_sent_for_a_capable_model(self):
         # Arrange
         provider = _build_provider(
-            [_response(content="ok")], model_id="google/gemini-3.1-pro-preview"
+            [_response(content="ok")], model_id="google/gemini-3.8-flash"
         )
 
         # Act
@@ -289,7 +289,7 @@ class CompleteRequestTests(SimpleTestCase):
         )
 
     def test_max_tokens_is_clamped_to_the_model_output_ceiling(self):
-        # Arrange: Gemini 3.7 Flash caps output at 65,536.
+        # Arrange: Gemini 3.8 Flash caps output at 65,536.
         provider = _build_provider([_response(content="ok")])
 
         # Act
@@ -483,7 +483,7 @@ class ErrorTests(SimpleTestCase):
     @override_settings(OPENROUTER_API_KEY="")
     def test_missing_api_key_raises_provider_error_on_complete(self):
         # Arrange
-        provider = OpenRouterProvider(model_id="google/gemini-3.7-flash")
+        provider = OpenRouterProvider(model_id="google/gemini-3.8-flash")
 
         # Act / Assert
         with self.assertRaises(ProviderError):
@@ -501,7 +501,7 @@ class ErrorTests(SimpleTestCase):
                 raise RuntimeError("boom")
 
         provider = OpenRouterProvider(
-            client=ExplodingClient(), model_id="google/gemini-3.7-flash"
+            client=ExplodingClient(), model_id="google/gemini-3.8-flash"
         )
 
         # Act / Assert
@@ -558,7 +558,7 @@ class ErrorTests(SimpleTestCase):
                 raise rate_limited
 
         provider = OpenRouterProvider(
-            client=ExplodingClient(), model_id="google/gemini-3.7-flash"
+            client=ExplodingClient(), model_id="google/gemini-3.8-flash"
         )
 
         # Act

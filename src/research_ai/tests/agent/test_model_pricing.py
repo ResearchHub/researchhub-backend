@@ -32,12 +32,12 @@ class ModelPricingTests(SimpleTestCase):
 
     def test_cheapest_catalog_model_is_one_x(self):
         self.assertEqual(
-            cost_multiplier("openrouter:openai/gpt-5.6-luna"),
+            cost_multiplier("openrouter:deepseek/deepseek-v4-flash-0731"),
             Decimal("1.0"),
         )
 
     def test_multiplier_is_relative_to_cheapest_catalog_model(self):
         self.assertEqual(
             cost_multiplier("openrouter:deepseek/deepseek-v4-pro-0813"),
-            Decimal("1.9"),
+            Decimal("12.6"),
         )
