@@ -24,6 +24,7 @@ from research_ai.services.outreach.rfp_email_context import (
 )
 from research_ai.services.proposal_draft import run_proposal_draft
 from research_ai.services.proposal_draft.cancel_service import ACTIVE_STATUSES
+from research_ai.services.usage_budget.reservation import reservation_deadline
 from researchhub.celery import QUEUE_AGENTS, app
 from user.models import User
 
@@ -266,7 +267,10 @@ def run_proposal_draft_task(draft_id: int):
     claimed = ProposalDraft.objects.filter(
         id=draft_id,
         status=ProposalDraft.Status.PENDING,
-    ).update(status=ProposalDraft.Status.PROCESSING)
+    ).update(
+        status=ProposalDraft.Status.PROCESSING,
+        usage_reservation_expires_at=reservation_deadline(),
+    )
     if not claimed:
         draft.refresh_from_db(fields=["status"])
         logger.info(
@@ -306,7 +310,9 @@ def run_proposal_draft_task(draft_id: int):
         )
         # The worker is exiting even if a concurrent cancellation won the
         # lifecycle update above, so its separate usage reservation can now go.
-        ProposalDraft.objects.filter(id=draft_id).update(usage_reservation_active=False)
+        ProposalDraft.objects.filter(id=draft_id).update(
+            usage_reservation_expires_at=None
+        )
         raise
     processing_time = (timezone.now() - start_time).total_seconds()
     ProposalDraft.objects.filter(id=draft_id).update(processing_time=processing_time)

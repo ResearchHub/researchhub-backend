@@ -136,11 +136,12 @@ class AgentExecution(DefaultModel):
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
     last_activity_at = models.DateTimeField(null=True, blank=True)
-    usage_reservation_active = models.BooleanField(
-        default=False,
+    usage_reservation_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
         db_comment=(
-            "Whether this execution still reserves its user's Research AI budget "
-            "slot, including while a cancelled provider call unwinds."
+            "Renewable lease reserving the user's Research AI budget slot while "
+            "this execution may still be producing spend."
         ),
     )
     next_message_sequence = models.PositiveIntegerField(default=1)

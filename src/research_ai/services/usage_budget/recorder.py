@@ -1,7 +1,18 @@
 """Budget accounting wrapper for calls made by the modern agent loop."""
 
+import logging
+
+from django.utils import timezone
+
 from research_ai.services.agent.types import AssistantTurn, Message, TurnUsage
+from research_ai.services.usage_budget.reservation import (
+    USAGE_RESERVATION_RENEW_INTERVAL,
+    renew_active_reservation,
+    renew_live_reservation,
+)
 from research_ai.services.usage_budget.service import ensure_budget_available, record
+
+logger = logging.getLogger(__name__)
 
 
 class AgentLoopBudgetRecorder:
@@ -21,6 +32,7 @@ class AgentLoopBudgetRecorder:
         model_id: str,
         recorder=None,
         execution=None,
+        reservation_targets=None,
     ):
         self.user = user
         self.feature = feature
@@ -28,6 +40,13 @@ class AgentLoopBudgetRecorder:
         self.model_id = model_id
         self._recorder = recorder
         self.execution = execution or getattr(recorder, "execution", None)
+        targets = (
+            reservation_targets
+            if reservation_targets is not None
+            else (self.execution,)
+        )
+        self._reservation_targets = tuple(target for target in targets if target)
+        self._next_reservation_renewal_at = None
         # Losing a usage row would silently reopen budget that was actually
         # spent, so accounting writes are required even without a transcript.
         self.requires_durable_usage = True
@@ -44,6 +63,11 @@ class AgentLoopBudgetRecorder:
     def before_model_call(self) -> None:
         if self.user is not None:
             ensure_budget_available(self.user)
+        now = timezone.now()
+        for target in self._reservation_targets:
+            if not renew_active_reservation(target, now=now):
+                raise InterruptedError("usage reservation owner is no longer active")
+        self._next_reservation_renewal_at = now + USAGE_RESERVATION_RENEW_INTERVAL
         callback = getattr(self._recorder, "before_model_call", None)
         if callback is not None:
             callback()
@@ -77,6 +101,24 @@ class AgentLoopBudgetRecorder:
         return None if callback is None else callback(error)
 
     def record_stream_event(self, iteration, event) -> None:
+        now = timezone.now()
+        if (
+            self._next_reservation_renewal_at is None
+            or now >= self._next_reservation_renewal_at
+        ):
+            for target in self._reservation_targets:
+                try:
+                    renew_live_reservation(target, now=now)
+                except Exception:  # noqa: BLE001 - lease refresh cannot break a turn
+                    logger.warning(
+                        "could not renew usage reservation from stream activity",
+                        extra={
+                            "target_type": type(target).__name__,
+                            "target_id": target.id,
+                        },
+                        exc_info=True,
+                    )
+            self._next_reservation_renewal_at = now + USAGE_RESERVATION_RENEW_INTERVAL
         callback = getattr(self._recorder, "record_stream_event", None)
         if callback is not None:
             callback(iteration, event)

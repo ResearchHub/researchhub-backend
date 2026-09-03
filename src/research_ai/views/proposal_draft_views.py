@@ -27,6 +27,7 @@ from research_ai.services.usage_budget import (
     resolve_ai_tier,
     resolve_default_model,
 )
+from research_ai.services.usage_budget.reservation import reservation_deadline
 from research_ai.tasks import run_proposal_draft_task
 from user.permissions import IsModerator, UserIsEditor
 
@@ -146,7 +147,7 @@ class ProposalDraftCreateView(APIView):
                     step=ProposalDraft.Step.QUEUED,
                     model_ref=model_ref,
                     run_config=requested_options,
-                    usage_reservation_active=True,
+                    usage_reservation_expires_at=reservation_deadline(),
                 )
         except UsageLimitExceededError as error:
             return Response(
@@ -178,7 +179,7 @@ class ProposalDraftCreateView(APIView):
             ).update(
                 status=ProposalDraft.Status.FAILED,
                 error_message="Could not queue proposal drafting task",
-                usage_reservation_active=False,
+                usage_reservation_expires_at=None,
             )
             return Response(
                 {

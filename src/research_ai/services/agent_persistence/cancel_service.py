@@ -31,6 +31,7 @@ from django.utils import timezone
 from research_ai.models import AgentContextMessage, AgentExecution
 from research_ai.services.agent.types import Message, TextBlock
 from research_ai.services.agent_persistence.content import serialize_context_message
+from research_ai.services.usage_budget.reservation import reservation_deadline
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +47,11 @@ class AgentExecutionCancelService:
         No error fields are written: a cancellation is the user's own decision,
         not a failure, and the status alone says so. A queued execution releases
         its usage reservation here because no provider call started. A running
-        execution keeps it until its worker observes the cancellation and
-        unwinds. Returns ``False`` when the execution already reached a terminal
-        state, which is the ordinary race of cancelling a turn that was finishing
-        anyway.
+        execution keeps a renewable lease until its worker observes the
+        cancellation and unwinds. If the worker died, that lease expires instead
+        of blocking the user forever. Returns ``False`` when the execution already
+        reached a terminal state, which is the ordinary race of cancelling a turn
+        that was finishing anyway.
         """
         with transaction.atomic():
             locked = (
@@ -74,7 +76,9 @@ class AgentExecutionCancelService:
             # Set this from the claimed state rather than preserving the old
             # value so executions already running during a rolling deployment
             # receive the same protection as newly admitted work.
-            locked.usage_reservation_active = not was_pending
+            locked.usage_reservation_expires_at = (
+                None if was_pending else reservation_deadline(now)
+            )
             if locked.started_at is not None:
                 locked.duration_ms = max(
                     0, round((now - locked.started_at).total_seconds() * 1000)
@@ -86,7 +90,7 @@ class AgentExecutionCancelService:
                     "finished_at",
                     "last_activity_at",
                     "duration_ms",
-                    "usage_reservation_active",
+                    "usage_reservation_expires_at",
                     "updated_date",
                 ]
             )

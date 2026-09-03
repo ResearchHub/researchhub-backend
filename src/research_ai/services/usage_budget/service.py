@@ -234,6 +234,7 @@ def check_budget_admission(user) -> BudgetStatus:
 
 def _has_in_flight_work(user) -> bool:
     """Whether a budgeted user already has spend-producing work reserved."""
+    now = timezone.now()
     return (
         AgentExecution.objects.filter(
             conversation__user=user,
@@ -247,7 +248,7 @@ def _has_in_flight_work(user) -> bool:
             )
             | Q(
                 status=AgentExecution.Status.CANCELLED,
-                usage_reservation_active=True,
+                usage_reservation_expires_at__gt=now,
             )
         )
         .exists()
@@ -263,7 +264,7 @@ def _has_in_flight_work(user) -> bool:
             )
             | Q(
                 status=ProposalDraft.Status.CANCELLED,
-                usage_reservation_active=True,
+                usage_reservation_expires_at__gt=now,
             )
         )
         .exists()

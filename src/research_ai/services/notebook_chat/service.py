@@ -99,6 +99,7 @@ from research_ai.services.usage_budget import (
     resolve_ai_tier,
     resolve_default_model,
 )
+from research_ai.services.usage_budget.reservation import reservation_deadline
 from research_ai.services.user_profile_tools import UserProfileToolset
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from utils.openalex import OpenAlex
@@ -545,9 +546,9 @@ class NotebookChatService:
                     configuration=configuration,
                     system_prompt=build_notebook_chat_system_prompt(note),
                 )
-                prepared.execution.usage_reservation_active = True
+                prepared.execution.usage_reservation_expires_at = reservation_deadline()
                 prepared.execution.save(
-                    update_fields=["usage_reservation_active", "updated_date"]
+                    update_fields=["usage_reservation_expires_at", "updated_date"]
                 )
         execution = prepared.execution
         # After prepare_turn so a refused turn (busy, for instance) names

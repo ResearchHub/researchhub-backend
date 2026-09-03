@@ -438,6 +438,7 @@ class _ProposalDraftRunner:
             model_id=model_id,
             recorder=recorder,
             execution=execution,
+            reservation_targets=(self.recorder.draft,),
         )
 
     def _compose_toolset(self, provider) -> Toolset:
