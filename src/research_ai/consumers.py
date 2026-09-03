@@ -41,11 +41,13 @@ CLOSE_NOT_FOUND = 4404
 def _rejection_code(user, note_id: int, conversation_id: int) -> int | None:
     """Why ``user`` may not watch this chat, or ``None`` to admit them.
 
-    One database hop covering the REST permission stack: the shared Research
-    AI tier gate, then note visibility and conversation ownership exactly as
-    the views resolve them.
+    One database hop covering the REST permission stack: the Research AI tier
+    and editor-or-moderator rollout gates, then note visibility and
+    conversation ownership exactly as the views resolve them.
     """
     if resolve_ai_tier(user).name == "blocked":
+        return CLOSE_FORBIDDEN
+    if not (user.moderator or user.is_hub_editor()):
         return CLOSE_FORBIDDEN
     note = Note.objects.filter(id=note_id, unified_document__is_removed=False).first()
     if note is None or not note.permissions.has_user(user):

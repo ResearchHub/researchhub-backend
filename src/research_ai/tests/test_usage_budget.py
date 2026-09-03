@@ -10,6 +10,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from research_ai.models import AgentConversation, AgentExecution, Expert, LLMUsageEvent
+from research_ai.services.agent.errors import BudgetExceededError
 from research_ai.services.agent.types import (
     AssistantTurn,
     Message,
@@ -234,6 +235,35 @@ class AgentLoopBudgetRecorderTests(TestCase):
         # Assert
         execution.refresh_from_db()
         self.assertGreater(execution.usage_reservation_expires_at, old_expiry)
+
+    def test_discarded_attempt_is_charged_before_retry_admission(self):
+        # Arrange: nine earlier calls leave one turn in the default tier.
+        LLMUsageEvent.objects.bulk_create(
+            [
+                LLMUsageEvent(
+                    user=self.user,
+                    feature="notebook_chat",
+                    provider="openrouter",
+                    model="deepseek/deepseek-v4-pro-0813",
+                    cost_microusd=1,
+                )
+                for _ in range(9)
+            ]
+        )
+        execution = self._execution(
+            status=AgentExecution.Status.RUNNING,
+            expires_at=timezone.now() + timedelta(minutes=1),
+        )
+        recorder = self._recorder(execution)
+
+        # Act: the completed first attempt consumes the last turn before the
+        # provider asks whether it may make its internal retry.
+        recorder.record_usage(TurnUsage(input_tokens=10, output_tokens=2))
+
+        # Assert
+        with self.assertRaises(BudgetExceededError):
+            recorder.before_model_call()
+        self.assertEqual(LLMUsageEvent.objects.filter(user=self.user).count(), 10)
 
     def test_stream_activity_renews_a_cancelled_in_flight_lease(self):
         # Arrange
