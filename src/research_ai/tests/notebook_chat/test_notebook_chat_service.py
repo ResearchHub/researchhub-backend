@@ -1,9 +1,11 @@
 import json
+from datetime import timedelta
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, TransactionTestCase, override_settings
+from django.utils import timezone
 
 from note.tests.helpers import create_note
 from research_ai.models import (
@@ -30,7 +32,11 @@ from research_ai.services.notebook_chat.events import (
     ConversationEventPublisher,
 )
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
-from research_ai.services.usage_budget import UsageWorkInProgressError, budget_status
+from research_ai.services.usage_budget import (
+    ReservationHeartbeat,
+    UsageWorkInProgressError,
+    budget_status,
+)
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -295,6 +301,61 @@ class NotebookChatServiceTests(TestCase):
         # Act / Assert
         with self.assertRaises(UsageWorkInProgressError):
             self._submit("Different thread", conversation=second)
+
+    def _lose_worker(self, execution):
+        """Leave ``execution`` as a dead worker does: RUNNING, lease lapsed."""
+        AgentExecution.objects.filter(id=execution.id).update(
+            status=AgentExecution.Status.RUNNING,
+            usage_reservation_expires_at=timezone.now() - timedelta(seconds=1),
+        )
+
+    def test_submit_message_replaces_a_turn_whose_worker_was_lost(self):
+        # Arrange
+        lost, _delay = self._submit()
+        self._lose_worker(lost)
+
+        # Act: neither the chat's busy check nor budget admission refuses.
+        execution, _delay = self._submit("Still there?")
+
+        # Assert: the lost turn is sealed and the new one continues from it.
+        lost.refresh_from_db()
+        self.assertEqual(lost.status, AgentExecution.Status.FAILED)
+        self.assertEqual(lost.stop_reason, "worker_lost")
+        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
+        self.assertEqual(execution.context_parent_id, lost.id)
+
+    def test_a_lost_turn_in_another_chat_stops_blocking_the_user(self):
+        # Arrange
+        lost, _delay = self._submit()
+        self._lose_worker(lost)
+        second = self.service.create_conversation(self.note, self.user)
+
+        # Act
+        execution, _delay = self._submit("Different thread", conversation=second)
+
+        # Assert
+        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
+        lost.refresh_from_db()
+        self.assertEqual(lost.status, AgentExecution.Status.FAILED)
+
+    def test_run_turn_heartbeats_the_turns_lease_while_it_runs(self):
+        # Arrange
+        execution, _delay = self._submit()
+        service = _make_service(provider=FakeProvider([text_turn("Answer")]))
+
+        # Act
+        with (
+            patch.object(ReservationHeartbeat, "start", autospec=True) as start,
+            patch.object(ReservationHeartbeat, "stop", autospec=True) as stop,
+        ):
+            service.run_turn(execution.id)
+
+        # Assert: the claimed turn's lease is what the heartbeat renews.
+        (heartbeat,) = start.call_args.args
+        self.assertEqual([target.id for target in heartbeat.targets], [execution.id])
+        stop.assert_called_once()
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
 
     def test_run_turn_edits_note_and_publishes_reply(self):
         # Arrange
@@ -1024,6 +1085,24 @@ class NotebookChatEventEmissionTests(TestCase):
         for conversation_id, execution_id, _ in events:
             self.assertEqual(conversation_id, self.conversation.id)
             self.assertEqual(execution_id, execution.id)
+
+    def test_reclaiming_a_lost_turn_publishes_turn_failed(self):
+        # Arrange: the worker died mid-run and its lease lapsed.
+        execution = self._submit()
+        AgentExecution.objects.filter(id=execution.id).update(
+            status=AgentExecution.Status.RUNNING,
+            usage_reservation_expires_at=timezone.now() - timedelta(seconds=1),
+        )
+        self.publisher.reset_mock()
+
+        # Act
+        reclaimed = self.service.reclaim_lost_turns(user=self.user)
+
+        # Assert
+        self.assertEqual([item.id for item in reclaimed], [execution.id])
+        self.publisher.publish.assert_called_once_with(
+            self.conversation.id, execution.id, TURN_FAILED
+        )
 
     def test_run_turn_provider_failure_publishes_turn_failed(self):
         # Arrange

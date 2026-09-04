@@ -6,8 +6,12 @@ from django.utils import timezone
 
 from research_ai.models import AgentExecution, ProposalDraft
 
-USAGE_RESERVATION_LEASE = timedelta(hours=2)
-USAGE_RESERVATION_RENEW_INTERVAL = timedelta(minutes=10)
+# A running worker renews its lease from a background heartbeat, independent of
+# loop progress, so a dead worker is recognised within one lease period.
+USAGE_RESERVATION_LEASE = timedelta(minutes=3)
+USAGE_RESERVATION_RENEW_INTERVAL = timedelta(seconds=30)
+# How long a queued job may wait for a worker to claim it before it is presumed lost.
+USAGE_RESERVATION_CLAIM_DEADLINE = timedelta(minutes=30)
 
 ReservationTarget = AgentExecution | ProposalDraft
 
@@ -24,8 +28,13 @@ _ACTIVE_STATUSES = {
 
 
 def reservation_deadline(now: datetime | None = None) -> datetime:
-    """Return the expiry used for a newly acquired or renewed lease."""
+    """Return the expiry used for a newly claimed or renewed lease."""
     return (now or timezone.now()) + USAGE_RESERVATION_LEASE
+
+
+def claim_deadline(now: datetime | None = None) -> datetime:
+    """Return the expiry a queued job holds until a worker claims it."""
+    return (now or timezone.now()) + USAGE_RESERVATION_CLAIM_DEADLINE
 
 
 def renew_active_reservation(
@@ -46,12 +55,12 @@ def renew_active_reservation(
 def renew_live_reservation(
     target: ReservationTarget, *, now: datetime | None = None
 ) -> bool:
-    """Extend an unexpired lease while an already-started call emits activity.
+    """Extend an unexpired lease from a live worker's heartbeat.
 
-    This deliberately permits a cancelled row: streaming after cancellation is
-    proof that its worker and paid provider call are still alive. Requiring the
-    old lease to remain current prevents a delayed zombie worker from reviving a
-    reservation after admission has already treated it as expired.
+    A cancelled row is deliberately permitted: a heartbeat after cancellation
+    means the worker, and possibly its paid provider call, is still alive.
+    Refusing an expired lease keeps a delayed zombie from reviving a slot that
+    admission has already treated as released.
     """
     current = now or timezone.now()
     return bool(

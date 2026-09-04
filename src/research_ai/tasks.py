@@ -24,11 +24,21 @@ from research_ai.services.outreach.rfp_email_context import (
 )
 from research_ai.services.proposal_draft import run_proposal_draft
 from research_ai.services.proposal_draft.cancel_service import ACTIVE_STATUSES
+from research_ai.services.proposal_draft.liveness_service import (
+    ProposalDraftLivenessService,
+)
+from research_ai.services.usage_budget import ReservationHeartbeat
 from research_ai.services.usage_budget.reservation import reservation_deadline
 from researchhub.celery import QUEUE_AGENTS, app
 from user.models import User
 
 logger = logging.getLogger(__name__)
+
+# Ceilings against a runaway live worker, not liveness: a killed task's run is
+# reclaimed by ``reclaim_lost_agent_runs`` once its lease lapses.
+NOTEBOOK_CHAT_TURN_TIME_LIMIT = 2 * 60 * 60
+PROPOSAL_DRAFT_TIME_LIMIT = 4 * 60 * 60
+HARD_TIME_LIMIT_GRACE = 5 * 60
 
 
 def _update_search_progress(
@@ -238,7 +248,11 @@ def run_expert_finder_search(
         raise
 
 
-@app.task(queue=QUEUE_AGENTS)
+@app.task(
+    queue=QUEUE_AGENTS,
+    soft_time_limit=NOTEBOOK_CHAT_TURN_TIME_LIMIT,
+    time_limit=NOTEBOOK_CHAT_TURN_TIME_LIMIT + HARD_TIME_LIMIT_GRACE,
+)
 def run_notebook_chat_turn_task(execution_id: int):
     """
     Background task to run one prepared notebook chat turn.
@@ -254,6 +268,23 @@ def run_notebook_chat_turn_task(execution_id: int):
 
 
 @app.task(queue=QUEUE_AGENTS)
+def reclaim_lost_agent_runs():
+    """
+    Fail queued or running Research AI jobs whose worker stopped heartbeating.
+    """
+    executions = NotebookChatService().reclaim_lost_turns()
+    drafts = ProposalDraftLivenessService().reclaim_lost()
+    return {
+        "executions": [execution.id for execution in executions],
+        "proposal_drafts": [draft.id for draft in drafts],
+    }
+
+
+@app.task(
+    queue=QUEUE_AGENTS,
+    soft_time_limit=PROPOSAL_DRAFT_TIME_LIMIT,
+    time_limit=PROPOSAL_DRAFT_TIME_LIMIT + HARD_TIME_LIMIT_GRACE,
+)
 def run_proposal_draft_task(draft_id: int):
     """
     Background task to run one headless proposal-drafting job.
@@ -283,6 +314,8 @@ def run_proposal_draft_task(draft_id: int):
             "skipped": "already_claimed",
         }
 
+    # The claim above set the lease the heartbeat renews; load it.
+    draft.refresh_from_db()
     logger.info("Starting proposal draft", extra={"draft_id": draft_id})
     start_time = timezone.now()
     try:
@@ -291,12 +324,14 @@ def run_proposal_draft_task(draft_id: int):
             for key in ("effort", "thinking", "temperature")
             if key in draft.run_config
         }
-        result = run_proposal_draft(
-            draft.search_expert_id,
-            draft_id=draft.id,
-            model_ref=draft.model_ref or None,
-            **generation_options,
-        )
+        with ReservationHeartbeat((draft,)) as heartbeat:
+            result = run_proposal_draft(
+                draft.search_expert_id,
+                draft_id=draft.id,
+                model_ref=draft.model_ref or None,
+                heartbeat=heartbeat,
+                **generation_options,
+            )
     except Exception as e:
         logger.exception("Proposal draft task failed", extra={"draft_id": draft_id})
         # Conditional on the draft still being active, like every write the

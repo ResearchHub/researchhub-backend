@@ -1,19 +1,25 @@
 """Tests for research_ai.tasks: expert search, bulk email, send queued emails."""
 
-from unittest.mock import patch
+from datetime import timedelta
+from unittest.mock import ANY, patch
 
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from research_ai.models import (
+    AgentConversation,
+    AgentExecution,
     Expert,
     ExpertSearch,
     GeneratedEmail,
     ProposalDraft,
     SearchExpert,
 )
+from research_ai.services.usage_budget import ReservationHeartbeat
 from research_ai.tasks import (
     _update_search_progress,
     process_bulk_generate_emails_task,
+    reclaim_lost_agent_runs,
     run_proposal_draft_task,
     send_queued_emails_task,
 )
@@ -350,11 +356,24 @@ class RunProposalDraftTaskTests(TestCase):
 
         # Assert
         mock_run.assert_called_once_with(
-            self.search_expert.id, draft_id=self.draft.id, model_ref=None
+            self.search_expert.id, draft_id=self.draft.id, model_ref=None, heartbeat=ANY
         )
         self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
         self.draft.refresh_from_db()
         self.assertIsNotNone(self.draft.processing_time)
+
+    @patch("research_ai.tasks.run_proposal_draft")
+    def test_runs_the_draft_under_a_heartbeat_on_its_lease(self, mock_run):
+        # Arrange: the claim sets the lease the heartbeat renews.
+        mock_run.return_value = {"status": ProposalDraft.Status.COMPLETED}
+
+        # Act
+        run_proposal_draft_task.apply(args=[self.draft.id]).get()
+
+        # Assert
+        heartbeat = mock_run.call_args.kwargs["heartbeat"]
+        self.assertIsInstance(heartbeat, ReservationHeartbeat)
+        self.assertEqual([target.id for target in heartbeat.targets], [self.draft.id])
 
     @patch("research_ai.tasks.run_proposal_draft")
     def test_forwards_the_drafts_selected_model(self, mock_run):
@@ -374,6 +393,7 @@ class RunProposalDraftTaskTests(TestCase):
             self.search_expert.id,
             draft_id=self.draft.id,
             model_ref="claude_platform:claude-sonnet-5",
+            heartbeat=ANY,
         )
 
     @patch("research_ai.tasks.run_proposal_draft")
@@ -398,6 +418,7 @@ class RunProposalDraftTaskTests(TestCase):
             self.search_expert.id,
             draft_id=self.draft.id,
             model_ref=None,
+            heartbeat=ANY,
             effort="high",
             thinking="disabled",
             temperature=0.4,
@@ -435,3 +456,68 @@ class RunProposalDraftTaskTests(TestCase):
         mock_run.assert_not_called()
         self.assertEqual(result["status"], ProposalDraft.Status.PROCESSING)
         self.assertEqual(result["skipped"], "already_claimed")
+
+
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+class ReclaimLostAgentRunsTaskTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("reclaim_user")
+        self.lapsed = timezone.now() - timedelta(seconds=1)
+
+    def test_fails_turns_and_drafts_whose_worker_stopped_heartbeating(self):
+        # Arrange
+        conversation = AgentConversation.objects.create(
+            user=self.user, workflow="notebook_chat"
+        )
+        execution = AgentExecution.objects.create(
+            conversation=conversation,
+            status=AgentExecution.Status.RUNNING,
+            attempt=1,
+            usage_reservation_expires_at=self.lapsed,
+        )
+        expert = Expert.objects.create(email="reclaim-expert@example.edu")
+        search_expert = SearchExpert.objects.create(
+            expert_search=ExpertSearch.objects.create(
+                created_by=self.user, query="protein folding"
+            ),
+            expert=expert,
+        )
+        draft = ProposalDraft.objects.create(
+            search_expert=search_expert,
+            created_by=self.user,
+            status=ProposalDraft.Status.PROCESSING,
+            usage_reservation_expires_at=self.lapsed,
+        )
+
+        # Act
+        result = reclaim_lost_agent_runs.apply().get()
+
+        # Assert
+        self.assertEqual(
+            result, {"executions": [execution.id], "proposal_drafts": [draft.id]}
+        )
+        execution.refresh_from_db()
+        draft.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.FAILED)
+        self.assertEqual(execution.stop_reason, "worker_lost")
+        self.assertEqual(draft.status, ProposalDraft.Status.FAILED)
+
+    def test_leaves_live_work_alone(self):
+        # Arrange
+        conversation = AgentConversation.objects.create(
+            user=self.user, workflow="notebook_chat"
+        )
+        execution = AgentExecution.objects.create(
+            conversation=conversation,
+            status=AgentExecution.Status.RUNNING,
+            attempt=1,
+            usage_reservation_expires_at=timezone.now() + timedelta(minutes=1),
+        )
+
+        # Act
+        result = reclaim_lost_agent_runs.apply().get()
+
+        # Assert
+        self.assertEqual(result, {"executions": [], "proposal_drafts": []})
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.RUNNING)

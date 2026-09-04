@@ -275,56 +275,18 @@ class AgentLoopBudgetRecorderTests(TestCase):
             recorder.before_model_call()
         self.assertEqual(LLMUsageEvent.objects.filter(user=self.user).count(), 10)
 
-    def test_stream_activity_renews_a_cancelled_in_flight_lease(self):
-        # Arrange
+    def test_stream_activity_leaves_the_lease_to_the_heartbeat(self):
+        # Arrange: liveness is the worker heartbeat's job, so a burst of stream
+        # events must not stand in for one.
         old_expiry = timezone.now() + timedelta(minutes=1)
         execution = self._execution(
-            status=AgentExecution.Status.CANCELLED,
+            status=AgentExecution.Status.RUNNING,
             expires_at=old_expiry,
         )
 
         # Act
         self._recorder(execution).record_stream_event(
             1, TextStreamDelta(block_index=0, text="still running")
-        )
-
-        # Assert
-        execution.refresh_from_db()
-        self.assertGreater(execution.usage_reservation_expires_at, old_expiry)
-
-    def test_stream_activity_throttles_lease_renewals(self):
-        # Arrange
-        execution = self._execution(
-            status=AgentExecution.Status.RUNNING,
-            expires_at=timezone.now() + timedelta(minutes=1),
-        )
-        recorder = self._recorder(execution)
-
-        # Act
-        with patch(
-            "research_ai.services.usage_budget.recorder.renew_live_reservation"
-        ) as renew:
-            recorder.record_stream_event(
-                1, TextStreamDelta(block_index=0, text="first event")
-            )
-            recorder.record_stream_event(
-                1, TextStreamDelta(block_index=0, text="second event")
-            )
-
-        # Assert
-        renew.assert_called_once()
-
-    def test_expired_lease_cannot_be_resurrected_by_a_zombie_worker(self):
-        # Arrange
-        old_expiry = timezone.now() - timedelta(seconds=1)
-        execution = self._execution(
-            status=AgentExecution.Status.CANCELLED,
-            expires_at=old_expiry,
-        )
-
-        # Act
-        self._recorder(execution).record_stream_event(
-            1, TextStreamDelta(block_index=0, text="late event")
         )
 
         # Assert
