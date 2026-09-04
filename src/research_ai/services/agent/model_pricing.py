@@ -8,7 +8,7 @@ from research_ai.services.agent.providers.registry import split_model_ref
 from research_ai.services.agent.types import TurnUsage
 
 # A fixed reference keeps displayed multipliers stable when the catalog changes.
-COST_MULTIPLIER_BASE_MODEL = "openrouter:deepseek/deepseek-v4-flash-0731"
+COST_MULTIPLIER_BASE_MODEL = "openrouter:x-ai/grok-4.6"
 
 
 @dataclass(frozen=True)
@@ -205,4 +205,4 @@ def cost_multiplier(ref: str) -> Decimal | None:
         return None
     baseline = base.input_usd_per_mtok + base.output_usd_per_mtok
     blended = pricing.input_usd_per_mtok + pricing.output_usd_per_mtok
-    return (blended / baseline).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+    return (blended / baseline).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
