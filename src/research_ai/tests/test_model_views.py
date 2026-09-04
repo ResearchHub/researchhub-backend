@@ -54,6 +54,7 @@ class AvailableModelsViewTests(APITestCase):
                 [
                     "allowed",
                     "capabilities",
+                    "credit_rates",
                     "description",
                     "label",
                     "multiplier",
@@ -70,3 +71,13 @@ class AvailableModelsViewTests(APITestCase):
         self.assertIn("low", opus["capabilities"]["effort"])
         self.assertEqual(opus["capabilities"]["thinking"], ["adaptive", "disabled"])
         self.assertFalse(opus["capabilities"]["temperature"])
+        self.assertEqual(opus["multiplier"], "142.9")
+        self.assertEqual(opus["credit_rates"]["input_per_million_tokens"], "5000")
+        self.assertEqual(
+            data["credit_pricing"],
+            {
+                "multiplier_base_model": "openrouter:deepseek/deepseek-v4-flash-0731",
+                "multiplier_basis": "equal_input_output_tokens",
+                "multiplier_is_estimate": True,
+            },
+        )

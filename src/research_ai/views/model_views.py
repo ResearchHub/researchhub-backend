@@ -13,8 +13,13 @@ from rest_framework.views import APIView
 from research_ai.permissions import ResearchAIBudgetPermission
 from research_ai.services.agent import available_models
 from research_ai.services.agent.model_capabilities import EFFORT_LEVELS
-from research_ai.services.agent.model_pricing import cost_multiplier, model_pricing
+from research_ai.services.agent.model_pricing import (
+    COST_MULTIPLIER_BASE_MODEL,
+    cost_multiplier,
+    model_pricing,
+)
 from research_ai.services.agent.providers.registry import split_model_ref
+from research_ai.services.credit_service import model_credit_rates
 from research_ai.services.usage_budget import (
     ModelNotAllowedError,
     budget_status,
@@ -67,6 +72,11 @@ class AvailableModelsView(APIView):
         return Response(
             {
                 "default": tier_default,
+                "credit_pricing": {
+                    "multiplier_base_model": COST_MULTIPLIER_BASE_MODEL,
+                    "multiplier_basis": "equal_input_output_tokens",
+                    "multiplier_is_estimate": True,
+                },
                 "models": [
                     {
                         "ref": option.ref,
@@ -75,6 +85,7 @@ class AvailableModelsView(APIView):
                         "provider": option.provider,
                         "capabilities": capabilities(option),
                         "allowed": allowed(option),
+                        "credit_rates": model_credit_rates(option.ref),
                         "multiplier": (
                             str(multiplier)
                             if (multiplier := cost_multiplier(option.ref)) is not None

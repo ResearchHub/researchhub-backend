@@ -1,10 +1,10 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from threading import Event, Thread
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.db import close_old_connections
-from django.test import TestCase, TransactionTestCase, override_settings
+from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -21,6 +21,7 @@ from research_ai.services.agent.types import (
 from research_ai.services.usage_budget import (
     AgentLoopBudgetRecorder,
     BudgetExceededError,
+    BudgetStatus,
     UsageLimitExceededError,
     UsageWorkInProgressError,
     atomic_turn_admission,
@@ -116,6 +117,10 @@ class UsageBudgetTests(TestCase):
         self.assertEqual(status.spent_today_microusd, 1_650)
         self.assertEqual(status.turns_used, 1)
         self.assertEqual(status.remaining_microusd, 248_350)
+        self.assertEqual(
+            status.as_dict()["credits"],
+            {"daily_limit": "250", "used": "1.65", "remaining": "248.35"},
+        )
 
     def test_admission_raises_when_daily_turn_cap_is_spent(self):
         # Arrange
@@ -442,6 +447,31 @@ class AtomicAdmissionTests(TransactionTestCase):
             pass
 
 
+class CreditBudgetStatusTests(SimpleTestCase):
+    def test_credit_meter_preserves_unlimited_and_exhausted_budgets(self):
+        # Arrange
+        cases = [
+            (None, None, None),
+            (250_000, "250", "0"),
+        ]
+
+        # Act / Assert
+        for budget, limit, remaining in cases:
+            with self.subTest(budget=budget):
+                meter = BudgetStatus(
+                    tier="default",
+                    daily_budget_microusd=budget,
+                    spent_today_microusd=300_001,
+                    turns_used=12,
+                    turn_cap=None,
+                    resets_at=datetime(2026, 9, 5, tzinfo=UTC),
+                ).as_dict()["credits"]
+                self.assertEqual(
+                    meter,
+                    {"daily_limit": limit, "used": "300.001", "remaining": remaining},
+                )
+
+
 class UsageBudgetAPITests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("budget-api")
@@ -457,6 +487,7 @@ class UsageBudgetAPITests(TestCase):
         self.assertEqual(
             sorted(response.json()),
             [
+                "credits",
                 "daily_budget",
                 "remaining",
                 "resets_at",
@@ -467,3 +498,7 @@ class UsageBudgetAPITests(TestCase):
             ],
         )
         self.assertEqual(response.json()["tier"], "default")
+        self.assertEqual(
+            response.json()["credits"],
+            {"daily_limit": "250", "used": "0", "remaining": "250"},
+        )

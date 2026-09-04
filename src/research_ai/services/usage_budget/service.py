@@ -25,6 +25,7 @@ from research_ai.services.agent.providers.registry import (
     split_model_ref,
 )
 from research_ai.services.agent.types import TurnUsage
+from research_ai.services.credit_service import credits_from_microusd
 from research_ai.services.usage_budget.config import (
     BUDGETS_ENFORCED,
     TierPolicy,
@@ -87,6 +88,11 @@ class BudgetStatus:
             "turns_used": self.turns_used,
             "turn_cap": self.turn_cap,
             "resets_at": self.resets_at.isoformat().replace("+00:00", "Z"),
+            "credits": {
+                "daily_limit": credits_from_microusd(self.daily_budget_microusd),
+                "used": credits_from_microusd(self.spent_today_microusd),
+                "remaining": credits_from_microusd(self.remaining_microusd),
+            },
         }
 
 
